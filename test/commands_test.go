@@ -399,110 +399,6 @@ func TestListHelperTemplatesCommand(t *testing.T) {
 	}
 }
 
-// TestDispatchCommands tests dispatch-related commands
-func TestDispatchCommands(t *testing.T) {
-	h := hub.NewHub()
-	handler, err := hub.NewCommandHandler(h)
-	if err != nil {
-		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
-	}
-
-	// Test dispatch list command
-	listMsg := protocol.NewMessage(
-		protocol.MessageTypeChat,
-		"test-channel",
-		protocol.AgentInfo{
-			ID:   "user-123",
-			Name: "TestUser",
-			Type: protocol.AgentTypeGeneral,
-		},
-		"/dispatch-list",
-	)
-
-	ctx := context.Background()
-	response, err := handler.ProcessCommand(ctx, listMsg)
-	if err != nil {
-		t.Fatalf("Expected dispatch list command to succeed, got error: %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected dispatch list command to return a response")
-	}
-
-	// Test dispatch command
-	dispatchMsg := protocol.NewMessage(
-		protocol.MessageTypeChat,
-		"test-channel",
-		protocol.AgentInfo{
-			ID:   "user-123",
-			Name: "TestUser",
-			Type: protocol.AgentTypeGeneral,
-		},
-		"/dispatch echo hello",
-	)
-
-	response, err = handler.ProcessCommand(ctx, dispatchMsg)
-	if err != nil {
-		t.Fatalf("Expected dispatch command to succeed, got error: %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected dispatch command to return a response")
-	}
-}
-
-// TestApprovalCommands tests approval-related commands
-func TestApprovalCommands(t *testing.T) {
-	h := hub.NewHub()
-	handler, err := hub.NewCommandHandler(h)
-	if err != nil {
-		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
-	}
-
-	// Test approve command
-	approveMsg := protocol.NewMessage(
-		protocol.MessageTypeChat,
-		"test-channel",
-		protocol.AgentInfo{
-			ID:   "user-123",
-			Name: "TestUser",
-			Type: protocol.AgentTypeGeneral,
-		},
-		"/approve NonExistentRequest",
-	)
-
-	ctx := context.Background()
-	response, err := handler.ProcessCommand(ctx, approveMsg)
-	if err != nil {
-		t.Fatalf("Expected approve command to succeed, got error: %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected approve command to return a response")
-	}
-
-	// Test reject command
-	rejectMsg := protocol.NewMessage(
-		protocol.MessageTypeChat,
-		"test-channel",
-		protocol.AgentInfo{
-			ID:   "user-123",
-			Name: "TestUser",
-			Type: protocol.AgentTypeGeneral,
-		},
-		"/reject NonExistentRequest",
-	)
-
-	response, err = handler.ProcessCommand(ctx, rejectMsg)
-	if err != nil {
-		t.Fatalf("Expected reject command to succeed, got error: %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected reject command to return a response")
-	}
-}
-
 // TestConfluenceCommands tests confluence-related commands
 func TestConfluenceCommands(t *testing.T) {
 	h := hub.NewHub()
@@ -782,10 +678,6 @@ func TestCommandParsing(t *testing.T) {
 		{"/disable-watch TestAgent", true},
 		{"/create-helper TestHelper Test description", true},
 		{"/list-helper-templates", true},
-		{"/dispatch echo hello", true},
-		{"/dispatch-list", true},
-		{"/approve TestRequest", true},
-		{"/reject TestRequest", true},
 		{"/create-confluence-agent TestAgent", true},
 		{"/list-confluence-agents", true},
 		{"/add-workspace /tmp/test", true},

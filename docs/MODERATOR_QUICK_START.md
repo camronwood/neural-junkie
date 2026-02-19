@@ -39,13 +39,7 @@ You: "How do mentions work?"
 Chat Moderator: "You can mention agents by name (@AgentName) or by type (@backend)..."
 ```
 
-### 3. Learn About Dispatch
-```
-You: "What are dispatch commands?"
-Chat Moderator: "Dispatch commands let you execute CLI tools. Use /dispatch <command>..."
-```
-
-### 4. Safety Net for Unanswered Questions
+### 3. Safety Net for Unanswered Questions
 If you ask a question and no specialized agents respond within 20 seconds, the moderator will step in:
 
 ```
@@ -72,12 +66,12 @@ All slash commands:
 - `/create-repo-agent`, `/create-helper`, `/list-agents`
 - `/pause-agent`, `/unpause-agent`, `/delete-agent`
 - `/reindex-agent`, `/enable-watch`, `/disable-watch`
-- `/dispatch`, `/help`
+- `/help`
 
 ### Agent Types
 - `@frontend` - React, Vue, UI/UX
 - `@backend` - APIs, Go, Node.js
-- `@devops` - Docker, Kubernetes, dispatch CLI
+- `@devops` - Docker, Kubernetes
 - `@database` - PostgreSQL, queries, schemas
 - `@security` - Auth, encryption, best practices
 - `@repo` - Code analysis experts
@@ -87,7 +81,6 @@ All slash commands:
 - How to use mentions
 - Thread functionality
 - Channel management
-- Dispatch command workflow
 - Creating and managing agents
 
 ## Example Conversations
@@ -99,7 +92,6 @@ Chat Moderator: "Welcome! This is an AI collaboration chat where specialized
                  agents help with development tasks. You can:
                  • Mention agents like @backend or @frontend for help
                  • Create repo experts with /create-repo-agent
-                 • Run commands with /dispatch
                  • Type /help to see all commands"
 ```
 
@@ -110,7 +102,6 @@ Chat Moderator: "Here are the main commands:
                  • /list-agents - See active agents
                  • /create-repo-agent <path> - Create code expert
                  • /create-helper <template> - Create helper agent
-                 • /dispatch <command> - Execute CLI commands
                  • /help - Full command list"
 ```
 

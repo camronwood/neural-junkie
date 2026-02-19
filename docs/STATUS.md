@@ -50,8 +50,6 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - **CLI Tool** -- Scripting, automation, MCP resource server
 
 ### Integrations
-- **Dispatch CLI** -- kubectl, aws, docker, sops, workstation with approval workflows
-- **GitHub CLI** -- Issues, PRs, repos, workflows via dispatch
 - **Confluence Cloud** -- Space indexing, page search, documentation Q&A
 - **MCP Export/Import** -- Export agent knowledge to MCP format for sharing
 
@@ -65,7 +63,7 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 ## Test Coverage
 
 - Unit tests across core packages
-- Integration tests for message flow, commands, dispatch, deduplication
+- Integration tests for message flow, commands, deduplication
 - Agent-specific tests (repo, helper, assistant, moderator, hub, review)
 - Architecture and thread-safety tests
 

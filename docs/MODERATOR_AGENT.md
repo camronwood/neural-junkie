@@ -25,7 +25,6 @@ The moderator intelligently tracks user messages and monitors for responses:
 ### 4. **Comprehensive Chat Knowledge**
 The moderator has built-in knowledge about:
 - All slash commands and their usage
-- Dispatch command workflow
 - Agent types and their specializations
 - Mention system (@name, @type)
 - Thread functionality
@@ -84,7 +83,6 @@ Moderator: [Provides detailed command information]
 Responds to questions containing keywords like:
 - "how do i", "how to"
 - "command", "/"
-- "dispatch", "subenv"
 - "mention", "@"
 - "thread", "channel"
 - "agent", "help"
@@ -130,12 +128,11 @@ The moderator can help with:
 - `/reindex-agent <name>` - Reindex a repo agent
 - `/enable-watch <name>` - Enable file watching
 - `/disable-watch <name>` - Disable file watching
-- `/dispatch <command>` - Execute dispatch command
 
 ### Agent Types
 - `@frontend` - React, Vue, Angular, UI/UX
 - `@backend` - Go, Node.js, APIs, microservices
-- `@devops` - Docker, Kubernetes, CI/CD, dispatch CLI
+- `@devops` - Docker, Kubernetes, CI/CD
 - `@database` - PostgreSQL, schema design, queries
 - `@security` - Authentication, encryption, best practices
 - `@repo` - Repository-specific code experts
@@ -145,7 +142,6 @@ The moderator can help with:
 - Mention system (@name or @type)
 - Thread functionality
 - Channel management
-- Dispatch command approval workflow
 
 ## Usage Examples
 

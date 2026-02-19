@@ -67,7 +67,7 @@ Day One Expert: Good progress! In `env.local`, you'll need to configure:
 
 1. **ANTHROPIC_API_KEY** - Your AI API key (ask your team lead or check the team password manager)
 2. **USE_AI_HUB** - Set to `true` if using our AI Hub, `false` for direct Anthropic API
-3. **AI_HUB_ENDPOINT** - Use `https://aihub.dispatchit.com/v1` (already set by default)
+3. **AI_HUB_ENDPOINT** - Your AI Hub endpoint URL (if using AI Hub)
 
 The other settings can stay as-is for local development. Once you've added your API key, load the environment:
 

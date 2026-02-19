@@ -36,10 +36,9 @@ func NewClaudeProvider() (*ClaudeProvider, error) {
 	model := "claude-3-5-sonnet-20241022"
 
 	if useAIHub {
-		// Use AI Hub proxy endpoint
 		aiHubEndpoint := os.Getenv("AI_HUB_ENDPOINT")
 		if aiHubEndpoint == "" {
-			aiHubEndpoint = "https://aihub.dispatchit.com/v1"
+			return nil, fmt.Errorf("USE_AI_HUB=true but AI_HUB_ENDPOINT is not set")
 		}
 		baseURL = aiHubEndpoint
 

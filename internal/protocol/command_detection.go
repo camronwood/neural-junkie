@@ -9,21 +9,11 @@ import (
 )
 
 // CommandDetector detects shell commands in agent responses
-type CommandDetector struct {
-	dispatchRegistry interface {
-		IsKnownCommand(plugin, subCmd string) bool
-		IsReadOnly(plugin, subCmd string) bool
-	}
-}
+type CommandDetector struct{}
 
 // NewCommandDetector creates a new command detector
-func NewCommandDetector(dispatchRegistry interface {
-	IsKnownCommand(plugin, subCmd string) bool
-	IsReadOnly(plugin, subCmd string) bool
-}) *CommandDetector {
-	return &CommandDetector{
-		dispatchRegistry: dispatchRegistry,
-	}
+func NewCommandDetector(_ interface{}) *CommandDetector {
+	return &CommandDetector{}
 }
 
 // DetectCommands scans message content for shell commands and returns suggestions
@@ -55,18 +45,6 @@ func (cd *CommandDetector) DetectCommands(content, agentName, messageID string) 
 				suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
 				suggestions = append(suggestions, suggestion)
 			}
-		}
-	}
-
-	// Look for dispatch commands specifically
-	dispatchRegex := regexp.MustCompile("`(/dispatch [^`]+)`")
-	dispatchMatches := dispatchRegex.FindAllStringSubmatch(content, -1)
-
-	for _, match := range dispatchMatches {
-		if len(match) > 1 {
-			command := strings.TrimSpace(match[1])
-			suggestion := cd.createDispatchSuggestion(command, agentName, messageID, content)
-			suggestions = append(suggestions, suggestion)
 		}
 	}
 
@@ -114,39 +92,6 @@ func (cd *CommandDetector) createCommandSuggestion(command, agentName, messageID
 		Plugin:      "shell",
 		Description: description,
 		IsSafe:      cd.isSafeCommand(command),
-		AgentName:   agentName,
-		MessageID:   messageID,
-		CreatedAt:   time.Now(),
-	}
-}
-
-// createDispatchSuggestion creates a command suggestion for a dispatch command
-func (cd *CommandDetector) createDispatchSuggestion(command, agentName, messageID, content string) CommandSuggestion {
-	description := cd.extractDescription(command, content)
-
-	// Parse dispatch command to get plugin and subcommand
-	parts := strings.Fields(command)
-	plugin := "unknown"
-	subCmd := "unknown"
-
-	if len(parts) >= 3 && parts[0] == "/dispatch" {
-		plugin = parts[1]
-		subCmd = parts[2]
-	}
-
-	// Check if it's a known dispatch command and if it's read-only
-	isKnown := cd.dispatchRegistry.IsKnownCommand(plugin, subCmd)
-	isReadOnly := false
-	if isKnown {
-		isReadOnly = cd.dispatchRegistry.IsReadOnly(plugin, subCmd)
-	}
-
-	return CommandSuggestion{
-		ID:          uuid.New().String(),
-		Command:     command,
-		Plugin:      plugin,
-		Description: description,
-		IsSafe:      isReadOnly,
 		AgentName:   agentName,
 		MessageID:   messageID,
 		CreatedAt:   time.Now(),

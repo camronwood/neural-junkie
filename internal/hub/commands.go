@@ -2,7 +2,6 @@ package hub
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,8 +10,6 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
-	"github.com/camronwood/neural-junkie/internal/dispatch"
-
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
@@ -26,10 +23,6 @@ type CommandHandler struct {
 	helperAgents      map[string]*agent.HelperAgent      // Track helper agents for management
 	confluenceAgents  map[string]*agent.ConfluenceAgent  // Track confluence agents for management
 	assistantAgent    *agent.AssistantAgent              // Track assistant agent for meeting notes
-	dispatchExec      *dispatch.Executor                 // Dispatch command executor
-	dispatchRegistry  *dispatch.CommandRegistry          // Dispatch command registry
-	dispatchApproval  *dispatch.ApprovalManager          // Dispatch approval manager
-	dispatchFormatter *dispatch.Formatter                // Dispatch output formatter
 	exportStorage     *mcp_export.ExportStorage          // Export storage for MCP exports
 	pendingReviews    map[string]*protocol.PendingReview // Track pending reviews by repo path
 	pendingMutex      sync.Mutex                         // Protects pending reviews map
@@ -50,12 +43,6 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 		fmt.Printf("✅ Ollama provider initialized for repo agents (model: %s)\n", ollamaProvider.GetModel())
 	}
 
-	// Initialize dispatch components
-	dispatchExec := dispatch.NewExecutor()
-	dispatchRegistry := dispatch.NewCommandRegistry()
-	dispatchApproval := dispatch.NewApprovalManager(dispatchExec, dispatchRegistry)
-	dispatchFormatter := dispatch.NewFormatter()
-
 	// Initialize export storage
 	exportStorage, err := mcp_export.NewExportStorage()
 	if err != nil {
@@ -68,10 +55,6 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 		repoAgents:        make(map[string]*agent.RepoAgent),
 		helperAgents:      make(map[string]*agent.HelperAgent),
 		confluenceAgents:  make(map[string]*agent.ConfluenceAgent),
-		dispatchExec:      dispatchExec,
-		dispatchRegistry:  dispatchRegistry,
-		dispatchApproval:  dispatchApproval,
-		dispatchFormatter: dispatchFormatter,
 		exportStorage:     exportStorage,
 		pendingReviews:    make(map[string]*protocol.PendingReview),
 	}, nil
@@ -123,14 +106,6 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 		return ch.handleListAgents(ctx, msg)
 	case "/list-confluence-agents":
 		return ch.handleListConfluenceAgents(ctx, msg)
-	case "/dispatch":
-		return ch.handleDispatch(ctx, msg, parts)
-	case "/dispatch-list":
-		return ch.handleDispatchList(ctx, msg)
-	case "/approve":
-		return ch.handleApprove(ctx, msg, parts)
-	case "/reject":
-		return ch.handleReject(ctx, msg, parts)
 	case "/remove-agent":
 		return ch.handleRemoveAgent(ctx, msg, parts)
 	case "/recall-agent":
@@ -756,8 +731,7 @@ func (ch *CommandHandler) handleCreateHelper(ctx context.Context, msg *protocol.
 				"**Available templates:**\n"+
 				"• `day-one` or `dayoneexpert` - Day One Expert (onboarding help)\n"+
 				"• `testing-expert` or `testingexpert` - Testing Expert (testing practices)\n"+
-				"• `docs-expert` or `docsexpert` - Docs Expert (documentation help)\n"+
-				"• `subenv-expert` or `subenvexpert` - Subenv Expert (subenvironment management)\n\n"+
+				"• `docs-expert` or `docsexpert` - Docs Expert (documentation help)\n\n"+
 				"Use `/list-helper-templates` for detailed information."), nil
 	}
 
@@ -788,9 +762,6 @@ func (ch *CommandHandler) handleCreateHelper(ctx context.Context, msg *protocol.
 				"docsexpert":     "docs-expert",
 				"docs":           "docs-expert",
 				"docs-expert":    "docs-expert",
-				"subenvexpert":   "subenv-expert",
-				"subenv":         "subenv-expert",
-				"subenv-expert":  "subenv-expert",
 			}
 
 			if variation, exists := variations[normalized]; exists {
@@ -806,8 +777,7 @@ func (ch *CommandHandler) handleCreateHelper(ctx context.Context, msg *protocol.
 				"**Common variations:**\n"+
 				"• `day-one` or `dayoneexpert` for Day One Expert\n"+
 				"• `testing-expert` or `testingexpert` for Testing Expert\n"+
-				"• `docs-expert` or `docsexpert` for Docs Expert\n"+
-				"• `subenv-expert` or `subenvexpert` for Subenv Expert", templateName)), nil
+				"• `docs-expert` or `docsexpert` for Docs Expert", templateName)), nil
 	}
 
 	// Initialize storage and save template if needed
@@ -902,7 +872,7 @@ func (ch *CommandHandler) handleListHelperTemplates(ctx context.Context, msg *pr
 	response.WriteString("📋 **Available Helper Agent Templates:**\n\n")
 
 	// Sort templates for consistent output
-	templateNames := []string{"day-one", "testing-expert", "docs-expert", "subenv-expert"}
+	templateNames := []string{"day-one", "testing-expert", "docs-expert"}
 
 	for _, name := range templateNames {
 		if config, ok := templates[name]; ok {
@@ -939,11 +909,6 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/pause-agent <name>` - Pause an agent (stops responding)\n" +
 		"• `/unpause-agent <name>` - Resume a paused agent\n" +
 		"• `/list-agents` - List all agents in the channel\n\n" +
-		"**Dispatch CLI:**\n" +
-		"• `/dispatch <plugin> <command> [args...]` - Execute dispatch CLI commands\n" +
-		"• `/dispatch-list` - List all available dispatch commands\n" +
-		"• `/approve <id>` - Approve a pending dispatch command\n" +
-		"• `/reject <id>` - Reject a pending dispatch command\n\n" +
 		"**MCP Exports:**\n" +
 		"• `/export-agent-mcp <name>` - Export an agent to MCP format\n" +
 		"• `/list-exports` - List all exported agents\n" +
@@ -959,130 +924,9 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"/create-repo-agent /path/to/my-project MyProjectExpert\n" +
 		"/create-helper day-one\n" +
 		"/enable-watch MyProjectExpert\n" +
-		"/dispatch subenv list\n" +
-		"/dispatch sops view secrets.yaml\n" +
 		"```\n"
 
 	return ch.systemResponse(msg.Channel, help), nil
-}
-
-// handleDispatch executes a dispatch CLI command
-func (ch *CommandHandler) handleDispatch(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	if len(parts) < 3 {
-		return ch.systemResponse(msg.Channel,
-			"Usage: `/dispatch <plugin> <command> [args...]`\n\n"+
-				"Example: `/dispatch subenv list`\n"+
-				"Use `/dispatch-list` to see all available commands."), nil
-	}
-
-	// Check if dispatch CLI is installed
-	if !ch.dispatchExec.IsDispatchInstalled() {
-		return ch.systemResponse(msg.Channel, ch.dispatchFormatter.FormatNotInstalled()), nil
-	}
-
-	plugin := parts[1]
-	subCmd := parts[2]
-	args := []string{}
-	if len(parts) > 3 {
-		args = parts[3:]
-	}
-
-	// Check if command is known
-	if !ch.dispatchRegistry.IsKnownCommand(plugin, subCmd) {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("⚠️  Unknown command: `%s %s`\n\n"+
-				"This command is not registered. It may still work, but proceed with caution.\n"+
-				"Use `/dispatch-list` to see known commands.", plugin, subCmd)), nil
-	}
-
-	// Check if command is read-only
-	isReadOnly := ch.dispatchRegistry.IsReadOnly(plugin, subCmd)
-
-	if isReadOnly {
-		// Execute immediately for read-only commands
-		result, err := ch.dispatchExec.ExecuteCommand(ctx, plugin, subCmd, args)
-		if err != nil {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("❌ Failed to execute command: %v", err)), nil
-		}
-
-		// Format and return output as command_output message type
-		return ch.commandOutputResponse(msg.Channel, result), nil
-	}
-
-	// Require approval for write commands
-	approval, err := ch.dispatchApproval.RequestApproval(
-		msg.From.ID,
-		msg.From.Name,
-		msg.Channel,
-		plugin,
-		subCmd,
-		args,
-	)
-	if err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to create approval request: %v", err)), nil
-	}
-
-	// Return approval request message
-	return ch.systemResponse(msg.Channel, ch.dispatchFormatter.FormatApprovalRequest(approval)), nil
-}
-
-// handleDispatchList lists all available dispatch commands
-func (ch *CommandHandler) handleDispatchList(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
-	// Check if dispatch CLI is installed
-	if !ch.dispatchExec.IsDispatchInstalled() {
-		return ch.systemResponse(msg.Channel, ch.dispatchFormatter.FormatNotInstalled()), nil
-	}
-
-	commands := ch.dispatchRegistry.GetAllCommands()
-	return ch.systemResponse(msg.Channel, ch.dispatchFormatter.FormatCommandList(commands)), nil
-}
-
-// handleApprove approves and executes a pending dispatch command
-func (ch *CommandHandler) handleApprove(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	if len(parts) < 2 {
-		return ch.systemResponse(msg.Channel, "Usage: `/approve <approval-id>`"), nil
-	}
-
-	approvalID := parts[1]
-
-	// Approve the command
-	approval, err := ch.dispatchApproval.ApproveCommand(approvalID, msg.From.ID)
-	if err != nil {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
-	}
-
-	// Send approval confirmation
-	ch.hub.SendMessage(ch.systemResponse(msg.Channel, ch.dispatchFormatter.FormatApproved(approval)))
-
-	// Execute the command
-	result, err := ch.dispatchExec.ExecuteCommand(ctx, approval.Plugin, approval.SubCmd, approval.Args)
-	if err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to execute command: %v", err)), nil
-	}
-
-	// Return command output
-	return ch.commandOutputResponse(msg.Channel, result), nil
-}
-
-// handleReject rejects a pending dispatch command
-func (ch *CommandHandler) handleReject(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	if len(parts) < 2 {
-		return ch.systemResponse(msg.Channel, "Usage: `/reject <approval-id>`"), nil
-	}
-
-	approvalID := parts[1]
-
-	// Reject the command
-	approval, err := ch.dispatchApproval.RejectCommand(approvalID, msg.From.ID)
-	if err != nil {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
-	}
-
-	// Return rejection confirmation
-	return ch.systemResponse(msg.Channel, ch.dispatchFormatter.FormatRejected(approval)), nil
 }
 
 // systemResponse creates a system message response
@@ -1097,38 +941,6 @@ func (ch *CommandHandler) systemResponse(channel, content string) *protocol.Mess
 		},
 		content,
 	)
-}
-
-// commandOutputResponse creates a command output message response
-func (ch *CommandHandler) commandOutputResponse(channel string, result *dispatch.CommandResult) *protocol.Message {
-	msg := protocol.NewMessage(
-		protocol.MessageTypeCommandOutput,
-		channel,
-		protocol.AgentInfo{
-			ID:   "system",
-			Name: "System",
-			Type: protocol.AgentTypeGeneral,
-		},
-		ch.dispatchFormatter.FormatOutput(result),
-	)
-
-	// Store command output in metadata
-	output := &protocol.CommandOutput{
-		Command:  result.Command,
-		Plugin:   result.Plugin,
-		ExitCode: result.ExitCode,
-		Stdout:   result.Stdout,
-		Stderr:   result.Stderr,
-		Duration: result.Duration,
-		Success:  result.Success,
-	}
-
-	// Serialize to JSON for metadata
-	if outputJSON, err := json.Marshal(output); err == nil {
-		msg.Metadata["command_output"] = string(outputJSON)
-	}
-
-	return msg
 }
 
 // handleCreateConfluenceAgent creates a new Confluence space expert agent
@@ -2837,38 +2649,6 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 			Description: "List agents that have been removed from channels",
 			Category:    "Agent Management",
 			Arguments:   []protocol.CommandArgument{},
-		},
-
-		// ── Dispatch ───────────────────────────────────────────────────
-		{
-			Name:        "/dispatch",
-			Description: "Run a dispatch CLI command",
-			Category:    "Dispatch",
-			Arguments: []protocol.CommandArgument{
-				{Name: "command", Description: "The dispatch command to run (e.g. git status)", Type: "string", Required: true},
-			},
-		},
-		{
-			Name:        "/dispatch-list",
-			Description: "List available dispatch commands",
-			Category:    "Dispatch",
-			Arguments:   []protocol.CommandArgument{},
-		},
-		{
-			Name:        "/approve",
-			Description: "Approve a pending dispatch command",
-			Category:    "Dispatch",
-			Arguments: []protocol.CommandArgument{
-				{Name: "command-id", Description: "ID of the pending command to approve", Type: "string", Required: true},
-			},
-		},
-		{
-			Name:        "/reject",
-			Description: "Reject a pending dispatch command",
-			Category:    "Dispatch",
-			Arguments: []protocol.CommandArgument{
-				{Name: "command-id", Description: "ID of the pending command to reject", Type: "string", Required: true},
-			},
 		},
 
 		// ── MCP Export/Import ──────────────────────────────────────────

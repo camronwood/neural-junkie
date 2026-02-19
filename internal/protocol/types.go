@@ -133,15 +133,15 @@ type ThreadMetadata struct {
 	Participants  []string  `json:"participants"` // Agent/user names who participated in thread
 }
 
-// CommandOutput represents the result of executing a dispatch command
+// CommandOutput represents the result of executing a CLI command
 type CommandOutput struct {
-	Command  string        `json:"command"`   // Full command string
-	Plugin   string        `json:"plugin"`    // dispatch plugin name
-	ExitCode int           `json:"exit_code"` // Exit code
-	Stdout   string        `json:"stdout"`    // Standard output
-	Stderr   string        `json:"stderr"`    // Standard error
-	Duration time.Duration `json:"duration"`  // Execution time
-	Success  bool          `json:"success"`   // Whether command succeeded
+	Command  string        `json:"command"`
+	Plugin   string        `json:"plugin"`
+	ExitCode int           `json:"exit_code"`
+	Stdout   string        `json:"stdout"`
+	Stderr   string        `json:"stderr"`
+	Duration time.Duration `json:"duration"`
+	Success  bool          `json:"success"`
 }
 
 // CachedAgentInfo represents a cached agent that can be loaded
@@ -290,7 +290,7 @@ func IsUserCreatedAgent(agentType string) bool {
 type CommandSuggestion struct {
 	ID          string    `json:"id"`          // Unique identifier for this suggestion
 	Command     string    `json:"command"`     // The command to execute
-	Plugin      string    `json:"plugin"`      // Plugin name (for dispatch commands) or "shell"
+	Plugin      string    `json:"plugin"`
 	Description string    `json:"description"` // Human-readable description
 	IsSafe      bool      `json:"is_safe"`     // Whether command is read-only/safe
 	AgentName   string    `json:"agent_name"`  // Name of agent who suggested it

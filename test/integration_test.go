@@ -624,7 +624,6 @@ func TestCommandIntegration(t *testing.T) {
 		"/list-agents",
 		"/create-helper TestHelper Test helper agent",
 		"/list-helper-templates",
-		"/dispatch-list",
 		"/add-workspace /tmp/test",
 		"/list-workspaces",
 	}

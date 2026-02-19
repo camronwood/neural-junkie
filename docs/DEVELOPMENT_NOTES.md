@@ -28,7 +28,6 @@ neural-junkie/
 │   ├── ai/                    # Providers: Ollama, Claude, LM Studio, Mock, CLI
 │   ├── repo/                  # Repository indexing, search, watching, compression
 │   ├── confluence/            # Confluence client, indexing, search, storage
-│   ├── dispatch/              # Dispatch CLI executor, approval, registry
 │   ├── filechange/            # File change proposals, approval, execution
 │   └── mcp_export/            # MCP format export/import
 ├── test/                      # Go tests
@@ -113,7 +112,7 @@ make test          # Run all tests
 go test ./test/... # Run test directory only
 ```
 
-Key test files: `hub_test.go`, `commands_test.go`, `assistant_test.go`, `moderator_test.go`, `repo_agent_test.go`, `helper_agent_test.go`, `deduplication_test.go`, `integration_test.go`, `dispatch_test.go`, `agent_review_test.go`
+Key test files: `hub_test.go`, `commands_test.go`, `assistant_test.go`, `moderator_test.go`, `repo_agent_test.go`, `helper_agent_test.go`, `deduplication_test.go`, `integration_test.go`, `agent_review_test.go`
 
 ### Manual Testing
 

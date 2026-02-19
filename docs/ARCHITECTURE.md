@@ -82,7 +82,7 @@ type Hub struct {
 
 Processes 50+ slash commands organized by category. Each command is defined with metadata (name, description, category, arguments with types) exposed via `GET /api/commands` for the command palette.
 
-Categories: Repository Agents, Confluence, Helper Agents, Agent Management, Dispatch, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Connection Tests, Help.
+Categories: Repository Agents, Confluence, Helper Agents, Agent Management, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Connection Tests, Help.
 
 ### Protocol (`internal/protocol/`)
 
@@ -252,21 +252,6 @@ Desktop shows in Pending Changes panel (with diff)
     │
     ├── User approves → Executor applies change to workspace
     └── User rejects → Change discarded
-```
-
-### Dispatch Flow
-
-```
-User: /dispatch kubectl get pods
-    │
-    ▼
-CommandHandler → Dispatch Registry
-    │
-    ├── Read-only command? → Execute immediately
-    └── Write command? → Create pending approval
-                            │
-                            ├── /approve {id} → Execute
-                            └── /reject {id} → Discard
 ```
 
 ## Design Patterns

@@ -14,7 +14,7 @@ These items from the original roadmap have been completed:
 - ~~Code snippets and syntax highlighting~~ -- Markdown rendering with code blocks in desktop app
 - ~~Agent mentions with autocomplete~~ -- @mention system with fuzzy matching and UI autocomplete
 - ~~Enhanced agent status display~~ -- Agent list with status indicators in desktop app
-- ~~GitHub integration~~ -- GitHub CLI operations via dispatch (issues, PRs, repos, workflows)
+- ~~GitHub integration~~ -- GitHub CLI operations (issues, PRs, repos, workflows)
 
 ## High Priority
 

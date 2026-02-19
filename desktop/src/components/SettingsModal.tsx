@@ -69,6 +69,27 @@ export function SettingsModal({ isOpen, onClose, testMode, setTestMode }: Settin
     setLMStudioForm(integrations.lmstudio);
   }, [integrations]);
 
+  // Auto-fetch available models when AI Providers tab is selected
+  useEffect(() => {
+    if (activeTab !== 'ai-providers') return;
+    let cancelled = false;
+
+    const loadModels = async () => {
+      try {
+        const ollamaModels = await fetchOllamaModels();
+        if (!cancelled) setOllamaForm(prev => ({ ...prev, availableModels: ollamaModels }));
+      } catch { /* Ollama may not be running */ }
+
+      try {
+        const lmModels = await fetchLMStudioModels();
+        if (!cancelled) setLMStudioForm(prev => ({ ...prev, availableModels: lmModels }));
+      } catch { /* LM Studio may not be running */ }
+    };
+
+    loadModels();
+    return () => { cancelled = true; };
+  }, [activeTab, fetchOllamaModels, fetchLMStudioModels]);
+
   // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

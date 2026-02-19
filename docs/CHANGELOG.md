@@ -28,7 +28,7 @@ All notable changes to Neural Junkie.
 - **Moderator Agent** -- auto-starts with server, guides users through commands and features, 20s safety-net for unanswered questions
 - **Assistant Agent** -- reminders (one-time/recurring), tasks (priority, due dates), notes (tags, search), meeting summaries, scheduling; persistent storage
 - **Confluence Agent** -- index Confluence Cloud spaces, search documentation, answer knowledge-base questions
-- **Helper Agents** -- template-based custom experts (day-one onboarding, testing, docs, subenv)
+- **Helper Agents** -- template-based custom experts (day-one onboarding, testing, docs)
 - **Cursor CLI Agent** -- Cursor CLI subprocess for code analysis and generation
 - **Agent Review** -- get second opinions by @mentioning another agent in a thread reply
 
@@ -41,7 +41,6 @@ All notable changes to Neural Junkie.
 
 ### Added -- Features
 - **50+ slash commands** with metadata for command palette
-- **Dispatch CLI integration** -- kubectl, aws, docker, sops, workstation, GitHub CLI with approval workflows
 - **File Change System** -- agents propose file edits, users approve/reject with diff preview and backup
 - **MCP Export/Import** -- export agent knowledge to MCP format, import from MCP, MCP resource server
 - **Workspace management** -- add, list, remove workspaces

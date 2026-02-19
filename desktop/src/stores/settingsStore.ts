@@ -102,7 +102,7 @@ const defaultIntegrations: IntegrationSettings = {
   anthropic: {
     apiKey: '',
     useAIHub: true,
-    aiHubEndpoint: 'https://aihub.dispatchit.com/v1',
+    aiHubEndpoint: '',
     aiHubModel: 'claude-sonnet',
   },
   github: {

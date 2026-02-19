@@ -233,7 +233,7 @@ The agents use AI Hub for Claude API access. Configure in `env.local`:
 ```bash
 # AI Hub Configuration
 USE_AI_HUB=true
-AI_HUB_ENDPOINT=https://aihub.dispatchit.com/v1
+AI_HUB_ENDPOINT=<your-ai-hub-endpoint>
 ANTHROPIC_API_KEY=your_ai_hub_key_here
 
 # Model Selection (optional)

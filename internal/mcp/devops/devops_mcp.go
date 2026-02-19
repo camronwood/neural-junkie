@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/camronwood/neural-junkie/internal/dispatch"
 	mcp "github.com/camronwood/neural-junkie/internal/mcp_disabled"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -21,7 +20,6 @@ type DevOpsMCP struct {
 	mcpServer   *server.MCPServer
 	httpServer  *server.StreamableHTTPServer
 	config      *mcp.MCPServerConfig
-	dispatchReg *dispatch.Registry
 }
 
 // NewDevOpsMCP creates a new DevOps MCP server
@@ -33,15 +31,10 @@ func NewDevOpsMCP() (*DevOpsMCP, error) {
 		return nil, fmt.Errorf("failed to create MCP server: %w", err)
 	}
 
-	// Initialize dispatch registry
-	dispatchReg := dispatch.NewRegistry()
-	dispatch.RegisterDefaultCommands(dispatchReg)
-
 	d := &DevOpsMCP{
 		mcpServer:   mcpServer,
 		httpServer:  httpServer,
 		config:      config,
-		dispatchReg: dispatchReg,
 	}
 
 	d.registerTools()
@@ -65,15 +58,7 @@ func (d *DevOpsMCP) GetMCPServer() *server.MCPServer {
 
 // registerTools registers all DevOps MCP tools
 func (d *DevOpsMCP) registerTools() {
-	// Tool 1: execute_dispatch_command
-	d.mcpServer.AddTool(mcp.CreateTool(
-		"execute_dispatch_command",
-		"Execute dispatch CLI commands for infrastructure management",
-		mcp.CreateStringInputSchema("command", "Dispatch command to execute (e.g., 'kubectl get pods')"),
-		d.handleExecuteDispatchCommand,
-	))
-
-	// Tool 2: kubectl_query
+	// Tool 1: kubectl_query
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"kubectl_query",
 		"Query Kubernetes cluster using kubectl",
@@ -120,45 +105,6 @@ func (d *DevOpsMCP) registerTools() {
 	))
 
 	log.Printf("Registered %d DevOps MCP tools", len(d.mcpServer.ListTools()))
-}
-
-// handleExecuteDispatchCommand executes dispatch commands
-func (d *DevOpsMCP) handleExecuteDispatchCommand(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	if err := mcp.ValidateToolInput(request, []string{"command"}); err != nil {
-		return mcp.HandleToolError(err, "execute_dispatch_command"), nil
-	}
-
-	command := request.GetString("command", "")
-	if command == "" {
-		return mcp.HandleToolError(fmt.Errorf("empty command"), "execute_dispatch_command"), nil
-	}
-
-	// Parse command into parts
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
-		return mcp.HandleToolError(fmt.Errorf("invalid command format"), "execute_dispatch_command"), nil
-	}
-
-	// Execute via dispatch registry
-	executor := dispatch.NewExecutor(d.dispatchReg)
-	result, err := executor.Execute(ctx, command)
-	if err != nil {
-		return mcp.HandleToolError(fmt.Errorf("dispatch execution failed: %w", err), "execute_dispatch_command"), nil
-	}
-
-	output := fmt.Sprintf("Dispatch Command: %s\n", command)
-	output += fmt.Sprintf("Exit Code: %d\n", result.ExitCode)
-	output += fmt.Sprintf("Duration: %v\n", result.Duration)
-	output += fmt.Sprintf("Success: %t\n\n", result.Success)
-
-	if result.Stdout != "" {
-		output += "STDOUT:\n" + result.Stdout + "\n"
-	}
-	if result.Stderr != "" {
-		output += "STDERR:\n" + result.Stderr + "\n"
-	}
-
-	return mcp.HandleToolSuccess(output), nil
 }
 
 // handleKubectlQuery queries Kubernetes cluster

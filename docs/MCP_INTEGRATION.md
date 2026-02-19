@@ -76,7 +76,6 @@ Backend Agent: *Uses profile_performance tool*
 ### DevOps Agent
 
 **Tools:**
-- `execute_dispatch_command(command)` - Execute dispatch CLI commands for infrastructure management
 - `kubectl_query(resource, namespace)` - Query Kubernetes cluster using kubectl
 - `check_docker_image(image_name)` - Analyze Docker image for size, layers, and vulnerabilities
 - `validate_yaml(yaml_file)` - Validate Kubernetes or Helm YAML files

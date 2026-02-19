@@ -122,7 +122,7 @@ go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
 
 Type `/` in the chat input or click the **`/`** button in the toolbar to open the command palette. It provides:
 - Searchable list of all 50+ slash commands
-- Organized by category (Repo Agents, Dispatch, Provider, etc.)
+- Organized by category (Repo Agents, Provider, etc.)
 - Guided forms for commands that take arguments
 - Keyboard navigation (arrow keys + Enter)
 
@@ -241,7 +241,7 @@ All make targets automatically load from `env.local`. Key variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `USE_AI_HUB` | Use AI Hub endpoint | `true` |
-| `AI_HUB_ENDPOINT` | AI Hub URL | `https://aihub.dispatchit.com/v1` |
+| `AI_HUB_ENDPOINT` | AI Hub URL | (configurable) |
 | `ANTHROPIC_API_KEY` | Claude API key | -- |
 | `AI_HUB_MODEL` | Claude model | `claude-sonnet` |
 | `OLLAMA_MODEL` | Ollama utility model | `qwen2.5:7b` |
@@ -307,6 +307,5 @@ Neural Junkie stores data in `~/.neural-junkie/`:
 - [Architecture](ARCHITECTURE.md) -- How the system works under the hood
 - [Repo Agents](REPO_AGENTS.md) -- Deep codebase analysis
 - [CLI Agents](CLI_AGENTS.md) -- Cursor CLI agent and custom CLI integrations
-- [Dispatch Integration](DISPATCH_INTEGRATION.md) -- DevOps command execution
 - [MCP Exports](MCP_EXPORTS.md) -- Sharing agent knowledge
 - [examples/](../examples/) -- Real-world usage scenarios

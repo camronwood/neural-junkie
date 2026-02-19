@@ -55,11 +55,10 @@ graph TB
 - **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
 - **9 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Repo, Confluence, Helper, and Moderator/Assistant (auto-started)
 - **3 AI Providers** -- Ollama (local), Claude (Anthropic/AI Hub), LM Studio (local) -- switch per-agent or globally
-- **50+ Slash Commands** -- Agent management, repo indexing, Confluence search, dispatch operations, file changes, provider switching, and more
+- **50+ Slash Commands** -- Agent management, repo indexing, Confluence search, file changes, provider switching, and more
 - **Command Palette** -- Searchable UI for discovering and executing slash commands with guided argument forms
 - **Repository Expert Agents** -- Index your codebase, watch for changes, answer project-specific questions
 - **Confluence Doc Agents** -- Index Confluence spaces, search documentation, answer knowledge-base questions
-- **Dispatch CLI Integration** -- Execute DevOps commands (kubectl, aws, docker, sops) with approval workflows
 - **File Change System** -- Agents propose file edits, you approve/reject with diff preview
 - **MCP Export/Import** -- Export agent knowledge to MCP format for sharing across tools
 - **@Mention System** -- Direct questions to specific agents by name or type
@@ -149,7 +148,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **SQLMaster** | PostgreSQL, MySQL, MongoDB, Redis, schema design, query optimization |
 | **SecurityExpert** | Auth, OAuth/JWT, encryption, XSS/CSRF, OWASP, compliance |
 | **ReactExpert** | React, TypeScript, CSS, UI/UX, design analysis, vision-capable |
-| **DevOpsPro** | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform, dispatch commands |
+| **DevOpsPro** | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform |
 
 ### Dynamic Agents (created via commands)
 
@@ -169,7 +168,6 @@ Type `/` in the chat or click the **`/`** button to open the command palette. Co
 | **Confluence** | `/create-confluence-agent`, `/reindex-confluence-agent`, `/list-confluence-agents` |
 | **Helpers** | `/create-helper`, `/list-helper-templates` |
 | **Agent Mgmt** | `/list-agents`, `/delete-agent`, `/pause-agent`, `/unpause-agent`, `/remove-agent`, `/recall-agent` |
-| **Dispatch** | `/dispatch`, `/dispatch-list`, `/approve`, `/reject` |
 | **Providers** | `/switch-provider`, `/switch-all-providers` |
 | **Files** | `/open-file`, `/list-file-changes`, `/approve-file`, `/reject-file` |
 | **MCP Export** | `/export-agent-mcp`, `/import-agent-mcp`, `/list-exports`, `/export-all-agents` |
@@ -199,7 +197,6 @@ neural-junkie/
 │   ├── ai/              # Providers: Ollama, Claude, LM Studio, CLI
 │   ├── repo/            # Repository indexing, search, file watching
 │   ├── confluence/      # Confluence client, indexing, search
-│   ├── dispatch/        # Dispatch CLI executor, approval, registry
 │   ├── filechange/      # File change proposals, approval, execution
 │   └── mcp_export/      # MCP format export/import
 ├── test/                # Go tests
@@ -219,7 +216,6 @@ neural-junkie/
 | **[Helper Agents](docs/HELPER_AGENTS.md)** | Custom knowledge-base experts |
 | **[Assistant Agent](docs/ASSISTANT_AGENT.md)** | Reminders, tasks, notes, meetings |
 | **[Moderator Agent](docs/MODERATOR_AGENT.md)** | Chat guidance and command help |
-| **[Dispatch Integration](docs/DISPATCH_INTEGRATION.md)** | DevOps command execution |
 | **[MCP Integration](docs/MCP_INTEGRATION.md)** | MCP tool servers for agents |
 | **[MCP Exports](docs/MCP_EXPORTS.md)** | Exporting agent knowledge |
 | **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI agent setup and custom CLI agents |
