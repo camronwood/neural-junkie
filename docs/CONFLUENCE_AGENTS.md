@@ -433,7 +433,7 @@ Agents automatically check for staleness on load, but manual reindex ensures fre
 
 ## Conclusion
 
-Confluence agents bring your documentation into the AI chat room, making it easy to:
+Confluence agents bring your documentation into Neural Junkie, making it easy to:
 - **Find information** quickly without manual searching
 - **Get contextual answers** with citations to source pages
 - **Stay current** with automatic staleness detection

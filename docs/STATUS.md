@@ -1,143 +1,82 @@
 # Project Status
 
-## Current State: ✅ Production Ready
+**Last Updated:** February 2026
 
-**Last Updated:** October 14, 2025
+## Current State: Active Development
+
+Neural Junkie is a working multi-agent collaboration system used for daily development workflows.
 
 ## Working Features
 
 ### Core System
-- ✅ WebSocket-based real-time communication
-- ✅ Multi-channel support
-- ✅ Agent registration and presence tracking
-- ✅ Message routing and history
-- ✅ Thread-safe event-driven architecture
+- WebSocket-based real-time communication
+- Multi-channel support with message history
+- Agent registration, presence tracking, and lifecycle management
+- Thread support (create, reply, subscribe)
+- 50+ slash commands with command palette UI
+- Session persistence and recovery
+- File change proposal and approval workflow
+- Workspace management
 
-### Agent Types
-- ✅ Frontend Agent (React, Vue, UI/UX)
-- ✅ Backend Agent (APIs, services, architecture)
-- ✅ DevOps Agent (Infrastructure, CI/CD)
-- ✅ Database Agent (SQL, schema, optimization)
-- ✅ Security Agent (Auth, vulnerabilities)
-- ✅ Repository Expert Agent (Codebase analysis)
+### Agent Types (11)
+- **Moderator** -- Auto-started, chat guidance, command help, safety-net timer
+- **Assistant** -- Reminders, tasks, notes, meetings, scheduling (persistent storage)
+- **Frontend** (ReactExpert) -- React, Vue, Angular, TypeScript, CSS, UI/UX, vision
+- **Backend** (GoExpert) -- Go, Node, Python, REST/GraphQL/gRPC, microservices
+- **DevOps** (DevOpsPro) -- Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform
+- **Database** (SQLMaster) -- PostgreSQL, MySQL, MongoDB, Redis, schema, optimization
+- **Security** (SecurityExpert) -- Auth, OAuth/JWT, encryption, OWASP, compliance
+- **Repository Expert** -- Codebase indexing, file watching, project-specific Q&A
+- **Confluence Agent** -- Confluence Cloud space indexing and documentation search
+- **Helper Agent** -- Template-based custom knowledge experts
+- **Cursor CLI Agent** -- Cursor CLI integration for code analysis
+
+### AI Providers
+- **Ollama** -- Local inference, model listing, connection testing
+- **Claude** -- Anthropic API direct or via AI Hub proxy
+- **LM Studio** -- Local OpenAI-compatible server
+- **Mock** -- Rule-based responses for testing
+- Per-agent provider switching, global provider switching
 
 ### User Interfaces
-- ✅ **GUI** - Fyne-based desktop application
-- ✅ **Terminal Chat** - Interactive CLI chat
-- ✅ **Web UI** - Browser-based interface
-- ✅ **CLI** - Command-line tool for automation
+- **Desktop App** -- Tauri + React + TypeScript with Tailwind CSS
+  - Command palette with search and argument forms
+  - File explorer, code editor, terminal panel
+  - Thread panel, pending changes panel
+  - Settings modal (appearance, layout, integrations, AI providers)
+  - @mention autocomplete, Mermaid diagram rendering
+- **Web UI** -- Built-in HTML served by hub server
+- **Terminal Chat** -- Interactive WebSocket-based CLI
+- **CLI Tool** -- Scripting, automation, MCP resource server
 
-### AI Integration
-- ✅ Mock AI provider (for testing)
-- ✅ Claude API support (via AI Hub or direct)
-- ✅ Extensible provider interface
+### Integrations
+- **Dispatch CLI** -- kubectl, aws, docker, sops, workstation with approval workflows
+- **GitHub CLI** -- Issues, PRs, repos, workflows via dispatch
+- **Confluence Cloud** -- Space indexing, page search, documentation Q&A
+- **MCP Export/Import** -- Export agent knowledge to MCP format for sharing
 
-## Known Issues
+## Performance
 
-None currently! 🎉
-
-## Recent Fixes (October 2025)
-
-### Message Deduplication
-**Issue:** Agents responding multiple times to same message  
-**Fix:** Implemented three-layer deduplication system:
-1. Subscribe polling deduplication (cmd/agent/main.go)
-2. Handler-level message tracking (internal/agent/agent.go)
-3. Agent-type filtering to prevent agent-to-agent loops
-
-**Status:** ✅ Fixed
-
-### GUI Threading Issues
-**Issue:** Fyne threading errors when switching screens  
-**Fix:** Implemented event-driven architecture with single window:
-- All UI updates via `fyne.Do()` on main thread
-- Event channel for thread-safe communication
-- Single window with content swapping
-
-**Status:** ✅ Fixed
-
-### Username Display
-**Issue:** All messages showing "Human User"  
-**Fix:** Updated server to accept and use `from.name` field in requests
-
-**Status:** ✅ Fixed
-
-## Performance Metrics
-
-- **Message Latency:** < 500ms end-to-end
-- **Concurrent Agents:** Tested with 10+ agents
-- **Message Throughput:** Handles rapid message sending
-- **Memory:** Stable with built-in cleanup (100 message cache)
+- Message latency: < 500ms end-to-end
+- Tested with 10+ concurrent agents
+- Stable memory with built-in cache cleanup (100 messages per channel)
+- Repository index caching with staleness detection
 
 ## Test Coverage
 
-- ✅ Unit tests for core components
-- ✅ Integration tests for message flow
-- ✅ Architecture tests for thread safety
-- ✅ Manual GUI testing
+- Unit tests across core packages
+- Integration tests for message flow, commands, dispatch, deduplication
+- Agent-specific tests (repo, helper, assistant, moderator, hub, review)
+- Architecture and thread-safety tests
 
-**Test Results:** 19/19 tests passing
+## Known Limitations
 
-## Architecture Highlights
-
-### Event-Driven GUI
-- Single UI thread with event queue
-- Background threads for I/O
-- Thread-safe via channels and `fyne.Do()`
-
-### Message Routing
-- Pub/sub pattern via channels
-- RESTful API for agents
-- WebSocket for real-time clients
-
-### Agent Intelligence
-- Domain-specific expertise lists
-- Keyword-based relevance detection
-- Context-aware responses
+- **No persistence** -- Messages lost on server restart (session file preserves some state)
+- **Single server** -- No distributed deployment
+- **No auth** -- Open access to all endpoints
+- **Agent polling** -- Agents use HTTP polling, not WebSocket
+- **Git endpoints** -- `git-status`, `git-diff`, `git-commit`, `git-push`, `git-pull` return 501 (not yet implemented)
 
 ## Documentation
 
-- ✅ README.md - Project overview
-- ✅ docs/GETTING_STARTED.md - Setup guide
-- ✅ docs/ARCHITECTURE.md - Technical details
-- ✅ docs/REPO_AGENTS.md - Repository agent docs
-- ✅ docs/FUTURE_ENHANCEMENTS.md - Roadmap
-- ✅ examples/ - Usage scenarios
-
-## Next Steps
-
-See [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md) for planned features.
-
-## Deployment Status
-
-**Current:** Single-server prototype  
-**Ready for:** Development use, demos, proof-of-concept  
-**Production needs:**
-- Database persistence
-- Authentication/authorization
-- Rate limiting
-- Monitoring/observability
-- Horizontal scaling (optional)
-
-## Getting Started
-
-```bash
-# Quick start
-./scripts/quick-test.sh
-make gui
-
-# Full documentation
-cat GETTING_STARTED.md
-```
-
-## Support
-
-For issues or questions:
-1. Check [GETTING_STARTED.md](GETTING_STARTED.md)
-2. Review [ARCHITECTURE.md](ARCHITECTURE.md)
-3. Check examples in [../examples/](../examples/)
-
----
-
-**The system is stable, tested, and ready to use!** 🚀
-
+See the [README](../README.md) for the full documentation index.

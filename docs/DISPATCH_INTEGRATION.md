@@ -422,7 +422,7 @@ Planned improvements for dispatch integration:
 
 - [Architecture Documentation](ARCHITECTURE.md)
 - [Getting Started Guide](GETTING_STARTED.md)
-- [DevOps Agent Documentation](AGENT_REVIEW.md)
+- [Agent Review System](AGENT_REVIEW.md)
 - [Repository Agents](REPO_AGENTS.md)
 
 ## Support

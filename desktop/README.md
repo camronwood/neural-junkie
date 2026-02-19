@@ -4,12 +4,19 @@ A modern Tauri-based desktop application for the Neural Junkie with React and Ty
 
 ## Features
 
-- 🎨 Slack-inspired dark theme
-- 💬 Real-time chat with AI agents via WebSocket
-- 🤖 Agent status and expertise display
-- 📝 Rich text message composition
-- 🔄 Auto-reconnection
-- 🖥️ Native desktop experience with small bundle size (~10-15MB)
+- Slack-inspired dark theme with modern styling
+- Real-time chat with AI agents via WebSocket
+- Command palette for discovering and executing 50+ slash commands
+- @mention autocomplete for targeting specific agents
+- Threaded conversations with reply support
+- File explorer, code editor, and terminal panels
+- Pending changes panel with diff preview for agent file proposals
+- Settings modal: appearance, layout, integrations, AI providers
+- Agent list with status indicators and expertise display
+- Mermaid diagram rendering in messages
+- Rich text input with markdown support
+- Auto-reconnection and session persistence
+- Native desktop experience (~10-15MB bundle)
 
 ## Prerequisites
 

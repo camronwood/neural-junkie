@@ -1,449 +1,347 @@
-# Architecture Documentation
+# Architecture
 
 ## System Overview
 
-The Neural Junkie is a multi-agent collaboration system that enables AI agents with different specializations to communicate, collaborate, and solve complex problems together.
+Neural Junkie is a multi-agent collaboration system where specialized AI agents communicate over a central hub, share context, and collaborate to solve complex problems. The system consists of a Go backend (hub server + agents), a Tauri + React desktop frontend, and multiple interface options (web, terminal, CLI).
+
+```mermaid
+graph LR
+    subgraph Clients
+        Desktop[Desktop App<br/>Tauri + React]
+        Web[Web UI<br/>Built-in HTML]
+        Chat[Terminal Chat<br/>WebSocket]
+        CLI[CLI Tool<br/>HTTP]
+    end
+
+    subgraph Server["Hub Server (Go)"]
+        Hub[Hub Core]
+        Commands[Command Handler]
+        FileChanges[File Change Manager]
+        Workspaces[Workspace Manager]
+    end
+
+    subgraph Agents
+        Auto[Auto-Started<br/>Moderator · Assistant]
+        Specialist[Specialists<br/>Go · React · DevOps<br/>Database · Security]
+        Dynamic[Dynamic<br/>Repo · Confluence · Helper]
+    end
+
+    subgraph Providers
+        Ollama[Ollama]
+        Claude[Claude API]
+        LMStudio[LM Studio]
+    end
+
+    Desktop <-->|WebSocket| Hub
+    Web <-->|WebSocket| Hub
+    Chat <-->|WebSocket| Hub
+    CLI -->|HTTP| Hub
+
+    Hub --> Commands
+    Hub --> FileChanges
+    Hub --> Workspaces
+
+    Auto <-->|HTTP Poll| Hub
+    Specialist <-->|HTTP Poll| Hub
+    Dynamic <-->|HTTP Poll| Hub
+
+    Specialist --> Providers
+    Dynamic --> Providers
+    Auto --> Providers
+```
 
 ## Core Components
 
-### 1. Chat Hub (`internal/hub/`)
+### Hub (`internal/hub/`)
 
 The central message broker and state manager.
 
-**Responsibilities:**
-- Manage channels (chat rooms)
-- Route messages between agents
-- Maintain message history
-- Handle agent registration and presence
-- Provide real-time subscriptions via channels
+- **Channels** -- Create, join, leave; per-channel message history and subscriber broadcast
+- **Agent Registry** -- Register, unregister, list; duplicate cleanup on register; removed-agent tracking
+- **Message Routing** -- Send with @mention parsing, keyword detection, path auto-detection; broadcast to subscribers
+- **Thread Support** -- Thread storage, metadata, subscribe/unsubscribe; thread replies broadcast to both thread and channel
+- **Command Dispatch** -- Slash command parsing and routing via `CommandHandler`
+- **File Changes** -- Register proposals from agents, manage approval/rejection workflow
+- **Workspace Management** -- Add/list/remove workspaces, persisted to disk
+- **Session Persistence** -- Periodic save to `~/.neural-junkie/last-session.json`
 
-**Key Types:**
 ```go
 type Hub struct {
-    channels    map[string]*protocol.Channel
-    agents      map[string]*protocol.AgentInfo
-    messages    map[string][]*protocol.Message
-    subscribers map[string][]chan *protocol.Message
+    channels        map[string]*protocol.Channel
+    agents          map[string]*protocol.AgentInfo
+    messages        map[string][]*protocol.Message
+    subscribers     map[string][]chan *protocol.Message
+    threads         map[string][]*protocol.Message
+    commandHandler  *CommandHandler
+    fileChangeManager *filechange.FileChangeManager
+    workspaceManager  *WorkspaceManager
 }
 ```
 
-### 2. Protocol (`internal/protocol/`)
+### Command Handler (`internal/hub/commands.go`)
 
-Defines the message protocol and data structures.
+Processes 50+ slash commands organized by category. Each command is defined with metadata (name, description, category, arguments with types) exposed via `GET /api/commands` for the command palette.
 
-**Message Types:**
-- `chat` - Regular conversation
-- `question` - Explicit questions
-- `answer` - Responses to questions
-- `system_info` - System notifications
-- `agent_join` / `agent_leave` - Presence updates
-- `context_share` - Sharing code/context
-- `request_help` - Explicit help requests
+Categories: Repository Agents, Confluence, Helper Agents, Agent Management, Dispatch, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Connection Tests, Help.
 
-**Agent Types:**
-- `frontend` - UI/UX, React, Vue, Angular
-- `backend` - APIs, services, architecture
-- `devops` - Deployment, infrastructure, CI/CD
-- `database` - SQL, schema, optimization
-- `security` - Auth, vulnerabilities, compliance
+### Protocol (`internal/protocol/`)
 
-### 3. Agent Framework (`internal/agent/`)
+Defines message types, agent types, and @mention parsing.
 
-Base framework for creating AI agents.
+**Message Types:** `chat`, `question`, `answer`, `system_info`, `agent_join`, `agent_leave`, `context_share`, `request_help`, `file_change`, `command_output`, `design_analysis`, `agent_review`
+
+**Agent Types:** `frontend`, `backend`, `devops`, `database`, `security`, `repo`, `confluence`, `moderator`, `assistant`, `helper`, `cursor-cli`
+
+**Mention System:** Parses `@AgentName` and `@agenttype` from message content. Normalizes names for fuzzy matching.
+
+### Agent Framework (`internal/agent/`)
+
+All agents share a common base with type-specific behavior:
 
 **Agent Lifecycle:**
-1. **Creation** - Initialize with type, name, expertise
-2. **Registration** - Register with hub
-3. **Join Channel** - Enter a conversation
-4. **Message Processing** - Listen and respond
-5. **Shutdown** - Leave gracefully
+1. **Creation** -- Initialize with type, name, expertise, AI provider
+2. **Registration** -- Register with hub via HTTP
+3. **Channel Join** -- Enter a conversation channel
+4. **Message Processing** -- Poll for messages, decide relevance, generate response
+5. **Shutdown** -- Leave gracefully
 
-**Decision Logic:**
+**Response Decision Logic:**
+- Always respond if directly @mentioned
+- Respond if message matches domain expertise keywords
+- Moderator responds after 20s timeout if no other agent answers
+- Skip own messages and other agent messages (dedup)
 
-Agents decide to respond based on:
-- Direct mentions (`@AgentName`)
-- Questions in their domain
-- Keywords matching expertise
-- Relevance to their specialty
+**Implemented Agents:**
 
-**Example:**
-```go
-func (a *Agent) shouldRespond(msg *protocol.Message) bool {
-    // Always respond if mentioned
-    if msg.IsMentioned(a.Info.ID) { return true }
-    
-    // Respond to questions in our domain
-    if isQuestion(msg.Content) && 
-       matchesExpertise(msg.Content, a.Info.Expertise) {
-        return true
-    }
-    
-    return false
-}
-```
+| Agent | File | Key Capabilities |
+|-------|------|-----------------|
+| Frontend | `specialized_agents.go` | React, Vue, Angular, CSS, UI/UX, vision-capable |
+| Backend | `specialized_agents.go` | Go, Node, Python, REST/GraphQL/gRPC, caching |
+| DevOps | `specialized_agents.go` | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform |
+| Database | `specialized_agents.go` | PostgreSQL, MySQL, MongoDB, Redis, schema, migrations |
+| Security | `specialized_agents.go` | Auth, OAuth/JWT, encryption, OWASP, compliance |
+| Moderator | `moderator_agent.go` | Chat commands, features, user guidance, safety-net timer |
+| Assistant | `assistant_agent.go` | Reminders, tasks, notes, meetings, scheduling; persistent storage |
+| Repo | `repo_agent.go` | Codebase indexing, search, file watching, reindex |
+| Confluence | `confluence_agent.go` | Confluence space indexing, doc search, knowledge Q&A |
+| Helper | `helper_agent.go` | Template-based knowledge experts (onboarding, testing, docs) |
+| Cursor CLI | `cli_agent.go` | Cursor CLI subprocess for code analysis and generation |
 
-### 4. AI Providers (`internal/ai/`)
+### AI Providers (`internal/ai/`)
 
-Interface for AI response generation.
+All providers implement the `AIProvider` interface:
 
-**Current Implementations:**
-- `MockProvider` - Rule-based responses for demo
-- `ClaudeProvider` - Placeholder for Claude API integration
-
-**Interface:**
 ```go
 type AIProvider interface {
-    GenerateResponse(ctx context.Context, prompt string, 
-                    history []protocol.Message) (string, error)
+    GenerateResponse(ctx context.Context, prompt string, history []protocol.Message) (string, error)
+    GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, mimeType string) (string, error)
     GetModel() string
 }
 ```
 
-### 5. Server (`cmd/server/`)
+| Provider | File | Config | Notes |
+|----------|------|--------|-------|
+| **Ollama** | `ollama.go` | `OLLAMA_ENDPOINT`, `OLLAMA_MODEL` | Local inference, model listing, connection test |
+| **Claude** | `claude.go` | `ANTHROPIC_API_KEY`, `USE_AI_HUB`, `AI_HUB_ENDPOINT` | Anthropic direct or AI Hub proxy |
+| **LM Studio** | `lmstudio.go` | `LM_STUDIO_ENDPOINT`, `LM_STUDIO_MODEL` | OpenAI-compatible local server |
+| **Mock** | `mock.go` | -- | Rule-based responses for testing |
+| **Cursor CLI** | `cli_agent.go` | `CURSOR_API_KEY`, `CURSOR_WORK_DIR` | Subprocess-based, wraps Cursor CLI |
 
-HTTP/WebSocket server providing:
-- REST API for interactions
-- WebSocket for real-time updates
-- Embedded web UI
-- Message routing
+### Server (`cmd/server/main.go`)
 
-**API Endpoints:**
-- `GET /` - Web UI
-- `GET /ws?channel=X` - WebSocket connection
-- `GET /api/channels` - List channels
-- `POST /api/channels/create` - Create channel
-- `POST /api/channels/join` - Join channel
-- `GET /api/agents` - List agents
-- `POST /api/agents` - Register agent
-- `GET /api/messages?channel=X` - Get history
-- `POST /api/send` - Send message
+HTTP + WebSocket server. Key endpoints:
 
-### 6. Agent Runner (`cmd/agent/`)
+**Core:**
+- `GET /ws` -- WebSocket connection (query: `channel`, `thread`)
+- `GET /` -- Built-in web UI
+- `GET /api/commands` -- Command palette metadata
 
-Standalone executable to run agents.
+**Channels & Messages:**
+- `GET /api/channels`, `POST /api/channels/create`, `POST /api/channels/join`
+- `GET /api/messages`, `POST /api/send`
 
-**Features:**
-- Command-line configuration
-- Auto-generates agent names
-- Connects to hub server
-- Handles graceful shutdown
+**Agents:**
+- `GET /api/agents`, `POST /api/agents`
+- `GET /api/my-agents`, `GET /api/cached-agents`, `GET /api/removed-agents`
+- `POST /api/agents/{id}/provider`, `POST /api/agents/switch-all-providers`
 
-### 7. CLI Tool (`cmd/cli/`)
+**Threads:**
+- `GET /api/threads/{id}/messages`, `POST /api/threads/{id}/reply`
+- `GET /api/threads/{id}/metadata`, `GET /api/threads/{id}/parent-author`
 
-Command-line interface for interaction.
+**Files & Workspaces:**
+- `GET /api/files`, `GET/POST /api/file-content`, `POST /api/file-create`, `POST /api/file-rename`, `DELETE /api/file-delete`
+- `GET/POST/DELETE /api/workspaces`
 
-**Capabilities:**
-- Send messages
-- List channels/agents
-- View history
-- Watch for updates
-- Create channels
+**File Changes:**
+- `GET /api/file-changes`, `GET /api/file-changes/{id}`
+- `POST /api/file-changes/approve/{id}`, `POST /api/file-changes/reject/{id}`
+
+**Provider Health:**
+- `GET /api/ollama/status`, `GET /api/ollama/models`, `POST /api/test-ollama-connection`
+- `GET /api/lmstudio/status`, `GET /api/lmstudio/models`, `POST /api/test-lmstudio-connection`
+
+**Auto-started agents:** The server creates the Moderator and Assistant agents on startup. If the Cursor CLI is detected, it also starts a Cursor CLI agent.
+
+### Desktop App (`desktop/`)
+
+Tauri (Rust) + React (TypeScript) + Tailwind CSS.
+
+**Key Components:**
+- `ChatWindow` -- Main chat interface with message list, rich text input, toolbar
+- `CommandPalette` -- Searchable slash-command UI with argument forms
+- `SettingsModal` -- Appearance, Layout, Integrations, AI Providers, Developer, About
+- `AgentList` -- Active agents with status indicators
+- `FileExplorerPanel` -- Workspace file browser
+- `CodeEditorPanel` -- Code viewing/editing
+- `TerminalPanel` -- Embedded terminal output
+- `ThreadPanel` -- Threaded conversation view
+- `PendingChangesPanel` -- File change proposals with diff preview
+- `MentionAutocomplete` -- @mention agent picker
+- `MessageContent` -- Markdown rendering with Mermaid diagram support
+
+**State Management:** Zustand stores (`chatStore`, `settingsStore`, `editorStore`, `fileExplorerStore`, `terminalStore`, `fileChangeStore`)
+
+**Persistent Settings:** Tauri Store plugin saves settings, integrations, and layout preferences to `~/.neural-junkie-*.dat` files.
 
 ## Data Flow
 
 ### Message Flow
 
 ```
-User/Agent → Hub → Broadcast to Subscribers
-                    ↓
-            [Agent 1, Agent 2, ...]
-                    ↓
-            Decision: Should Respond?
-                    ↓
-            AI Generation
-                    ↓
-            Response → Hub → Broadcast
+User sends message
+    │
+    ▼
+Hub receives via WebSocket/HTTP
+    │
+    ├── Parse @mentions
+    ├── Detect slash commands → CommandHandler
+    ├── Detect file paths → auto-create repo agent (if enabled)
+    │
+    ▼
+Broadcast to channel subscribers
+    │
+    ▼
+Each Agent receives message
+    │
+    ├── Already processed? (dedup) → skip
+    ├── Own message? → skip
+    ├── @mentioned? → respond
+    ├── Matches expertise? → respond
+    │
+    ▼
+Build prompt (role + context + history + message)
+    │
+    ▼
+AI Provider generates response
+    │
+    ▼
+Agent sends response → Hub → Broadcast
 ```
 
-### Agent Response Flow
+### File Change Flow
 
 ```
-1. Receive Message
-   ↓
-2. Add to History
-   ↓
-3. Check if should respond
-   - Mentioned?
-   - Relevant question?
-   - Matching expertise?
-   ↓
-4. If yes: Build Prompt
-   - Agent role & expertise
-   - Other agents in channel
-   - Recent conversation
-   - Current message
-   ↓
-5. Generate Response via AI
-   ↓
-6. Send to Hub
+Agent proposes file change (via message metadata)
+    │
+    ▼
+Hub registers proposal with FileChangeManager
+    │
+    ▼
+Desktop shows in Pending Changes panel (with diff)
+    │
+    ├── User approves → Executor applies change to workspace
+    └── User rejects → Change discarded
+```
+
+### Dispatch Flow
+
+```
+User: /dispatch kubectl get pods
+    │
+    ▼
+CommandHandler → Dispatch Registry
+    │
+    ├── Read-only command? → Execute immediately
+    └── Write command? → Create pending approval
+                            │
+                            ├── /approve {id} → Execute
+                            └── /reject {id} → Discard
 ```
 
 ## Design Patterns
 
-### 1. Pub/Sub Pattern
+- **Pub/Sub** -- Hub broadcasts messages to subscriber channels
+- **Factory** -- `AgentFactory` creates typed agents from config
+- **Strategy** -- Pluggable AI providers behind `AIProvider` interface
+- **Observer** -- Agents observe message streams, react based on expertise
+- **Command** -- Slash commands parsed and dispatched to handlers
 
-The hub uses a publish-subscribe pattern for real-time updates:
-- Agents subscribe to channels
-- Messages are broadcast to all subscribers
-- Subscribers receive via Go channels
+## Concurrency
 
-### 2. Observer Pattern
+- **Hub** -- Protected by `sync.RWMutex`; safe for concurrent reads
+- **Agents** -- Each runs in its own goroutine with HTTP polling
+- **Message Channels** -- Buffered Go channels (size 100) for real-time broadcast
+- **Deduplication** -- Three-layer: polling dedup, handler-level tracking, agent-type filtering
 
-Agents observe message streams and react based on their logic.
+## Data Storage
 
-### 3. Strategy Pattern
+All persistent data under `~/.neural-junkie/`:
 
-AI providers implement a common interface, allowing different strategies:
-- Mock responses for testing
-- Claude API for production
-- Custom providers for specific needs
-
-### 4. Factory Pattern
-
-`AgentFactory` creates specialized agents based on type:
-```go
-agent, _ := AgentFactory(protocol.AgentTypeBackend, "Go Expert", ai, hub)
-```
-
-## Concurrency Model
-
-### Thread Safety
-
-- **Hub**: Protected by `sync.RWMutex`
-- **Agents**: Run in separate goroutines
-- **Message Channels**: Buffered Go channels (size 100)
-
-### Goroutines
-
-Each agent spawns:
-1. **Main goroutine** - Message processing loop
-2. **Subscription goroutine** - Listens for messages
-3. **Context goroutine** - Handles cancellation
-
-## Scalability Considerations
-
-### Current Design (Prototype)
-
-- Single hub instance
-- In-memory state
-- Local message history
-- No persistence
-
-### Production Improvements
-
-1. **Distributed Hub**
-   - Use Redis Pub/Sub for message routing
-   - Distributed state with etcd or Consul
-   
-2. **Message Persistence**
-   - Store history in PostgreSQL/MongoDB
-   - Implement pagination
-   
-3. **Agent Scaling**
-   - Run agents as separate services
-   - Load balance across instances
-   
-4. **WebSocket Scaling**
-   - Use Socket.io or similar
-   - Support horizontal scaling
-   
-5. **Rate Limiting**
-   - Prevent spam
-   - Manage AI API costs
+| Path | Purpose |
+|------|---------|
+| `repos/` | Cached repository indexes |
+| `confluence/` | Cached Confluence space indexes |
+| `helpers/` | Helper agent configs and knowledge bases |
+| `assistant/` | Reminders, tasks, notes, meeting data |
+| `exports/` | MCP-format agent exports |
+| `backups/` | File change backups before edits |
+| `workspaces.json` | Registered workspace list |
+| `last-session.json` | Session state for recovery |
 
 ## Extension Points
 
-### Adding New Agent Types
+### Adding a New Agent Type
 
-1. Define expertise list
-2. Implement factory function
-3. Add to `AgentFactory`
+1. Define the agent type in `internal/protocol/types.go`
+2. Create a constructor in `internal/agent/specialized_agents.go`
+3. Register in the `AgentFactory` function
+4. Add to `cmd/agent/main.go` CLI flags
 
-Example:
+### Adding a New AI Provider
+
+Implement the `AIProvider` interface in `internal/ai/`:
 ```go
-func NewMLAgent(name string, ai AIProvider, hub HubClient) *Agent {
-    expertise := []string{
-        "Machine Learning", "TensorFlow", "PyTorch",
-        "Model Training", "Feature Engineering",
-    }
-    return NewAgent(protocol.AgentTypeML, name, expertise, ai, hub)
-}
-```
+type MyProvider struct { /* config */ }
 
-### Adding New Message Types
-
-1. Define in `protocol/types.go`
-2. Update agent response logic
-3. Update UI rendering
-
-### Custom AI Providers
-
-Implement the `AIProvider` interface:
-```go
-type MyAIProvider struct { /* config */ }
-
-func (p *MyAIProvider) GenerateResponse(ctx context.Context, 
-    prompt string, history []protocol.Message) (string, error) {
+func (p *MyProvider) GenerateResponse(ctx context.Context, prompt string, history []protocol.Message) (string, error) {
     // Your implementation
 }
 
-func (p *MyAIProvider) GetModel() string {
-    return "my-model"
+func (p *MyProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, mimeType string) (string, error) {
+    return "", fmt.Errorf("vision not supported")
 }
+
+func (p *MyProvider) GetModel() string { return "my-model" }
 ```
 
-### Adding Persistence
+### Adding a New Slash Command
 
-Replace in-memory maps with database calls:
-```go
-// Before
-h.messages[channel] = append(h.messages[channel], msg)
-
-// After
-db.InsertMessage(ctx, msg)
-```
+1. Add the handler case in `CommandHandler.ProcessCommand()` in `internal/hub/commands.go`
+2. Add metadata to `GetCommandDefinitions()` for command palette support
+3. Define arguments with types (`string`, `path`, `provider`, `model`, `agent-name`)
 
 ## Security Considerations
 
-### Current State (Prototype)
-
-- No authentication
-- No authorization
-- All origins allowed for CORS
+**Current state (prototype):**
+- No authentication or authorization
+- CORS allows all origins
 - No rate limiting
+- API keys stored in env files (not committed)
 
-### Production Requirements
-
-1. **Authentication**
-   - JWT tokens for agents
-   - API keys for CLI
-   - User sessions for web UI
-
-2. **Authorization**
-   - Channel access control
-   - Admin vs user permissions
-   - Agent registration approval
-
-3. **Input Validation**
-   - Sanitize all inputs
-   - Limit message size
-   - Prevent injection attacks
-
-4. **Rate Limiting**
-   - Per agent limits
-   - Per channel limits
-   - API endpoint throttling
-
-## Monitoring & Observability
-
-### Metrics to Track
-
-- Messages per second
-- Agent response times
-- AI API latency
-- Error rates
-- Active agents/channels
-
-### Logging
-
-Currently logs to stdout. Production should use:
-- Structured logging (JSON)
-- Log aggregation (ELK, Datadog)
-- Different log levels
-- Request tracing
-
-### Health Checks
-
-Implement:
-- Liveness probe (`/health`)
-- Readiness probe (`/ready`)
-- Metrics endpoint (`/metrics`)
-
-## Future Enhancements
-
-1. **Agent Memory**
-   - Long-term context retention
-   - Learning from interactions
-   - Personalization
-
-2. **Agent Collaboration**
-   - Explicit agent-to-agent calls
-   - Subtask delegation
-   - Consensus mechanisms
-
-3. **Rich Content**
-   - Code syntax highlighting
-   - Diagrams (Mermaid)
-   - File attachments
-
-4. **Analytics**
-   - Conversation insights
-   - Agent performance metrics
-   - Popular topics
-
-5. **Integration**
-   - GitHub integration
-   - Slack bridge
-   - IDE plugins
-
-6. **Testing**
-   - Unit tests for all components
-   - Integration tests
-   - Load tests
-   - E2E tests
-
-## Development Workflow
-
-```bash
-# 1. Start server
-make run-server
-
-# 2. Run tests (when implemented)
-make test
-
-# 3. Start agents
-make run-agents
-
-# 4. Build binaries
-make build
-
-# 5. Clean artifacts
-make clean
-```
-
-## Deployment
-
-### Local Development
-```bash
-go run cmd/server/main.go
-```
-
-### Docker (Future)
-```dockerfile
-FROM golang:1.21-alpine
-WORKDIR /app
-COPY . .
-RUN go build -o /server cmd/server/main.go
-EXPOSE 8080
-CMD ["/server"]
-```
-
-### Kubernetes (Future)
-- Deploy hub as service
-- Deploy agents as deployments
-- Use ConfigMaps for configuration
-- Use Secrets for API keys
-
-## Contributing
-
-When adding features:
-1. Maintain the separation of concerns
-2. Keep interfaces clean
-3. Add tests
-4. Update documentation
-5. Follow Go best practices
-
-## License
-
-MIT
-
+**For production, add:**
+- JWT/API key auth for all endpoints
+- Channel-level access control
+- Rate limiting per agent and per endpoint
+- Input validation and sanitization
+- Encrypted secret storage

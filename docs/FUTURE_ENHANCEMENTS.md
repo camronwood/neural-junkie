@@ -1,285 +1,103 @@
 # Future Enhancements
 
-This document tracks potential future improvements and features for the Neural Junkie.
+Planned improvements and feature ideas for Neural Junkie.
 
-## Repository Expert Agents
+Last Updated: February 2026
 
-### Multi-Repository Support
-Currently, repo agents are designed to be experts on a single repository. Future enhancements:
+## Implemented (Moved from Previous Roadmap)
 
-- **Multi-Repo Agents**: Single agent that can answer questions about multiple related repositories
-  - Example: Separate frontend and backend repos for the same project
-  - Agent would understand cross-repo dependencies and relationships
-  - Ability to reference code across repositories
+These items from the original roadmap have been completed:
 
-- **Monorepo Support**: Enhanced analysis for monorepo structures
-  - Understand workspace organization
-  - Track dependencies between packages
-  - Provide package-specific expertise
+- ~~Change detection and incremental reindexing~~ -- Repo agents support file watching and incremental reindex
+- ~~MCP integration~~ -- MCP export/import system for agent knowledge sharing
+- ~~Threaded conversations~~ -- Full thread support with replies and subscriptions
+- ~~Code snippets and syntax highlighting~~ -- Markdown rendering with code blocks in desktop app
+- ~~Agent mentions with autocomplete~~ -- @mention system with fuzzy matching and UI autocomplete
+- ~~Enhanced agent status display~~ -- Agent list with status indicators in desktop app
+- ~~GitHub integration~~ -- GitHub CLI operations via dispatch (issues, PRs, repos, workflows)
 
-### Enhanced Repository Analysis
+## High Priority
 
-- **Semantic Code Search**: Deep code understanding beyond text matching
-  - Understand code intent and functionality
-  - Find similar code patterns across the repository
-  - Identify anti-patterns and technical debt
+### Agent-to-WebSocket Migration
+Move agents from HTTP polling to WebSocket connections for lower latency and reduced server load.
 
-- **Dependency Graph Visualization**: Visual representation of code dependencies
-  - Generate interactive dependency graphs
-  - Show module/package relationships
-  - Identify circular dependencies
+### Git Operations
+The server has stub endpoints for `git-status`, `git-diff`, `git-commit`, `git-push`, `git-pull` (currently returning 501). Implement these to enable agents to perform git operations with approval workflows.
 
-- **Code Quality Metrics**: Automated analysis of code health
-  - Track complexity metrics
-  - Identify test coverage
-  - Highlight documentation gaps
+### Authentication & Authorization
+- JWT/API key auth for all endpoints
+- Channel-level access control
+- User roles (admin, member, viewer)
+- Agent registration approval
 
-### Model Context Protocol (MCP) Integration
+### Database Persistence
+Replace in-memory message storage with a database backend:
+- PostgreSQL or SQLite for message history
+- Survive server restarts
+- Searchable message archive
+- Pagination for large histories
 
-- **Real-Time File Access**: Instead of pre-indexing, use MCP to access files on-demand
-  - Reduce initial indexing time
-  - Always have up-to-date information
-  - Access larger repositories without size limits
+## Medium Priority
 
-- **MCP Tools for Repo Agents**:
-  - `read_file` - Read specific files on demand
-  - `search_code` - Search repository for patterns
-  - `get_git_diff` - Show recent changes
-  - `run_tests` - Execute tests for specific files
-  - `get_dependencies` - Analyze dependency tree
+### Multi-Repository Agents
+Single agent that understands multiple related repositories:
+- Cross-repo dependency tracking
+- Monorepo workspace support
+- Unified search across repos
 
-- **Interactive Code Navigation**: Allow agents to explore code interactively
-  - Follow function calls and imports
-  - Navigate class hierarchies
-  - Trace execution paths
+### Semantic Code Search
+Go beyond text matching for repository agents:
+- Understand code intent and functionality
+- Find similar patterns across the codebase
+- Identify anti-patterns and tech debt
 
-### Intelligent Features
+### Agent Teams & Delegation
+Coordinated groups of agents:
+- Coordinator agent that delegates to specialists
+- Shared context between team members
+- Consensus mechanisms for conflicting advice
 
-- **Contextual Learning**: Agents learn from conversations
-  - Remember previous questions and context
-  - Build knowledge about specific areas of interest
-  - Personalize responses based on user expertise level
+### Rate Limiting & Cost Management
+- Per-agent API cost tracking
+- Budget alerts and limits
+- Response caching for repeated queries
+- Token usage monitoring
 
-- **Change Detection**: Automatically detect and reindex changed files
-  - Watch file system for changes
-  - Incremental reindexing (only changed files)
-  - Notify users of significant changes
+### MCP Tool Servers (Re-enable)
+The MCP tool servers for Backend, DevOps, and Database agents are implemented but currently disabled. Re-enable with:
+- Go code analysis and testing tools
+- Kubernetes query and Docker analysis tools
+- SQL explain, index analysis, and schema validation tools
 
-- **Code Generation**: Help write code based on repository patterns
-  - Suggest code that matches existing patterns
-  - Generate boilerplate based on conventions
-  - Propose refactorings
+## Low Priority
 
-## Agent Management
+### Distributed Deployment
+- Redis Pub/Sub for message routing across instances
+- Load balancing for horizontal scaling
+- Shared state via etcd or Consul
 
-### Advanced Agent Controls
+### IDE Integration
+- VS Code extension for in-editor agent access
+- JetBrains plugin
+- Neovim integration
 
-- **Agent Scheduling**: Schedule agents to be available at specific times
-  - Working hours only
-  - On-demand activation
-  - Cost management for AI API usage
-
-- **Rate Limiting**: Control agent response frequency
-  - Prevent spam responses
-  - Manage API costs
-  - Prioritize important questions
-
-- **Agent Roles & Permissions**: Fine-grained access control
-  - Read-only vs read-write capabilities
-  - Channel-specific permissions
-  - User-specific agent access
-
-### Collaboration Features
-
-- **Agent Teams**: Groups of agents that work together
-  - Coordinator agent that delegates to specialists
-  - Shared context between team members
-  - Coordinated responses for complex questions
-
-- **Agent Handoffs**: Transfer conversation between agents
-  - Recognize when another agent is better suited
-  - Seamless context transfer
-  - User-transparent handoffs
-
-## UI/UX Improvements
-
-### Enhanced Agent Status Display
-
-- **Real-Time Progress Indicators**: Better visibility into agent activities
-  - Animated indexing progress
-  - Status badges (available, busy, indexing)
-  - Estimated time remaining
-
-- **Agent Profiles**: Detailed agent information
-  - Expertise areas
-  - Response history
-  - Performance metrics
-
-### Advanced Chat Features
-
-- **Threaded Conversations**: Group related messages
-  - Thread-specific context
-  - Parallel conversations
-  - Easier to follow complex discussions
-
-- **Code Snippets**: Better code formatting and display
-  - Syntax highlighting
-  - Copy to clipboard
-  - Jump to file location
-
-- **Agent Mentions**: Better mention system
-  - Auto-complete for agent names
-  - Multiple mentions
-  - Mention groups of agents
-
-## Performance & Scalability
-
-### Optimization
-
-- **Caching**: Cache common queries and responses
-  - Response caching for identical questions
-  - Pre-computed summaries
-  - Incremental analysis results
-
-- **Lazy Loading**: Load repository data on-demand
-  - Don't index unused files
-  - Progressive loading of large files
-  - Memory-efficient data structures
-
-### Distributed Architecture
-
-- **Agent Clustering**: Run multiple instances of agents
-  - Load balancing across instances
-  - High availability
-  - Horizontal scaling
-
-- **Persistent Storage**: Store agent state in database
-  - Survive restarts
-  - Share state across instances
-  - Backup and recovery
-
-## Integration & Extensibility
-
-### External Integrations
-
-- **GitHub Integration**: Connect directly to GitHub repositories
-  - Automatic updates on push
-  - PR review assistance
-  - Issue triage
-
-- **IDE Plugins**: Integrate with popular IDEs
-  - VS Code extension
-  - JetBrains plugin
-  - Vim/Emacs integration
-
-- **CI/CD Integration**: Integrate with build pipelines
-  - Answer questions in PR comments
-  - Automated code reviews
-  - Build failure analysis
+### CI/CD Integration
+- Agent responses in PR comments
+- Automated code review on push
+- Build failure analysis
 
 ### Plugin System
+- Custom analyzers for specific languages/frameworks
+- User-defined slash commands
+- Integration hooks for external tools
 
-- **Custom Analyzers**: Allow users to add custom analysis
-  - Language-specific analyzers
-  - Project-specific patterns
-  - Custom metrics
+### Agent Memory & Learning
+- Long-term context retention across sessions
+- Learning from conversation patterns
+- Personalized responses based on user history
 
-- **Custom Commands**: Add new chat commands
-  - User-defined workflows
-  - Integration with external tools
-  - Custom automation
-
-## Security & Privacy
-
-### Enhanced Security
-
-- **Repository Access Control**: Secure repository access
-  - Authentication for private repos
-  - Git credential management
-  - SSH key support
-
-- **Data Privacy**: Protect sensitive information
-  - Filter sensitive data before AI processing
-  - Local-only analysis option
-  - Encrypted storage
-
-- **Audit Logging**: Track agent activities
-  - Log all file accesses
-  - Track AI API calls
-  - User action history
-
-## Analytics & Insights
-
-### Usage Analytics
-
-- **Agent Performance Metrics**: Track agent effectiveness
-  - Response quality ratings
-  - Response time analytics
-  - User satisfaction scores
-
-- **Repository Insights**: Learn from usage patterns
-  - Most asked-about files
-  - Common confusion points
-  - Documentation gaps
-
-### Cost Management
-
-- **AI API Usage Tracking**: Monitor and control costs
-  - Per-agent cost tracking
-  - Budget alerts
-  - Usage optimization suggestions
-
-## Documentation & Testing
-
-### Improved Documentation
-
-- **Interactive Tutorials**: Step-by-step guides
-  - Getting started tutorial
-  - Advanced features guide
-  - Video demonstrations
-
-- **API Documentation**: Complete API reference
-  - REST API documentation
-  - WebSocket protocol
-  - SDK for different languages
-
-### Testing
-
-- **Automated Testing**: Comprehensive test suite
-  - Unit tests
-  - Integration tests
-  - End-to-end tests
-
-- **Agent Testing**: Test agent responses
-  - Response quality tests
-  - Regression testing
-  - Performance benchmarks
-
----
-
-## Contributing
-
-Have ideas for enhancements? Please open an issue or submit a pull request!
-
-## Priority Ranking
-
-### High Priority (Next Release)
-- Change detection and incremental reindexing
-- Enhanced agent status display
-- MCP integration for real-time file access
-
-### Medium Priority
-- Multi-repository support
-- Semantic code search
-- Agent scheduling
-
-### Low Priority (Future)
-- Agent clustering
-- IDE plugins
-- External integrations
-
----
-
-Last Updated: 2025-10-14
-
-
+### Analytics Dashboard
+- Agent performance metrics (response time, quality)
+- Usage patterns and popular topics
+- Cost breakdown by agent and provider
+- Repository insights (most-asked-about files, confusion points)

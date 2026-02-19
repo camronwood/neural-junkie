@@ -1,324 +1,311 @@
-# Getting Started with Neural Junkie
+# Getting Started
 
-A multi-agent collaboration system where specialized AI agents work together to solve complex problems.
+Get Neural Junkie running in under 5 minutes.
 
-## Quick Start (5 minutes)
+## Prerequisites
 
-### Option 1: Complete System (Easiest!)
+- **Go 1.23+** -- [go.dev/dl](https://go.dev/dl)
+- **Node.js 18+** -- [nodejs.org](https://nodejs.org)
+- **Rust** -- [rustup.rs](https://rustup.rs) (for the Tauri desktop app)
+- At least one AI provider:
+  - **Ollama** (local, free) -- [ollama.ai](https://ollama.ai)
+  - **Claude** (API key required) -- [anthropic.com](https://www.anthropic.com)
+  - **LM Studio** (local, free) -- [lmstudio.ai](https://lmstudio.ai)
 
-Start everything with one command:
+## Quick Start
 
-```bash
-cd /Users/camron.wood.ext/development/sandbox/neural-junkie
-make start-all
-```
-
-This will:
-- Start the server
-- Start all 5 AI agents (Backend, Database, Security, Frontend, DevOps)
-- Open the GUI chat application
-
-### Option 2: Automated Test Script
+### Option 1: Everything at Once
 
 ```bash
-./scripts/quick-test.sh
-make gui
+cd neural-junkie
+make gui-install    # First time only -- installs npm + Rust deps
+make start-all     # Starts server, agents, and desktop app
 ```
 
-### Option 3: Manual Setup
+This launches:
+- The **Hub server** on `http://localhost:8080`
+- **Moderator** and **Assistant** agents (auto-started with the server)
+- 5 **specialist agents**: GoExpert, SQLMaster, SecurityExpert, ReactExpert, DevOpsPro
+- The **Tauri desktop app**
 
-**Terminal 1 - Start Server:**
+### Option 2: Manual Setup (Separate Terminals)
+
+**Terminal 1 -- Server:**
 ```bash
 make server
-# OR: go run cmd/server/main.go
 ```
 
-**Terminal 2 - Start Agents:**
+**Terminal 2 -- Agents:**
 ```bash
 make agents
-# OR manually:
-# go run cmd/agent/main.go --type backend --name "Go Expert"
-# go run cmd/agent/main.go --type frontend --name "React Pro"
-# go run cmd/agent/main.go --type security --name "Security Expert"
 ```
 
-**Terminal 3 - Launch Interface:**
+**Terminal 3 -- Interface:**
 ```bash
-# GUI (Best Experience)
-make gui
+make gui          # Desktop app (recommended)
+# OR
+make chat         # Terminal chat
+# OR
+open http://localhost:8080   # Web UI
+```
 
-# OR Terminal Chat
-make chat
+## AI Provider Configuration
 
-# OR Web UI
-open http://localhost:8080
+### Ollama (Local, Recommended for Getting Started)
 
-# OR CLI
-go run cmd/cli/main.go --channel general --message "Your question here"
+Ollama runs models locally with no API key required.
+
+```bash
+# Install Ollama from https://ollama.ai, then:
+make pull-models
+```
+
+This pulls two model tiers:
+- **Code tier** (`qwen2.5-coder:14b`, ~9GB) -- used by specialist agents
+- **Utility tier** (`qwen2.5:7b`, ~4.5GB) -- used by Moderator and Assistant
+
+The `make agents` target automatically uses these models via the `OLLAMA_CODE_MODEL` env var.
+
+### Claude (Anthropic API)
+
+```bash
+cp env.example env.local
+```
+
+Edit `env.local`:
+```bash
+USE_AI_HUB=false
+ANTHROPIC_API_KEY=sk-your-key-here
+```
+
+Then load and start:
+```bash
+source load-env.sh
+make server
+```
+
+### LM Studio (Local)
+
+1. Install LM Studio from [lmstudio.ai](https://lmstudio.ai)
+2. Load a model and start the local server (default: `http://localhost:1234/v1`)
+3. In the desktop app, go to **Settings > AI Providers** and configure the LM Studio endpoint
+
+### Switching Providers at Runtime
+
+From the desktop app: **Settings > AI Providers** lets you configure endpoints, test connections, fetch available models, and switch all agents at once.
+
+From chat:
+```
+/switch-provider GoExpert claude claude-3-5-sonnet-20241022
+/switch-all-providers ollama
+```
+
+### Mock Provider (No AI Calls)
+
+For testing without any API or local model:
+```bash
+go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
 ```
 
 ## Interface Comparison
 
 | Interface | Command | Best For |
 |-----------|---------|----------|
-| **GUI** 🖥️ | `make gui` | Visual users, best experience |
-| **Terminal** 💬 | `make chat` | Terminal lovers, SSH |
-| **Web** 🌐 | `http://localhost:8080` | Remote access, mobile |
-| **CLI** ⌨️ | `go run cmd/cli/main.go` | Scripts, automation |
+| **Desktop App** | `make gui` | Full experience -- command palette, file explorer, code editor, threads |
+| **Terminal Chat** | `make chat` | Terminal users, SSH sessions |
+| **Web UI** | `http://localhost:8080` | Quick access, remote/mobile |
+| **CLI** | `go run cmd/cli/main.go` | Scripting, automation, MCP server |
 
-## AI Configuration
+## Using the Desktop App
 
-### Prerequisites
+### Command Palette
 
-Ensure `env.local` exists and contains your AI Hub credentials:
+Type `/` in the chat input or click the **`/`** button in the toolbar to open the command palette. It provides:
+- Searchable list of all 50+ slash commands
+- Organized by category (Repo Agents, Dispatch, Provider, etc.)
+- Guided forms for commands that take arguments
+- Keyboard navigation (arrow keys + Enter)
+
+### @Mentions
+
+Direct questions to specific agents:
+```
+@GoExpert How should I structure this API?
+@SecurityExpert @GoExpert Review this auth middleware
+@frontend How do I center a div?
+```
+
+Mention by **name** (e.g., `@GoExpert`) or by **type** (e.g., `@frontend`, `@backend`, `@database`, `@devops`, `@security`, `@repo`).
+
+### Threads
+
+Click a message to open a thread. Replies stay in context. You can @mention a different agent in a thread reply to get a **second opinion** (Agent Review).
+
+### Panels
+
+Toggle panels from **Settings > Layout**:
+- **File Explorer** -- Browse workspace files
+- **Code Editor** -- View and edit code
+- **Terminal** -- Embedded terminal output
+- **My Agents** -- Active agent list with status
+- **Pending Changes** -- File change proposals from agents
+
+## Creating Dynamic Agents
+
+### Repository Expert
+
+Index a codebase and get a project-specific AI expert:
+
+```
+/create-repo-agent /path/to/your/project
+```
+
+Or with options:
+```
+/create-repo-agent /path/to/project --agent-name "MyApp Expert" --provider ollama --model qwen2.5-coder:14b
+```
+
+Enable file watching for auto-reindex on changes:
+```
+/enable-watch MyApp Expert
+```
+
+See [REPO_AGENTS.md](REPO_AGENTS.md) for full documentation.
+
+### Confluence Documentation Agent
+
+Index a Confluence space for documentation Q&A:
+
+```
+/create-confluence-agent SPACEKEY
+```
+
+Requires Confluence credentials in `env.local`:
+```bash
+CONFLUENCE_DOMAIN=yourcompany.atlassian.net
+CONFLUENCE_EMAIL=your.email@company.com
+CONFLUENCE_API_TOKEN=your-api-token
+```
+
+See [CONFLUENCE_AGENTS.md](CONFLUENCE_AGENTS.md) for full documentation.
+
+### Helper Agent
+
+Create custom knowledge-base experts from templates:
+
+```
+/create-helper day-one
+/list-helper-templates
+```
+
+See [HELPER_AGENTS.md](HELPER_AGENTS.md) for full documentation.
+
+## Make Targets
 
 ```bash
-USE_AI_HUB=true
-AI_HUB_ENDPOINT=https://aihub.dispatchit.com/v1
-ANTHROPIC_API_KEY=your-api-key-here
-AI_HUB_MODEL=claude-sonnet
+# Lifecycle
+make start-all        # Server + agents + desktop
+make server           # Hub server (loads env.local)
+make agents           # All 5 specialist agents
+make stop             # Kill all processes
+make refresh          # Stop, clear, restart
+
+# Desktop app
+make gui              # Launch desktop app
+make gui-install      # Install npm + Rust deps (first time)
+make gui-build        # Production build
+
+# Individual agents
+make agent-backend    # GoExpert
+make agent-frontend   # ReactExpert
+make agent-database   # SQLMaster
+make agent-security   # SecurityExpert
+make agent-devops     # DevOpsPro
+make helper-agent NAME=day-one   # Helper agent
+
+# Dynamic agents
+make repo-agent PATH=/path/to/repo NAME="Agent Name"
+
+# Build & test
+make build            # Build all Go binaries
+make test             # Run Go tests
+make pull-models      # Pull Ollama models
+make deps             # Download Go dependencies
+make clean            # Remove build artifacts
 ```
 
-If `env.local` doesn't exist:
-```bash
-make setup-env  # Copies env.example to env.local
-```
+## Environment Variables
 
-### Using AI Hub (Recommended)
+All make targets automatically load from `env.local`. Key variables:
 
-```bash
-# Copy environment template
-cp env.example env.local
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `USE_AI_HUB` | Use AI Hub endpoint | `true` |
+| `AI_HUB_ENDPOINT` | AI Hub URL | `https://aihub.dispatchit.com/v1` |
+| `ANTHROPIC_API_KEY` | Claude API key | -- |
+| `AI_HUB_MODEL` | Claude model | `claude-sonnet` |
+| `OLLAMA_MODEL` | Ollama utility model | `qwen2.5:7b` |
+| `OLLAMA_CODE_MODEL` | Ollama code model | `qwen2.5-coder:14b` |
+| `SERVER_PORT` | Server port | `8080` |
+| `ENABLE_MCP` | Enable MCP tool servers | `true` |
+| `CONFLUENCE_DOMAIN` | Confluence Cloud domain | -- |
+| `CONFLUENCE_EMAIL` | Confluence email | -- |
+| `CONFLUENCE_API_TOKEN` | Confluence API token | -- |
+| `CURSOR_API_KEY` | Cursor CLI API key (optional) | -- |
+| `MCP_EXPORTS_DIR` | MCP export storage | `~/.neural-junkie/exports` |
 
-# Edit env.local with your credentials
-# Load environment
-source load-env.sh
-```
-
-### Using Anthropic API Directly
-
-```bash
-export USE_AI_HUB=false
-export ANTHROPIC_API_KEY="your-anthropic-key"
-```
-
-### Testing Without API Calls
-
-To use mock AI responses (no API calls, no cost):
-
-```bash
-go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
-```
-
-## Available Make Commands
-
-All commands automatically load environment variables from `env.local`:
-
-```bash
-make start-all      # Start server + agents + GUI
-make server         # Start server only
-make agents         # Start all 5 agents
-make gui            # Launch GUI application
-make chat           # Launch terminal chat
-
-# Individual agents:
-make agent-backend  # Go Expert
-make agent-database # SQL Master
-make agent-security # Security Expert
-make agent-frontend # React Expert
-make agent-devops   # DevOps Pro
-```
-
-## Try It Out!
-
-Once connected, ask questions like:
-
-```
-How do I prevent SQL injection?
-```
-
-```
-Our API is slow. What could be wrong?
-```
-
-```
-How should we implement JWT authentication?
-```
-
-Watch as multiple specialized agents collaborate to give you comprehensive answers!
-
-## Using @Mentions
-
-Target specific agents with the `@mention` feature:
-
-### Basic Syntax
-
-```
-@agentname your question here
-@agenttype your question here
-```
-
-### Examples
-
-**Mention by Type:**
-```
-@frontend How do I center a div in CSS?
-@backend What's the best way to handle API rate limiting?
-```
-
-**Mention Multiple Agents:**
-```
-@frontend @backend How should we structure the user authentication flow?
-```
-
-**Available Types:**
-- `@frontend` - React, Vue, CSS, HTML, UI/UX
-- `@backend` - APIs, Server logic, Microservices
-- `@database` - SQL, Schema design, Query optimization
-- `@devops` - Deployment, CI/CD, Docker, Kubernetes
-- `@security` - Authentication, Encryption, Security
-- `@repo` - Code structure, Repository analysis
-
-### When to Use @Mention
-
-✅ **Use mentions when:**
-- You know which expert you need
-- You want a focused answer (not multiple perspectives)
-- Following up with a specific agent
-
-❌ **Don't use mentions when:**
-- You want multiple perspectives (brainstorming)
-- You're not sure which expert is best
-- Asking general questions
-
-### List Available Agents
-
-**In CLI Chat:**
-```bash
-/agents
-```
-
-**In GUI:**
-Click the "Refresh" button in the Active Agents panel.
-
-## Agent Types
-
-- **Frontend Agent** - React, Vue, UI/UX, accessibility
-- **Backend Agent** - APIs, services, business logic, performance
-- **DevOps Agent** - Deployment, infrastructure, CI/CD
-- **Database Agent** - Schema design, queries, optimization
-- **Security Agent** - Vulnerabilities, auth, encryption
-- **Repository Expert** - Deep codebase analysis (special agent type)
-
-## Repository Expert Agents
-
-Create agents that become experts on your specific codebases:
-
-```bash
-source load-env.sh
-go run cmd/agent/main.go --type repo --repo-path /path/to/your/project --name "MyProject Expert"
-```
-
-Or from chat:
-```
-/create-repo-agent /path/to/your/project MyProject Expert
-```
-
-**File Watching (Optional):**
-```
-/enable-watch MyProject Expert   # Auto-update on file changes
-/disable-watch MyProject Expert  # Disable watching
-```
-
-See [docs/REPO_AGENTS.md](REPO_AGENTS.md) for details.
-
-## Stop Everything
-
-```bash
-# Stop all processes
-killall -9 main
-
-# Or press Ctrl+C in each terminal
-```
+See `env.example` for the full list with descriptions.
 
 ## Troubleshooting
 
 ### "Connection refused"
+Server isn't running. Start it with `make server`.
 ```bash
 curl http://localhost:8080/api/channels
 ```
-Make sure the server is running.
 
 ### "No agents responding"
+Check agents are running:
 ```bash
 curl http://localhost:8080/api/agents
 ```
-Check that agents are active.
 
-### "Using mock AI provider"
-Check that `env.local` has the correct credentials and that agents are started without `--mock=true`.
+### Port 8080 already in use
+Edit `env.local` and set `SERVER_PORT=8081`.
 
-### GUI won't start
+### Desktop app won't start
 ```bash
-go mod tidy
+make gui-install    # Reinstall dependencies
+make gui            # Try again
 ```
 
-### Port Already in Use
-If port 8080 is busy, edit `env.local` and change `SERVER_PORT` to another port (e.g., 8081).
+### Mock AI responses instead of real ones
+Check that `env.local` has valid credentials and agents weren't started with `--mock=true`.
 
 ### "env.local not found"
-Run `make setup-env` to create it from the example file.
-
-## Project Structure
-
-```
-neural-junkie/
-├── cmd/              # Executables
-│   ├── server/       # Chat hub server
-│   ├── agent/        # Agent runner
-│   ├── chat/         # Terminal chat client
-│   ├── gui/          # GUI application
-│   └── cli/          # CLI interface
-├── internal/         # Core implementation
-│   ├── hub/          # Chat hub & routing
-│   ├── agent/        # Agent framework
-│   ├── protocol/     # Message protocol
-│   ├── ai/           # AI provider integrations
-│   └── repo/         # Repository analysis
-├── docs/             # Documentation
-├── examples/         # Usage scenarios
-└── scripts/          # Automation scripts
+```bash
+make setup-env      # Creates env.local from env.example
 ```
 
-## What's Running?
+## Data Storage
 
-When you use `make start-all` or `make agents`, you'll get these AI experts:
+Neural Junkie stores data in `~/.neural-junkie/`:
 
-1. **Go Expert** (Backend) - Backend development and Go expertise
-2. **SQL Master** (Database) - Database optimization and SQL queries
-3. **Security Expert** (Security) - Security best practices and vulnerabilities
-4. **React Expert** (Frontend) - UI/UX and React development
-5. **DevOps Pro** (DevOps) - Infrastructure, deployment, and CI/CD
-
-## Environment Variables
-
-All commands automatically load environment variables from `env.local`:
-
-- `USE_AI_HUB` - Use AI Hub (true) or direct Anthropic API (false)
-- `AI_HUB_ENDPOINT` - AI Hub endpoint URL
-- `ANTHROPIC_API_KEY` - Your API key for Claude
-- `AI_HUB_MODEL` - Model to use (claude-sonnet, claude-opus, etc.)
-- `SERVER_PORT` - Server port (default: 8080)
-- `SERVER_HOST` - Server host (default: localhost)
+| Path | Contents |
+|------|----------|
+| `~/.neural-junkie/repos/` | Cached repository indexes |
+| `~/.neural-junkie/confluence/` | Cached Confluence indexes |
+| `~/.neural-junkie/helpers/` | Helper agent configs and knowledge |
+| `~/.neural-junkie/assistant/` | Reminders, tasks, notes |
+| `~/.neural-junkie/exports/` | MCP-format agent exports |
+| `~/.neural-junkie/backups/` | File change backups |
+| `~/.neural-junkie/workspaces.json` | Workspace list |
+| `~/.neural-junkie/last-session.json` | Session persistence |
 
 ## Next Steps
 
-1. Read [README.md](../README.md) for full feature overview
-2. Read [docs/ARCHITECTURE.md](ARCHITECTURE.md) for technical details
-3. Check [examples/](../examples/) for usage scenarios
-4. See [docs/FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md) for roadmap
-
----
-
-**Ready to collaborate with AI agents? Start now!** 🚀
-
+- [Architecture](ARCHITECTURE.md) -- How the system works under the hood
+- [Repo Agents](REPO_AGENTS.md) -- Deep codebase analysis
+- [Dispatch Integration](DISPATCH_INTEGRATION.md) -- DevOps command execution
+- [MCP Exports](MCP_EXPORTS.md) -- Sharing agent knowledge
+- [examples/](../examples/) -- Real-world usage scenarios

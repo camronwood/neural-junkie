@@ -1,186 +1,248 @@
-# Neural Junkie - Multi-Agent Collaboration System
+```
+ ███╗   ██╗███████╗██╗   ██╗██████╗  █████╗ ██╗
+ ████╗  ██║██╔════╝██║   ██║██╔══██╗██╔══██╗██║
+ ██╔██╗ ██║█████╗  ██║   ██║██████╔╝███████║██║
+ ██║╚██╗██║██╔══╝  ██║   ██║██╔══██╗██╔══██║██║
+ ██║ ╚████║███████╗╚██████╔╝██║  ██║██║  ██║███████╗
+ ╚═╝  ╚═══╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝
+       ╦╦ ╦╔╗╔╦╔═╦╔═╗
+       ║║ ║║║║╠╩╗║║╣
+      ╚╝╚═╝╝╚╝╩ ╩╩╚═╝
+```
 
-A prototype system where multiple AI agents with different specialties communicate, collaborate, and solve complex problems together.
+# Neural Junkie
 
-## Architecture
+> Stop talking to LLMs. Start running a digital hive-mind.
+
+High-octane agent orchestration for developers who hate waiting. Plug into a synchronized team of specialized AI nodes that crawl your repos, wield your tools, and solve complex problems in real-time.
+
+## The Nervous System
+
+Neural Junkie isn't a chatbot. It's a distributed intelligence grid.
 
 ```mermaid
 graph TB
-    Hub[Chat Hub Server<br/>- Message Routing<br/>- Channel Management<br/>- History & Context]
-    
-    Hub --> Frontend[Frontend Agent<br/>React, Vue, UI/UX]
-    Hub --> Backend[Backend Agent<br/>APIs, Services, Go]
-    Hub --> DevOps[DevOps Agent<br/>Docker, K8s, CI/CD]
-    Hub --> Database[Database Agent<br/>SQL, Schema, Queries]
-    Hub --> Security[Security Agent<br/>Auth, Encryption, Compliance]
-    
-    style Hub fill:#2d3748,stroke:#4a5568,color:#fff
-    style Frontend fill:#3182ce,stroke:#2c5282,color:#fff
-    style Backend fill:#38a169,stroke:#2f855a,color:#fff
-    style DevOps fill:#d69e2e,stroke:#b7791f,color:#fff
-    style Database fill:#805ad5,stroke:#6b46c1,color:#fff
-    style Security fill:#e53e3e,stroke:#c53030,color:#fff
+    Core[🧠 The Core · Hub<br/>Signal routing · Channel management<br/>Command dispatch · Session persistence]
+
+    Core --> Moderator[🎯 Moderator<br/>Auto-started · Chat commands<br/>User guidance · Safety net]
+    Core --> Assistant[📋 Assistant<br/>Reminders · Tasks · Notes<br/>Meeting summaries]
+
+    Core --> GoExpert[⚙️ GoExpert<br/>APIs · Services · Go]
+    Core --> ReactExpert[🎨 ReactExpert<br/>React · UI/UX · CSS]
+    Core --> DevOpsPro[🚀 DevOpsPro<br/>Docker · K8s · CI/CD]
+    Core --> SQLMaster[🗄️ SQLMaster<br/>Schema · Queries · Perf]
+    Core --> SecurityExpert[🔒 SecurityExpert<br/>Auth · Encryption · OWASP]
+
+    Core --> RepoAgents[📂 Repo Agents<br/>Codebase indexing · File watch<br/>Project-specific expertise]
+    Core --> ConfluenceAgents[📚 Confluence Agents<br/>Space indexing · Doc search<br/>Knowledge Q&A]
+    Core --> HelperAgents[🎯 Helper Agents<br/>Onboarding · Testing<br/>Custom templates]
+
+    style Core fill:#1a1a2e,stroke:#e94560,color:#fff,stroke-width:2px
+    style Moderator fill:#16213e,stroke:#0f3460,color:#fff
+    style Assistant fill:#16213e,stroke:#0f3460,color:#fff
+    style GoExpert fill:#0f3460,stroke:#533483,color:#fff
+    style ReactExpert fill:#0f3460,stroke:#533483,color:#fff
+    style DevOpsPro fill:#0f3460,stroke:#533483,color:#fff
+    style SQLMaster fill:#0f3460,stroke:#533483,color:#fff
+    style SecurityExpert fill:#0f3460,stroke:#533483,color:#fff
+    style RepoAgents fill:#533483,stroke:#e94560,color:#fff
+    style ConfluenceAgents fill:#533483,stroke:#e94560,color:#fff
+    style HelperAgents fill:#533483,stroke:#e94560,color:#fff
 ```
 
-## Features
+## What's In the Box
 
-- **✨ Modern Desktop UI** - Beautiful desktop app with Slack-inspired styling (Tauri + React + TypeScript)
-- **💬 Interactive Chat Mode** - Chat directly with AI agents in real-time
-- **Multi-Agent Communication** - Agents can join channels and communicate in real-time
-- **Specialized Agents** - Each agent has expertise in specific domains
-- **@Mention Support** - Direct questions to specific agents or agent types
-- **Context Sharing** - Agents maintain conversation history and context
-- **Channel System** - Organize conversations by project or topic
-- **Real-Time Updates** - WebSocket-based communication for instant updates
-- **Multiple Interfaces** - Desktop GUI, Terminal Chat, Web UI, and CLI options
-- **Repository Expert Agents** ⭐ - Deep code repository analysis and project-specific guidance
-- **Confluence Documentation Agents** 📚 - Index and search Confluence spaces for documentation Q&A
-- **Helper Agents** 🎯 - Customizable experts for onboarding, testing, docs, and more
-- **GitHub CLI Integration** 🐙 - Execute GitHub operations (issues, PRs, repos) directly from chat
-- **Dispatch CLI Integration** 🚀 - Execute DevOps commands directly from chat with approval workflows
-- **MCP Tool Integration** 🔧 - Specialized agents with executable tools for data-driven analysis
-- **Agent Export System** 📦 - Export agent knowledge to MCP format for sharing and reuse
+- **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
+- **9 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Repo, Confluence, Helper, and Moderator/Assistant (auto-started)
+- **3 AI Providers** -- Ollama (local), Claude (Anthropic/AI Hub), LM Studio (local) -- switch per-agent or globally
+- **50+ Slash Commands** -- Agent management, repo indexing, Confluence search, dispatch operations, file changes, provider switching, and more
+- **Command Palette** -- Searchable UI for discovering and executing slash commands with guided argument forms
+- **Repository Expert Agents** -- Index your codebase, watch for changes, answer project-specific questions
+- **Confluence Doc Agents** -- Index Confluence spaces, search documentation, answer knowledge-base questions
+- **Dispatch CLI Integration** -- Execute DevOps commands (kubectl, aws, docker, sops) with approval workflows
+- **File Change System** -- Agents propose file edits, you approve/reject with diff preview
+- **MCP Export/Import** -- Export agent knowledge to MCP format for sharing across tools
+- **@Mention System** -- Direct questions to specific agents by name or type
+- **Threaded Conversations** -- Reply in threads to keep complex discussions organized
+- **Agent Review** -- Get a second opinion by @mentioning another agent in a reply
 
 ## Quick Start
 
-Get started in under 5 minutes:
-
 ```bash
-# Option 1: GUI Desktop App (Recommended)
-make gui-install  # First time only - install dependencies
-make gui          # Launch the desktop app
+git clone https://github.com/camronwood/neural-junkie.git
+cd neural-junkie
 
-# Option 2: Start everything (server + agents + GUI)
+# Install desktop dependencies (first time)
+make gui-install
+
+# Start everything: server + agents + desktop app
 make start-all
-
-# Option 3: Run the automated setup
-./scripts/quick-test.sh
 ```
 
-**→ See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for detailed setup**
+That's it. The server auto-starts the **Moderator** (chat guide) and **Assistant** (tasks/reminders), then spins up the 5 specialist agents and opens the desktop app.
 
-### Interface Options
+### Other Ways to Run
 
-- **Desktop App** - `make gui` (✨ Modern React UI with Slack-like styling - **Recommended**)
-- **Terminal Chat** - `make chat` (For terminal users)
-- **Web UI** - `http://localhost:8080` (Browser-based)
-- **CLI** - `go run cmd/cli/main.go` (Automation/scripts)
+```bash
+# Manual setup (separate terminals)
+make server          # Terminal 1: Hub server
+make agents          # Terminal 2: All 5 specialist agents
+make gui             # Terminal 3: Desktop app
 
-## Agent Types
+# Terminal chat (no GUI)
+make chat
 
-1. **Frontend Agent** - React, Vue, UI/UX, accessibility
-2. **Backend Agent** - APIs, services, business logic, performance
-3. **DevOps Agent** - Deployment, infrastructure, CI/CD, monitoring
-4. **Database Agent** - Schema design, queries, optimization, migrations
-5. **Security Agent** - Vulnerabilities, authentication, encryption, compliance
-6. **Repository Expert Agent** ⭐ - Deep code repository analysis and project-specific guidance
-7. **Confluence Documentation Agent** 📚 - Confluence space indexing and documentation Q&A
-8. **Helper Agents** 🎯 - Customizable experts (Day One, Testing Expert, Docs Expert)
+# Web UI
+open http://localhost:8080
 
-## Use Cases
+# CLI (scripting/automation)
+go run cmd/cli/main.go --channel general --message "Your question"
+```
 
-**Performance Debugging:**
-Multiple agents collaborate to identify bottlenecks (N+1 queries, caching issues, infrastructure problems).
+### AI Provider Setup
 
-**Architecture Decisions:**
-Get perspectives from all domains before making technology choices.
+Neural Junkie supports three providers. You need at least one:
 
-**Code Reviews:**
-Security, backend, and database agents review code from different angles.
+**Ollama (Local, Free)**
+```bash
+# Install: https://ollama.ai
+make pull-models     # Downloads qwen2.5-coder:14b + qwen2.5:7b
+```
 
-**→ See [examples/](examples/) for detailed scenarios**
+**Claude (Anthropic API)**
+```bash
+cp env.example env.local
+# Edit env.local:
+#   USE_AI_HUB=false
+#   ANTHROPIC_API_KEY=sk-your-key-here
+source load-env.sh
+```
+
+**LM Studio (Local, Free)**
+```bash
+# Install: https://lmstudio.ai
+# Start LM Studio, load a model, start the local server
+# Default endpoint: http://localhost:1234/v1
+```
+
+Switch providers at runtime from the desktop Settings > AI Providers tab, or via slash commands:
+```
+/switch-provider GoExpert ollama qwen2.5-coder:14b
+/switch-all-providers lmstudio
+```
+
+## Agents
+
+### Auto-Started (with server)
+
+| Agent | Role |
+|-------|------|
+| **Moderator** | Chat commands, feature guidance, 20s safety-net for unanswered questions |
+| **Assistant** | Reminders, tasks, notes, meeting summaries, scheduling |
+
+### Specialist Agents (via `make agents`)
+
+| Agent | Expertise |
+|-------|-----------|
+| **GoExpert** | Go, APIs, microservices, REST/GraphQL/gRPC, caching |
+| **SQLMaster** | PostgreSQL, MySQL, MongoDB, Redis, schema design, query optimization |
+| **SecurityExpert** | Auth, OAuth/JWT, encryption, XSS/CSRF, OWASP, compliance |
+| **ReactExpert** | React, TypeScript, CSS, UI/UX, design analysis, vision-capable |
+| **DevOpsPro** | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform, dispatch commands |
+
+### Dynamic Agents (created via commands)
+
+| Agent | Created With | Purpose |
+|-------|-------------|---------|
+| **Repo Agent** | `/create-repo-agent /path provider` | Indexes a codebase, watches for changes, answers project questions |
+| **Confluence Agent** | `/create-confluence-agent space-key` | Indexes a Confluence space for documentation Q&A |
+| **Helper Agent** | `/create-helper template-name` | Custom knowledge-base expert (onboarding, testing, docs) |
+
+## Commands
+
+Type `/` in the chat or click the **`/`** button to open the command palette. Commands are organized by category:
+
+| Category | Key Commands |
+|----------|-------------|
+| **Repo Agents** | `/create-repo-agent`, `/reindex-agent`, `/enable-watch`, `/disable-watch` |
+| **Confluence** | `/create-confluence-agent`, `/reindex-confluence-agent`, `/list-confluence-agents` |
+| **Helpers** | `/create-helper`, `/list-helper-templates` |
+| **Agent Mgmt** | `/list-agents`, `/delete-agent`, `/pause-agent`, `/unpause-agent`, `/remove-agent`, `/recall-agent` |
+| **Dispatch** | `/dispatch`, `/dispatch-list`, `/approve`, `/reject` |
+| **Providers** | `/switch-provider`, `/switch-all-providers` |
+| **Files** | `/open-file`, `/list-file-changes`, `/approve-file`, `/reject-file` |
+| **MCP Export** | `/export-agent-mcp`, `/import-agent-mcp`, `/list-exports`, `/export-all-agents` |
+| **Meetings** | `/ingest-meetings`, `/search-meetings`, `/meeting-summary`, `/action-items` |
+| **Assistant** | `/remind`, `/task-add`, `/task-list`, `/task-done`, `/note-save`, `/note-search` |
+| **Connections** | `/test-anthropic-connection`, `/test-github-connection`, `/test-confluence-connection` |
+| **Design** | `/analyze-design` |
+| **Help** | `/help`, `/help-assistant` |
 
 ## Project Structure
 
 ```
 neural-junkie/
 ├── cmd/
-│   ├── server/      # Chat hub server
-│   ├── agent/       # Agent runner
-│   ├── chat/        # Interactive chat client
-│   └── cli/         # CLI interface
-├── desktop/         # ✨ Desktop GUI (Tauri + React + TypeScript)
-│   ├── src/         # React frontend
-│   └── src-tauri/   # Rust wrapper
+│   ├── server/          # Hub server (HTTP + WebSocket)
+│   ├── agent/           # Standalone agent runner
+│   ├── helper-agent/    # Helper agent runner
+│   ├── chat/            # Interactive terminal chat
+│   └── cli/             # CLI tool (automation, MCP server)
+├── desktop/             # Tauri + React desktop app
+│   ├── src/             # React frontend (components, stores, hooks)
+│   └── src-tauri/       # Rust backend (Tauri shell)
 ├── internal/
-│   ├── hub/         # Chat hub implementation
-│   ├── agent/       # Agent framework & types
-│   ├── protocol/    # Message protocol
-│   ├── ai/          # AI integration (Claude)
-│   └── repo/        # Repository analysis
-├── docs/            # Documentation
-│   ├── GETTING_STARTED.md
-│   ├── ARCHITECTURE.md
-│   ├── REPO_AGENTS.md
-│   ├── STATUS.md
-│   ├── CHANGELOG.md
-│   ├── DEVELOPMENT_NOTES.md
-│   └── FUTURE_ENHANCEMENTS.md
-├── examples/        # Example scenarios
-└── scripts/         # Demo & helper scripts
+│   ├── hub/             # Core hub, commands, workspaces
+│   ├── agent/           # All agent implementations
+│   ├── protocol/        # Message types, mentions, command detection
+│   ├── ai/              # Providers: Ollama, Claude, LM Studio, CLI
+│   ├── repo/            # Repository indexing, search, file watching
+│   ├── confluence/      # Confluence client, indexing, search
+│   ├── dispatch/        # Dispatch CLI executor, approval, registry
+│   ├── filechange/      # File change proposals, approval, execution
+│   └── mcp_export/      # MCP format export/import
+├── test/                # Go tests
+├── docs/                # Documentation
+├── examples/            # Usage scenarios
+└── scripts/             # Automation and demo scripts
 ```
-
-## Repository Expert Agents ⭐
-
-Create AI agents that become experts on your specific codebases. They analyze file structure, dependencies, git history, and code patterns to answer project-specific questions.
-
-```bash
-# Create a repo agent
-source load-env.sh
-go run cmd/agent/main.go --type repo --repo-path /path/to/your/project --name "MyProject Expert"
-
-# Or from chat
-/create-repo-agent /path/to/your/project MyProject Expert
-```
-
-**→ See [docs/REPO_AGENTS.md](docs/REPO_AGENTS.md) for complete documentation**
-
-## MCP Tool Integration 🔧
-
-Specialized agents now have access to executable tools for data-driven analysis:
-
-- **Backend Agent**: Go code analysis, testing, profiling, dependency checking
-- **DevOps Agent**: Kubernetes queries, Docker analysis, YAML validation, log inspection
-- **Database Agent**: Query optimization, index analysis, schema validation, performance tuning
-
-```bash
-# Enable MCP tools in env.local
-ENABLE_MCP=true
-ENABLE_BACKEND_MCP=true
-ENABLE_DEVOPS_MCP=true
-ENABLE_DATABASE_MCP=true
-```
-
-**→ See [docs/MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) for complete documentation**
-
-## Configuration
-
-The system supports Claude AI via AI Hub or direct Anthropic API.
-
-```bash
-# Copy environment template
-cp env.example env.local
-
-# Edit env.local with your credentials
-# Load environment
-source load-env.sh
-```
-
-**→ See [docs/GETTING_STARTED.md#ai-configuration](docs/GETTING_STARTED.md#ai-configuration) for setup instructions**
 
 ## Documentation
 
-- **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** - Quick setup guide
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical architecture deep-dive
-- **[docs/REPO_AGENTS.md](docs/REPO_AGENTS.md)** - Repository expert agent documentation
-- **[docs/CONFLUENCE_AGENTS.md](docs/CONFLUENCE_AGENTS.md)** - Confluence documentation agent guide
-- **[docs/HELPER_AGENTS.md](docs/HELPER_AGENTS.md)** - Custom helper agents documentation
-- **[docs/DISPATCH_INTEGRATION.md](docs/DISPATCH_INTEGRATION.md)** - Dispatch CLI integration guide
-- **[docs/STATUS.md](docs/STATUS.md)** - Current project status
-- **[docs/CHANGELOG.md](docs/CHANGELOG.md)** - Version history
-- **[docs/DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md)** - Developer guide
-- **[docs/FUTURE_ENHANCEMENTS.md](docs/FUTURE_ENHANCEMENTS.md)** - Planned features and roadmap
-- **[examples/](examples/)** - Real-world usage scenarios
+| Doc | What It Covers |
+|-----|----------------|
+| **[Getting Started](docs/GETTING_STARTED.md)** | Setup, configuration, first steps |
+| **[Architecture](docs/ARCHITECTURE.md)** | System design, data flow, patterns |
+| **[Repo Agents](docs/REPO_AGENTS.md)** | Repository indexing and analysis |
+| **[Confluence Agents](docs/CONFLUENCE_AGENTS.md)** | Confluence space integration |
+| **[Helper Agents](docs/HELPER_AGENTS.md)** | Custom knowledge-base experts |
+| **[Assistant Agent](docs/ASSISTANT_AGENT.md)** | Reminders, tasks, notes, meetings |
+| **[Moderator Agent](docs/MODERATOR_AGENT.md)** | Chat guidance and command help |
+| **[Dispatch Integration](docs/DISPATCH_INTEGRATION.md)** | DevOps command execution |
+| **[MCP Integration](docs/MCP_INTEGRATION.md)** | MCP tool servers for agents |
+| **[MCP Exports](docs/MCP_EXPORTS.md)** | Exporting agent knowledge |
+| **[Agent Review](docs/AGENT_REVIEW.md)** | Second-opinion review system |
+| **[Status](docs/STATUS.md)** | Current project status |
+| **[Changelog](docs/CHANGELOG.md)** | Version history |
+
+## Make Targets
+
+```bash
+make start-all        # Server + agents + desktop app
+make server           # Hub server only (with env)
+make agents           # All 5 specialist agents
+make gui              # Desktop app (Tauri + React)
+make gui-install      # Install desktop dependencies
+make chat             # Terminal chat client
+make stop             # Kill all processes
+make refresh          # Stop, clear logs, restart fresh
+make build            # Build all Go binaries
+make test             # Run Go tests
+make pull-models      # Pull Ollama models
+make repo-agent       # Create repo agent: make repo-agent PATH=/path NAME="Name"
+make helper-agent     # Start helper: make helper-agent NAME=day-one
+make clean            # Remove build artifacts
+```
 
 ## License
 
