@@ -175,12 +175,22 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
     setSwitchingProvider(agentId);
     try {
       await switchAgentProvider(agentId, provider, model);
-      onRefresh(); // Refresh the agent list to show updated provider info
+      onRefresh();
     } catch (error) {
       console.error('Failed to switch provider:', error);
-      // You could add a toast notification here
     } finally {
       setSwitchingProvider(null);
+    }
+  };
+
+  const handleApprovalModeChange = async (agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo') => {
+    try {
+      const { ChatAPI } = await import('../api/chatAPI');
+      const api = new ChatAPI();
+      await api.setAgentApprovalMode(agentId, mode);
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to set approval mode:', error);
     }
   };
 
@@ -318,6 +328,7 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
           onProviderSwitch={handleProviderSwitch}
           onExport={onExportAgent}
           onRemove={onRemoveAgent}
+          onApprovalModeChange={handleApprovalModeChange}
           switchingProvider={switchingProvider}
           availableOllamaModels={availableOllamaModels}
           availableLMStudioModels={availableLMStudioModels}

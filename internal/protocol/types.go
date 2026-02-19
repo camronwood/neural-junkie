@@ -24,6 +24,9 @@ const (
 	MessageTypeCommandSuggestion MessageType = "command_suggestion"
 	MessageTypeDesignOutput      MessageType = "design_output"
 	MessageTypeFileChange        MessageType = "file_change"
+	MessageTypeToolApproval      MessageType = "tool_approval"
+	MessageTypeStreamDelta       MessageType = "stream_delta"
+	MessageTypeStreamEnd         MessageType = "stream_end"
 )
 
 // AgentType defines the specialty of an agent
@@ -113,6 +116,7 @@ type AgentInfo struct {
 	ConfluenceSpaceKey string    `json:"confluence_space_key"` // Confluence space key (for confluence agents)
 	LastActiveTime     time.Time `json:"last_active_time"`     // When agent was last in a channel
 	RemovedFrom        []string  `json:"removed_from"`         // List of channels agent was removed from
+	ApprovalMode       string    `json:"approval_mode,omitempty"` // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
 }
 
 // ChannelType classifies the purpose of a channel

@@ -44,6 +44,9 @@ type Hub struct {
 	// Workspace manager for handling workspace operations
 	workspaceManager *WorkspaceManager
 
+	// Tool approval manager for CLI agent tool call approvals
+	toolApprovalManager *ToolApprovalManager
+
 	mu sync.RWMutex
 }
 
@@ -86,6 +89,9 @@ func NewHub() *Hub {
 		hub.workspaceManager = workspaceManager
 		fmt.Printf("DEBUG: Workspace manager initialized successfully\n")
 	}
+
+	// Initialize tool approval manager
+	hub.toolApprovalManager = NewToolApprovalManager(hub)
 
 	return hub
 }
@@ -392,6 +398,12 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		return fmt.Errorf("channel %s not found", msg.Channel)
 	}
 
+	// Stream delta/end messages are ephemeral -- broadcast without storing
+	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd {
+		h.broadcast(msg.Channel, msg)
+		return nil
+	}
+
 	// Handle thread messages separately
 	if msg.IsInThread() {
 		threadID := msg.GetThreadID()
@@ -559,6 +571,16 @@ func (h *Hub) broadcast(channelName string, msg *protocol.Message) {
 			// Channel full, skip
 		}
 	}
+}
+
+// BroadcastDirect sends a message to all subscribers of a channel without
+// storing it in message history. Used for ephemeral messages like stream
+// deltas that should reach the frontend but not pollute the history.
+func (h *Hub) BroadcastDirect(channelName string, msg *protocol.Message) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	h.broadcast(channelName, msg)
 }
 
 // GetChannelAgents returns all agents in a channel
@@ -1070,6 +1092,11 @@ func (h *Hub) GetCommandDefinitions() []protocol.CommandDefinition {
 // GetFileChangeManager returns the file change manager for external access
 func (h *Hub) GetFileChangeManager() *filechange.FileChangeManager {
 	return h.fileChangeManager
+}
+
+// GetToolApprovalManager returns the tool approval manager for external access
+func (h *Hub) GetToolApprovalManager() *ToolApprovalManager {
+	return h.toolApprovalManager
 }
 
 // registerFileChangeProposal extracts a FileChangeProposal from message metadata

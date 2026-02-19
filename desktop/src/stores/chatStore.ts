@@ -42,6 +42,9 @@ interface ChatState {
   // Loading Agents
   loadingAgents: Set<string>; // Set of agent names currently loading
   
+  // Streaming messages (in-flight token-by-token responses)
+  streamingMessages: Record<string, Message>;
+  
   // Actions
   setConnectionStatus: (status: ConnectionStatus) => void;
   setServerAddr: (addr: string) => void;
@@ -86,6 +89,10 @@ interface ChatState {
   removeAgentFromConversation: (agentId: string) => void;
   recallAgent: (agentId: string) => void;
   
+  // Streaming actions
+  appendStreamDelta: (msg: Message) => void;
+  finalizeStream: (streamId: string) => void;
+  
   // Provider switching actions
   switchAgentProvider: (agentId: string, provider: string, model: string) => Promise<void>;
   switchAllAgentProviders: (provider: string, model: string) => Promise<void>;
@@ -117,6 +124,7 @@ const initialState = {
   removedAgentsPanelOpen: false,
   removedAgents: [],
   loadingAgents: new Set<string>(),
+  streamingMessages: {} as Record<string, Message>,
 };
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -300,6 +308,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('Recalling agent:', agentId);
   },
   
+  // Streaming actions
+  appendStreamDelta: (msg) =>
+    set((state) => {
+      const existing = state.streamingMessages[msg.id];
+      if (existing) {
+        return {
+          streamingMessages: {
+            ...state.streamingMessages,
+            [msg.id]: { ...existing, content: existing.content + msg.content },
+          },
+        };
+      }
+      // First delta -- create the streaming message entry
+      return {
+        streamingMessages: {
+          ...state.streamingMessages,
+          [msg.id]: { ...msg, type: 'chat' as Message['type'] },
+        },
+      };
+    }),
+
+  finalizeStream: (streamId) =>
+    set((state) => {
+      const { [streamId]: _removed, ...rest } = state.streamingMessages;
+      return { streamingMessages: rest };
+    }),
+  
   // Provider switching actions
   switchAgentProvider: async (agentId, provider, model) => {
     const { serverAddr } = get();
@@ -342,6 +377,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       threadMetadata: new Map<string, ThreadMetadata>(),
       channelMessages: new Map<string, Message[]>(),
       unreadChannels: new Set<string>(),
+      streamingMessages: {},
     });
   },
   
@@ -352,6 +388,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     threadMetadata: new Map<string, ThreadMetadata>(),
     channelMessages: new Map<string, Message[]>(),
     unreadChannels: new Set<string>(),
+    streamingMessages: {},
   }),
 }));
 

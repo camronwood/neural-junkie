@@ -9,6 +9,7 @@ interface AgentInfoModalProps {
   onProviderSwitch?: (agentId: string, provider: string, model: string) => void;
   onExport?: (agentName: string) => void;
   onRemove?: (agentId: string, agentName: string) => void;
+  onApprovalModeChange?: (agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo') => void;
   switchingProvider?: string | null;
   availableOllamaModels?: string[];
   availableLMStudioModels?: string[];
@@ -21,6 +22,7 @@ export function AgentInfoModal({
   onProviderSwitch,
   onExport,
   onRemove,
+  onApprovalModeChange,
   switchingProvider,
   availableOllamaModels = [],
   availableLMStudioModels = []
@@ -153,6 +155,45 @@ export function AgentInfoModal({
                 )}
               </div>
             </div>
+
+            {/* Tool Approval Mode -- shown for CLI agents */}
+            {(agent.ai_provider === 'cursor-cli' || agent.ai_provider === 'gemini-cli' || agent.type === 'cli') && (
+              <div>
+                <h3 className="text-sm font-medium text-slack-textMuted mb-2">Tool Approval Mode</h3>
+                <p className="text-xs text-slack-textMuted mb-2">
+                  Controls whether this agent asks for your permission before using tools.
+                </p>
+                <select
+                  value={agent.approval_mode || 'interactive'}
+                  onChange={(e) => {
+                    const mode = e.target.value as 'interactive' | 'auto_edit' | 'yolo';
+                    onApprovalModeChange?.(agent.id, mode);
+                  }}
+                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text text-sm focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                >
+                  <option value="interactive">
+                    Interactive -- Ask before every tool call
+                  </option>
+                  <option value="auto_edit">
+                    Auto Edit -- Approve file ops, ask for shell commands
+                  </option>
+                  <option value="yolo">
+                    YOLO -- Auto-approve everything
+                  </option>
+                </select>
+                <div className="mt-2 text-xs text-slack-textMuted">
+                  {(agent.approval_mode || 'interactive') === 'interactive' && (
+                    <span>You will see approve/reject buttons in the chat for each tool call.</span>
+                  )}
+                  {agent.approval_mode === 'auto_edit' && (
+                    <span>File reads and edits run automatically. Shell commands need your approval.</span>
+                  )}
+                  {agent.approval_mode === 'yolo' && (
+                    <span className="text-yellow-400">All tool calls will execute without confirmation.</span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* AI Provider & Model -- hidden for agents that use external tools (CLI, etc.) */}
             {agent.ai_provider !== 'cursor-cli' && agent.type !== 'cli' && (

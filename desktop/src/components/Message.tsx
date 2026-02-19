@@ -3,17 +3,20 @@ import { getAgentColor, isSystemMessage } from '../types/protocol';
 import { MessageContent } from './MessageContent';
 import { CommandOutput } from './CommandOutput';
 import { DesignOutput } from './DesignOutput';
+import { ToolApprovalCard } from './ToolApprovalCard';
 
 interface MessageProps {
   message: MessageType;
   threadMetadata?: ThreadMetadata;
   onOpenThread?: (threadId: string) => void;
+  isStreaming?: boolean;
 }
 
-export function Message({ message, threadMetadata, onOpenThread }: MessageProps) {
+export function Message({ message, threadMetadata, onOpenThread, isStreaming }: MessageProps) {
   const isSystem = isSystemMessage(message.type);
   const isCommandOutput = message.type === 'command_output';
   const isDesignOutput = message.type === 'design_output';
+  const isToolApproval = message.type === 'tool_approval';
   const agentColor = getAgentColor(message.from.type);
   const timestamp = new Date(message.timestamp).toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -99,13 +102,16 @@ export function Message({ message, threadMetadata, onOpenThread }: MessageProps)
           isSystem ? 'text-sm' : ''
         }`}
       >
-        {isDesignOutput ? (
+        {isToolApproval ? (
+          <ToolApprovalCard message={message} />
+        ) : isDesignOutput ? (
           <DesignOutput message={message} />
         ) : (
           <>
             <MessageContent content={message.content} />
-            
-            {/* Render command output component if present */}
+            {isStreaming && (
+              <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />
+            )}
             {commandOutput && <CommandOutput output={commandOutput} />}
           </>
         )}

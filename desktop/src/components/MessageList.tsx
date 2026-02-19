@@ -6,9 +6,10 @@ interface MessageListProps {
   messages: MessageType[];
   threadMetadata: Map<string, ThreadMetadata>;
   onOpenThread: (threadId: string) => void;
+  streamingMessages?: Record<string, MessageType>;
 }
 
-export function MessageList({ messages, threadMetadata, onOpenThread }: MessageListProps) {
+export function MessageList({ messages, threadMetadata, onOpenThread, streamingMessages }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -17,12 +18,17 @@ export function MessageList({ messages, threadMetadata, onOpenThread }: MessageL
     return messages.filter(m => !m.is_thread_reply);
   }, [messages]);
 
-  // Auto-scroll to bottom when new messages arrive
+  const activeStreams = useMemo(() => {
+    if (!streamingMessages) return [];
+    return Object.values(streamingMessages);
+  }, [streamingMessages]);
+
+  // Auto-scroll to bottom when new messages or stream deltas arrive
   useEffect(() => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [channelMessages]);
+  }, [channelMessages, activeStreams]);
 
   return (
     <div
@@ -31,7 +37,7 @@ export function MessageList({ messages, threadMetadata, onOpenThread }: MessageL
       style={{ scrollbarWidth: 'thin' }}
     >
       <div className="flex flex-col">
-        {channelMessages.length === 0 ? (
+        {channelMessages.length === 0 && activeStreams.length === 0 ? (
           <div className="flex items-center justify-center h-full text-slack-textMuted p-8">
             <div className="text-center">
               <p className="text-lg mb-2">No messages yet</p>
@@ -46,6 +52,14 @@ export function MessageList({ messages, threadMetadata, onOpenThread }: MessageL
                 message={message}
                 threadMetadata={threadMetadata.get(message.id)}
                 onOpenThread={onOpenThread}
+              />
+            ))}
+            {activeStreams.map((msg) => (
+              <Message
+                key={`stream-${msg.id}`}
+                message={msg}
+                onOpenThread={onOpenThread}
+                isStreaming
               />
             ))}
             <div ref={bottomRef} />

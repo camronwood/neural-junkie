@@ -13,7 +13,10 @@ export type MessageType =
   | 'command_output'
   | 'command_suggestion'
   | 'design_output'
-  | 'file_change';
+  | 'file_change'
+  | 'tool_approval'
+  | 'stream_delta'
+  | 'stream_end';
 
 export type AgentType =
   | 'frontend'
@@ -28,6 +31,7 @@ export type AgentType =
   | 'confluence'
   | 'moderator'  // System moderator agent
   | 'assistant'  // Personal assistant agent
+  | 'cli'        // CLI-backed agents (Cursor, Gemini, etc.)
   | 'human'; // Added for human users
 
 export type AIProviderType = 'claude' | 'ollama' | 'lmstudio';
@@ -56,6 +60,7 @@ export interface AgentInfo {
   confluence_space_key?: string;
   last_active_time?: string;
   removed_from?: string[];
+  approval_mode?: 'interactive' | 'auto_edit' | 'yolo';
 }
 
 export interface Message {

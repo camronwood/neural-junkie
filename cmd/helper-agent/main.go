@@ -56,6 +56,10 @@ func (h *httpHubClient) SendMessage(msg *protocol.Message) error {
 	return nil
 }
 
+func (h *httpHubClient) BroadcastDirect(channelName string, msg *protocol.Message) {
+	_ = h.SendMessage(msg)
+}
+
 func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, error) {
 	ch := make(chan *protocol.Message, 100)
 

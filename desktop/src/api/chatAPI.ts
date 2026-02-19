@@ -756,6 +756,43 @@ export class ChatAPI {
     }
   }
 
+  // Tool approval API methods
+
+  async approveToolCall(approvalId: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/tool-approvals/approve/${approvalId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to approve tool call: ${response.statusText}`);
+    }
+  }
+
+  async rejectToolCall(approvalId: string, reason: string = 'User rejected'): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/tool-approvals/reject/${approvalId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to reject tool call: ${response.statusText}`);
+    }
+  }
+
+  async setAgentApprovalMode(agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo'): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/agents/${agentId}/approval-mode`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to set approval mode: ${response.statusText}`);
+    }
+  }
+
   // File change API methods
 
   // List pending file changes

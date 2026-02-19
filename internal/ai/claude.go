@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -115,6 +116,7 @@ type ClaudeRequest struct {
 	MaxTokens int             `json:"max_tokens"`
 	Messages  []ClaudeMessage `json:"messages"`
 	System    string          `json:"system,omitempty"`
+	Stream    bool            `json:"stream,omitempty"`
 }
 
 // ClaudeResponse represents a response from Claude API
@@ -311,6 +313,123 @@ func (c *ClaudeProvider) GenerateVisionResponse(ctx context.Context, prompt stri
 // GetModel returns the model name
 func (c *ClaudeProvider) GetModel() string {
 	return c.Model
+}
+
+// SupportsStreaming returns true -- Claude's Messages API supports SSE streaming.
+func (c *ClaudeProvider) SupportsStreaming() bool { return true }
+
+// claudeSSEEvent represents an SSE event from the Claude streaming API.
+type claudeSSEEvent struct {
+	Type  string `json:"type"`
+	Delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"delta"`
+}
+
+// GenerateResponseStream returns a channel of StreamTokens from Claude's SSE
+// streaming response (content_block_delta events).
+func (c *ClaudeProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+
+	messages := []ClaudeMessage{}
+	for i, msg := range conversationHistory {
+		if i >= 10 {
+			break
+		}
+		role := "user"
+		if msg.From.Type != protocol.AgentTypeGeneral {
+			role = "assistant"
+		}
+		messages = append(messages, ClaudeMessage{Role: role, Content: msg.Content})
+	}
+	messages = append(messages, ClaudeMessage{Role: "user", Content: userMessage})
+
+	maxTokens := 1024
+	if isDeepAnalysisPrompt(userMessage) {
+		maxTokens = 4096
+	}
+
+	request := ClaudeRequest{
+		Model:     c.Model,
+		MaxTokens: maxTokens,
+		Messages:  messages,
+		System:    systemPrompt,
+		Stream:    true,
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/messages", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.UseAIHub {
+		req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	} else {
+		req.Header.Set("x-api-key", c.APIKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	ch := make(chan StreamToken, 64)
+	go func() {
+		defer close(ch)
+		defer resp.Body.Close()
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			if ctx.Err() != nil {
+				ch <- StreamToken{Error: ctx.Err(), Done: true}
+				return
+			}
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			data := strings.TrimPrefix(line, "data: ")
+
+			var event claudeSSEEvent
+			if err := json.Unmarshal([]byte(data), &event); err != nil {
+				continue
+			}
+
+			switch event.Type {
+			case "content_block_delta":
+				if event.Delta.Text != "" {
+					ch <- StreamToken{Content: event.Delta.Text}
+				}
+			case "message_stop":
+				ch <- StreamToken{Done: true}
+				return
+			case "error":
+				ch <- StreamToken{Error: fmt.Errorf("Claude stream error"), Done: true}
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			ch <- StreamToken{Error: fmt.Errorf("scanner error: %w", err), Done: true}
+			return
+		}
+		ch <- StreamToken{Done: true}
+	}()
+
+	return ch, nil
 }
 
 // generateMockResponse generates intelligent mock responses for demo purposes

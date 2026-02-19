@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -214,6 +216,119 @@ func (l *LMStudioProvider) GenerateVisionResponse(ctx context.Context, prompt st
 // GetModel returns the model name
 func (l *LMStudioProvider) GetModel() string {
 	return l.Model
+}
+
+// openAIStreamChunk represents one SSE chunk from an OpenAI-compatible stream.
+type openAIStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content string `json:"content"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
+}
+
+// SupportsStreaming returns true -- LM Studio supports OpenAI-compatible SSE.
+func (l *LMStudioProvider) SupportsStreaming() bool { return true }
+
+// GenerateResponseStream returns a channel of StreamTokens from LM Studio's
+// OpenAI-compatible SSE streaming response.
+func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+
+	messages := []OpenAICompatibleMessage{}
+	if systemPrompt != "" {
+		messages = append(messages, OpenAICompatibleMessage{Role: "system", Content: systemPrompt})
+	}
+
+	historyLimit := 10
+	if len(conversationHistory) > historyLimit {
+		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
+	}
+	for _, msg := range conversationHistory {
+		role := "user"
+		if msg.From.Type != protocol.AgentTypeGeneral {
+			role = "assistant"
+		}
+		messages = append(messages, OpenAICompatibleMessage{Role: role, Content: msg.Content})
+	}
+	messages = append(messages, OpenAICompatibleMessage{Role: "user", Content: userMessage})
+
+	model := l.Model
+	if model == "" {
+		availableModels, err := l.GetAvailableModels(ctx)
+		if err == nil && len(availableModels) > 0 {
+			model = availableModels[0]
+		} else {
+			return nil, fmt.Errorf("no model specified and unable to fetch available models: %w", err)
+		}
+	}
+
+	request := OpenAICompatibleRequest{
+		Model:    model,
+		Messages: messages,
+		Stream:   true,
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequestWithContext(ctx, "POST", l.Endpoint+"/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("LM Studio API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	ch := make(chan StreamToken, 64)
+	go func() {
+		defer close(ch)
+		defer resp.Body.Close()
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			if ctx.Err() != nil {
+				ch <- StreamToken{Error: ctx.Err(), Done: true}
+				return
+			}
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			data := strings.TrimPrefix(line, "data: ")
+			if data == "[DONE]" {
+				ch <- StreamToken{Done: true}
+				return
+			}
+			var chunk openAIStreamChunk
+			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				continue
+			}
+			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+				ch <- StreamToken{Content: chunk.Choices[0].Delta.Content}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			ch <- StreamToken{Error: fmt.Errorf("scanner error: %w", err), Done: true}
+			return
+		}
+		ch <- StreamToken{Done: true}
+	}()
+
+	return ch, nil
 }
 
 // GetEndpoint returns the LM Studio endpoint

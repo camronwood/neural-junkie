@@ -59,6 +59,7 @@ type MCPServerInterface interface {
 // HubClient defines the interface for interacting with the chat hub
 type HubClient interface {
 	SendMessage(msg *protocol.Message) error
+	BroadcastDirect(channelName string, msg *protocol.Message)
 	Subscribe(channelName string) (chan *protocol.Message, error)
 	GetMessages(channelName string, limit int) ([]*protocol.Message, error)
 	GetChannelAgents(channelName string) ([]protocol.AgentInfo, error)
@@ -343,9 +344,18 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Send thinking status
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusStarted)
 
-	// Generate response
-	log.Printf("[%s] 📝 Generating response...", a.Info.Name)
-	response, err := a.generateResponse(ctx, msg)
+	// Try streaming path first, fall back to batch
+	var response string
+	var err error
+
+	if sp, ok := a.AI.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
+		response, err = a.generateResponseStreaming(ctx, msg, sp)
+	} else {
+		log.Printf("[%s] 📝 Generating response (batch)...", a.Info.Name)
+		response, err = a.generateResponse(ctx, msg)
+	}
+
 	if err != nil {
 		log.Printf("[%s] Error generating response: %v", a.Info.Name, err)
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
@@ -734,6 +744,105 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 	}
 
 	return response, nil
+}
+
+// generateResponseStreaming builds the same prompt as generateResponse but
+// streams the AI response token-by-token. Each token is broadcast to
+// subscribers as a stream_delta message. The full accumulated text is
+// returned so the caller can store it as a normal chat message.
+func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, sp ai.StreamingProvider) (string, error) {
+	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
+		return a.generateDesignAnalysisResponse(ctx, msg)
+	}
+
+	prompt := a.buildPrompt(msg)
+
+	includedFiles := collectIncludedFilePaths(msg)
+
+	wsPath := a.resolveWorkspacePath(msg)
+	if wsPath != "" {
+		var referencedFiles strings.Builder
+		AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+		if referencedFiles.Len() > 0 {
+			prompt += referencedFiles.String()
+			for _, p := range DetectFilePaths(msg.Content) {
+				includedFiles[p] = true
+			}
+		}
+	}
+
+	if wsPath != "" && !a.isRepoOrHelperAgent() {
+		existingContextSize := len(prompt) - len(a.buildPrompt(msg))
+		if existingContextSize < maxScanChars/2 {
+			scannedFiles, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
+			if scanErr != nil {
+				log.Printf("[%s] Workspace scan failed: %v", a.Info.Name, scanErr)
+			} else if scannedFiles != "" {
+				prompt += scannedFiles
+			}
+		}
+	}
+
+	history := a.Context.History[msg.Channel]
+	if len(history) > 10 {
+		history = history[len(history)-10:]
+	}
+
+	// Pre-create a stable message ID for the stream so the frontend can
+	// correlate deltas with the final message.
+	streamMsgID := uuid.New().String()
+
+	tokenCh, err := sp.GenerateResponseStream(ctx, prompt, historyToMessages(history))
+	if err != nil {
+		return "", err
+	}
+
+	var fullResponse strings.Builder
+	for token := range tokenCh {
+		if token.Error != nil {
+			if fullResponse.Len() > 0 {
+				break
+			}
+			return "", token.Error
+		}
+		if token.Content != "" {
+			fullResponse.WriteString(token.Content)
+
+			delta := protocol.NewMessage(
+				protocol.MessageTypeStreamDelta,
+				msg.Channel,
+				a.Info,
+				token.Content,
+			)
+			delta.ID = streamMsgID
+			delta.ReplyTo = msg.ID
+			if msg.IsInThread() {
+				delta.ThreadID = msg.ThreadID
+				delta.IsThreadReply = true
+			}
+			a.Hub.BroadcastDirect(msg.Channel, delta)
+		}
+		if token.Done {
+			break
+		}
+	}
+
+	// Send stream_end so the frontend knows this stream is complete
+	endMsg := protocol.NewMessage(
+		protocol.MessageTypeStreamEnd,
+		msg.Channel,
+		a.Info,
+		"",
+	)
+	endMsg.ID = streamMsgID
+	endMsg.ReplyTo = msg.ID
+	if msg.IsInThread() {
+		endMsg.ThreadID = msg.ThreadID
+		endMsg.IsThreadReply = true
+	}
+	a.Hub.BroadcastDirect(msg.Channel, endMsg)
+
+	return fullResponse.String(), nil
 }
 
 // isRepoOrHelperAgent returns true for agent types that already have their

@@ -42,4 +42,5 @@ desktop/node_modules/
 /agent
 /server
 /gui
+/tool-approval-hook
 

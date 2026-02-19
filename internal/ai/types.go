@@ -47,3 +47,18 @@ type AIProvider interface {
 	GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error)
 	GetModel() string
 }
+
+// StreamToken represents a single token/chunk from a streaming AI response.
+type StreamToken struct {
+	Content string
+	Done    bool
+	Error   error
+}
+
+// StreamingProvider is an optional interface that AIProviders can implement
+// to support token-by-token response streaming. The agent checks for this
+// at runtime and falls back to GenerateResponse if not available.
+type StreamingProvider interface {
+	GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error)
+	SupportsStreaming() bool
+}

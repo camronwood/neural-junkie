@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -175,6 +176,101 @@ func (o *OllamaProvider) GenerateVisionResponse(ctx context.Context, prompt stri
 // GetModel returns the model name
 func (o *OllamaProvider) GetModel() string {
 	return o.Model
+}
+
+// SupportsStreaming returns true -- Ollama natively streams NDJSON.
+func (o *OllamaProvider) SupportsStreaming() bool { return true }
+
+// GenerateResponseStream returns a channel of StreamTokens, each carrying
+// a text chunk from Ollama's NDJSON streaming response.
+func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+
+	messages := []OllamaMessage{}
+	if systemPrompt != "" {
+		messages = append(messages, OllamaMessage{Role: "system", Content: systemPrompt})
+	}
+
+	historyLimit := 10
+	if len(conversationHistory) > historyLimit {
+		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
+	}
+	for _, msg := range conversationHistory {
+		role := "user"
+		if msg.From.Type != protocol.AgentTypeGeneral {
+			role = "assistant"
+		}
+		messages = append(messages, OllamaMessage{Role: role, Content: msg.Content})
+	}
+	messages = append(messages, OllamaMessage{Role: "user", Content: userMessage})
+
+	request := OllamaRequest{
+		Model:    o.Model,
+		Messages: messages,
+		Stream:   true,
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	client := &http.Client{}
+	req, err := http.NewRequestWithContext(ctx, "POST", o.Endpoint+"/api/chat", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return nil, fmt.Errorf("Ollama API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	ch := make(chan StreamToken, 64)
+	go func() {
+		defer close(ch)
+		defer resp.Body.Close()
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			if ctx.Err() != nil {
+				ch <- StreamToken{Error: ctx.Err(), Done: true}
+				return
+			}
+			line := scanner.Bytes()
+			if len(line) == 0 {
+				continue
+			}
+			var chunk OllamaResponse
+			if err := json.Unmarshal(line, &chunk); err != nil {
+				ch <- StreamToken{Error: fmt.Errorf("failed to decode chunk: %w", err), Done: true}
+				return
+			}
+			if chunk.Error != "" {
+				ch <- StreamToken{Error: fmt.Errorf("Ollama error: %s", chunk.Error), Done: true}
+				return
+			}
+			if chunk.Message.Content != "" {
+				ch <- StreamToken{Content: chunk.Message.Content}
+			}
+			if chunk.Done {
+				ch <- StreamToken{Done: true}
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			ch <- StreamToken{Error: fmt.Errorf("scanner error: %w", err), Done: true}
+		}
+	}()
+
+	return ch, nil
 }
 
 // GetEndpoint returns the Ollama endpoint

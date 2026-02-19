@@ -120,7 +120,8 @@ func NewGeminiCLIProvider(workDir string, opts ...CLIAgentOption) *CLIAgentProvi
 	p.Model = "gemini-agent"
 	// -p must be last: it takes the next arg as the prompt value (unlike Cursor's
 	// boolean -p flag). GenerateResponse appends the prompt text after BaseArgs.
-	p.BaseArgs = []string{"--output-format", "text", "--yolo", "-p"}
+	// Tool approval is handled externally via the BeforeTool hook; no --yolo needed.
+	p.BaseArgs = []string{"--output-format", "text", "-p"}
 
 	return p
 }
@@ -228,6 +229,78 @@ func (c *CLIAgentProvider) GenerateVisionResponse(ctx context.Context, prompt st
 // GetModel returns the display model name
 func (c *CLIAgentProvider) GetModel() string {
 	return c.Model
+}
+
+// SupportsStreaming returns true -- CLI agents stream stdout in real time.
+func (c *CLIAgentProvider) SupportsStreaming() bool { return true }
+
+// GenerateResponseStream invokes the CLI agent and streams its stdout
+// line-by-line (or in small chunks) back through the returned channel.
+func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+	combinedPrompt := prompt
+	if systemPrompt != "" {
+		combinedPrompt = systemPrompt + "\n\n" + userMessage
+	}
+	fullPrompt := c.buildPromptWithHistory(combinedPrompt, conversationHistory)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, c.Timeout)
+
+	args := make([]string, len(c.BaseArgs))
+	copy(args, c.BaseArgs)
+	args = append(args, fullPrompt)
+
+	cmd := exec.CommandContext(timeoutCtx, c.Command, args...)
+	if c.WorkDir != "" {
+		cmd.Dir = c.WorkDir
+	}
+	cmd.Env = os.Environ()
+	for key, value := range c.Env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	}
+
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to start CLI agent: %w", err)
+	}
+
+	ch := make(chan StreamToken, 64)
+	go func() {
+		defer close(ch)
+		defer cancel()
+
+		buf := make([]byte, 4096)
+		for {
+			if timeoutCtx.Err() != nil {
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent timed out"), Done: true}
+				_ = cmd.Process.Kill()
+				return
+			}
+			n, readErr := stdoutPipe.Read(buf)
+			if n > 0 {
+				ch <- StreamToken{Content: string(buf[:n])}
+			}
+			if readErr != nil {
+				break
+			}
+		}
+
+		if err := cmd.Wait(); err != nil {
+			if timeoutCtx.Err() == context.DeadlineExceeded {
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent timed out after %s", c.Timeout), Done: true}
+				return
+			}
+		}
+		ch <- StreamToken{Done: true}
+	}()
+
+	return ch, nil
 }
 
 // buildPromptWithHistory constructs a prompt that includes relevant conversation history

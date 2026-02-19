@@ -61,6 +61,9 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     myAgentsPanelOpen,
     setMyAgentsPanelOpen,
     logout,
+    appendStreamDelta,
+    finalizeStream,
+    streamingMessages,
   } = useChatStore();
 
   const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
@@ -261,6 +264,17 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
         return; // Never add agent_status to message list
       }
       
+      // Handle streaming tokens -- accumulate deltas, finalize on stream_end
+      if (message.type === 'stream_delta') {
+        appendStreamDelta(message);
+        removeThinkingAgent(message.from.id);
+        return;
+      }
+      if (message.type === 'stream_end') {
+        finalizeStream(message.id);
+        return;
+      }
+
       // Handle thread messages - only update metadata, ThreadPanel's WebSocket will add the actual message
       if (message.is_thread_reply && message.thread_id) {
         // Just update thread metadata (don't add message - ThreadPanel's WS will do that)
@@ -676,6 +690,7 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
           messages={messages}
           threadMetadata={threadMetadata}
           onOpenThread={openThread}
+          streamingMessages={streamingMessages}
         />
 
         {/* Typing Indicator */}

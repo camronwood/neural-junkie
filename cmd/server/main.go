@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -125,6 +126,12 @@ func main() {
 	http.HandleFunc("/api/lmstudio/status", corsMiddleware(handleLMStudioStatus))
 	http.HandleFunc("/api/lmstudio/models", corsMiddleware(handleLMStudioModels))
 	http.HandleFunc("/api/test-lmstudio-connection", corsMiddleware(handleTestLMStudioConnection))
+
+	// Tool approval endpoints (for Gemini CLI hook integration)
+	http.HandleFunc("/api/tool-approvals", corsMiddleware(handleToolApprovals))
+	http.HandleFunc("/api/tool-approvals/approve/", corsMiddleware(handleApproveToolCall))
+	http.HandleFunc("/api/tool-approvals/reject/", corsMiddleware(handleRejectToolCall))
+	http.HandleFunc("/api/tool-approvals/pending", corsMiddleware(handlePendingToolApprovals))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -1307,7 +1314,11 @@ func initGeminiCLIAgent(defaultWorkDir string) {
 
 	log.Println("✅ Gemini CLI binary found, initializing agent...")
 
+	// Auto-configure Gemini BeforeTool hook for tool approval
+	configureGeminiApprovalHook()
+
 	geminiAgent := agent.NewGeminiCLIAgent("Gemini", geminiProvider, chatHub)
+	geminiAgent.Info.ApprovalMode = "interactive"
 
 	if err := chatHub.RegisterAgent(&geminiAgent.Info); err != nil {
 		log.Printf("❌ Failed to register Gemini CLI agent: %v", err)
@@ -1338,6 +1349,114 @@ func initGeminiCLIAgent(defaultWorkDir string) {
 	}
 
 	log.Printf("✅ Gemini CLI agent started (workDir: %s)", workDir)
+}
+
+// configureGeminiApprovalHook installs the Neural Junkie BeforeTool hook into
+// Gemini CLI's settings.json so tool calls are routed through the approval UI.
+func configureGeminiApprovalHook() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("⚠️  Cannot determine home directory for Gemini hook config: %v", err)
+		return
+	}
+
+	settingsDir := filepath.Join(homeDir, ".gemini")
+	settingsPath := filepath.Join(settingsDir, "settings.json")
+
+	// Find the hook binary
+	hookBin, err := exec.LookPath("tool-approval-hook")
+	if err != nil {
+		// Try relative to server binary
+		exePath, _ := os.Executable()
+		hookBin = filepath.Join(filepath.Dir(exePath), "tool-approval-hook")
+		if _, err := os.Stat(hookBin); err != nil {
+			// Try building it from source
+			hookBin = filepath.Join("cmd", "tool-approval-hook", "tool-approval-hook")
+			if _, err := os.Stat(hookBin); err != nil {
+				log.Printf("ℹ️  tool-approval-hook binary not found — Gemini will use default approval mode. Build it with: go build -o tool-approval-hook ./cmd/tool-approval-hook")
+				return
+			}
+		}
+	}
+
+	hookBinAbs, _ := filepath.Abs(hookBin)
+	serverURL := fmt.Sprintf("http://localhost%s", *addr)
+	hookCommand := fmt.Sprintf("%s --server %s --agent Gemini --agent-id gemini-cli --mode interactive", hookBinAbs, serverURL)
+
+	// Read existing settings or start fresh
+	var settings map[string]interface{}
+	data, err := os.ReadFile(settingsPath)
+	if err == nil {
+		json.Unmarshal(data, &settings)
+	}
+	if settings == nil {
+		settings = make(map[string]interface{})
+	}
+
+	// Check if our hook is already configured
+	if hooks, ok := settings["hooks"].(map[string]interface{}); ok {
+		if beforeTool, ok := hooks["BeforeTool"].([]interface{}); ok {
+			for _, group := range beforeTool {
+				if g, ok := group.(map[string]interface{}); ok {
+					if hookList, ok := g["hooks"].([]interface{}); ok {
+						for _, h := range hookList {
+							if hm, ok := h.(map[string]interface{}); ok {
+								if name, _ := hm["name"].(string); name == "neural-junkie-approval" {
+									// Update the command in case path changed
+									hm["command"] = hookCommand
+									writeGeminiSettings(settingsPath, settings)
+									log.Println("✅ Gemini BeforeTool hook already configured (updated)")
+									return
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Install the hook
+	hookEntry := map[string]interface{}{
+		"hooks": []interface{}{
+			map[string]interface{}{
+				"type":        "command",
+				"command":     hookCommand,
+				"name":        "neural-junkie-approval",
+				"timeout":     180000,
+				"description": "Routes tool approval through Neural Junkie chat UI",
+			},
+		},
+	}
+
+	hooks, _ := settings["hooks"].(map[string]interface{})
+	if hooks == nil {
+		hooks = make(map[string]interface{})
+	}
+
+	beforeTool, _ := hooks["BeforeTool"].([]interface{})
+	beforeTool = append(beforeTool, hookEntry)
+	hooks["BeforeTool"] = beforeTool
+	settings["hooks"] = hooks
+
+	if err := os.MkdirAll(settingsDir, 0755); err != nil {
+		log.Printf("⚠️  Failed to create Gemini settings dir: %v", err)
+		return
+	}
+
+	writeGeminiSettings(settingsPath, settings)
+	log.Printf("✅ Installed Neural Junkie BeforeTool hook in %s", settingsPath)
+}
+
+func writeGeminiSettings(path string, settings map[string]interface{}) {
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		log.Printf("⚠️  Failed to marshal Gemini settings: %v", err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Printf("⚠️  Failed to write Gemini settings to %s: %v", path, err)
+	}
 }
 
 func handleCachedAgents(w http.ResponseWriter, r *http.Request) {
@@ -2036,17 +2155,225 @@ func handleFileChangeDiff(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// handleAgentProvider handles switching individual agent providers
-func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
+// handleToolApprovals creates a new tool approval request (called by the hook binary).
+// The request blocks until the user approves/rejects or a timeout occurs.
+func handleToolApprovals(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract agent ID from URL path
+	var req struct {
+		AgentID   string                 `json:"agent_id"`
+		AgentName string                 `json:"agent_name"`
+		SessionID string                 `json:"session_id"`
+		ToolName  string                 `json:"tool_name"`
+		ToolInput map[string]interface{} `json:"tool_input"`
+		Channel   string                 `json:"channel"`
+		Mode      string                 `json:"mode"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ToolName == "" {
+		http.Error(w, "tool_name is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Channel == "" {
+		req.Channel = "general"
+	}
+
+	// If mode is yolo, auto-approve without user interaction
+	if req.Mode == "yolo" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":   "approved",
+			"decision": "allow",
+		})
+		return
+	}
+
+	// If mode is auto_edit, auto-approve read/edit tools but prompt for shell commands
+	if req.Mode == "auto_edit" {
+		autoApproveTools := map[string]bool{
+			"read_file": true, "write_file": true, "edit_file": true,
+			"list_directory": true, "search_files": true, "read_many_files": true,
+		}
+		if autoApproveTools[req.ToolName] {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"status":   "approved",
+				"decision": "allow",
+			})
+			return
+		}
+	}
+
+	tam := chatHub.GetToolApprovalManager()
+	approval := tam.CreateApproval(req.AgentID, req.AgentName, req.SessionID, req.ToolName, req.Channel, req.ToolInput)
+
+	log.Printf("[ToolApproval] Created approval %s for %s.%s", approval.ID, req.AgentName, req.ToolName)
+
+	// Block until user decides (up to 3 minutes)
+	status, reason := tam.WaitForDecision(approval.ID, hub.ToolApprovalTTL)
+
+	decision := "deny"
+	if status == hub.ToolApprovalApproved {
+		decision = "allow"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":   string(status),
+		"decision": decision,
+		"reason":   reason,
+	})
+}
+
+// handleApproveToolCall approves a pending tool call
+func handleApproveToolCall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	approvalID := strings.TrimPrefix(r.URL.Path, "/api/tool-approvals/approve/")
+	if approvalID == "" {
+		http.Error(w, "Approval ID required", http.StatusBadRequest)
+		return
+	}
+
+	tam := chatHub.GetToolApprovalManager()
+	if err := tam.Approve(approvalID); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "approved"})
+}
+
+// handleRejectToolCall rejects a pending tool call
+func handleRejectToolCall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	approvalID := strings.TrimPrefix(r.URL.Path, "/api/tool-approvals/reject/")
+	if approvalID == "" {
+		http.Error(w, "Approval ID required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	if req.Reason == "" {
+		req.Reason = "User rejected"
+	}
+
+	tam := chatHub.GetToolApprovalManager()
+	if err := tam.Reject(approvalID, req.Reason); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "rejected"})
+}
+
+// handlePendingToolApprovals lists all currently pending tool approvals
+func handlePendingToolApprovals(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	tam := chatHub.GetToolApprovalManager()
+	pending := tam.ListPending()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pending)
+}
+
+// handleSetApprovalMode updates the approval mode for a CLI agent
+func handleSetApprovalMode(w http.ResponseWriter, r *http.Request, agentID string) {
+	if agentID == "" {
+		http.Error(w, "Agent ID required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	validModes := map[string]bool{"interactive": true, "auto_edit": true, "yolo": true}
+	if !validModes[req.Mode] {
+		http.Error(w, "Invalid mode. Use 'interactive', 'auto_edit', or 'yolo'", http.StatusBadRequest)
+		return
+	}
+
+	agents := chatHub.ListAgents()
+	var targetAgent *protocol.AgentInfo
+	for _, agent := range agents {
+		if agent.ID == agentID {
+			targetAgent = agent
+			break
+		}
+	}
+
+	if targetAgent == nil {
+		http.Error(w, "Agent not found", http.StatusNotFound)
+		return
+	}
+
+	if targetAgent.Type != protocol.AgentTypeCLI {
+		http.Error(w, "Approval mode only applies to CLI agents", http.StatusBadRequest)
+		return
+	}
+
+	targetAgent.ApprovalMode = req.Mode
+	log.Printf("[ApprovalMode] Set %s (%s) to %s", targetAgent.Name, agentID, req.Mode)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": req.Mode})
+}
+
+// handleAgentProvider handles switching individual agent providers and approval mode
+func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" && r.Method != "PUT" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract agent ID and action from URL path: /api/agents/{id}/{action}
 	path := strings.TrimPrefix(r.URL.Path, "/api/agents/")
 	parts := strings.Split(path, "/")
-	if len(parts) < 2 || parts[1] != "provider" {
+	if len(parts) < 2 {
+		http.Error(w, "Invalid endpoint", http.StatusBadRequest)
+		return
+	}
+
+	action := parts[1]
+
+	// Route to approval-mode handler
+	if action == "approval-mode" {
+		handleSetApprovalMode(w, r, parts[0])
+		return
+	}
+
+	if action != "provider" {
 		http.Error(w, "Invalid endpoint", http.StatusBadRequest)
 		return
 	}
