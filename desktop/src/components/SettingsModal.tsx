@@ -1,0 +1,1225 @@
+import { useState, useEffect } from 'react';
+import { useSettingsStore, type FontSizeScope } from '../stores/settingsStore';
+import { useChatStore } from '../stores/chatStore';
+import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
+import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings } from '../types/protocol';
+
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  testMode?: boolean;
+  setTestMode?: (value: boolean) => void;
+}
+
+export function SettingsModal({ isOpen, onClose, testMode, setTestMode }: SettingsModalProps) {
+  const { 
+    settings, 
+    integrations,
+    layoutSettings,
+    updateFontSize, 
+    updateFontSizeScope, 
+    loadSettings,
+    loadIntegrations,
+    loadLayoutSettings,
+    updateLayoutSettings,
+    updateAnthropicSettings,
+    updateGitHubSettings,
+    updateConfluenceSettings,
+    updateOllamaSettings,
+    updateLMStudioSettings,
+    clearIntegrationSettings,
+    testAnthropicConnection,
+    testGitHubConnection,
+    testConfluenceConnection,
+    testOllamaConnection,
+    testLMStudioConnection,
+    fetchOllamaModels,
+    fetchLMStudioModels
+  } = useSettingsStore();
+  const { switchAllAgentProviders } = useChatStore();
+  const [activeTab, setActiveTab] = useState<'appearance' | 'layout' | 'integrations' | 'ai-providers' | 'developer' | 'about'>('appearance');
+  const [appVersion, setAppVersion] = useState<string>('1.0.0');
+  
+  // Integration form states
+  const [anthropicForm, setAnthropicForm] = useState<AnthropicSettings>(integrations.anthropic);
+  const [githubForm, setGitHubForm] = useState<GitHubSettings>(integrations.github);
+  const [confluenceForm, setConfluenceForm] = useState<ConfluenceSettings>(integrations.confluence);
+  const [ollamaForm, setOllamaForm] = useState<OllamaSettings>(integrations.ollama);
+  const [lmstudioForm, setLMStudioForm] = useState<LMStudioSettings>(integrations.lmstudio);
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  // Load settings when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadSettings();
+      loadIntegrations();
+      loadLayoutSettings();
+      getAppVersion().then(setAppVersion);
+    }
+  }, [isOpen, loadSettings, loadIntegrations, loadLayoutSettings]);
+
+  // Update form states when integrations change
+  useEffect(() => {
+    setAnthropicForm(integrations.anthropic);
+    setGitHubForm(integrations.github);
+    setConfluenceForm(integrations.confluence);
+    setOllamaForm(integrations.ollama);
+    setLMStudioForm(integrations.lmstudio);
+  }, [integrations]);
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const handleFontSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateFontSize(parseInt(e.target.value));
+  };
+
+  const handleScopeChange = (scope: FontSizeScope) => {
+    updateFontSizeScope(scope);
+  };
+
+  const openLink = (url: string) => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+      import('@tauri-apps/api/shell').then(({ open }) => open(url));
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
+  // Integration handlers
+  const handleAnthropicChange = (field: keyof AnthropicSettings, value: string | boolean) => {
+    setAnthropicForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleGitHubChange = (field: keyof GitHubSettings, value: string) => {
+    setGitHubForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleConfluenceChange = (field: keyof ConfluenceSettings, value: string) => {
+    setConfluenceForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleOllamaChange = (field: keyof OllamaSettings, value: string | string[]) => {
+    setOllamaForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleLMStudioChange = (field: keyof LMStudioSettings, value: string | string[]) => {
+    setLMStudioForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const saveAnthropicSettings = async () => {
+    try {
+      await updateAnthropicSettings(anthropicForm);
+      setTestResults(prev => ({ ...prev, anthropic: { success: true, message: 'Settings saved successfully!' } }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        anthropic: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to save settings' 
+        } 
+      }));
+    }
+  };
+
+  const saveGitHubSettings = async () => {
+    try {
+      await updateGitHubSettings(githubForm);
+      setTestResults(prev => ({ ...prev, github: { success: true, message: 'Settings saved successfully!' } }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        github: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to save settings' 
+        } 
+      }));
+    }
+  };
+
+  const saveConfluenceSettings = async () => {
+    try {
+      await updateConfluenceSettings(confluenceForm);
+      setTestResults(prev => ({ ...prev, confluence: { success: true, message: 'Settings saved successfully!' } }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        confluence: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to save settings' 
+        } 
+      }));
+    }
+  };
+
+  const saveOllamaSettings = async () => {
+    try {
+      await updateOllamaSettings(ollamaForm);
+      setTestResults(prev => ({ ...prev, ollama: { success: true, message: 'Settings saved successfully!' } }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        ollama: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to save settings' 
+        } 
+      }));
+    }
+  };
+
+  const saveLMStudioSettings = async () => {
+    try {
+      await updateLMStudioSettings(lmstudioForm);
+      setTestResults(prev => ({ ...prev, lmstudio: { success: true, message: 'Settings saved successfully!' } }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        lmstudio: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to save settings' 
+        } 
+      }));
+    }
+  };
+
+  const togglePasswordVisibility = (field: string) => {
+    setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const testConnection = async (service: string) => {
+    setTestResults(prev => ({ ...prev, [service]: { success: false, message: 'Testing...' } }));
+    
+    try {
+      let result = false;
+      switch (service) {
+        case 'anthropic':
+          result = await testAnthropicConnection();
+          break;
+        case 'github':
+          result = await testGitHubConnection();
+          break;
+        case 'confluence':
+          result = await testConfluenceConnection();
+          break;
+        case 'ollama':
+          result = await testOllamaConnection();
+          break;
+        case 'lmstudio':
+          result = await testLMStudioConnection();
+          break;
+      }
+      
+      setTestResults(prev => ({ 
+        ...prev, 
+        [service]: { 
+          success: result, 
+          message: result ? 'Connection successful!' : 'Connection failed. Check your credentials.' 
+        } 
+      }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        [service]: { 
+          success: false, 
+          message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        } 
+      }));
+    }
+  };
+
+  const clearAllIntegrations = async () => {
+    if (confirm('Are you sure you want to clear all integration settings? This action cannot be undone.')) {
+      await clearIntegrationSettings();
+      setAnthropicForm(integrations.anthropic);
+      setGitHubForm(integrations.github);
+      setConfluenceForm(integrations.confluence);
+    }
+  };
+
+  const handleSwitchAllToClaude = async () => {
+    setIsSwitching(true);
+    try {
+      await switchAllAgentProviders('claude', 'claude-sonnet');
+      setTestResults(prev => ({ 
+        ...prev, 
+        providerSwitch: { 
+          success: true, 
+          message: 'All agents switched to Claude successfully!' 
+        } 
+      }));
+    } catch (error) {
+      console.error('Failed to switch all agents to Claude:', error);
+      setTestResults(prev => ({ 
+        ...prev, 
+        providerSwitch: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to switch all agents to Claude' 
+        } 
+      }));
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  const handleSwitchAllToOllama = async () => {
+    setIsSwitching(true);
+    try {
+      const model = ollamaForm.defaultModel || 'llama3.1';
+      await switchAllAgentProviders('ollama', model);
+      setTestResults(prev => ({ 
+        ...prev, 
+        providerSwitch: { 
+          success: true, 
+          message: `All agents switched to Ollama (${model}) successfully!` 
+        } 
+      }));
+    } catch (error) {
+      console.error('Failed to switch all agents to Ollama:', error);
+      setTestResults(prev => ({ 
+        ...prev, 
+        providerSwitch: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to switch all agents to Ollama' 
+        } 
+      }));
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  const handleSwitchAllToLMStudio = async () => {
+    setIsSwitching(true);
+    try {
+      const model = lmstudioForm.defaultModel || (lmstudioForm.availableModels[0] ?? '');
+      await switchAllAgentProviders('lmstudio', model);
+      setTestResults(prev => ({ 
+        ...prev, 
+        providerSwitch: { 
+          success: true, 
+          message: `All agents switched to LM Studio${model ? ` (${model})` : ''} successfully!` 
+        } 
+      }));
+    } catch (error) {
+      console.error('Failed to switch all agents to LM Studio:', error);
+      setTestResults(prev => ({ 
+        ...prev, 
+        providerSwitch: { 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Failed to switch all agents to LM Studio' 
+        } 
+      }));
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black bg-opacity-50"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-slack-bg border border-slack-border rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-slack-border">
+          <h2 className="text-xl font-bold text-slack-text">Settings</h2>
+          <button
+            onClick={onClose}
+            className="text-slack-textMuted hover:text-slack-text transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slack-border">
+          <button
+            onClick={() => setActiveTab('appearance')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'appearance'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            Appearance
+          </button>
+          <button
+            onClick={() => setActiveTab('layout')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'layout'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            Layout
+          </button>
+          <button
+            onClick={() => setActiveTab('integrations')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'integrations'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            Integrations
+          </button>
+          <button
+            onClick={() => setActiveTab('ai-providers')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'ai-providers'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            AI Providers
+          </button>
+          <button
+            onClick={() => setActiveTab('developer')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'developer'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            Developer
+          </button>
+          <button
+            onClick={() => setActiveTab('about')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'about'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            About
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 max-h-[60vh] overflow-y-auto">
+          {activeTab === 'appearance' && (
+            <div className="space-y-6">
+              {/* Font Size */}
+              <div>
+                <label className="block text-sm font-medium text-slack-text mb-3">
+                  Font Size: {settings.fontSize}px
+                </label>
+                <input
+                  type="range"
+                  min="12"
+                  max="24"
+                  value={settings.fontSize}
+                  onChange={handleFontSizeChange}
+                  className="w-full h-2 bg-slack-bgHover rounded-lg appearance-none cursor-pointer slider"
+                />
+                <div className="flex justify-between text-xs text-slack-textMuted mt-1">
+                  <span>12px</span>
+                  <span>24px</span>
+                </div>
+              </div>
+
+              {/* Font Size Scope */}
+              <div>
+                <label className="block text-sm font-medium text-slack-text mb-3">
+                  Apply font size to:
+                </label>
+                <div className="space-y-2">
+                  {[
+                    { value: 'messages', label: 'Messages only', description: 'Only message content' },
+                    { value: 'input', label: 'Messages & Input', description: 'Chat messages and input field' },
+                    { value: 'global', label: 'Global', description: 'Entire application' },
+                  ].map((option) => (
+                    <label key={option.value} className="flex items-start space-x-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="fontScope"
+                        value={option.value}
+                        checked={settings.fontSizeScope === option.value}
+                        onChange={() => handleScopeChange(option.value as FontSizeScope)}
+                        className="mt-1 text-slack-accent focus:ring-slack-accent"
+                      />
+                      <div>
+                        <div className="text-sm font-medium text-slack-text">{option.label}</div>
+                        <div className="text-xs text-slack-textMuted">{option.description}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div>
+                <label className="block text-sm font-medium text-slack-text mb-3">
+                  Preview:
+                </label>
+                <div 
+                  className="p-4 bg-slack-bgHover rounded-lg border border-slack-border"
+                  style={{ fontSize: `${settings.fontSize}px` }}
+                >
+                  <div className="text-slack-text">
+                    This is how your messages will look with the current font size.
+                  </div>
+                  <div className="text-slack-textMuted text-sm mt-2">
+                    Sample message content with different text styles.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'layout' && (
+            <div className="space-y-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Panel Visibility</h3>
+                <p className="text-sm text-slack-textMuted">
+                  Configure which panels are visible by default when the app starts. You can still toggle panels manually at any time.
+                </p>
+              </div>
+
+              {/* Files Panel */}
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Files Panel</div>
+                  <div className="text-sm text-slack-textMuted">File explorer for browsing workspaces and files</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.filesPanelVisible}
+                    onChange={(e) => updateLayoutSettings({ filesPanelVisible: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              {/* Editor Panel */}
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Editor Panel</div>
+                  <div className="text-sm text-slack-textMuted">Code editor for viewing and editing files</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.editorPanelVisible}
+                    onChange={(e) => updateLayoutSettings({ editorPanelVisible: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              {/* Terminal Panel */}
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Terminal Panel</div>
+                  <div className="text-sm text-slack-textMuted">Terminal for executing commands and viewing output</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.terminalPanelVisible}
+                    onChange={(e) => updateLayoutSettings({ terminalPanelVisible: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              {/* My Agents Panel */}
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">My Agents Panel</div>
+                  <div className="text-sm text-slack-textMuted">Manage and view your custom repository agents</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.myAgentsPanelVisible}
+                    onChange={(e) => updateLayoutSettings({ myAgentsPanelVisible: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              {/* Pending Changes Panel */}
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Pending Changes Panel</div>
+                  <div className="text-sm text-slack-textMuted">View and manage pending file changes</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.pendingChangesPanelVisible}
+                    onChange={(e) => updateLayoutSettings({ pendingChangesPanelVisible: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'integrations' && (
+            <div className="space-y-8">
+              {/* Anthropic Settings */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">Anthropic API</h3>
+                  <div className="flex items-center space-x-2">
+                    {anthropicForm.apiKey && (
+                      <span className="text-green-500 text-sm">✓ Configured</span>
+                    )}
+                    <button
+                      onClick={() => testConnection('anthropic')}
+                      className="px-3 py-1 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                
+                {testResults.anthropic && (
+                  <div className={`mb-4 p-3 rounded text-sm ${
+                    testResults.anthropic.success 
+                      ? 'bg-green-100 text-green-800 border border-green-200' 
+                      : 'bg-red-100 text-red-800 border border-red-200'
+                  }`}>
+                    {testResults.anthropic.message}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      API Key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.anthropic ? 'text' : 'password'}
+                        value={anthropicForm.apiKey}
+                        onChange={(e) => handleAnthropicChange('apiKey', e.target.value)}
+                        placeholder="sk-ant-..."
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordVisibility('anthropic')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slack-textMuted hover:text-slack-text"
+                      >
+                        {showPasswords.anthropic ? '👁️' : '👁️‍🗨️'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      Get your API key from{' '}
+                      <button
+                        onClick={() => openLink('https://console.anthropic.com/')}
+                        className="text-slack-accent hover:underline"
+                      >
+                        Anthropic Console
+                      </button>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="useAIHub"
+                      checked={anthropicForm.useAIHub}
+                      onChange={(e) => handleAnthropicChange('useAIHub', e.target.checked)}
+                      className="text-slack-accent focus:ring-slack-accent"
+                    />
+                    <label htmlFor="useAIHub" className="text-sm text-slack-text">
+                      Use AI Hub (recommended)
+                    </label>
+                  </div>
+
+                  {anthropicForm.useAIHub && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slack-text mb-2">
+                          AI Hub Endpoint
+                        </label>
+                        <input
+                          type="text"
+                          value={anthropicForm.aiHubEndpoint}
+                          onChange={(e) => handleAnthropicChange('aiHubEndpoint', e.target.value)}
+                          className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slack-text mb-2">
+                          Model
+                        </label>
+                        <select
+                          value={anthropicForm.aiHubModel}
+                          onChange={(e) => handleAnthropicChange('aiHubModel', e.target.value)}
+                          className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                        >
+                          <option value="claude-sonnet">Claude Sonnet (recommended)</option>
+                          <option value="claude-haiku">Claude Haiku (faster)</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    onClick={saveAnthropicSettings}
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                  >
+                    Save Anthropic Settings
+                  </button>
+                </div>
+              </div>
+
+              {/* GitHub Settings */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">GitHub</h3>
+                  <div className="flex items-center space-x-2">
+                    {githubForm.personalAccessToken && (
+                      <span className="text-green-500 text-sm">✓ Configured</span>
+                    )}
+                    <button
+                      onClick={() => testConnection('github')}
+                      className="px-3 py-1 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                
+                {testResults.github && (
+                  <div className={`mb-4 p-3 rounded text-sm ${
+                    testResults.github.success 
+                      ? 'bg-green-100 text-green-800 border border-green-200' 
+                      : 'bg-red-100 text-red-800 border border-red-200'
+                  }`}>
+                    {testResults.github.message}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Personal Access Token
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.github ? 'text' : 'password'}
+                        value={githubForm.personalAccessToken}
+                        onChange={(e) => handleGitHubChange('personalAccessToken', e.target.value)}
+                        placeholder="ghp_..."
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordVisibility('github')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slack-textMuted hover:text-slack-text"
+                      >
+                        {showPasswords.github ? '👁️' : '👁️‍🗨️'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      Create a token at{' '}
+                      <button
+                        onClick={() => openLink('https://github.com/settings/tokens')}
+                        className="text-slack-accent hover:underline"
+                      >
+                        GitHub Settings
+                      </button>
+                      {' '}with repo, read:org permissions
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={saveGitHubSettings}
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                  >
+                    Save GitHub Settings
+                  </button>
+                </div>
+              </div>
+
+              {/* Confluence Settings */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">Confluence</h3>
+                  <div className="flex items-center space-x-2">
+                    {confluenceForm.domain && confluenceForm.email && confluenceForm.apiToken && (
+                      <span className="text-green-500 text-sm">✓ Configured</span>
+                    )}
+                    <button
+                      onClick={() => testConnection('confluence')}
+                      className="px-3 py-1 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                
+                {testResults.confluence && (
+                  <div className={`mb-4 p-3 rounded text-sm ${
+                    testResults.confluence.success 
+                      ? 'bg-green-100 text-green-800 border border-green-200' 
+                      : 'bg-red-100 text-red-800 border border-red-200'
+                  }`}>
+                    {testResults.confluence.message}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Domain
+                    </label>
+                    <input
+                      type="text"
+                      value={confluenceForm.domain}
+                      onChange={(e) => handleConfluenceChange('domain', e.target.value)}
+                      placeholder="yourcompany.atlassian.net"
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={confluenceForm.email}
+                      onChange={(e) => handleConfluenceChange('email', e.target.value)}
+                      placeholder="your.email@company.com"
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      API Token
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPasswords.confluence ? 'text' : 'password'}
+                        value={confluenceForm.apiToken}
+                        onChange={(e) => handleConfluenceChange('apiToken', e.target.value)}
+                        placeholder="Your API token"
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => togglePasswordVisibility('confluence')}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slack-textMuted hover:text-slack-text"
+                      >
+                        {showPasswords.confluence ? '👁️' : '👁️‍🗨️'}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      Get your API token from{' '}
+                      <button
+                        onClick={() => openLink('https://id.atlassian.com/manage-profile/security/api-tokens')}
+                        className="text-slack-accent hover:underline"
+                      >
+                        Atlassian Account Settings
+                      </button>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={saveConfluenceSettings}
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                  >
+                    Save Confluence Settings
+                  </button>
+                </div>
+              </div>
+
+              {/* Clear All Button */}
+              <div className="pt-4 border-t border-slack-border">
+                <button
+                  onClick={clearAllIntegrations}
+                  className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                >
+                  Clear All Integration Settings
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'ai-providers' && (
+            <div className="space-y-8">
+              {/* Ollama Settings */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">Ollama (Local LLM)</h3>
+                  <div className="flex items-center space-x-2">
+                    {ollamaForm.endpoint && (
+                      <span className="text-green-500 text-sm">✓ Configured</span>
+                    )}
+                    <button
+                      onClick={() => testConnection('ollama')}
+                      className="px-3 py-1 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                
+                {testResults.ollama && (
+                  <div className={`mb-4 p-3 rounded text-sm ${
+                    testResults.ollama.success 
+                      ? 'bg-green-100 text-green-800 border border-green-200' 
+                      : 'bg-red-100 text-red-800 border border-red-200'
+                  }`}>
+                    {testResults.ollama.message}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Ollama Endpoint
+                    </label>
+                    <input
+                      type="text"
+                      value={ollamaForm.endpoint}
+                      onChange={(e) => handleOllamaChange('endpoint', e.target.value)}
+                      placeholder="http://localhost:11434"
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      URL where Ollama server is running (default: http://localhost:11434)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Default Model
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={ollamaForm.defaultModel}
+                        onChange={(e) => handleOllamaChange('defaultModel', e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      >
+                        {ollamaForm.availableModels.length > 0 ? (
+                          ollamaForm.availableModels.map((model) => (
+                            <option key={model} value={model}>{model}</option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="llama3.1">llama3.1</option>
+                            <option value="mistral">mistral</option>
+                            <option value="codellama">codellama</option>
+                            <option value="phi3">phi3</option>
+                            <option value="gemma">gemma</option>
+                          </>
+                        )}
+                      </select>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const models = await fetchOllamaModels();
+                            setOllamaForm(prev => ({ ...prev, availableModels: models }));
+                          } catch (error) {
+                            console.error('Failed to fetch Ollama models:', error);
+                          }
+                        }}
+                        className="px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap"
+                        title="Fetch available models from Ollama"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      {ollamaForm.availableModels.length > 0
+                        ? `${ollamaForm.availableModels.length} models available`
+                        : 'Click Refresh to load models from Ollama'}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={saveOllamaSettings}
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                  >
+                    Save Ollama Settings
+                  </button>
+                </div>
+              </div>
+
+              {/* LM Studio Settings */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">LM Studio (Local LLM)</h3>
+                  <div className="flex items-center space-x-2">
+                    {lmstudioForm.endpoint && (
+                      <span className="text-green-500 text-sm">✓ Configured</span>
+                    )}
+                    <button
+                      onClick={() => testConnection('lmstudio')}
+                      className="px-3 py-1 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                
+                {testResults.lmstudio && (
+                  <div className={`mb-4 p-3 rounded text-sm ${
+                    testResults.lmstudio.success 
+                      ? 'bg-green-100 text-green-800 border border-green-200' 
+                      : 'bg-red-100 text-red-800 border border-red-200'
+                  }`}>
+                    {testResults.lmstudio.message}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      LM Studio Endpoint
+                    </label>
+                    <input
+                      type="text"
+                      value={lmstudioForm.endpoint}
+                      onChange={(e) => handleLMStudioChange('endpoint', e.target.value)}
+                      placeholder="http://localhost:1234/v1"
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      URL where LM Studio server is running (default: http://localhost:1234/v1)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Default Model
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {lmstudioForm.availableModels.length > 0 ? (
+                        <select
+                          value={lmstudioForm.defaultModel}
+                          onChange={(e) => handleLMStudioChange('defaultModel', e.target.value)}
+                          className="flex-1 px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                        >
+                          <option value="">Auto-select</option>
+                          {lmstudioForm.availableModels.map((model) => (
+                            <option key={model} value={model}>{model}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={lmstudioForm.defaultModel}
+                          onChange={(e) => handleLMStudioChange('defaultModel', e.target.value)}
+                          placeholder="Leave empty to auto-select"
+                          className="flex-1 px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                        />
+                      )}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const models = await fetchLMStudioModels();
+                            setLMStudioForm(prev => ({ ...prev, availableModels: models }));
+                          } catch (error) {
+                            console.error('Failed to fetch LM Studio models:', error);
+                          }
+                        }}
+                        className="px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors whitespace-nowrap"
+                        title="Fetch available models from LM Studio"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      {lmstudioForm.availableModels.length > 0
+                        ? `${lmstudioForm.availableModels.length} models available`
+                        : 'Click Refresh to load models from LM Studio'}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={saveLMStudioSettings}
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors"
+                  >
+                    Save LM Studio Settings
+                  </button>
+                </div>
+              </div>
+
+              {/* Global Provider Toggle */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-4">Global Provider Settings</h3>
+                <div className="space-y-4">
+                  {testResults.providerSwitch && (
+                    <div className={`p-3 rounded text-sm ${
+                      testResults.providerSwitch.success 
+                        ? 'bg-green-100 text-green-800 border border-green-200' 
+                        : 'bg-red-100 text-red-800 border border-red-200'
+                    }`}>
+                      {testResults.providerSwitch.message}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded">
+                    <div>
+                      <h4 className="font-medium text-slack-text">Switch All Agents</h4>
+                      <p className="text-sm text-slack-textMuted">
+                        Change all agents to use the same AI provider
+                      </p>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={handleSwitchAllToClaude}
+                        disabled={isSwitching}
+                        className={`px-3 py-1 text-sm bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors ${
+                          isSwitching ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        🧠 All to Claude
+                      </button>
+                      <button
+                        onClick={handleSwitchAllToOllama}
+                        disabled={isSwitching}
+                        className={`px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors ${
+                          isSwitching ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        🤖 All to Ollama
+                      </button>
+                      <button
+                        onClick={handleSwitchAllToLMStudio}
+                        disabled={isSwitching}
+                        className={`px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors ${
+                          isSwitching ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        🎨 All to LM Studio
+                      </button>
+                    </div>
+                  </div>
+                  {isSwitching && (
+                    <div className="flex items-center gap-2 text-sm text-slack-textMuted">
+                      <div className="w-4 h-4 border-2 border-slack-textMuted border-t-transparent rounded-full animate-spin" />
+                      <span>Switching providers...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'developer' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Test Mode</h3>
+                <p className="text-slack-textMuted mb-4">
+                  Development tools and testing utilities.
+                </p>
+                {setTestMode && (
+                  <button
+                    onClick={() => {
+                      setTestMode(true);
+                      onClose();
+                    }}
+                    className={`px-4 py-2 rounded transition-colors ${
+                      testMode
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-slack-accent text-white hover:bg-slack-accentHover'
+                    }`}
+                  >
+                    {testMode ? 'Test Mode Active' : 'Open Test Mode'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'about' && (
+            <div className="space-y-6">
+              {/* App Info */}
+              <div>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">{APP_INFO.name}</h3>
+                <p className="text-slack-textMuted mb-4">{APP_INFO.description}</p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-slack-textMuted">Version:</span>
+                    <span className="ml-2 text-slack-text">{appVersion}</span>
+                  </div>
+                  <div>
+                    <span className="text-slack-textMuted">License:</span>
+                    <span className="ml-2 text-slack-text">{APP_INFO.license}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Technology Stack */}
+              <div>
+                <h4 className="text-md font-semibold text-slack-text mb-3">Technology Stack</h4>
+                <div className="flex flex-wrap gap-2">
+                  {TECH_STACK.map((tech) => (
+                    <span
+                      key={tech}
+                      className="px-3 py-1 bg-slack-bgHover text-slack-text text-sm rounded-full border border-slack-border"
+                    >
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Links */}
+              <div>
+                <h4 className="text-md font-semibold text-slack-text mb-3">Links</h4>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => openLink(APP_INFO.repository)}
+                    className="block text-left text-slack-accent hover:text-slack-accentHover transition-colors"
+                  >
+                    📁 GitHub Repository
+                  </button>
+                  <button
+                    onClick={() => openLink(APP_INFO.documentation)}
+                    className="block text-left text-slack-accent hover:text-slack-accentHover transition-colors"
+                  >
+                    📚 Documentation
+                  </button>
+                </div>
+              </div>
+
+              {/* Copyright */}
+              <div className="pt-4 border-t border-slack-border">
+                <p className="text-xs text-slack-textMuted">
+                  © 2025 {APP_INFO.author}. Licensed under {APP_INFO.license}.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
