@@ -22,6 +22,8 @@ import { CodeEditorPanel } from './CodeEditorPanel';
 import { ToastContainer } from './Toast';
 import { ErrorBoundary } from './ErrorBoundary';
 import { CommandPalette } from './CommandPalette';
+import { ChannelSidebar } from './ChannelSidebar';
+import { CreateChannelModal } from './CreateChannelModal';
 import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon } from './Icons';
 import type { Message, ThinkingStatusMetadata, CommandDefinition } from '../types/protocol';
 
@@ -39,12 +41,15 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     username,
     messages,
     agents,
+    channels,
     thinkingAgents,
     openThreadId,
     threadMetadata,
     addMessage,
     setMessages,
     setAgents,
+    setChannels,
+    switchChannel,
     setIsTyping,
     setConnectionStatus,
     addThinkingAgent,
@@ -70,6 +75,9 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
   
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
+
+  // State for create channel modal
+  const [createChannelOpen, setCreateChannelOpen] = useState(false);
 
   // State for command palette
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -150,6 +158,51 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     }
   }, [api]);
 
+  // Load channels
+  const loadChannels = useCallback(async () => {
+    try {
+      const channelList = await api.fetchChannels();
+      setChannels(channelList);
+    } catch (error) {
+      console.error('Failed to load channels:', error);
+    }
+  }, [api, setChannels]);
+
+  // Handle switching channel: switch store state, then load fresh messages
+  const handleSwitchChannel = useCallback(async (channelName: string) => {
+    if (channelName === channel) return;
+    switchChannel(channelName);
+    localStorage.setItem('last-channel', channelName);
+    try {
+      const msgs = await api.fetchMessages(channelName, 50);
+      setMessages(msgs);
+    } catch (error) {
+      console.error('Failed to load messages for channel:', error);
+    }
+  }, [api, channel, switchChannel, setMessages]);
+
+  // Create a custom channel
+  const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
+    try {
+      await api.createChannel(name, description, 'custom', agentIds, username);
+      await loadChannels();
+      await handleSwitchChannel(name);
+    } catch (error) {
+      console.error('Failed to create channel:', error);
+    }
+  }, [api, username, loadChannels, handleSwitchChannel]);
+
+  // Create a DM channel with an agent
+  const handleCreateDM = useCallback(async (agentId: string) => {
+    try {
+      const ch = await api.createChannel('', '', 'dm', [agentId], username);
+      await loadChannels();
+      await handleSwitchChannel(ch.name);
+    } catch (error) {
+      console.error('Failed to create DM channel:', error);
+    }
+  }, [api, username, loadChannels, handleSwitchChannel]);
+
   // Debounced agent refresh (prevents excessive API calls)
   const debouncedRefreshAgents = useCallback(() => {
     if (agentRefreshTimeoutRef.current) {
@@ -158,8 +211,9 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     agentRefreshTimeoutRef.current = window.setTimeout(() => {
       loadAgents();
       loadCounts();
+      loadChannels();
     }, 300);
-  }, [loadAgents, loadCounts]);
+  }, [loadAgents, loadCounts, loadChannels]);
 
   // WebSocket connection
   const { status } = useWebSocket({
@@ -261,8 +315,8 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       const existingMessages = await api.fetchMessages(channel, 50);
       setMessages(existingMessages);
 
-      // Load agents, counts, and command definitions
-      await Promise.all([loadAgents(), loadCounts()]);
+      // Load agents, counts, channels, and command definitions
+      await Promise.all([loadAgents(), loadCounts(), loadChannels()]);
 
       try {
         const defs = await api.fetchCommands();
@@ -297,7 +351,7 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId) ?? workspaces[0];
 
       // Build file tree from the active workspace's loaded nodes
-      const nodes = activeWorkspace ? (fileTree.get(activeWorkspace.id) ?? []) : [];
+      const nodes = activeWorkspace ? (fileTree[activeWorkspace.id] ?? []) : [];
 
       const workspaceContext: WorkspaceContext = {
         workspace_name: activeWorkspace?.name ?? '',
@@ -442,9 +496,28 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       {/* Top Toolbar - always visible, spans full width */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-slack-border bg-slack-bgHover flex-shrink-0">
         <div className="flex items-center gap-2">
-          <h1 className="text-sm font-bold text-slack-text">
-            💬 #{channel}
-          </h1>
+          {(() => {
+            const ch = channels.find(c => c.name === channel);
+            const isDM = ch?.type === 'dm';
+            const agentCount = ch?.agents?.length ?? 0;
+            return (
+              <>
+                <h1 className="text-sm font-bold text-slack-text">
+                  {isDM ? '@ ' : '# '}{isDM && ch?.agents?.[0] ? ch.agents[0].name : channel}
+                </h1>
+                {ch?.description && (
+                  <span className="text-xs text-slack-textMuted hidden sm:inline truncate max-w-[200px]" title={ch.description}>
+                    {ch.description}
+                  </span>
+                )}
+                {agentCount > 0 && !isDM && (
+                  <span className="text-[10px] text-slack-textMuted bg-slack-bgHover px-1.5 py-0.5 rounded">
+                    {agentCount} agent{agentCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </>
+            );
+          })()}
           <div className="flex items-center gap-1.5 text-xs">
             <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor()}`} />
             <span className="text-slack-textMuted">{getStatusText()}</span>
@@ -565,6 +638,15 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
 
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
+        {/* Channel Sidebar */}
+        <ChannelSidebar
+          channels={channels}
+          agents={agents}
+          onSwitchChannel={handleSwitchChannel}
+          onCreateChannel={() => setCreateChannelOpen(true)}
+          onCreateDM={handleCreateDM}
+        />
+
         {/* File Explorer Panel - slides in from left */}
         {fileExplorerOpen && (
           <FileExplorerPanel
@@ -671,6 +753,14 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
           }
         }}
         onExecute={handleCommandExecute}
+      />
+
+      {/* Create Channel Modal */}
+      <CreateChannelModal
+        agents={agents}
+        isOpen={createChannelOpen}
+        onClose={() => setCreateChannelOpen(false)}
+        onCreate={handleCreateChannel}
       />
 
       {/* Toast Notifications */}

@@ -20,6 +20,8 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
   const {
     workspaces,
     activeWorkspaceId,
+    fileTree,
+    expandedPaths,
     selectedPath,
     loadingFiles,
     error,
@@ -33,9 +35,8 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     createFolder,
     renameFile,
     deleteFile,
+    removeWorkspace,
     getActiveWorkspace,
-    getFileTree,
-    isPathExpanded,
     setError,
     clearError,
   } = useFileExplorerStore();
@@ -169,15 +170,26 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
   };
 
-  // const handleRemoveWorkspace = async (workspaceId: string) => {
-  //   if (window.confirm('Remove this workspace?')) {
-  //     try {
-  //       await removeWorkspace(workspaceId);
-  //     } catch (error) {
-  //       console.error('Failed to remove workspace:', error);
-  //     }
-  //   }
-  // };
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null);
+
+  const handleRemoveWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setPendingRemove({ id: workspaceId, name: workspaceName });
+  };
+
+  const confirmRemoveWorkspace = async () => {
+    if (!pendingRemove) return;
+    const { id, name } = pendingRemove;
+    setPendingRemove(null);
+    try {
+      await removeWorkspace(id);
+      addToast({ type: 'success', title: 'Workspace removed', message: `"${name}" removed from file explorer` });
+    } catch (error) {
+      console.error('Failed to remove workspace:', error);
+      addToast({ type: 'error', title: 'Remove failed', message: error instanceof Error ? error.message : 'Failed to remove workspace' });
+    }
+  };
 
   const handleFileClick = async (file: FileNode) => {
     // Add null check for file.path to prevent crashes
@@ -188,8 +200,8 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
     
     if (file.is_dir) {
-      console.log('Toggling directory:', file.path, 'current expanded:', isPathExpanded(file.path));
-      const wasExpanded = isPathExpanded(file.path);
+      console.log('Toggling directory:', file.path, 'current expanded:', !!expandedPaths[file.path]);
+      const wasExpanded = !!expandedPaths[file.path];
       toggleExpanded(file.path);
       
       // If we're expanding the directory and it doesn't have children loaded, load them
@@ -427,7 +439,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
   const renderFileIcon = (file: FileNode) => {
     if (file.is_dir) {
-      return isPathExpanded(file.path) ? '📂' : '📁';
+      return expandedPaths[file.path] ? '📂' : '📁';
     }
     
     // Add null check for file.path to prevent crashes
@@ -468,16 +480,16 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           onContextMenu={(e) => handleContextMenu(e, file)}
         >
           <span className="text-sm">
-            {file.is_dir ? (isPathExpanded(file.path) ? '📂' : '📁') : renderFileIcon(file)}
+            {file.is_dir ? (expandedPaths[file.path] ? '📂' : '📁') : renderFileIcon(file)}
           </span>
           <span className="text-sm truncate flex-1">{file.name}</span>
           {file.is_dir && (
             <span className="text-xs text-slack-textMuted">
-              {isPathExpanded(file.path) ? '▼' : '▶'}
+              {expandedPaths[file.path] ? '▼' : '▶'}
             </span>
           )}
         </div>
-        {file.is_dir && isPathExpanded(file.path) && file.children && (
+        {file.is_dir && expandedPaths[file.path] && file.children && (
           <div>
             {renderFileTree(file.children, level + 1)}
           </div>
@@ -486,7 +498,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     ));
   };
 
-  const files = activeWorkspaceId ? getFileTree(activeWorkspaceId) : [];
+  const files = activeWorkspaceId ? (fileTree[activeWorkspaceId] || []) : [];
 
   return (
     <div 
@@ -537,17 +549,31 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
       <div className="px-4 py-2 border-b border-slack-border bg-slack-bgHover">
         <div className="flex gap-1 overflow-x-auto">
           {workspaces.map((workspace) => (
-            <button
+            <div
               key={workspace.id}
               onClick={() => setActiveWorkspace(workspace.id)}
-              className={`px-3 py-1 text-xs rounded transition-colors whitespace-nowrap ${
+              className={`group flex items-center gap-1 px-3 py-1 text-xs rounded transition-colors whitespace-nowrap cursor-pointer ${
                 activeWorkspaceId === workspace.id
                   ? 'bg-slack-accent text-white'
                   : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
               }`}
+              title={workspace.path}
             >
-              {workspace.name}
-            </button>
+              <span>{workspace.name}</span>
+              <button
+                onClick={(e) => handleRemoveWorkspace(e, workspace.id, workspace.name)}
+                className={`ml-1 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity ${
+                  activeWorkspaceId === workspace.id
+                    ? 'hover:bg-white/20'
+                    : 'hover:bg-slack-border'
+                }`}
+                title={`Remove ${workspace.name}`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           ))}
         </div>
       </div>
@@ -713,6 +739,34 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           className="fixed inset-0 z-40"
           onClick={closeContextMenu}
         />
+      )}
+
+      {/* Remove workspace confirmation */}
+      {pendingRemove && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setPendingRemove(null)} />
+          <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slack-bg border border-slack-border rounded-lg shadow-xl p-5 min-w-[300px]">
+            <h3 className="text-sm font-semibold text-slack-text mb-2">Remove Workspace</h3>
+            <p className="text-xs text-slack-textMuted mb-4">
+              Remove <span className="font-semibold text-slack-text">"{pendingRemove.name}"</span> from
+              the file explorer? No files will be deleted.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setPendingRemove(null)}
+                className="px-3 py-1.5 text-xs rounded bg-slack-bgHover text-slack-text hover:bg-slack-border transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRemoveWorkspace}
+                className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

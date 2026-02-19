@@ -286,6 +286,8 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
                       onClick={(e) => {
                         e.stopPropagation();
                         setInfoAgentId(agent.id);
+                        fetchOllamaModels().then(setAvailableOllamaModels).catch(() => {});
+                        fetchLMStudioModels().then(setAvailableLMStudioModels).catch(() => {});
                       }}
                       className="text-slack-textMuted hover:text-slack-text transition-colors flex-shrink-0"
                       title={`View ${agent.name} details`}

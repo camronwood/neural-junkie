@@ -131,7 +131,7 @@ func (w *Watcher) shouldIgnoreEvent(event fsnotify.Event) bool {
 	// Check if path contains ignored directories
 	pathParts := strings.Split(event.Name, string(filepath.Separator))
 	for _, part := range pathParts {
-		if shouldIgnore(part) {
+		if ShouldIgnore(part) {
 			return true
 		}
 	}
@@ -157,7 +157,7 @@ func (w *Watcher) addRecursive(root string) error {
 		}
 
 		// Skip ignored directories
-		if shouldIgnore(filepath.Base(path)) {
+		if ShouldIgnore(filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 

@@ -53,7 +53,7 @@ graph TB
 ## What's In the Box
 
 - **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
-- **9 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Repo, Confluence, Helper, and Moderator/Assistant (auto-started)
+- **10 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Rust, Repo, Confluence, Helper, and Moderator/Assistant (auto-started)
 - **3 AI Providers** -- Ollama (local), Claude (Anthropic/AI Hub), LM Studio (local) -- switch per-agent or globally
 - **50+ Slash Commands** -- Agent management, repo indexing, Confluence search, file changes, provider switching, and more
 - **Command Palette** -- Searchable UI for discovering and executing slash commands with guided argument forms
@@ -78,14 +78,14 @@ make gui-install
 make start-all
 ```
 
-That's it. The server auto-starts the **Moderator** (chat guide) and **Assistant** (tasks/reminders), then spins up the 5 specialist agents and opens the desktop app.
+That's it. The server auto-starts the **Moderator** (chat guide) and **Assistant** (tasks/reminders), then spins up the 6 specialist agents and opens the desktop app.
 
 ### Other Ways to Run
 
 ```bash
 # Manual setup (separate terminals)
 make server          # Terminal 1: Hub server
-make agents          # Terminal 2: All 5 specialist agents
+make agents          # Terminal 2: All 6 specialist agents
 make gui             # Terminal 3: Desktop app
 
 # Terminal chat (no GUI)
@@ -139,6 +139,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **Moderator** | Chat commands, feature guidance, 20s safety-net for unanswered questions |
 | **Assistant** | Reminders, tasks, notes, meeting summaries, scheduling |
 | **Cursor** | Codebase analysis, code generation, refactoring, shell commands (requires [Cursor CLI](docs/CLI_AGENTS.md)) |
+| **Gemini** | Code generation, code review, multimodal analysis, architecture (requires [Gemini CLI](docs/CLI_AGENTS.md)) |
 
 ### Specialist Agents (via `make agents`)
 
@@ -149,6 +150,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **SecurityExpert** | Auth, OAuth/JWT, encryption, XSS/CSRF, OWASP, compliance |
 | **ReactExpert** | React, TypeScript, CSS, UI/UX, design analysis, vision-capable |
 | **DevOpsPro** | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform |
+| **RustExpert** | Rust, ownership, lifetimes, async/await, traits, cargo, unsafe, WASM |
 
 ### Dynamic Agents (created via commands)
 
@@ -157,6 +159,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **Repo Agent** | `/create-repo-agent /path provider` | Indexes a codebase, watches for changes, answers project questions |
 | **Confluence Agent** | `/create-confluence-agent space-key` | Indexes a Confluence space for documentation Q&A |
 | **Helper Agent** | `/create-helper template-name` | Custom knowledge-base expert (onboarding, testing, docs) |
+| **Expert Agent** | `/create-expert type [name]` | Spin up any specialist on the fly (rust, backend, frontend, devops, database, security) |
 
 ## Commands
 
@@ -166,6 +169,7 @@ Type `/` in the chat or click the **`/`** button to open the command palette. Co
 |----------|-------------|
 | **Repo Agents** | `/create-repo-agent`, `/reindex-agent`, `/enable-watch`, `/disable-watch` |
 | **Confluence** | `/create-confluence-agent`, `/reindex-confluence-agent`, `/list-confluence-agents` |
+| **Experts** | `/create-expert` |
 | **Helpers** | `/create-helper`, `/list-helper-templates` |
 | **Agent Mgmt** | `/list-agents`, `/delete-agent`, `/pause-agent`, `/unpause-agent`, `/remove-agent`, `/recall-agent` |
 | **Providers** | `/switch-provider`, `/switch-all-providers` |

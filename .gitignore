@@ -38,8 +38,8 @@ desktop/dist/
 desktop/src-tauri/target/
 desktop/node_modules/
 
-# Build binaries (explicit)
-agent
-server
-gui
+# Build binaries (explicit, root only)
+/agent
+/server
+/gui
 

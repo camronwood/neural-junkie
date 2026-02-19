@@ -62,7 +62,7 @@ func NewHub() *Hub {
 	}
 
 	// Create default channel
-	hub.CreateChannel("general", "General discussion", "")
+	hub.CreateChannelWithType("general", "General discussion", "", protocol.ChannelTypePublic, "system")
 
 	// Initialize command handler
 	commandHandler, err := NewCommandHandler(hub)
@@ -97,16 +97,29 @@ func (h *Hub) GetWorkspaceManager() *WorkspaceManager {
 
 // CreateChannel creates a new channel
 func (h *Hub) CreateChannel(name, description, project string) *protocol.Channel {
+	return h.CreateChannelWithType(name, description, project, protocol.ChannelTypePublic, "")
+}
+
+// CreateChannelWithType creates a new channel with an explicit type and creator
+func (h *Hub) CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	// Return existing channel if one with this name already exists
+	if existing, ok := h.channels[name]; ok {
+		return existing
+	}
 
 	channel := &protocol.Channel{
 		ID:          uuid.New().String(),
 		Name:        name,
 		Description: description,
 		Project:     project,
+		Type:        channelType,
+		CreatedBy:   createdBy,
 		Created:     time.Now(),
 		Agents:      []protocol.AgentInfo{},
+		Members:     []string{},
 		Tags:        []string{},
 	}
 
@@ -774,6 +787,141 @@ func (h *Hub) IsAgentInAnyChannel(agentID string) bool {
 	return false
 }
 
+// CreateDMChannel creates (or returns an existing) DM channel between a user and an agent.
+// The agent is automatically joined to the channel.
+func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, error) {
+	agent, err := h.GetAgent(agentID)
+	if err != nil {
+		return nil, fmt.Errorf("agent %s not found", agentID)
+	}
+
+	dmName := fmt.Sprintf("dm-%s-%s", strings.ToLower(username), strings.ToLower(agent.Name))
+
+	// Check if it already exists
+	h.mu.RLock()
+	if existing, ok := h.channels[dmName]; ok {
+		h.mu.RUnlock()
+		return existing, nil
+	}
+	h.mu.RUnlock()
+
+	ch := h.CreateChannelWithType(
+		dmName,
+		fmt.Sprintf("Direct message with %s", agent.Name),
+		"",
+		protocol.ChannelTypeDM,
+		username,
+	)
+
+	// Auto-join the agent to the DM channel
+	if err := h.JoinChannel(agentID, dmName); err != nil {
+		return nil, fmt.Errorf("failed to join agent to DM channel: %w", err)
+	}
+
+	return ch, nil
+}
+
+// GetAgentChannels returns the names of all channels an agent is currently in
+func (h *Hub) GetAgentChannels(agentID string) []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	var channels []string
+	for name, channel := range h.channels {
+		for _, a := range channel.Agents {
+			if a.ID == agentID {
+				channels = append(channels, name)
+				break
+			}
+		}
+	}
+	return channels
+}
+
+// AddAgentToChannel joins an agent to a channel and records it as an explicit member
+func (h *Hub) AddAgentToChannel(agentID, channelName string) error {
+	if err := h.JoinChannel(agentID, channelName); err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	ch, ok := h.channels[channelName]
+	if !ok {
+		return nil
+	}
+
+	// Track as explicit member (deduplicated)
+	for _, m := range ch.Members {
+		if m == agentID {
+			return nil
+		}
+	}
+	ch.Members = append(ch.Members, agentID)
+	return nil
+}
+
+// RemoveAgentFromChannel removes an agent from a channel and its member list
+func (h *Hub) RemoveAgentFromChannel(agentID, channelName string) error {
+	if err := h.LeaveChannel(agentID, channelName); err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	ch, ok := h.channels[channelName]
+	if !ok {
+		return nil
+	}
+
+	// Remove from explicit members
+	for i, m := range ch.Members {
+		if m == agentID {
+			ch.Members = append(ch.Members[:i], ch.Members[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
+// DeleteChannel removes a channel entirely (cannot delete "general")
+func (h *Hub) DeleteChannel(channelName string) error {
+	if channelName == "general" {
+		return fmt.Errorf("cannot delete the general channel")
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, ok := h.channels[channelName]; !ok {
+		return fmt.Errorf("channel %s not found", channelName)
+	}
+
+	// Close all subscriber channels
+	for _, sub := range h.subscribers[channelName] {
+		close(sub)
+	}
+
+	delete(h.channels, channelName)
+	delete(h.messages, channelName)
+	delete(h.subscribers, channelName)
+
+	return nil
+}
+
+// GetChannelType returns the type of the named channel
+func (h *Hub) GetChannelType(channelName string) protocol.ChannelType {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if ch, ok := h.channels[channelName]; ok {
+		return ch.Type
+	}
+	return protocol.ChannelTypePublic
+}
+
 // shouldAutoCreateRepoAgent determines if we should auto-create a repo agent for this message
 func (h *Hub) shouldAutoCreateRepoAgent(msg *protocol.Message, repoPath string) bool {
 	// Don't auto-create if it's a system message
@@ -1062,9 +1210,12 @@ type SessionSnapshot struct {
 
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
-	Name        string              `json:"name"`
-	Description string              `json:"description"`
-	Messages    []*protocol.Message `json:"messages"`
+	Name        string                `json:"name"`
+	Description string                `json:"description"`
+	Type        protocol.ChannelType  `json:"type"`
+	CreatedBy   string                `json:"created_by,omitempty"`
+	Members     []string              `json:"members,omitempty"`
+	Messages    []*protocol.Message   `json:"messages"`
 }
 
 // ThreadSnapshot holds all messages and metadata for a single thread.
@@ -1091,6 +1242,9 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 		cs := &ChannelSnapshot{
 			Name:        ch.Name,
 			Description: ch.Description,
+			Type:        ch.Type,
+			CreatedBy:   ch.CreatedBy,
+			Members:     ch.Members,
 			Messages:    make([]*protocol.Message, 0),
 		}
 		if msgs, ok := h.messages[name]; ok {

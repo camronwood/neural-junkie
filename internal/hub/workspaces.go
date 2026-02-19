@@ -77,12 +77,9 @@ func (wm *WorkspaceManager) loadWorkspaces() error {
 	return nil
 }
 
-// saveWorkspaces saves workspaces to storage
-func (wm *WorkspaceManager) saveWorkspaces() error {
-	wm.mutex.RLock()
-	defer wm.mutex.RUnlock()
-
-	// Convert map to slice
+// saveWorkspacesLocked persists the in-memory workspaces to disk.
+// Caller MUST already hold wm.mutex (read or write).
+func (wm *WorkspaceManager) saveWorkspacesLocked() error {
 	workspaces := make([]*Workspace, 0, len(wm.workspaces))
 	for _, workspace := range wm.workspaces {
 		workspaces = append(workspaces, workspace)
@@ -93,7 +90,6 @@ func (wm *WorkspaceManager) saveWorkspaces() error {
 		return fmt.Errorf("failed to marshal workspaces: %w", err)
 	}
 
-	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(wm.storagePath), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -136,19 +132,17 @@ func (wm *WorkspaceManager) AddWorkspace(name, path string) (*Workspace, error) 
 	// Check if it's a git repository
 	if _, err := os.Stat(filepath.Join(absPath, ".git")); err == nil {
 		workspace.IsGitRepo = true
-		// TODO: Get git remote and branch info
 	}
 
 	wm.mutex.Lock()
 	wm.workspaces[workspace.ID] = workspace
+	err = wm.saveWorkspacesLocked()
+	if err != nil {
+		delete(wm.workspaces, workspace.ID)
+	}
 	wm.mutex.Unlock()
 
-	// Save to storage
-	if err := wm.saveWorkspaces(); err != nil {
-		// Remove from memory if save failed
-		wm.mutex.Lock()
-		delete(wm.workspaces, workspace.ID)
-		wm.mutex.Unlock()
+	if err != nil {
 		return nil, fmt.Errorf("failed to save workspace: %w", err)
 	}
 
@@ -188,8 +182,7 @@ func (wm *WorkspaceManager) RemoveWorkspace(id string) error {
 
 	delete(wm.workspaces, id)
 
-	// Save to storage
-	if err := wm.saveWorkspaces(); err != nil {
+	if err := wm.saveWorkspacesLocked(); err != nil {
 		return fmt.Errorf("failed to save workspaces after removal: %w", err)
 	}
 
@@ -208,8 +201,7 @@ func (wm *WorkspaceManager) UpdateWorkspaceLastUsed(id string) error {
 
 	workspace.LastUsed = time.Now()
 
-	// Save to storage
-	if err := wm.saveWorkspaces(); err != nil {
+	if err := wm.saveWorkspacesLocked(); err != nil {
 		return fmt.Errorf("failed to save workspaces after update: %w", err)
 	}
 

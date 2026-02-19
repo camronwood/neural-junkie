@@ -29,9 +29,9 @@ interface FileExplorerState {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   
-  // File tree
-  fileTree: Map<string, FileNode[]>; // workspaceId -> file nodes
-  expandedPaths: Set<string>; // Set of expanded folder paths
+  // File tree (plain object for Zustand reactivity -- Maps don't trigger re-renders)
+  fileTree: Record<string, FileNode[]>;
+  expandedPaths: Record<string, boolean>;
   selectedPath: string | null;
   
   // Loading and error states
@@ -72,8 +72,8 @@ interface FileExplorerState {
 export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
-  fileTree: new Map(),
-  expandedPaths: new Set(),
+  fileTree: {},
+  expandedPaths: {},
   selectedPath: null,
   loadingWorkspaces: false,
   loadingFiles: false,
@@ -116,8 +116,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   
   removeWorkspace: async (workspaceId) => {
     try {
-      // TODO: Implement actual API call
-      console.log('Removing workspace:', workspaceId);
+      await api.removeWorkspace(workspaceId);
       
       set(state => {
         const newWorkspaces = state.workspaces.filter(w => w.id !== workspaceId);
@@ -125,8 +124,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
           ? (newWorkspaces[0]?.id || null)
           : state.activeWorkspaceId;
         
-        const newFileTree = new Map(state.fileTree);
-        newFileTree.delete(workspaceId);
+        const { [workspaceId]: _, ...newFileTree } = state.fileTree;
         
         return {
           workspaces: newWorkspaces,
@@ -151,17 +149,13 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       const files = await api.fetchFiles(workspaceId, path);
       console.log('FileExplorerStore: Loaded files:', files);
       set(state => {
-        const newFileTree = new Map(state.fileTree);
+        let updatedFiles: FileNode[];
         
         if (path === '/') {
-          // For root path, replace the entire tree
-          newFileTree.set(workspaceId, files);
+          updatedFiles = files;
         } else {
-          // For subdirectories, we need to build a hierarchical structure
-          // For now, let's store files by path and build the tree dynamically
-          const currentFiles = newFileTree.get(workspaceId) || [];
+          const currentFiles = state.fileTree[workspaceId] || [];
           
-          // Find the parent directory and add children
           const updateFileTree = (fileList: FileNode[], targetPath: string, newFiles: FileNode[]): FileNode[] => {
             return fileList.map(file => {
               if (file.path === targetPath && file.is_dir) {
@@ -173,12 +167,11 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
             });
           };
           
-          const updatedFiles = updateFileTree(currentFiles, path, files);
-          newFileTree.set(workspaceId, updatedFiles);
+          updatedFiles = updateFileTree(currentFiles, path, files);
         }
         
         return {
-          fileTree: newFileTree,
+          fileTree: { ...state.fileTree, [workspaceId]: updatedFiles },
           loadingFiles: false,
         };
       });
@@ -193,13 +186,10 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   
   toggleExpanded: (path) => {
     set(state => {
-      const newExpandedPaths = new Set(state.expandedPaths);
-      if (newExpandedPaths.has(path)) {
-        newExpandedPaths.delete(path);
-      } else {
-        newExpandedPaths.add(path);
-      }
-      return { expandedPaths: newExpandedPaths };
+      const { [path]: wasExpanded, ...rest } = state.expandedPaths;
+      return {
+        expandedPaths: wasExpanded ? rest : { ...state.expandedPaths, [path]: true },
+      };
     });
   },
   
@@ -263,17 +253,17 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   
   getFileTree: (workspaceId) => {
     const state = get();
-    return state.fileTree.get(workspaceId) || [];
+    return state.fileTree[workspaceId] || [];
   },
   
   isPathExpanded: (path) => {
     const state = get();
-    return state.expandedPaths.has(path);
+    return !!state.expandedPaths[path];
   },
   
   getFileByPath: (workspaceId, path) => {
     const state = get();
-    const files = state.fileTree.get(workspaceId) || [];
+    const files = state.fileTree[workspaceId] || [];
     
     // Simple recursive search
     const findFile = (nodes: FileNode[], targetPath: string): FileNode | null => {

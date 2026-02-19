@@ -10,32 +10,40 @@ import (
 	"github.com/camronwood/neural-junkie/internal/repo"
 )
 
-// cleanupRepoAgentCache cleans up repository agent cache entries for test repositories
-// This function is now just a placeholder - use cleanupRepoAgentCacheImmediate for immediate cleanup
+// useIsolatedRepoStorage redirects repo storage to a temp directory for the
+// duration of the test, preventing test artifacts from polluting ~/.neural-junkie/repos.
+// Call this at the start of any test that creates repo agents or uses repo.NewStorage().
+func useIsolatedRepoStorage(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("NEURAL_JUNKIE_REPO_DIR", dir)
+	return dir
+}
+
+// cleanupRepoAgentCache registers a t.Cleanup to remove the repo agent cache for repoPath.
 func cleanupRepoAgentCache(t *testing.T, repoPath string) {
 	t.Helper()
-	// No-op - use cleanupRepoAgentCacheImmediate for actual cleanup
+	t.Cleanup(func() {
+		cleanupRepoAgentCacheImmediate(t, repoPath)
+	})
 }
 
 // cleanupRepoAgentCacheImmediate immediately cleans up repository agent cache entries
 func cleanupRepoAgentCacheImmediate(t *testing.T, repoPath string) {
 	t.Helper()
 
-	// Get storage instance
 	storage, err := repo.NewStorage()
 	if err != nil {
 		t.Logf("Warning: Failed to create storage for cleanup: %v", err)
 		return
 	}
 
-	// Get cache key for the repository path
 	cacheKey, err := storage.GetCacheKeyForPath(repoPath)
 	if err != nil {
 		t.Logf("Warning: Failed to get cache key for cleanup: %v", err)
 		return
 	}
 
-	// Delete the cache entry
 	if err := storage.DeleteIndex(cacheKey); err != nil {
 		t.Logf("Warning: Failed to delete cache entry for %s: %v", repoPath, err)
 	} else {

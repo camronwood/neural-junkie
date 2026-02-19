@@ -2,7 +2,7 @@
 
 CLI Agents are a special agent type that wraps external AI CLI tools as subprocesses, integrating them into the Neural Junkie chat as first-class participants. Instead of calling an HTTP API, the agent invokes a CLI binary, passes the prompt as an argument, and captures the output.
 
-The system is designed to be generic -- any CLI-based AI tool can be integrated -- but currently ships with built-in support for the **Cursor CLI agent**.
+The system is designed to be generic -- any CLI-based AI tool can be integrated -- and currently ships with built-in support for the **Cursor CLI agent** and the **Gemini CLI agent**.
 
 ## Cursor CLI Agent
 
@@ -116,6 +116,108 @@ Because the Cursor CLI runs in the context of a real codebase directory, it can:
 - **Sequential** -- one invocation at a time per agent instance
 - **No streaming** -- the full response is returned after the subprocess completes
 
+## Gemini CLI Agent
+
+The Gemini CLI agent integrates Google's Gemini CLI into Neural Junkie. It runs the `gemini` binary in headless mode with `--yolo` to auto-approve tool use, giving it access to code generation, code review, multimodal analysis, and shell commands.
+
+### How It Works
+
+```
+User sends @Gemini message in chat
+    │
+    ▼
+Gemini agent receives message, builds prompt
+(includes system prompt + last 8 messages for context)
+    │
+    ▼
+Invokes: gemini -p --output-format text --yolo "<prompt>"
+(subprocess runs in GEMINI_WORK_DIR)
+    │
+    ▼
+Captures stdout, parses response
+    │
+    ▼
+Sends response back to chat
+```
+
+### Setup
+
+#### 1. Install the Gemini CLI
+
+```bash
+npm install -g @google/gemini-cli
+```
+
+Verify it's available:
+
+```bash
+which gemini
+```
+
+#### 2. Configure Environment (Optional)
+
+Add to your `env.local`:
+
+```bash
+# Optional -- working directory for the Gemini agent. Defaults to the
+# Neural Junkie project directory if not set.
+GEMINI_WORK_DIR=/path/to/your/project
+```
+
+#### 3. Start the Server
+
+```bash
+make server
+```
+
+The server automatically detects the Gemini CLI binary on startup. You'll see one of:
+
+```
+✅ Gemini CLI binary found, initializing agent...
+✅ Gemini CLI agent started (workDir: /your/project)
+```
+
+Or if the CLI isn't installed:
+
+```
+ℹ️  Gemini CLI ('gemini') not found on PATH — skipping.
+```
+
+### Usage
+
+The Gemini agent joins the `general` channel as **"Gemini"**. Interact with it like any other agent:
+
+```
+@Gemini Review this function for performance issues
+
+@Gemini Generate a REST API handler for user registration
+
+@Gemini Analyze the project architecture and suggest improvements
+
+@Gemini Write comprehensive tests for the auth middleware
+```
+
+The agent has expertise in: Code Generation, Code Review, Multimodal Analysis, Codebase Analysis, Architecture, Refactoring, Testing, Documentation, File Operations, Shell Commands.
+
+### Capabilities
+
+Because the Gemini CLI runs with `--yolo` in the context of a real codebase directory, it can:
+
+- **Search and read files** in the working directory
+- **Analyze project structure** and dependencies
+- **Generate code** fitting existing patterns
+- **Run shell commands** for build/test verification
+- **Process multimodal inputs** (Gemini's native capability)
+
+### Limitations
+
+- **120-second timeout** -- very large tasks may time out
+- **One codebase** -- operates on `GEMINI_WORK_DIR` only; use repo agents for other projects
+- **Sequential** -- one invocation at a time per agent instance
+- **No streaming** -- the full response is returned after the subprocess completes
+
+---
+
 ## Building Custom CLI Agents
 
 The CLI agent system is generic. You can wrap any CLI tool that accepts a prompt and returns text.
@@ -177,7 +279,8 @@ The provider tries two strategies:
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `CURSOR_API_KEY` | No | -- | API key for Cursor CLI auth. Falls back to stored credentials. |
-| `CURSOR_WORK_DIR` | No | Server's CWD | Working directory the agent operates in |
+| `CURSOR_WORK_DIR` | No | Server's CWD | Working directory the Cursor agent operates in |
+| `GEMINI_WORK_DIR` | No | Server's CWD | Working directory the Gemini agent operates in |
 
 ## Troubleshooting
 

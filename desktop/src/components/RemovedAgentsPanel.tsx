@@ -83,6 +83,7 @@ export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
       case 'devops': return '#f6ad55';
       case 'database': return '#9f7aea';
       case 'security': return '#f56565';
+      case 'rust': return '#dea584';
       default: return '#a9b9ba';
     }
   };
@@ -97,6 +98,7 @@ export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
       case 'devops': return '🚀';
       case 'database': return '🗄️';
       case 'security': return '🔒';
+      case 'rust': return '🦀';
       default: return '❓';
     }
   };

@@ -7,6 +7,7 @@ import (
 )
 
 func TestCacheKeyGeneration(t *testing.T) {
+	useIsolatedRepoStorage(t)
 	storage, err := repo.NewStorage()
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)
@@ -49,6 +50,7 @@ func TestCacheKeyGeneration(t *testing.T) {
 }
 
 func TestMetadataSaveLoad(t *testing.T) {
+	useIsolatedRepoStorage(t)
 	storage, err := repo.NewStorage()
 	if err != nil {
 		t.Fatalf("Failed to create storage: %v", err)

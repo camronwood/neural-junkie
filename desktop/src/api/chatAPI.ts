@@ -98,6 +98,68 @@ export class ChatAPI {
     return this.commandsCache!;
   }
 
+  // Create a new channel
+  async createChannel(
+    name: string,
+    description: string,
+    type: 'public' | 'dm' | 'custom',
+    members: string[] = [],
+    createdBy: string = ''
+  ): Promise<Channel> {
+    const response = await fetch(`${this.baseURL}/api/channels/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, type, members, created_by: createdBy }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create channel: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Delete a channel
+  async deleteChannel(name: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/channels/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete channel: ${response.statusText}`);
+    }
+  }
+
+  // Add agents to a channel
+  async addAgentsToChannel(channelName: string, agentIds: string[]): Promise<void> {
+    const response = await fetch(
+      `${this.baseURL}/api/channels/agents?channel=${encodeURIComponent(channelName)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_ids: agentIds }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to add agents to channel: ${response.statusText}`);
+    }
+  }
+
+  // Remove an agent from a channel
+  async removeAgentFromChannel(channelName: string, agentId: string): Promise<void> {
+    const response = await fetch(
+      `${this.baseURL}/api/channels/agents?channel=${encodeURIComponent(channelName)}&agent_id=${encodeURIComponent(agentId)}`,
+      { method: 'DELETE' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to remove agent from channel: ${response.statusText}`);
+    }
+  }
+
   // Test server connection
   async testConnection(): Promise<boolean> {
     try {

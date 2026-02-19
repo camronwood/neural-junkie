@@ -19,10 +19,13 @@ import (
 )
 
 var (
-	helperName = flag.String("name", "", "Helper agent name (required, e.g., 'day-one')")
+	agentType  = flag.String("type", "backend", "Agent type (frontend, backend, devops, database, security, rust, repo)")
+	agentName  = flag.String("name", "", "Agent name (optional, will be auto-generated)")
 	channel    = flag.String("channel", "general", "Channel to join")
 	serverAddr = flag.String("server", "http://localhost:8080", "Chat hub server address")
 	useMock    = flag.Bool("mock", false, "Use mock AI responses (set to true for testing without API calls)")
+	repoPath   = flag.String("repo-path", "", "Repository path (required for repo type agents)")
+	modelName  = flag.String("model", "", "Ollama model to use (overrides OLLAMA_MODEL env var)")
 )
 
 type httpHubClient struct {
@@ -57,6 +60,8 @@ func (h *httpHubClient) SendMessage(msg *protocol.Message) error {
 }
 
 func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, error) {
+	// For HTTP client, we'll poll for new messages
+	// In a real implementation, this would use WebSockets
 	ch := make(chan *protocol.Message, 100)
 
 	go func() {
@@ -64,7 +69,7 @@ func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, e
 		defer ticker.Stop()
 
 		lastCheck := time.Now()
-		seenMessages := make(map[string]bool)
+		seenMessages := make(map[string]bool) // Track message IDs we've already sent
 
 		for range ticker.C {
 			messages, err := h.GetMessages(channelName, 20)
@@ -72,18 +77,24 @@ func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, e
 				continue
 			}
 
+			// Send only new messages that we haven't seen before
 			for _, msg := range messages {
+				// Check seen FIRST before doing anything else
 				if seenMessages[msg.ID] {
-					continue
+					continue // Skip already seen messages immediately
 				}
 
+				// Mark as seen BEFORE checking timestamp or sending
 				seenMessages[msg.ID] = true
 
+				// Only send if it's after our last check
 				if msg.Timestamp.After(lastCheck) {
 					ch <- msg
 				}
 
+				// Clean up old entries to prevent memory leak
 				if len(seenMessages) > 100 {
+					// Clear half of the map
 					count := 0
 					for id := range seenMessages {
 						delete(seenMessages, id)
@@ -147,6 +158,7 @@ func (h *httpHubClient) GetThreadParentAuthor(threadID string) string {
 }
 
 func (h *httpHubClient) GetCommandHandler() agent.CommandHandlerInterface {
+	// HTTP clients don't have direct access to command handler
 	return nil
 }
 
@@ -192,65 +204,80 @@ func (h *httpHubClient) GetChannelType(channelName string) protocol.ChannelType 
 func main() {
 	flag.Parse()
 
-	if *helperName == "" {
-		log.Fatal("Helper agent name is required. Use --name flag (e.g., --name day-one)")
+	// Validate agent type
+	aType := protocol.AgentType(*agentType)
+	validTypes := map[protocol.AgentType]bool{
+		protocol.AgentTypeFrontend:  true,
+		protocol.AgentTypeBackend:   true,
+		protocol.AgentTypeDevOps:    true,
+		protocol.AgentTypeDatabase:  true,
+		protocol.AgentTypeSecurity:  true,
+		protocol.AgentTypeRust:      true,
+		protocol.AgentTypeRepo:      true,
+		protocol.AgentTypeAssistant: true,
 	}
 
-	// Create storage manager
-	storage, err := agent.NewHelperAgentStorage()
-	if err != nil {
-		log.Fatalf("Failed to create storage: %v", err)
+	if !validTypes[aType] {
+		log.Fatalf("Invalid agent type: %s. Valid types: frontend, backend, devops, database, security, rust, repo, assistant", *agentType)
 	}
 
-	// Load helper agent configuration
-	log.Printf("Loading helper agent configuration: %s", *helperName)
-	config, err := storage.LoadConfig(*helperName)
-	if err != nil {
-		// List available agents
-		available, listErr := storage.ListConfigs()
-		if listErr != nil {
-			available = []string{"(unable to list available agents)"}
-		}
-		log.Fatalf("Failed to load helper agent config: %v\n"+
-			"Available agents: %v\n"+
-			"Make sure the helper agent exists at: ~/.neural-junkie/helpers/",
-			err, available)
+	// Validate repo path for repo agents
+	if aType == protocol.AgentTypeRepo && *repoPath == "" {
+		log.Fatalf("Repository path is required for repo agents. Use --repo-path flag")
 	}
 
-	log.Printf("✓ Loaded config: %s", config.Name)
-	log.Printf("  Description: %s", config.Description)
-	log.Printf("  Expertise areas: %d", len(config.Expertise))
-	log.Printf("  Keywords: %d", len(config.Keywords))
-	log.Printf("  Knowledge path: %s", config.KnowledgePath)
+	// Generate name if not provided
+	name := *agentName
+	if name == "" {
+		name = generateAgentName(aType)
+	}
 
 	// Create AI provider
 	var aiProvider ai.AIProvider
+	var err error
 
 	if *useMock {
 		aiProvider = ai.NewMockProvider()
 		log.Println("Using mock AI provider")
+	} else if *modelName != "" {
+		// Explicit model override via --model flag
+		aiProvider = ai.NewOllamaProviderWithConfig("", *modelName)
+		log.Printf("Using Ollama AI provider (model: %s)", *modelName)
 	} else {
 		aiProvider, err = ai.NewOllamaProvider()
 		if err != nil {
 			log.Fatalf("Failed to create Ollama provider: %v", err)
 		}
-		log.Println("Using Ollama AI provider")
+		log.Printf("Using Ollama AI provider (model: %s)", aiProvider.GetModel())
 	}
 
 	// Create hub client
 	hubClient := newHTTPHubClient(*serverAddr)
 
-	// Create helper agent
-	log.Printf("Creating helper agent: %s", config.Name)
-	helperAgent, err := agent.NewHelperAgent(config, aiProvider, hubClient)
-	if err != nil {
-		log.Fatalf("Failed to create helper agent: %v", err)
+	// Register agent with hub
+	log.Printf("Creating %s agent: %s", aType, name)
+
+	// Create specialized agent
+	var agentInstance *agent.Agent
+	var repoAgent *agent.RepoAgent
+
+	if aType == protocol.AgentTypeRepo {
+		// Create repository expert agent
+		repoAgent, err = agent.NewRepoAgent(name, *repoPath, aiProvider, hubClient)
+		if err != nil {
+			log.Fatalf("Failed to create repo agent: %v", err)
+		}
+		agentInstance = repoAgent.Agent
+	} else {
+		// Create regular agent
+		agentInstance, err = agent.AgentFactory(aType, name, aiProvider, hubClient)
+		if err != nil {
+			log.Fatalf("Failed to create agent: %v", err)
+		}
 	}
 
-	log.Printf("✓ Loaded %d knowledge documents", len(helperAgent.Knowledge.Documents))
-
 	// Register with hub
-	registerData, _ := json.Marshal(helperAgent.Info)
+	registerData, _ := json.Marshal(agentInstance.Info)
 
 	resp, err := http.Post(*serverAddr+"/api/agents", "application/json", bytes.NewBuffer(registerData))
 	if err != nil {
@@ -261,7 +288,7 @@ func main() {
 
 	// Join channel
 	joinData, _ := json.Marshal(map[string]string{
-		"agent_id": helperAgent.Info.ID,
+		"agent_id": agentInstance.Info.ID,
 		"channel":  *channel,
 	})
 
@@ -276,26 +303,34 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := helperAgent.Agent.Start(ctx, *channel); err != nil {
-		log.Fatalf("Failed to start helper agent: %v", err)
+	if aType == protocol.AgentTypeRepo && repoAgent != nil {
+		// Start repo agent with indexing
+		if err := repoAgent.StartWithIndexing(ctx, *channel); err != nil {
+			log.Fatalf("Failed to start repo agent: %v", err)
+		}
+	} else {
+		// Start regular agent
+		if err := agentInstance.Start(ctx, *channel); err != nil {
+			log.Fatalf("Failed to start agent: %v", err)
+		}
 	}
 
 	// Send join message
 	joinMsg := protocol.NewMessage(
 		protocol.MessageTypeAgentJoin,
 		*channel,
-		helperAgent.Info,
-		fmt.Sprintf("👋 %s has joined the channel. I'm here to help with: %s",
-			helperAgent.Info.Name,
-			formatExpertise(helperAgent.Info.Expertise)),
+		agentInstance.Info,
+		fmt.Sprintf("👋 %s (%s) has joined the channel. I specialize in: %s",
+			agentInstance.Info.Name,
+			agentInstance.Info.Type,
+			formatExpertise(agentInstance.Info.Expertise)),
 	)
 
 	if err := hubClient.SendMessage(joinMsg); err != nil {
 		log.Printf("Warning: Failed to send join message: %v", err)
 	}
 
-	log.Printf("✅ Helper agent '%s' is now active in channel: %s", config.Name, *channel)
-	log.Printf("📚 Knowledge base loaded with %d documents", len(helperAgent.Knowledge.Documents))
+	log.Printf("✅ Agent %s is now active in channel: %s", name, *channel)
 	log.Printf("Press Ctrl+C to stop")
 
 	// Wait for interrupt signal
@@ -303,16 +338,34 @@ func main() {
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	<-sigCh
 
-	log.Println("Shutting down helper agent...")
-	helperAgent.Agent.Stop()
+	log.Println("Shutting down agent...")
+	agentInstance.Stop()
+}
+
+func generateAgentName(agentType protocol.AgentType) string {
+	names := map[protocol.AgentType][]string{
+		protocol.AgentTypeFrontend: {"React Specialist", "Vue Expert", "UI/UX Master", "Frontend Guru"},
+		protocol.AgentTypeBackend:  {"API Architect", "Backend Expert", "Microservices Pro", "Go Master"},
+		protocol.AgentTypeDevOps:   {"DevOps Engineer", "Cloud Architect", "Infrastructure Expert", "CI/CD Specialist"},
+		protocol.AgentTypeDatabase: {"Database Expert", "SQL Master", "Data Architect", "Query Optimizer"},
+		protocol.AgentTypeSecurity: {"Security Expert", "InfoSec Specialist", "Cybersecurity Pro", "Auth Master"},
+		protocol.AgentTypeRust:     {"Rust Expert", "Rust Architect", "Cargo Master", "Ownership Guru"},
+		protocol.AgentTypeRepo:     {"Repo Expert", "Code Navigator", "Project Guide", "Codebase Oracle"},
+	}
+
+	nameList := names[agentType]
+	if len(nameList) == 0 {
+		return "Agent"
+	}
+	return nameList[time.Now().Unix()%int64(len(nameList))]
 }
 
 func formatExpertise(expertise []string) string {
 	if len(expertise) == 0 {
-		return "general topics"
+		return "general development"
 	}
 	if len(expertise) <= 3 {
 		return fmt.Sprintf("%v", expertise)
 	}
-	return fmt.Sprintf("%s, %s, %s and %d more areas", expertise[0], expertise[1], expertise[2], len(expertise)-3)
+	return fmt.Sprintf("%s, %s, %s and %d more", expertise[0], expertise[1], expertise[2], len(expertise)-3)
 }

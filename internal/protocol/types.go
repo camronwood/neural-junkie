@@ -35,6 +35,7 @@ const (
 	AgentTypeDevOps     AgentType = "devops"
 	AgentTypeDatabase   AgentType = "database"
 	AgentTypeSecurity   AgentType = "security"
+	AgentTypeRust       AgentType = "rust"
 	AgentTypeGeneral    AgentType = "general"
 	AgentTypeRepo       AgentType = "repo"
 	AgentTypeHelper     AgentType = "helper"     // Custom helper/expert agents
@@ -114,14 +115,26 @@ type AgentInfo struct {
 	RemovedFrom        []string  `json:"removed_from"`         // List of channels agent was removed from
 }
 
+// ChannelType classifies the purpose of a channel
+type ChannelType string
+
+const (
+	ChannelTypePublic ChannelType = "public" // Visible to all (e.g. #general)
+	ChannelTypeDM     ChannelType = "dm"     // 1:1 user-to-agent direct message
+	ChannelTypeCustom ChannelType = "custom" // User-created channel with curated agents
+)
+
 // Channel represents a chat channel/room
 type Channel struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	Project     string      `json:"project,omitempty"`
+	Type        ChannelType `json:"type"`
+	CreatedBy   string      `json:"created_by,omitempty"`
 	Created     time.Time   `json:"created"`
 	Agents      []AgentInfo `json:"agents"`
+	Members     []string    `json:"members,omitempty"` // Explicitly added agent IDs
 	Tags        []string    `json:"tags,omitempty"`
 }
 

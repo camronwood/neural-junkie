@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo } from '../types/protocol';
+import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
 
@@ -15,6 +15,11 @@ interface ChatState {
   
   // Agents
   agents: AgentInfo[];
+
+  // Channels
+  channels: Channel[];
+  channelMessages: Map<string, Message[]>;
+  unreadChannels: Set<string>;
   
   // Threads
   openThreadId: string | null;
@@ -52,6 +57,12 @@ interface ChatState {
   clearThinkingAgents: () => void;
   updateAgentStatus: (agentId: string, updates: Partial<AgentInfo>) => void;
   
+  // Channel actions
+  setChannels: (channels: Channel[]) => void;
+  switchChannel: (channelName: string) => void;
+  markChannelUnread: (channelName: string) => void;
+  clearChannelUnread: (channelName: string) => void;
+
   // Thread actions
   openThread: (threadId: string) => void;
   closeThread: () => void;
@@ -88,10 +99,13 @@ interface ChatState {
 const initialState = {
   connectionStatus: 'disconnected' as ConnectionStatus,
   serverAddr: 'localhost:8080',
-  channel: 'general',
+  channel: localStorage.getItem('last-channel') || 'general',
   username: '',
   messages: [],
   agents: [],
+  channels: [] as Channel[],
+  channelMessages: new Map<string, Message[]>(),
+  unreadChannels: new Set<string>(),
   openThreadId: null,
   threadMessages: new Map<string, Message[]>(),
   threadMetadata: new Map<string, ThreadMetadata>(),
@@ -164,6 +178,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { agents: updatedAgents };
     }),
   
+  // Channel actions
+  setChannels: (channels) => set({ channels }),
+
+  switchChannel: (channelName) =>
+    set((state) => {
+      // Cache current channel's messages before switching
+      const newCache = new Map(state.channelMessages);
+      newCache.set(state.channel, state.messages);
+
+      // Restore cached messages for the target channel (or empty)
+      const cachedMessages = newCache.get(channelName) || [];
+
+      // Clear unread for the channel we're switching to
+      const newUnread = new Set(state.unreadChannels);
+      newUnread.delete(channelName);
+
+      return {
+        channel: channelName,
+        messages: cachedMessages,
+        channelMessages: newCache,
+        unreadChannels: newUnread,
+        openThreadId: null,
+        thinkingAgents: new Map<string, ThinkingAgent>(),
+      };
+    }),
+
+  markChannelUnread: (channelName) =>
+    set((state) => {
+      if (channelName === state.channel) return state;
+      const newUnread = new Set(state.unreadChannels);
+      newUnread.add(channelName);
+      return { unreadChannels: newUnread };
+    }),
+
+  clearChannelUnread: (channelName) =>
+    set((state) => {
+      const newUnread = new Set(state.unreadChannels);
+      newUnread.delete(channelName);
+      return { unreadChannels: newUnread };
+    }),
+
   // Thread actions
   openThread: (threadId) => set({ openThreadId: threadId }),
   
@@ -252,7 +307,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     try {
       await api.switchAgentProvider(agentId, provider, model);
-      console.log(`Switched agent ${agentId} to ${provider} (${model})`);
+      set((state) => ({
+        agents: state.agents.map((a) =>
+          a.id === agentId ? { ...a, ai_provider: provider, ai_model: model } : a
+        ),
+      }));
     } catch (error) {
       console.error('Failed to switch agent provider:', error);
       throw error;
@@ -265,7 +324,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     try {
       await api.switchAllAgentProviders(provider, model);
-      console.log(`Switched all agents to ${provider} (${model})`);
+      set((state) => ({
+        agents: state.agents.map((a) => ({ ...a, ai_provider: provider, ai_model: model })),
+      }));
     } catch (error) {
       console.error('Failed to switch all agent providers:', error);
       throw error;
@@ -279,6 +340,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       thinkingAgents: new Map<string, ThinkingAgent>(),
       threadMessages: new Map<string, Message[]>(),
       threadMetadata: new Map<string, ThreadMetadata>(),
+      channelMessages: new Map<string, Message[]>(),
+      unreadChannels: new Set<string>(),
     });
   },
   
@@ -287,6 +350,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     thinkingAgents: new Map<string, ThinkingAgent>(),
     threadMessages: new Map<string, Message[]>(),
     threadMetadata: new Map<string, ThreadMetadata>(),
+    channelMessages: new Map<string, Message[]>(),
+    unreadChannels: new Set<string>(),
   }),
 }));
 

@@ -126,6 +126,7 @@ All agents share a common base with type-specific behavior:
 | Confluence | `confluence_agent.go` | Confluence space indexing, doc search, knowledge Q&A |
 | Helper | `helper_agent.go` | Template-based knowledge experts (onboarding, testing, docs) |
 | Cursor CLI | `cli_agent.go` | Cursor CLI subprocess for code analysis and generation |
+| Gemini CLI | `cli_agent.go` | Gemini CLI subprocess for code generation, review, and multimodal analysis |
 
 ### AI Providers (`internal/ai/`)
 
@@ -146,6 +147,7 @@ type AIProvider interface {
 | **LM Studio** | `lmstudio.go` | `LM_STUDIO_ENDPOINT`, `LM_STUDIO_MODEL` | OpenAI-compatible local server |
 | **Mock** | `mock.go` | -- | Rule-based responses for testing |
 | **Cursor CLI** | `cli_agent.go` | `CURSOR_API_KEY`, `CURSOR_WORK_DIR` | Subprocess-based, wraps Cursor CLI |
+| **Gemini CLI** | `cli_agent.go` | `GEMINI_WORK_DIR` | Subprocess-based, wraps Gemini CLI |
 
 ### Server (`cmd/server/main.go`)
 
@@ -181,7 +183,7 @@ HTTP + WebSocket server. Key endpoints:
 - `GET /api/ollama/status`, `GET /api/ollama/models`, `POST /api/test-ollama-connection`
 - `GET /api/lmstudio/status`, `GET /api/lmstudio/models`, `POST /api/test-lmstudio-connection`
 
-**Auto-started agents:** The server creates the Moderator and Assistant agents on startup. If the Cursor CLI is detected, it also starts a Cursor CLI agent.
+**Auto-started agents:** The server creates the Moderator and Assistant agents on startup. If the Cursor CLI or Gemini CLI binaries are detected on PATH, it also starts the respective CLI agents.
 
 ### Desktop App (`desktop/`)
 

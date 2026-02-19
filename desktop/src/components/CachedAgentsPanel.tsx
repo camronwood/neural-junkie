@@ -150,6 +150,12 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'repo': return '#52b6ef';
       case 'helper': return '#af77ca';
       case 'confluence': return '#f09348';
+      case 'rust': return '#dea584';
+      case 'frontend': return '#52b6ef';
+      case 'backend': return '#af77ca';
+      case 'devops': return '#f09348';
+      case 'database': return '#fbd837';
+      case 'security': return '#f16a5a';
       default: return '#a9b9ba';
     }
   };
@@ -159,6 +165,12 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'repo': return '📁';
       case 'helper': return '🤖';
       case 'confluence': return '📚';
+      case 'rust': return '🦀';
+      case 'frontend': return '🎨';
+      case 'backend': return '⚙️';
+      case 'devops': return '🔧';
+      case 'database': return '🗄️';
+      case 'security': return '🔒';
       default: return '❓';
     }
   };

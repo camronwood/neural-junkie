@@ -86,6 +86,8 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 		return ch.handleCreateConfluenceAgent(ctx, msg, parts)
 	case "/create-helper":
 		return ch.handleCreateHelper(ctx, msg, parts)
+	case "/create-expert":
+		return ch.handleCreateExpert(ctx, msg, parts)
 	case "/list-helper-templates":
 		return ch.handleListHelperTemplates(ctx, msg)
 	case "/delete-agent":
@@ -132,6 +134,16 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 		return ch.handleSwitchProvider(ctx, msg, parts)
 	case "/switch-all-providers":
 		return ch.handleSwitchAllProviders(ctx, msg, parts)
+	case "/create-channel":
+		return ch.handleCreateChannelCmd(ctx, msg, parts)
+	case "/add-to-channel":
+		return ch.handleAddToChannel(ctx, msg, parts)
+	case "/remove-from-channel":
+		return ch.handleRemoveFromChannel(ctx, msg, parts)
+	case "/list-channels":
+		return ch.handleListChannels(ctx, msg)
+	case "/delete-channel":
+		return ch.handleDeleteChannelCmd(ctx, msg, parts)
 	case "/help":
 		return ch.handleHelp(ctx, msg)
 	case "/migrate-agent-names":
@@ -644,6 +656,7 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 		response.WriteString("No agents available.\n\n")
 		response.WriteString("**Create agents:**\n")
 		response.WriteString("• `/create-repo-agent <path>` - Repository expert\n")
+		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (rust, backend, frontend, ...)\n")
 		response.WriteString("• `/create-helper <template>` - Helper agent\n")
 		response.WriteString("• `/create-confluence-agent <space>` - Confluence expert\n")
 	}
@@ -864,6 +877,168 @@ func (ch *CommandHandler) handleCreateHelper(ctx context.Context, msg *protocol.
 	return ch.systemResponse(msg.Channel, statusMsg), nil
 }
 
+// handleCreateExpert creates a specialist agent from a known type (backend, frontend, etc.)
+func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel,
+			"Usage: `/create-expert <type> [name] [provider] [model]`\n\n"+
+				"**Available types:**\n"+
+				"• `rust` - Rust, ownership, lifetimes, async, traits, cargo, WASM\n"+
+				"• `backend` - Go, Node.js, Python, REST/GraphQL/gRPC, microservices\n"+
+				"• `frontend` - React, Vue, Angular, TypeScript, CSS, UI/UX\n"+
+				"• `devops` - Docker, Kubernetes, CI/CD, AWS/GCP/Azure, Terraform\n"+
+				"• `database` - PostgreSQL, MySQL, MongoDB, schema, query optimization\n"+
+				"• `security` - Authentication, authorization, encryption, OWASP\n\n"+
+				"**Examples:**\n"+
+				"```\n"+
+				"/create-expert rust\n"+
+				"/create-expert rust RustGuru\n"+
+				"/create-expert backend GoExpert ollama qwen2.5-coder:14b\n"+
+				"```"), nil
+	}
+
+	expertType := strings.ToLower(parts[1])
+
+	validTypes := map[string]protocol.AgentType{
+		"rust":     protocol.AgentTypeRust,
+		"backend":  protocol.AgentTypeBackend,
+		"frontend": protocol.AgentTypeFrontend,
+		"devops":   protocol.AgentTypeDevOps,
+		"database": protocol.AgentTypeDatabase,
+		"security": protocol.AgentTypeSecurity,
+	}
+
+	agentType, ok := validTypes[expertType]
+	if !ok {
+		typeList := []string{}
+		for k := range validTypes {
+			typeList = append(typeList, k)
+		}
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Unknown expert type '%s'.\n\nValid types: %s",
+				expertType, strings.Join(typeList, ", "))), nil
+	}
+
+	// Determine name
+	name := ""
+	if len(parts) >= 3 {
+		name = parts[2]
+	}
+	if name == "" {
+		defaults := map[protocol.AgentType]string{
+			protocol.AgentTypeRust:     "RustExpert",
+			protocol.AgentTypeBackend:  "GoExpert",
+			protocol.AgentTypeFrontend: "ReactExpert",
+			protocol.AgentTypeDevOps:   "DevOpsPro",
+			protocol.AgentTypeDatabase: "SQLMaster",
+			protocol.AgentTypeSecurity: "SecurityExpert",
+		}
+		name = defaults[agentType]
+	}
+
+	name = protocol.NormalizeAgentName(name)
+
+	// Check for duplicate
+	existingAgents := ch.hub.ListAgents()
+	for _, existing := range existingAgents {
+		if strings.EqualFold(existing.Name, name) {
+			return ch.systemResponse(msg.Channel,
+				fmt.Sprintf("❌ Agent '%s' already exists. Use a different name or `/delete-agent %s` first.", name, name)), nil
+		}
+	}
+
+	// Determine AI provider
+	var aiProvider ai.AIProvider
+	providerName := ""
+	modelOverride := ""
+
+	if len(parts) >= 4 {
+		providerName = strings.ToLower(parts[3])
+	}
+	if len(parts) >= 5 {
+		modelOverride = parts[4]
+	}
+
+	switch providerName {
+	case "claude":
+		claudeProvider, err := ai.NewClaudeProvider()
+		if err != nil {
+			return ch.systemResponse(msg.Channel,
+				fmt.Sprintf("❌ Failed to create Claude provider: %v", err)), nil
+		}
+		aiProvider = claudeProvider
+	case "lmstudio":
+		if modelOverride != "" {
+			aiProvider = ai.NewLMStudioProviderWithConfig("", modelOverride)
+		} else {
+			lmProvider, err := ai.NewLMStudioProvider()
+			if err != nil {
+				return ch.systemResponse(msg.Channel,
+					fmt.Sprintf("❌ Failed to create LM Studio provider: %v", err)), nil
+			}
+			aiProvider = lmProvider
+		}
+	case "ollama", "":
+		if modelOverride != "" {
+			aiProvider = ai.NewOllamaProviderWithConfig("", modelOverride)
+		} else {
+			ollamaProvider, err := ai.NewOllamaProvider()
+			if err != nil {
+				return ch.systemResponse(msg.Channel,
+					fmt.Sprintf("❌ Failed to create Ollama provider: %v", err)), nil
+			}
+			aiProvider = ollamaProvider
+		}
+	default:
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Unknown provider '%s'. Use: ollama, claude, lmstudio", providerName)), nil
+	}
+
+	// Create agent via factory
+	agentInstance, err := agent.AgentFactory(agentType, name, aiProvider, ch.hub)
+	if err != nil {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Failed to create %s agent: %v", expertType, err)), nil
+	}
+
+	// Register with hub
+	if err := ch.hub.RegisterAgent(&agentInstance.Info); err != nil {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Failed to register agent: %v", err)), nil
+	}
+
+	// Join channel
+	if err := ch.hub.JoinChannel(agentInstance.Info.ID, msg.Channel); err != nil {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Failed to join channel: %v", err)), nil
+	}
+
+	// Start agent
+	if err := agentInstance.Start(ctx, msg.Channel); err != nil {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Failed to start agent: %v", err)), nil
+	}
+
+	expertiseStr := strings.Join(agentInstance.Info.Expertise, ", ")
+	if len(agentInstance.Info.Expertise) > 5 {
+		expertiseStr = strings.Join(agentInstance.Info.Expertise[:5], ", ") +
+			fmt.Sprintf(" and %d more", len(agentInstance.Info.Expertise)-5)
+	}
+
+	providerDisplay := aiProvider.GetModel()
+	if providerName != "" {
+		providerDisplay = providerName + " / " + aiProvider.GetModel()
+	}
+
+	return ch.systemResponse(msg.Channel,
+		fmt.Sprintf("🤖 Created **%s** expert agent: **%s**\n\n"+
+			"**Type:** %s\n"+
+			"**Provider:** %s\n"+
+			"**Expertise:** %s\n\n"+
+			"Mention with `@%s` to ask questions.",
+			expertType, name, agentType, providerDisplay, expertiseStr, name)), nil
+}
+
 // handleListHelperTemplates lists available helper agent templates
 func (ch *CommandHandler) handleListHelperTemplates(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
 	templates := agent.DefaultHelperAgentConfigs()
@@ -898,6 +1073,8 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/reindex-agent <name>` - Reindex a repository agent\n" +
 		"• `/enable-watch <name>` - Enable automatic file watching and reindexing\n" +
 		"• `/disable-watch <name>` - Disable automatic file watching\n\n" +
+		"**Expert Agents:**\n" +
+		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (rust, backend, frontend, devops, database, security)\n\n" +
 		"**Helper Agents:**\n" +
 		"• `/create-helper <template>` - Create a helper agent (e.g., day-one, testing-expert)\n" +
 		"• `/list-helper-templates` - Show available helper agent templates\n\n" +
@@ -2501,6 +2678,109 @@ func (ch *CommandHandler) handleSwitchAllProviders(ctx context.Context, msg *pro
 }
 
 
+// ── Channel management commands ──────────────────────────────────────────
+
+func (ch *CommandHandler) handleCreateChannelCmd(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "Usage: /create-channel <name> [description]"), nil
+	}
+	name := strings.ToLower(parts[1])
+	description := ""
+	if len(parts) > 2 {
+		description = strings.Join(parts[2:], " ")
+	}
+
+	channel := ch.hub.CreateChannelWithType(name, description, "", protocol.ChannelTypeCustom, msg.From.Name)
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Created channel **#%s** (id: %s)", channel.Name, channel.ID)), nil
+}
+
+func (ch *CommandHandler) handleAddToChannel(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 3 {
+		return ch.systemResponse(msg.Channel, "Usage: /add-to-channel <channel> <agent-name>"), nil
+	}
+	channelName := parts[1]
+	agentName := strings.Join(parts[2:], " ")
+
+	// Find agent by name
+	agents := ch.hub.ListAgents()
+	var targetAgent *protocol.AgentInfo
+	for _, a := range agents {
+		if strings.EqualFold(a.Name, agentName) {
+			targetAgent = a
+			break
+		}
+	}
+	if targetAgent == nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Agent '%s' not found", agentName)), nil
+	}
+
+	if err := ch.hub.AddAgentToChannel(targetAgent.ID, channelName); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Failed to add agent: %v", err)), nil
+	}
+
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Added **%s** to **#%s**", targetAgent.Name, channelName)), nil
+}
+
+func (ch *CommandHandler) handleRemoveFromChannel(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 3 {
+		return ch.systemResponse(msg.Channel, "Usage: /remove-from-channel <channel> <agent-name>"), nil
+	}
+	channelName := parts[1]
+	agentName := strings.Join(parts[2:], " ")
+
+	agents := ch.hub.ListAgents()
+	var targetAgent *protocol.AgentInfo
+	for _, a := range agents {
+		if strings.EqualFold(a.Name, agentName) {
+			targetAgent = a
+			break
+		}
+	}
+	if targetAgent == nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Agent '%s' not found", agentName)), nil
+	}
+
+	if err := ch.hub.RemoveAgentFromChannel(targetAgent.ID, channelName); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Failed to remove agent: %v", err)), nil
+	}
+
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Removed **%s** from **#%s**", targetAgent.Name, channelName)), nil
+}
+
+func (ch *CommandHandler) handleListChannels(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
+	channels := ch.hub.ListChannels()
+	if len(channels) == 0 {
+		return ch.systemResponse(msg.Channel, "No channels found."), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString("**Channels:**\n")
+	for _, c := range channels {
+		typeLabel := string(c.Type)
+		if typeLabel == "" {
+			typeLabel = "public"
+		}
+		sb.WriteString(fmt.Sprintf("• **#%s** (%s) — %d agents", c.Name, typeLabel, len(c.Agents)))
+		if c.Description != "" {
+			sb.WriteString(fmt.Sprintf(" — %s", c.Description))
+		}
+		sb.WriteString("\n")
+	}
+	return ch.systemResponse(msg.Channel, sb.String()), nil
+}
+
+func (ch *CommandHandler) handleDeleteChannelCmd(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "Usage: /delete-channel <name>"), nil
+	}
+	name := parts[1]
+
+	if err := ch.hub.DeleteChannel(name); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Failed: %v", err)), nil
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Deleted channel **#%s**", name)), nil
+}
+
 // SetAssistantAgent sets the assistant agent reference for meeting notes functionality
 func (ch *CommandHandler) SetAssistantAgent(assistant *agent.AssistantAgent) {
 	ch.assistantAgent = assistant
@@ -2576,6 +2856,19 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 			Description: "List all Confluence agents",
 			Category:    "Confluence",
 			Arguments:   []protocol.CommandArgument{},
+		},
+
+		// ── Expert Agents ─────────────────────────────────────────────
+		{
+			Name:        "/create-expert",
+			Description: "Create a specialist agent (rust, backend, frontend, devops, database, security)",
+			Category:    "Expert Agents",
+			Arguments: []protocol.CommandArgument{
+				{Name: "type", Description: "Expert type (rust, backend, frontend, devops, database, security)", Type: "string", Required: true, Options: []string{"rust", "backend", "frontend", "devops", "database", "security"}},
+				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
+				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
+				{Name: "model", Description: "AI model name", Type: "model", Required: false},
+			},
 		},
 
 		// ── Helper Agents ──────────────────────────────────────────────
@@ -2827,6 +3120,49 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 			Category:    "Design",
 			Arguments: []protocol.CommandArgument{
 				{Name: "image-url", Description: "URL or path to the design image", Type: "string", Required: true},
+			},
+		},
+
+		// ── Channels ───────────────────────────────────────────────────
+		{
+			Name:        "/create-channel",
+			Description: "Create a custom channel with optional description",
+			Category:    "Channels",
+			Arguments: []protocol.CommandArgument{
+				{Name: "name", Description: "Channel name (slug)", Type: "string", Required: true},
+				{Name: "description", Description: "Channel description", Type: "string", Required: false},
+			},
+		},
+		{
+			Name:        "/add-to-channel",
+			Description: "Add an agent to a channel",
+			Category:    "Channels",
+			Arguments: []protocol.CommandArgument{
+				{Name: "channel", Description: "Channel name", Type: "string", Required: true},
+				{Name: "agent-name", Description: "Agent to add", Type: "agent-name", Required: true},
+			},
+		},
+		{
+			Name:        "/remove-from-channel",
+			Description: "Remove an agent from a channel",
+			Category:    "Channels",
+			Arguments: []protocol.CommandArgument{
+				{Name: "channel", Description: "Channel name", Type: "string", Required: true},
+				{Name: "agent-name", Description: "Agent to remove", Type: "agent-name", Required: true},
+			},
+		},
+		{
+			Name:        "/list-channels",
+			Description: "List all channels with member counts",
+			Category:    "Channels",
+			Arguments:   []protocol.CommandArgument{},
+		},
+		{
+			Name:        "/delete-channel",
+			Description: "Delete a custom or DM channel",
+			Category:    "Channels",
+			Arguments: []protocol.CommandArgument{
+				{Name: "name", Description: "Channel name to delete", Type: "string", Required: true},
 			},
 		},
 

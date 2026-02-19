@@ -177,7 +177,7 @@ func (a *Analyzer) buildDirectoryStructure(ctx context.Context, path string) (*D
 			if strings.HasPrefix(name, ".") && name != ".env.example" {
 				continue
 			}
-			if shouldIgnore(name) {
+			if ShouldIgnore(name) {
 				continue
 			}
 
@@ -567,8 +567,8 @@ func readFileContent(filePath string, maxSize int64) (string, error) {
 	return string(content), nil
 }
 
-// shouldIgnore checks if a file/directory should be ignored
-func shouldIgnore(name string) bool {
+// ShouldIgnore checks if a file/directory should be ignored during scanning.
+func ShouldIgnore(name string) bool {
 	ignorePatterns := []string{
 		"node_modules",
 		"vendor",
@@ -617,7 +617,7 @@ func (a *Analyzer) IsIndexStale(ctx context.Context, repoPath string, index *Rep
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		if !shouldIgnore(info.Name()) {
+		if !ShouldIgnore(info.Name()) {
 			currentFileCount++
 		}
 		return nil
@@ -663,7 +663,7 @@ func (a *Analyzer) IsIndexStale(ctx context.Context, repoPath string, index *Rep
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		if shouldIgnore(info.Name()) {
+		if ShouldIgnore(info.Name()) {
 			return nil
 		}
 

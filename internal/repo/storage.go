@@ -27,14 +27,23 @@ type Storage struct {
 	baseDir string
 }
 
-// NewStorage creates a new storage instance
+// NewStorage creates a new storage instance. If NEURAL_JUNKIE_REPO_DIR is set
+// (e.g. by tests), that directory is used; otherwise falls back to ~/.neural-junkie/repos.
 func NewStorage() (*Storage, error) {
+	if override := os.Getenv("NEURAL_JUNKIE_REPO_DIR"); override != "" {
+		return NewStorageWithDir(override)
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	baseDir := filepath.Join(homeDir, StorageDir)
+	return NewStorageWithDir(filepath.Join(homeDir, StorageDir))
+}
+
+// NewStorageWithDir creates a storage instance rooted at the given directory.
+func NewStorageWithDir(baseDir string) (*Storage, error) {
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory: %w", err)
 	}

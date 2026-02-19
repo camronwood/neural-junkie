@@ -21,6 +21,7 @@ export type AgentType =
   | 'devops'
   | 'database'
   | 'security'
+  | 'rust'
   | 'general'
   | 'repo'
   | 'helper'
@@ -72,13 +73,18 @@ export interface Message {
   mentions?: string[];
 }
 
+export type ChannelType = 'public' | 'dm' | 'custom';
+
 export interface Channel {
   id: string;
   name: string;
   description: string;
   project?: string;
+  type: ChannelType;
+  created_by?: string;
   created: string; // ISO date string
   agents: AgentInfo[];
+  members?: string[]; // Explicitly added agent IDs
   tags?: string[];
 }
 
@@ -179,6 +185,8 @@ export function getAgentColor(type: AgentType): string {
       return '#fbd837'; // Yellow
     case 'security':
       return '#f16a5a'; // Red
+    case 'rust':
+      return '#dea584'; // Rust orange (official Rust color)
     case 'moderator':
       return '#3b82f6'; // Blue for moderator
     case 'assistant':

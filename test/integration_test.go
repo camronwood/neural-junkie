@@ -296,7 +296,7 @@ func TestMultiAgentConversation(t *testing.T) {
 
 // TestRepositoryAgentWorkflow tests complete repository agent workflow
 func TestRepositoryAgentWorkflow(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)

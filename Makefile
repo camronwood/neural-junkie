@@ -128,6 +128,8 @@ agents: setup-env ## Start all agents with environment loaded
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "ReactExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOpsPro" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@sleep 1
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type rust --name "RustExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@echo "✅ All agents started!"
 
 stop: ## Stop all running processes (server, agents, GUI)
@@ -160,6 +162,8 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "ReactExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOpsPro" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@sleep 1
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type rust --name "RustExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 2
 	@echo ""
 	@echo "✅ System refreshed! All processes restarted with clean state."
@@ -181,6 +185,8 @@ start-all: setup-env ## Start server and all agents with environment loaded
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "ReactExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOpsPro" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@sleep 1
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type rust --name "RustExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 2
 	@echo "✅ System started! Opening GUI..."
 	@cd desktop && npm run tauri:dev

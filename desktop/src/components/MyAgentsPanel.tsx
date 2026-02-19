@@ -285,6 +285,12 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'confluence': return '#f09348';
       case 'moderator': return '#3b82f6';
       case 'assistant': return '#10b981';
+      case 'rust': return '#dea584';
+      case 'frontend': return '#52b6ef';
+      case 'backend': return '#af77ca';
+      case 'devops': return '#f09348';
+      case 'database': return '#fbd837';
+      case 'security': return '#f16a5a';
       default: return '#a9b9ba';
     }
   };
@@ -296,6 +302,12 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'confluence': return '📚';
       case 'moderator': return '🛡️';
       case 'assistant': return '✨';
+      case 'rust': return '🦀';
+      case 'frontend': return '🎨';
+      case 'backend': return '⚙️';
+      case 'devops': return '🔧';
+      case 'database': return '🗄️';
+      case 'security': return '🔒';
       default: return '❓';
     }
   };

@@ -112,6 +112,19 @@ func NewCursorCLIProvider(workDir, apiKey string, opts ...CLIAgentOption) *CLIAg
 	return p
 }
 
+// NewGeminiCLIProvider is a convenience constructor for Gemini CLI integration.
+// It configures the provider with Gemini-specific defaults including --yolo
+// to auto-approve tool use in headless mode.
+func NewGeminiCLIProvider(workDir string, opts ...CLIAgentOption) *CLIAgentProvider {
+	p := NewCLIAgentProvider("gemini", workDir, "gemini-cli", opts...)
+	p.Model = "gemini-agent"
+	// -p must be last: it takes the next arg as the prompt value (unlike Cursor's
+	// boolean -p flag). GenerateResponse appends the prompt text after BaseArgs.
+	p.BaseArgs = []string{"--output-format", "text", "--yolo", "-p"}
+
+	return p
+}
+
 // IsCLIInstalled checks whether the configured CLI binary is available on PATH.
 func (c *CLIAgentProvider) IsCLIInstalled() bool {
 	_, err := exec.LookPath(c.Command)

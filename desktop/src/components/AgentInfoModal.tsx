@@ -154,73 +154,70 @@ export function AgentInfoModal({
               </div>
             </div>
 
-            {/* AI Provider & Model */}
-            <div>
-              <h3 className="text-sm font-medium text-slack-textMuted mb-2">AI Configuration</h3>
-              <div className="space-y-2">
-                {onProviderSwitch ? (
-                  <div className="relative">
-                    <select
-                      value={`${agent.ai_provider || 'claude'}::${agent.ai_model || 'claude-sonnet'}`}
-                      onChange={(e) => {
-                        const [provider, model] = e.target.value.split('::');
-                        onProviderSwitch(agent.id, provider, model);
-                      }}
-                      disabled={switchingProvider === agent.id}
-                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
-                      title="Switch AI provider"
-                    >
-                      <optgroup label="Claude">
-                        <option value="claude::claude-sonnet">🧠 Claude Sonnet</option>
-                        <option value="claude::claude-haiku">🧠 Claude Haiku</option>
-                      </optgroup>
-                      <optgroup label="Ollama">
-                        {availableOllamaModels.length > 0 ? (
-                          availableOllamaModels.map((model) => (
-                            <option key={model} value={`ollama::${model}`}>
-                              🤖 {model}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="ollama::none" disabled>
-                            🤖 No models available
-                          </option>
-                        )}
-                      </optgroup>
-                      <optgroup label="LM Studio">
-                        {availableLMStudioModels.length > 0 ? (
-                          availableLMStudioModels.map((model) => (
-                            <option key={model} value={`lmstudio::${model}`}>
-                              🎨 {model}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="lmstudio::none" disabled>
-                            🎨 No models available
-                          </option>
-                        )}
-                      </optgroup>
-                    </select>
-                    {switchingProvider === agent.id && (
-                      <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                    )}
+            {/* AI Provider & Model -- hidden for agents that use external tools (CLI, etc.) */}
+            {agent.ai_provider !== 'cursor-cli' && agent.type !== 'cli' && (
+              <div>
+                <h3 className="text-sm font-medium text-slack-textMuted mb-2">AI Configuration</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-sm font-medium ${getProviderColor(agent.ai_provider)}`}>
+                      {getProviderIcon(agent.ai_provider)} {agent.ai_provider || 'unknown'}
+                    </span>
+                    <span className="text-sm text-slack-textMuted">•</span>
+                    <span className="text-sm text-slack-text">{agent.ai_model || 'unknown'}</span>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    {agent.ai_provider && (
-                      <span className={`text-sm px-2 py-1 rounded bg-gray-100 ${getProviderColor(agent.ai_provider)}`}>
-                        {getProviderIcon(agent.ai_provider)} {agent.ai_provider}
-                      </span>
-                    )}
-                    {agent.ai_model && (
-                      <span className="text-sm px-2 py-1 rounded bg-gray-100 text-gray-600">
-                        {agent.ai_model}
-                      </span>
-                    )}
-                  </div>
-                )}
+                  {onProviderSwitch && (
+                    <div className="relative">
+                      <select
+                        value={`${agent.ai_provider || 'claude'}::${agent.ai_model || 'claude-sonnet'}`}
+                        onChange={(e) => {
+                          const [provider, ...modelParts] = e.target.value.split('::');
+                          const model = modelParts.join('::');
+                          onProviderSwitch(agent.id, provider, model);
+                        }}
+                        disabled={switchingProvider === agent.id}
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                        title="Switch AI provider"
+                      >
+                        <optgroup label="Claude">
+                          <option value="claude::claude-sonnet">🧠 Claude Sonnet</option>
+                          <option value="claude::claude-haiku">🧠 Claude Haiku</option>
+                        </optgroup>
+                        <optgroup label="Ollama">
+                          {availableOllamaModels.length > 0 ? (
+                            availableOllamaModels.map((m) => (
+                              <option key={m} value={`ollama::${m}`}>
+                                🤖 {m}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="ollama::none" disabled>
+                              🤖 No models available
+                            </option>
+                          )}
+                        </optgroup>
+                        <optgroup label="LM Studio">
+                          {availableLMStudioModels.length > 0 ? (
+                            availableLMStudioModels.map((m) => (
+                              <option key={m} value={`lmstudio::${m}`}>
+                                🎨 {m}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="lmstudio::none" disabled>
+                              🎨 No models available
+                            </option>
+                          )}
+                        </optgroup>
+                      </select>
+                      {switchingProvider === agent.id && (
+                        <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Expertise */}
             {agent.expertise && agent.expertise.length > 0 && (

@@ -56,7 +56,7 @@ func (m *mockHubClientRepo) GetCommandHandler() agent.CommandHandlerInterface {
 
 // TestRepoAgentCreation tests repository agent creation
 func TestRepoAgentCreation(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -124,7 +124,7 @@ go 1.21`,
 
 // TestRepoAgentIndexing tests repository indexing functionality
 func TestRepoAgentIndexing(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -214,7 +214,7 @@ go 1.21`,
 
 // TestRepoAgentSearch tests repository search functionality
 func TestRepoAgentSearch(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -313,7 +313,7 @@ This is a test repository for testing the repository agent.
 
 // TestRepoAgentCaching tests repository agent caching functionality
 func TestRepoAgentCaching(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -379,7 +379,7 @@ func TestRepoAgentCaching(t *testing.T) {
 
 // TestRepoAgentFileWatching tests file watching functionality
 func TestRepoAgentFileWatching(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -444,7 +444,7 @@ func TestRepoAgentFileWatching(t *testing.T) {
 
 // TestRepoAgentMessageHandling tests repository agent message handling
 func TestRepoAgentMessageHandling(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -541,7 +541,7 @@ This is a test repository for testing the repository agent.`,
 
 // TestRepoAgentErrorHandling tests error handling in repository agent
 func TestRepoAgentErrorHandling(t *testing.T) {
-	// Test with non-existent repository path
+	useIsolatedRepoStorage(t)
 	mockAI := ai.NewMockProvider()
 	hub := &mockHubClientRepo{
 		sentMessages: make([]*protocol.Message, 0),
@@ -569,7 +569,7 @@ func TestRepoAgentErrorHandling(t *testing.T) {
 
 // TestRepoAgentConcurrentOperations tests concurrent operations on repository agent
 func TestRepoAgentConcurrentOperations(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
@@ -641,7 +641,7 @@ func TestRepoAgentConcurrentOperations(t *testing.T) {
 
 // TestRepoAgentStoragePersistence tests storage persistence functionality
 func TestRepoAgentStoragePersistence(t *testing.T) {
-	// Create temporary test repository
+	useIsolatedRepoStorage(t)
 	tempDir := t.TempDir()
 	testRepoPath := filepath.Join(tempDir, "test-repo")
 	err := os.MkdirAll(testRepoPath, 0755)
