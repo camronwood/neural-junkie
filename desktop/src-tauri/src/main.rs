@@ -125,22 +125,23 @@ async fn execute_in_session(
     let trimmed_command = command.trim();
     let (command_to_execute, _new_working_dir) = if trimmed_command.starts_with("cd ") {
         let path = trimmed_command[3..].trim();
-        let new_path = if path.is_empty() {
-            // cd without arguments goes to home directory
-            std::env::var("HOME").unwrap_or_else(|_| "/".to_string()).into()
+        let new_path = if path.is_empty() || path == "~" {
+            PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".to_string()))
+        } else if path.starts_with("~/") {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+            PathBuf::from(home).join(&path[2..])
         } else if path.starts_with('/') {
-            // Absolute path
             PathBuf::from(path)
         } else {
-            // Relative path
             session.working_dir.join(path)
         };
+
+        let resolved = std::fs::canonicalize(&new_path)
+            .map_err(|e| format!("cd: {}: {}", new_path.display(), e))?;
+
+        session.working_dir = resolved.clone();
         
-        // Update the session's working directory
-        session.working_dir = new_path.clone();
-        
-        // For cd commands, we don't execute anything, just update the directory
-        (None, Some(new_path))
+        (None, Some(resolved))
     } else {
         // For other commands, execute them in the current working directory
         (Some(trimmed_command.to_string()), None)
