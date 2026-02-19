@@ -306,6 +306,7 @@ Neural Junkie stores data in `~/.neural-junkie/`:
 
 - [Architecture](ARCHITECTURE.md) -- How the system works under the hood
 - [Repo Agents](REPO_AGENTS.md) -- Deep codebase analysis
+- [CLI Agents](CLI_AGENTS.md) -- Cursor CLI agent and custom CLI integrations
 - [Dispatch Integration](DISPATCH_INTEGRATION.md) -- DevOps command execution
 - [MCP Exports](MCP_EXPORTS.md) -- Sharing agent knowledge
 - [examples/](../examples/) -- Real-world usage scenarios

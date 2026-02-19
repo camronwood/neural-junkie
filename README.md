@@ -139,6 +139,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 |-------|------|
 | **Moderator** | Chat commands, feature guidance, 20s safety-net for unanswered questions |
 | **Assistant** | Reminders, tasks, notes, meeting summaries, scheduling |
+| **Cursor** | Codebase analysis, code generation, refactoring, shell commands (requires [Cursor CLI](docs/CLI_AGENTS.md)) |
 
 ### Specialist Agents (via `make agents`)
 
@@ -221,6 +222,7 @@ neural-junkie/
 | **[Dispatch Integration](docs/DISPATCH_INTEGRATION.md)** | DevOps command execution |
 | **[MCP Integration](docs/MCP_INTEGRATION.md)** | MCP tool servers for agents |
 | **[MCP Exports](docs/MCP_EXPORTS.md)** | Exporting agent knowledge |
+| **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI agent setup and custom CLI agents |
 | **[Agent Review](docs/AGENT_REVIEW.md)** | Second-opinion review system |
 | **[Status](docs/STATUS.md)** | Current project status |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
