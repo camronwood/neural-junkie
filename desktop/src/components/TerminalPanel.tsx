@@ -32,33 +32,50 @@ export function TerminalPanel({ height }: TerminalPanelProps) {
 
   // Initialize shell session on mount
   useEffect(() => {
+    let cancelled = false;
     const initShell = async () => {
       try {
         await terminalAPI.startShellSession();
+        if (cancelled) return;
         const cwd = await terminalAPI.getCurrentWorkingDir();
+        if (cancelled) return;
         setCurrentWorkingDir(cwd);
       } catch (error) {
-        console.error('Failed to initialize shell session:', error);
+        if (!cancelled) console.error('Failed to initialize shell session:', error);
       }
     };
     initShell();
+    return () => { cancelled = true; };
   }, [setCurrentWorkingDir]);
 
   // Set up shell output listeners
   useEffect(() => {
+    let unlistenStdout: (() => void) | null = null;
+    let unlistenStderr: (() => void) | null = null;
+    let cancelled = false;
+
     const setupListeners = async () => {
       try {
-        await terminalAPI.onShellOutput((output) => {
+        unlistenStdout = await terminalAPI.onShellOutput((output) => {
           addConsoleOutput('stdout', output);
         });
-        await terminalAPI.onShellError((error) => {
+        if (cancelled) { unlistenStdout(); unlistenStdout = null; return; }
+
+        unlistenStderr = await terminalAPI.onShellError((error) => {
           addConsoleOutput('stderr', error);
         });
+        if (cancelled) { unlistenStderr(); unlistenStderr = null; return; }
       } catch (error) {
-        console.error('Failed to setup shell listeners:', error);
+        if (!cancelled) console.error('Failed to setup shell listeners:', error);
       }
     };
     setupListeners();
+
+    return () => {
+      cancelled = true;
+      unlistenStdout?.();
+      unlistenStderr?.();
+    };
   }, [addConsoleOutput]);
 
   // Auto-scroll console output
