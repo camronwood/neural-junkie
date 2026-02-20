@@ -20,7 +20,6 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewParams, setPreviewParams] = useState<{ workspaceId: string; filePath: string } | null>(null);
-  const [testMode, setTestMode] = useState(false);
   const { settings, loadSettings } = useSettingsStore();
   const { togglePanel } = useTerminalStore();
   const { setUsername, setChannel, setServerAddr } = useChatStore();
@@ -135,8 +134,6 @@ function App() {
           <ChatWindow 
             onOpenSettings={handleOpenSettings} 
             onLogout={handleLogout}
-            testMode={testMode}
-            setTestMode={setTestMode}
           />
         )}
       </div>
@@ -144,8 +141,6 @@ function App() {
       <SettingsModal 
         isOpen={isSettingsOpen} 
         onClose={handleCloseSettings}
-        testMode={testMode}
-        setTestMode={setTestMode}
       />
     </div>
   );

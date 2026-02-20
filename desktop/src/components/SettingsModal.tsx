@@ -9,11 +9,9 @@ import { OllamaManager } from './OllamaManager';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  testMode?: boolean;
-  setTestMode?: (value: boolean) => void;
 }
 
-export function SettingsModal({ isOpen, onClose, testMode, setTestMode }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { 
     settings, 
     integrations,
@@ -1168,25 +1166,20 @@ export function SettingsModal({ isOpen, onClose, testMode, setTestMode }: Settin
           {activeTab === 'developer' && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-slack-text mb-2">Test Mode</h3>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Developer Tools</h3>
                 <p className="text-slack-textMuted mb-4">
-                  Development tools and testing utilities.
+                  Debug information and development utilities.
                 </p>
-                {setTestMode && (
-                  <button
-                    onClick={() => {
-                      setTestMode(true);
-                      onClose();
-                    }}
-                    className={`px-4 py-2 rounded transition-colors ${
-                      testMode
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-slack-accent text-white hover:bg-slack-accentHover'
-                    }`}
-                  >
-                    {testMode ? 'Test Mode Active' : 'Open Test Mode'}
-                  </button>
-                )}
+                <div className="space-y-3">
+                  <div className="p-3 bg-slack-bgHover rounded text-sm">
+                    <span className="text-slack-textMuted">Server:</span>
+                    <span className="ml-2 text-slack-text font-mono">localhost:8080</span>
+                  </div>
+                  <div className="p-3 bg-slack-bgHover rounded text-sm">
+                    <span className="text-slack-textMuted">WebSocket:</span>
+                    <span className="ml-2 text-slack-text font-mono">ws://localhost:8080/ws</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
