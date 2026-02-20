@@ -29,7 +29,7 @@ interface ChatState {
   // UI State
   isTyping: boolean;
   errorMessage: string | null;
-  thinkingAgents: Map<string, ThinkingAgent>; // Agent ID -> Agent info
+  channelThinkingAgents: Map<string, Map<string, ThinkingAgent>>; // Channel -> (Agent ID -> Agent info)
   
   // My Agents Panel
   myAgentsPanelOpen: boolean;
@@ -55,9 +55,10 @@ interface ChatState {
   setAgents: (agents: AgentInfo[]) => void;
   setIsTyping: (isTyping: boolean) => void;
   setErrorMessage: (message: string | null) => void;
-  addThinkingAgent: (agentId: string, agentName: string, agentType: AgentType) => void;
-  removeThinkingAgent: (agentId: string) => void;
-  clearThinkingAgents: () => void;
+  addThinkingAgent: (channelName: string, agentId: string, agentName: string, agentType: AgentType) => void;
+  removeThinkingAgent: (channelName: string, agentId: string) => void;
+  clearThinkingAgents: (channelName?: string) => void;
+  cleanupStaleThinking: (channelName: string, messages: Message[]) => void;
   updateAgentStatus: (agentId: string, updates: Partial<AgentInfo>) => void;
   
   // Channel actions
@@ -118,7 +119,7 @@ const initialState = {
   threadMetadata: new Map<string, ThreadMetadata>(),
   isTyping: false,
   errorMessage: null,
-  thinkingAgents: new Map<string, ThinkingAgent>(),
+  channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>(),
   myAgentsPanelOpen: false,
   myAgents: [],
   removedAgentsPanelOpen: false,
@@ -140,16 +141,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   addMessage: (message) =>
     set((state) => {
+      // Skip empty messages (some CLI agents send blank status messages)
+      if (!message.content && message.type !== 'agent_join' && message.type !== 'agent_leave') {
+        return state;
+      }
+
       // Prevent duplicate messages (can happen with React StrictMode double-mounting)
       const isDuplicate = state.messages.some(m => m.id === message.id);
       if (isDuplicate) {
         console.log('[ChatStore] Skipping duplicate message:', message.id);
-        return state; // Return unchanged state
+        return state;
       }
       
       return {
         messages: [...state.messages, message],
-        isTyping: false, // Hide typing indicator when new message arrives
+        isTyping: false,
       };
     }),
   
@@ -161,22 +167,67 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   setErrorMessage: (message) => set({ errorMessage: message }),
   
-  addThinkingAgent: (agentId, agentName, agentType) =>
+  addThinkingAgent: (channelName, agentId, agentName, agentType) =>
     set((state) => {
-      const newThinkingAgents = new Map(state.thinkingAgents);
-      newThinkingAgents.set(agentId, { id: agentId, name: agentName, type: agentType });
-      return { thinkingAgents: newThinkingAgents };
+      const outer = new Map(state.channelThinkingAgents);
+      const inner = new Map(outer.get(channelName) || []);
+      inner.set(agentId, { id: agentId, name: agentName, type: agentType });
+      outer.set(channelName, inner);
+      return { channelThinkingAgents: outer };
     }),
   
-  removeThinkingAgent: (agentId) =>
+  removeThinkingAgent: (channelName, agentId) =>
     set((state) => {
-      const newThinkingAgents = new Map(state.thinkingAgents);
-      newThinkingAgents.delete(agentId);
-      return { thinkingAgents: newThinkingAgents };
+      const outer = new Map(state.channelThinkingAgents);
+      const inner = outer.get(channelName);
+      if (!inner) return state;
+      const newInner = new Map(inner);
+      newInner.delete(agentId);
+      if (newInner.size === 0) {
+        outer.delete(channelName);
+      } else {
+        outer.set(channelName, newInner);
+      }
+      return { channelThinkingAgents: outer };
     }),
   
-  clearThinkingAgents: () =>
-    set({ thinkingAgents: new Map<string, ThinkingAgent>() }),
+  clearThinkingAgents: (channelName) =>
+    set((state) => {
+      if (channelName) {
+        const outer = new Map(state.channelThinkingAgents);
+        outer.delete(channelName);
+        return { channelThinkingAgents: outer };
+      }
+      return { channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>() };
+    }),
+
+  cleanupStaleThinking: (channelName, messages) =>
+    set((state) => {
+      const inner = state.channelThinkingAgents.get(channelName);
+      if (!inner || inner.size === 0) return state;
+      const respondedAgentIds = new Set(
+        messages
+          .filter(m => m.type === 'chat' || m.type === 'answer')
+          .map(m => m.from?.id)
+          .filter(Boolean)
+      );
+      let changed = false;
+      const newInner = new Map(inner);
+      for (const agentId of newInner.keys()) {
+        if (respondedAgentIds.has(agentId)) {
+          newInner.delete(agentId);
+          changed = true;
+        }
+      }
+      if (!changed) return state;
+      const outer = new Map(state.channelThinkingAgents);
+      if (newInner.size === 0) {
+        outer.delete(channelName);
+      } else {
+        outer.set(channelName, newInner);
+      }
+      return { channelThinkingAgents: outer };
+    }),
   
   updateAgentStatus: (agentId, updates) =>
     set((state) => {
@@ -208,7 +259,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
         channelMessages: newCache,
         unreadChannels: newUnread,
         openThreadId: null,
-        thinkingAgents: new Map<string, ThinkingAgent>(),
       };
     }),
 
@@ -372,7 +422,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('[ChatStore] Logging out user');
     set({ 
       ...initialState, 
-      thinkingAgents: new Map<string, ThinkingAgent>(),
+      channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>(),
       threadMessages: new Map<string, Message[]>(),
       threadMetadata: new Map<string, ThreadMetadata>(),
       channelMessages: new Map<string, Message[]>(),
@@ -383,7 +433,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   reset: () => set({ 
     ...initialState, 
-    thinkingAgents: new Map<string, ThinkingAgent>(),
+    channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>(),
     threadMessages: new Map<string, Message[]>(),
     threadMetadata: new Map<string, ThreadMetadata>(),
     channelMessages: new Map<string, Message[]>(),

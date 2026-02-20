@@ -12,7 +12,6 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageList } from './MessageList';
 import { AgentList } from './AgentList';
 import { RichTextInput } from './RichTextInput';
-import { TypingIndicator } from './TypingIndicator';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
 import { PendingChangesPanel } from './PendingChangesPanel';
@@ -30,11 +29,9 @@ import type { Message, ThinkingStatusMetadata, CommandDefinition } from '../type
 interface ChatWindowProps {
   onOpenSettings?: () => void;
   onLogout?: () => void;
-  testMode?: boolean;
-  setTestMode?: (value: boolean) => void;
 }
 
-export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, setTestMode: propSetTestMode }: ChatWindowProps = {}) {
+export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const {
     serverAddr,
     channel,
@@ -42,7 +39,6 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     messages,
     agents,
     channels,
-    thinkingAgents,
     openThreadId,
     threadMetadata,
     addMessage,
@@ -55,6 +51,8 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     addThinkingAgent,
     removeThinkingAgent,
     updateAgentStatus,
+    markChannelUnread,
+    cleanupStaleThinking,
     openThread,
     closeThread,
     updateThreadMetadata,
@@ -128,13 +126,6 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     return () => window.removeEventListener('keydown', handler);
   }, []);
   
-  // State for test mode - use prop if provided, otherwise local state
-  const [localTestMode, setLocalTestMode] = useState(false);
-  const _testMode = propTestMode !== undefined ? propTestMode : localTestMode;
-  const _setTestMode = propSetTestMode || setLocalTestMode;
-  void _testMode;
-  void _setTestMode;
-
   const [api] = useState(() => new ChatAPI(serverAddr));
   const wsURL = api.getWebSocketURL(channel);
   
@@ -215,10 +206,11 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
     try {
       const msgs = await api.fetchMessages(channelName, 50);
       setMessages(msgs);
+      cleanupStaleThinking(channelName, msgs);
     } catch (error) {
       console.error('Failed to load messages for channel:', error);
     }
-  }, [api, channel, switchChannel, setMessages]);
+  }, [api, channel, switchChannel, setMessages, cleanupStaleThinking]);
 
   // Create a custom channel
   const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
@@ -265,9 +257,9 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
           
           if (thinkingStatus === 'started') {
-            addThinkingAgent(message.from.id, message.from.name, message.from.type);
+            addThinkingAgent(channel, message.from.id, message.from.name, message.from.type);
           } else if (thinkingStatus === 'completed' || thinkingStatus === 'error') {
-            removeThinkingAgent(message.from.id);
+            removeThinkingAgent(channel, message.from.id);
           }
         }
         
@@ -303,7 +295,7 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       // Handle streaming tokens -- accumulate deltas, finalize on stream_end
       if (message.type === 'stream_delta') {
         appendStreamDelta(message);
-        removeThinkingAgent(message.from.id);
+        removeThinkingAgent(channel, message.from.id);
         return;
       }
       if (message.type === 'stream_end') {
@@ -323,6 +315,11 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       } else {
         // Add channel messages to main message list
         addMessage(message);
+
+        // Mark channel unread if the message is from a different channel
+        if (message.channel && message.channel !== channel) {
+          markChannelUnread(message.channel);
+        }
         
         // Check for suggested commands in the message
         if (message.metadata?.suggested_commands) {
@@ -344,7 +341,7 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       
       // Clear thinking indicator when agent sends actual message
       if (message.type === 'chat' || message.type === 'answer') {
-        removeThinkingAgent(message.from.id);
+        removeThinkingAgent(channel, message.from.id);
       }
       
       // Auto-refresh agents for join/leave events
@@ -776,11 +773,6 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
           onOpenThread={openThread}
           streamingMessages={streamingMessages}
         />
-
-        {/* Typing Indicator */}
-        {thinkingAgents.size > 0 && (
-          <TypingIndicator agents={Array.from(thinkingAgents.values())} />
-        )}
 
         {/* Input */}
         <RichTextInput

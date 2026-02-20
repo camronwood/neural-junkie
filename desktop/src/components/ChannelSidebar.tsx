@@ -22,7 +22,7 @@ export function ChannelSidebar({
   onCreateChannel,
   onCreateDM,
 }: ChannelSidebarProps) {
-  const { channel: activeChannel, unreadChannels } = useChatStore();
+  const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore();
 
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -64,13 +64,22 @@ export function ChannelSidebar({
     };
   }, [isResizing, width]);
 
+  const TypingDots = ({ active }: { active?: boolean }) => (
+    <span className="inline-flex ml-1 gap-[2px] items-center">
+      <span className={`w-1 h-1 rounded-full animate-bounce ${active ? 'bg-white/80' : 'bg-slack-accent'}`} style={{ animationDelay: '0ms' }} />
+      <span className={`w-1 h-1 rounded-full animate-bounce ${active ? 'bg-white/80' : 'bg-slack-accent'}`} style={{ animationDelay: '150ms' }} />
+      <span className={`w-1 h-1 rounded-full animate-bounce ${active ? 'bg-white/80' : 'bg-slack-accent'}`} style={{ animationDelay: '300ms' }} />
+    </span>
+  );
+
   const ChannelItem = ({ ch }: { ch: Channel }) => {
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
+    const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
     return (
       <button
         onClick={() => onSwitchChannel(ch.name)}
-        className={`w-full text-left px-2 py-1 rounded text-sm truncate transition-colors ${
+        className={`w-full text-left px-2 py-1 rounded text-sm flex items-center transition-colors ${
           isActive
             ? 'bg-slack-accent text-white font-semibold'
             : isUnread
@@ -80,8 +89,9 @@ export function ChannelSidebar({
         title={ch.description || ch.name}
       >
         <span className="mr-1 opacity-60">#</span>
-        {ch.name}
-        {isUnread && !isActive && (
+        <span className="truncate">{ch.name}</span>
+        {isTyping && <TypingDots active={isActive} />}
+        {isUnread && !isActive && !isTyping && (
           <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
         )}
       </button>
@@ -91,6 +101,7 @@ export function ChannelSidebar({
   const DMItem = ({ ch }: { ch: Channel }) => {
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
+    const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
     const agent = ch.agents?.[0];
     const displayName = agent?.name ?? ch.name.replace(/^dm-[^-]+-/, '');
     const color = agent ? getAgentColor(agent.type) : '#a9b9ba';
@@ -98,7 +109,7 @@ export function ChannelSidebar({
     return (
       <button
         onClick={() => onSwitchChannel(ch.name)}
-        className={`w-full text-left px-2 py-1 rounded text-sm truncate flex items-center gap-2 transition-colors ${
+        className={`w-full text-left px-2 py-1 rounded text-sm flex items-center gap-2 transition-colors ${
           isActive
             ? 'bg-slack-accent text-white font-semibold'
             : isUnread
@@ -111,7 +122,11 @@ export function ChannelSidebar({
           className="w-2 h-2 rounded-full flex-shrink-0"
           style={{ backgroundColor: color }}
         />
-        {displayName}
+        <span className="truncate">{displayName}</span>
+        {isTyping && <TypingDots active={isActive} />}
+        {isUnread && !isActive && !isTyping && (
+          <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
+        )}
       </button>
     );
   };
