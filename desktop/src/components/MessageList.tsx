@@ -13,9 +13,13 @@ export function MessageList({ messages, threadMetadata, onOpenThread, streamingM
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Filter out thread replies - only show channel messages
+  // Filter out thread replies and empty messages - only show visible channel messages
   const channelMessages = useMemo(() => {
-    return messages.filter(m => !m.is_thread_reply);
+    return messages.filter(m => {
+      if (m.is_thread_reply) return false;
+      if (!m.content?.trim() && m.type !== 'agent_join' && m.type !== 'agent_leave' && m.type !== 'system_info') return false;
+      return true;
+    });
   }, [messages]);
 
   const activeStreams = useMemo(() => {

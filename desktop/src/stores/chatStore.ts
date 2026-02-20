@@ -142,7 +142,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message) =>
     set((state) => {
       // Skip empty messages (some CLI agents send blank status messages)
-      if (!message.content && message.type !== 'agent_join' && message.type !== 'agent_leave') {
+      if (!message.content?.trim() && message.type !== 'agent_join' && message.type !== 'agent_leave' && message.type !== 'system_info') {
         return state;
       }
 
@@ -159,7 +159,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
     }),
   
-  setMessages: (messages) => set({ messages }),
+  setMessages: (messages) => set({
+    messages: messages.filter(m =>
+      !!m.content?.trim() || m.type === 'agent_join' || m.type === 'agent_leave' || m.type === 'system_info'
+    ),
+  }),
   
   setAgents: (agents) => set({ agents }),
   
