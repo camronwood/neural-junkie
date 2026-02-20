@@ -3,6 +3,8 @@ package hub
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -22,6 +24,7 @@ type CommandHandler struct {
 	repoAgents        map[string]*agent.RepoAgent        // Track repo agents for management
 	helperAgents      map[string]*agent.HelperAgent      // Track helper agents for management
 	confluenceAgents  map[string]*agent.ConfluenceAgent  // Track confluence agents for management
+	cliAgents         map[string]*agent.Agent             // Track CLI proxy agents
 	assistantAgent    *agent.AssistantAgent              // Track assistant agent for meeting notes
 	exportStorage     *mcp_export.ExportStorage          // Export storage for MCP exports
 	pendingReviews    map[string]*protocol.PendingReview // Track pending reviews by repo path
@@ -55,6 +58,7 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 		repoAgents:        make(map[string]*agent.RepoAgent),
 		helperAgents:      make(map[string]*agent.HelperAgent),
 		confluenceAgents:  make(map[string]*agent.ConfluenceAgent),
+		cliAgents:         make(map[string]*agent.Agent),
 		exportStorage:     exportStorage,
 		pendingReviews:    make(map[string]*protocol.PendingReview),
 	}, nil
@@ -144,6 +148,12 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 		return ch.handleListChannels(ctx, msg)
 	case "/delete-channel":
 		return ch.handleDeleteChannelCmd(ctx, msg, parts)
+	case "/open-terminal":
+		return ch.handleOpenTerminal(ctx, msg, parts)
+	case "/create-cli-agent":
+		return ch.handleCreateCLIAgent(ctx, msg, parts)
+	case "/list-cli-agents":
+		return ch.handleListCLIAgents(ctx, msg)
 	case "/help":
 		return ch.handleHelp(ctx, msg)
 	case "/migrate-agent-names":
@@ -2781,6 +2791,190 @@ func (ch *CommandHandler) handleDeleteChannelCmd(ctx context.Context, msg *proto
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Deleted channel **#%s**", name)), nil
 }
 
+func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		types := agent.ListCLIAgentTypes()
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("Usage: `/create-cli-agent <type> [name] [work-dir]`\n\n"+
+				"**Available types:** %s\n\n"+
+				"**Examples:**\n```\n"+
+				"/create-cli-agent cursor\n"+
+				"/create-cli-agent gemini MyGemini /path/to/project\n"+
+				"/create-cli-agent claude ClaudeDev\n"+
+				"```", strings.Join(types, ", "))), nil
+	}
+
+	cliType := strings.ToLower(parts[1])
+	cfg, ok := agent.GetCLIAgentConfig(cliType)
+	if !ok {
+		types := agent.ListCLIAgentTypes()
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("Unknown CLI agent type '%s'.\n\nAvailable types: %s", cliType, strings.Join(types, ", "))), nil
+	}
+
+	// Resolve work directory
+	workDir := ""
+	if len(parts) >= 4 {
+		workDir = parts[3]
+	}
+	if workDir == "" && cfg.WorkDirEnv != "" {
+		workDir = os.Getenv(cfg.WorkDirEnv)
+	}
+	if workDir == "" {
+		var err error
+		workDir, err = os.Getwd()
+		if err != nil {
+			workDir = "."
+		}
+	}
+
+	// Create provider
+	opts := []ai.CLIAgentOption{
+		ai.WithBaseArgs(cfg.BaseArgs),
+		ai.WithModel(cfg.ModelName),
+	}
+	provider := ai.NewCLIAgentProvider(cfg.Command, workDir, cfg.ProviderName, opts...)
+
+	// Forward configured env vars
+	for _, envKey := range cfg.EnvVars {
+		if val := os.Getenv(envKey); val != "" {
+			provider.Env[envKey] = val
+		}
+	}
+
+	if !provider.IsCLIInstalled() {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("CLI binary `%s` not found on PATH.\n\n%s", cfg.Command, cfg.InstallHint)), nil
+	}
+
+	// Resolve name
+	name := cfg.DefaultName
+	if len(parts) >= 3 {
+		name = parts[2]
+	}
+	name = protocol.NormalizeAgentName(name)
+
+	// Check for duplicate
+	for _, existing := range ch.hub.ListAgents() {
+		if strings.EqualFold(existing.Name, name) {
+			return ch.systemResponse(msg.Channel,
+				fmt.Sprintf("Agent '%s' already exists. Use a different name or `/delete-agent %s` first.", name, name)), nil
+		}
+	}
+
+	// Create agent from registry config
+	agentInstance := agent.NewCLIAgentFromConfig(cfg, name, provider, ch.hub)
+
+	if cfg.ApprovalMode != "" {
+		agentInstance.Info.ApprovalMode = cfg.ApprovalMode
+	}
+
+	if err := ch.hub.RegisterAgent(&agentInstance.Info); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Failed to register agent: %v", err)), nil
+	}
+
+	if err := ch.hub.JoinChannel(agentInstance.Info.ID, msg.Channel); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("Failed to join agent to channel: %v", err)), nil
+	}
+
+	go func() {
+		if err := agentInstance.Start(ctx, msg.Channel); err != nil {
+			log.Printf("Failed to start CLI agent %s: %v", name, err)
+		}
+	}()
+
+	ch.cliAgents[name] = agentInstance
+
+	// Persist for My Agents panel
+	agent.SaveCLIAgent(cliType, name, workDir)
+
+	// Send join message
+	joinMsg := protocol.NewMessage(
+		protocol.MessageTypeAgentJoin,
+		msg.Channel,
+		agentInstance.Info,
+		cfg.JoinMessage,
+	)
+	if err := ch.hub.SendMessage(joinMsg); err != nil {
+		log.Printf("Failed to send CLI agent join message: %v", err)
+	}
+
+	expertiseStr := strings.Join(cfg.Expertise, ", ")
+	if len(cfg.Expertise) > 5 {
+		expertiseStr = strings.Join(cfg.Expertise[:5], ", ") + fmt.Sprintf(" and %d more", len(cfg.Expertise)-5)
+	}
+
+	return ch.systemResponse(msg.Channel,
+		fmt.Sprintf("Created **%s** CLI agent: **%s**\n\n"+
+			"**Type:** %s\n"+
+			"**Binary:** `%s`\n"+
+			"**Work Dir:** %s\n"+
+			"**Expertise:** %s\n\n"+
+			"Mention with `@%s` to ask questions.",
+			cliType, name, cfg.ProviderName, cfg.Command, workDir, expertiseStr, name)), nil
+}
+
+func (ch *CommandHandler) handleListCLIAgents(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
+	types := agent.ListCLIAgentTypes()
+	lines := []string{"**Available CLI Agent Types:**\n"}
+
+	for _, t := range types {
+		cfg, _ := agent.GetCLIAgentConfig(t)
+		provider := ai.NewCLIAgentProvider(cfg.Command, ".", cfg.ProviderName)
+		installed := provider.IsCLIInstalled()
+
+		status := "not installed"
+		if installed {
+			status = "installed"
+		}
+
+		lines = append(lines, fmt.Sprintf("- **%s** (`%s`) -- %s\n  %s",
+			t, cfg.Command, status, cfg.InstallHint))
+	}
+
+	// Show currently running CLI agents
+	if len(ch.cliAgents) > 0 {
+		lines = append(lines, "\n**Running CLI Agents:**\n")
+		for name, a := range ch.cliAgents {
+			lines = append(lines, fmt.Sprintf("- **%s** (%s)", name, a.Info.AIProvider))
+		}
+	}
+
+	return ch.systemResponse(msg.Channel, strings.Join(lines, "\n")), nil
+}
+
+func (ch *CommandHandler) handleOpenTerminal(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	cwd := ""
+	if len(parts) >= 2 {
+		cwd = parts[1]
+	}
+	agentName := msg.From.Name
+	if msg.From.ID != "" && msg.From.ID != "system" {
+		if a, err := ch.hub.GetAgent(msg.From.ID); err == nil {
+			agentName = a.Name
+		}
+	}
+
+	sysMsg := protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"",
+	)
+	sysMsg.Metadata = map[string]interface{}{
+		"event":      "agent-open-terminal",
+		"agent_name": agentName,
+		"cwd":        cwd,
+	}
+	ch.hub.BroadcastDirect(msg.Channel, sysMsg)
+
+	label := "terminal tab"
+	if cwd != "" {
+		label = fmt.Sprintf("terminal tab at %s", cwd)
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("Opening %s for **%s**", label, agentName)), nil
+}
+
 // SetAssistantAgent sets the assistant agent reference for meeting notes functionality
 func (ch *CommandHandler) SetAssistantAgent(assistant *agent.AssistantAgent) {
 	ch.assistantAgent = assistant
@@ -3164,6 +3358,34 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 			Arguments: []protocol.CommandArgument{
 				{Name: "name", Description: "Channel name to delete", Type: "string", Required: true},
 			},
+		},
+
+		// ── Terminal ───────────────────────────────────────────────────
+		{
+			Name:        "/open-terminal",
+			Description: "Open a new terminal tab (optionally in a given directory)",
+			Category:    "Terminal",
+			Arguments: []protocol.CommandArgument{
+				{Name: "cwd", Description: "Working directory for the terminal", Type: "path", Required: false},
+			},
+		},
+
+		// ── CLI Agents ────────────────────────────────────────────────
+		{
+			Name:        "/create-cli-agent",
+			Description: "Create a CLI proxy agent (Cursor, Gemini, Claude, Copilot)",
+			Category:    "CLI Agents",
+			Arguments: []protocol.CommandArgument{
+				{Name: "type", Description: "CLI agent type", Type: "string", Required: true, Options: agent.ListCLIAgentTypes()},
+				{Name: "name", Description: "Custom agent name", Type: "string", Required: false},
+				{Name: "work-dir", Description: "Working directory for the CLI", Type: "path", Required: false},
+			},
+		},
+		{
+			Name:        "/list-cli-agents",
+			Description: "List available CLI agent types and their install status",
+			Category:    "CLI Agents",
+			Arguments:   []protocol.CommandArgument{},
 		},
 
 		// ── Migration ──────────────────────────────────────────────────

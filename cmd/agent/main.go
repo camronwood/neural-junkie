@@ -60,7 +60,15 @@ func (h *httpHubClient) SendMessage(msg *protocol.Message) error {
 }
 
 func (h *httpHubClient) BroadcastDirect(channelName string, msg *protocol.Message) {
-	_ = h.SendMessage(msg)
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	resp, err := h.client.Post(h.baseURL+"/api/broadcast", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
 
 func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, error) {

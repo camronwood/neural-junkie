@@ -483,8 +483,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 	}
 
-	// Never respond to system messages (errors, notifications, etc.)
+	// Never respond to system messages (errors, notifications, join/leave, etc.)
 	if msg.From.Name == "System" || msg.From.ID == "system" {
+		return false
+	}
+	if msg.Type == protocol.MessageTypeSystemInfo || msg.Type == protocol.MessageTypeAgentJoin || msg.Type == protocol.MessageTypeAgentLeave {
 		return false
 	}
 
