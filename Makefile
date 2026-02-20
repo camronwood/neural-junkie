@@ -39,9 +39,15 @@ chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go
 
-gui: ## Start GUI desktop app (Tauri + React)
+gui: ensure-sidecar ## Start GUI desktop app (Tauri + React)
 	@echo "🖥️  Starting desktop app with React..."
 	@cd desktop && npm run tauri:dev
+
+ensure-sidecar: ## Build sidecar binary if missing (needed for Tauri dev)
+	@if [ ! -f desktop/src-tauri/binaries/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) ]; then \
+		echo "🔨 Building sidecar binary for dev..."; \
+		$(MAKE) build-sidecar; \
+	fi
 
 gui-install: ## Install GUI dependencies (first time only)
 	@echo "📦 Installing desktop app dependencies..."
@@ -263,4 +269,56 @@ demo-repo-agent: setup-env ## Run repository agent demo (usage: make demo-repo-a
 	fi
 	@./scripts/demo-repo-agent.sh "$(PATH)"
 
+# ── Cross-compile & Bundle ───────────────────────────────────────────
 
+SIDECAR_DIR := desktop/src-tauri/binaries
+
+.PHONY: build-server-mac-arm build-server-mac-intel build-server-linux bundle-mac bundle-linux bundle release
+
+build-server-mac-arm: ## Cross-compile server for macOS Apple Silicon
+	@echo "🔨 Building server for macOS arm64..."
+	@mkdir -p $(SIDECAR_DIR)
+	@GOOS=darwin GOARCH=arm64 go build -o $(SIDECAR_DIR)/nj-server-aarch64-apple-darwin cmd/server/main.go
+
+build-server-mac-intel: ## Cross-compile server for macOS Intel
+	@echo "🔨 Building server for macOS amd64..."
+	@mkdir -p $(SIDECAR_DIR)
+	@GOOS=darwin GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-apple-darwin cmd/server/main.go
+
+build-server-linux: ## Cross-compile server for Linux x86_64
+	@echo "🔨 Building server for Linux amd64..."
+	@mkdir -p $(SIDECAR_DIR)
+	@GOOS=linux GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-unknown-linux-gnu cmd/server/main.go
+
+build-sidecar: ## Build server sidecar for current platform
+	@echo "🔨 Building server sidecar for current platform..."
+	@mkdir -p $(SIDECAR_DIR)
+	@go build -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) cmd/server/main.go
+
+bundle-mac: build-server-mac-arm ## Build production desktop app for macOS
+	@echo "📦 Building macOS bundle..."
+	@cd desktop && npm run tauri:build
+	@echo "✅ macOS bundle ready at desktop/src-tauri/target/release/bundle/"
+
+bundle-linux: build-server-linux ## Build production desktop app for Linux
+	@echo "📦 Building Linux bundle..."
+	@cd desktop && npm run tauri:build
+	@echo "✅ Linux bundle ready at desktop/src-tauri/target/release/bundle/"
+
+bundle: ## Build bundles for current platform
+	@$(MAKE) build-sidecar
+	@cd desktop && npm run tauri:build
+
+release: ## Tag and push a release (usage: make release VERSION=1.2.0)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ Error: VERSION is required"; \
+		echo "Usage: make release VERSION=1.2.0"; \
+		exit 1; \
+	fi
+	@echo "🏷️  Releasing v$(VERSION)..."
+	@cd desktop && sed -i.bak 's/"version": "[^"]*"/"version": "$(VERSION)"/' src-tauri/tauri.conf.json && rm -f src-tauri/tauri.conf.json.bak
+	@cd desktop && sed -i.bak 's/^version = "[^"]*"/version = "$(VERSION)"/' src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
+	@cd desktop && npm version $(VERSION) --no-git-tag-version 2>/dev/null || true
+	@git add -A && git commit -m "release: v$(VERSION)"
+	@git tag v$(VERSION)
+	@echo "✅ Tagged v$(VERSION). Push with: git push && git push origin v$(VERSION)"

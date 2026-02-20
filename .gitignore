@@ -36,6 +36,7 @@ env.local
 # Desktop build artifacts
 desktop/dist/
 desktop/src-tauri/target/
+desktop/src-tauri/binaries/
 desktop/node_modules/
 
 # Build binaries (explicit, root only)
