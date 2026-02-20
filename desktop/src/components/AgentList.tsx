@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import type { AgentInfo } from '../types/protocol';
+import type { AgentInfo, AgentType } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -134,12 +134,12 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
   const activeAgents = agents.filter(agent => agent.status === 'active');
   
   // Create loading agents for display
-  const loadingAgentsList = Array.from(loadingAgents).map(agentName => ({
+  const loadingAgentsList: AgentInfo[] = Array.from(loadingAgents).map(agentName => ({
     id: `loading-${agentName}`,
     name: agentName,
-    type: 'loading' as const,
-    status: 'loading' as const,
-    expertise: [],
+    type: 'loading' as AgentType,
+    status: 'loading',
+    expertise: [] as string[],
     model: '',
     ai_provider: '',
     ai_model: '',
@@ -151,7 +151,7 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
     knowledge_path: '',
     confluence_space_key: '',
     last_active_time: new Date().toISOString(),
-    removed_from: null
+    removed_from: undefined
   }));
   
   // Combine active agents with loading agents
