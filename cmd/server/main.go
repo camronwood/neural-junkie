@@ -1340,6 +1340,20 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 
 	log.Printf("✅ %s CLI binary found, initializing agent...", cfg.DefaultName)
 
+	// Auto-register as a provider in the config so it appears in Settings > AI Providers
+	if existing := appConfig.GetProvider(cfg.ProviderName); existing == nil {
+		autoProvider := config.ProviderConfig{
+			ID:      cfg.ProviderName,
+			Type:    cfg.ProviderName,
+			Name:    cfg.DefaultName + " (Auto-detected)",
+			WorkDir: workDir,
+		}
+		if err := appConfig.AddProvider(autoProvider); err == nil {
+			log.Printf("📝 Auto-registered provider %q for %s CLI", cfg.ProviderName, cfg.DefaultName)
+			_ = appConfig.Save()
+		}
+	}
+
 	// Gemini-specific: configure tool approval hook
 	if cfg.Type == "gemini" {
 		configureGeminiApprovalHook()

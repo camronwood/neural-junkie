@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -149,7 +150,8 @@ func (h *Hub) GetChannel(name string) (*protocol.Channel, error) {
 	return channel, nil
 }
 
-// ListChannels returns all available channels
+// ListChannels returns all available channels in a stable order:
+// public first, then custom, then DM, alphabetical within each group.
 func (h *Hub) ListChannels() []*protocol.Channel {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -158,6 +160,19 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 	for _, ch := range h.channels {
 		channels = append(channels, ch)
 	}
+
+	typeOrder := map[protocol.ChannelType]int{
+		protocol.ChannelTypePublic: 0,
+		protocol.ChannelTypeCustom: 1,
+		protocol.ChannelTypeDM:     2,
+	}
+	sort.Slice(channels, func(i, j int) bool {
+		oi, oj := typeOrder[channels[i].Type], typeOrder[channels[j].Type]
+		if oi != oj {
+			return oi < oj
+		}
+		return channels[i].Name < channels[j].Name
+	})
 
 	return channels
 }

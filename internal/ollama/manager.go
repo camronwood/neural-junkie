@@ -84,7 +84,7 @@ func (m *Manager) DetectInstallation() InstallStatus {
 
 	binPath := paths[0]
 	version := ""
-	if out, err := exec.Command(binPath, "--version").CombinedOutput(); err == nil {
+	if out, err := exec.Command(binPath, "--version").Output(); err == nil {
 		version = strings.TrimSpace(string(out))
 	}
 
