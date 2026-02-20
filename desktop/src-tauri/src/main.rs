@@ -6,9 +6,11 @@ use std::process::{Command, Stdio};
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use tauri::Manager;
 use std::path::PathBuf;
 use std::hash::{Hash, Hasher};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CommandResult {
@@ -21,21 +23,165 @@ struct CommandResult {
     success: bool,
 }
 
+// ── PTY session management ──────────────────────────────────────────────
 
-#[derive(Debug, Clone)]
-struct ShellSession {
-    id: String,
-    working_dir: PathBuf,
+struct PtySession {
+    writer: Box<dyn Write + Send>,
+    _child: Box<dyn portable_pty::Child + Send>,
+    pair: portable_pty::PtyPair,
 }
 
-impl ShellSession {
-    fn new() -> Self {
-        Self {
-            id: uuid::Uuid::new_v4().to_string(),
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+type PtySessions = Arc<Mutex<HashMap<String, PtySession>>>;
+
+fn default_home() -> PathBuf {
+    dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
+}
+
+fn default_shell() -> String {
+    std::env::var("SHELL").unwrap_or_else(|_| {
+        if cfg!(target_os = "windows") {
+            "cmd.exe".to_string()
+        } else {
+            "/bin/zsh".to_string()
         }
-    }
+    })
 }
+
+#[tauri::command]
+async fn create_pty_session(
+    id: String,
+    cwd: Option<String>,
+    cols: Option<u16>,
+    rows: Option<u16>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let pty_system = native_pty_system();
+
+    let size = PtySize {
+        rows: rows.unwrap_or(24),
+        cols: cols.unwrap_or(80),
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+
+    let pair = pty_system
+        .openpty(size)
+        .map_err(|e| format!("Failed to open PTY: {}", e))?;
+
+    let working_dir = match cwd.as_deref() {
+        None | Some("~") | Some("") => default_home(),
+        Some(p) if p.starts_with("~/") => default_home().join(&p[2..]),
+        Some(p) => PathBuf::from(p),
+    };
+
+    let shell = default_shell();
+    let mut cmd = CommandBuilder::new(&shell);
+    // Launch as interactive login shell
+    cmd.arg("-l");
+    cmd.cwd(working_dir);
+
+    let child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| format!("Failed to spawn shell: {}", e))?;
+
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("Failed to take PTY writer: {}", e))?;
+
+    // Background reader thread: reads PTY output and emits events to the frontend
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
+
+    let session_id = id.clone();
+    let handle = app_handle.clone();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let text = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let payload = serde_json::json!({
+                        "id": session_id,
+                        "data": text,
+                    });
+                    let _ = handle.emit_all("pty-output", payload);
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let sessions = app_handle.state::<PtySessions>();
+    let mut guard = sessions.lock().unwrap();
+    guard.insert(id, PtySession { writer, _child: child, pair });
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn write_pty_session(
+    id: String,
+    data: String,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let sessions = app_handle.state::<PtySessions>();
+    let mut guard = sessions.lock().unwrap();
+    let session = guard
+        .get_mut(&id)
+        .ok_or_else(|| format!("PTY session '{}' not found", id))?;
+    session
+        .writer
+        .write_all(data.as_bytes())
+        .map_err(|e| format!("Failed to write to PTY: {}", e))?;
+    session
+        .writer
+        .flush()
+        .map_err(|e| format!("Failed to flush PTY: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn resize_pty_session(
+    id: String,
+    cols: u16,
+    rows: u16,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let sessions = app_handle.state::<PtySessions>();
+    let guard = sessions.lock().unwrap();
+    let session = guard
+        .get(&id)
+        .ok_or_else(|| format!("PTY session '{}' not found", id))?;
+    session
+        .pair
+        .master
+        .resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Failed to resize PTY: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn close_pty_session(
+    id: String,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let sessions = app_handle.state::<PtySessions>();
+    let mut guard = sessions.lock().unwrap();
+    guard.remove(&id);
+    Ok(())
+}
+
+// ── One-off command execution (used for suggestion approve) ─────────────
 
 #[tauri::command]
 async fn execute_command(
@@ -45,13 +191,10 @@ async fn execute_command(
 ) -> Result<CommandResult, String> {
     let start_time = Instant::now();
     let command_id = uuid::Uuid::new_v4().to_string();
-    
-    // Split command into parts for execution
+
     let parts: Vec<&str> = if cfg!(target_os = "windows") {
-        // On Windows, use cmd /c
         vec!["cmd", "/c", &command]
     } else {
-        // On Unix-like systems, use sh -c
         vec!["sh", "-c", &command]
     };
 
@@ -60,18 +203,16 @@ async fn execute_command(
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    // Set working directory if provided
     if let Some(dir) = working_dir {
         cmd.current_dir(dir);
     }
 
-    // Execute the command
     let output = cmd.output().map_err(|e| format!("Failed to execute command: {}", e))?;
-    
+
     let duration = start_time.elapsed();
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    
+
     let result = CommandResult {
         id: command_id,
         command,
@@ -82,123 +223,11 @@ async fn execute_command(
         success: output.status.success(),
     };
 
-    // Emit the result as an event
     app_handle
         .emit_all("command-executed", &result)
         .map_err(|e| format!("Failed to emit event: {}", e))?;
 
     Ok(result)
-}
-
-// Global shell session storage
-type ShellSessions = Arc<Mutex<HashMap<String, ShellSession>>>;
-
-#[tauri::command]
-async fn start_shell_session(
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    let session = ShellSession::new();
-    let session_id = session.id.clone();
-    
-    // Store the session in the global state
-    let sessions = app_handle.state::<ShellSessions>();
-    let mut sessions_guard = sessions.lock().unwrap();
-    sessions_guard.insert(session_id.clone(), session);
-    
-    Ok(session_id)
-}
-
-#[tauri::command]
-async fn execute_in_session(
-    command: String,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    // Get the default session (for now, we'll use a single global session)
-    let sessions = app_handle.state::<ShellSessions>();
-    let mut sessions_guard = sessions.lock().unwrap();
-    
-    // Use a default session ID or create one if none exists
-    let default_session_id = "default".to_string();
-    let session = sessions_guard.entry(default_session_id.clone()).or_insert_with(|| ShellSession::new());
-    
-    // Parse the command to handle cd commands specially
-    let trimmed_command = command.trim();
-    let (command_to_execute, _new_working_dir) = if trimmed_command.starts_with("cd ") {
-        let path = trimmed_command[3..].trim();
-        let new_path = if path.is_empty() || path == "~" {
-            PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/".to_string()))
-        } else if path.starts_with("~/") {
-            let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
-            PathBuf::from(home).join(&path[2..])
-        } else if path.starts_with('/') {
-            PathBuf::from(path)
-        } else {
-            session.working_dir.join(path)
-        };
-
-        let resolved = std::fs::canonicalize(&new_path)
-            .map_err(|e| format!("cd: {}: {}", new_path.display(), e))?;
-
-        session.working_dir = resolved.clone();
-        
-        (None, Some(resolved))
-    } else {
-        // For other commands, execute them in the current working directory
-        (Some(trimmed_command.to_string()), None)
-    };
-    
-    // Execute the command if it's not a cd command
-    if let Some(cmd) = command_to_execute {
-        let parts: Vec<&str> = if cfg!(target_os = "windows") {
-            vec!["cmd", "/c", &cmd]
-        } else {
-            vec!["sh", "-c", &cmd]
-        };
-
-        let mut process = Command::new(parts[0]);
-        process.args(&parts[1..]);
-        process.current_dir(&session.working_dir);
-        process.stdout(Stdio::piped());
-        process.stderr(Stdio::piped());
-
-        let output = process.output().map_err(|e| format!("Failed to execute command: {}", e))?;
-        
-        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-        
-        // Emit output events
-        if !stdout.is_empty() {
-            let _ = app_handle.emit_all("shell-output", &stdout);
-        }
-        if !stderr.is_empty() {
-            let _ = app_handle.emit_all("shell-error", &stderr);
-        }
-    } else {
-        // For cd commands, emit a message showing the new directory
-        let _ = app_handle.emit_all("shell-output", &format!("Changed directory to: {}\n", session.working_dir.display()));
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn get_session_cwd(
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
-    // Get the current working directory from the session
-    let sessions = app_handle.state::<ShellSessions>();
-    let sessions_guard = sessions.lock().unwrap();
-    
-    // Use the default session
-    let default_session_id = "default".to_string();
-    if let Some(session) = sessions_guard.get(&default_session_id) {
-        Ok(session.working_dir.to_string_lossy().to_string())
-    } else {
-        // Fallback to current directory if no session exists
-        let cwd = std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {}", e))?;
-        Ok(cwd.to_string_lossy().to_string())
-    }
 }
 
 #[tauri::command]
@@ -471,15 +500,116 @@ async fn open_markdown_preview(
     Ok(())
 }
 
+// ── Sidecar lifecycle ───────────────────────────────────────────────
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+type SidecarChild = Arc<Mutex<Option<tauri::api::process::CommandChild>>>;
+
+static SIDECAR_READY: AtomicBool = AtomicBool::new(false);
+
+fn wait_for_server_health(timeout: std::time::Duration) -> bool {
+    let start = Instant::now();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .unwrap();
+    while start.elapsed() < timeout {
+        if let Ok(resp) = client.get("http://localhost:8080/api/health").send() {
+            if resp.status().is_success() {
+                return true;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    false
+}
+
+fn spawn_sidecar() -> Result<tauri::api::process::CommandChild, String> {
+    let (mut rx, child) = tauri::api::process::Command::new_sidecar("nj-server")
+        .map_err(|e| format!("Failed to create sidecar command: {}", e))?
+        .spawn()
+        .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
+
+    // Drain sidecar stdout/stderr in background so pipe buffers don't fill
+    std::thread::spawn(move || {
+        use tauri::api::process::CommandEvent;
+        while let Some(event) = rx.blocking_recv() {
+            match event {
+                CommandEvent::Stdout(line) => eprintln!("[nj-server] {}", line),
+                CommandEvent::Stderr(line) => eprintln!("[nj-server err] {}", line),
+                CommandEvent::Terminated(_) => break,
+                _ => {}
+            }
+        }
+    });
+
+    Ok(child)
+}
+
+#[tauri::command]
+async fn get_server_status() -> Result<bool, String> {
+    Ok(SIDECAR_READY.load(Ordering::Relaxed))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
-        .manage(Arc::new(Mutex::new(HashMap::<String, ShellSession>::new())))
+        .manage(Arc::new(Mutex::new(HashMap::<String, PtySession>::new())) as PtySessions)
+        .manage(Arc::new(Mutex::new(None::<tauri::api::process::CommandChild>)) as SidecarChild)
+        .setup(|app| {
+            let sidecar_state = app.state::<SidecarChild>().inner().clone();
+            let app_handle = app.handle();
+
+            std::thread::spawn(move || {
+                // Only spawn sidecar in production builds; in dev the server
+                // is started separately via `make server` or `make refresh`.
+                if cfg!(debug_assertions) {
+                    // In dev mode, just poll for an already-running server
+                    if wait_for_server_health(std::time::Duration::from_secs(10)) {
+                        SIDECAR_READY.store(true, Ordering::Relaxed);
+                        let _ = app_handle.emit_all("server-ready", true);
+                    } else {
+                        let _ = app_handle.emit_all("server-error", "Server not detected on port 8080. Start it with: make server");
+                    }
+                    return;
+                }
+
+                match spawn_sidecar() {
+                    Ok(child) => {
+                        *sidecar_state.lock().unwrap() = Some(child);
+
+                        if wait_for_server_health(std::time::Duration::from_secs(30)) {
+                            SIDECAR_READY.store(true, Ordering::Relaxed);
+                            let _ = app_handle.emit_all("server-ready", true);
+                        } else {
+                            let _ = app_handle.emit_all("server-error", "Server started but health check timed out");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to start sidecar: {}", e);
+                        let _ = app_handle.emit_all("server-error", e);
+                    }
+                }
+            });
+
+            Ok(())
+        })
+        .on_window_event(|event| {
+            if let tauri::WindowEvent::Destroyed = event.event() {
+                let sidecar = event.window().state::<SidecarChild>();
+                let child = sidecar.lock().unwrap().take();
+                if let Some(child) = child {
+                    let _ = child.kill();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             execute_command,
-            start_shell_session,
-            execute_in_session,
-            get_session_cwd,
+            create_pty_session,
+            write_pty_session,
+            resize_pty_session,
+            close_pty_session,
             open_markdown_preview,
             open_browser_window,
             close_browser_window,
@@ -488,7 +618,8 @@ fn main() {
             create_embedded_browser,
             update_browser_position,
             navigate_embedded_browser,
-            destroy_embedded_browser
+            destroy_embedded_browser,
+            get_server_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

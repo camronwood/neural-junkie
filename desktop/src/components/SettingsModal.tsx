@@ -3,6 +3,8 @@ import { useSettingsStore, type FontSizeScope } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
 import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings } from '../types/protocol';
+import { ProviderManager } from './ProviderManager';
+import { OllamaManager } from './OllamaManager';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -893,7 +895,17 @@ export function SettingsModal({ isOpen, onClose, testMode, setTestMode }: Settin
 
           {activeTab === 'ai-providers' && (
             <div className="space-y-8">
-              {/* Ollama Settings */}
+              {/* Dynamic Provider Registry */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <ProviderManager serverAddr="http://localhost:8080" />
+              </div>
+
+              {/* Ollama Lifecycle Management */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <OllamaManager serverAddr="http://localhost:8080" />
+              </div>
+
+              {/* Ollama Settings (legacy) */}
               <div className="border border-slack-border rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-slack-text">Ollama (Local LLM)</h3>

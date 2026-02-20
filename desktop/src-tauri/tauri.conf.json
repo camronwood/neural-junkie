@@ -19,7 +19,14 @@
       },
       "shell": {
         "all": false,
-        "open": true
+        "open": true,
+        "sidecar": true,
+        "scope": [
+          {
+            "name": "binaries/nj-server",
+            "sidecar": true
+          }
+        ]
       },
       "path": {
         "all": true
@@ -57,6 +64,9 @@
         "setCursorPosition": true,
         "setIgnoreCursorEvents": true,
         "startDragging": true
+      },
+      "process": {
+        "relaunch": true
       }
     },
     "bundle": {
@@ -69,10 +79,21 @@
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
+      ],
+      "externalBin": [
+        "binaries/nj-server"
       ]
     },
     "security": {
       "csp": null
+    },
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/camronwood/neural-junkie/releases/latest/download/update-{{target}}-{{arch}}.json"
+      ]
     },
     "windows": [
       {

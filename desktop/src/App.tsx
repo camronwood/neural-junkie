@@ -3,6 +3,9 @@ import { LoginScreen } from './components/LoginScreen';
 import { ChatWindow } from './components/ChatWindow';
 import { SettingsModal } from './components/SettingsModal';
 import { MarkdownPreview } from './components/MarkdownPreview';
+import { LoadingScreen } from './components/LoadingScreen';
+import { SetupWizard } from './components/SetupWizard';
+import { UpdateBanner } from './components/UpdateBanner';
 import { useSettingsStore } from './stores/settingsStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -10,10 +13,10 @@ import { useChatStore } from './stores/chatStore';
 import { loadCredentials } from './utils/secureStorage';
 import { ChatAPI } from './api/chatAPI';
 
-type AppView = 'login' | 'chat';
+type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
 
 function App() {
-  const [currentView, setCurrentView] = useState<AppView>('login');
+  const [phase, setPhase] = useState<AppPhase>('loading');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewParams, setPreviewParams] = useState<{ workspaceId: string; filePath: string } | null>(null);
@@ -22,43 +25,12 @@ function App() {
   const { togglePanel } = useTerminalStore();
   const { setUsername, setChannel, setServerAddr } = useChatStore();
 
+  const serverAddr = 'http://localhost:8080';
+
   // Load settings on app start
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
-
-  // Auto-login if credentials are saved
-  useEffect(() => {
-    const attemptAutoLogin = async () => {
-      try {
-        const savedCredentials = await loadCredentials();
-        if (savedCredentials) {
-          console.log('[App] Found saved credentials, attempting auto-login...');
-          
-          // Test server connection
-          const api = new ChatAPI(savedCredentials.serverAddr);
-          const connected = await api.testConnection();
-          
-          if (connected) {
-            // Set chat store state
-            setUsername(savedCredentials.username);
-            setChannel(savedCredentials.channel);
-            setServerAddr(savedCredentials.serverAddr);
-            
-            // Switch to chat view
-            setCurrentView('chat');
-            console.log('[App] Auto-login successful');
-          } else {
-            console.log('[App] Server connection failed, showing login screen');
-          }
-        }
-      } catch (error) {
-        console.error('[App] Auto-login failed:', error);
-      }
-    };
-
-    attemptAutoLogin();
-  }, [setUsername, setChannel, setServerAddr]);
 
   // Check for preview mode on mount
   useEffect(() => {
@@ -77,8 +49,6 @@ function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--app-font-size', `${settings.fontSize}px`);
-    
-    // Apply scope class to body
     document.body.className = `font-scope-${settings.fontSizeScope}`;
   }, [settings.fontSize, settings.fontSizeScope]);
 
@@ -88,21 +58,54 @@ function App() {
     onToggleTerminal: togglePanel,
   });
 
-  const handleConnect = () => {
-    setCurrentView('chat');
-  };
+  async function onServerReady() {
+    // Check if first-run setup is needed (no config.json yet)
+    try {
+      const resp = await fetch(`${serverAddr}/api/settings`);
+      if (resp.ok) {
+        const config = await resp.json();
+        // If no providers are configured, show setup wizard
+        if (!config.ai?.providers || config.ai.providers.length === 0) {
+          setPhase('setup');
+          return;
+        }
+      }
+    } catch {
+      // Config check failed, proceed to login
+    }
 
-  const handleOpenSettings = () => {
-    setIsSettingsOpen(true);
-  };
+    // Try auto-login
+    await attemptAutoLogin();
+  }
 
-  const handleCloseSettings = () => {
-    setIsSettingsOpen(false);
-  };
+  async function attemptAutoLogin() {
+    try {
+      const savedCredentials = await loadCredentials();
+      if (savedCredentials) {
+        const api = new ChatAPI(savedCredentials.serverAddr);
+        const connected = await api.testConnection();
+        if (connected) {
+          setUsername(savedCredentials.username);
+          setChannel(savedCredentials.channel);
+          setServerAddr(savedCredentials.serverAddr);
+          setPhase('chat');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('[App] Auto-login failed:', error);
+    }
+    setPhase('login');
+  }
 
-  const handleLogout = () => {
-    setCurrentView('login');
-  };
+  function onSetupComplete() {
+    attemptAutoLogin();
+  }
+
+  const handleConnect = () => setPhase('chat');
+  const handleOpenSettings = () => setIsSettingsOpen(true);
+  const handleCloseSettings = () => setIsSettingsOpen(false);
+  const handleLogout = () => setPhase('login');
 
   // Render preview mode if active
   if (isPreviewMode && previewParams) {
@@ -114,20 +117,30 @@ function App() {
     );
   }
 
+  if (phase === 'loading') {
+    return <LoadingScreen onReady={onServerReady} />;
+  }
+
+  if (phase === 'setup') {
+    return <SetupWizard onComplete={onSetupComplete} serverAddr={serverAddr} />;
+  }
+
   return (
-    <div className="w-full h-screen overflow-hidden">
-      {currentView === 'login' ? (
-        <LoginScreen onConnect={handleConnect} />
-      ) : (
-        <ChatWindow 
-          onOpenSettings={handleOpenSettings} 
-          onLogout={handleLogout}
-          testMode={testMode}
-          setTestMode={setTestMode}
-        />
-      )}
+    <div className="w-full h-screen overflow-hidden flex flex-col">
+      <UpdateBanner />
+      <div className="flex-1 overflow-hidden">
+        {phase === 'login' ? (
+          <LoginScreen onConnect={handleConnect} />
+        ) : (
+          <ChatWindow 
+            onOpenSettings={handleOpenSettings} 
+            onLogout={handleLogout}
+            testMode={testMode}
+            setTestMode={setTestMode}
+          />
+        )}
+      </div>
       
-      {/* Settings Modal */}
       <SettingsModal 
         isOpen={isSettingsOpen} 
         onClose={handleCloseSettings}
@@ -139,4 +152,3 @@ function App() {
 }
 
 export default App;
-
