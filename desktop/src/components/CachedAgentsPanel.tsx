@@ -102,6 +102,11 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           const spaceKey = agent.metadata?.space_key || agent.path;
           command = `/create-confluence-agent ${spaceKey} ${agent.name}`;
           break;
+        case 'cli':
+          const cliType = agent.metadata?.cli_type || 'cursor';
+          const cliWorkDir = agent.path || '';
+          command = `/create-cli-agent ${cliType} ${agent.name}${cliWorkDir ? ' ' + cliWorkDir : ''}`;
+          break;
         default:
           console.error('Unknown agent type:', agent.type);
           return;
@@ -150,6 +155,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'repo': return '#52b6ef';
       case 'helper': return '#af77ca';
       case 'confluence': return '#f09348';
+      case 'cli': return '#9ece6a';
       case 'rust': return '#dea584';
       case 'frontend': return '#52b6ef';
       case 'backend': return '#af77ca';
@@ -165,6 +171,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'repo': return '📁';
       case 'helper': return '🤖';
       case 'confluence': return '📚';
+      case 'cli': return '⌨️';
       case 'rust': return '🦀';
       case 'frontend': return '🎨';
       case 'backend': return '⚙️';

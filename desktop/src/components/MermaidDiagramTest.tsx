@@ -4,15 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import mermaid from 'mermaid';
-
-// Initialize mermaid
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  fontFamily: 'ui-monospace, monospace',
-});
+import { renderMermaidSvg } from '../utils/mermaidConfig';
 
 const WIDE_DIAGRAM = `graph TB
     subgraph "Client Layer"
@@ -96,8 +88,7 @@ export function MermaidDiagramTest() {
       try {
         containerRef.current.innerHTML = '';
 
-        const id = `test-mermaid-${Date.now()}`;
-        const { svg } = await mermaid.render(id, WIDE_DIAGRAM);
+        const svg = await renderMermaidSvg(WIDE_DIAGRAM);
         containerRef.current.innerHTML = svg;
 
         const svgElement = containerRef.current.querySelector('svg');

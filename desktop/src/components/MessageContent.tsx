@@ -1,21 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import mermaid from 'mermaid';
+import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
 import { getContentHash } from '../utils/markdownRenderer';
 
 interface MessageContentProps {
   content: string;
 }
-
-// Initialize mermaid with configuration
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  fontFamily: 'ui-monospace, monospace',
-});
 
 interface ContentPart {
   type: 'text' | 'code' | 'mermaid';
@@ -181,10 +173,6 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
   const [isRendering, setIsRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  
-  // Create stable ID based on content hash
-  const contentHash = getContentHash(content);
-  const idRef = useRef(`mermaid-${contentHash}-${Math.random().toString(36).substr(2, 9)}`);
 
   const renderDiagram = async () => {
     if (!containerRef.current) return;
@@ -193,29 +181,14 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
     setRenderError(null);
     
     try {
-      // Clear previous content
       containerRef.current.innerHTML = '';
-      
-      // Render the diagram
-      const { svg } = await mermaid.render(idRef.current, content);
+      const svg = await renderMermaidSvg(content);
       containerRef.current.innerHTML = svg;
-      setRetryCount(0); // Reset retry count on success
+      setRetryCount(0);
     } catch (error) {
       console.error('Mermaid rendering error:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       setRenderError(errorMessage);
-      containerRef.current.innerHTML = `
-        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
-          <strong>Mermaid Diagram Error:</strong>
-          <pre class="mt-2 text-xs">${errorMessage}</pre>
-          <button 
-            class="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-xs transition-colors"
-            onclick="this.closest('.mermaid-diagram').querySelector('.retry-button').click()"
-          >
-            Retry
-          </button>
-        </div>
-      `;
     } finally {
       setIsRendering(false);
     }
@@ -238,28 +211,31 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
 
   return (
     <div className="mermaid-diagram">
-      <div
-        ref={containerRef}
-        className="my-3 p-4 bg-slack-bgHover rounded border border-slack-border overflow-x-auto cursor-pointer hover:bg-slack-accent/10 transition-colors"
-        onClick={handleClick}
-        title={renderError ? "Diagram failed to render" : "Click to expand diagram"}
-      />
+      {renderError ? (
+        <div className="my-3 p-4 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
+          <strong>Mermaid Diagram Error:</strong>
+          <pre className="mt-2 text-xs whitespace-pre-wrap">{renderError}</pre>
+          <button
+            className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 rounded text-xs transition-colors"
+            onClick={handleRetry}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="my-3 p-4 bg-slack-bgHover rounded border border-slack-border overflow-x-auto cursor-pointer hover:bg-slack-accent/10 transition-colors"
+          onClick={handleClick}
+          title="Click to expand diagram"
+        />
+      )}
       {isRendering && (
         <div className="absolute inset-0 flex items-center justify-center bg-slack-bgHover/80 rounded">
           <div className="flex items-center gap-2 text-slack-text">
             <div className="w-4 h-4 border-2 border-slack-accent border-t-transparent rounded-full animate-spin"></div>
             <span className="text-sm">Rendering diagram...</span>
           </div>
-        </div>
-      )}
-      {renderError && (
-        <div className="mt-2 flex justify-center">
-          <button
-            className="retry-button px-3 py-1 bg-slack-accent hover:bg-slack-accentHover text-white rounded text-sm transition-colors"
-            onClick={handleRetry}
-          >
-            Retry Render
-          </button>
         </div>
       )}
     </div>

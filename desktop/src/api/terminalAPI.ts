@@ -11,104 +11,57 @@ export interface CommandResult {
   success: boolean;
 }
 
-export interface CommandRequest {
-  command: string;
-  working_dir?: string;
+export interface PtyOutputPayload {
+  id: string;
+  data: string;
 }
 
 export class TerminalAPI {
   private eventListeners: (() => void)[] = [];
 
-  /**
-   * Execute a shell command
-   */
+  // ── PTY session methods ───────────────────────────────────────────
+
+  async createPtySession(
+    id: string,
+    cwd?: string,
+    cols?: number,
+    rows?: number
+  ): Promise<void> {
+    await invoke('create_pty_session', { id, cwd: cwd ?? null, cols: cols ?? null, rows: rows ?? null });
+  }
+
+  async writePtySession(id: string, data: string): Promise<void> {
+    await invoke('write_pty_session', { id, data });
+  }
+
+  async resizePtySession(id: string, cols: number, rows: number): Promise<void> {
+    await invoke('resize_pty_session', { id, cols, rows });
+  }
+
+  async closePtySession(id: string): Promise<void> {
+    await invoke('close_pty_session', { id });
+  }
+
+  async onPtyOutput(callback: (payload: PtyOutputPayload) => void): Promise<() => void> {
+    const unlisten = await listen<PtyOutputPayload>('pty-output', (event) => {
+      callback(event.payload);
+    });
+    this.eventListeners.push(unlisten);
+    return unlisten;
+  }
+
+  // ── One-off command execution (suggestions) ───────────────────────
+
   async executeCommand(
     command: string,
     workingDir?: string
   ): Promise<CommandResult> {
-    try {
-      const result = await invoke<CommandResult>('execute_command', {
-        command,
-        workingDir,
-      });
-      return result;
-    } catch (error) {
-      throw new Error(`Failed to execute command: ${error}`);
-    }
-  }
-
-  /**
-   * Start a persistent shell session
-   */
-  async startShellSession(): Promise<void> {
-    try {
-      await invoke('start_shell_session');
-    } catch (error) {
-      throw new Error(`Failed to start shell session: ${error}`);
-    }
-  }
-
-  /**
-   * Execute a command in the active shell session
-   */
-  async executeInSession(command: string): Promise<void> {
-    try {
-      await invoke('execute_in_session', { command });
-    } catch (error) {
-      throw new Error(`Failed to execute command in session: ${error}`);
-    }
-  }
-
-  /**
-   * Get current working directory of the shell session
-   */
-  async getCurrentWorkingDir(): Promise<string> {
-    try {
-      return await invoke<string>('get_session_cwd');
-    } catch (error) {
-      throw new Error(`Failed to get working directory: ${error}`);
-    }
-  }
-
-  /**
-   * Listen for command execution events
-   */
-  async onCommandExecuted(callback: (result: CommandResult) => void): Promise<() => void> {
-    const unlisten = await listen<CommandResult>('command-executed', (event) => {
-      callback(event.payload);
+    return invoke<CommandResult>('execute_command', {
+      command,
+      workingDir: workingDir ?? null,
     });
-
-    this.eventListeners.push(unlisten);
-    return unlisten;
   }
 
-  /**
-   * Listen for shell output events
-   */
-  async onShellOutput(callback: (output: string) => void): Promise<() => void> {
-    const unlisten = await listen<string>('shell-output', (event) => {
-      callback(event.payload);
-    });
-
-    this.eventListeners.push(unlisten);
-    return unlisten;
-  }
-
-  /**
-   * Listen for shell error events
-   */
-  async onShellError(callback: (error: string) => void): Promise<() => void> {
-    const unlisten = await listen<string>('shell-error', (event) => {
-      callback(event.payload);
-    });
-
-    this.eventListeners.push(unlisten);
-    return unlisten;
-  }
-
-  /**
-   * Clean up all event listeners
-   */
   cleanup(): void {
     this.eventListeners.forEach((unlisten) => unlisten());
     this.eventListeners = [];

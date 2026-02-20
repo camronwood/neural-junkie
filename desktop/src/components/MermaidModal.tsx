@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import mermaid from 'mermaid';
+import { renderMermaidSvg } from '../utils/mermaidConfig';
 
 interface MermaidModalProps {
   isOpen: boolean;
@@ -16,7 +16,6 @@ export function MermaidModal({ isOpen, onClose, content }: MermaidModalProps) {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const diagramRef = useRef<HTMLDivElement>(null);
-  const idRef = useRef(`mermaid-modal-${Math.random().toString(36).substr(2, 9)}`);
   const fullScreenScaleRef = useRef<number>(1);
 
   // Handle ESC key
@@ -48,7 +47,7 @@ export function MermaidModal({ isOpen, onClose, content }: MermaidModalProps) {
           diagramRef.current!.innerHTML = '';
           
           // Render the diagram
-          const { svg } = await mermaid.render(idRef.current, content);
+          const svg = await renderMermaidSvg(content);
           diagramRef.current!.innerHTML = svg;
           
           // Wait for next frame to ensure SVG is rendered and measurable

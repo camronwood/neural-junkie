@@ -135,6 +135,39 @@ export function parseMarkdownWithMermaid(content: string): MarkdownParseResult {
   };
 }
 
+export type MarkdownSegment =
+  | { type: 'markdown'; content: string }
+  | { type: 'mermaid'; content: string };
+
+/**
+ * Split raw markdown into alternating markdown / mermaid segments
+ * **before** any marked/DOMPurify processing. This avoids the fragile
+ * placeholder-in-HTML approach entirely.
+ */
+export function splitMarkdownAndMermaid(raw: string): MarkdownSegment[] {
+  const mermaidRegex = /```\s*mermaid\s*(\r?\n|\r)([\s\S]*?)```/gi;
+  const segments: MarkdownSegment[] = [];
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = mermaidRegex.exec(raw)) !== null) {
+    if (match.index > cursor) {
+      segments.push({ type: 'markdown', content: raw.slice(cursor, match.index) });
+    }
+    const mermaidContent = match[2].trim();
+    if (mermaidContent.length > 0) {
+      segments.push({ type: 'mermaid', content: mermaidContent });
+    }
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < raw.length) {
+    segments.push({ type: 'markdown', content: raw.slice(cursor) });
+  }
+
+  return segments;
+}
+
 export function extractTitle(content: string): string {
   // Extract first heading (h1) from markdown content
   const lines = content.split('\n');

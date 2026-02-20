@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useChatStore } from '../stores/chatStore';
-import { useTerminalStore } from '../stores/terminalStore';
+import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
@@ -24,7 +24,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
-import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon } from './Icons';
+import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, RightSidebarIcon } from './Icons';
 import type { Message, ThinkingStatusMetadata, CommandDefinition } from '../types/protocol';
 
 interface ChatWindowProps {
@@ -79,6 +79,14 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
 
+  // Sidebar visibility
+  const [channelSidebarOpen, setChannelSidebarOpen] = useState<boolean>(() => {
+    return localStorage.getItem('channel-sidebar-open') !== 'false';
+  });
+  const [agentSidebarOpen, setAgentSidebarOpen] = useState<boolean>(() => {
+    return localStorage.getItem('agent-sidebar-open') !== 'false';
+  });
+
   // State for create channel modal
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
 
@@ -96,6 +104,29 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
   useEffect(() => {
     localStorage.removeItem('main-chat-area-width');
   }, []);
+
+  // Keyboard shortcuts for sidebar toggles
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey && !e.shiftKey && e.key === 'b') {
+        e.preventDefault();
+        setChannelSidebarOpen((prev) => {
+          const next = !prev;
+          localStorage.setItem('channel-sidebar-open', String(next));
+          return next;
+        });
+      } else if (e.metaKey && e.shiftKey && e.key === 'b') {
+        e.preventDefault();
+        setAgentSidebarOpen((prev) => {
+          const next = !prev;
+          localStorage.setItem('agent-sidebar-open', String(next));
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   
   // State for test mode - use prop if provided, otherwise local state
   const [localTestMode, setLocalTestMode] = useState(false);
@@ -110,6 +141,9 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
   
   // Ref to access RichTextInput methods
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Track whether the initial join message has been sent this session
+  const hasJoinedRef = useRef(false);
 
   // Load layout settings on mount
   useEffect(() => {
@@ -295,6 +329,15 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
             addSuggestedCommand(suggestion);
           });
         }
+
+        // Handle agent-open-terminal events
+        if (message.metadata?.event === 'agent-open-terminal') {
+          const agentName = message.metadata.agent_name as string || 'Agent';
+          const cwd = message.metadata.cwd as string || undefined;
+          const tab = createNewTab('agent', agentName, cwd);
+          useTerminalStore.getState().addTab(tab);
+          useTerminalStore.getState().setPanelOpen(true);
+        }
       }
       
       // Clear thinking indicator when agent sends actual message
@@ -339,15 +382,18 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
         console.error('Failed to load command definitions:', err);
       }
 
-      // Send join message
-      setTimeout(async () => {
-        await api.sendMessage(
-          channel,
-          `${username} has joined the chat`,
-          { name: username, type: 'human' },
-          'system_info'
-        );
-      }, 500);
+      // Send join message only once per session (not on every channel switch)
+      if (!hasJoinedRef.current) {
+        hasJoinedRef.current = true;
+        setTimeout(async () => {
+          await api.sendMessage(
+            channel,
+            `${username} has joined the chat`,
+            { name: username, type: 'human' },
+            'system_info'
+          );
+        }, 500);
+      }
     } catch (error) {
       console.error('Failed to load initial data:', error);
     }
@@ -540,6 +586,40 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
         
         <div className="flex items-center gap-1">
           <button
+            onClick={() => {
+              const next = !channelSidebarOpen;
+              setChannelSidebarOpen(next);
+              localStorage.setItem('channel-sidebar-open', String(next));
+            }}
+            className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
+              channelSidebarOpen
+                ? 'bg-slack-accent text-white'
+                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
+            }`}
+            title="Toggle channels sidebar (⌘B)"
+          >
+            <LeftSidebarIcon className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => {
+              const next = !agentSidebarOpen;
+              setAgentSidebarOpen(next);
+              localStorage.setItem('agent-sidebar-open', String(next));
+            }}
+            className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
+              agentSidebarOpen
+                ? 'bg-slack-accent text-white'
+                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
+            }`}
+            title="Toggle agents sidebar"
+          >
+            <RightSidebarIcon className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="w-px h-5 bg-slack-border mx-0.5" />
+
+          <button
             onClick={openCommandPalette}
             className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold"
             title="Command palette"
@@ -653,13 +733,15 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Channel Sidebar */}
-        <ChannelSidebar
-          channels={channels}
-          agents={agents}
-          onSwitchChannel={handleSwitchChannel}
-          onCreateChannel={() => setCreateChannelOpen(true)}
-          onCreateDM={handleCreateDM}
-        />
+        {channelSidebarOpen && (
+          <ChannelSidebar
+            channels={channels}
+            agents={agents}
+            onSwitchChannel={handleSwitchChannel}
+            onCreateChannel={() => setCreateChannelOpen(true)}
+            onCreateDM={handleCreateDM}
+          />
+        )}
 
         {/* File Explorer Panel - slides in from left */}
         {fileExplorerOpen && (
@@ -738,13 +820,15 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
 
 
         {/* Sidebar - Agent List */}
-        <AgentList 
-          agents={agents} 
-          onRefresh={loadAgents}
-          onAgentClick={handleAgentClick}
-          onRemoveAgent={handleRemoveAgent}
-          onExportAgent={handleExportAgent}
-        />
+        {agentSidebarOpen && (
+          <AgentList 
+            agents={agents} 
+            onRefresh={loadAgents}
+            onAgentClick={handleAgentClick}
+            onRemoveAgent={handleRemoveAgent}
+            onExportAgent={handleExportAgent}
+          />
+        )}
       </div>
 
       {/* Terminal Panel - slides up from bottom */}

@@ -197,6 +197,11 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           const spaceKey = agent.metadata?.space_key || agent.path;
           command = `/create-confluence-agent ${spaceKey} ${agent.name}`;
           break;
+        case 'cli':
+          const cliType = agent.metadata?.cli_type || 'cursor';
+          const workDir = agent.path || '';
+          command = `/create-cli-agent ${cliType} ${agent.name}${workDir ? ' ' + workDir : ''}`;
+          break;
         default:
           console.error('Unknown agent type:', agent.type);
           return;

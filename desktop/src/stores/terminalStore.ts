@@ -11,22 +11,12 @@ export interface CommandSuggestion {
   created_at: string;
 }
 
-export interface TerminalCommand {
+export interface TerminalTab {
   id: string;
-  command: string;
-  status: 'pending' | 'executing' | 'completed' | 'failed';
-  exit_code: number;
-  stdout: string;
-  stderr: string;
-  duration_ms: number;
-  started_at: string;
-  ended_at?: string;
-}
-
-export interface ConsoleOutput {
-  type: 'command' | 'stdout' | 'stderr' | 'system';
-  content: string;
-  timestamp: string;
+  label: string;
+  type: 'user' | 'agent';
+  agentName?: string;
+  cwd: string;
 }
 
 interface TerminalStore {
@@ -35,43 +25,76 @@ interface TerminalStore {
   togglePanel: () => void;
   setPanelOpen: (open: boolean) => void;
 
-  // Command suggestions
+  // Panel height (for resizing)
+  panelHeight: number;
+  setPanelHeight: (height: number) => void;
+
+  // Tabs
+  tabs: TerminalTab[];
+  activeTabId: string;
+  addTab: (tab: TerminalTab) => void;
+  removeTab: (id: string) => void;
+  setActiveTab: (id: string) => void;
+  renameTab: (id: string, label: string) => void;
+
+  // Command suggestions (shown as inline banner)
   suggestedCommands: CommandSuggestion[];
   addSuggestedCommand: (suggestion: CommandSuggestion) => void;
   removeSuggestedCommand: (id: string) => void;
   clearSuggestedCommands: () => void;
 
-  // Command history
-  commandHistory: TerminalCommand[];
-  addCommand: (command: TerminalCommand) => void;
-  updateCommand: (id: string, updates: Partial<TerminalCommand>) => void;
-  clearHistory: () => void;
-
-  // Currently executing command
-  executingCommand: TerminalCommand | null;
-  setExecutingCommand: (command: TerminalCommand | null) => void;
-
-  // Panel height (for resizing)
-  panelHeight: number;
-  setPanelHeight: (height: number) => void;
-
-  // Console state
-  consoleHistory: string[];
-  consoleHistoryIndex: number;
-  consoleOutput: ConsoleOutput[];
-  currentWorkingDir: string;
-  addConsoleCommand: (command: string) => void;
-  addConsoleOutput: (type: ConsoleOutput['type'], content: string) => void;
-  clearConsoleOutput: () => void;
-  setCurrentWorkingDir: (dir: string) => void;
-  navigateHistory: (direction: 'up' | 'down') => string | null;
+  // Legacy fields kept for backward compat during transition
+  commandHistory: never[];
+  executingCommand: null;
 }
+
+let tabCounter = 1;
 
 export const useTerminalStore = create<TerminalStore>((set) => ({
   // Panel state
   isPanelOpen: false,
   togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
   setPanelOpen: (open) => set({ isPanelOpen: open }),
+
+  // Panel height
+  panelHeight: 300,
+  setPanelHeight: (height) => set({ panelHeight: height }),
+
+  // Tabs
+  tabs: [{ id: 'tab-0', label: 'Terminal', type: 'user' as const, cwd: '~' }],
+  activeTabId: 'tab-0',
+
+  addTab: (tab) =>
+    set((state) => ({
+      tabs: [...state.tabs, tab],
+      activeTabId: tab.id,
+    })),
+
+  removeTab: (id) =>
+    set((state) => {
+      const remaining = state.tabs.filter((t) => t.id !== id);
+      if (remaining.length === 0) {
+        const newTab: TerminalTab = {
+          id: `tab-${++tabCounter}`,
+          label: 'Terminal',
+          type: 'user',
+          cwd: '~',
+        };
+        return { tabs: [newTab], activeTabId: newTab.id };
+      }
+      const activeGone = state.activeTabId === id;
+      return {
+        tabs: remaining,
+        activeTabId: activeGone ? remaining[remaining.length - 1].id : state.activeTabId,
+      };
+    }),
+
+  setActiveTab: (id) => set({ activeTabId: id }),
+
+  renameTab: (id, label) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === id ? { ...t, label } : t)),
+    })),
 
   // Command suggestions
   suggestedCommands: [],
@@ -85,66 +108,13 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
     })),
   clearSuggestedCommands: () => set({ suggestedCommands: [] }),
 
-  // Command history
+  // Legacy stubs
   commandHistory: [],
-  addCommand: (command) =>
-    set((state) => ({
-      commandHistory: [...state.commandHistory, command],
-    })),
-  updateCommand: (id, updates) =>
-    set((state) => ({
-      commandHistory: state.commandHistory.map((cmd) =>
-        cmd.id === id ? { ...cmd, ...updates } : cmd
-      ),
-    })),
-  clearHistory: () => set({ commandHistory: [] }),
-
-  // Currently executing command
   executingCommand: null,
-  setExecutingCommand: (command) => set({ executingCommand: command }),
-
-  // Panel height
-  panelHeight: 300, // Default height in pixels
-  setPanelHeight: (height) => set({ panelHeight: height }),
-
-  // Console state
-  consoleHistory: [],
-  consoleHistoryIndex: -1,
-  consoleOutput: [],
-  currentWorkingDir: '~',
-  addConsoleCommand: (command) =>
-    set((state) => ({
-      consoleHistory: [...state.consoleHistory, command],
-      consoleHistoryIndex: state.consoleHistory.length,
-    })),
-  addConsoleOutput: (type, content) =>
-    set((state) => ({
-      consoleOutput: [
-        ...state.consoleOutput,
-        {
-          type,
-          content,
-          timestamp: new Date().toISOString(),
-        },
-      ],
-    })),
-  clearConsoleOutput: () => set({ consoleOutput: [] }),
-  setCurrentWorkingDir: (dir) => set({ currentWorkingDir: dir }),
-  navigateHistory: (direction: 'up' | 'down'): string | null => {
-    const state = useTerminalStore.getState();
-    let newIndex = state.consoleHistoryIndex;
-    
-    if (direction === 'up') {
-      newIndex = Math.max(0, newIndex - 1);
-    } else {
-      newIndex = Math.min(state.consoleHistory.length, newIndex + 1);
-    }
-    
-    set({ consoleHistoryIndex: newIndex });
-    
-    if (newIndex >= 0 && newIndex < state.consoleHistory.length) {
-      return state.consoleHistory[newIndex];
-    }
-    return null;
-  },
 }));
+
+export function createNewTab(type: 'user' | 'agent' = 'user', agentName?: string, cwd?: string): TerminalTab {
+  const id = `tab-${++tabCounter}`;
+  const label = type === 'agent' && agentName ? agentName : 'Terminal';
+  return { id, label, type, agentName, cwd: cwd ?? '~' };
+}
