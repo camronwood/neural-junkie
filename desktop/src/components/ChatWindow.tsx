@@ -130,8 +130,10 @@ export function ChatWindow({ onOpenSettings, onLogout, testMode: propTestMode, s
   
   // State for test mode - use prop if provided, otherwise local state
   const [localTestMode, setLocalTestMode] = useState(false);
-  const testMode = propTestMode !== undefined ? propTestMode : localTestMode;
-  const setTestMode = propSetTestMode || setLocalTestMode;
+  const _testMode = propTestMode !== undefined ? propTestMode : localTestMode;
+  const _setTestMode = propSetTestMode || setLocalTestMode;
+  void _testMode;
+  void _setTestMode;
 
   const [api] = useState(() => new ChatAPI(serverAddr));
   const wsURL = api.getWebSocketURL(channel);

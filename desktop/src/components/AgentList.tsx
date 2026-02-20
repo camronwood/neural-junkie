@@ -194,31 +194,6 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
     }
   };
 
-  const getProviderIcon = (provider?: string) => {
-    switch (provider) {
-      case 'ollama':
-        return '🤖';
-      case 'claude':
-        return '🧠';
-      case 'lmstudio':
-        return '🎨';
-      default:
-        return '❓';
-    }
-  };
-
-  const getProviderColor = (provider?: string) => {
-    switch (provider) {
-      case 'ollama':
-        return 'text-blue-500';
-      case 'claude':
-        return 'text-purple-500';
-      case 'lmstudio':
-        return 'text-green-500';
-      default:
-        return 'text-gray-500';
-    }
-  };
   
   return (
     <div className="flex h-full bg-slack-bg border-l border-slack-border relative flex-shrink-0" style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}>

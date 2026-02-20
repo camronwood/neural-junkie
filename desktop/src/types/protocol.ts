@@ -29,10 +29,11 @@ export type AgentType =
   | 'repo'
   | 'helper'
   | 'confluence'
-  | 'moderator'  // System moderator agent
-  | 'assistant'  // Personal assistant agent
-  | 'cli'        // CLI-backed agents (Cursor, Gemini, etc.)
-  | 'human'; // Added for human users
+  | 'moderator'
+  | 'assistant'
+  | 'cli'
+  | 'loading'
+  | 'human';
 
 export type AIProviderType = 'claude' | 'ollama' | 'lmstudio';
 
@@ -198,6 +199,8 @@ export function getAgentColor(type: AgentType): string {
       return '#10b981'; // Green for assistant
     case 'human':
       return '#148567'; // Green
+    case 'loading':
+      return '#3b82f6'; // Blue
     default:
       return '#a9b9ba'; // Gray
   }
