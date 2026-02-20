@@ -19,8 +19,10 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
 	"github.com/gorilla/websocket"
@@ -35,6 +37,9 @@ var (
 	}
 	chatHub          *hub.Hub
 	workspaceManager *hub.WorkspaceManager
+	appConfig        *config.Config
+	serverStartTime  time.Time
+	ollamaMgr        *ollamaManager.Manager
 )
 
 // CORS middleware to allow requests from Tauri dev server
@@ -58,11 +63,27 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 func main() {
 	flag.Parse()
+	serverStartTime = time.Now()
+
+	// Load application config (falls back to defaults if no config.json exists)
+	var err error
+	appConfig, err = config.Load()
+	if err != nil {
+		log.Printf("⚠️  Failed to load config, using defaults: %v", err)
+		appConfig = config.DefaultConfig()
+	}
+
+	// Override addr flag from config if not explicitly set via CLI
+	if appConfig.Server.Port != 0 {
+		defaultAddr := fmt.Sprintf(":%d", appConfig.Server.Port)
+		if *addr == ":8080" {
+			*addr = defaultAddr
+		}
+	}
 
 	chatHub = hub.NewHub()
 
 	// Initialize workspace manager
-	var err error
 	workspaceManager, err = hub.NewWorkspaceManager()
 	if err != nil {
 		log.Fatal("Failed to initialize workspace manager:", err)
@@ -81,6 +102,16 @@ func main() {
 	// Initialize CLI agents (e.g. Cursor) if configured
 	initializeCLIAgents()
 
+	// Initialize Ollama manager
+	ollamaEndpoint := ""
+	if p := appConfig.GetProvider(appConfig.AI.DefaultProviderID); p != nil && p.Type == "ollama" {
+		ollamaEndpoint = p.Endpoint
+	}
+	ollamaMgr = ollamaManager.NewManager(ollamaEndpoint)
+
+	// Initialize specialist agents from config (replaces standalone processes)
+	initializeConfiguredAgents()
+
 	// HTTP routes with CORS middleware
 	http.HandleFunc("/ws", handleWebSocket) // WebSocket already handles origin
 	http.HandleFunc("/api/channels", corsMiddleware(handleChannels))
@@ -95,6 +126,7 @@ func main() {
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
+	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
 	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
 	http.HandleFunc("/api/import", corsMiddleware(handleImport))    // Import agent endpoint
 
@@ -132,6 +164,19 @@ func main() {
 	http.HandleFunc("/api/tool-approvals/approve/", corsMiddleware(handleApproveToolCall))
 	http.HandleFunc("/api/tool-approvals/reject/", corsMiddleware(handleRejectToolCall))
 	http.HandleFunc("/api/tool-approvals/pending", corsMiddleware(handlePendingToolApprovals))
+
+	// Application config and health endpoints
+	http.HandleFunc("/api/health", corsMiddleware(handleHealth))
+	http.HandleFunc("/api/settings", corsMiddleware(handleSettings))
+	http.HandleFunc("/api/agents/configured", corsMiddleware(handleConfiguredAgents))
+	http.HandleFunc("/api/agents/restart", corsMiddleware(handleRestartAgents))
+	http.HandleFunc("/api/providers", corsMiddleware(handleProviders))
+	http.HandleFunc("/api/providers/", corsMiddleware(handleProviderByID))
+	http.HandleFunc("/api/ollama/install-status", corsMiddleware(handleOllamaInstallStatus))
+	http.HandleFunc("/api/ollama/install", corsMiddleware(handleOllamaInstall))
+	http.HandleFunc("/api/ollama/start", corsMiddleware(handleOllamaStart))
+	http.HandleFunc("/api/ollama/stop", corsMiddleware(handleOllamaStop))
+	http.HandleFunc("/api/ollama/pull", corsMiddleware(handleOllamaPull))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -852,6 +897,26 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+// handleBroadcastDirect accepts a message and broadcasts it to channel
+// subscribers WITHOUT storing it or running it through the SendMessage
+// pipeline (mentions, commands, path detection). This is used by external
+// agents to deliver stream_delta / stream_end tokens with minimal overhead.
+func handleBroadcastDirect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var msg protocol.Message
+	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	chatHub.BroadcastDirect(msg.Channel, &msg)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	// Try to decode as full message first (for agents)
 	var fullMsg protocol.Message
@@ -1239,47 +1304,67 @@ func initializeCLIAgents() {
 		return
 	}
 
-	// --- Cursor CLI Agent ---
-	initCursorCLIAgent(defaultWorkDir)
-
-	// --- Gemini CLI Agent ---
-	initGeminiCLIAgent(defaultWorkDir)
+	for _, cliType := range agent.ListCLIAgentTypes() {
+		cfg, _ := agent.GetCLIAgentConfig(cliType)
+		initCLIAgentFromConfig(cfg, defaultWorkDir)
+	}
 }
 
-func initCursorCLIAgent(defaultWorkDir string) {
-	log.Println("🤖 Checking for Cursor CLI agent...")
+func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
+	log.Printf("🤖 Checking for %s CLI agent (%s)...", cfg.DefaultName, cfg.Command)
 
-	workDir := os.Getenv("CURSOR_WORK_DIR")
-	if workDir == "" {
-		workDir = defaultWorkDir
+	workDir := defaultWorkDir
+	if cfg.WorkDirEnv != "" {
+		if envDir := os.Getenv(cfg.WorkDirEnv); envDir != "" {
+			workDir = envDir
+		}
 	}
 
-	cursorAPIKey := os.Getenv("CURSOR_API_KEY")
-	cursorProvider := ai.NewCursorCLIProvider(workDir, cursorAPIKey)
+	opts := []ai.CLIAgentOption{
+		ai.WithBaseArgs(cfg.BaseArgs),
+		ai.WithModel(cfg.ModelName),
+	}
+	provider := ai.NewCLIAgentProvider(cfg.Command, workDir, cfg.ProviderName, opts...)
 
-	if !cursorProvider.IsCLIInstalled() {
-		log.Println("ℹ️  Cursor CLI ('agent') not found on PATH — skipping. Install it with: curl https://cursor.com/install -fsS | bash")
+	// Forward configured env vars
+	for _, envKey := range cfg.EnvVars {
+		if val := os.Getenv(envKey); val != "" {
+			provider.Env[envKey] = val
+		}
+	}
+
+	if !provider.IsCLIInstalled() {
+		log.Printf("ℹ️  %s CLI ('%s') not found on PATH — skipping. %s", cfg.DefaultName, cfg.Command, cfg.InstallHint)
 		return
 	}
 
-	log.Println("✅ Cursor CLI binary found, initializing agent...")
+	log.Printf("✅ %s CLI binary found, initializing agent...", cfg.DefaultName)
 
-	cursorAgent := agent.NewCursorCLIAgent("Cursor", cursorProvider, chatHub)
+	// Gemini-specific: configure tool approval hook
+	if cfg.Type == "gemini" {
+		configureGeminiApprovalHook()
+	}
 
-	if err := chatHub.RegisterAgent(&cursorAgent.Info); err != nil {
-		log.Printf("❌ Failed to register Cursor CLI agent: %v", err)
+	cliAgent := agent.NewCLIAgentFromConfig(cfg, cfg.DefaultName, provider, chatHub)
+
+	if cfg.ApprovalMode != "" {
+		cliAgent.Info.ApprovalMode = cfg.ApprovalMode
+	}
+
+	if err := chatHub.RegisterAgent(&cliAgent.Info); err != nil {
+		log.Printf("❌ Failed to register %s CLI agent: %v", cfg.DefaultName, err)
 		return
 	}
 
-	if err := chatHub.JoinChannel(cursorAgent.Info.ID, "general"); err != nil {
-		log.Printf("❌ Failed to join Cursor agent to general channel: %v", err)
+	if err := chatHub.JoinChannel(cliAgent.Info.ID, "general"); err != nil {
+		log.Printf("❌ Failed to join %s agent to general channel: %v", cfg.DefaultName, err)
 		return
 	}
 
 	ctx := context.Background()
 	go func() {
-		if err := cursorAgent.Start(ctx, "general"); err != nil {
-			log.Printf("❌ Failed to start Cursor CLI agent: %v", err)
+		if err := cliAgent.Start(ctx, "general"); err != nil {
+			log.Printf("❌ Failed to start %s CLI agent: %v", cfg.DefaultName, err)
 			return
 		}
 	}()
@@ -1287,68 +1372,14 @@ func initCursorCLIAgent(defaultWorkDir string) {
 	joinMsg := protocol.NewMessage(
 		protocol.MessageTypeAgentJoin,
 		"general",
-		cursorAgent.Info,
-		"Cursor CLI agent online. I can analyze codebases, generate code, refactor, and run shell commands using Cursor's agent capabilities. @mention me to get started.",
+		cliAgent.Info,
+		cfg.JoinMessage,
 	)
 	if err := chatHub.SendMessage(joinMsg); err != nil {
-		log.Printf("⚠️  Failed to send Cursor agent join message: %v", err)
+		log.Printf("⚠️  Failed to send %s agent join message: %v", cfg.DefaultName, err)
 	}
 
-	log.Printf("✅ Cursor CLI agent started (workDir: %s)", workDir)
-}
-
-func initGeminiCLIAgent(defaultWorkDir string) {
-	log.Println("🤖 Checking for Gemini CLI agent...")
-
-	workDir := os.Getenv("GEMINI_WORK_DIR")
-	if workDir == "" {
-		workDir = defaultWorkDir
-	}
-
-	geminiProvider := ai.NewGeminiCLIProvider(workDir)
-
-	if !geminiProvider.IsCLIInstalled() {
-		log.Println("ℹ️  Gemini CLI ('gemini') not found on PATH — skipping. Install it with: npm install -g @google/gemini-cli")
-		return
-	}
-
-	log.Println("✅ Gemini CLI binary found, initializing agent...")
-
-	// Auto-configure Gemini BeforeTool hook for tool approval
-	configureGeminiApprovalHook()
-
-	geminiAgent := agent.NewGeminiCLIAgent("Gemini", geminiProvider, chatHub)
-	geminiAgent.Info.ApprovalMode = "interactive"
-
-	if err := chatHub.RegisterAgent(&geminiAgent.Info); err != nil {
-		log.Printf("❌ Failed to register Gemini CLI agent: %v", err)
-		return
-	}
-
-	if err := chatHub.JoinChannel(geminiAgent.Info.ID, "general"); err != nil {
-		log.Printf("❌ Failed to join Gemini agent to general channel: %v", err)
-		return
-	}
-
-	ctx := context.Background()
-	go func() {
-		if err := geminiAgent.Start(ctx, "general"); err != nil {
-			log.Printf("❌ Failed to start Gemini CLI agent: %v", err)
-			return
-		}
-	}()
-
-	joinMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentJoin,
-		"general",
-		geminiAgent.Info,
-		"Gemini CLI agent online. I can analyze codebases, generate code, review, and run shell commands using Google's Gemini agent. @mention me to get started.",
-	)
-	if err := chatHub.SendMessage(joinMsg); err != nil {
-		log.Printf("⚠️  Failed to send Gemini agent join message: %v", err)
-	}
-
-	log.Printf("✅ Gemini CLI agent started (workDir: %s)", workDir)
+	log.Printf("✅ %s CLI agent started (workDir: %s)", cfg.DefaultName, workDir)
 }
 
 // configureGeminiApprovalHook installs the Neural Junkie BeforeTool hook into
@@ -1459,6 +1490,415 @@ func writeGeminiSettings(path string, settings map[string]interface{}) {
 	}
 }
 
+// ── Ollama management endpoints ─────────────────────────────────────
+
+func handleOllamaInstallStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	status := ollamaMgr.DetectInstallation()
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	running := ollamaMgr.IsServerRunning(ctx)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"installed": status.Installed,
+		"version":   status.Version,
+		"path":      status.Path,
+		"running":   running,
+	})
+}
+
+func handleOllamaInstall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	err := ollamaMgr.InstallOllama(r.Context(), func(msg string) {
+		fmt.Fprintf(w, "data: %s\n\n", msg)
+		flusher.Flush()
+	})
+	if err != nil {
+		fmt.Fprintf(w, "data: ERROR: %s\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+	fmt.Fprintf(w, "data: DONE\n\n")
+	flusher.Flush()
+}
+
+func handleOllamaStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	if err := ollamaMgr.StartServer(ctx); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "started"})
+}
+
+func handleOllamaStop(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := ollamaMgr.StopServer(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "stopped"})
+}
+
+func handleOllamaPull(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Model == "" {
+		http.Error(w, "model is required", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	err := ollamaMgr.PullModel(r.Context(), req.Model, func(p ollamaManager.PullProgress) {
+		data, _ := json.Marshal(p)
+		fmt.Fprintf(w, "data: %s\n\n", string(data))
+		flusher.Flush()
+	})
+	if err != nil {
+		fmt.Fprintf(w, "data: {\"status\":\"error\",\"error\":\"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+	fmt.Fprintf(w, "data: {\"status\":\"success\"}\n\n")
+	flusher.Flush()
+}
+
+// buildProviderFromConfig creates an ai.AIProvider from a config.ProviderConfig.
+func buildProviderFromConfig(pcfg *config.ProviderConfig) (ai.AIProvider, error) {
+	switch pcfg.Type {
+	case "ollama":
+		endpoint := pcfg.Endpoint
+		if endpoint == "" {
+			endpoint = "http://localhost:11434"
+		}
+		model := pcfg.Model
+		if model == "" {
+			model = "llama3.1"
+		}
+		return ai.NewOllamaProviderWithConfig(endpoint, model), nil
+
+	case "anthropic":
+		if pcfg.APIKey == "" {
+			return nil, fmt.Errorf("anthropic provider %q has no API key", pcfg.ID)
+		}
+		return ai.NewClaudeProviderWithConfig(pcfg.APIKey, false, "", pcfg.Model), nil
+
+	case "openai-compatible":
+		endpoint := pcfg.Endpoint
+		if endpoint == "" {
+			return nil, fmt.Errorf("openai-compatible provider %q has no endpoint", pcfg.ID)
+		}
+		model := pcfg.Model
+		return ai.NewOpenAICompatProvider(endpoint, pcfg.APIKey, model, pcfg.Headers), nil
+
+	case "cursor-cli":
+		workDir := pcfg.WorkDir
+		if workDir == "" {
+			workDir, _ = os.Getwd()
+		}
+		return ai.NewCursorCLIProvider(workDir, pcfg.APIKey), nil
+
+	case "gemini-cli":
+		workDir := pcfg.WorkDir
+		if workDir == "" {
+			workDir, _ = os.Getwd()
+		}
+		return ai.NewGeminiCLIProvider(workDir), nil
+
+	default:
+		return nil, fmt.Errorf("unknown provider type %q", pcfg.Type)
+	}
+}
+
+// initializeConfiguredAgents starts specialist agents defined in the config
+// file. Each enabled agent runs in-process using the hub's push-based
+// message delivery (same as moderator/assistant).
+func initializeConfiguredAgents() {
+	if appConfig == nil {
+		return
+	}
+
+	enabled := appConfig.EnabledAgents()
+	if len(enabled) == 0 {
+		log.Println("ℹ️  No specialist agents configured")
+		return
+	}
+
+	log.Printf("🤖 Starting %d configured specialist agent(s)...", len(enabled))
+
+	for _, acfg := range enabled {
+		pcfg := appConfig.ProviderForAgent(acfg)
+		if pcfg == nil {
+			log.Printf("⚠️  No provider found for agent %s (provider_id=%q, default=%q) — skipping",
+				acfg.Name, acfg.ProviderID, appConfig.AI.DefaultProviderID)
+			continue
+		}
+
+		aiProvider, err := buildProviderFromConfig(pcfg)
+		if err != nil {
+			log.Printf("⚠️  Failed to build provider for agent %s: %v — skipping", acfg.Name, err)
+			continue
+		}
+
+		agentType := protocol.AgentType(acfg.Type)
+		agentObj, err := agent.AgentFactory(agentType, acfg.Name, aiProvider, chatHub)
+		if err != nil {
+			log.Printf("❌ Failed to create agent %s (type=%s): %v", acfg.Name, acfg.Type, err)
+			continue
+		}
+
+		if err := chatHub.RegisterAgent(&agentObj.Info); err != nil {
+			log.Printf("❌ Failed to register agent %s: %v", acfg.Name, err)
+			continue
+		}
+
+		if err := chatHub.JoinChannel(agentObj.Info.ID, "general"); err != nil {
+			log.Printf("❌ Failed to join agent %s to general channel: %v", acfg.Name, err)
+			continue
+		}
+
+		ctx := context.Background()
+		go func(name string) {
+			if err := agentObj.Start(ctx, "general"); err != nil {
+				log.Printf("❌ Failed to start agent %s: %v", name, err)
+			}
+		}(acfg.Name)
+
+		joinMsg := protocol.NewMessage(
+			protocol.MessageTypeAgentJoin,
+			"general",
+			agentObj.Info,
+			fmt.Sprintf("👋 %s online! Ready to help with %s questions.", acfg.Name, acfg.Type),
+		)
+		if err := chatHub.SendMessage(joinMsg); err != nil {
+			log.Printf("⚠️  Failed to send join message for %s: %v", acfg.Name, err)
+		}
+
+		log.Printf("✅ Agent %s started (type=%s, provider=%s, model=%s)",
+			acfg.Name, acfg.Type, pcfg.Name, aiProvider.GetModel())
+	}
+}
+
+// ── Health, Settings, Provider, Agent Config endpoints ───────────────
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	agents := chatHub.ListAgents()
+	health := map[string]interface{}{
+		"status":      "ok",
+		"uptime_secs": int(time.Since(serverStartTime).Seconds()),
+		"agent_count": len(agents),
+		"version":     "1.0.0",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(health)
+}
+
+func handleSettings(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(appConfig.Redacted())
+
+	case http.MethodPut:
+		var incoming config.Config
+		if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		// Preserve API keys that are redacted in the incoming payload
+		for i := range incoming.AI.Providers {
+			ip := &incoming.AI.Providers[i]
+			if strings.Contains(ip.APIKey, "...") || ip.APIKey == "***" {
+				if existing := appConfig.GetProvider(ip.ID); existing != nil {
+					ip.APIKey = existing.APIKey
+				}
+			}
+		}
+
+		appConfig.Server = incoming.Server
+		appConfig.AI = incoming.AI
+		appConfig.Agents = incoming.Agents
+		appConfig.Ollama = incoming.Ollama
+		appConfig.Updates = incoming.Updates
+
+		if err := appConfig.Save(); err != nil {
+			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleConfiguredAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(appConfig.Agents)
+}
+
+func handleRestartAgents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// Re-run the configured agents initializer; existing agents keep running
+	// (hub silently skips re-registration of duplicate IDs).
+	initializeConfiguredAgents()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "restarted"})
+}
+
+func handleProviders(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		w.Header().Set("Content-Type", "application/json")
+		redacted := appConfig.Redacted()
+		json.NewEncoder(w).Encode(redacted.AI.Providers)
+
+	case http.MethodPost:
+		var p config.ProviderConfig
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if p.ID == "" || p.Type == "" {
+			http.Error(w, "id and type are required", http.StatusBadRequest)
+			return
+		}
+		if err := appConfig.AddProvider(p); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		appConfig.Save()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(p)
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleProviderByID(w http.ResponseWriter, r *http.Request) {
+	// Path: /api/providers/{id} or /api/providers/{id}/test
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/providers/"), "/")
+	id := parts[0]
+	action := ""
+	if len(parts) > 1 {
+		action = parts[1]
+	}
+
+	if action == "test" && r.Method == http.MethodPost {
+		pcfg := appConfig.GetProvider(id)
+		if pcfg == nil {
+			http.Error(w, "Provider not found", http.StatusNotFound)
+			return
+		}
+		provider, err := buildProviderFromConfig(pcfg)
+		if err != nil {
+			http.Error(w, "Failed to build provider: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		testResult := map[string]interface{}{"provider_id": id, "success": true}
+		_, err = provider.GenerateResponse(ctx, "Say hello in one word.", nil)
+		if err != nil {
+			testResult["success"] = false
+			testResult["error"] = err.Error()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(testResult)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var p config.ProviderConfig
+		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		p.ID = id
+		if err := appConfig.UpdateProvider(p); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		appConfig.Save()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+
+	case http.MethodDelete:
+		if err := appConfig.RemoveProvider(id); err != nil {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		appConfig.Save()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 func handleCachedAgents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1526,6 +1966,15 @@ func getAllCachedAgents() ([]map[string]interface{}, error) {
 	// if err == nil {
 	//     allAgents = append(allAgents, confluenceAgents...)
 	// }
+
+	// Get cached CLI agents
+	cliStorage, err := agent.NewCLIAgentStorage()
+	if err == nil {
+		cliAgents, err := cliStorage.ListWithMetadata()
+		if err == nil {
+			allAgents = append(allAgents, cliAgents...)
+		}
+	}
 
 	return allAgents, nil
 }
