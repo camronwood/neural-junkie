@@ -2,6 +2,53 @@
 
 All notable changes to Neural Junkie.
 
+## [0.1.0] - 2026-02-20
+
+First packaged release -- Neural Junkie ships as a single distributable desktop app.
+
+### Added -- Desktop Packaging
+- **Tauri sidecar architecture** -- Go server bundled inside the Tauri app, launched and managed automatically
+- **First-run Setup Wizard** -- guided onboarding to choose AI backend (Ollama or cloud), configure providers, and enable agents
+- **Auto-update system** -- in-app update banner with download progress and one-click restart via Tauri updater
+- **Loading screen** -- server health polling with status feedback during startup
+
+### Added -- AI Provider Registry
+- **Dynamic provider management** -- add, edit, remove, and test AI providers from Settings UI
+- **OpenAI-compatible provider** -- generic adapter for any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)
+- **Provider Manager UI** -- full CRUD interface with connection testing
+- **Multi-provider support** -- use multiple cloud and local providers simultaneously, assign per-agent
+
+### Added -- Ollama Lifecycle Management
+- **Automatic detection** -- detect Ollama installation on macOS and Linux
+- **Install from app** -- install Ollama directly from the Setup Wizard or Settings
+- **Server management** -- start/stop Ollama server from the UI
+- **Model pulling** -- pull models with real-time progress streaming (SSE)
+- **Ollama Manager UI** -- dedicated panel in Settings for full Ollama control
+
+### Added -- Configuration System
+- **JSON config file** -- persistent configuration at `~/.neural-junkie/config.json`
+- **Environment variable migration** -- auto-migrates from `env.local` to config file on first load
+- **API key redaction** -- API keys masked in GET responses, preserved on PUT if masked
+- **Per-agent provider assignment** -- each agent type can use a different provider
+
+### Added -- CI/CD & Release
+- **GitHub Actions release workflow** -- triggered on `v*` tags, builds macOS (arm64 + x86_64) and Linux (x86_64)
+- **Cross-compilation matrix** -- Go server compiled for each target, bundled as Tauri sidecar
+- **Update manifest generation** -- auto-generates platform-specific JSON manifests for Tauri auto-updater
+- **`make release` target** -- bumps versions, commits, and tags in one command
+
+### Added -- CLI Agent Infrastructure
+- **CLI agent registry** -- persistent storage for CLI agent configurations
+- **CLI agent storage** -- JSON-based persistence for registered CLI agents
+
+### Improved -- UI
+- **Terminal panel** -- refactored with XTerminal component
+- **Markdown rendering** -- improved code block handling and mermaid diagram support
+- **Suggestion banner** -- contextual suggestions in the chat UI
+- **Chat window** -- enhanced layout and interaction patterns
+
+---
+
 ## [2.0.0] - 2026-02
 
 ### Renamed

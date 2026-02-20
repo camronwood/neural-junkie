@@ -54,7 +54,10 @@ graph TB
 
 - **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
 - **10 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Rust, Repo, Confluence, Helper, and Moderator/Assistant (auto-started)
-- **3 AI Providers** -- Ollama (local), Claude (Anthropic/AI Hub), LM Studio (local) -- switch per-agent or globally
+- **Dynamic AI Providers** -- Ollama (managed), Claude, LM Studio, and any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)
+- **First-Run Setup Wizard** -- Guided onboarding to configure your AI backend and enable agents
+- **Auto-Updates** -- In-app update notifications with one-click install via Tauri updater
+- **Single-Binary Packaging** -- Go server ships as a Tauri sidecar; one `.dmg` or `.AppImage` to distribute
 - **50+ Slash Commands** -- Agent management, repo indexing, Confluence search, file changes, provider switching, and more
 - **Command Palette** -- Searchable UI for discovering and executing slash commands with guided argument forms
 - **Repository Expert Agents** -- Index your codebase, watch for changes, answer project-specific questions
@@ -100,28 +103,27 @@ go run cmd/cli/main.go --channel general --message "Your question"
 
 ### AI Provider Setup
 
-Neural Junkie supports three providers. You need at least one:
+Neural Junkie supports local and cloud AI providers. You need at least one. The **Setup Wizard** walks you through this on first launch, or configure later in **Settings > AI Providers**.
 
-**Ollama (Local, Free)**
+**Ollama (Local, Free)** -- Neural Junkie can detect, install, start, and pull models for Ollama automatically.
 ```bash
-# Install: https://ollama.ai
+# Or install manually: https://ollama.ai
 make pull-models     # Downloads qwen2.5-coder:14b + qwen2.5:7b
 ```
 
 **Claude (Anthropic API)**
 ```bash
+# Add via Settings > AI Providers > Add Provider, or:
 cp env.example env.local
-# Edit env.local:
-#   USE_AI_HUB=false
-#   ANTHROPIC_API_KEY=sk-your-key-here
-source load-env.sh
+# Edit env.local: ANTHROPIC_API_KEY=sk-your-key-here
 ```
+
+**Any OpenAI-Compatible API** -- Amazon Q, Azure OpenAI, Together AI, Groq, and more. Add via **Settings > AI Providers > Add Provider** with your endpoint, API key, and model.
 
 **LM Studio (Local, Free)**
 ```bash
 # Install: https://lmstudio.ai
 # Start LM Studio, load a model, start the local server
-# Default endpoint: http://localhost:1234/v1
 ```
 
 Switch providers at runtime from the desktop Settings > AI Providers tab, or via slash commands:
@@ -186,27 +188,30 @@ Type `/` in the chat or click the **`/`** button to open the command palette. Co
 ```
 neural-junkie/
 ├── cmd/
-│   ├── server/          # Hub server (HTTP + WebSocket)
+│   ├── server/          # Hub server (HTTP + WebSocket + config API)
 │   ├── agent/           # Standalone agent runner
 │   ├── helper-agent/    # Helper agent runner
 │   ├── chat/            # Interactive terminal chat
 │   └── cli/             # CLI tool (automation, MCP server)
 ├── desktop/             # Tauri + React desktop app
 │   ├── src/             # React frontend (components, stores, hooks)
-│   └── src-tauri/       # Rust backend (Tauri shell)
+│   └── src-tauri/       # Rust backend (sidecar management, auto-update)
 ├── internal/
 │   ├── hub/             # Core hub, commands, workspaces
-│   ├── agent/           # All agent implementations
+│   ├── agent/           # All agent implementations + CLI registry
 │   ├── protocol/        # Message types, mentions, command detection
-│   ├── ai/              # Providers: Ollama, Claude, LM Studio, CLI
+│   ├── ai/              # Providers: Ollama, Claude, LM Studio, OpenAI-compat, CLI
+│   ├── config/          # App configuration (providers, agents, settings)
+│   ├── ollama/          # Ollama lifecycle management (detect, install, start, pull)
 │   ├── repo/            # Repository indexing, search, file watching
 │   ├── confluence/      # Confluence client, indexing, search
 │   ├── filechange/      # File change proposals, approval, execution
 │   └── mcp_export/      # MCP format export/import
+├── .github/workflows/   # CI/CD release pipeline
+├── scripts/             # Build and release scripts
 ├── test/                # Go tests
 ├── docs/                # Documentation
-├── examples/            # Usage scenarios
-└── scripts/             # Automation and demo scripts
+└── examples/            # Usage scenarios
 ```
 
 ## Documentation
@@ -230,9 +235,10 @@ neural-junkie/
 ## Make Targets
 
 ```bash
+# Development
 make start-all        # Server + agents + desktop app
 make server           # Hub server only (with env)
-make agents           # All 5 specialist agents
+make agents           # All specialist agents
 make gui              # Desktop app (Tauri + React)
 make gui-install      # Install desktop dependencies
 make chat             # Terminal chat client
@@ -244,6 +250,13 @@ make pull-models      # Pull Ollama models
 make repo-agent       # Create repo agent: make repo-agent PATH=/path NAME="Name"
 make helper-agent     # Start helper: make helper-agent NAME=day-one
 make clean            # Remove build artifacts
+
+# Packaging & Release
+make build-sidecar    # Build Go server sidecar for current platform
+make bundle           # Build distributable .dmg / .AppImage for current platform
+make bundle-mac       # Build macOS bundle (Apple Silicon)
+make bundle-linux     # Build Linux bundle (x86_64)
+make release VERSION=0.1.0  # Bump versions, commit, tag (then push to trigger CI)
 ```
 
 ## License
