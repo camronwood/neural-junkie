@@ -82,9 +82,9 @@ export class ChatAPI {
     return response.json();
   }
 
-  // Fetch command definitions (cached after first call)
-  async fetchCommands(): Promise<CommandDefinition[]> {
-    if (this.commandsCache) {
+  // Fetch command definitions (cached unless forceRefresh is true)
+  async fetchCommands(forceRefresh: boolean = false): Promise<CommandDefinition[]> {
+    if (!forceRefresh && this.commandsCache) {
       return this.commandsCache;
     }
 
@@ -96,6 +96,10 @@ export class ChatAPI {
 
     this.commandsCache = await response.json();
     return this.commandsCache!;
+  }
+
+  clearCommandsCache(): void {
+    this.commandsCache = null;
   }
 
   // Create a new channel

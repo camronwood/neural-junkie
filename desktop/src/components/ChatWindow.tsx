@@ -23,8 +23,10 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
+import { CollaborationPanel } from './CollaborationPanel';
 import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, RightSidebarIcon } from './Icons';
-import type { Message, ThinkingStatusMetadata, CommandDefinition } from '../types/protocol';
+import type { Message, ThinkingStatusMetadata, CommandDefinition, Collaboration } from '../types/protocol';
+import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
 
 interface ChatWindowProps {
   onOpenSettings?: () => void;
@@ -52,6 +54,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     removeThinkingAgent,
     updateAgentStatus,
     markChannelUnread,
+    addMessageToCache,
     cleanupStaleThinking,
     openThread,
     closeThread,
@@ -92,6 +95,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteFilter, setCommandPaletteFilter] = useState('');
   const [commandDefs, setCommandDefs] = useState<CommandDefinition[]>([]);
+
+  // State for active collaboration panel
+  const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
 
   // State for sharing workspace context with agents
   const [shareWorkspace, setShareWorkspace] = useState<boolean>(() => {
@@ -234,7 +240,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api, username, loadChannels, handleSwitchChannel]);
 
-  // Debounced agent refresh (prevents excessive API calls)
+  // Debounced agent refresh (prevents excessive API calls).
+  // Channel list is only refreshed on agent_join/agent_leave, not on every status tick.
   const debouncedRefreshAgents = useCallback(() => {
     if (agentRefreshTimeoutRef.current) {
       clearTimeout(agentRefreshTimeoutRef.current);
@@ -242,9 +249,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     agentRefreshTimeoutRef.current = window.setTimeout(() => {
       loadAgents();
       loadCounts();
-      loadChannels();
     }, 300);
-  }, [loadAgents, loadCounts, loadChannels]);
+  }, [loadAgents, loadCounts]);
 
   // WebSocket connection
   const { status } = useWebSocket({
@@ -255,11 +261,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         // Handle thinking status -> typing indicator
         if (message.metadata?.thinking_status) {
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
+          const msgChannel = message.channel || channel;
           
           if (thinkingStatus === 'started') {
-            addThinkingAgent(channel, message.from.id, message.from.name, message.from.type);
+            addThinkingAgent(msgChannel, message.from.id, message.from.name, message.from.type);
           } else if (thinkingStatus === 'completed' || thinkingStatus === 'error') {
-            removeThinkingAgent(channel, message.from.id);
+            removeThinkingAgent(msgChannel, message.from.id);
           }
         }
         
@@ -294,13 +301,28 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       
       // Handle streaming tokens -- accumulate deltas, finalize on stream_end
       if (message.type === 'stream_delta') {
-        appendStreamDelta(message);
-        removeThinkingAgent(channel, message.from.id);
+        if (!message.channel || message.channel === channel) {
+          appendStreamDelta(message);
+        }
+        removeThinkingAgent(message.channel || channel, message.from.id);
         return;
       }
       if (message.type === 'stream_end') {
         finalizeStream(message.id);
         return;
+      }
+
+      // Track collaboration messages -- build partial collaboration state
+      // from the metadata embedded in collaboration messages.
+      if (isCollaborationMessage(message)) {
+        const collabId = getCollaborationId(message);
+        if (collabId && message.metadata?.collaboration_data) {
+          try {
+            setActiveCollab(message.metadata.collaboration_data as Collaboration);
+          } catch {
+            // Metadata may not include full collaboration data; that's fine
+          }
+        }
       }
 
       // Handle thread messages - only update metadata, ThreadPanel's WebSocket will add the actual message
@@ -312,14 +334,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         } catch (error) {
           console.error('Failed to fetch thread metadata:', error);
         }
+      } else if (message.channel && message.channel !== channel) {
+        // Message belongs to a different channel -- cache it and mark unread
+        addMessageToCache(message.channel, message);
+        markChannelUnread(message.channel);
       } else {
-        // Add channel messages to main message list
+        // Message belongs to the active channel
         addMessage(message);
-
-        // Mark channel unread if the message is from a different channel
-        if (message.channel && message.channel !== channel) {
-          markChannelUnread(message.channel);
-        }
         
         // Check for suggested commands in the message
         if (message.metadata?.suggested_commands) {
@@ -341,12 +362,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       
       // Clear thinking indicator when agent sends actual message
       if (message.type === 'chat' || message.type === 'answer') {
-        removeThinkingAgent(channel, message.from.id);
+        removeThinkingAgent(message.channel || channel, message.from.id);
       }
       
-      // Auto-refresh agents for join/leave events
+      // Auto-refresh agents and channels for join/leave events
       if (message.type === 'agent_join' || message.type === 'agent_leave') {
         debouncedRefreshAgents();
+        loadChannels();
       }
     },
     onConnect: () => {
@@ -442,10 +464,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   };
 
   // Ensure command definitions are loaded, fetching them if needed
-  const ensureCommandDefs = async () => {
-    if (commandDefs.length > 0) return;
+  const ensureCommandDefs = async (forceRefresh: boolean = false) => {
+    if (!forceRefresh && commandDefs.length > 0) return;
     try {
-      const defs = await api.fetchCommands();
+      const defs = await api.fetchCommands(forceRefresh);
       setCommandDefs(defs);
     } catch (err) {
       console.error('Failed to load command definitions:', err);
@@ -462,14 +484,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // Handle slash trigger from input
   const handleSlashTrigger = async (query: string) => {
-    await ensureCommandDefs();
+    await ensureCommandDefs(true);
     setCommandPaletteFilter(query);
     setCommandPaletteOpen(true);
   };
 
   // Open command palette from toolbar button
   const openCommandPalette = async () => {
-    await ensureCommandDefs();
+    await ensureCommandDefs(true);
     setCommandPaletteFilter('');
     setCommandPaletteOpen(true);
   };
@@ -795,6 +817,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             threadId={openThreadId}
             parentMessage={parentMessage}
             onClose={closeThread}
+          />
+        )}
+
+        {/* Collaboration Panel */}
+        {activeCollab && (
+          <CollaborationPanel
+            collaboration={activeCollab}
+            onClose={() => setActiveCollab(null)}
           />
         )}
 
