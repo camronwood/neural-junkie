@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -458,6 +459,7 @@ func TestWorkspaceCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
 	}
+	workspaceDir := t.TempDir()
 
 	// Test add workspace command
 	addMsg := protocol.NewMessage(
@@ -468,7 +470,7 @@ func TestWorkspaceCommands(t *testing.T) {
 			Name: "TestUser",
 			Type: protocol.AgentTypeGeneral,
 		},
-		"/add-workspace /tmp/test-workspace",
+		fmt.Sprintf("/add-workspace %s", workspaceDir),
 	)
 
 	ctx := context.Background()
@@ -662,6 +664,7 @@ func TestCommandParsing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
 	}
+	workspaceDir := t.TempDir()
 
 	testCases := []struct {
 		command    string
@@ -680,7 +683,7 @@ func TestCommandParsing(t *testing.T) {
 		{"/list-helper-templates", true},
 		{"/create-confluence-agent TestAgent", true},
 		{"/list-confluence-agents", true},
-		{"/add-workspace /tmp/test", true},
+		{fmt.Sprintf("/add-workspace %s", workspaceDir), true},
 		{"/list-workspaces", true},
 		{"/remind in 5 minutes Test", true},
 		{"/task-add Test task", true},
@@ -721,6 +724,30 @@ func TestCommandParsing(t *testing.T) {
 					t.Errorf("Expected command '%s' to indicate unknown command", tc.command)
 				}
 			}
+		}
+	}
+}
+
+func TestCommandDefinitionParityAndAssistantCommandsPresent(t *testing.T) {
+	h := hub.NewHub()
+	handler, err := hub.NewCommandHandler(h)
+	if err != nil {
+		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
+	}
+
+	defs := handler.GetCommandDefinitions()
+	defSet := map[string]bool{}
+	for _, d := range defs {
+		defSet[strings.ToLower(d.Name)] = true
+	}
+
+	required := []string{
+		"/remind", "/remind-recurring", "/task-add", "/task-list", "/task-done",
+		"/note-save", "/note-search", "/meeting-add", "/summarize",
+	}
+	for _, cmd := range required {
+		if !defSet[cmd] {
+			t.Fatalf("Expected command definition for %s", cmd)
 		}
 	}
 }

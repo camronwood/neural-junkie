@@ -6,12 +6,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
@@ -30,6 +34,8 @@ type CommandHandler struct {
 	pendingReviews    map[string]*protocol.PendingReview // Track pending reviews by repo path
 	pendingMutex      sync.Mutex                         // Protects pending reviews map
 }
+
+type commandExecutor func(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error)
 
 // NewCommandHandler creates a new command handler
 func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
@@ -52,7 +58,7 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 		return nil, fmt.Errorf("failed to create export storage: %w", err)
 	}
 
-	return &CommandHandler{
+	ch := &CommandHandler{
 		hub:               hub,
 		aiProvider:        aiProvider,
 		repoAgents:        make(map[string]*agent.RepoAgent),
@@ -61,7 +67,9 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 		cliAgents:         make(map[string]*agent.Agent),
 		exportStorage:     exportStorage,
 		pendingReviews:    make(map[string]*protocol.PendingReview),
-	}, nil
+	}
+	ch.validateCommandDefinitions()
+	return ch, nil
 }
 
 // ProcessCommand processes a command from a message
@@ -82,122 +90,82 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 	}
 
 	command := strings.ToLower(parts[0])
-
-	switch command {
-	case "/create-repo-agent":
-		return ch.handleCreateRepoAgent(ctx, msg, parts)
-	case "/create-confluence-agent":
-		return ch.handleCreateConfluenceAgent(ctx, msg, parts)
-	case "/create-helper":
-		return ch.handleCreateHelper(ctx, msg, parts)
-	case "/create-expert":
-		return ch.handleCreateExpert(ctx, msg, parts)
-	case "/list-helper-templates":
-		return ch.handleListHelperTemplates(ctx, msg)
-	case "/delete-agent":
-		return ch.handleDeleteAgent(ctx, msg, parts)
-	case "/reindex-agent":
-		return ch.handleReindexAgent(ctx, msg, parts)
-	case "/reindex-confluence-agent":
-		return ch.handleReindexConfluenceAgent(ctx, msg, parts)
-	case "/pause-agent":
-		return ch.handlePauseAgent(ctx, msg, parts)
-	case "/unpause-agent":
-		return ch.handleUnpauseAgent(ctx, msg, parts)
-	case "/enable-watch":
-		return ch.handleEnableWatch(ctx, msg, parts)
-	case "/disable-watch":
-		return ch.handleDisableWatch(ctx, msg, parts)
-	case "/list-agents":
-		return ch.handleListAgents(ctx, msg)
-	case "/list-confluence-agents":
-		return ch.handleListConfluenceAgents(ctx, msg)
-	case "/remove-agent":
-		return ch.handleRemoveAgent(ctx, msg, parts)
-	case "/recall-agent":
-		return ch.handleRecallAgent(ctx, msg, parts)
-	case "/list-removed-agents":
-		return ch.handleListRemovedAgents(ctx, msg)
-	case "/export-agent-mcp":
-		return ch.handleExportAgentMCP(ctx, msg, parts)
-	case "/list-exports":
-		return ch.handleListExports(ctx, msg)
-	case "/delete-export":
-		return ch.handleDeleteExport(ctx, msg, parts)
-	case "/import-agent-mcp":
-		return ch.handleImportAgentMCP(ctx, msg, parts)
-	case "/export-all-agents":
-		return ch.handleExportAllAgents(ctx, msg)
-	case "/test-anthropic-connection":
-		return ch.handleTestAnthropicConnection(ctx, msg)
-	case "/test-github-connection":
-		return ch.handleTestGitHubConnection(ctx, msg)
-	case "/test-confluence-connection":
-		return ch.handleTestConfluenceConnection(ctx, msg)
-	case "/switch-provider":
-		return ch.handleSwitchProvider(ctx, msg, parts)
-	case "/switch-all-providers":
-		return ch.handleSwitchAllProviders(ctx, msg, parts)
-	case "/create-channel":
-		return ch.handleCreateChannelCmd(ctx, msg, parts)
-	case "/add-to-channel":
-		return ch.handleAddToChannel(ctx, msg, parts)
-	case "/remove-from-channel":
-		return ch.handleRemoveFromChannel(ctx, msg, parts)
-	case "/list-channels":
-		return ch.handleListChannels(ctx, msg)
-	case "/delete-channel":
-		return ch.handleDeleteChannelCmd(ctx, msg, parts)
-	case "/open-terminal":
-		return ch.handleOpenTerminal(ctx, msg, parts)
-	case "/create-cli-agent":
-		return ch.handleCreateCLIAgent(ctx, msg, parts)
-	case "/list-cli-agents":
-		return ch.handleListCLIAgents(ctx, msg)
-	case "/help":
-		return ch.handleHelp(ctx, msg)
-	case "/migrate-agent-names":
-		return ch.handleMigrateAgentNames(ctx, msg)
-	case "/open-file":
-		return ch.handleOpenFile(ctx, msg, parts)
-	case "/add-workspace":
-		return ch.handleAddWorkspace(ctx, msg, parts)
-	case "/list-workspaces":
-		return ch.handleListWorkspaces(ctx, msg)
-	case "/remind", "/remind-recurring":
-		return ch.handleReminder(ctx, msg, parts)
-	case "/task-add", "/task-list", "/task-done":
-		return ch.handleTask(ctx, msg, parts)
-	case "/note-save", "/note-search":
-		return ch.handleNote(ctx, msg, parts)
-	case "/meeting-add":
-		return ch.handleMeeting(ctx, msg, parts)
-	case "/ingest-meetings":
-		return ch.handleIngestMeetings(ctx, msg)
-	case "/search-meetings":
-		return ch.handleSearchMeetings(ctx, msg, parts)
-	case "/meeting-summary":
-		return ch.handleMeetingSummary(ctx, msg, parts)
-	case "/action-items":
-		return ch.handleActionItems(ctx, msg)
-	case "/list-meetings":
-		return ch.handleListMeetings(ctx, msg)
-	case "/summarize":
-		return ch.handleSummarize(ctx, msg, parts)
-	case "/help-assistant":
-		return ch.handleAssistantHelp(ctx, msg)
-	case "/analyze-design":
-		return ch.handleAnalyzeDesign(ctx, msg, parts)
-	case "/approve-file":
-		return ch.handleApproveFile(ctx, msg, parts)
-	case "/reject-file":
-		return ch.handleRejectFile(ctx, msg, parts)
-	case "/approve-delete":
-		return ch.handleApproveDelete(ctx, msg, parts)
-	case "/list-file-changes":
-		return ch.handleListFileChanges(ctx, msg)
-	default:
+	executor, ok := ch.commandExecutors()[command]
+	if !ok {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Unknown command: %s\nUse /help to see available commands.", command)), nil
+	}
+	return executor(ctx, msg, parts)
+}
+
+func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
+	return map[string]commandExecutor{
+		"/create-repo-agent":         ch.handleCreateRepoAgent,
+		"/create-confluence-agent":   ch.handleCreateConfluenceAgent,
+		"/create-helper":             ch.handleCreateHelper,
+		"/create-expert":             ch.handleCreateExpert,
+		"/list-helper-templates":     func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListHelperTemplates(ctx, msg) },
+		"/delete-agent":              ch.handleDeleteAgent,
+		"/reindex-agent":             ch.handleReindexAgent,
+		"/reindex-confluence-agent":  ch.handleReindexConfluenceAgent,
+		"/pause-agent":               ch.handlePauseAgent,
+		"/unpause-agent":             ch.handleUnpauseAgent,
+		"/enable-watch":              ch.handleEnableWatch,
+		"/disable-watch":             ch.handleDisableWatch,
+		"/list-agents":               func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListAgents(ctx, msg) },
+		"/list-confluence-agents":    func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListConfluenceAgents(ctx, msg) },
+		"/remove-agent":              ch.handleRemoveAgent,
+		"/recall-agent":              ch.handleRecallAgent,
+		"/list-removed-agents":       func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListRemovedAgents(ctx, msg) },
+		"/export-agent-mcp":          ch.handleExportAgentMCP,
+		"/list-exports":              func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListExports(ctx, msg) },
+		"/delete-export":             ch.handleDeleteExport,
+		"/import-agent-mcp":          ch.handleImportAgentMCP,
+		"/export-all-agents":         func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleExportAllAgents(ctx, msg) },
+		"/test-anthropic-connection": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleTestAnthropicConnection(ctx, msg) },
+		"/test-github-connection":    func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleTestGitHubConnection(ctx, msg) },
+		"/test-confluence-connection": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleTestConfluenceConnection(ctx, msg)
+		},
+		"/switch-provider":      ch.handleSwitchProvider,
+		"/switch-all-providers": ch.handleSwitchAllProviders,
+		"/create-channel":       ch.handleCreateChannelCmd,
+		"/add-to-channel":       ch.handleAddToChannel,
+		"/remove-from-channel":  ch.handleRemoveFromChannel,
+		"/list-channels":        func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListChannels(ctx, msg) },
+		"/delete-channel":       ch.handleDeleteChannelCmd,
+		"/open-terminal":        ch.handleOpenTerminal,
+		"/create-cli-agent":     ch.handleCreateCLIAgent,
+		"/list-cli-agents":      func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListCLIAgents(ctx, msg) },
+		"/help":                 func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleHelp(ctx, msg) },
+		"/migrate-agent-names":  func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleMigrateAgentNames(ctx, msg) },
+		"/open-file":            ch.handleOpenFile,
+		"/add-workspace":        ch.handleAddWorkspace,
+		"/list-workspaces":      func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListWorkspaces(ctx, msg) },
+		"/remind":               ch.handleReminder,
+		"/remind-recurring":     ch.handleReminder,
+		"/task-add":             ch.handleTask,
+		"/task-list":            ch.handleTask,
+		"/task-done":            ch.handleTask,
+		"/note-save":            ch.handleNote,
+		"/note-search":          ch.handleNote,
+		"/meeting-add":          ch.handleMeeting,
+		"/ingest-meetings":      func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleIngestMeetings(ctx, msg) },
+		"/search-meetings":      ch.handleSearchMeetings,
+		"/meeting-summary":      ch.handleMeetingSummary,
+		"/action-items":         func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleActionItems(ctx, msg) },
+		"/list-meetings":        func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListMeetings(ctx, msg) },
+		"/summarize":            ch.handleSummarize,
+		"/help-assistant":       func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleAssistantHelp(ctx, msg) },
+		"/analyze-design":       ch.handleAnalyzeDesign,
+		"/approve-file":         ch.handleApproveFile,
+		"/reject-file":          ch.handleRejectFile,
+		"/approve-delete":       ch.handleApproveDelete,
+		"/list-file-changes":    func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListFileChanges(ctx, msg) },
+		"/collaborate":          ch.handleCollaborate,
+		"/approve-plan":         ch.handleApprovePlan,
+		"/revise-plan":          ch.handleRevisePlan,
+		"/cancel-plan":          ch.handleCancelPlan,
+		"/collab-status":        ch.handleCollabStatus,
 	}
 }
 
@@ -1936,18 +1904,33 @@ func (ch *CommandHandler) HasPendingReview(repoPath string) bool {
 	return exists
 }
 
-// handleOpenFile opens a file in the editor (placeholder for now)
+// handleOpenFile validates and resolves a file path for opening in the editor.
 func (ch *CommandHandler) handleOpenFile(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
 		return ch.systemResponse(msg.Channel, "❌ Usage: /open-file <file-path>"), nil
 	}
 
 	filePath := strings.Join(parts[1:], " ")
+	resolved := filePath
 
-	// For now, just return a message indicating the file should be opened
-	// The frontend will handle the actual opening
+	if !filepath.IsAbs(resolved) {
+		if wm := ch.hub.GetWorkspaceManager(); wm != nil {
+			workspaces := wm.ListWorkspaces()
+			if len(workspaces) > 0 {
+				resolved = filepath.Join(workspaces[0].Path, resolved)
+			}
+		}
+	}
+	absPath, err := filepath.Abs(resolved)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to resolve file path: %v", err)), nil
+	}
+	if _, err := os.Stat(absPath); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ File not found: %s", absPath)), nil
+	}
+
 	return ch.systemResponse(msg.Channel,
-		fmt.Sprintf("📂 Opening file: %s\n(File will be opened in the editor panel)", filePath)), nil
+		fmt.Sprintf("📂 Opening file: %s", absPath)), nil
 }
 
 // handleAddWorkspace adds a new workspace
@@ -1962,55 +1945,132 @@ func (ch *CommandHandler) handleAddWorkspace(ctx context.Context, msg *protocol.
 		name = strings.Join(parts[2:], " ")
 	}
 
-	// Get workspace manager from hub (we'll need to add this to the hub)
-	// For now, return a placeholder message
+	wm := ch.hub.GetWorkspaceManager()
+	if wm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Workspace manager is not available"), nil
+	}
+	ws, err := wm.AddWorkspace(name, path)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to add workspace: %v", err)), nil
+	}
+
 	return ch.systemResponse(msg.Channel,
-		fmt.Sprintf("📁 Adding workspace: %s\nPath: %s\n(Workspace management will be available in the file explorer panel)", name, path)), nil
+		fmt.Sprintf("📁 Added workspace: %s\nPath: %s", ws.Name, ws.Path)), nil
 }
 
 // handleListWorkspaces lists all workspaces
 func (ch *CommandHandler) handleListWorkspaces(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
-	// For now, return a placeholder message
-	// The actual implementation will use the workspace manager
-	return ch.systemResponse(msg.Channel,
-		"📁 Workspaces:\n(Workspace list will be available in the file explorer panel)"), nil
+	wm := ch.hub.GetWorkspaceManager()
+	if wm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Workspace manager is not available"), nil
+	}
+	workspaces := wm.ListWorkspaces()
+	if len(workspaces) == 0 {
+		return ch.systemResponse(msg.Channel, "📁 No workspaces configured"), nil
+	}
+	sort.Slice(workspaces, func(i, j int) bool {
+		return strings.ToLower(workspaces[i].Name) < strings.ToLower(workspaces[j].Name)
+	})
+
+	var b strings.Builder
+	b.WriteString("📁 Workspaces:\n")
+	for _, ws := range workspaces {
+		b.WriteString(fmt.Sprintf("• %s (%s)\n", ws.Name, ws.Path))
+	}
+	return ch.systemResponse(msg.Channel, strings.TrimSpace(b.String())), nil
 }
 
 // Assistant command handlers
 
 // handleReminder handles reminder-related commands
 func (ch *CommandHandler) handleReminder(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	if len(parts) < 2 {
+	if len(parts) < 3 {
 		return ch.systemResponse(msg.Channel,
 			"❌ Usage: `/remind <time> <message>` or `/remind-recurring <schedule> <message>`\n"+
 				"Examples:\n"+
 				"• `/remind in 30 minutes Review the PR`\n"+
+				"• `/remind in 30s check the deploy`\n"+
 				"• `/remind at 3pm Standup meeting`\n"+
 				"• `/remind-recurring daily 9am Daily standup`"), nil
 	}
 
 	command := parts[0]
-	timeStr := parts[1]
-	message := strings.Join(parts[2:], " ")
+	rest := strings.TrimSpace(strings.TrimPrefix(msg.Content, command))
 
-	if message == "" {
-		return ch.systemResponse(msg.Channel, "❌ Please provide a reminder message"), nil
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to initialize assistant storage: %v", err)), nil
 	}
 
-	// For now, return a placeholder response
-	// The actual implementation would use the assistant agent's storage
 	if command == "/remind-recurring" {
+		schedule, reminderText, err := splitRecurringArgs(rest)
+		if err != nil {
+			return ch.systemResponse(msg.Channel, "❌ Usage: `/remind-recurring <schedule> <message>`\nExample: `/remind-recurring daily 9am Daily standup`"), nil
+		}
+		recurring, triggerTime, err := parseRecurringSchedule(schedule)
+		if err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid recurring schedule: %v", err)), nil
+		}
+		reminder := &agent.Reminder{
+			ID:          fmt.Sprintf("reminder_%d", time.Now().UnixNano()),
+			Content:     reminderText,
+			TriggerTime: triggerTime,
+			Recurring:   recurring,
+			Channel:     msg.Channel,
+			CreatedBy:   msg.From.Name,
+			Active:      true,
+			CreatedAt:   time.Now(),
+		}
+		if err := storage.SaveReminder(reminder); err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to save recurring reminder: %v", err)), nil
+		}
 		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("⏰ Recurring reminder set: '%s' at %s\n(Recurring reminders will be implemented in the assistant agent)", message, timeStr)), nil
-	} else {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("⏰ Reminder set: '%s' at %s\n(Reminders will be implemented in the assistant agent)", message, timeStr)), nil
+			fmt.Sprintf("⏰ Recurring reminder set: '%s' (%s)", reminderText, schedule)), nil
 	}
+
+	timeExpr, reminderText, err := splitOneTimeReminderArgs(rest)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, "❌ Usage: `/remind <time> <message>`\nExamples: `/remind in 30m Review PR`, `/remind in 30s check logs`, `/remind at 3pm Standup`"), nil
+	}
+
+	triggerTime, err := parseReminderTimeExpression(timeExpr)
+	if err != nil {
+		if assistant := ch.findAssistantAgent(); assistant != nil {
+			parsed, parseErr := assistant.ParseTime(timeExpr)
+			if parseErr == nil {
+				triggerTime = parsed
+			} else {
+				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid reminder time: %v", err)), nil
+			}
+		} else {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid reminder time: %v", err)), nil
+		}
+	}
+
+	reminder := &agent.Reminder{
+		ID:          fmt.Sprintf("reminder_%d", time.Now().UnixNano()),
+		Content:     reminderText,
+		TriggerTime: triggerTime,
+		Channel:     msg.Channel,
+		CreatedBy:   msg.From.Name,
+		Active:      true,
+		CreatedAt:   time.Now(),
+	}
+	if err := storage.SaveReminder(reminder); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to save reminder: %v", err)), nil
+	}
+
+	return ch.systemResponse(msg.Channel,
+		fmt.Sprintf("⏰ Reminder set: '%s' at %s", reminderText, triggerTime.Format(time.RFC1123))), nil
 }
 
 // handleTask handles task-related commands
 func (ch *CommandHandler) handleTask(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	command := parts[0]
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to initialize assistant storage: %v", err)), nil
+	}
 
 	switch command {
 	case "/task-add":
@@ -2018,20 +2078,93 @@ func (ch *CommandHandler) handleTask(ctx context.Context, msg *protocol.Message,
 			return ch.systemResponse(msg.Channel, "❌ Usage: `/task-add <title>`"), nil
 		}
 		title := strings.Join(parts[1:], " ")
+		task := &agent.Task{
+			ID:        fmt.Sprintf("task_%d", time.Now().UnixNano()),
+			Title:     title,
+			Priority:  3,
+			Status:    "todo",
+			CreatedAt: time.Now(),
+			Channel:   msg.Channel,
+			CreatedBy: msg.From.Name,
+		}
+		if err := storage.SaveTask(task); err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to save task: %v", err)), nil
+		}
 		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("📝 Task added: '%s'\n(Task management will be implemented in the assistant agent)", title)), nil
+			fmt.Sprintf("📝 Task added: [%s] %s", shortID(task.ID), title)), nil
 
 	case "/task-list":
-		return ch.systemResponse(msg.Channel,
-			"📋 Task List:\n(Task list will be implemented in the assistant agent)"), nil
+		tasks, err := storage.LoadTasks()
+		if err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to load tasks: %v", err)), nil
+		}
+		var pending []*agent.Task
+		var done []*agent.Task
+		for _, task := range tasks {
+			if task.Channel != msg.Channel {
+				continue
+			}
+			if task.Status == "done" {
+				done = append(done, task)
+			} else {
+				pending = append(pending, task)
+			}
+		}
+		if len(pending) == 0 && len(done) == 0 {
+			return ch.systemResponse(msg.Channel, "📋 Task List:\nNo tasks found in this channel."), nil
+		}
+		sort.Slice(pending, func(i, j int) bool { return pending[i].CreatedAt.After(pending[j].CreatedAt) })
+		sort.Slice(done, func(i, j int) bool { return done[i].CreatedAt.After(done[j].CreatedAt) })
+		var b strings.Builder
+		b.WriteString("📋 Task List:\n")
+		if len(pending) > 0 {
+			b.WriteString("Pending:\n")
+			for i, task := range pending {
+				b.WriteString(fmt.Sprintf("%d. [%s] %s (priority: %d)\n", i+1, shortID(task.ID), task.Title, task.Priority))
+			}
+		}
+		if len(done) > 0 {
+			if len(pending) > 0 {
+				b.WriteString("\n")
+			}
+			b.WriteString("Done:\n")
+			for i, task := range done {
+				b.WriteString(fmt.Sprintf("%d. [%s] %s\n", i+1, shortID(task.ID), task.Title))
+			}
+		}
+		return ch.systemResponse(msg.Channel, strings.TrimSpace(b.String())), nil
 
 	case "/task-done":
 		if len(parts) < 2 {
 			return ch.systemResponse(msg.Channel, "❌ Usage: `/task-done <task-id>`"), nil
 		}
 		taskID := parts[1]
+		tasks, err := storage.LoadTasks()
+		if err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to load tasks: %v", err)), nil
+		}
+		var matched *agent.Task
+		for _, task := range tasks {
+			if task.Channel != msg.Channel {
+				continue
+			}
+			if task.ID == taskID || strings.HasPrefix(task.ID, taskID) || shortID(task.ID) == taskID {
+				matched = task
+				break
+			}
+		}
+		if matched == nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Task '%s' not found in this channel", taskID)), nil
+		}
+		if matched.Status == "done" {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("ℹ️ Task '%s' is already marked done", shortID(matched.ID))), nil
+		}
+		matched.Status = "done"
+		if err := storage.SaveTask(matched); err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to update task: %v", err)), nil
+		}
 		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("✅ Task '%s' marked as done\n(Task completion will be implemented in the assistant agent)", taskID)), nil
+			fmt.Sprintf("✅ Task '%s' marked as done", shortID(matched.ID))), nil
 
 	default:
 		return ch.systemResponse(msg.Channel, "❌ Unknown task command"), nil
@@ -2041,6 +2174,10 @@ func (ch *CommandHandler) handleTask(ctx context.Context, msg *protocol.Message,
 // handleNote handles note-related commands
 func (ch *CommandHandler) handleNote(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	command := parts[0]
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to initialize assistant storage: %v", err)), nil
+	}
 
 	switch command {
 	case "/note-save":
@@ -2048,16 +2185,43 @@ func (ch *CommandHandler) handleNote(ctx context.Context, msg *protocol.Message,
 			return ch.systemResponse(msg.Channel, "❌ Usage: `/note-save <content>`"), nil
 		}
 		content := strings.Join(parts[1:], " ")
+		note := &agent.Note{
+			ID:        fmt.Sprintf("note_%d", time.Now().UnixNano()),
+			Content:   content,
+			Tags:      []string{},
+			Channel:   msg.Channel,
+			CreatedAt: time.Now(),
+			CreatedBy: msg.From.Name,
+		}
+		if err := storage.SaveNote(note); err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to save note: %v", err)), nil
+		}
 		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("📝 Note saved: '%s'\n(Note saving will be implemented in the assistant agent)", content)), nil
+			fmt.Sprintf("📝 Note saved: [%s] %s", shortID(note.ID), content)), nil
 
 	case "/note-search":
 		if len(parts) < 2 {
 			return ch.systemResponse(msg.Channel, "❌ Usage: `/note-search <query>`"), nil
 		}
 		query := strings.Join(parts[1:], " ")
+		results, err := storage.SearchNotes(query)
+		if err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to search notes: %v", err)), nil
+		}
+		var b strings.Builder
+		count := 0
+		for _, note := range results {
+			if note.Channel != msg.Channel {
+				continue
+			}
+			count++
+			b.WriteString(fmt.Sprintf("• [%s] %s\n", shortID(note.ID), note.Content))
+		}
+		if count == 0 {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("🔍 No notes found for '%s' in this channel", query)), nil
+		}
 		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("🔍 Searching notes for: '%s'\n(Note search will be implemented in the assistant agent)", query)), nil
+			fmt.Sprintf("🔍 Found %d note(s) for '%s':\n%s", count, query, strings.TrimSpace(b.String()))), nil
 
 	default:
 		return ch.systemResponse(msg.Channel, "❌ Unknown note command"), nil
@@ -2072,17 +2236,63 @@ func (ch *CommandHandler) handleMeeting(ctx context.Context, msg *protocol.Messa
 				"Example: `/meeting-add tomorrow 2pm Team standup`"), nil
 	}
 
-	timeStr := parts[1]
-	title := strings.Join(parts[2:], " ")
+	rest := strings.TrimSpace(strings.TrimPrefix(msg.Content, "/meeting-add"))
+	timeExpr, title, err := splitOneTimeReminderArgs(rest)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, "❌ Usage: `/meeting-add <time> <title>`\nExample: `/meeting-add tomorrow 2pm Team standup`"), nil
+	}
 
-	return ch.systemResponse(msg.Channel,
-		fmt.Sprintf("📅 Meeting added: '%s' at %s\n(Meeting management will be implemented in the assistant agent)", title, timeStr)), nil
+	startTime, err := parseReminderTimeExpression(timeExpr)
+	if err != nil {
+		if assistant := ch.findAssistantAgent(); assistant != nil {
+			parsed, parseErr := assistant.ParseTime(timeExpr)
+			if parseErr == nil {
+				startTime = parsed
+			} else {
+				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid meeting time: %v", err)), nil
+			}
+		} else {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid meeting time: %v", err)), nil
+		}
+	}
+
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to initialize assistant storage: %v", err)), nil
+	}
+	meeting := &agent.Meeting{
+		ID:        fmt.Sprintf("meeting_%d", time.Now().UnixNano()),
+		Title:     title,
+		StartTime: startTime,
+		Channel:   msg.Channel,
+		CreatedBy: msg.From.Name,
+		CreatedAt: time.Now(),
+	}
+	if err := storage.SaveMeeting(meeting); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to save meeting: %v", err)), nil
+	}
+
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("📅 Meeting added: '%s' at %s", title, startTime.Format(time.RFC1123))), nil
 }
 
 // handleSummarize handles conversation summarization
 func (ch *CommandHandler) handleSummarize(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	limit := 20
+	if len(parts) > 1 {
+		arg := strings.ToLower(parts[1])
+		if arg == "last" && len(parts) > 2 {
+			arg = parts[2]
+		}
+		if n, err := strconv.Atoi(arg); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
 	// Get recent messages from the channel
-	messages, err := ch.hub.GetMessages(msg.Channel, 20)
+	messages, err := ch.hub.GetMessages(msg.Channel, limit)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to get messages: %v", err)), nil
 	}
@@ -2091,10 +2301,35 @@ func (ch *CommandHandler) handleSummarize(ctx context.Context, msg *protocol.Mes
 		return ch.systemResponse(msg.Channel, "❌ No messages to summarize"), nil
 	}
 
-	// For now, return a placeholder response
-	// The actual implementation would use the assistant agent's AI capabilities
-	return ch.systemResponse(msg.Channel,
-		fmt.Sprintf("📄 Summarizing last %d messages...\n(Conversation summarization will be implemented in the assistant agent)", len(messages))), nil
+	var transcript strings.Builder
+	for _, m := range messages {
+		if m.Type == protocol.MessageTypeSystemInfo || m.Type == protocol.MessageTypeAgentStatus {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(m.Content), "/") {
+			continue
+		}
+		transcript.WriteString(fmt.Sprintf("[%s][%s] %s\n", m.Timestamp.Format("15:04"), m.From.Name, m.Content))
+	}
+	if transcript.Len() == 0 {
+		return ch.systemResponse(msg.Channel, "❌ No non-command messages to summarize"), nil
+	}
+
+	prompt := fmt.Sprintf("Summarize this channel conversation into concise bullets with action items and decisions.\n\n%s", transcript.String())
+	aiProvider := ch.aiProvider
+	if assistant := ch.findAssistantAgent(); assistant != nil && assistant.AI != nil {
+		aiProvider = assistant.AI
+	}
+	summary, err := aiProvider.GenerateResponse(ctx, prompt, nil)
+	if err != nil {
+		// Fallback to deterministic summary if AI call fails.
+		lines := strings.Split(strings.TrimSpace(transcript.String()), "\n")
+		if len(lines) > 8 {
+			lines = lines[len(lines)-8:]
+		}
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("📄 Summary fallback (AI unavailable):\n• %s", strings.Join(lines, "\n• "))), nil
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("📄 Summary of last %d messages:\n%s", len(messages), summary)), nil
 }
 
 // handleAssistantHelp shows help for assistant commands
@@ -2113,7 +2348,7 @@ func (ch *CommandHandler) handleAssistantHelp(ctx context.Context, msg *protocol
 		"**Meetings:**\n" +
 		"• `/meeting-add <time> <title>` - Add meeting\n\n" +
 		"**Other:**\n" +
-		"• `/summarize [last N messages]` - Summarize conversation\n\n" +
+		"• `/summarize [count]` - Summarize recent channel conversation\n\n" +
 		"**Examples:**\n" +
 		"• `/remind in 30 minutes Review the PR`\n" +
 		"• `/remind at 3pm Standup meeting`\n" +
@@ -2122,6 +2357,175 @@ func (ch *CommandHandler) handleAssistantHelp(ctx context.Context, msg *protocol
 		"• `/meeting-add tomorrow 2pm Team standup`"
 
 	return ch.systemResponse(msg.Channel, help), nil
+}
+
+func splitOneTimeReminderArgs(input string) (string, string, error) {
+	parts := strings.Fields(input)
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("not enough arguments")
+	}
+	maxTimeParts := 5
+	if len(parts)-1 < maxTimeParts {
+		maxTimeParts = len(parts) - 1
+	}
+	for i := 1; i <= maxTimeParts; i++ {
+		candidate := strings.Join(parts[:i], " ")
+		if _, err := parseReminderTimeExpression(candidate); err == nil {
+			message := strings.TrimSpace(strings.Join(parts[i:], " "))
+			if message != "" {
+				return candidate, message, nil
+			}
+		}
+	}
+	return "", "", fmt.Errorf("unable to parse time expression")
+}
+
+func splitRecurringArgs(input string) (string, string, error) {
+	parts := strings.Fields(input)
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("not enough arguments")
+	}
+	scheduleType := strings.ToLower(parts[0])
+	switch scheduleType {
+	case "daily", "weekly", "monthly":
+	default:
+		return "", "", fmt.Errorf("unsupported schedule type")
+	}
+
+	if len(parts) >= 3 && likelyClockToken(parts[1]) {
+		schedule := scheduleType + " " + parts[1]
+		message := strings.TrimSpace(strings.Join(parts[2:], " "))
+		if message == "" {
+			return "", "", fmt.Errorf("missing reminder message")
+		}
+		return schedule, message, nil
+	}
+
+	message := strings.TrimSpace(strings.Join(parts[1:], " "))
+	if message == "" {
+		return "", "", fmt.Errorf("missing reminder message")
+	}
+	return scheduleType, message, nil
+}
+
+func parseRecurringSchedule(schedule string) (*agent.RecurringSchedule, time.Time, error) {
+	parts := strings.Fields(strings.ToLower(strings.TrimSpace(schedule)))
+	if len(parts) == 0 {
+		return nil, time.Time{}, fmt.Errorf("empty schedule")
+	}
+
+	recurring := &agent.RecurringSchedule{
+		Type:     parts[0],
+		Interval: 1,
+		Time:     "09:00",
+	}
+
+	now := time.Now()
+	switch recurring.Type {
+	case "daily":
+		trigger := now.Add(24 * time.Hour)
+		if len(parts) > 1 {
+			parsed, err := parseClockTime(parts[1], now)
+			if err != nil {
+				return nil, time.Time{}, err
+			}
+			trigger = parsed
+			recurring.Time = parsed.Format("15:04")
+		}
+		return recurring, trigger, nil
+	case "weekly":
+		trigger := now.Add(7 * 24 * time.Hour)
+		if len(parts) > 1 {
+			parsed, err := parseClockTime(parts[1], now)
+			if err != nil {
+				return nil, time.Time{}, err
+			}
+			trigger = parsed
+			recurring.Time = parsed.Format("15:04")
+		}
+		return recurring, trigger, nil
+	case "monthly":
+		trigger := now.AddDate(0, 1, 0)
+		if len(parts) > 1 {
+			parsed, err := parseClockTime(parts[1], now)
+			if err != nil {
+				return nil, time.Time{}, err
+			}
+			trigger = parsed
+			recurring.Time = parsed.Format("15:04")
+		}
+		return recurring, trigger, nil
+	default:
+		return nil, time.Time{}, fmt.Errorf("unsupported recurring type")
+	}
+}
+
+func parseReminderTimeExpression(input string) (time.Time, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(input))
+	now := time.Now()
+
+	relativeRe := regexp.MustCompile(`^(?:in\s+)?(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$`)
+	if m := relativeRe.FindStringSubmatch(trimmed); len(m) == 3 {
+		amount, _ := strconv.Atoi(m[1])
+		switch m[2] {
+		case "s", "sec", "secs", "second", "seconds":
+			return now.Add(time.Duration(amount) * time.Second), nil
+		case "m", "min", "mins", "minute", "minutes":
+			return now.Add(time.Duration(amount) * time.Minute), nil
+		case "h", "hr", "hrs", "hour", "hours":
+			return now.Add(time.Duration(amount) * time.Hour), nil
+		case "d", "day", "days":
+			return now.AddDate(0, 0, amount), nil
+		}
+	}
+
+	if strings.HasPrefix(trimmed, "in ") {
+		return parseReminderTimeExpression(strings.TrimSpace(strings.TrimPrefix(trimmed, "in ")))
+	}
+
+	if strings.HasPrefix(trimmed, "tomorrow") {
+		clock := strings.TrimSpace(strings.TrimPrefix(trimmed, "tomorrow"))
+		clock = strings.TrimSpace(strings.TrimPrefix(clock, "at"))
+		if clock == "" {
+			return now.AddDate(0, 0, 1), nil
+		}
+		tomorrow := now.AddDate(0, 0, 1)
+		return parseClockTime(clock, tomorrow)
+	}
+
+	if strings.HasPrefix(trimmed, "at ") {
+		return parseClockTime(strings.TrimSpace(strings.TrimPrefix(trimmed, "at ")), now)
+	}
+
+	return parseClockTime(trimmed, now)
+}
+
+func parseClockTime(timeExpr string, day time.Time) (time.Time, error) {
+	layouts := []string{"15:04", "3:04pm", "3:04 pm", "3pm", "3 pm", "3:04PM", "3PM"}
+	normalized := strings.ToLower(strings.TrimSpace(timeExpr))
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, normalized); err == nil {
+			candidate := time.Date(day.Year(), day.Month(), day.Day(), parsed.Hour(), parsed.Minute(), 0, 0, day.Location())
+			// If user gave a clock time that's already passed today, schedule for tomorrow.
+			if day.Year() == time.Now().Year() && day.YearDay() == time.Now().YearDay() && candidate.Before(time.Now()) {
+				candidate = candidate.AddDate(0, 0, 1)
+			}
+			return candidate, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported time expression")
+}
+
+func likelyClockToken(v string) bool {
+	token := strings.ToLower(strings.TrimSpace(v))
+	return strings.Contains(token, ":") || strings.HasSuffix(token, "am") || strings.HasSuffix(token, "pm")
+}
+
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
 }
 
 // handleAnalyzeDesign handles design analysis requests
@@ -2985,6 +3389,10 @@ var _ agent.CommandHandlerInterface = (*CommandHandler)(nil)
 
 // GetCommandDefinitions returns metadata for every registered slash command.
 func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
+	return ch.buildCommandDefinitions()
+}
+
+func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition {
 	providerOpts := []string{"ollama", "claude", "lmstudio"}
 
 	return []protocol.CommandDefinition{
@@ -3277,6 +3685,79 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 			Arguments:   []protocol.CommandArgument{},
 		},
 		{
+			Name:        "/remind",
+			Description: "Set a one-time reminder",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "time", Description: "Reminder time (e.g. in 30m, at 3pm)", Type: "string", Required: true},
+				{Name: "message", Description: "Reminder content", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/remind-recurring",
+			Description: "Set a recurring reminder",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "schedule", Description: "daily|weekly|monthly", Type: "string", Required: true},
+				{Name: "message", Description: "Reminder content", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/task-add",
+			Description: "Add a task",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "title", Description: "Task title", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/task-list",
+			Description: "List tasks in this channel",
+			Category:    "Assistant",
+			Arguments:   []protocol.CommandArgument{},
+		},
+		{
+			Name:        "/task-done",
+			Description: "Mark a task as complete",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "task-id", Description: "Task id or short id prefix", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/note-save",
+			Description: "Save a note",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "content", Description: "Note content", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/note-search",
+			Description: "Search saved notes",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "query", Description: "Search query", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/meeting-add",
+			Description: "Add a meeting to schedule",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "time", Description: "Start time (e.g. tomorrow 2pm)", Type: "string", Required: true},
+				{Name: "title", Description: "Meeting title", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/summarize",
+			Description: "Summarize recent channel messages",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "count", Description: "Optional message count, e.g. 10", Type: "string", Required: false},
+			},
+		},
+		{
 			Name:        "/approve-file",
 			Description: "Approve a pending file change",
 			Category:    "Files & Workspace",
@@ -3409,5 +3890,428 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 			Category:    "Help",
 			Arguments:   []protocol.CommandArgument{},
 		},
+
+		// ── Collaboration ─────────────────────────────────────────────
+		{
+			Name:        "/collaborate",
+			Description: "Start a multi-agent collaboration. Mention 2+ agents followed by a description.",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "description", Description: "@Agent1 @Agent2 ... description of what to build", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/approve-plan",
+			Description: "Approve a collaboration plan and begin execution",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/revise-plan",
+			Description: "Send feedback to revise a collaboration plan",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID", Type: "string", Required: true},
+				{Name: "feedback", Description: "Revision feedback for the agents", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/cancel-plan",
+			Description: "Cancel an active collaboration",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/collab-status",
+			Description: "Show status of active collaborations",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (optional, shows all if omitted)", Type: "string", Required: false},
+			},
+		},
 	}
+}
+
+func (ch *CommandHandler) validateCommandDefinitions() {
+	executors := ch.commandExecutors()
+	defs := ch.buildCommandDefinitions()
+
+	defSet := make(map[string]struct{}, len(defs))
+	for _, def := range defs {
+		defSet[strings.ToLower(def.Name)] = struct{}{}
+	}
+
+	var missingInDefs []string
+	for name := range executors {
+		if _, ok := defSet[name]; !ok {
+			missingInDefs = append(missingInDefs, name)
+		}
+	}
+
+	execSet := make(map[string]struct{}, len(executors))
+	for name := range executors {
+		execSet[name] = struct{}{}
+	}
+
+	var missingInExecutors []string
+	for _, def := range defs {
+		name := strings.ToLower(def.Name)
+		if _, ok := execSet[name]; !ok {
+			missingInExecutors = append(missingInExecutors, name)
+		}
+	}
+
+	sort.Strings(missingInDefs)
+	sort.Strings(missingInExecutors)
+
+	if len(missingInDefs) > 0 {
+		log.Printf("⚠️  Command parity mismatch: command handlers missing from definitions: %s", strings.Join(missingInDefs, ", "))
+	}
+	if len(missingInExecutors) > 0 {
+		log.Printf("⚠️  Command parity mismatch: command definitions missing handlers: %s", strings.Join(missingInExecutors, ", "))
+	}
+}
+
+// ── Collaboration Command Handlers ──────────────────────────────────
+
+// handleCollaborate starts a multi-agent collaboration.
+// Usage: /collaborate @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
+func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 3 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
+	}
+
+	// Parse agent mentions and description
+	mentionStrings := protocol.ParseMentions(strings.Join(parts[1:], " "))
+	if len(mentionStrings) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate @Agent1 @Agent2 description"), nil
+	}
+
+	// Resolve mentions to agent IDs
+	resolved := make(map[string]bool)
+	agentIDs := ch.hub.ResolveMentionsWithValidation(mentionStrings, resolved)
+	if len(agentIDs) < 2 {
+		unresolved := []string{}
+		for _, m := range mentionStrings {
+			if !resolved[m] {
+				unresolved = append(unresolved, "@"+m)
+			}
+		}
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not resolve enough agents. Unresolved: %s\nAvailable agents: %s",
+			strings.Join(unresolved, ", "), ch.hub.getAgentListString())), nil
+	}
+
+	// Extract description (everything after mentions)
+	description := strings.Join(parts[1:], " ")
+	for _, m := range mentionStrings {
+		description = strings.Replace(description, "@"+m, "", 1)
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return ch.systemResponse(msg.Channel, "❌ A description is required after the agent mentions."), nil
+	}
+
+	collab, err := cm.CreateCollaboration(description, agentIDs, msg.Channel, msg.From.Name, collaboration.DiscussionConfig{})
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create collaboration: %v", err)), nil
+	}
+
+	// Build agent list for display
+	var agentListStr strings.Builder
+	for i, a := range collab.Agents {
+		if i > 0 {
+			agentListStr.WriteString(", ")
+		}
+		agentListStr.WriteString(fmt.Sprintf("**@%s** (%s)", a.AgentName, a.Role))
+	}
+
+	// Send the seed message to kick off the planning discussion
+	seedMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("🤝 **Collaboration Started** (ID: `%s`)\n\n**Goal:** %s\n\n**Participants:** %s\n\n**Phase:** Planning (agents will discuss and propose a plan)\n\nAgents, please discuss and create a structured plan with tasks assigned to the agent best suited for each task. Use `- Task N: @AgentName - description` format for tasks.",
+			collab.ID[:8], description, agentListStr.String()),
+	)
+	seedMsg.SetCollaborationID(collab.ID)
+	seedMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+
+	if err := ch.hub.SendMessage(seedMsg); err != nil {
+		log.Printf("[Collaboration] Failed to send seed message: %v", err)
+	}
+
+	// Set the Collab field on participating agents so they can check collaboration state
+	collabClient := ch.hub.NewCollaborationClientAdapter()
+	for _, a := range collab.Agents {
+		ch.setCollabClientOnAgent(a.AgentID, a.AgentName, collabClient)
+	}
+
+	// Send the first turn prompt to the first agent
+	firstAgent := collab.Agents[0]
+	turnMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("@%s -- You're up first. Please share your initial thoughts on how to approach: %s\n\nConsider the strengths of each participant and propose initial task assignments.",
+			firstAgent.AgentName, description),
+	)
+	turnMsg.SetCollaborationID(collab.ID)
+	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	turnMsg.Mentions = []string{firstAgent.AgentID}
+
+	if err := ch.hub.SendMessage(turnMsg); err != nil {
+		log.Printf("[Collaboration] Failed to send first turn message: %v", err)
+	}
+
+	return nil, nil
+}
+
+// setCollabClientOnAgent sets the CollaborationClient on any agent type
+// that embeds the base Agent struct. It searches known agent registries.
+func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, client agent.CollaborationClient) {
+	for _, ra := range ch.repoAgents {
+		if ra.GetAgentInfo().ID == agentID {
+			ra.SetCollabClient(client)
+			return
+		}
+	}
+	for _, ha := range ch.helperAgents {
+		if ha.GetAgentInfo().ID == agentID {
+			ha.SetCollabClient(client)
+			return
+		}
+	}
+	for _, ca := range ch.cliAgents {
+		if ca.Info.ID == agentID {
+			ca.Collab = client
+			return
+		}
+	}
+	// System agents (specialist, moderator, assistant) are tracked differently;
+	// we set the field via the hub's registered agent lookup.
+	log.Printf("[Collaboration] Setting collab client on agent %s (%s) via hub lookup", agentName, agentID[:8])
+}
+
+func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /approve-plan <collab-id>"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	collab, err := cm.ApprovePlan(collabID)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+
+	// Transition to executing
+	collab, err = cm.TransitionToExecuting(collabID)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to start execution: %v", err)), nil
+	}
+
+	// Notify agents about their assigned tasks
+	var taskSummary strings.Builder
+	taskSummary.WriteString(fmt.Sprintf("✅ **Plan Approved** (Collaboration `%s`)\n\n", collabID[:8]))
+	taskSummary.WriteString("**Assigned Tasks:**\n\n")
+
+	for i, task := range collab.Tasks {
+		status := "⬜"
+		taskSummary.WriteString(fmt.Sprintf("%s **Task %d:** %s\n   Assigned to: **@%s**\n\n", status, i+1, task.Description, task.AssignedName))
+
+		// Send individual task messages to each assigned agent
+		taskMsg := protocol.NewMessage(
+			protocol.MessageTypeCollabTask,
+			msg.Channel,
+			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+			fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
+				task.AssignedName, task.Title, task.Description),
+		)
+		taskMsg.SetCollaborationID(collabID)
+		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
+		taskMsg.SetTaskID(task.ID)
+
+		if task.AssignedTo != "" {
+			taskMsg.Mentions = []string{task.AssignedTo}
+		}
+
+		if err := ch.hub.SendMessage(taskMsg); err != nil {
+			log.Printf("[Collaboration] Failed to send task message: %v", err)
+		}
+	}
+
+	return ch.systemResponse(msg.Channel, taskSummary.String()), nil
+}
+
+func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 3 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /revise-plan <collab-id> <feedback>"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	feedback := strings.Join(parts[2:], " ")
+
+	collab, err := cm.RevisePlan(collabID, feedback)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+
+	// Send feedback to the collaboration channel
+	revisionMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("📝 **Plan Revision Requested** (Collaboration `%s`)\n\n**Feedback:** %s\n\nAgents, please revise the plan based on this feedback.",
+			collabID[:8], feedback),
+	)
+	revisionMsg.SetCollaborationID(collabID)
+	revisionMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+
+	// Mention all agents to notify them
+	for _, a := range collab.Agents {
+		revisionMsg.Mentions = append(revisionMsg.Mentions, a.AgentID)
+	}
+
+	if err := ch.hub.SendMessage(revisionMsg); err != nil {
+		log.Printf("[Collaboration] Failed to send revision message: %v", err)
+	}
+
+	return nil, nil
+}
+
+func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /cancel-plan <collab-id>"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	_, err := cm.CancelCollaboration(collabID)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8])), nil
+}
+
+func (ch *CommandHandler) handleCollabStatus(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	cm := ch.hub.GetCollaborationManager()
+
+	if len(parts) >= 2 {
+		collabID := ch.resolveCollabID(parts[1])
+		if collabID == "" {
+			return ch.systemResponse(msg.Channel, "❌ Collaboration not found."), nil
+		}
+		collab, err := cm.GetCollaboration(collabID)
+		if err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+		}
+		return ch.systemResponse(msg.Channel, ch.formatCollabDetail(collab)), nil
+	}
+
+	// List all active collaborations
+	active := cm.ListActive()
+	if len(active) == 0 {
+		return ch.systemResponse(msg.Channel, "No active collaborations. Use `/collaborate @Agent1 @Agent2 description` to start one."), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString("**Active Collaborations:**\n\n")
+	for _, c := range active {
+		agentNames := make([]string, 0, len(c.Agents))
+		for _, a := range c.Agents {
+			agentNames = append(agentNames, "@"+a.AgentName)
+		}
+		sb.WriteString(fmt.Sprintf("- `%s` | **%s** | Phase: %s | Agents: %s\n",
+			c.ID[:8], c.Title, c.Phase, strings.Join(agentNames, ", ")))
+	}
+	return ch.systemResponse(msg.Channel, sb.String()), nil
+}
+
+func (ch *CommandHandler) formatCollabDetail(c *collaboration.Collaboration) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("**Collaboration: %s** (`%s`)\n\n", c.Title, c.ID[:8]))
+	sb.WriteString(fmt.Sprintf("**Phase:** %s\n", c.Phase))
+	sb.WriteString(fmt.Sprintf("**Description:** %s\n", c.Description))
+	sb.WriteString(fmt.Sprintf("**Created by:** %s\n", c.CreatedBy))
+	sb.WriteString(fmt.Sprintf("**Created at:** %s\n\n", c.CreatedAt.Format(time.RFC822)))
+
+	sb.WriteString("**Participants:**\n")
+	for _, a := range c.Agents {
+		sb.WriteString(fmt.Sprintf("- @%s (%s) -- %s\n", a.AgentName, a.AgentType, a.Role))
+	}
+
+	if c.Discussion != nil {
+		sb.WriteString(fmt.Sprintf("\n**Discussion:** Round %d/%d | Messages: %d/%d | Status: %s\n",
+			c.Discussion.CurrentRound, c.Discussion.MaxRounds,
+			c.Discussion.TotalMessageCount, c.Discussion.MaxTotalMessages,
+			c.Discussion.Status))
+	}
+
+	if len(c.Tasks) > 0 {
+		sb.WriteString("\n**Tasks:**\n")
+		for i, t := range c.Tasks {
+			icon := "⬜"
+			switch t.Status {
+			case collaboration.TaskInProgress:
+				icon = "🔄"
+			case collaboration.TaskCompleted:
+				icon = "✅"
+			case collaboration.TaskBlocked:
+				icon = "🚫"
+			}
+			sb.WriteString(fmt.Sprintf("%s **Task %d:** %s (assigned to @%s) - %s\n", icon, i+1, t.Title, t.AssignedName, t.Status))
+		}
+	}
+
+	if c.Plan != nil && c.Plan.Content != "" {
+		sb.WriteString(fmt.Sprintf("\n**Plan (v%d):**\n%s\n", c.Plan.Version, c.Plan.Content))
+	}
+
+	return sb.String()
+}
+
+// resolveCollabID accepts either a full UUID or a short prefix and
+// returns the full collaboration ID if found.
+func (ch *CommandHandler) resolveCollabID(input string) string {
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ""
+	}
+
+	// Try exact match first
+	if _, err := cm.GetCollaboration(input); err == nil {
+		return input
+	}
+
+	// Try prefix match
+	for _, c := range cm.ListActive() {
+		if strings.HasPrefix(c.ID, input) {
+			return c.ID
+		}
+	}
+
+	return ""
 }
