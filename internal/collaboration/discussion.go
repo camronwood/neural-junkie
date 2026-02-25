@@ -196,12 +196,15 @@ func (cm *CollaborationManager) advanceTurn(d *DiscussionSession) {
 	}
 
 	if allDone {
-		d.CurrentRound++
-		if d.CurrentRound > d.MaxRounds {
+		nextRound := d.CurrentRound + 1
+		if nextRound > d.MaxRounds {
+			// Clamp at max so UI/status never shows impossible values (e.g. 4/3).
+			d.CurrentRound = d.MaxRounds
 			d.Status = DiscussionBudgetExhausted
 			log.Printf("[Discussion %s] All %d rounds completed", d.ID[:8], d.MaxRounds)
 			return
 		}
+		d.CurrentRound = nextRound
 		d.TurnsThisRound = make(map[string]int)
 		d.CurrentTurnIndex = 0
 		log.Printf("[Discussion %s] Advanced to round %d/%d", d.ID[:8], d.CurrentRound, d.MaxRounds)
