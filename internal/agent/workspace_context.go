@@ -212,14 +212,15 @@ func inferLanguage(filePath string) string {
 // AppendReferencedFiles detects file paths in the user's message, reads them
 // from disk, and appends their content to the prompt with line numbers.
 // This allows agents to access files even when workspace sharing is off.
-func AppendReferencedFiles(prompt *strings.Builder, messageContent string, workspacePath string) {
+// It returns the number of referenced files successfully loaded.
+func AppendReferencedFiles(prompt *strings.Builder, messageContent string, workspacePath string) int {
 	if workspacePath == "" {
-		return
+		return 0
 	}
 
 	paths := DetectFilePaths(messageContent)
 	if len(paths) == 0 {
-		return
+		return 0
 	}
 
 	var loadedFiles []struct {
@@ -251,7 +252,7 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	}
 
 	if len(loadedFiles) == 0 {
-		return
+		return 0
 	}
 
 	prompt.WriteString("\n=== REFERENCED FILES ===\n")
@@ -264,6 +265,7 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	}
 
 	prompt.WriteString("=== END REFERENCED FILES ===\n\n")
+	return len(loadedFiles)
 }
 
 // AppendWorkspaceContext checks for workspace_context in message metadata
@@ -291,10 +293,12 @@ func AppendWorkspaceContext(prompt *strings.Builder, msg *protocol.Message) {
 
 	prompt.WriteString("\n=== WORKSPACE CONTEXT ===\n")
 	prompt.WriteString("The user has shared their active codebase with you. ")
-	prompt.WriteString("You MUST analyze the actual code provided below -- do NOT give generic advice. ")
+	prompt.WriteString("Use the code context below when the user's request is code-specific (review/debug/explain/edit paths/files). ")
+	prompt.WriteString("For capability or planning questions, answer directly first and only reference code when relevant. ")
 	prompt.WriteString("Each line of code is prefixed with its real line number (e.g., '  42 | code here'). ")
 	prompt.WriteString("When referencing code, use THESE line numbers -- they match what the user sees in their editor. ")
-	prompt.WriteString("When suggesting code changes, use ProposeFileEdit/ProposeFileCreate to submit them for user approval.\n\n")
+	prompt.WriteString("When suggesting code changes, submit a file-change proposal that the user can approve.\n\n")
+	prompt.WriteString("Important: you can propose create/edit/delete changes for the currently shared workspace, but the user must approve before changes are applied.\n\n")
 
 	if name, ok := ctxMap["workspace_name"].(string); ok && name != "" {
 		prompt.WriteString(fmt.Sprintf("Project: %s\n", name))

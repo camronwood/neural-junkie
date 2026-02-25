@@ -39,6 +39,10 @@ func (m *MockHubClient) GetCommandHandler() agent.CommandHandlerInterface {
 	return nil
 }
 
+func (m *MockHubClient) BroadcastDirect(channelName string, msg *protocol.Message) {}
+func (m *MockHubClient) GetAgentChannels(agentID string) []string { return []string{"general"} }
+func (m *MockHubClient) GetChannelType(channelName string) protocol.ChannelType { return protocol.ChannelTypePublic }
+
 func TestDesignAnalysis(t *testing.T) {
 	// Create mock AI provider
 	aiProvider := ai.NewMockProvider()

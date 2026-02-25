@@ -67,6 +67,7 @@ graph TB
 - **@Mention System** -- Direct questions to specific agents by name or type
 - **Threaded Conversations** -- Reply in threads to keep complex discussions organized
 - **Agent Review** -- Get a second opinion by @mentioning another agent in a reply
+- **Multi-Agent Collaboration** -- Bounded agent-to-agent planning/execution with `/collaborate`, shared plans, task delegation, and approval workflow
 
 ## Quick Start
 
@@ -229,6 +230,7 @@ neural-junkie/
 | **[MCP Exports](docs/MCP_EXPORTS.md)** | Exporting agent knowledge |
 | **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI agent setup and custom CLI agents |
 | **[Agent Review](docs/AGENT_REVIEW.md)** | Second-opinion review system |
+| **[Collaboration](docs/COLLABORATION.md)** | Structured multi-agent planning, bounded discussion, task delegation, and execution |
 | **[Status](docs/STATUS.md)** | Current project status |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
 

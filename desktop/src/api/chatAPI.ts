@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse } from '../types/protocol';
 
 export class ChatAPI {
   private baseURL: string;
@@ -100,6 +100,41 @@ export class ChatAPI {
 
   clearCommandsCache(): void {
     this.commandsCache = null;
+  }
+
+  async fetchAssistantState(channel?: string): Promise<AssistantStateResponse> {
+    const params = new URLSearchParams();
+    if (channel) {
+      params.set('channel', channel);
+    }
+    const query = params.toString();
+    const response = await fetch(`${this.baseURL}/api/assistant/state${query ? `?${query}` : ''}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch assistant state: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async markAssistantTaskDone(taskID: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/assistant/task-done`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskID }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to mark task done: ${response.statusText}`);
+    }
+  }
+
+  async dismissAssistantReminder(reminderID: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/assistant/reminder-dismiss`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reminder_id: reminderID }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to dismiss reminder: ${response.statusText}`);
+    }
   }
 
   // Create a new channel
@@ -798,6 +833,36 @@ export class ChatAPI {
   }
 
   // File change API methods
+
+  // Create a file change proposal directly from an agent message
+  async proposeFileChangeFromMessage(params: {
+    channel: string;
+    messageId: string;
+    workspaceId: string;
+    targetPath?: string;
+    userId?: string;
+  }): Promise<FileChange> {
+    const response = await fetch(`${this.baseURL}/api/file-changes/propose-from-message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        channel: params.channel,
+        message_id: params.messageId,
+        workspace_id: params.workspaceId,
+        target_path: params.targetPath || '',
+        user_id: params.userId || 'default',
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(errText || `Failed to create proposal from message: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 
   // List pending file changes
   async listPendingFileChanges(userId: string = 'default'): Promise<FileChange[]> {

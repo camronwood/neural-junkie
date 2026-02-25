@@ -63,6 +63,10 @@ func (m *mockHubClientIntegration) GetCommandHandler() agent.CommandHandlerInter
 	return nil
 }
 
+func (m *mockHubClientIntegration) BroadcastDirect(channelName string, msg *protocol.Message) {}
+func (m *mockHubClientIntegration) GetAgentChannels(agentID string) []string { return []string{"general"} }
+func (m *mockHubClientIntegration) GetChannelType(channelName string) protocol.ChannelType { return protocol.ChannelTypePublic }
+
 // TestEndToEndMessageFlow tests complete message flow from user to agent response
 func TestEndToEndMessageFlow(t *testing.T) {
 	// Create hub
@@ -291,6 +295,56 @@ func TestMultiAgentConversation(t *testing.T) {
 	// Cleanup
 	for _, agent := range agents {
 		agent.Stop()
+	}
+}
+
+func TestCustomChannelAutoRespondWithoutMention(t *testing.T) {
+	h := hub.NewHub()
+	mockAI := ai.NewMockProvider()
+
+	backendAgent := agent.NewAgent(
+		protocol.AgentTypeBackend,
+		"GoExpert",
+		[]string{"go", "api", "backend", "service"},
+		mockAI,
+		h,
+	)
+
+	h.CreateChannelWithType("custom-runtime", "Custom channel", "", protocol.ChannelTypeCustom, "tester")
+	if err := h.RegisterAgent(&backendAgent.Info); err != nil {
+		t.Fatalf("register agent failed: %v", err)
+	}
+	if err := backendAgent.Start(context.Background(), "custom-runtime"); err != nil {
+		t.Fatalf("start agent failed: %v", err)
+	}
+	defer backendAgent.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+	userMsg := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"custom-runtime",
+		protocol.AgentInfo{ID: "user-1", Name: "Camron", Type: "human"},
+		"please help debug this API latency in our backend service",
+	)
+	if err := h.SendMessage(userMsg); err != nil {
+		t.Fatalf("send message failed: %v", err)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	msgs, err := h.GetMessages("custom-runtime", 20)
+	if err != nil {
+		t.Fatalf("get messages failed: %v", err)
+	}
+
+	agentResponded := false
+	for _, m := range msgs {
+		if m.From.ID == backendAgent.Info.ID && m.Type == protocol.MessageTypeChat {
+			agentResponded = true
+			break
+		}
+	}
+	if !agentResponded {
+		t.Fatalf("expected auto-response from backend agent in custom channel without mention")
 	}
 }
 
@@ -605,6 +659,8 @@ This document provides debugging assistance.
 
 // TestCommandIntegration tests command processing integration
 func TestCommandIntegration(t *testing.T) {
+	workspaceDir := t.TempDir()
+
 	// Create hub
 	h := hub.NewHub()
 	_, err := hub.NewCommandHandler(h)
@@ -624,7 +680,7 @@ func TestCommandIntegration(t *testing.T) {
 		"/list-agents",
 		"/create-helper TestHelper Test helper agent",
 		"/list-helper-templates",
-		"/add-workspace /tmp/test",
+		fmt.Sprintf("/add-workspace %s", workspaceDir),
 		"/list-workspaces",
 	}
 
@@ -668,6 +724,7 @@ func TestCommandIntegration(t *testing.T) {
 			!strings.Contains(response.Content, "No") &&
 			!strings.Contains(response.Content, "Workspaces") &&
 			!strings.Contains(response.Content, "Adding") &&
+			!strings.Contains(response.Content, "Added") &&
 			!strings.Contains(response.Content, "Created") &&
 			!strings.Contains(response.Content, "Unknown") {
 			t.Errorf("Expected command '%s' response to contain meaningful content. Got: %s", command, response.Content)

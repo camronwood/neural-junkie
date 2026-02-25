@@ -4,14 +4,25 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
+)
+
+// ansiRegex strips ANSI escape sequences (colors, cursor control, etc.)
+// that leak through the PTY since the subprocess thinks it's a real terminal.
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[()][0-9A-B]`)
+
+var (
+	// ErrCLIProviderTimeout marks timeout failures from CLI-backed providers.
+	ErrCLIProviderTimeout = errors.New("cli provider timeout")
 )
 
 // CLIAgentProvider implements AIProvider by invoking a CLI-based AI agent as a subprocess.
@@ -86,7 +97,7 @@ func NewCLIAgentProvider(command, workDir, providerName string, opts ...CLIAgent
 		Command:      command,
 		BaseArgs:     []string{"-p", "--output-format", "text"},
 		WorkDir:      workDir,
-		Timeout:      120 * time.Second,
+		Timeout:      300 * time.Second,
 		Env:          make(map[string]string),
 		Model:        command + "-agent",
 		ProviderName: providerName,
@@ -187,13 +198,14 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	if err != nil {
 		// Check if it was a timeout
 		if timeoutCtx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("CLI agent timed out after %s", c.Timeout)
+			return "", fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout)
 		}
 
-		// Include stderr in the error for debugging
+		// Keep raw stderr in logs but return a user-safe summarized error.
 		stderrStr := strings.TrimSpace(stderr.String())
 		if stderrStr != "" {
-			return "", fmt.Errorf("CLI agent failed: %w\nstderr: %s", err, stderrStr)
+			log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
+			return "", fmt.Errorf("CLI agent failed: %s", truncateError(stderrStr))
 		}
 		return "", fmt.Errorf("CLI agent failed: %w", err)
 	}
@@ -204,7 +216,8 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 		// Check stderr for any useful info
 		stderrStr := strings.TrimSpace(stderr.String())
 		if stderrStr != "" {
-			return "", fmt.Errorf("CLI agent returned empty output. stderr: %s", stderrStr)
+			log.Printf("[CLIAgent/%s] empty stdout, stderr: %s", c.ProviderName, stderrStr)
+			return "", fmt.Errorf("CLI agent returned empty output: %s", truncateError(stderrStr))
 		}
 		return "", fmt.Errorf("CLI agent returned empty output")
 	}
@@ -235,7 +248,8 @@ func (c *CLIAgentProvider) GetModel() string {
 func (c *CLIAgentProvider) SupportsStreaming() bool { return true }
 
 // GenerateResponseStream invokes the CLI agent and streams its stdout
-// line-by-line (or in small chunks) back through the returned channel.
+// in chunks back through the returned channel. Uses a pipe for stdout
+// and captures stderr separately so error dumps don't leak into chat.
 func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
 	combinedPrompt := prompt
@@ -265,6 +279,9 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return nil, fmt.Errorf("failed to start CLI agent: %w", err)
@@ -278,13 +295,16 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 		buf := make([]byte, 4096)
 		for {
 			if timeoutCtx.Err() != nil {
-				ch <- StreamToken{Error: fmt.Errorf("CLI agent timed out"), Done: true}
+				ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
 				_ = cmd.Process.Kill()
 				return
 			}
 			n, readErr := stdoutPipe.Read(buf)
 			if n > 0 {
-				ch <- StreamToken{Content: string(buf[:n])}
+				clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
+				if clean != "" {
+					ch <- StreamToken{Content: clean}
+				}
 			}
 			if readErr != nil {
 				break
@@ -293,7 +313,13 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 
 		if err := cmd.Wait(); err != nil {
 			if timeoutCtx.Err() == context.DeadlineExceeded {
-				ch <- StreamToken{Error: fmt.Errorf("CLI agent timed out after %s", c.Timeout), Done: true}
+				ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+				return
+			}
+			stderrStr := strings.TrimSpace(stderrBuf.String())
+			if stderrStr != "" {
+				log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %s", truncateError(stderrStr)), Done: true}
 				return
 			}
 		}
@@ -301,6 +327,33 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	}()
 
 	return ch, nil
+}
+
+// truncateError extracts the first meaningful error line from verbose CLI output.
+// Skips non-error preamble lines (e.g. "Loaded cached credentials.").
+func truncateError(s string) string {
+	lines := strings.Split(s, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Skip common non-error preamble from CLI tools
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "loaded") && strings.Contains(lower, "credentials") {
+			continue
+		}
+		if len(line) > 200 {
+			line = line[:200] + "..."
+		}
+		return line
+	}
+	// Fallback to first line if nothing matched
+	first := strings.TrimSpace(lines[0])
+	if len(first) > 200 {
+		first = first[:200] + "..."
+	}
+	return first
 }
 
 // buildPromptWithHistory constructs a prompt that includes relevant conversation history

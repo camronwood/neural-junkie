@@ -16,7 +16,11 @@ export type MessageType =
   | 'file_change'
   | 'tool_approval'
   | 'stream_delta'
-  | 'stream_end';
+  | 'stream_end'
+  | 'collaboration_plan'
+  | 'collaboration_task'
+  | 'collaboration_status'
+  | 'collaboration_discussion';
 
 export type AgentType =
   | 'frontend'
@@ -79,6 +83,11 @@ export interface Message {
   mentions?: string[];
 }
 
+export interface MessageErrorMetadata {
+  error_code?: 'timeout' | 'rate_limit' | 'workspace_trust' | 'provider_unavailable' | 'provider_error' | 'unknown';
+  retryable?: boolean;
+}
+
 export type ChannelType = 'public' | 'dm' | 'custom';
 
 export interface Channel {
@@ -102,6 +111,34 @@ export interface CommandOutput {
   stderr: string;
   duration: number; // Duration in nanoseconds
   success: boolean;
+}
+
+export interface AssistantTask {
+  id: string;
+  title: string;
+  description: string;
+  priority: number;
+  status: 'todo' | 'in_progress' | 'done';
+  due_date?: string;
+  created_at: string;
+  channel: string;
+  created_by: string;
+}
+
+export interface AssistantReminder {
+  id: string;
+  content: string;
+  trigger_time: string;
+  channel: string;
+  created_by: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface AssistantStateResponse {
+  channel: string;
+  tasks: AssistantTask[];
+  reminders: AssistantReminder[];
 }
 
 export interface ThinkingStatusMetadata {
@@ -208,7 +245,8 @@ export function getAgentColor(type: AgentType): string {
 
 // Helper to check if a message is a system message
 export function isSystemMessage(type: MessageType): boolean {
-  return type === 'system_info' || type === 'agent_join' || type === 'agent_leave' || type === 'command_output';
+  return type === 'system_info' || type === 'agent_join' || type === 'agent_leave' || type === 'command_output'
+    || type === 'collaboration_status';
 }
 
 // Helper to check if a message is a thinking status message
@@ -290,5 +328,123 @@ export interface CommandDefinition {
   description: string;
   category: string;
   arguments: CommandArgument[];
+}
+
+// ── Collaboration Types ──────────────────────────────────────────────
+
+export type CollaborationPhase =
+  | 'planning'
+  | 'reviewing'
+  | 'approved'
+  | 'executing'
+  | 'completed'
+  | 'cancelled';
+
+export type CollaborationTaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'blocked';
+
+export type DiscussionStatus =
+  | 'active'
+  | 'converged'
+  | 'budget_exhausted'
+  | 'timed_out';
+
+export type ArtifactStatus =
+  | 'draft'
+  | 'proposed'
+  | 'approved'
+  | 'superseded';
+
+export type ConsensusState = 'undecided' | 'agrees' | 'disagrees';
+
+export interface CollaborationAgent {
+  agent_id: string;
+  agent_name: string;
+  agent_type: AgentType;
+  expertise: string[];
+  role: string;
+}
+
+export interface CollaborationTask {
+  id: string;
+  title: string;
+  description: string;
+  assigned_to: string;
+  assigned_name: string;
+  status: CollaborationTaskStatus;
+  dependencies?: string[];
+  output?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ArtifactEdit {
+  editor_id: string;
+  editor_name: string;
+  content: string;
+  version: number;
+  timestamp: string;
+}
+
+export interface SharedArtifact {
+  id: string;
+  title: string;
+  content: string;
+  version: number;
+  edit_history?: ArtifactEdit[];
+  status: ArtifactStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscussionSession {
+  id: string;
+  collaboration_id: string;
+  topic: string;
+  participants: string[];
+  max_rounds: number;
+  current_round: number;
+  turn_budget: number;
+  total_message_count: number;
+  max_total_messages: number;
+  status: DiscussionStatus;
+  current_turn_index: number;
+  consensus: Record<string, ConsensusState>;
+}
+
+export interface Collaboration {
+  id: string;
+  title: string;
+  description: string;
+  phase: CollaborationPhase;
+  agents: CollaborationAgent[];
+  plan?: SharedArtifact;
+  tasks?: CollaborationTask[];
+  discussion?: DiscussionSession;
+  channel: string;
+  thread_id?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function isCollaborationMessage(message: Message): boolean {
+  return (
+    message.type === 'collaboration_plan' ||
+    message.type === 'collaboration_task' ||
+    message.type === 'collaboration_status' ||
+    message.type === 'collaboration_discussion'
+  );
+}
+
+export function getCollaborationId(message: Message): string | undefined {
+  return message.metadata?.collaboration_id as string | undefined;
+}
+
+export function getCollaborationPhase(message: Message): CollaborationPhase | undefined {
+  return message.metadata?.collaboration_phase as CollaborationPhase | undefined;
 }
 

@@ -25,18 +25,18 @@ const (
 //
 // excludePaths lets the caller skip files already present in the prompt
 // (e.g. from workspace context or referenced-file detection).
-func ScanWorkspaceFiles(workspacePath string, agentType protocol.AgentType, query string, maxChars int, excludePaths map[string]bool) (string, error) {
+func ScanWorkspaceFiles(workspacePath string, agentType protocol.AgentType, query string, maxChars int, excludePaths map[string]bool) (string, int, error) {
 	if workspacePath == "" {
-		return "", nil
+		return "", 0, nil
 	}
 
 	info, err := os.Stat(workspacePath)
 	if err != nil || !info.IsDir() {
-		return "", fmt.Errorf("workspace path is not a valid directory: %s", workspacePath)
+		return "", 0, fmt.Errorf("workspace path is not a valid directory: %s", workspacePath)
 	}
 
-	if result := tryFromRepoIndex(workspacePath, agentType, query, maxChars, excludePaths); result != "" {
-		return result, nil
+	if result, count := tryFromRepoIndex(workspacePath, agentType, query, maxChars, excludePaths); result != "" {
+		return result, count, nil
 	}
 
 	return scanDirectory(workspacePath, agentType, query, maxChars, excludePaths)
@@ -46,30 +46,30 @@ func ScanWorkspaceFiles(workspacePath string, agentType protocol.AgentType, quer
 // Tier 1: Repo index
 // ---------------------------------------------------------------------------
 
-func tryFromRepoIndex(workspacePath string, agentType protocol.AgentType, query string, maxChars int, excludePaths map[string]bool) string {
+func tryFromRepoIndex(workspacePath string, agentType protocol.AgentType, query string, maxChars int, excludePaths map[string]bool) (string, int) {
 	storage, err := repo.NewStorage()
 	if err != nil {
-		return ""
+		return "", 0
 	}
 
 	cacheKey, err := storage.GetCacheKeyForPath(workspacePath)
 	if err != nil {
-		return ""
+		return "", 0
 	}
 
 	if !storage.IndexExists(cacheKey) {
-		return ""
+		return "", 0
 	}
 
 	index, err := storage.LoadIndex(cacheKey)
 	if err != nil {
 		log.Printf("[workspace-scanner] Failed to load repo index for %s: %v", workspacePath, err)
-		return ""
+		return "", 0
 	}
 
 	files := repo.SearchRelevantFiles(query, index, maxScanFiles*2)
 	if len(files) == 0 {
-		return ""
+		return "", 0
 	}
 
 	extensions := getAgentFileExtensions(agentType)
@@ -132,11 +132,11 @@ func tryFromRepoIndex(workspacePath string, agentType protocol.AgentType, query 
 	}
 
 	if included == 0 {
-		return ""
+		return "", 0
 	}
 
 	sb.WriteString("=== END WORKSPACE SOURCE FILES ===\n\n")
-	return sb.String()
+	return sb.String(), included
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +150,7 @@ type scannedFile struct {
 	priority int // lower = higher priority
 }
 
-func scanDirectory(workspacePath string, agentType protocol.AgentType, query string, maxChars int, excludePaths map[string]bool) (string, error) {
+func scanDirectory(workspacePath string, agentType protocol.AgentType, query string, maxChars int, excludePaths map[string]bool) (string, int, error) {
 	extensions := getAgentFileExtensions(agentType)
 	extSet := make(map[string]bool, len(extensions))
 	for _, ext := range extensions {
@@ -170,7 +170,7 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 
 	absWorkspace, err := filepath.Abs(workspacePath)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	err = filepath.Walk(absWorkspace, func(path string, info os.FileInfo, err error) error {
@@ -241,11 +241,11 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 		return nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("directory walk failed: %w", err)
+		return "", 0, fmt.Errorf("directory walk failed: %w", err)
 	}
 
 	if len(candidates) == 0 {
-		return "", nil
+		return "", 0, nil
 	}
 
 	sort.Slice(candidates, func(i, j int) bool {
@@ -301,7 +301,7 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 	}
 
 	if included == 0 {
-		return "", nil
+		return "", 0, nil
 	}
 
 	remaining := len(candidates) - included
@@ -310,7 +310,7 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 	}
 
 	sb.WriteString("=== END WORKSPACE SOURCE FILES ===\n\n")
-	return sb.String(), nil
+	return sb.String(), included, nil
 }
 
 // stripLineNumbers removes line-number prefixes added by ReadFileForPrompt

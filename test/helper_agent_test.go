@@ -55,6 +55,10 @@ func (m *mockHubClientHelper) GetCommandHandler() agent.CommandHandlerInterface 
 	return nil
 }
 
+func (m *mockHubClientHelper) BroadcastDirect(channelName string, msg *protocol.Message) {}
+func (m *mockHubClientHelper) GetAgentChannels(agentID string) []string { return []string{"general"} }
+func (m *mockHubClientHelper) GetChannelType(channelName string) protocol.ChannelType { return protocol.ChannelTypePublic }
+
 // TestHelperAgentCreation tests helper agent creation
 func TestHelperAgentCreation(t *testing.T) {
 	// Create test knowledge base directory

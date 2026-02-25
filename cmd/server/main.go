@@ -12,8 +12,10 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -83,6 +85,15 @@ func main() {
 
 	chatHub = hub.NewHub()
 
+	sessionPath := hub.DefaultSessionPath()
+	log.Printf("💾 Session will be saved to: %s", sessionPath)
+	sessionRestored := false
+	if err := chatHub.LoadSessionFromFile(sessionPath); err != nil {
+		log.Printf("⚠️  Failed to restore previous session: %v", err)
+	} else {
+		sessionRestored = true
+	}
+
 	// Initialize workspace manager
 	workspaceManager, err = hub.NewWorkspaceManager()
 	if err != nil {
@@ -111,6 +122,10 @@ func main() {
 
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
+	if sessionRestored {
+		rebindRuntimeAgentsToRestoredDMs()
+		log.Printf("♻️  Previous session restored (if available)")
+	}
 
 	// HTTP routes with CORS middleware
 	http.HandleFunc("/ws", handleWebSocket) // WebSocket already handles origin
@@ -145,6 +160,7 @@ func main() {
 
 	// File change API endpoints
 	http.HandleFunc("/api/file-changes", corsMiddleware(handleFileChanges))
+	http.HandleFunc("/api/file-changes/propose-from-message", corsMiddleware(handleProposeFileChangeFromMessage))
 	http.HandleFunc("/api/file-changes/approve/", corsMiddleware(handleApproveFileChange))
 	http.HandleFunc("/api/file-changes/reject/", corsMiddleware(handleRejectFileChange))
 	http.HandleFunc("/api/file-changes/", corsMiddleware(handleFileChangeDiff))
@@ -180,6 +196,9 @@ func main() {
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
+	http.HandleFunc("/api/assistant/state", corsMiddleware(handleAssistantState))
+	http.HandleFunc("/api/assistant/task-done", corsMiddleware(handleAssistantTaskDone))
+	http.HandleFunc("/api/assistant/reminder-dismiss", corsMiddleware(handleAssistantReminderDismiss))
 
 	// Home page handler (must be last to avoid catching API routes)
 	http.HandleFunc("/", corsMiddleware(handleHome))
@@ -189,16 +208,22 @@ func main() {
 	log.Printf("Web UI: http://localhost%s", *addr)
 	log.Printf("CORS enabled for all origins")
 
-	sessionPath := hub.DefaultSessionPath()
-	log.Printf("💾 Session will be saved to: %s", sessionPath)
-
-	// Periodic session save (every 2 minutes)
+	// Periodic session save (every 2 minutes), cancellable for clean shutdown.
+	sessionSaverCtx, stopSessionSaver := context.WithCancel(context.Background())
+	var sessionSaverWG sync.WaitGroup
+	sessionSaverWG.Add(1)
 	go func() {
+		defer sessionSaverWG.Done()
 		ticker := time.NewTicker(2 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
-				log.Printf("⚠️  Periodic session save failed: %v", err)
+		for {
+			select {
+			case <-sessionSaverCtx.Done():
+				return
+			case <-ticker.C:
+				if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
+					log.Printf("⚠️  Periodic session save failed: %v", err)
+				}
 			}
 		}
 	}()
@@ -210,6 +235,8 @@ func main() {
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 
+		stopSessionSaver()
+		sessionSaverWG.Wait()
 		log.Println("🛑 Shutdown signal received, saving session...")
 		if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
 			log.Printf("⚠️  Failed to save session on shutdown: %v", err)
@@ -240,6 +267,251 @@ func handleCommands(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(defs)
+}
+
+// rebindRuntimeAgentsToRestoredDMs restores DM channel subscriptions after a
+// session load. Agent IDs change on restart, so restored DMs can reference
+// stale IDs and stop receiving messages until re-joined by current IDs.
+func rebindRuntimeAgentsToRestoredDMs() {
+	channels := chatHub.ListChannels()
+	agents := chatHub.ListAgents()
+	if len(channels) == 0 || len(agents) == 0 {
+		return
+	}
+
+	agentsByName := make(map[string]*protocol.AgentInfo, len(agents))
+	agentsBySlug := make(map[string]*protocol.AgentInfo, len(agents))
+	for _, a := range agents {
+		if a == nil {
+			continue
+		}
+		agentsByName[strings.ToLower(strings.TrimSpace(a.Name))] = a
+		agentsBySlug[slugifyName(a.Name)] = a
+	}
+
+	for _, ch := range channels {
+		if ch == nil || ch.Type != protocol.ChannelTypeDM {
+			continue
+		}
+		targetName := extractDMAgentName(ch)
+		if targetName == "" {
+			continue
+		}
+
+		target, ok := agentsByName[strings.ToLower(targetName)]
+		if !ok {
+			target, ok = agentsBySlug[slugifyName(targetName)]
+		}
+		if !ok || target == nil {
+			log.Printf("ℹ️  DM rebind skipped for %s (agent not found: %s)", ch.Name, targetName)
+			continue
+		}
+
+		if err := chatHub.JoinChannel(target.ID, ch.Name); err != nil {
+			log.Printf("⚠️  DM rebind failed for %s -> %s: %v", target.Name, ch.Name, err)
+		} else {
+			log.Printf("✅ DM rebind: %s -> %s", target.Name, ch.Name)
+		}
+	}
+}
+
+func extractDMAgentName(ch *protocol.Channel) string {
+	if ch == nil {
+		return ""
+	}
+
+	desc := strings.TrimSpace(ch.Description)
+	lowerDesc := strings.ToLower(desc)
+	const prefix = "direct message with "
+	if strings.HasPrefix(lowerDesc, prefix) && len(desc) > len(prefix) {
+		return strings.TrimSpace(desc[len(prefix):])
+	}
+
+	// Fallback to channel slug format: dm-<user>-<agent>
+	parts := strings.Split(ch.Name, "-")
+	if len(parts) >= 3 {
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
+func slugifyName(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func handleAssistantState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to initialize assistant storage: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	tasks, err := storage.LoadTasks()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load tasks: %v", err), http.StatusInternalServerError)
+		return
+	}
+	reminders, err := storage.LoadReminders()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load reminders: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	includeDone := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_done")), "true")
+	includeInactive := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_inactive")), "true")
+
+	filteredTasks := make([]*agent.Task, 0, len(tasks))
+	for _, task := range tasks {
+		if channel != "" && task.Channel != channel {
+			continue
+		}
+		if !includeDone && task.Status == "done" {
+			continue
+		}
+		filteredTasks = append(filteredTasks, task)
+	}
+
+	filteredReminders := make([]*agent.Reminder, 0, len(reminders))
+	for _, reminder := range reminders {
+		if channel != "" && reminder.Channel != channel {
+			continue
+		}
+		if !includeInactive && !reminder.Active {
+			continue
+		}
+		filteredReminders = append(filteredReminders, reminder)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"channel":   channel,
+		"tasks":     filteredTasks,
+		"reminders": filteredReminders,
+	})
+}
+
+func handleAssistantTaskDone(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		TaskID string `json:"task_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.TaskID = strings.TrimSpace(req.TaskID)
+	if req.TaskID == "" {
+		http.Error(w, "task_id is required", http.StatusBadRequest)
+		return
+	}
+
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to initialize assistant storage: %v", err), http.StatusInternalServerError)
+		return
+	}
+	tasks, err := storage.LoadTasks()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load tasks: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var matched *agent.Task
+	for _, task := range tasks {
+		if task.ID == req.TaskID {
+			matched = task
+			break
+		}
+	}
+	if matched == nil {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	matched.Status = "done"
+	if err := storage.SaveTask(matched); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update task: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":      true,
+		"task_id": req.TaskID,
+	})
+}
+
+func handleAssistantReminderDismiss(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		ReminderID string `json:"reminder_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.ReminderID = strings.TrimSpace(req.ReminderID)
+	if req.ReminderID == "" {
+		http.Error(w, "reminder_id is required", http.StatusBadRequest)
+		return
+	}
+
+	storage, err := agent.NewAssistantStorage()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to initialize assistant storage: %v", err), http.StatusInternalServerError)
+		return
+	}
+	reminders, err := storage.LoadReminders()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load reminders: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var matched *agent.Reminder
+	for _, reminder := range reminders {
+		if reminder.ID == req.ReminderID {
+			matched = reminder
+			break
+		}
+	}
+	if matched == nil {
+		http.Error(w, "Reminder not found", http.StatusNotFound)
+		return
+	}
+
+	matched.Active = false
+	if err := storage.SaveReminder(matched); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update reminder: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok":          true,
+		"reminder_id": req.ReminderID,
+	})
 }
 
 func handleHome(w http.ResponseWriter, r *http.Request) {
@@ -779,8 +1051,9 @@ func handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
 
 func handleJoinChannel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		AgentID string `json:"agent_id"`
-		Channel string `json:"channel"`
+		AgentID  string `json:"agent_id"`
+		Channel  string `json:"channel"`
+		Greeting string `json:"greeting,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -788,7 +1061,7 @@ func handleJoinChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := chatHub.JoinChannel(req.AgentID, req.Channel); err != nil {
+	if err := chatHub.JoinChannel(req.AgentID, req.Channel, req.Greeting); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1196,15 +1469,22 @@ func initializeModeratorAgent() {
 
 	// Create moderator agent
 	moderator := agent.NewModeratorAgent("ChatModerator", aiProvider, chatHub)
+	moderator.SetCollabClient(chatHub.NewCollaborationClientAdapter())
 
 	// Register moderator with hub
 	if err := chatHub.RegisterAgent(&moderator.Info); err != nil {
 		log.Printf("❌ Failed to register moderator agent: %v", err)
 		return
 	}
+	if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
+		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
+			ch.RegisterRuntimeAgent(moderator.Agent)
+		}
+	}
 
-	// Join general channel
-	if err := chatHub.JoinChannel(moderator.Info.ID, "general"); err != nil {
+	// Join general channel with greeting
+	if err := chatHub.JoinChannel(moderator.Info.ID, "general",
+		"👋 ChatModerator online! I'm here to help with chat features and commands. Type @ChatModerator to ask me anything about using this chat system!"); err != nil {
 		log.Printf("❌ Failed to join moderator to general channel: %v", err)
 		return
 	}
@@ -1217,17 +1497,6 @@ func initializeModeratorAgent() {
 			return
 		}
 	}()
-
-	// Send join message to announce moderator
-	joinMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentJoin,
-		"general",
-		moderator.Info,
-		"👋 ChatModerator online! I'm here to help with chat features and commands. Type @ChatModerator to ask me anything about using this chat system!",
-	)
-	if err := chatHub.SendMessage(joinMsg); err != nil {
-		log.Printf("⚠️  Failed to send moderator join message: %v", err)
-	}
 
 	log.Println("✅ Moderator agent started successfully")
 }
@@ -1252,6 +1521,7 @@ func initializeAssistantAgent() {
 
 	// Create assistant agent
 	assistant := agent.NewAssistantAgent("Assistant", aiProvider, chatHub)
+	assistant.SetCollabClient(chatHub.NewCollaborationClientAdapter())
 
 	// Register assistant with hub
 	if err := chatHub.RegisterAgent(&assistant.Info); err != nil {
@@ -1263,13 +1533,31 @@ func initializeAssistantAgent() {
 	if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
 		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
 			ch.SetAssistantAgent(assistant)
+			ch.RegisterRuntimeAgent(assistant.Agent)
 		}
 	}
 
-	// Join general channel
-	if err := chatHub.JoinChannel(assistant.Info.ID, "general"); err != nil {
+	// Join general channel with greeting
+	if err := chatHub.JoinChannel(assistant.Info.ID, "general",
+		"👋 Personal Assistant online! I can help with reminders, tasks, notes, and more. Ask me '/help-assistant' to learn what I can do!"); err != nil {
 		log.Printf("❌ Failed to join assistant to general channel: %v", err)
 		return
+	}
+
+	// Rebind assistant to restored DM channels after restart/session restore.
+	for _, ch := range chatHub.ListChannels() {
+		if ch == nil || ch.Type != protocol.ChannelTypeDM {
+			continue
+		}
+		nameLower := strings.ToLower(ch.Name)
+		descLower := strings.ToLower(ch.Description)
+		if strings.Contains(nameLower, "assistant") || strings.Contains(descLower, "assistant") {
+			if err := chatHub.JoinChannel(assistant.Info.ID, ch.Name); err != nil {
+				log.Printf("⚠️  Failed to rejoin assistant to DM channel %s: %v", ch.Name, err)
+			} else {
+				log.Printf("✅ Assistant rejoined restored DM channel: %s", ch.Name)
+			}
+		}
 	}
 
 	// Start assistant in general channel
@@ -1280,17 +1568,6 @@ func initializeAssistantAgent() {
 			return
 		}
 	}()
-
-	// Send join message to announce assistant
-	joinMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentJoin,
-		"general",
-		assistant.Info,
-		"👋 Personal Assistant online! I can help with reminders, tasks, notes, and more. Ask me '/help-assistant' to learn what I can do!",
-	)
-	if err := chatHub.SendMessage(joinMsg); err != nil {
-		log.Printf("⚠️  Failed to send assistant join message: %v", err)
-	}
 
 	log.Println("✅ Assistant agent started successfully")
 }
@@ -1360,6 +1637,7 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 	}
 
 	cliAgent := agent.NewCLIAgentFromConfig(cfg, cfg.DefaultName, provider, chatHub)
+	cliAgent.SetCollabClient(chatHub.NewCollaborationClientAdapter())
 
 	if cfg.ApprovalMode != "" {
 		cliAgent.Info.ApprovalMode = cfg.ApprovalMode
@@ -1369,8 +1647,13 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 		log.Printf("❌ Failed to register %s CLI agent: %v", cfg.DefaultName, err)
 		return
 	}
+	if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
+		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
+			ch.RegisterRuntimeAgent(cliAgent)
+		}
+	}
 
-	if err := chatHub.JoinChannel(cliAgent.Info.ID, "general"); err != nil {
+	if err := chatHub.JoinChannel(cliAgent.Info.ID, "general", cfg.JoinMessage); err != nil {
 		log.Printf("❌ Failed to join %s agent to general channel: %v", cfg.DefaultName, err)
 		return
 	}
@@ -1382,16 +1665,6 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 			return
 		}
 	}()
-
-	joinMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentJoin,
-		"general",
-		cliAgent.Info,
-		cfg.JoinMessage,
-	)
-	if err := chatHub.SendMessage(joinMsg); err != nil {
-		log.Printf("⚠️  Failed to send %s agent join message: %v", cfg.DefaultName, err)
-	}
 
 	log.Printf("✅ %s CLI agent started (workDir: %s)", cfg.DefaultName, workDir)
 }
@@ -1653,14 +1926,22 @@ func buildProviderFromConfig(pcfg *config.ProviderConfig) (ai.AIProvider, error)
 		if workDir == "" {
 			workDir, _ = os.Getwd()
 		}
-		return ai.NewCursorCLIProvider(workDir, pcfg.APIKey), nil
+		var opts []ai.CLIAgentOption
+		if pcfg.TimeoutSeconds > 0 {
+			opts = append(opts, ai.WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
+		}
+		return ai.NewCursorCLIProvider(workDir, pcfg.APIKey, opts...), nil
 
 	case "gemini-cli":
 		workDir := pcfg.WorkDir
 		if workDir == "" {
 			workDir, _ = os.Getwd()
 		}
-		return ai.NewGeminiCLIProvider(workDir), nil
+		var opts []ai.CLIAgentOption
+		if pcfg.TimeoutSeconds > 0 {
+			opts = append(opts, ai.WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
+		}
+		return ai.NewGeminiCLIProvider(workDir, opts...), nil
 
 	default:
 		return nil, fmt.Errorf("unknown provider type %q", pcfg.Type)
@@ -1703,13 +1984,20 @@ func initializeConfiguredAgents() {
 			log.Printf("❌ Failed to create agent %s (type=%s): %v", acfg.Name, acfg.Type, err)
 			continue
 		}
+		agentObj.SetCollabClient(chatHub.NewCollaborationClientAdapter())
 
 		if err := chatHub.RegisterAgent(&agentObj.Info); err != nil {
 			log.Printf("❌ Failed to register agent %s: %v", acfg.Name, err)
 			continue
 		}
+		if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
+			if ch, ok := commandHandler.(*hub.CommandHandler); ok {
+				ch.RegisterRuntimeAgent(agentObj)
+			}
+		}
 
-		if err := chatHub.JoinChannel(agentObj.Info.ID, "general"); err != nil {
+		greeting := fmt.Sprintf("👋 %s online! Ready to help with %s questions.", acfg.Name, acfg.Type)
+		if err := chatHub.JoinChannel(agentObj.Info.ID, "general", greeting); err != nil {
 			log.Printf("❌ Failed to join agent %s to general channel: %v", acfg.Name, err)
 			continue
 		}
@@ -1720,16 +2008,6 @@ func initializeConfiguredAgents() {
 				log.Printf("❌ Failed to start agent %s: %v", name, err)
 			}
 		}(acfg.Name)
-
-		joinMsg := protocol.NewMessage(
-			protocol.MessageTypeAgentJoin,
-			"general",
-			agentObj.Info,
-			fmt.Sprintf("👋 %s online! Ready to help with %s questions.", acfg.Name, acfg.Type),
-		)
-		if err := chatHub.SendMessage(joinMsg); err != nil {
-			log.Printf("⚠️  Failed to send join message for %s: %v", acfg.Name, err)
-		}
 
 		log.Printf("✅ Agent %s started (type=%s, provider=%s, model=%s)",
 			acfg.Name, acfg.Type, pcfg.Name, aiProvider.GetModel())
@@ -1750,6 +2028,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		"uptime_secs": int(time.Since(serverStartTime).Seconds()),
 		"agent_count": len(agents),
 		"version":     "1.0.0",
+		"snapshot":    chatHub.GetSessionSaveHealth(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -2082,6 +2361,11 @@ func handleImport(w http.ResponseWriter, r *http.Request) {
 func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
+		if removed, err := workspaceManager.PruneUnavailableTestWorkspaces(); err != nil {
+			log.Printf("Warning: failed to prune unavailable test workspaces: %v", err)
+		} else if removed > 0 {
+			log.Printf("Pruned %d unavailable test workspace(s) from registry", removed)
+		}
 		workspaces := workspaceManager.ListWorkspaces()
 		json.NewEncoder(w).Encode(workspaces)
 	case "POST":
@@ -2130,6 +2414,10 @@ func handleFiles(w http.ResponseWriter, r *http.Request) {
 	workspace, exists := workspaceManager.GetWorkspace(workspaceID)
 	if !exists {
 		http.Error(w, "Workspace not found", http.StatusNotFound)
+		return
+	}
+	if info, err := os.Stat(workspace.Path); err != nil || !info.IsDir() {
+		http.Error(w, "Workspace path is unavailable", http.StatusNotFound)
 		return
 	}
 
@@ -2485,6 +2773,202 @@ func handleFileChanges(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pendingChanges)
 }
 
+func handleProposeFileChangeFromMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Channel     string `json:"channel"`
+		MessageID   string `json:"message_id"`
+		WorkspaceID string `json:"workspace_id"`
+		TargetPath  string `json:"target_path"`
+		UserID      string `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Channel) == "" || strings.TrimSpace(req.MessageID) == "" {
+		http.Error(w, "channel and message_id are required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.WorkspaceID) == "" {
+		http.Error(w, "workspace_id is required", http.StatusBadRequest)
+		return
+	}
+
+	workspace, ok := workspaceManager.GetWorkspace(req.WorkspaceID)
+	if !ok || workspace == nil || strings.TrimSpace(workspace.Path) == "" {
+		http.Error(w, "Workspace not found", http.StatusNotFound)
+		return
+	}
+
+	msgs, err := chatHub.GetMessages(req.Channel, 1000)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to load channel messages: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	var source *protocol.Message
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i] != nil && msgs[i].ID == req.MessageID {
+			source = msgs[i]
+			break
+		}
+	}
+	if source == nil {
+		http.Error(w, "Source message not found", http.StatusNotFound)
+		return
+	}
+	if source.From.Type == "human" || source.Type != protocol.MessageTypeChat {
+		http.Error(w, "Only agent chat messages can be proposed from", http.StatusBadRequest)
+		return
+	}
+
+	newContent := extractLongestCodeFence(source.Content)
+	newContent = stripEditorLineNumberPrefixes(newContent)
+	if strings.TrimSpace(newContent) == "" {
+		http.Error(w, "No editable content block found in message", http.StatusBadRequest)
+		return
+	}
+
+	targetPath := strings.TrimSpace(req.TargetPath)
+	if targetPath == "" {
+		targetPath = inferTargetPathFromWorkspaceContext(source)
+	}
+	if targetPath == "" {
+		http.Error(w, "No target file path available", http.StatusBadRequest)
+		return
+	}
+
+	targetPath = filepath.Clean(targetPath)
+	if filepath.IsAbs(targetPath) {
+		if !strings.HasPrefix(targetPath, filepath.Clean(workspace.Path)) {
+			http.Error(w, "Target path is outside workspace", http.StatusBadRequest)
+			return
+		}
+	} else {
+		targetPath = filepath.Join(workspace.Path, targetPath)
+	}
+
+	info, statErr := os.Stat(targetPath)
+	if statErr != nil || info.IsDir() {
+		http.Error(w, "Target file does not exist or is not a file", http.StatusBadRequest)
+		return
+	}
+
+	oldBytes, readErr := os.ReadFile(targetPath)
+	if readErr != nil {
+		http.Error(w, fmt.Sprintf("Failed to read target file: %v", readErr), http.StatusBadRequest)
+		return
+	}
+
+	fileChangeManager := chatHub.GetFileChangeManager()
+	fileChangeManager.GetExecutor().SetWorkspaceRoot(workspace.Path)
+	change, err := fileChangeManager.ProposeFileChange(
+		filechange.FileOperationEdit,
+		targetPath,
+		"",
+		"",
+		string(oldBytes),
+		newContent,
+		source.From,
+		req.Channel,
+	)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create file change proposal: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	systemFrom := protocol.AgentInfo{
+		ID:     "system",
+		Name:   "System",
+		Type:   protocol.AgentTypeGeneral,
+		Status: "active",
+	}
+	infoMsg := protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		req.Channel,
+		systemFrom,
+		fmt.Sprintf("Created file change proposal `%s` for `%s` from message `%s`.", change.ID, change.FilePath, source.ID),
+	)
+	if sendErr := chatHub.SendMessage(infoMsg); sendErr != nil {
+		log.Printf("Failed to send propose-from-message system message: %v", sendErr)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(change)
+}
+
+func extractLongestCodeFence(content string) string {
+	re := regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\\s*\\n(.*?)\\n```")
+	matches := re.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	longest := ""
+	for _, m := range matches {
+		if len(m) < 2 {
+			continue
+		}
+		if len(m[1]) > len(longest) {
+			longest = m[1]
+		}
+	}
+	return longest
+}
+
+func stripEditorLineNumberPrefixes(content string) string {
+	if content == "" {
+		return content
+	}
+	re := regexp.MustCompile(`(?m)^\s*\d+\s*\|\s?`)
+	return re.ReplaceAllString(content, "")
+}
+
+func inferTargetPathFromWorkspaceContext(msg *protocol.Message) string {
+	if msg == nil || msg.Metadata == nil {
+		return ""
+	}
+	wsCtxRaw, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return ""
+	}
+	wsCtx, ok := wsCtxRaw.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	openFilesRaw, ok := wsCtx["open_files"]
+	if !ok {
+		return ""
+	}
+	openFiles, ok := openFilesRaw.([]interface{})
+	if !ok {
+		return ""
+	}
+	for _, f := range openFiles {
+		m, ok := f.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		isActive, _ := m["is_active"].(bool)
+		path, _ := m["path"].(string)
+		if isActive && strings.TrimSpace(path) != "" {
+			return path
+		}
+	}
+	if len(openFiles) > 0 {
+		if first, ok := openFiles[0].(map[string]interface{}); ok {
+			if path, ok := first["path"].(string); ok {
+				return path
+			}
+		}
+	}
+	return ""
+}
+
 func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -2509,6 +2993,27 @@ func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	// Emit a user-visible confirmation in the change channel.
+	channel := change.Channel
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
+	systemFrom := protocol.AgentInfo{
+		ID:     "system",
+		Name:   "System",
+		Type:   protocol.AgentTypeGeneral,
+		Status: "active",
+	}
+	confirm := protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		channel,
+		systemFrom,
+		fmt.Sprintf("Applied change `%s` to `%s`.", change.ID, change.FilePath),
+	)
+	if sendErr := chatHub.SendMessage(confirm); sendErr != nil {
+		log.Printf("Failed to send file-change confirmation message: %v", sendErr)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -24,6 +24,27 @@ export function ChannelSidebar({
 }: ChannelSidebarProps) {
   const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore();
 
+  const parseDMDisplayName = (dmChannel: Channel): string => {
+    const directAgent = dmChannel.agents?.[0]?.name;
+    if (directAgent) return directAgent;
+
+    // Preferred fallback: the server-provided description preserves casing.
+    const desc = dmChannel.description || '';
+    const m = desc.match(/^Direct message with\s+(.+)$/i);
+    if (m && m[1]) {
+      return m[1].trim();
+    }
+
+    // Last fallback: derive from channel slug, then normalize common expert suffixes.
+    const raw = dmChannel.name.replace(/^dm-[^-]+-/, '');
+    if (!raw) return dmChannel.name;
+    if (raw.endsWith('expert')) {
+      const stem = raw.slice(0, -6);
+      return `${stem.charAt(0).toUpperCase()}${stem.slice(1)}Expert`;
+    }
+    return `${raw.charAt(0).toUpperCase()}${raw.slice(1)}`;
+  };
+
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     const w = saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
@@ -32,14 +53,28 @@ export function ChannelSidebar({
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Separate channels by type
-  const publicChannels = channels.filter(c => c.type === 'public' || !c.type);
-  const customChannels = channels.filter(c => c.type === 'custom');
-  const dmChannels = channels.filter(c => c.type === 'dm');
+  // Separate channels by type, sorted alphabetically for stable ordering
+  const publicChannels = channels
+    .filter(c => c.type === 'public' || !c.type)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const customChannels = channels
+    .filter(c => c.type === 'custom')
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const dmChannels = channels
+    .filter(c => c.type === 'dm')
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Build a set of agent IDs that already have an active DM
+  // Build a set of agent IDs that already have an active DM.
+  // Fallback to matching by parsed DM display name when restored sessions
+  // don't include agents/members on DM channels.
   const agentsWithDM = new Set(
-    dmChannels.flatMap(c => c.agents?.map(a => a.id) ?? c.members ?? [])
+    dmChannels.flatMap(c => {
+      const ids = c.agents?.map(a => a.id) ?? c.members ?? [];
+      if (ids.length > 0) return ids;
+      const inferredName = parseDMDisplayName(c);
+      const matched = agents.find(a => a.name.toLowerCase() === inferredName.toLowerCase());
+      return matched ? [matched.id] : [];
+    })
   );
 
   // Resize drag handling
@@ -103,7 +138,7 @@ export function ChannelSidebar({
     const isUnread = unreadChannels.has(ch.name);
     const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
     const agent = ch.agents?.[0];
-    const displayName = agent?.name ?? ch.name.replace(/^dm-[^-]+-/, '');
+    const displayName = parseDMDisplayName(ch);
     const color = agent ? getAgentColor(agent.type) : '#a9b9ba';
 
     return (

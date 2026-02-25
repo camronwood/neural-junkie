@@ -61,6 +61,7 @@ The central message broker and state manager.
 - **Message Routing** -- Send with @mention parsing, keyword detection, path auto-detection; broadcast to subscribers
 - **Thread Support** -- Thread storage, metadata, subscribe/unsubscribe; thread replies broadcast to both thread and channel
 - **Command Dispatch** -- Slash command parsing and routing via `CommandHandler`
+- **Collaboration Orchestration** -- Multi-agent planning/review/execution lifecycle via `CollaborationManager`
 - **File Changes** -- Register proposals from agents, manage approval/rejection workflow
 - **Workspace Management** -- Add/list/remove workspaces, persisted to disk
 - **Session Persistence** -- Periodic save to `~/.neural-junkie/last-session.json`
@@ -73,6 +74,7 @@ type Hub struct {
     subscribers     map[string][]chan *protocol.Message
     threads         map[string][]*protocol.Message
     commandHandler  *CommandHandler
+    collabManager   *collaboration.CollaborationManager
     fileChangeManager *filechange.FileChangeManager
     workspaceManager  *WorkspaceManager
 }
@@ -82,15 +84,25 @@ type Hub struct {
 
 Processes 50+ slash commands organized by category. Each command is defined with metadata (name, description, category, arguments with types) exposed via `GET /api/commands` for the command palette.
 
-Categories: Repository Agents, Confluence, Helper Agents, Agent Management, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Connection Tests, Help.
+Categories: Repository Agents, Confluence, Helper Agents, Agent Management, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Collaboration, Connection Tests, Help.
+
+### Collaboration Package (`internal/collaboration/`)
+
+Implements structured multi-agent collaboration with hard bounds and user-controlled phase transitions.
+
+- **DiscussionSession** -- Round-robin turn-taking, per-agent turn budgets, total message ceilings, timeout enforcement
+- **CollaborationManager** -- Lifecycle management (`planning -> reviewing -> approved -> executing -> completed/cancelled`)
+- **SharedArtifact** -- Versioned plan document with edit history
+- **Task Assignment** -- Parses plan tasks and tracks per-agent task status
+- **Consensus Detection** -- Signal + heuristic convergence detection with disagreement escalation path
 
 ### Protocol (`internal/protocol/`)
 
 Defines message types, agent types, and @mention parsing.
 
-**Message Types:** `chat`, `question`, `answer`, `system_info`, `agent_join`, `agent_leave`, `context_share`, `request_help`, `file_change`, `command_output`, `design_analysis`, `agent_review`
+**Message Types:** `chat`, `question`, `answer`, `system_info`, `agent_join`, `agent_leave`, `agent_status`, `context_share`, `request_help`, `file_change`, `command_output`, `command_suggestion`, `design_output`, `tool_approval`, `stream_delta`, `stream_end`, `collaboration_plan`, `collaboration_task`, `collaboration_status`, `collaboration_discussion`
 
-**Agent Types:** `frontend`, `backend`, `devops`, `database`, `security`, `repo`, `confluence`, `moderator`, `assistant`, `helper`, `cursor-cli`
+**Agent Types:** `frontend`, `backend`, `devops`, `database`, `security`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `helper`, `cli`
 
 **Mention System:** Parses `@AgentName` and `@agenttype` from message content. Normalizes names for fuzzy matching.
 

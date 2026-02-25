@@ -2,6 +2,26 @@
 
 All notable changes to Neural Junkie.
 
+## [0.1.1] - 2026-02-23
+
+### Added -- Multi-Agent Collaboration
+- **Collaboration manager** (`internal/collaboration`) for structured multi-agent orchestration
+- **Bounded discussion sessions** with round limits, turn budgets, total message caps, and timeout enforcement
+- **Collaboration phases**: planning -> reviewing -> approved -> executing -> completed/cancelled
+- **Shared plan artifacts** with version history and edit tracking
+- **Task delegation model** with per-agent assignment and status tracking
+- **Consensus detection** (signal + heuristic) with disagreement escalation
+- **New slash commands**: `/collaborate`, `/approve-plan`, `/revise-plan`, `/cancel-plan`, `/collab-status`
+- **New message types**: `collaboration_plan`, `collaboration_task`, `collaboration_status`, `collaboration_discussion`
+
+### Added -- Desktop Collaboration UX
+- **CollaborationPanel** for phase, participants, tasks, plan artifact, and control actions
+- **Collaboration message rendering** in chat with collaboration-specific visual cues
+- **TypeScript protocol updates** for collaboration entities and metadata helpers
+
+### Added -- Test Coverage
+- Added `test/collaboration_test.go` covering lifecycle, bounded discussion logic, consensus, task tracking, artifact versioning, and extraction parsing
+
 ## [0.1.0] - 2026-02-20
 
 First packaged release -- Neural Junkie ships as a single distributable desktop app.

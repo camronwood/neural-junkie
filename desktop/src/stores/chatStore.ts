@@ -66,6 +66,7 @@ interface ChatState {
   switchChannel: (channelName: string) => void;
   markChannelUnread: (channelName: string) => void;
   clearChannelUnread: (channelName: string) => void;
+  addMessageToCache: (channelName: string, message: Message) => void;
 
   // Thread actions
   openThread: (threadId: string) => void;
@@ -279,6 +280,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const newUnread = new Set(state.unreadChannels);
       newUnread.delete(channelName);
       return { unreadChannels: newUnread };
+    }),
+
+  addMessageToCache: (channelName, message) =>
+    set((state) => {
+      const newCache = new Map(state.channelMessages);
+      const cached = newCache.get(channelName) || [];
+      if (cached.some(m => m.id === message.id)) return state;
+      newCache.set(channelName, [...cached, message]);
+      return { channelMessages: newCache };
     }),
 
   // Thread actions

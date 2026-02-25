@@ -31,6 +31,7 @@ interface EditorState {
   markTabDirty: (tabId: string, isDirty: boolean) => void;
   saveTab: (tabId: string) => Promise<boolean>;
   saveAllTabs: () => Promise<boolean>;
+  refreshTabFromDisk: (workspaceId: string, path: string) => Promise<void>;
   closeAllTabs: () => void;
   closeOtherTabs: (keepTabId: string) => void;
   closeTabsToRight: (tabId: string) => void;
@@ -193,6 +194,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to save files';
       set({ saving: false, error: errorMessage });
       return false;
+    }
+  },
+
+  refreshTabFromDisk: async (workspaceId, path) => {
+    const state = get();
+    const tab = state.getTabByPath(workspaceId, path);
+    if (!tab || tab.isDirty) {
+      // Never overwrite unsaved edits in the editor.
+      return;
+    }
+
+    try {
+      const latestContent = await api.fetchFileContent(workspaceId, path);
+      set(current => ({
+        tabs: current.tabs.map(t =>
+          t.id === tab.id
+            ? { ...t, content: latestContent, isDirty: false }
+            : t
+        ),
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to refresh file from disk';
+      set({ error: errorMessage });
     }
   },
   

@@ -466,6 +466,16 @@ func (m *MockHub) GetCommandHandler() agent.CommandHandlerInterface {
 	return nil
 }
 
+func (m *MockHub) BroadcastDirect(channelName string, msg *protocol.Message) {}
+
+func (m *MockHub) GetAgentChannels(agentID string) []string {
+	return []string{"general"}
+}
+
+func (m *MockHub) GetChannelType(channelName string) protocol.ChannelType {
+	return protocol.ChannelTypePublic
+}
+
 // TestAssistantStoragePersistence tests that data persists across restarts
 func TestAssistantStoragePersistence(t *testing.T) {
 	// Create temporary directory for testing

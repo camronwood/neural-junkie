@@ -54,6 +54,10 @@ func (m *mockHubClientRepo) GetCommandHandler() agent.CommandHandlerInterface {
 	return nil
 }
 
+func (m *mockHubClientRepo) BroadcastDirect(channelName string, msg *protocol.Message) {}
+func (m *mockHubClientRepo) GetAgentChannels(agentID string) []string { return []string{"general"} }
+func (m *mockHubClientRepo) GetChannelType(channelName string) protocol.ChannelType { return protocol.ChannelTypePublic }
+
 // TestRepoAgentCreation tests repository agent creation
 func TestRepoAgentCreation(t *testing.T) {
 	useIsolatedRepoStorage(t)

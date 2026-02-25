@@ -156,21 +156,9 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@sleep 2
 	@echo ""
 	@echo "🚀 Starting server with fresh state..."
+	@echo "   (Specialist agents are started in-process by the server via config)"
 	@bash -c 'source load-env.sh && go run cmd/server/main.go > /tmp/chat-server.log 2>&1 &'
 	@sleep 3
-	@echo "🤖 Starting all agents..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "GoExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 2
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type database --name "SQLMaster" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "ReactExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOpsPro" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type rust --name "RustExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 2
 	@echo ""
 	@echo "✅ System refreshed! All processes restarted with clean state."
 	@echo "📊 Server logs: /tmp/chat-server.log"
@@ -180,20 +168,9 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 
 start-all: setup-env ## Start server and all agents with environment loaded
 	@echo "🚀 Starting complete Neural Junkie system..."
+	@echo "   (Specialist agents are started in-process by the server via config)"
 	@bash -c 'source load-env.sh && go run cmd/server/main.go &'
-	@sleep 2
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "GoExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 2
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type database --name "SQLMaster" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "ReactExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOpsPro" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type rust --name "RustExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
-	@sleep 2
+	@sleep 3
 	@echo "✅ System started! Opening GUI..."
 	@cd desktop && npm run tauri:dev
 

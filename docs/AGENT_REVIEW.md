@@ -4,6 +4,8 @@
 
 The Agent Review feature allows users to request a second opinion from one agent on another agent's response, enabling collaborative multi-perspective analysis in the Neural Junkie system.
 
+For larger, structured multi-agent work (planning + approval + execution), use the Collaboration system documented in `docs/COLLABORATION.md`.
+
 ## How It Works
 
 ### Basic Flow
@@ -19,6 +21,13 @@ The Agent Review feature allows users to request a second opinion from one agent
    User: @SecurityExpert thoughts on this from a security perspective?
    SecurityExpert: The approach is solid, but I'd add: ensure you implement...
    ```
+
+### Review vs Collaboration
+
+- **Agent Review** is lightweight and fast: one agent reviews another response in-line.
+- **Collaboration** is structured: bounded agent discussion, shared plan artifact, user approval, then delegated execution.
+- Use **Agent Review** for quick "second opinion" checks.
+- Use **Collaboration** when multiple agents should jointly design and build.
 
 ### Key Features
 
@@ -148,7 +157,7 @@ All tests passing as of October 2025.
 
 ## Limitations
 
-1. **Single Review Level**: Can't chain more than 2 agents on same question
+1. **Single Review Level**: Can't chain more than 2 agents on same question (by design)
 2. **Requires Reply-To**: UI must support replying to specific messages
 3. **No Auto-Review**: Users must explicitly request reviews
 4. **Review Context**: Only includes the reviewed message, not full thread
@@ -162,9 +171,12 @@ Potential improvements (see `docs/FUTURE_ENHANCEMENTS.md`):
 - Visual review trees in UI
 - Consensus detection across multiple reviews
 
+For currently implemented consensus and bounded multi-agent discussion, see `docs/COLLABORATION.md`.
+
 ## Related Documentation
 
 - `docs/ARCHITECTURE.md` - Overall system architecture
+- `docs/COLLABORATION.md` - Multi-agent planning/execution workflow
 - `docs/GETTING_STARTED.md` - Setup and usage guide
 - `internal/protocol/types.go` - Protocol implementation
 - `internal/agent/agent.go` - Agent response logic

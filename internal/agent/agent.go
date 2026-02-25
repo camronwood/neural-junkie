@@ -2,11 +2,14 @@ package agent
 
 import (
 	"context"
+	"crypto/sha1"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +17,11 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
+)
+
+const (
+	customChannelBroadPromptResponderCap = 2
+	customChannelRelevanceMinScore       = 2
 )
 
 // Agent represents an AI agent that can participate in chat rooms
@@ -46,6 +54,14 @@ type Agent struct {
 	// Multi-channel support
 	activeChannels map[string]context.CancelFunc // channel name -> cancel func for its listener
 	channelMu      sync.Mutex
+
+	// Collaboration support (set by the hub after creation)
+	Collab CollaborationClient
+
+	// Optional pre-processing hook for specialized agents. When set and it
+	// returns true, the message is considered fully handled and the base
+	// response pipeline is skipped.
+	messageInterceptor func(context.Context, *protocol.Message) bool
 }
 
 // MCPServerInterface defines the interface for MCP servers
@@ -67,6 +83,41 @@ type HubClient interface {
 	GetCommandHandler() CommandHandlerInterface
 	GetAgentChannels(agentID string) []string
 	GetChannelType(channelName string) protocol.ChannelType
+}
+
+// CollaborationClient is the subset of CollaborationManager that agents
+// need to check collaboration state. Defined as an interface here to
+// avoid a circular dependency on the collaboration package.
+type CollaborationClient interface {
+	IsParticipant(collabID, agentID string) bool
+	IsAgentTurn(collabID, agentID string) bool
+	IsActive(collabID string) bool
+	GetCurrentTurnAgent(collabID string) (string, error)
+	GetCollaborationForAgent(agentID string) CollaborationInfo
+	RecordMessage(collabID string, msg *protocol.Message) error
+	AnalyzeConsensus(collabID string, msg *protocol.Message) string
+}
+
+// CollaborationInfo carries the subset of collaboration state an agent
+// needs when building prompts and deciding whether to respond.
+type CollaborationInfo struct {
+	ID          string
+	Description string
+	Phase       string
+	PlanContent string
+	PlanVersion int
+	AgentRole   string
+	Agents      []CollaborationAgentSummary
+	Channel     string
+}
+
+// CollaborationAgentSummary describes another agent in a collaboration
+// (used for prompt construction without importing the collaboration package).
+type CollaborationAgentSummary struct {
+	Name      string
+	Type      string
+	Role      string
+	Expertise []string
 }
 
 // ExportableAgent interface for agents that can be exported to MCP format
@@ -220,6 +271,12 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 
 	log.Printf("[%s] Agent listening on channel: %s", a.Info.Name, channel)
 
+	// Check history for any unanswered messages (handles the race where a
+	// message arrived between channel creation and agent subscription).
+	if history != nil {
+		go a.processUnrespondedHistory(ctx, channel, history)
+	}
+
 	go func() {
 		for {
 			select {
@@ -239,9 +296,49 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	return nil
 }
 
-// discoverChannels periodically checks for new channels this agent was added to
+// processUnrespondedHistory scans recent history for actionable messages that
+// this agent may have missed between channel join and subscription readiness.
+func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, history []*protocol.Message) {
+	if len(history) == 0 {
+		return
+	}
+
+	// Only look at the last message. This is a targeted race-condition recovery,
+	// not a full backlog replay.
+	last := history[len(history)-1]
+
+	// Human-originated message recovery (existing DM/channel race fix).
+	shouldProcess := last.From.Type == "human"
+
+	// Collaboration kickoff recovery: if the latest message is a collaboration
+	// system message (seed/turn prompt), process it once subscribed.
+	if !shouldProcess && last.IsCollaborationMessage() &&
+		last.Type == protocol.MessageTypeCollabDiscussion &&
+		a.Collab != nil &&
+		a.Collab.IsParticipant(last.GetCollaborationID(), a.Info.ID) &&
+		a.Collab.IsActive(last.GetCollaborationID()) {
+		shouldProcess = true
+	}
+
+	if !shouldProcess {
+		return
+	}
+
+	// Check that we haven't already responded
+	for _, m := range history {
+		if m.From.ID == a.Info.ID && m.Type == protocol.MessageTypeChat &&
+			m.Timestamp.After(last.Timestamp) {
+			return
+		}
+	}
+	log.Printf("[%s] Found unanswered message in %s history, processing...", a.Info.Name, channel)
+	a.handleMessage(ctx, last)
+}
+
+// discoverChannels periodically checks for new channels this agent was added to.
+// Runs every second so agents respond promptly when added to new DM channels.
 func (a *Agent) discoverChannels(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -306,6 +403,11 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		return
 	}
 
+	// Specialized-agent interception path (e.g., Assistant deterministic actions).
+	if a.messageInterceptor != nil && a.messageInterceptor(ctx, msg) {
+		return
+	}
+
 	// Check if we've already responded to this message (atomic check-and-set)
 	a.respondedMutex.Lock()
 	if a.respondedMessages[msg.ID] {
@@ -359,7 +461,37 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if err != nil {
 		log.Printf("[%s] Error generating response: %v", a.Info.Name, err)
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+
+		// Surface a user-safe error to chat while keeping full details in logs.
+		userMsg, code, retryable := classifyUserFacingError(err)
+		errMsg := protocol.NewMessage(
+			protocol.MessageTypeChat,
+			msg.Channel,
+			a.Info,
+			userMsg,
+		)
+		errMsg.ReplyTo = msg.ID
+		errMsg.SetErrorMetadata(code, retryable)
+		if msg.IsInThread() {
+			errMsg.ThreadID = msg.ThreadID
+			errMsg.IsThreadReply = true
+		}
+		if sendErr := a.Hub.SendMessage(errMsg); sendErr != nil {
+			log.Printf("[%s] Failed to send error message: %v", a.Info.Name, sendErr)
+		}
 		return
+	}
+	response = sanitizeInternalToolNames(response)
+	response, proposedFileChange, proposalErr := a.maybeSubmitFileChangeFromResponse(response, msg.Channel, msg)
+	if proposalErr != nil {
+		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
+	}
+	if proposedFileChange {
+		if strings.TrimSpace(response) == "" {
+			response = "I submitted a file change proposal for your approval."
+		} else {
+			response += "\n\nI submitted a file change proposal for your approval."
+		}
 	}
 	log.Printf("[%s] ✍️  Generated response: %s", a.Info.Name, response[:min(50, len(response))])
 
@@ -384,6 +516,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	// Check if this is a review request and add metadata
 	if msg.ReplyTo != "" {
+		handledReviewMetadata := false
 		// Look for the message being replied to
 		for _, histMsg := range a.Context.History[msg.Channel] {
 			if histMsg.ID == msg.ReplyTo {
@@ -417,9 +550,41 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 					log.Printf("[%s] 📋 Review metadata: depth=%d, reviewing=%s",
 						a.Info.Name, currentDepth+1, msg.ReplyTo[:8])
+					handledReviewMetadata = true
 				}
 				break
 			}
+		}
+
+		// Fallback for review flows where the replied message is not in local
+		// history (for example, reply target was ephemeral status metadata).
+		if !handledReviewMetadata && (msg.IsReviewRequest() || msg.GetReviewDepth() > 0) {
+			currentDepth := msg.GetReviewDepth()
+			responseMsg.SetReviewDepth(currentDepth + 1)
+			responseMsg.SetReviewedMessageID(msg.ReplyTo)
+			if originalQuestionID := msg.GetOriginalQuestionID(); originalQuestionID != "" {
+				responseMsg.SetOriginalQuestionID(originalQuestionID)
+			}
+			log.Printf("[%s] 📋 Review metadata fallback: depth=%d, reviewing=%s",
+				a.Info.Name, currentDepth+1, msg.ReplyTo[:8])
+		}
+	}
+
+	// Propagate collaboration metadata so the response stays within the
+	// collaboration's discussion session.
+	if collabID := msg.GetCollaborationID(); collabID != "" {
+		responseMsg.SetCollaborationID(collabID)
+		if phase := msg.GetCollaborationPhase(); phase != "" {
+			responseMsg.SetCollaborationPhase(phase)
+		}
+		if taskID := msg.GetTaskID(); taskID != "" {
+			responseMsg.SetTaskID(taskID)
+		}
+		if taskStatus := msg.GetTaskStatus(); taskStatus != "" {
+			responseMsg.SetTaskStatus(taskStatus)
+		}
+		if taskOutput := msg.GetTaskOutput(); taskOutput != "" {
+			responseMsg.SetTaskOutput(taskOutput)
 		}
 	}
 
@@ -439,6 +604,58 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	log.Printf("[%s] ✅ Response sent successfully!", a.Info.Name)
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
+
+	// Record the response in the collaboration discussion and check consensus
+	if collabID := responseMsg.GetCollaborationID(); collabID != "" && a.Collab != nil {
+		if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
+			log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+		}
+		a.Collab.AnalyzeConsensus(collabID, responseMsg)
+		a.promptNextCollaborationTurn(responseMsg, collabID)
+	}
+}
+
+// promptNextCollaborationTurn emits a deterministic handoff prompt so the next
+// participant receives an explicit trigger after each accepted collaboration turn.
+func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID string) {
+	if source == nil || a.Collab == nil || !a.Collab.IsActive(collabID) {
+		return
+	}
+
+	nextAgentID, err := a.Collab.GetCurrentTurnAgent(collabID)
+	if err != nil || strings.TrimSpace(nextAgentID) == "" || nextAgentID == a.Info.ID {
+		return
+	}
+
+	// Only prompt when the selected participant is currently eligible to respond.
+	if !a.Collab.IsAgentTurn(collabID, nextAgentID) {
+		return
+	}
+
+	turnMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		source.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments.",
+	)
+	turnMsg.SetCollaborationID(collabID)
+	if phase := source.GetCollaborationPhase(); phase != "" {
+		turnMsg.SetCollaborationPhase(phase)
+	}
+	turnMsg.Mentions = []string{nextAgentID}
+	if turnMsg.Metadata == nil {
+		turnMsg.Metadata = map[string]interface{}{}
+	}
+	turnMsg.Metadata["collab_internal_event"] = true
+
+	if err := a.Hub.SendMessage(turnMsg); err != nil {
+		log.Printf("[%s] Warning: failed to send collaboration turn handoff: %v", a.Info.Name, err)
+	}
+}
+
+// SetMessageInterceptor sets an optional message pre-processing hook.
+func (a *Agent) SetMessageInterceptor(interceptor func(context.Context, *protocol.Message) bool) {
+	a.messageInterceptor = interceptor
 }
 
 func min(a, b int) int {
@@ -446,6 +663,23 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// getCollaborationContext returns collaboration info for the message if the
+// agent is participating in an active collaboration. Returns a zero-value
+// CollaborationInfo if no collaboration is active.
+func (a *Agent) getCollaborationContext(msg *protocol.Message) CollaborationInfo {
+	if a.Collab == nil {
+		return CollaborationInfo{}
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" {
+		return CollaborationInfo{}
+	}
+	if !a.Collab.IsParticipant(collabID, a.Info.ID) {
+		return CollaborationInfo{}
+	}
+	return a.Collab.GetCollaborationForAgent(a.Info.ID)
 }
 
 // sendThinkingStatus sends an agent_status message indicating thinking state
@@ -481,6 +715,26 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			log.Printf("[%s] 🎨 DESIGN ANALYSIS request detected - will respond", a.Info.Name)
 			return true
 		}
+	}
+
+	// COLLABORATION MODE: within an active collaboration, agents are
+	// allowed to respond to each other subject to the discussion's
+	// turn-taking rules. This check runs before the normal isFromAgent
+	// guard so collaboration messages bypass the anti-loop block.
+	if collabID := msg.GetCollaborationID(); collabID != "" && a.Collab != nil {
+		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
+			if a.Collab.IsAgentTurn(collabID, a.Info.ID) {
+				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
+				return true
+			}
+			// Also respond if explicitly @mentioned within collaboration
+			if msg.IsMentioned(a.Info.ID) {
+				log.Printf("[%s] ✅ MENTIONED in collaboration - will respond (collab %s)", a.Info.Name, collabID[:8])
+				return true
+			}
+			return false
+		}
+		return false
 	}
 
 	// Never respond to system messages (errors, notifications, join/leave, etc.)
@@ -557,6 +811,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		if msg.IsMentioned(a.Info.ID) {
 			// Check if this is a review request (replying to another agent's message)
 			if msg.ReplyTo != "" {
+				// Enforce max review depth from explicit metadata even when the
+				// replied message is missing from local history.
+				if msg.GetReviewDepth() >= 1 {
+					return false
+				}
+
 				// Find the message being replied to
 				var repliedToMsg *protocol.Message
 				for _, histMsg := range a.Context.History[msg.Channel] {
@@ -568,17 +828,17 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 
 				// Check if the replied-to message is from an agent
 				if repliedToMsg != nil {
-				isRepliedToAgent := repliedToMsg.From.Type == protocol.AgentTypeFrontend ||
-					repliedToMsg.From.Type == protocol.AgentTypeBackend ||
-					repliedToMsg.From.Type == protocol.AgentTypeDatabase ||
-					repliedToMsg.From.Type == protocol.AgentTypeSecurity ||
-					repliedToMsg.From.Type == protocol.AgentTypeRust ||
-					repliedToMsg.From.Type == protocol.AgentTypeDevOps ||
-					repliedToMsg.From.Type == protocol.AgentTypeRepo ||
-					repliedToMsg.From.Type == protocol.AgentTypeHelper ||
-					repliedToMsg.From.Type == protocol.AgentTypeAssistant ||
-					repliedToMsg.From.Type == protocol.AgentTypeModerator ||
-					repliedToMsg.From.Type == protocol.AgentTypeCLI
+					isRepliedToAgent := repliedToMsg.From.Type == protocol.AgentTypeFrontend ||
+						repliedToMsg.From.Type == protocol.AgentTypeBackend ||
+						repliedToMsg.From.Type == protocol.AgentTypeDatabase ||
+						repliedToMsg.From.Type == protocol.AgentTypeSecurity ||
+						repliedToMsg.From.Type == protocol.AgentTypeRust ||
+						repliedToMsg.From.Type == protocol.AgentTypeDevOps ||
+						repliedToMsg.From.Type == protocol.AgentTypeRepo ||
+						repliedToMsg.From.Type == protocol.AgentTypeHelper ||
+						repliedToMsg.From.Type == protocol.AgentTypeAssistant ||
+						repliedToMsg.From.Type == protocol.AgentTypeModerator ||
+						repliedToMsg.From.Type == protocol.AgentTypeCLI
 
 					if isRepliedToAgent {
 						// This is a review request - check depth limits
@@ -617,9 +877,13 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// Respond to questions related to expertise
 	content := strings.ToLower(msg.Content)
 
-	// Check if it's a question - require explicit question mark for better precision
+	// In custom channels we allow intent-style requests (without "?") so
+	// relevant specialists can auto-respond without explicit @mentions.
 	isQuestion := msg.Type == protocol.MessageTypeQuestion ||
 		strings.Contains(content, "?")
+	if !isQuestion && channelType == protocol.ChannelTypeCustom {
+		isQuestion = looksLikeUserRequest(content)
+	}
 
 	if !isQuestion {
 		return false
@@ -632,12 +896,13 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	for _, word := range words {
 		// Remove punctuation for matching
 		word = strings.Trim(word, ".,!?;:")
-		if len(word) >= 3 {
+		if len(word) >= 2 {
 			wordSet[word] = true
 		}
 	}
 
 	// Check expertise keywords - require whole word matches
+	relevanceScore := 0
 	for _, skill := range a.Info.Expertise {
 		skillLower := strings.ToLower(skill)
 		skillWords := strings.Fields(skillLower)
@@ -645,8 +910,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		// Check if any significant word from expertise appears in message
 		for _, skillWord := range skillWords {
 			skillWord = strings.Trim(skillWord, ".,!?;:")
-			if len(skillWord) >= 4 && wordSet[skillWord] {
-				return true
+			if len(skillWord) >= 2 && wordSet[skillWord] {
+				relevanceScore += 2
 			}
 		}
 
@@ -654,7 +919,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		if len(skillWords) > 1 {
 			skillPhrase := strings.Join(skillWords, " ")
 			if strings.Contains(content, skillPhrase) {
-				return true
+				relevanceScore += 3
 			}
 		}
 	}
@@ -667,8 +932,24 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			strings.Contains(content, " "+keyword+" ") ||
 			strings.HasPrefix(content, keyword+" ") ||
 			strings.HasSuffix(content, " "+keyword) {
+			relevanceScore++
+		}
+	}
+
+	// Custom-channel behavior: prefer expertise-relevant replies, and only fall
+	// back to broad prompts with a responder cap to reduce noise.
+	if channelType == protocol.ChannelTypeCustom && msg.From.Type == "human" && !msg.HasMentions() {
+		if relevanceScore >= customChannelRelevanceMinScore {
 			return true
 		}
+		if isCustomChannelPrompt(content) && a.allowCustomChannelBroadPromptReply(msg) {
+			return true
+		}
+		return false
+	}
+
+	if relevanceScore > 0 {
+		return true
 	}
 
 	return false
@@ -682,16 +963,183 @@ func (a *Agent) getTypeKeywords() []string {
 	case protocol.AgentTypeBackend:
 		return []string{"api", "backend", "server", "endpoint", "service", "database", "business logic"}
 	case protocol.AgentTypeDevOps:
-		return []string{"deploy", "deployment", "ci/cd", "docker", "kubernetes", "infrastructure", "monitoring"}
+		return []string{"deploy", "deployment", "ci/cd", "docker", "kubernetes", "infrastructure", "monitoring",
+			"aws", "azure", "gcp", "cloud", "terraform", "ansible", "pipeline", "ecs", "eks", "lambda"}
 	case protocol.AgentTypeDatabase:
-		return []string{"database", "sql", "query", "schema", "migration", "postgres", "mysql", "mongodb"}
+		return []string{"database", "sql", "query", "schema", "migration", "postgres", "mysql", "mongodb",
+			"db", "documentdb", "dynamodb", "aurora", "rds", "nosql", "redis", "index"}
 	case protocol.AgentTypeSecurity:
-		return []string{"security", "auth", "authentication", "authorization", "encryption", "vulnerability", "xss", "sql injection"}
+		return []string{"security", "auth", "authentication", "authorization", "encryption", "vulnerability", "xss", "sql injection",
+			"iam", "ssl", "tls", "cors", "csrf", "rbac", "jwt", "oauth2", "secrets"}
 	case protocol.AgentTypeRust:
 		return []string{"rust", "cargo", "tokio", "ownership", "borrowing", "lifetime", "trait", "async", "unsafe", "wasm", "serde", "crate"}
 	default:
 		return []string{}
 	}
+}
+
+func looksLikeUserRequest(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return false
+	}
+	requestPrefixes := []string{
+		"how ", "what ", "why ", "where ", "when ", "can ", "could ", "would ",
+		"please ", "help ", "show ", "build ", "create ", "fix ", "debug ",
+		"review ", "explain ", "plan ", "implement ",
+	}
+	for _, prefix := range requestPrefixes {
+		if strings.HasPrefix(trimmed, prefix) {
+			return true
+		}
+	}
+	return strings.Contains(trimmed, " please ") || strings.HasSuffix(trimmed, " please")
+}
+
+// shouldInjectWorkspaceCode decides whether to proactively inject workspace code
+// context for a message. We only do this for code-analysis intents, not for
+// capability/permission/tasking questions (e.g. "can you create files?").
+func shouldInjectWorkspaceCode(content string) bool {
+	trimmed := strings.TrimSpace(strings.ToLower(content))
+	if trimmed == "" {
+		return false
+	}
+
+	// Some "can you ..." prompts are actually concrete code-access requests
+	// and should load workspace code context.
+	if shouldTreatCapabilityAsCodeRequest(trimmed) {
+		return true
+	}
+
+	// Capability/permission style prompts should stay direct and not be drowned
+	// by large workspace code context.
+	capabilityPrefixes := []string{
+		"can you ", "could you ", "are you able", "are you allowed",
+		"do you support", "can i ", "could i ",
+	}
+	for _, p := range capabilityPrefixes {
+		if strings.HasPrefix(trimmed, p) {
+			return false
+		}
+	}
+	capabilityPhrases := []string{
+		"create files", "create a file", "add a readme", "write files",
+		"edit files", "modify files", "make changes",
+	}
+	for _, p := range capabilityPhrases {
+		if strings.Contains(trimmed, p) {
+			return false
+		}
+	}
+
+	// Positive signals for code-level analysis where source context is helpful.
+	codeIntentPhrases := []string{
+		"review", "analyze", "audit", "debug", "trace", "walk through",
+		"explain this code", "why is this failing", "where is", "find in code",
+		"refactor", "fix bug", "line ", "function ", "struct ", "trait ",
+	}
+	for _, p := range codeIntentPhrases {
+		if strings.Contains(trimmed, p) {
+			return true
+		}
+	}
+
+	// Explicit file paths strongly indicate code-context intent.
+	return len(DetectFilePaths(content)) > 0
+}
+
+func shouldTreatCapabilityAsCodeRequest(trimmedLower string) bool {
+	codeAccessSignals := []string{
+		"open ", "share ", "show ", "read ", "inspect ",
+		"source file", "source files", "source code",
+		"implementation details", "implementation", "how it works",
+		".rs", ".go", ".py", ".ts", ".tsx", ".js",
+		"src/", "cargo.toml", "main.rs", "lib.rs",
+	}
+	for _, s := range codeAccessSignals {
+		if strings.Contains(trimmedLower, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func isCustomChannelPrompt(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return false
+	}
+	channelPrompts := []string{
+		"who's here", "whos here", "who is here", "who all is here", "who all here",
+		"in this channel", "anyone here", "everyone here", "roll call",
+		"can you all", "could you all", "all of you", "team", "together",
+	}
+	for _, phrase := range channelPrompts {
+		if strings.Contains(trimmed, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Agent) allowCustomChannelBroadPromptReply(msg *protocol.Message) bool {
+	// Best-effort cap: count existing agent replies to this message.
+	recent, err := a.Hub.GetMessages(msg.Channel, 80)
+	if err == nil {
+		replies := 0
+		for _, m := range recent {
+			if m.Type != protocol.MessageTypeChat || m.ReplyTo != msg.ID {
+				continue
+			}
+			if isAgentType(m.From.Type) {
+				replies++
+			}
+		}
+		if replies >= customChannelBroadPromptResponderCap {
+			return false
+		}
+	}
+
+	// Stable deterministic ordering so the same small subset responds.
+	agentIDs := []string{}
+	channelAgents, err := a.Hub.GetChannelAgents(msg.Channel)
+	if err != nil {
+		return true
+	}
+	for _, ag := range channelAgents {
+		if isAgentType(ag.Type) {
+			agentIDs = append(agentIDs, ag.ID)
+		}
+	}
+	if len(agentIDs) <= customChannelBroadPromptResponderCap {
+		return true
+	}
+	sort.Slice(agentIDs, func(i, j int) bool {
+		hi := sha1.Sum([]byte(msg.ID + ":" + agentIDs[i]))
+		hj := sha1.Sum([]byte(msg.ID + ":" + agentIDs[j]))
+		return strings.Compare(fmt.Sprintf("%x", hi), fmt.Sprintf("%x", hj)) < 0
+	})
+	limit := customChannelBroadPromptResponderCap
+	for i := 0; i < limit && i < len(agentIDs); i++ {
+		if agentIDs[i] == a.Info.ID {
+			return true
+		}
+	}
+	return false
+}
+
+func isAgentType(t protocol.AgentType) bool {
+	return t == protocol.AgentTypeFrontend ||
+		t == protocol.AgentTypeBackend ||
+		t == protocol.AgentTypeDatabase ||
+		t == protocol.AgentTypeSecurity ||
+		t == protocol.AgentTypeRust ||
+		t == protocol.AgentTypeDevOps ||
+		t == protocol.AgentTypeRepo ||
+		t == protocol.AgentTypeHelper ||
+		t == protocol.AgentTypeAssistant ||
+		t == protocol.AgentTypeModerator ||
+		t == protocol.AgentTypeCLI
 }
 
 // generateResponse generates an AI response based on the message and context
@@ -709,9 +1157,10 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 
 	// Auto-detect and load file paths referenced in the user's message.
 	wsPath := a.resolveWorkspacePath(msg)
+	referencedLoaded := 0
 	if wsPath != "" {
 		var referencedFiles strings.Builder
-		AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 		if referencedFiles.Len() > 0 {
 			prompt += referencedFiles.String()
 			for _, p := range DetectFilePaths(msg.Content) {
@@ -723,15 +1172,25 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 	// Proactively scan the workspace for domain-relevant source files.
 	// This lets specialist agents (RustExpert, GoExpert, etc.) see project
 	// code even when the user doesn't mention specific file paths.
-	if wsPath != "" && !a.isRepoOrHelperAgent() {
+	scannedLoaded := 0
+	if wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
 		existingContextSize := len(prompt) - len(a.buildPrompt(msg))
 		if existingContextSize < maxScanChars/2 {
-			scannedFiles, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
+			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
 			if err != nil {
 				log.Printf("[%s] Workspace scan failed: %v", a.Info.Name, err)
 			} else if scannedFiles != "" {
 				prompt += scannedFiles
+				scannedLoaded = loadedCount
 			}
+		}
+	}
+
+	if shouldInjectWorkspaceCode(msg.Content) {
+		openFileLoaded := len(collectIncludedFilePaths(msg))
+		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
+		if totalLoaded > 0 {
+			prompt += fmt.Sprintf("\nGrounding requirement: Start your answer with exactly this one line:\n\"Grounding: I loaded %d file(s) from the workspace context for this answer.\"\nThen continue with your analysis.\n\n", totalLoaded)
 		}
 	}
 
@@ -763,9 +1222,10 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	includedFiles := collectIncludedFilePaths(msg)
 
 	wsPath := a.resolveWorkspacePath(msg)
+	referencedLoaded := 0
 	if wsPath != "" {
 		var referencedFiles strings.Builder
-		AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 		if referencedFiles.Len() > 0 {
 			prompt += referencedFiles.String()
 			for _, p := range DetectFilePaths(msg.Content) {
@@ -774,15 +1234,25 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 	}
 
-	if wsPath != "" && !a.isRepoOrHelperAgent() {
+	scannedLoaded := 0
+	if wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
 		existingContextSize := len(prompt) - len(a.buildPrompt(msg))
 		if existingContextSize < maxScanChars/2 {
-			scannedFiles, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
+			scannedFiles, loadedCount, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
 			if scanErr != nil {
 				log.Printf("[%s] Workspace scan failed: %v", a.Info.Name, scanErr)
 			} else if scannedFiles != "" {
 				prompt += scannedFiles
+				scannedLoaded = loadedCount
 			}
+		}
+	}
+
+	if shouldInjectWorkspaceCode(msg.Content) {
+		openFileLoaded := len(collectIncludedFilePaths(msg))
+		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
+		if totalLoaded > 0 {
+			prompt += fmt.Sprintf("\nGrounding requirement: Start your answer with exactly this one line:\n\"Grounding: I loaded %d file(s) from the workspace context for this answer.\"\nThen continue with your analysis.\n\n", totalLoaded)
 		}
 	}
 
@@ -801,9 +1271,11 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	var fullResponse strings.Builder
+	var streamErr error
 	for token := range tokenCh {
 		if token.Error != nil {
 			if fullResponse.Len() > 0 {
+				streamErr = token.Error
 				break
 			}
 			return "", token.Error
@@ -828,6 +1300,13 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if token.Done {
 			break
 		}
+	}
+
+	if streamErr != nil {
+		log.Printf("[%s] Stream error with partial content (%d bytes): %v", a.Info.Name, fullResponse.Len(), streamErr)
+		fullResponse.WriteString("\n\n[")
+		fullResponse.WriteString(truncationLabelForError(streamErr))
+		fullResponse.WriteString("]")
 	}
 
 	// Send stream_end so the frontend knows this stream is complete
@@ -858,6 +1337,39 @@ func (a *Agent) isRepoOrHelperAgent() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func classifyUserFacingError(err error) (message, code string, retryable bool) {
+	if err == nil {
+		return "Sorry, I encountered an unexpected error.", "unknown", true
+	}
+	lower := strings.ToLower(err.Error())
+
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ai.ErrCLIProviderTimeout) || strings.Contains(lower, "timed out") {
+		return "Sorry, the response timed out before completion. Please try again.", "timeout", true
+	}
+	if strings.Contains(lower, "429") || strings.Contains(lower, "rate limit") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "capacity") {
+		return "Sorry, the provider is rate-limited right now. Please try again in a moment.", "rate_limit", true
+	}
+	if strings.Contains(lower, "workspace trust") {
+		return "I couldn't run that because workspace trust is required for this agent. Please trust the workspace and try again.", "workspace_trust", false
+	}
+	if strings.Contains(lower, "not found") || strings.Contains(lower, "executable file") || strings.Contains(lower, "is not installed") {
+		return "I couldn't run the configured CLI agent because it is not available on this machine.", "provider_unavailable", false
+	}
+	return "Sorry, I encountered an error while generating a response. Please try again.", "provider_error", true
+}
+
+func truncationLabelForError(err error) string {
+	_, code, _ := classifyUserFacingError(err)
+	switch code {
+	case "timeout":
+		return "Response truncated due to timeout"
+	case "rate_limit":
+		return "Response truncated due to provider rate limit"
+	default:
+		return "Response truncated due to provider error"
 	}
 }
 
@@ -975,22 +1487,88 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("what tools you used and what the results show.\n\n")
 	}
 
-	// Core behavioral rules (always in system prompt)
-	system.WriteString("=== BEHAVIORAL RULES ===\n")
-	system.WriteString("1. Provide expert advice grounded in your domain expertise.\n")
-	system.WriteString("2. When the user shares code or files, you MUST analyze the ACTUAL code provided -- never give generic advice.\n")
-	system.WriteString("3. Reference specific file paths, function names, and line numbers when discussing code.\n")
-	system.WriteString("4. Do NOT @mention other agents unless the user explicitly asks for collaboration.\n")
-	system.WriteString("5. Only respond to the user's question -- do not respond to other agents' responses.\n")
-	system.WriteString("6. Ask clarifying questions when the request is ambiguous.\n")
-	system.WriteString("7. CRITICAL: If asked to review, analyze, or explain code but NO code or workspace files appear in the context below, ")
-	system.WriteString("you MUST tell the user you cannot see any code and ask them to either: ")
-	system.WriteString("(a) include the file path in their message (e.g., 'review cmd/server/main.go'), or ")
-	system.WriteString("(b) enable workspace sharing. NEVER fabricate or guess code content.\n")
+	// Check if this message is part of an active collaboration
+	collabInfo := a.getCollaborationContext(msg)
+	isCollab := collabInfo.ID != ""
+
+	if isCollab {
+		// Collaboration-specific behavioral rules
+		system.WriteString("=== COLLABORATION MODE ===\n")
+		system.WriteString(fmt.Sprintf("You are participating in a multi-agent collaboration: %s\n", collabInfo.Description))
+		system.WriteString(fmt.Sprintf("Current phase: %s\n", collabInfo.Phase))
+		system.WriteString(fmt.Sprintf("Your role: %s\n\n", collabInfo.AgentRole))
+
+		system.WriteString("=== COLLABORATION RULES ===\n")
+		system.WriteString("1. Provide expert advice grounded in your domain expertise and assigned role.\n")
+		system.WriteString("2. You MAY @mention other agents in this collaboration to:\n")
+		system.WriteString("   - Ask for their expert opinion on a specific aspect\n")
+		system.WriteString("   - Request they review a section of the plan\n")
+		system.WriteString("   - Delegate a sub-problem to the agent best suited for it\n")
+		system.WriteString("3. Build on other agents' ideas constructively. Acknowledge good points.\n")
+		system.WriteString("4. When you agree with the current plan, explicitly say 'I agree' or 'looks good'.\n")
+		system.WriteString("5. When you have concerns, state them clearly with alternatives.\n")
+		system.WriteString("6. Keep responses focused and concise -- this is a bounded discussion.\n")
+		system.WriteString("7. Reference specific file paths, function names, and technical details.\n")
+
+		if collabInfo.Phase == "planning" {
+			system.WriteString("\n=== PLANNING PHASE INSTRUCTIONS ===\n")
+			system.WriteString("Propose a structured plan with tasks assigned to agents based on their strengths.\n")
+			system.WriteString("Use this format for tasks:\n")
+			system.WriteString("- Task N: @AgentName - description of the task\n")
+			system.WriteString("Consider dependencies between tasks and suggest an execution order.\n")
+		} else if collabInfo.Phase == "executing" {
+			system.WriteString("\n=== EXECUTION PHASE INSTRUCTIONS ===\n")
+			system.WriteString("Focus on completing your assigned tasks. Ask other agents if you need their input.\n")
+			system.WriteString("Propose file changes using the standard file change format when writing code.\n")
+		}
+
+		// Show the current plan artifact if it exists
+		if collabInfo.PlanContent != "" {
+			system.WriteString(fmt.Sprintf("\n=== CURRENT PLAN (v%d) ===\n", collabInfo.PlanVersion))
+			system.WriteString(collabInfo.PlanContent)
+			system.WriteString("\n")
+		}
+
+		// List collaboration participants
+		system.WriteString("\n=== COLLABORATION PARTICIPANTS ===\n")
+		for _, agent := range collabInfo.Agents {
+			marker := ""
+			if agent.Name == a.Info.Name {
+				marker = " (you)"
+			}
+			system.WriteString(fmt.Sprintf("- @%s (%s) -- Role: %s%s\n", agent.Name, agent.Type, agent.Role, marker))
+		}
+	} else {
+		// Standard behavioral rules for non-collaboration mode
+		system.WriteString("=== BEHAVIORAL RULES ===\n")
+		system.WriteString("1. Provide expert advice grounded in your domain expertise.\n")
+		system.WriteString("2. When the user shares code or files, you MUST analyze the ACTUAL code provided -- never give generic advice.\n")
+		system.WriteString("3. Reference specific file paths, function names, and line numbers when discussing code.\n")
+		system.WriteString("4. Do NOT @mention other agents unless the user explicitly asks for collaboration.\n")
+		system.WriteString("5. Only respond to the user's question -- do not respond to other agents' responses.\n")
+		system.WriteString("6. Ask clarifying questions when the request is ambiguous.\n")
+		system.WriteString("7. CRITICAL: If asked to review, analyze, or explain code but NO code and NO workspace context appear below, ")
+		system.WriteString("you MUST tell the user you currently do not have code context and ask them to either: ")
+		system.WriteString("(a) include the file path in their message (e.g., 'review cmd/server/main.go'), or ")
+		system.WriteString("(b) enable workspace sharing. If workspace context is present, do NOT claim you cannot access files; use available context and request a specific path only when needed. NEVER fabricate or guess code content.\n")
+		system.WriteString("8. You CAN propose file changes (create/edit/delete) in the shared workspace for user approval. ")
+		system.WriteString("If asked whether you can edit files, answer YES and explain that changes apply after approval.\n")
+		system.WriteString("9. NEVER mention internal tool/function names (e.g., ProposeFileEdit/ProposeFileCreate) to the user.\n")
+		system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
+		system.WriteString("[FILE_CHANGE]\n")
+		system.WriteString("operation: create|edit|delete|move\n")
+		system.WriteString("path: relative/path/from/workspace\n")
+		system.WriteString("old_path: relative/path (move only)\n")
+		system.WriteString("new_path: relative/path (move only)\n")
+		system.WriteString("```new\n<new content for create/edit>\n```\n")
+		system.WriteString("```old\n<old content for edit>\n```\n")
+		system.WriteString("[/FILE_CHANGE]\n")
+		system.WriteString("If no file change should be proposed, do not include a FILE_CHANGE block.\n")
+	}
 
 	// Add context about other agents in the channel
 	agents, _ := a.Hub.GetChannelAgents(msg.Channel)
-	if len(agents) > 1 {
+	if len(agents) > 1 && !isCollab {
 		system.WriteString("\nOther agents in this channel:\n")
 		for _, agent := range agents {
 			if agent.ID != a.Info.ID {
@@ -1432,19 +2010,274 @@ func historyToMessages(history []*protocol.Message) []protocol.Message {
 	return msgs
 }
 
+type fileChangeDirective struct {
+	Operation  string
+	Path       string
+	OldPath    string
+	NewPath    string
+	OldContent string
+	NewContent string
+}
+
+var fileChangeBlockRegex = regexp.MustCompile(`(?s)\[FILE_CHANGE\](.*?)\[/FILE_CHANGE\]`)
+var editorLineNumberPrefixRegex = regexp.MustCompile(`(?m)^\s*\d+\s*\|\s?`)
+
+func sanitizeInternalToolNames(response string) string {
+	replacer := strings.NewReplacer(
+		"ProposeFileEdit", "a file-change proposal",
+		"ProposeFileCreate", "a file-change proposal",
+		"ProposeFileDelete", "a file-change proposal",
+		"ProposeFileMove", "a file-change proposal",
+	)
+	return replacer.Replace(response)
+}
+
+func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
+	match := fileChangeBlockRegex.FindStringSubmatch(response)
+	if len(match) < 2 {
+		// Deterministic fallback path: if the user explicitly asked to propose/apply
+		// and the model returned a concrete fenced content block, auto-propose edit.
+		if sourceMsg == nil || !isExplicitProposalIntent(sourceMsg.Content) {
+			log.Printf("[%s] fallback_skipped(reason=no_explicit_proposal_intent)", a.Info.Name)
+			return response, false, nil
+		}
+		lowerResp := strings.ToLower(response)
+		if strings.Contains(lowerResp, "would you like me to propose") ||
+			strings.Contains(lowerResp, "i submitted a file change proposal") {
+			log.Printf("[%s] fallback_skipped(reason=response_is_question_or_already_submitted)", a.Info.Name)
+			return response, false, nil
+		}
+
+		newContent := stripEditorLineNumberPrefixes(extractLongestCodeFence(response))
+		if strings.TrimSpace(newContent) == "" {
+			log.Printf("[%s] fallback_skipped(reason=no_fenced_content)", a.Info.Name)
+			return response, false, nil
+		}
+
+		targetPath := extractActiveOpenFilePath(sourceMsg)
+		if strings.TrimSpace(targetPath) == "" {
+			log.Printf("[%s] fallback_skipped(reason=missing_active_file_path)", a.Info.Name)
+			return response, false, nil
+		}
+
+		if err := a.proposeFileEditInChannel(channel, targetPath, "", newContent); err != nil {
+			return response, false, err
+		}
+		log.Printf("[%s] fallback_path_used(target=%s)", a.Info.Name, targetPath)
+		return response, true, nil
+	}
+
+	directive, err := parseFileChangeDirective(match[1])
+	if err != nil {
+		// Strip malformed directives from user-visible chat to avoid leaking
+		// internal syntax while still surfacing a clean response.
+		cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+		return cleaned, false, err
+	}
+
+	switch directive.Operation {
+	case "create":
+		if err := a.proposeFileCreateInChannel(channel, directive.Path, directive.NewContent); err != nil {
+			return response, false, err
+		}
+	case "edit":
+		if err := a.proposeFileEditInChannel(channel, directive.Path, directive.OldContent, directive.NewContent); err != nil {
+			return response, false, err
+		}
+	case "delete":
+		if err := a.proposeFileDeleteInChannel(channel, directive.Path); err != nil {
+			return response, false, err
+		}
+	case "move":
+		if err := a.proposeFileMoveInChannel(channel, directive.OldPath, directive.NewPath); err != nil {
+			return response, false, err
+		}
+	default:
+		return response, false, fmt.Errorf("unsupported file change operation: %s", directive.Operation)
+	}
+	log.Printf("[%s] directive_path_used(operation=%s,path=%s)", a.Info.Name, directive.Operation, directive.Path)
+
+	cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+	return cleaned, true, nil
+}
+
+func parseFileChangeDirective(block string) (*fileChangeDirective, error) {
+	d := &fileChangeDirective{
+		Operation: strings.ToLower(extractDirectiveField(block, "operation")),
+		Path:      extractDirectiveField(block, "path"),
+		OldPath:   extractDirectiveField(block, "old_path"),
+		NewPath:   extractDirectiveField(block, "new_path"),
+	}
+
+	d.NewContent = extractLabeledCodeFence(block, "new")
+	d.OldContent = extractLabeledCodeFence(block, "old")
+
+	if d.NewContent == "" {
+		// Fallback: use first generic fence as new content.
+		d.NewContent = extractFirstCodeFence(block)
+	}
+	d.NewContent = stripEditorLineNumberPrefixes(d.NewContent)
+	d.OldContent = stripEditorLineNumberPrefixes(d.OldContent)
+
+	switch d.Operation {
+	case "create":
+		if strings.TrimSpace(d.Path) == "" {
+			return nil, fmt.Errorf("create directive missing path")
+		}
+		if strings.TrimSpace(d.NewContent) == "" {
+			return nil, fmt.Errorf("create directive missing new content")
+		}
+	case "edit":
+		if strings.TrimSpace(d.Path) == "" {
+			return nil, fmt.Errorf("edit directive missing path")
+		}
+		if strings.TrimSpace(d.NewContent) == "" {
+			return nil, fmt.Errorf("edit directive missing new content")
+		}
+	case "delete":
+		if strings.TrimSpace(d.Path) == "" {
+			return nil, fmt.Errorf("delete directive missing path")
+		}
+	case "move":
+		if strings.TrimSpace(d.OldPath) == "" || strings.TrimSpace(d.NewPath) == "" {
+			return nil, fmt.Errorf("move directive missing old_path/new_path")
+		}
+	default:
+		return nil, fmt.Errorf("missing or unsupported operation")
+	}
+
+	return d, nil
+}
+
+func stripEditorLineNumberPrefixes(content string) string {
+	if content == "" {
+		return content
+	}
+	return editorLineNumberPrefixRegex.ReplaceAllString(content, "")
+}
+
+func extractDirectiveField(block, field string) string {
+	re := regexp.MustCompile(fmt.Sprintf(`(?mi)^\s*%s:\s*(.+)\s*$`, regexp.QuoteMeta(field)))
+	m := re.FindStringSubmatch(block)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
+}
+
+func extractLabeledCodeFence(block, label string) string {
+	re := regexp.MustCompile(fmt.Sprintf("(?s)```%s\\s*\\n(.*?)\\n```", regexp.QuoteMeta(label)))
+	m := re.FindStringSubmatch(block)
+	if len(m) < 2 {
+		return ""
+	}
+	return m[1]
+}
+
+func extractFirstCodeFence(block string) string {
+	re := regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\\s*\\n(.*?)\\n```")
+	m := re.FindStringSubmatch(block)
+	if len(m) < 2 {
+		return ""
+	}
+	return m[1]
+}
+
+func extractLongestCodeFence(content string) string {
+	re := regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\\s*\\n(.*?)\\n```")
+	matches := re.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	longest := ""
+	for _, m := range matches {
+		if len(m) < 2 {
+			continue
+		}
+		if len(m[1]) > len(longest) {
+			longest = m[1]
+		}
+	}
+	return longest
+}
+
+func isExplicitProposalIntent(content string) bool {
+	lower := strings.TrimSpace(strings.ToLower(content))
+	if lower == "" {
+		return false
+	}
+	explicitPhrases := []string{
+		"propose it", "please propose", "submit it", "submit the change",
+		"apply it", "go ahead and update", "update the file", "make the change",
+		"yes propose", "yes, propose", "yes please propose",
+	}
+	for _, p := range explicitPhrases {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	// A short "yes/ok/do it" reply in this flow is treated as explicit confirmation.
+	shortAffirmations := map[string]bool{
+		"yes": true, "yes please": true, "ok": true, "okay": true, "do it": true, "go ahead": true,
+	}
+	return shortAffirmations[lower]
+}
+
+func extractActiveOpenFilePath(msg *protocol.Message) string {
+	if msg == nil || msg.Metadata == nil {
+		return ""
+	}
+	wsCtx, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return ""
+	}
+	ctxMap, ok := wsCtx.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	openFiles, ok := ctxMap["open_files"].([]interface{})
+	if !ok || len(openFiles) == 0 {
+		return ""
+	}
+	for _, f := range openFiles {
+		fm, ok := f.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		isActive, _ := fm["is_active"].(bool)
+		path, _ := fm["path"].(string)
+		if isActive && strings.TrimSpace(path) != "" {
+			return path
+		}
+	}
+	if fm, ok := openFiles[0].(map[string]interface{}); ok {
+		if path, ok := fm["path"].(string); ok {
+			return path
+		}
+	}
+	return ""
+}
+
 // File change proposal helper methods
 
 // ProposeFileEdit proposes an edit to an existing file
 func (a *Agent) ProposeFileEdit(path, oldContent, newContent string) error {
+	return a.proposeFileEditInChannel(a.Context.CurrentChannel, path, oldContent, newContent)
+}
+
+func (a *Agent) proposeFileEditInChannel(channel, path, oldContent, newContent string) error {
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
 		Operation:   "edit",
 		FilePath:    path,
-		OldContent:  oldContent,
-		NewContent:  newContent,
+		OldContent:  stripEditorLineNumberPrefixes(oldContent),
+		NewContent:  stripEditorLineNumberPrefixes(newContent),
 		Agent:       a.Info,
-		Channel:     "general", // Default channel for now
+		Channel:     channel,
 		RequestedAt: time.Now(),
 		ExpiresAt:   time.Now().Add(30 * time.Minute),
 		IsDelete:    false,
@@ -1452,23 +2285,31 @@ func (a *Agent) ProposeFileEdit(path, oldContent, newContent string) error {
 	}
 
 	// Create message with file change proposal
-	msg := protocol.NewMessage(protocol.MessageTypeFileChange, "general", a.Info,
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📝 Proposing to edit file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 
 	return a.Hub.SendMessage(msg)
 }
 
 // ProposeFileCreate proposes creating a new file
 func (a *Agent) ProposeFileCreate(path, content string) error {
+	return a.proposeFileCreateInChannel(a.Context.CurrentChannel, path, content)
+}
+
+func (a *Agent) proposeFileCreateInChannel(channel, path, content string) error {
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
 		Operation:   "create",
 		FilePath:    path,
-		NewContent:  content,
+		NewContent:  stripEditorLineNumberPrefixes(content),
 		Agent:       a.Info,
-		Channel:     "general", // Default channel for now
+		Channel:     channel,
 		RequestedAt: time.Now(),
 		ExpiresAt:   time.Now().Add(30 * time.Minute),
 		IsDelete:    false,
@@ -1476,22 +2317,30 @@ func (a *Agent) ProposeFileCreate(path, content string) error {
 	}
 
 	// Create message with file change proposal
-	msg := protocol.NewMessage(protocol.MessageTypeFileChange, "general", a.Info,
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📄 Proposing to create file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 
 	return a.Hub.SendMessage(msg)
 }
 
 // ProposeFileDelete proposes deleting a file
 func (a *Agent) ProposeFileDelete(path string) error {
+	return a.proposeFileDeleteInChannel(a.Context.CurrentChannel, path)
+}
+
+func (a *Agent) proposeFileDeleteInChannel(channel, path string) error {
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
 		Operation:   "delete",
 		FilePath:    path,
 		Agent:       a.Info,
-		Channel:     "general", // Default channel for now
+		Channel:     channel,
 		RequestedAt: time.Now(),
 		ExpiresAt:   time.Now().Add(30 * time.Minute),
 		IsDelete:    true,
@@ -1499,15 +2348,23 @@ func (a *Agent) ProposeFileDelete(path string) error {
 	}
 
 	// Create message with file change proposal
-	msg := protocol.NewMessage(protocol.MessageTypeFileChange, "general", a.Info,
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("🗑️ Proposing to delete file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 
 	return a.Hub.SendMessage(msg)
 }
 
 // ProposeFileMove proposes moving/renaming a file
 func (a *Agent) ProposeFileMove(oldPath, newPath string) error {
+	return a.proposeFileMoveInChannel(a.Context.CurrentChannel, oldPath, newPath)
+}
+
+func (a *Agent) proposeFileMoveInChannel(channel, oldPath, newPath string) error {
+	if strings.TrimSpace(channel) == "" {
+		channel = "general"
+	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
@@ -1516,7 +2373,7 @@ func (a *Agent) ProposeFileMove(oldPath, newPath string) error {
 		OldPath:     oldPath,
 		NewPath:     newPath,
 		Agent:       a.Info,
-		Channel:     "general", // Default channel for now
+		Channel:     channel,
 		RequestedAt: time.Now(),
 		ExpiresAt:   time.Now().Add(30 * time.Minute),
 		IsDelete:    false,
@@ -1524,11 +2381,37 @@ func (a *Agent) ProposeFileMove(oldPath, newPath string) error {
 	}
 
 	// Create message with file change proposal
-	msg := protocol.NewMessage(protocol.MessageTypeFileChange, "general", a.Info,
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📁 Proposing to move file: %s → %s", oldPath, newPath))
 	msg.Metadata["file_change_proposal"] = proposal
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 
 	return a.Hub.SendMessage(msg)
+}
+
+func (a *Agent) attachWorkspaceContextToProposalMessage(channel string, msg *protocol.Message, proposal *protocol.FileChangeProposal) {
+	workspaceContext, ok := a.latestWorkspaceContext(channel)
+	if !ok {
+		return
+	}
+	msg.Metadata["workspace_context"] = workspaceContext
+	if proposal.Metadata == nil {
+		proposal.Metadata = make(map[string]interface{})
+	}
+	proposal.Metadata["workspace_context"] = workspaceContext
+}
+
+func (a *Agent) latestWorkspaceContext(channel string) (interface{}, bool) {
+	history := a.Context.History[channel]
+	for i := len(history) - 1; i >= 0; i-- {
+		if history[i] == nil || history[i].Metadata == nil {
+			continue
+		}
+		if wsCtx, ok := history[i].Metadata["workspace_context"]; ok && wsCtx != nil {
+			return wsCtx, true
+		}
+	}
+	return nil, false
 }
 
 // SetAIProvider dynamically switches the AI provider for this agent
@@ -1585,4 +2468,14 @@ func (a *Agent) GetAIProvider() ai.AIProvider {
 	a.providerMutex.RLock()
 	defer a.providerMutex.RUnlock()
 	return a.AI
+}
+
+// GetAgentInfo returns the agent's identity information.
+func (a *Agent) GetAgentInfo() protocol.AgentInfo {
+	return a.Info
+}
+
+// SetCollabClient sets the collaboration client for multi-agent collaboration support.
+func (a *Agent) SetCollabClient(client CollaborationClient) {
+	a.Collab = client
 }

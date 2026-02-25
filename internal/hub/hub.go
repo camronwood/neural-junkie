@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
@@ -47,6 +48,14 @@ type Hub struct {
 
 	// Tool approval manager for CLI agent tool call approvals
 	toolApprovalManager *ToolApprovalManager
+
+	// Collaboration manager for multi-agent collaboration sessions
+	collabManager *collaboration.CollaborationManager
+
+	// Session snapshot save synchronization and observability.
+	sessionSaveMu   sync.Mutex
+	sessionHealthMu sync.RWMutex
+	sessionHealth   SessionSaveHealth
 
 	mu sync.RWMutex
 }
@@ -93,6 +102,10 @@ func NewHub() *Hub {
 
 	// Initialize tool approval manager
 	hub.toolApprovalManager = NewToolApprovalManager(hub)
+
+	// Initialize collaboration manager
+	hub.collabManager = collaboration.NewCollaborationManager(hub)
+	fmt.Printf("DEBUG: Collaboration manager initialized successfully\n")
 
 	return hub
 }
@@ -237,8 +250,10 @@ func (h *Hub) UnregisterAgent(agentID string) error {
 	return nil
 }
 
-// JoinChannel adds an agent to a channel
-func (h *Hub) JoinChannel(agentID, channelName string) error {
+// JoinChannel adds an agent to a channel. An optional greeting can be
+// provided to replace the default join message content -- this avoids
+// the need for a separate SendMessage call that would create a duplicate.
+func (h *Hub) JoinChannel(agentID, channelName string, greeting ...string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -261,12 +276,16 @@ func (h *Hub) JoinChannel(agentID, channelName string) error {
 
 	channel.Agents = append(channel.Agents, *agent)
 
-	// Send join message
+	content := fmt.Sprintf("%s (%s) has joined the channel", agent.Name, agent.Type)
+	if len(greeting) > 0 && greeting[0] != "" {
+		content = greeting[0]
+	}
+
 	joinMsg := protocol.NewMessage(
 		protocol.MessageTypeAgentJoin,
 		channelName,
 		*agent,
-		fmt.Sprintf("%s (%s) has joined the channel", agent.Name, agent.Type),
+		content,
 	)
 
 	h.messages[channelName] = append(h.messages[channelName], joinMsg)
@@ -314,8 +333,16 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
-	// Parse and resolve @mentions before processing
-	mentionStrings := protocol.ParseMentions(msg.Content)
+	h.processCollaborationLifecycle(msg)
+	h.attachCollaborationData(msg)
+
+	// Only parse actionable @mentions for user-like senders. Agent responses
+	// naturally contain @ symbols (file paths, code references) that should
+	// not be treated as mention attempts.
+	mentionStrings := []string{}
+	if protocol.ShouldParseMentions(msg.Type, msg.From) {
+		mentionStrings = protocol.ParseMentions(msg.Content)
+	}
 	hasInvalidMentions := false
 
 	if len(mentionStrings) > 0 {
@@ -413,8 +440,8 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		return fmt.Errorf("channel %s not found", msg.Channel)
 	}
 
-	// Stream delta/end messages are ephemeral -- broadcast without storing
-	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd {
+	// Ephemeral message types -- broadcast to subscribers but don't persist in history
+	if msg.Type == protocol.MessageTypeStreamDelta || msg.Type == protocol.MessageTypeStreamEnd || msg.Type == protocol.MessageTypeAgentStatus {
 		h.broadcast(msg.Channel, msg)
 		return nil
 	}
@@ -455,6 +482,257 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	}
 
 	return nil
+}
+
+func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
+	if msg == nil {
+		return
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" || h.collabManager == nil {
+		return
+	}
+	if msg.Metadata != nil {
+		if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
+			return
+		}
+	}
+
+	h.maybeIngestPlanArtifact(msg, collabID)
+	h.maybeUpdateTaskStatus(msg, collabID)
+}
+
+func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
+	if msg.IsFromSystem() {
+		return
+	}
+	if phase := msg.GetCollaborationPhase(); phase != "" && phase != string(collaboration.PhasePlanning) {
+		return
+	}
+	if msg.Type != protocol.MessageTypeChat &&
+		msg.Type != protocol.MessageTypeAnswer &&
+		msg.Type != protocol.MessageTypeCollabDiscussion {
+		return
+	}
+
+	planContent := collaboration.ExtractPlanFromResponse(msg.Content)
+	if strings.TrimSpace(planContent) == "" {
+		return
+	}
+
+	collabSnapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || collabSnapshot == nil {
+		return
+	}
+	if collabSnapshot.Plan != nil && strings.TrimSpace(collabSnapshot.Plan.Content) == strings.TrimSpace(planContent) {
+		return
+	}
+
+	if err := h.collabManager.UpdateArtifact(collabID, msg.From.ID, msg.From.Name, planContent); err != nil {
+		log.Printf("[Collaboration] Failed to auto-update plan artifact for %s: %v", collabID[:8], err)
+		return
+	}
+
+	updated, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || updated == nil {
+		return
+	}
+	extractedTasks := collaboration.ExtractTasksFromPlan(planContent, updated.Agents)
+	if len(extractedTasks) > 0 {
+		if err := h.collabManager.SetTasks(collabID, extractedTasks); err != nil {
+			log.Printf("[Collaboration] Failed to auto-set tasks for %s: %v", collabID[:8], err)
+		}
+		updated, _ = h.collabManager.GetCollaborationSnapshot(collabID)
+	}
+
+	planMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabPlan,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("🧩 Updated collaboration plan (v%d) based on @%s's proposal.",
+			func() int {
+				if updated != nil && updated.Plan != nil {
+					return updated.Plan.Version
+				}
+				return 0
+			}(),
+			msg.From.Name,
+		),
+	)
+	planMsg.SetCollaborationID(collabID)
+	planMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	planMsg.SetArtifactAction("edit")
+	if planMsg.Metadata == nil {
+		planMsg.Metadata = map[string]interface{}{}
+	}
+	planMsg.Metadata["collab_internal_event"] = true
+	if err := h.SendMessage(planMsg); err != nil {
+		log.Printf("[Collaboration] Failed to broadcast plan update message: %v", err)
+	}
+}
+
+func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
+	taskID := msg.GetTaskID()
+	if taskID == "" {
+		return
+	}
+
+	collabSnapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || collabSnapshot == nil {
+		return
+	}
+
+	var task *collaboration.CollaborationTask
+	for i := range collabSnapshot.Tasks {
+		if collabSnapshot.Tasks[i].ID == taskID {
+			task = &collabSnapshot.Tasks[i]
+			break
+		}
+	}
+	if task == nil {
+		return
+	}
+
+	status, ok := normalizeTaskStatus(msg.GetTaskStatus())
+	if !ok {
+		inferred := inferTaskStatusFromContent(msg.Content)
+		if inferred != "" {
+			status = inferred
+			ok = true
+		} else if task.Status == collaboration.TaskPending && msg.From.ID == task.AssignedTo && !msg.IsFromSystem() {
+			status = collaboration.TaskInProgress
+			ok = true
+		}
+	}
+	if !ok {
+		return
+	}
+
+	output := strings.TrimSpace(msg.GetTaskOutput())
+	if output == "" && (status == collaboration.TaskCompleted || status == collaboration.TaskBlocked) {
+		output = strings.TrimSpace(msg.Content)
+	}
+	if err := h.collabManager.UpdateTaskStatus(collabID, taskID, status, output); err != nil {
+		log.Printf("[Collaboration] Failed to update task %s in %s: %v", taskID, collabID[:8], err)
+		return
+	}
+
+	updated, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err == nil && updated != nil {
+		for i := range updated.Tasks {
+			if updated.Tasks[i].ID == taskID {
+				task = &updated.Tasks[i]
+				break
+			}
+		}
+	}
+
+	statusMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabStatus,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("📌 Task update: **%s** is now **%s** (assigned to @%s).",
+			func() string {
+				if task != nil {
+					return task.Title
+				}
+				return taskID
+			}(),
+			status,
+			func() string {
+				if task != nil && task.AssignedName != "" {
+					return task.AssignedName
+				}
+				return "unknown"
+			}(),
+		),
+	)
+	statusMsg.SetCollaborationID(collabID)
+	statusMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
+	statusMsg.SetTaskID(taskID)
+	statusMsg.SetTaskStatus(string(status))
+	if output != "" {
+		statusMsg.SetTaskOutput(output)
+	}
+	if statusMsg.Metadata == nil {
+		statusMsg.Metadata = map[string]interface{}{}
+	}
+	statusMsg.Metadata["collab_internal_event"] = true
+	if err := h.SendMessage(statusMsg); err != nil {
+		log.Printf("[Collaboration] Failed to broadcast task status update message: %v", err)
+	}
+
+	if h.collabManager.AllTasksComplete(collabID) {
+		if _, err := h.collabManager.CompleteCollaboration(collabID); err != nil {
+			log.Printf("[Collaboration] Failed to complete collaboration %s: %v", collabID[:8], err)
+			return
+		}
+		completedMsg := protocol.NewMessage(
+			protocol.MessageTypeCollabStatus,
+			msg.Channel,
+			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+			fmt.Sprintf("✅ Collaboration `%s` completed. All tasks are done.", collabID[:8]),
+		)
+		completedMsg.SetCollaborationID(collabID)
+		completedMsg.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+		if completedMsg.Metadata == nil {
+			completedMsg.Metadata = map[string]interface{}{}
+		}
+		completedMsg.Metadata["collab_internal_event"] = true
+		if err := h.SendMessage(completedMsg); err != nil {
+			log.Printf("[Collaboration] Failed to broadcast collaboration completion message: %v", err)
+		}
+	}
+}
+
+func normalizeTaskStatus(raw string) (collaboration.TaskStatus, bool) {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case string(collaboration.TaskPending):
+		return collaboration.TaskPending, true
+	case string(collaboration.TaskInProgress):
+		return collaboration.TaskInProgress, true
+	case string(collaboration.TaskCompleted):
+		return collaboration.TaskCompleted, true
+	case string(collaboration.TaskBlocked):
+		return collaboration.TaskBlocked, true
+	default:
+		return "", false
+	}
+}
+
+func inferTaskStatusFromContent(content string) collaboration.TaskStatus {
+	lower := strings.ToLower(content)
+	if strings.Contains(lower, "blocked") || strings.Contains(lower, "stuck") || strings.Contains(lower, "cannot proceed") {
+		return collaboration.TaskBlocked
+	}
+	if strings.Contains(lower, "completed") ||
+		strings.Contains(lower, "done") ||
+		strings.Contains(lower, "finished") ||
+		strings.Contains(lower, "implemented") {
+		return collaboration.TaskCompleted
+	}
+	if strings.Contains(lower, "working on") || strings.Contains(lower, "in progress") || strings.Contains(lower, "started") {
+		return collaboration.TaskInProgress
+	}
+	return ""
+}
+
+func (h *Hub) attachCollaborationData(msg *protocol.Message) {
+	if msg == nil || h.collabManager == nil {
+		return
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" {
+		return
+	}
+	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snapshot == nil {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	msg.Metadata["collaboration_data"] = snapshot
 }
 
 // GetMessages returns messages from a channel
@@ -1114,6 +1392,90 @@ func (h *Hub) GetToolApprovalManager() *ToolApprovalManager {
 	return h.toolApprovalManager
 }
 
+// GetCollaborationManager returns the collaboration manager
+func (h *Hub) GetCollaborationManager() *collaboration.CollaborationManager {
+	return h.collabManager
+}
+
+// NewCollaborationClientAdapter creates an adapter that implements
+// agent.CollaborationClient by delegating to the real CollaborationManager.
+func (h *Hub) NewCollaborationClientAdapter() agent.CollaborationClient {
+	return &collabClientAdapter{cm: h.collabManager}
+}
+
+// collabClientAdapter bridges the agent.CollaborationClient interface
+// to the concrete collaboration.CollaborationManager.
+type collabClientAdapter struct {
+	cm *collaboration.CollaborationManager
+}
+
+func (a *collabClientAdapter) IsParticipant(collabID, agentID string) bool {
+	return a.cm.IsParticipant(collabID, agentID)
+}
+
+func (a *collabClientAdapter) IsAgentTurn(collabID, agentID string) bool {
+	return a.cm.IsAgentTurn(collabID, agentID)
+}
+
+func (a *collabClientAdapter) IsActive(collabID string) bool {
+	return a.cm.IsActive(collabID)
+}
+
+func (a *collabClientAdapter) GetCurrentTurnAgent(collabID string) (string, error) {
+	return a.cm.GetCurrentTurnAgent(collabID)
+}
+
+func (a *collabClientAdapter) GetCollaborationForAgent(agentID string) agent.CollaborationInfo {
+	c := a.cm.GetCollaborationForAgent(agentID)
+	if c == nil {
+		return agent.CollaborationInfo{}
+	}
+
+	agentRole := ""
+	for _, ag := range c.Agents {
+		if ag.AgentID == agentID {
+			agentRole = ag.Role
+			break
+		}
+	}
+
+	agents := make([]agent.CollaborationAgentSummary, 0, len(c.Agents))
+	for _, ag := range c.Agents {
+		agents = append(agents, agent.CollaborationAgentSummary{
+			Name:      ag.AgentName,
+			Type:      string(ag.AgentType),
+			Role:      ag.Role,
+			Expertise: ag.Expertise,
+		})
+	}
+
+	planContent := ""
+	planVersion := 0
+	if c.Plan != nil {
+		planContent = c.Plan.Content
+		planVersion = c.Plan.Version
+	}
+
+	return agent.CollaborationInfo{
+		ID:          c.ID,
+		Description: c.Description,
+		Phase:       string(c.Phase),
+		PlanContent: planContent,
+		PlanVersion: planVersion,
+		AgentRole:   agentRole,
+		Agents:      agents,
+		Channel:     c.Channel,
+	}
+}
+
+func (a *collabClientAdapter) RecordMessage(collabID string, msg *protocol.Message) error {
+	return a.cm.RecordMessage(collabID, msg)
+}
+
+func (a *collabClientAdapter) AnalyzeConsensus(collabID string, msg *protocol.Message) string {
+	return string(a.cm.AnalyzeConsensus(collabID, msg))
+}
+
 // registerFileChangeProposal extracts a FileChangeProposal from message metadata
 // and registers it with the FileChangeManager so it appears in the pending changes UI.
 func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw interface{}) {
@@ -1130,8 +1492,20 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		return
 	}
 
+	// Resolve workspace root from message context. No default workspace fallback is allowed.
+	wsRoot := h.resolveWorkspaceRoot(msg)
+	if wsRoot == "" {
+		log.Printf("[FileChange] Missing workspace context for proposal from %s on channel %s",
+			msg.From.Name, msg.Channel)
+		return
+	}
+
 	// Resolve file path against workspace
-	filePath := h.resolveWorkspacePath(proposal.FilePath, msg)
+	filePath, err := h.resolveWorkspacePath(proposal.FilePath, wsRoot)
+	if err != nil {
+		log.Printf("[FileChange] Failed to resolve file path %q: %v", proposal.FilePath, err)
+		return
+	}
 
 	// Map proposal operation string to filechange.FileOperation
 	var operation filechange.FileOperation
@@ -1153,14 +1527,20 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	oldPath := proposal.OldPath
 	newPath := proposal.NewPath
 	if operation == filechange.FileOperationMove {
-		oldPath = h.resolveWorkspacePath(proposal.OldPath, msg)
-		newPath = h.resolveWorkspacePath(proposal.NewPath, msg)
+		oldPath, err = h.resolveWorkspacePath(proposal.OldPath, wsRoot)
+		if err != nil {
+			log.Printf("[FileChange] Failed to resolve move old path %q: %v", proposal.OldPath, err)
+			return
+		}
+		newPath, err = h.resolveWorkspacePath(proposal.NewPath, wsRoot)
+		if err != nil {
+			log.Printf("[FileChange] Failed to resolve move new path %q: %v", proposal.NewPath, err)
+			return
+		}
 	}
 
-	// Update the executor workspace root if we can resolve it
-	if wsRoot := h.resolveWorkspaceRoot(msg); wsRoot != "" {
-		h.fileChangeManager.GetExecutor().SetWorkspaceRoot(wsRoot)
-	}
+	// Bind executor to the resolved workspace root from the message context.
+	h.fileChangeManager.GetExecutor().SetWorkspaceRoot(wsRoot)
 
 	// Register with FileChangeManager
 	change, err := h.fileChangeManager.ProposeFileChange(
@@ -1185,38 +1565,25 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		proposal.Operation, filePath, change.ID, msg.From.Name)
 }
 
-// resolveWorkspacePath resolves a potentially relative file path against the workspace.
-// It checks message metadata for workspace_context first, then falls back to WorkspaceManager.
-func (h *Hub) resolveWorkspacePath(filePath string, msg *protocol.Message) string {
-	// If path is already absolute, return as-is
+// resolveWorkspacePath resolves a potentially relative file path against the provided workspace root.
+func (h *Hub) resolveWorkspacePath(filePath, workspaceRoot string) (string, error) {
+	if filePath == "" {
+		return "", fmt.Errorf("empty file path")
+	}
+
+	// If path is already absolute, return a cleaned absolute path as-is.
 	if filepath.IsAbs(filePath) {
-		return filePath
+		return filepath.Clean(filePath), nil
 	}
 
-	// Try to get workspace path from message metadata (workspace_context)
-	if msg.Metadata != nil {
-		if wsCtx, ok := msg.Metadata["workspace_context"]; ok {
-			if ctxMap, ok := wsCtx.(map[string]interface{}); ok {
-				if wsPath, ok := ctxMap["workspace_path"].(string); ok && wsPath != "" {
-					return filepath.Join(wsPath, filePath)
-				}
-			}
-		}
+	if workspaceRoot == "" {
+		return "", fmt.Errorf("missing workspace root for relative path: %s", filePath)
 	}
 
-	// Fallback: try the first workspace from WorkspaceManager
-	if h.workspaceManager != nil {
-		workspaces := h.workspaceManager.ListWorkspaces()
-		if len(workspaces) > 0 {
-			return filepath.Join(workspaces[0].Path, filePath)
-		}
-	}
-
-	// Last resort: return as-is (relative to CWD)
-	return filePath
+	return filepath.Join(workspaceRoot, filePath), nil
 }
 
-// resolveWorkspaceRoot returns the workspace root path from message context or WorkspaceManager.
+// resolveWorkspaceRoot returns the workspace root path from message context only.
 func (h *Hub) resolveWorkspaceRoot(msg *protocol.Message) string {
 	// Try to get workspace path from message metadata (workspace_context)
 	if msg.Metadata != nil {
@@ -1229,14 +1596,6 @@ func (h *Hub) resolveWorkspaceRoot(msg *protocol.Message) string {
 		}
 	}
 
-	// Fallback: try the first workspace from WorkspaceManager
-	if h.workspaceManager != nil {
-		workspaces := h.workspaceManager.ListWorkspaces()
-		if len(workspaces) > 0 {
-			return workspaces[0].Path
-		}
-	}
-
 	return ""
 }
 
@@ -1244,20 +1603,33 @@ func (h *Hub) resolveWorkspaceRoot(msg *protocol.Message) string {
 
 // SessionSnapshot captures the full state of a chat session for debugging/review.
 type SessionSnapshot struct {
-	SavedAt  time.Time                   `json:"saved_at"`
-	Channels map[string]*ChannelSnapshot `json:"channels"`
-	Threads  map[string]*ThreadSnapshot  `json:"threads"`
-	Agents   []*protocol.AgentInfo       `json:"agents"`
+	SavedAt        time.Time                               `json:"saved_at"`
+	Channels       map[string]*ChannelSnapshot             `json:"channels"`
+	Threads        map[string]*ThreadSnapshot              `json:"threads"`
+	Agents         []*protocol.AgentInfo                   `json:"agents"`
+	Collaborations map[string]*collaboration.Collaboration `json:"collaborations,omitempty"`
+}
+
+// SessionSaveHealth tracks snapshot save freshness and failures.
+type SessionSaveHealth struct {
+	LastSavedAt    time.Time `json:"last_saved_at,omitempty"`
+	LastFailureAt  time.Time `json:"last_failure_at,omitempty"`
+	LastError      string    `json:"last_error,omitempty"`
+	LastSizeBytes  int       `json:"last_size_bytes,omitempty"`
+	LastDurationMs int64     `json:"last_duration_ms,omitempty"`
+	SaveCount      int64     `json:"save_count"`
+	FailureCount   int64     `json:"failure_count"`
+	LastPath       string    `json:"last_path,omitempty"`
 }
 
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
-	Name        string                `json:"name"`
-	Description string                `json:"description"`
-	Type        protocol.ChannelType  `json:"type"`
-	CreatedBy   string                `json:"created_by,omitempty"`
-	Members     []string              `json:"members,omitempty"`
-	Messages    []*protocol.Message   `json:"messages"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Type        protocol.ChannelType `json:"type"`
+	CreatedBy   string               `json:"created_by,omitempty"`
+	Members     []string             `json:"members,omitempty"`
+	Messages    []*protocol.Message  `json:"messages"`
 }
 
 // ThreadSnapshot holds all messages and metadata for a single thread.
@@ -1273,10 +1645,11 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 	defer h.mu.RUnlock()
 
 	snapshot := &SessionSnapshot{
-		SavedAt:  time.Now(),
-		Channels: make(map[string]*ChannelSnapshot),
-		Threads:  make(map[string]*ThreadSnapshot),
-		Agents:   make([]*protocol.AgentInfo, 0),
+		SavedAt:        time.Now(),
+		Channels:       make(map[string]*ChannelSnapshot),
+		Threads:        make(map[string]*ThreadSnapshot),
+		Agents:         make([]*protocol.AgentInfo, 0),
+		Collaborations: make(map[string]*collaboration.Collaboration),
 	}
 
 	// Capture channel messages
@@ -1290,7 +1663,14 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 			Messages:    make([]*protocol.Message, 0),
 		}
 		if msgs, ok := h.messages[name]; ok {
-			cs.Messages = append(cs.Messages, msgs...)
+			for _, m := range msgs {
+				if m.Type == protocol.MessageTypeAgentStatus ||
+					m.Type == protocol.MessageTypeStreamDelta ||
+					m.Type == protocol.MessageTypeStreamEnd {
+					continue
+				}
+				cs.Messages = append(cs.Messages, m)
+			}
 		}
 		snapshot.Channels[name] = cs
 	}
@@ -1312,37 +1692,201 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 	for _, a := range h.agents {
 		snapshot.Agents = append(snapshot.Agents, a)
 	}
+	if h.collabManager != nil {
+		snapshot.Collaborations = h.collabManager.Snapshot()
+	}
 
 	return snapshot
+}
+
+// LoadSessionFromFile restores channels/messages/threads and collaboration
+// state from a previous snapshot. It is safe to call on startup.
+func (h *Hub) LoadSessionFromFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed reading session file: %w", err)
+	}
+
+	var snapshot SessionSnapshot
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return fmt.Errorf("failed to unmarshal session file: %w", err)
+	}
+
+	h.mu.Lock()
+	h.channels = make(map[string]*protocol.Channel)
+	h.messages = make(map[string][]*protocol.Message)
+	h.threads = make(map[string][]*protocol.Message)
+	h.threadMetadata = make(map[string]*protocol.ThreadMetadata)
+	h.subscribers = make(map[string][]chan *protocol.Message)
+	h.threadSubscribers = make(map[string][]chan *protocol.Message)
+
+	for name, ch := range snapshot.Channels {
+		if ch == nil {
+			continue
+		}
+		channel := &protocol.Channel{
+			ID:          uuid.New().String(),
+			Name:        ch.Name,
+			Description: ch.Description,
+			Type:        ch.Type,
+			CreatedBy:   ch.CreatedBy,
+			Created:     snapshot.SavedAt,
+			Agents:      []protocol.AgentInfo{},
+			Members:     append([]string(nil), ch.Members...),
+			Tags:        []string{},
+		}
+		h.channels[name] = channel
+		h.messages[name] = append([]*protocol.Message(nil), ch.Messages...)
+		h.subscribers[name] = []chan *protocol.Message{}
+	}
+	if len(h.channels) == 0 {
+		channel := &protocol.Channel{
+			ID:          uuid.New().String(),
+			Name:        "general",
+			Description: "General discussion",
+			Type:        protocol.ChannelTypePublic,
+			CreatedBy:   "system",
+			Created:     time.Now(),
+			Agents:      []protocol.AgentInfo{},
+			Members:     []string{},
+			Tags:        []string{},
+		}
+		h.channels[channel.Name] = channel
+		h.messages[channel.Name] = []*protocol.Message{}
+		h.subscribers[channel.Name] = []chan *protocol.Message{}
+	}
+	for threadID, thread := range snapshot.Threads {
+		if thread == nil {
+			continue
+		}
+		h.threads[threadID] = append([]*protocol.Message(nil), thread.Messages...)
+		if thread.Metadata != nil {
+			h.threadMetadata[threadID] = thread.Metadata
+		}
+		h.threadSubscribers[threadID] = []chan *protocol.Message{}
+	}
+	h.mu.Unlock()
+
+	if h.collabManager != nil && snapshot.Collaborations != nil {
+		h.collabManager.Restore(snapshot.Collaborations)
+	}
+
+	log.Printf("💾 Session restored from %s (%d channels, %d threads, %d collaborations)",
+		path, len(snapshot.Channels), len(snapshot.Threads), len(snapshot.Collaborations))
+	return nil
 }
 
 // SaveSessionToFile writes the current session snapshot to a JSON file.
 // It writes to a temp file first, then renames for atomic replacement.
 func (h *Hub) SaveSessionToFile(path string) error {
+	h.sessionSaveMu.Lock()
+	defer h.sessionSaveMu.Unlock()
+	startedAt := time.Now()
 	snapshot := h.TakeSessionSnapshot()
 
 	data, err := json.MarshalIndent(snapshot, "", "  ")
 	if err != nil {
+		h.recordSessionSaveFailure(path, startedAt, err)
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
+		h.recordSessionSaveFailure(path, startedAt, err)
 		return fmt.Errorf("failed to create session directory: %w", err)
 	}
 
-	// Write to temp file then rename for atomic save
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	// Write to a unique temp file, fsync it, then rename atomically.
+	tmpFile, err := os.CreateTemp(dir, "last-session-*.tmp")
+	if err != nil {
+		h.recordSessionSaveFailure(path, startedAt, err)
+		return fmt.Errorf("failed to create temp session file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		h.recordSessionSaveFailure(path, startedAt, err)
 		return fmt.Errorf("failed to write session file: %w", err)
 	}
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+		h.recordSessionSaveFailure(path, startedAt, err)
+		return fmt.Errorf("failed to sync session file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		h.recordSessionSaveFailure(path, startedAt, err)
+		return fmt.Errorf("failed to close session file: %w", err)
+	}
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		_ = os.Remove(tmpPath)
+		h.recordSessionSaveFailure(path, startedAt, err)
+		return fmt.Errorf("failed to set session file permissions: %w", err)
+	}
 	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		h.recordSessionSaveFailure(path, startedAt, err)
 		return fmt.Errorf("failed to finalize session file: %w", err)
 	}
+	if dirHandle, err := os.Open(dir); err == nil {
+		_ = dirHandle.Sync()
+		_ = dirHandle.Close()
+	}
 
+	h.recordSessionSaveSuccess(path, startedAt, len(data))
 	log.Printf("💾 Session saved to %s (%d bytes)", path, len(data))
 	return nil
+}
+
+func (h *Hub) recordSessionSaveSuccess(path string, startedAt time.Time, size int) {
+	h.sessionHealthMu.Lock()
+	defer h.sessionHealthMu.Unlock()
+	h.sessionHealth.LastSavedAt = time.Now()
+	h.sessionHealth.LastSizeBytes = size
+	h.sessionHealth.LastDurationMs = time.Since(startedAt).Milliseconds()
+	h.sessionHealth.LastPath = path
+	h.sessionHealth.SaveCount++
+	h.sessionHealth.LastError = ""
+}
+
+func (h *Hub) recordSessionSaveFailure(path string, startedAt time.Time, err error) {
+	h.sessionHealthMu.Lock()
+	defer h.sessionHealthMu.Unlock()
+	h.sessionHealth.LastFailureAt = time.Now()
+	h.sessionHealth.LastDurationMs = time.Since(startedAt).Milliseconds()
+	h.sessionHealth.LastPath = path
+	h.sessionHealth.FailureCount++
+	h.sessionHealth.LastError = err.Error()
+}
+
+// GetSessionSaveHealth returns the latest session save diagnostics including
+// freshness (age in seconds) for observability endpoints.
+func (h *Hub) GetSessionSaveHealth() map[string]interface{} {
+	h.sessionHealthMu.RLock()
+	health := h.sessionHealth
+	h.sessionHealthMu.RUnlock()
+
+	ageSeconds := int64(-1)
+	if !health.LastSavedAt.IsZero() {
+		ageSeconds = int64(time.Since(health.LastSavedAt).Seconds())
+	}
+	return map[string]interface{}{
+		"last_saved_at":    health.LastSavedAt,
+		"last_failure_at":  health.LastFailureAt,
+		"last_error":       health.LastError,
+		"last_size_bytes":  health.LastSizeBytes,
+		"last_duration_ms": health.LastDurationMs,
+		"save_count":       health.SaveCount,
+		"failure_count":    health.FailureCount,
+		"last_path":        health.LastPath,
+		"age_seconds":      ageSeconds,
+	}
 }
 
 // DefaultSessionPath returns the default path for the last session file.

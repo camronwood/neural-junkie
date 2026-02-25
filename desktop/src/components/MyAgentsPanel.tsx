@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useChatStore } from '../stores/chatStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { ChatAPI } from '../api/chatAPI';
-import type { CachedAgentInfo, AgentCategory, AgentInfo } from '../types/protocol';
+import type { CachedAgentInfo, AgentInfo } from '../types/protocol';
+import { AgentInfoModal } from './AgentInfoModal';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
 }
 
-type TabType = 'my-agents' | 'removed';
+type TabType = 'active' | 'my-agents' | 'removed';
 
 const MIN_WIDTH = 250; // Minimum usable width
 const DEFAULT_WIDTH = 384; // w-96 = 384px
@@ -18,18 +20,26 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
     serverAddr, 
     channel, 
     username, 
+    agents,
+    loadingAgents,
     myAgents, 
     setMyAgents,
     removedAgents,
     setRemovedAgents
   } = useChatStore();
   
-  const [activeTab, setActiveTab] = useState<TabType>('my-agents');
+  const [activeTab, setActiveTab] = useState<TabType>('active');
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<AgentCategory>('all');
+  const [filterType, setFilterType] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [loadingAgent, setLoadingAgent] = useState<string | null>(null);
   const [recallingAgent, setRecallingAgent] = useState<string | null>(null);
+  const [switchingProvider, setSwitchingProvider] = useState<string | null>(null);
+  const [infoAgentId, setInfoAgentId] = useState<string | null>(null);
+  const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]);
+  const [availableLMStudioModels, setAvailableLMStudioModels] = useState<string[]>([]);
+  const { switchAgentProvider } = useChatStore();
+  const { fetchOllamaModels, fetchLMStudioModels } = useSettingsStore();
 
   // Resize state
   const [width, setWidth] = useState<number>(() => {
@@ -117,8 +127,35 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
     resizeStartWidth.current = currentWidthRef.current;
   };
 
+  const activeAgents: AgentInfo[] = agents.filter(agent => agent.status === 'active');
+  const loadingAgentsList: AgentInfo[] = Array.from(loadingAgents).map(agentName => ({
+    id: `loading-${agentName}`,
+    name: agentName,
+    type: 'loading',
+    status: 'loading',
+    expertise: [],
+    model: '',
+    ai_provider: '',
+    ai_model: '',
+    is_paused: false,
+    supports_vision: false,
+    indexing_status: 'loading',
+    index_progress: 0,
+    repository_path: '',
+    knowledge_path: '',
+    confluence_space_key: '',
+    last_active_time: new Date().toISOString(),
+    removed_from: undefined,
+  }));
+
+  const listSource = activeTab === 'active'
+    ? ([...activeAgents, ...loadingAgentsList] as AgentInfo[])
+    : activeTab === 'my-agents'
+      ? myAgents
+      : removedAgents;
+
   // Filter and search agents based on active tab
-  const filteredAgents = (activeTab === 'my-agents' ? myAgents : removedAgents).filter(agent => {
+  const filteredAgents = listSource.filter(agent => {
     // Type filter
     if (filterType !== 'all' && agent.type !== filterType) {
       return false;
@@ -139,7 +176,9 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
 
   // Sort agents based on tab
   const sortedAgents = [...filteredAgents].sort((a, b) => {
-    if (activeTab === 'my-agents') {
+    if (activeTab === 'active') {
+      return a.name.localeCompare(b.name);
+    } else if (activeTab === 'my-agents') {
       // Sort by last used (descending), then by cache size (descending)
       const aLastUsed = 'last_used' in a ? a.last_used : '';
       const bLastUsed = 'last_used' in b ? b.last_used : '';
@@ -244,6 +283,45 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       console.error('Failed to recall agent:', error);
     } finally {
       setRecallingAgent(null);
+    }
+  };
+
+  const handleProviderSwitch = async (agentId: string, provider: string, model: string) => {
+    setSwitchingProvider(agentId);
+    try {
+      await switchAgentProvider(agentId, provider, model);
+    } catch (error) {
+      console.error('Failed to switch provider:', error);
+    } finally {
+      setSwitchingProvider(null);
+    }
+  };
+
+  const handleApprovalModeChange = async (agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo') => {
+    try {
+      await api.setAgentApprovalMode(agentId, mode);
+    } catch (error) {
+      console.error('Failed to set approval mode:', error);
+    }
+  };
+
+  const handleRemoveAgent = async (_agentId: string, agentName: string) => {
+    if (!window.confirm(`Remove ${agentName} from conversation? (You can recall later)`)) {
+      return;
+    }
+    try {
+      await api.removeAgent(channel, agentName, { name: username, type: 'human' });
+      setInfoAgentId(null);
+    } catch (error) {
+      console.error('Failed to remove agent:', error);
+    }
+  };
+
+  const handleExportAgent = async (agentName: string) => {
+    try {
+      await api.exportAgent(channel, agentName);
+    } catch (error) {
+      console.error('Failed to export agent:', error);
     }
   };
 
@@ -358,6 +436,16 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           {/* Tabs */}
           <div className="flex gap-1 mb-3">
             <button
+              onClick={() => setActiveTab('active')}
+              className={`px-3 py-1 text-sm rounded transition-colors ${
+                activeTab === 'active'
+                  ? 'bg-slack-accent text-white'
+                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+              }`}
+            >
+              Active ({activeAgents.length + loadingAgentsList.length})
+            </button>
+            <button
               onClick={() => setActiveTab('my-agents')}
               className={`px-3 py-1 text-sm rounded transition-colors ${
                 activeTab === 'my-agents'
@@ -391,8 +479,11 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           </div>
           
           {/* Filter */}
-          <div className="flex gap-1">
-            {(['all', 'repo', 'helper', 'confluence'] as AgentCategory[]).map((type) => (
+          <div className="flex gap-1 flex-wrap">
+            {(activeTab === 'active'
+              ? ['all', 'backend', 'frontend', 'rust', 'devops', 'database', 'security', 'cli', 'assistant', 'moderator']
+              : ['all', 'repo', 'helper', 'confluence']
+            ).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilterType(type)}
@@ -418,6 +509,14 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
             searchTerm || filterType !== 'all' ? (
               <div className="text-slack-textMuted text-sm p-4 text-center">
                 No agents match your filters
+              </div>
+            ) : activeTab === 'active' ? (
+              <div className="p-6 text-center">
+                <div className="text-4xl mb-3">🤖</div>
+                <h3 className="text-lg font-medium text-slack-text mb-2">No Active Agents</h3>
+                <p className="text-sm text-slack-textMuted">
+                  No agents are currently active in this session.
+                </p>
               </div>
             ) : activeTab === 'my-agents' ? (
               <div className="p-6 text-center">
@@ -469,6 +568,21 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                       <div className="font-medium text-slack-text text-sm truncate">
                         {agent.name}
                       </div>
+                      {activeTab === 'active' && (
+                        <div className="flex items-center gap-2 mt-1 text-xs text-slack-textMuted">
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded"
+                            style={{
+                              backgroundColor: `${getAgentTypeColor(agent.type)}20`,
+                              color: getAgentTypeColor(agent.type),
+                            }}
+                          >
+                            {agent.type}
+                          </span>
+                          <span>•</span>
+                          <span>{'status' in agent ? agent.status : 'cached'}</span>
+                        </div>
+                      )}
                       {'path' in agent && agent.path && (
                         <div className="text-xs text-slack-textMuted truncate mt-1">
                           {agent.path}
@@ -519,7 +633,29 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                     </div>
                     
                     {/* Action Button */}
-                    {activeTab === 'my-agents' ? (
+                    {activeTab === 'active' ? (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            if ('id' in agent && !String(agent.id).startsWith('loading-')) {
+                              setInfoAgentId(agent.id);
+                              fetchOllamaModels().then(setAvailableOllamaModels).catch(() => {});
+                              fetchLMStudioModels().then(setAvailableLMStudioModels).catch(() => {});
+                            }
+                          }}
+                          disabled={!('id' in agent) || String(agent.id).startsWith('loading-')}
+                          className="text-slack-textMuted hover:text-slack-text transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={`View ${agent.name} settings`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </button>
+                        <span className="px-3 py-1 text-xs rounded bg-slack-bg text-slack-textMuted border border-slack-border">
+                          online
+                        </span>
+                      </div>
+                    ) : activeTab === 'my-agents' ? (
                       <button
                         onClick={() => handleLoadAgent(agent as CachedAgentInfo)}
                         disabled={loadingAgent === agent.name}
@@ -545,11 +681,29 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
 
         {/* Footer */}
         <div className="p-3 border-t border-slack-border text-xs text-slack-textMuted text-center">
-          {activeTab === 'my-agents' 
+          {activeTab === 'active'
+            ? `${sortedAgents.length} active agents`
+            : activeTab === 'my-agents' 
             ? `${sortedAgents.length} of ${myAgents.length} agents`
             : `${sortedAgents.length} of ${removedAgents.length} removed agents`
           }
         </div>
+
+        {/* Agent Info Modal */}
+        {infoAgentId && (
+          <AgentInfoModal
+            agent={agents.find(a => a.id === infoAgentId) || activeAgents.find(a => a.id === infoAgentId)}
+            isOpen={!!infoAgentId}
+            onClose={() => setInfoAgentId(null)}
+            onProviderSwitch={handleProviderSwitch}
+            onExport={handleExportAgent}
+            onRemove={handleRemoveAgent}
+            onApprovalModeChange={handleApprovalModeChange}
+            switchingProvider={switchingProvider}
+            availableOllamaModels={availableOllamaModels}
+            availableLMStudioModels={availableLMStudioModels}
+          />
+        )}
       </div>
     </div>
   );

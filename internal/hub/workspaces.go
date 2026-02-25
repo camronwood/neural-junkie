@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -70,11 +71,67 @@ func (wm *WorkspaceManager) loadWorkspaces() error {
 
 	// Convert slice to map
 	wm.workspaces = make(map[string]*Workspace)
+	pruned := 0
 	for _, workspace := range workspaces {
+		if shouldPruneWorkspace(workspace) {
+			pruned++
+			continue
+		}
 		wm.workspaces[workspace.ID] = workspace
+	}
+	if pruned > 0 {
+		if err := wm.saveWorkspacesLocked(); err != nil {
+			return fmt.Errorf("failed to persist pruned workspaces: %w", err)
+		}
 	}
 
 	return nil
+}
+
+// PruneUnavailableTestWorkspaces removes leaked test temp workspaces that no
+// longer exist on disk and persists the cleanup if any were removed.
+func (wm *WorkspaceManager) PruneUnavailableTestWorkspaces() (int, error) {
+	wm.mutex.Lock()
+	defer wm.mutex.Unlock()
+
+	removed := 0
+	for id, workspace := range wm.workspaces {
+		if shouldPruneWorkspace(workspace) {
+			delete(wm.workspaces, id)
+			removed++
+		}
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	if err := wm.saveWorkspacesLocked(); err != nil {
+		return removed, fmt.Errorf("failed to save pruned workspaces: %w", err)
+	}
+	return removed, nil
+}
+
+func shouldPruneWorkspace(workspace *Workspace) bool {
+	if workspace == nil || strings.TrimSpace(workspace.Path) == "" {
+		return true
+	}
+	if !isEphemeralTempTestWorkspace(workspace.Path, workspace.Name) {
+		return false
+	}
+	info, err := os.Stat(workspace.Path)
+	return err != nil || !info.IsDir()
+}
+
+func isEphemeralTempTestWorkspace(path, name string) bool {
+	lowerPath := strings.ToLower(path)
+	lowerName := strings.ToLower(name)
+	if strings.Contains(lowerPath, "testcommandintegration") ||
+		strings.Contains(lowerPath, "testcommandparsing") ||
+		strings.Contains(lowerName, "testcommandintegration") ||
+		strings.Contains(lowerName, "testcommandparsing") {
+		return true
+	}
+	// Go test temp dirs on macOS commonly look like /var/folders/.../T/TestFoo...
+	return strings.Contains(path, "/var/folders/") && strings.Contains(path, "/T/Test")
 }
 
 // saveWorkspacesLocked persists the in-memory workspaces to disk.

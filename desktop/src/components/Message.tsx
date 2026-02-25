@@ -1,9 +1,16 @@
-import type { Message as MessageType, CommandOutput as CommandOutputType, ThreadMetadata } from '../types/protocol';
-import { getAgentColor, isSystemMessage } from '../types/protocol';
+import { useState } from 'react';
+import type { Message as MessageType, CommandOutput as CommandOutputType, MessageErrorMetadata, ThreadMetadata } from '../types/protocol';
+import { getAgentColor, isSystemMessage, isCollaborationMessage } from '../types/protocol';
 import { MessageContent } from './MessageContent';
 import { CommandOutput } from './CommandOutput';
 import { DesignOutput } from './DesignOutput';
 import { ToolApprovalCard } from './ToolApprovalCard';
+import { ChatAPI } from '../api/chatAPI';
+import { useEditorStore } from '../stores/editorStore';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { useFileChangeStore } from '../stores/fileChangeStore';
+import { useToastStore } from '../stores/toastStore';
+import { useChatStore } from '../stores/chatStore';
 
 interface MessageProps {
   message: MessageType;
@@ -13,16 +20,27 @@ interface MessageProps {
 }
 
 export function Message({ message, threadMetadata, onOpenThread, isStreaming }: MessageProps) {
+  const [proposing, setProposing] = useState(false);
   const isSystem = isSystemMessage(message.type);
   const isCommandOutput = message.type === 'command_output';
   const isDesignOutput = message.type === 'design_output';
   const isToolApproval = message.type === 'tool_approval';
+  const isCollab = isCollaborationMessage(message);
   const agentColor = getAgentColor(message.from.type);
   const timestamp = new Date(message.timestamp).toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   });
+  const errorMeta = (message.metadata ?? {}) as MessageErrorMetadata;
+  const hasErrorMeta = typeof errorMeta.error_code === 'string';
+  const canRetry = errorMeta.retryable === true;
+  const username = useChatStore(s => s.username);
+  const addToast = useToastStore(s => s.addToast);
+  const fetchPendingChanges = useFileChangeStore(s => s.fetchPendingChanges);
+
+  const suggestsFileChange = shouldShowProposeAction(message);
+  const canShowProposeButton = suggestsFileChange && !isStreaming;
 
   // Parse command output from metadata if present
   let commandOutput: CommandOutputType | null = null;
@@ -33,6 +51,53 @@ export function Message({ message, threadMetadata, onOpenThread, isStreaming }: 
       console.error('Failed to parse command output:', e);
     }
   }
+
+  const handleProposeFromMessage = async () => {
+    if (proposing) return;
+
+    const api = new ChatAPI();
+    const activeTab = useEditorStore.getState().getActiveTab();
+    const explorer = useFileExplorerStore.getState();
+    const activeWorkspace = explorer.getActiveWorkspace();
+
+    const workspaceId = activeTab?.workspaceId || activeWorkspace?.id;
+    const targetPath = activeTab?.path || (explorer.selectedPath || '');
+
+    if (!workspaceId || !targetPath) {
+      addToast({
+        type: 'warning',
+        title: 'Open a target file first',
+        message: 'Open the file you want to update, then click "Propose it?" again.',
+      });
+      return;
+    }
+
+    setProposing(true);
+    try {
+      await api.proposeFileChangeFromMessage({
+        channel: message.channel,
+        messageId: message.id,
+        workspaceId,
+        targetPath,
+        userId: username || 'default',
+      });
+      await fetchPendingChanges(username || 'default');
+      addToast({
+        type: 'success',
+        title: 'Proposal created',
+        message: 'A new file-change proposal is ready for review in Pending Changes.',
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create proposal from message';
+      addToast({
+        type: 'error',
+        title: 'Propose failed',
+        message: msg,
+      });
+    } finally {
+      setProposing(false);
+    }
+  };
 
   // Format last reply time for thread indicator
   const formatLastReplyTime = (timestamp: string) => {
@@ -55,7 +120,8 @@ export function Message({ message, threadMetadata, onOpenThread, isStreaming }: 
         isSystem ? 'italic text-slack-textMuted' : ''
       }`}
       style={{
-        borderLeft: isSystem ? 'none' : `3px solid ${agentColor}`,
+        borderLeft: isSystem ? 'none' : `3px solid ${isCollab ? '#8b5cf6' : agentColor}`,
+        backgroundColor: isCollab ? 'rgba(139, 92, 246, 0.04)' : undefined,
       }}
     >
       {/* Reply in Thread button - shows on hover, only for non-system, non-thread messages */}
@@ -82,6 +148,22 @@ export function Message({ message, threadMetadata, onOpenThread, isStreaming }: 
         {message.from.type && (
           <span className="text-xs px-2 py-0.5 rounded bg-slack-bgHover text-slack-textMuted">
             {message.from.type}
+          </span>
+        )}
+        {isCollab && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded"
+            style={{ backgroundColor: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa' }}
+          >
+            🤝 collab
+          </span>
+        )}
+        {hasErrorMeta && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-400"
+            title={canRetry ? 'The operation can usually be retried.' : 'The operation likely needs configuration changes.'}
+          >
+            error: {errorMeta.error_code}
           </span>
         )}
         {message.metadata?.workspace_context && (
@@ -113,6 +195,19 @@ export function Message({ message, threadMetadata, onOpenThread, isStreaming }: 
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />
             )}
             {commandOutput && <CommandOutput output={commandOutput} />}
+            {canShowProposeButton && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={handleProposeFromMessage}
+                  disabled={proposing}
+                  className="px-3 py-1.5 text-xs rounded border border-slack-border bg-slack-bgHover hover:bg-slack-accent hover:text-white transition-colors disabled:opacity-50"
+                  title="Create a pending file change proposal from this message"
+                >
+                  {proposing ? 'Creating proposal...' : 'Propose it?'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -149,5 +244,20 @@ export function Message({ message, threadMetadata, onOpenThread, isStreaming }: 
       )}
     </div>
   );
+}
+
+function shouldShowProposeAction(message: MessageType): boolean {
+  if (message.type !== 'chat') return false;
+  if (message.from.type === 'human' || message.from.type === 'general') return false;
+
+  const content = (message.content || '').toLowerCase();
+  if (!content.trim()) return false;
+  if (content.includes('i submitted a file change proposal')) return false;
+
+  // Only show when the agent suggests making/proposing changes to a file.
+  const suggestivePhrase = /would you like me to|want me to|i can submit|i can propose|should i propose|propose.*approval|submit.*approval/.test(content);
+  const fileChangeContext = /(readme|file|edit|update|change|proposal)/.test(content);
+
+  return suggestivePhrase && fileChangeContext;
 }
 

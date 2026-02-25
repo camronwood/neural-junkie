@@ -98,6 +98,10 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		pendingApprovals:   make(map[string]*PendingApproval),
 	}
 
+	// Ensure deterministic assistant actions are handled before the shared
+	// LLM response path.
+	assistant.Agent.SetMessageInterceptor(assistant.handleDirectAssistantActions)
+
 	return assistant
 }
 
@@ -108,26 +112,34 @@ func (a *AssistantAgent) Start(ctx context.Context, channel string) error {
 
 	// Start meeting notes watcher if enabled
 	if a.config.AutoIngestEnabled {
-		log.Printf("📁 [Assistant] Starting meeting notes watcher for directory: %s", a.config.MeetingNotesDir)
-		if err := a.startMeetingNotesWatcher(ctx); err != nil {
-			log.Printf("⚠️  Warning: Failed to start meeting notes watcher: %v", err)
+		if info, statErr := os.Stat(a.config.MeetingNotesDir); statErr != nil || !info.IsDir() {
+			log.Printf("ℹ️  [Assistant] Meeting notes auto-ingestion unavailable: directory not found (%s)", a.config.MeetingNotesDir)
 		} else {
-			log.Printf("✅ [Assistant] Meeting notes watcher started successfully")
+			log.Printf("📁 [Assistant] Starting meeting notes watcher for directory: %s", a.config.MeetingNotesDir)
+			if err := a.startMeetingNotesWatcher(ctx); err != nil {
+				log.Printf("ℹ️  [Assistant] Meeting notes watcher unavailable: %v", err)
+			} else {
+				log.Printf("✅ [Assistant] Meeting notes watcher started successfully")
+			}
 		}
 	} else {
-		log.Printf("⚠️  [Assistant] Meeting notes auto-ingestion is disabled")
+		log.Printf("ℹ️  [Assistant] Meeting notes auto-ingestion is disabled")
 	}
 
 	// Start email watcher if enabled
 	if a.config.EmailIngestEnabled {
-		log.Printf("📧 [Assistant] Starting email watcher for directory: %s", a.config.EmailDir)
-		if err := a.startEmailWatcher(ctx); err != nil {
-			log.Printf("⚠️  Warning: Failed to start email watcher: %v", err)
+		if info, statErr := os.Stat(a.config.EmailDir); statErr != nil || !info.IsDir() {
+			log.Printf("ℹ️  [Assistant] Email auto-ingestion unavailable: directory not found (%s)", a.config.EmailDir)
 		} else {
-			log.Printf("✅ [Assistant] Email watcher started successfully")
+			log.Printf("📧 [Assistant] Starting email watcher for directory: %s", a.config.EmailDir)
+			if err := a.startEmailWatcher(ctx); err != nil {
+				log.Printf("ℹ️  [Assistant] Email watcher unavailable: %v", err)
+			} else {
+				log.Printf("✅ [Assistant] Email watcher started successfully")
+			}
 		}
 	} else {
-		log.Printf("⚠️  [Assistant] Email auto-ingestion is disabled")
+		log.Printf("ℹ️  [Assistant] Email auto-ingestion is disabled")
 	}
 
 	// Call base agent's Start method
@@ -136,6 +148,12 @@ func (a *AssistantAgent) Start(ctx context.Context, channel string) error {
 
 // ProcessMessage overrides base agent to add assistant-specific processing
 func (a *AssistantAgent) ProcessMessage(ctx context.Context, msg *protocol.Message) {
+	// Handle common assistant actions directly so we do not claim work happened
+	// when no command was actually executed.
+	if a.handleDirectAssistantActions(ctx, msg) {
+		return
+	}
+
 	// Check for proactive suggestions based on conversation content
 	a.checkProactiveSuggestions(ctx, msg)
 
@@ -427,7 +445,7 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 
 // monitorReminders runs a background loop to check for due reminders
 func (a *AssistantAgent) monitorReminders(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Minute) // Check every minute
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -735,7 +753,7 @@ func (a *AssistantAgent) parseRelativeTime(timeStr string, base time.Time) (time
 	timeStr = strings.TrimPrefix(timeStr, "in ")
 
 	// Parse number and unit
-	re := regexp.MustCompile(`(\d+)\s*(minute|minutes|hour|hours|day|days)`)
+	re := regexp.MustCompile(`(?i)^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$`)
 	matches := re.FindStringSubmatch(timeStr)
 	if len(matches) != 3 {
 		return time.Time{}, fmt.Errorf("invalid time format: %s", timeStr)
@@ -748,15 +766,305 @@ func (a *AssistantAgent) parseRelativeTime(timeStr string, base time.Time) (time
 
 	unit := matches[2]
 	switch unit {
-	case "minute", "minutes":
+	case "s", "sec", "secs", "second", "seconds":
+		return base.Add(time.Duration(amount) * time.Second), nil
+	case "m", "min", "mins", "minute", "minutes":
 		return base.Add(time.Duration(amount) * time.Minute), nil
-	case "hour", "hours":
+	case "h", "hr", "hrs", "hour", "hours":
 		return base.Add(time.Duration(amount) * time.Hour), nil
-	case "day", "days":
+	case "d", "day", "days":
 		return base.AddDate(0, 0, amount), nil
 	default:
 		return time.Time{}, fmt.Errorf("unknown time unit: %s", unit)
 	}
+}
+
+func (a *AssistantAgent) handleDirectAssistantActions(ctx context.Context, msg *protocol.Message) bool {
+	if a.storage == nil {
+		return false
+	}
+
+	content := strings.TrimSpace(msg.Content)
+	if content == "" {
+		return false
+	}
+	if strings.HasPrefix(strings.ToLower(content), "/") {
+		return false
+	}
+
+	if reminder, ok := a.buildReminderFromNaturalLanguage(msg, content); ok {
+		if err := a.storage.SaveReminder(reminder); err != nil {
+			log.Printf("[%s] Failed to save reminder from natural language: %v", a.Info.Name, err)
+			errMsg := protocol.NewMessage(
+				protocol.MessageTypeSystemInfo,
+				msg.Channel,
+				a.Info,
+				fmt.Sprintf("❌ Failed to persist reminder: %v", err),
+			)
+			errMsg.ReplyTo = msg.ID
+			a.Hub.SendMessage(errMsg)
+			return true
+		}
+		confirm := protocol.NewMessage(
+			protocol.MessageTypeSystemInfo,
+			msg.Channel,
+			a.Info,
+			fmt.Sprintf("⏰ Reminder set: '%s' at %s", reminder.Content, reminder.TriggerTime.Format(time.RFC1123)),
+		)
+		confirm.ReplyTo = msg.ID
+		a.Hub.SendMessage(confirm)
+		return true
+	}
+
+	if task, ok := a.buildTaskFromNaturalLanguage(msg, content); ok {
+		if err := a.storage.SaveTask(task); err != nil {
+			log.Printf("[%s] Failed to save task from natural language: %v", a.Info.Name, err)
+			errMsg := protocol.NewMessage(
+				protocol.MessageTypeSystemInfo,
+				msg.Channel,
+				a.Info,
+				fmt.Sprintf("❌ Failed to persist task: %v", err),
+			)
+			errMsg.ReplyTo = msg.ID
+			a.Hub.SendMessage(errMsg)
+			return true
+		}
+		confirm := protocol.NewMessage(
+			protocol.MessageTypeSystemInfo,
+			msg.Channel,
+			a.Info,
+			fmt.Sprintf("📝 Task added: [%s] %s", assistantShortID(task.ID), task.Title),
+		)
+		confirm.ReplyTo = msg.ID
+		a.Hub.SendMessage(confirm)
+		return true
+	}
+
+	// Prevent "I set it" hallucinations when a reminder intent is present but
+	// the time/message parse fails.
+	if isLikelyReminderIntent(content) {
+		confirm := protocol.NewMessage(
+			protocol.MessageTypeSystemInfo,
+			msg.Channel,
+			a.Info,
+			"❌ I couldn't parse that reminder. Try formats like `remind me in 30s to stand up` or `/remind in 30s stand up`.",
+		)
+		confirm.ReplyTo = msg.ID
+		a.Hub.SendMessage(confirm)
+		return true
+	}
+
+	return false
+}
+
+func (a *AssistantAgent) buildReminderFromNaturalLanguage(msg *protocol.Message, content string) (*Reminder, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(content))
+	rest := ""
+	for _, prefix := range []string{
+		"remind me ",
+		"reminder me ",
+		"reminde me ",
+		"remindme ",
+		"set a reminder for ",
+		"set reminder for ",
+		"set a reminder ",
+		"set reminder ",
+		"ping me ",
+		"nudge me ",
+		"alert me ",
+	} {
+		if strings.HasPrefix(normalized, prefix) {
+			rest = strings.TrimSpace(strings.TrimPrefix(normalized, prefix))
+			break
+		}
+	}
+	if rest == "" {
+		return nil, false
+	}
+
+	parts := strings.Fields(rest)
+	if len(parts) < 2 {
+		if trigger, ok := a.tryParseReminderTime(rest); ok {
+			return &Reminder{
+				ID:          fmt.Sprintf("reminder_%d", time.Now().UnixNano()),
+				Content:     "Reminder",
+				TriggerTime: trigger,
+				Channel:     msg.Channel,
+				CreatedBy:   msg.From.Name,
+				Active:      true,
+				CreatedAt:   time.Now(),
+			}, true
+		}
+		return nil, false
+	}
+
+	var (
+		trigger time.Time
+		message string
+	)
+	if left, right, ok := splitReminderTimeAndMessage(rest); ok {
+		if parsed, parseOK := a.tryParseReminderTime(left); parseOK {
+			trigger = parsed
+			message = right
+		}
+	}
+
+	for i := len(parts) - 1; i >= 1; i-- {
+		if message != "" {
+			break
+		}
+		timeExpr := strings.Join(parts[:i], " ")
+		parsed, ok := a.tryParseReminderTime(timeExpr)
+		if !ok {
+			continue
+		}
+		reminderText := strings.TrimSpace(strings.Join(parts[i:], " "))
+		reminderText = strings.TrimSpace(strings.TrimPrefix(reminderText, "to "))
+		if reminderText == "" {
+			continue
+		}
+		trigger = parsed
+		message = reminderText
+		break
+	}
+	if message == "" {
+		parsed, ok := a.tryParseReminderTime(rest)
+		if !ok {
+			return nil, false
+		}
+		trigger = parsed
+		message = "Reminder"
+	}
+
+	return &Reminder{
+		ID:          fmt.Sprintf("reminder_%d", time.Now().UnixNano()),
+		Content:     message,
+		TriggerTime: trigger,
+		Channel:     msg.Channel,
+		CreatedBy:   msg.From.Name,
+		Active:      true,
+		CreatedAt:   time.Now(),
+	}, true
+}
+
+func isLikelyReminderIntent(content string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(content))
+	if !(strings.HasPrefix(normalized, "remind") ||
+		strings.HasPrefix(normalized, "reminde") ||
+		strings.HasPrefix(normalized, "set reminder") ||
+		strings.HasPrefix(normalized, "set a reminder") ||
+		strings.HasPrefix(normalized, "ping me") ||
+		strings.HasPrefix(normalized, "nudge me") ||
+		strings.HasPrefix(normalized, "alert me")) {
+		return false
+	}
+	hasTimeSignal := strings.Contains(normalized, " in ") || strings.Contains(normalized, " at ")
+	if !hasTimeSignal {
+		timeToken := regexp.MustCompile(`\b\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)\b`)
+		hasTimeSignal = timeToken.MatchString(normalized)
+	}
+	return hasTimeSignal
+}
+
+func splitReminderTimeAndMessage(rest string) (string, string, bool) {
+	for _, sep := range []string{" to ", " about "} {
+		parts := strings.SplitN(rest, sep, 2)
+		if len(parts) != 2 {
+			continue
+		}
+		left := strings.TrimSpace(parts[0])
+		left = strings.TrimSpace(strings.TrimPrefix(left, "for "))
+		right := strings.TrimSpace(parts[1])
+		if left == "" || right == "" {
+			continue
+		}
+		return left, right, true
+	}
+	return "", "", false
+}
+
+func (a *AssistantAgent) tryParseReminderTime(expr string) (time.Time, bool) {
+	candidates := normalizeReminderTimeCandidates(expr)
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		parsed, err := a.ParseTime(candidate)
+		if err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func normalizeReminderTimeCandidates(expr string) []string {
+	raw := strings.TrimSpace(strings.ToLower(expr))
+	if raw == "" {
+		return nil
+	}
+
+	candidates := []string{raw}
+	trimmedFor := strings.TrimSpace(strings.TrimPrefix(raw, "for "))
+	if trimmedFor != raw {
+		candidates = append(candidates, trimmedFor)
+	}
+
+	relative := regexp.MustCompile(`^(\d+\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days))(?:\s+from\s+now)?$`)
+	if m := relative.FindStringSubmatch(trimmedFor); len(m) > 1 {
+		candidates = append(candidates, "in "+strings.TrimSpace(m[1]))
+	}
+
+	// Deduplicate while preserving order.
+	seen := make(map[string]struct{}, len(candidates))
+	out := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		if _, ok := seen[c]; ok {
+			continue
+		}
+		seen[c] = struct{}{}
+		out = append(out, c)
+	}
+	return out
+}
+
+func (a *AssistantAgent) buildTaskFromNaturalLanguage(msg *protocol.Message, content string) (*Task, bool) {
+	trimmed := strings.TrimSpace(content)
+	lowerTrimmed := strings.ToLower(trimmed)
+	var title string
+	switch {
+	case strings.HasPrefix(lowerTrimmed, "add task "):
+		title = strings.TrimSpace(trimmed[len("add task "):])
+	case strings.HasPrefix(lowerTrimmed, "create task "):
+		title = strings.TrimSpace(trimmed[len("create task "):])
+	case strings.HasPrefix(lowerTrimmed, "task:"):
+		title = strings.TrimSpace(trimmed[len("task:"):])
+	default:
+		return nil, false
+	}
+	if title == "" {
+		return nil, false
+	}
+
+	return &Task{
+		ID:        fmt.Sprintf("task_%d", time.Now().UnixNano()),
+		Title:     title,
+		Priority:  3,
+		Status:    "todo",
+		CreatedAt: time.Now(),
+		Channel:   msg.Channel,
+		CreatedBy: msg.From.Name,
+	}, true
+}
+
+func assistantShortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[:8]
 }
 
 // parseTimeToday parses time for a specific day

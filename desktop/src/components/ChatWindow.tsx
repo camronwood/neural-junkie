@@ -1,16 +1,16 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
 import { buildFileTreeString } from '../utils/workspaceContext';
 import type { WorkspaceContext } from '../utils/workspaceContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageList } from './MessageList';
-import { AgentList } from './AgentList';
 import { RichTextInput } from './RichTextInput';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
@@ -24,8 +24,16 @@ import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
 import { CollaborationPanel } from './CollaborationPanel';
-import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, RightSidebarIcon } from './Icons';
-import type { Message, ThinkingStatusMetadata, CommandDefinition, Collaboration } from '../types/protocol';
+import { TaskManagementPanel } from './TaskManagementPanel';
+import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, TaskManagementIcon } from './Icons';
+import type {
+  AssistantReminder,
+  AssistantTask,
+  Collaboration,
+  CommandDefinition,
+  Message,
+  ThinkingStatusMetadata,
+} from '../types/protocol';
 import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
 
 interface ChatWindowProps {
@@ -69,6 +77,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
   const { layoutSettings, loadLayoutSettings } = useSettingsStore();
+  const addToast = useToastStore(s => s.addToast);
 
   // State for tracking counts
   const [totalAgentsCount, setTotalAgentsCount] = useState(0);
@@ -84,9 +93,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [channelSidebarOpen, setChannelSidebarOpen] = useState<boolean>(() => {
     return localStorage.getItem('channel-sidebar-open') !== 'false';
   });
-  const [agentSidebarOpen, setAgentSidebarOpen] = useState<boolean>(() => {
-    return localStorage.getItem('agent-sidebar-open') !== 'false';
-  });
 
   // State for create channel modal
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
@@ -98,6 +104,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // State for active collaboration panel
   const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
+  const [taskManagementOpen, setTaskManagementOpen] = useState(false);
+  const [collaborationsByID, setCollaborationsByID] = useState<Record<string, Collaboration>>({});
+  const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
+  const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
 
   // State for sharing workspace context with agents
   const [shareWorkspace, setShareWorkspace] = useState<boolean>(() => {
@@ -119,13 +129,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           localStorage.setItem('channel-sidebar-open', String(next));
           return next;
         });
-      } else if (e.metaKey && e.shiftKey && e.key === 'b') {
+      } else if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
-        setAgentSidebarOpen((prev) => {
-          const next = !prev;
-          localStorage.setItem('agent-sidebar-open', String(next));
-          return next;
-        });
+        setTaskManagementOpen(prev => !prev);
       }
     };
     window.addEventListener('keydown', handler);
@@ -312,16 +318,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         return;
       }
 
-      // Track collaboration messages -- build partial collaboration state
-      // from the metadata embedded in collaboration messages.
-      if (isCollaborationMessage(message)) {
-        const collabId = getCollaborationId(message);
-        if (collabId && message.metadata?.collaboration_data) {
-          try {
-            setActiveCollab(message.metadata.collaboration_data as Collaboration);
-          } catch {
-            // Metadata may not include full collaboration data; that's fine
+      // Track collaboration snapshots from message metadata.
+      const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
+      if (collabData?.id) {
+        setCollaborationsByID(prev => {
+          const existing = prev[collabData.id];
+          if (!existing) {
+            return { ...prev, [collabData.id]: collabData };
           }
+          const nextTime = Date.parse(collabData.updated_at || '');
+          const existingTime = Date.parse(existing.updated_at || '');
+          if (!Number.isNaN(nextTime) && !Number.isNaN(existingTime) && nextTime < existingTime) {
+            return prev;
+          }
+          return { ...prev, [collabData.id]: collabData };
+        });
+        if (isCollaborationMessage(message) || getCollaborationId(message)) {
+          setActiveCollab(collabData);
         }
       }
 
@@ -496,34 +509,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setCommandPaletteOpen(true);
   };
 
-  // Handle clicking on agent in sidebar to insert mention
-  const handleAgentClick = (agentName: string) => {
-    if (inputRef.current && (inputRef.current as any).insertMentionText) {
-      (inputRef.current as any).insertMentionText(agentName);
-    }
-  };
-
-  const handleRemoveAgent = async (_agentId: string, agentName: string) => {
-    if (window.confirm(`Remove ${agentName} from conversation? (You can recall later)`)) {
-      try {
-        await api.removeAgent(channel, agentName, { name: username, type: 'human' });
-        // Agent list will be refreshed automatically via WebSocket agent_leave message
-      } catch (error) {
-        console.error('Failed to remove agent:', error);
-      }
-    }
-  };
-
-  const handleExportAgent = async (agentName: string) => {
-    console.log('handleExportAgent called with:', agentName, 'channel:', channel);
-    try {
-      await api.exportAgent(channel, agentName);
-      console.log('Export command sent successfully');
-    } catch (error) {
-      console.error('Failed to export agent:', error);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       // Clear saved credentials
@@ -570,6 +555,27 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // Find parent message for open thread
   const parentMessage = openThreadId ? messages.find(m => m.id === openThreadId) : null;
+  const trackedCollaborations = useMemo(
+    () => Object.values(collaborationsByID).sort((a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')),
+    [collaborationsByID]
+  );
+
+  const loadAssistantState = useCallback(async () => {
+    try {
+      const state = await api.fetchAssistantState(channel);
+      setAssistantTasks(state.tasks || []);
+      setAssistantReminders(state.reminders || []);
+    } catch (error) {
+      console.error('Failed to load assistant state:', error);
+    }
+  }, [api, channel]);
+
+  useEffect(() => {
+    if (!taskManagementOpen) return;
+    loadAssistantState();
+    const id = window.setInterval(loadAssistantState, 10000);
+    return () => window.clearInterval(id);
+  }, [taskManagementOpen, loadAssistantState]);
 
   return (
     <ErrorBoundary>
@@ -622,22 +628,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             <LeftSidebarIcon className="w-3.5 h-3.5" />
           </button>
 
-          <button
-            onClick={() => {
-              const next = !agentSidebarOpen;
-              setAgentSidebarOpen(next);
-              localStorage.setItem('agent-sidebar-open', String(next));
-            }}
-            className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
-              agentSidebarOpen
-                ? 'bg-slack-accent text-white'
-                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-            }`}
-            title="Toggle agents sidebar"
-          >
-            <RightSidebarIcon className="w-3.5 h-3.5" />
-          </button>
-
           <div className="w-px h-5 bg-slack-border mx-0.5" />
 
           <button
@@ -675,6 +665,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             title="Pending changes"
           >
             <PendingChangesIcon className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setTaskManagementOpen(true)}
+            className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
+              taskManagementOpen ? 'bg-violet-600 hover:bg-violet-700' : 'bg-violet-700/80 hover:bg-violet-700'
+            } text-white`}
+            title="Task management (⌘⇧T)"
+          >
+            <TaskManagementIcon className="w-3.5 h-3.5" />
           </button>
           
           <button
@@ -828,6 +828,66 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
+        {/* Task Management Panel */}
+        {taskManagementOpen && (
+          <TaskManagementPanel
+            collaborations={trackedCollaborations}
+            assistantTasks={assistantTasks}
+            assistantReminders={assistantReminders}
+            onClose={() => setTaskManagementOpen(false)}
+            onOpenCollaboration={(collab) => {
+              setActiveCollab(collab);
+              setTaskManagementOpen(false);
+            }}
+            onAssistantTaskDone={async (taskID) => {
+              const previousTasks = assistantTasks;
+              const targetTask = previousTasks.find(task => task.id === taskID);
+              setAssistantTasks(prev =>
+                prev.map(task => (task.id === taskID ? { ...task, status: 'done' } : task))
+              );
+              try {
+                await api.markAssistantTaskDone(taskID);
+                addToast({
+                  type: 'success',
+                  title: 'Task marked done',
+                  message: targetTask ? `"${targetTask.title}" moved to done.` : 'Assistant task moved to done.',
+                });
+                void loadAssistantState();
+              } catch (error) {
+                console.error('Failed to mark assistant task done:', error);
+                setAssistantTasks(previousTasks);
+                addToast({
+                  type: 'error',
+                  title: 'Task update failed',
+                  message: error instanceof Error ? error.message : 'Failed to mark assistant task done.',
+                });
+              }
+            }}
+            onAssistantReminderDismiss={async (reminderID) => {
+              const previousReminders = assistantReminders;
+              const targetReminder = previousReminders.find(reminder => reminder.id === reminderID);
+              setAssistantReminders(prev => prev.filter(reminder => reminder.id !== reminderID));
+              try {
+                await api.dismissAssistantReminder(reminderID);
+                addToast({
+                  type: 'success',
+                  title: 'Reminder dismissed',
+                  message: targetReminder ? `"${targetReminder.content}" dismissed.` : 'Assistant reminder dismissed.',
+                });
+                void loadAssistantState();
+              } catch (error) {
+                console.error('Failed to dismiss assistant reminder:', error);
+                setAssistantReminders(previousReminders);
+                addToast({
+                  type: 'error',
+                  title: 'Reminder dismiss failed',
+                  message: error instanceof Error ? error.message : 'Failed to dismiss assistant reminder.',
+                });
+              }
+            }}
+          />
+        )}
+
         {/* My Agents Panel - slides in from right */}
         {myAgentsPanelOpen && (
           <MyAgentsPanel
@@ -839,18 +899,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {pendingChangesOpen && (
           <PendingChangesPanel
             onClose={() => setPendingChangesOpen(false)}
-          />
-        )}
-
-
-        {/* Sidebar - Agent List */}
-        {agentSidebarOpen && (
-          <AgentList 
-            agents={agents} 
-            onRefresh={loadAgents}
-            onAgentClick={handleAgentClick}
-            onRemoveAgent={handleRemoveAgent}
-            onExportAgent={handleExportAgent}
           />
         )}
       </div>

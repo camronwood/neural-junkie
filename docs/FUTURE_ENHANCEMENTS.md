@@ -15,6 +15,7 @@ These items from the original roadmap have been completed:
 - ~~Agent mentions with autocomplete~~ -- @mention system with fuzzy matching and UI autocomplete
 - ~~Enhanced agent status display~~ -- Agent list with status indicators in desktop app
 - ~~GitHub integration~~ -- GitHub CLI operations (issues, PRs, repos, workflows)
+- ~~Agent Teams & Delegation~~ -- Multi-agent collaboration system with bounded discussion, planning/approval/execution phases, shared artifacts, task assignment, and consensus detection
 
 ## High Priority
 
@@ -51,11 +52,11 @@ Go beyond text matching for repository agents:
 - Find similar patterns across the codebase
 - Identify anti-patterns and tech debt
 
-### Agent Teams & Delegation
-Coordinated groups of agents:
-- Coordinator agent that delegates to specialists
-- Shared context between team members
-- Consensus mechanisms for conflicting advice
+### Advanced Collaboration Orchestration
+Collaboration is implemented. Future improvements can focus on:
+- Smarter dynamic task rebalancing during execution
+- Better cross-collaboration dependency management
+- Optional voting strategies beyond current consensus heuristics
 
 ### Rate Limiting & Cost Management
 - Per-agent API cost tracking

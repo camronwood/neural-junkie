@@ -257,6 +257,30 @@ func TestReviewRequestDetection(t *testing.T) {
 	}
 }
 
+func TestSystemMessagesDoNotParseMentions(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		"test-channel",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"❌ Agent @ghost not found",
+	)
+	if len(msg.Mentions) != 0 {
+		t.Fatalf("expected no mentions for system info, got %v", msg.Mentions)
+	}
+}
+
+func TestHumanActionableMessagesStillParseMentions(t *testing.T) {
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"test-channel",
+		protocol.AgentInfo{ID: "user-1", Name: "Camron", Type: "human"},
+		"@RustExpert can you review this?",
+	)
+	if len(msg.Mentions) != 1 || msg.Mentions[0] != "rustexpert" {
+		t.Fatalf("expected rustexpert mention, got %v", msg.Mentions)
+	}
+}
+
 // TestMessageValidation tests message validation
 func TestMessageValidation(t *testing.T) {
 	// Test valid message

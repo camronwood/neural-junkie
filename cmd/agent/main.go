@@ -298,10 +298,15 @@ func main() {
 		resp.Body.Close()
 	}
 
-	// Join channel
-	joinData, _ := json.Marshal(map[string]string{
+	// Join channel with greeting (single join message, no duplicate)
+	greeting := fmt.Sprintf("👋 %s (%s) has joined the channel. I specialize in: %s",
+		agentInstance.Info.Name,
+		agentInstance.Info.Type,
+		formatExpertise(agentInstance.Info.Expertise))
+	joinData, _ := json.Marshal(map[string]interface{}{
 		"agent_id": agentInstance.Info.ID,
 		"channel":  *channel,
+		"greeting": greeting,
 	})
 
 	resp, err = http.Post(*serverAddr+"/api/channels/join", "application/json", bytes.NewBuffer(joinData))
@@ -316,30 +321,13 @@ func main() {
 	defer cancel()
 
 	if aType == protocol.AgentTypeRepo && repoAgent != nil {
-		// Start repo agent with indexing
 		if err := repoAgent.StartWithIndexing(ctx, *channel); err != nil {
 			log.Fatalf("Failed to start repo agent: %v", err)
 		}
 	} else {
-		// Start regular agent
 		if err := agentInstance.Start(ctx, *channel); err != nil {
 			log.Fatalf("Failed to start agent: %v", err)
 		}
-	}
-
-	// Send join message
-	joinMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentJoin,
-		*channel,
-		agentInstance.Info,
-		fmt.Sprintf("👋 %s (%s) has joined the channel. I specialize in: %s",
-			agentInstance.Info.Name,
-			agentInstance.Info.Type,
-			formatExpertise(agentInstance.Info.Expertise)),
-	)
-
-	if err := hubClient.SendMessage(joinMsg); err != nil {
-		log.Printf("Warning: Failed to send join message: %v", err)
 	}
 
 	log.Printf("✅ Agent %s is now active in channel: %s", name, *channel)

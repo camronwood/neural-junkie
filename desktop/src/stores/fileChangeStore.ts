@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { FileChange, FileChangeDiff } from '../types/protocol';
 import { ChatAPI } from '../api/chatAPI';
+import { useFileExplorerStore } from './fileExplorerStore';
+import { useEditorStore } from './editorStore';
 
 interface FileChangeState {
   // State
@@ -53,12 +55,41 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     
     try {
       const api = new ChatAPI();
-      await api.approveFileChange(changeId, userId);
+      const approvedChange = await api.approveFileChange(changeId, userId);
       
       // Remove the approved change from the list
       const state = get();
+      const existingChange = state.pendingChanges.find(change => change.id === changeId);
       const updatedChanges = state.pendingChanges.filter(change => change.id !== changeId);
       set({ pendingChanges: updatedChanges, loading: false });
+
+      // Refresh the file explorer so newly created/edited files appear immediately.
+      const change = existingChange ?? approvedChange;
+      const filePath = change?.file_path || change?.new_path || change?.old_path;
+      if (filePath) {
+        const { workspaces, loadFiles } = useFileExplorerStore.getState();
+        const matchedWorkspace = workspaces.find(workspace =>
+          filePath === workspace.path || filePath.startsWith(`${workspace.path}/`)
+        );
+        if (matchedWorkspace) {
+          const relPath = filePath.startsWith(`${matchedWorkspace.path}/`)
+            ? filePath.slice(matchedWorkspace.path.length + 1)
+            : '';
+          const lastSlash = relPath.lastIndexOf('/');
+          const parentPath = lastSlash > -1 ? relPath.slice(0, lastSlash) : '/';
+
+          // Refresh root and parent directory so nested file trees update quickly.
+          await loadFiles(matchedWorkspace.id, '/');
+          if (parentPath && parentPath !== '/') {
+            await loadFiles(matchedWorkspace.id, parentPath);
+          }
+
+          // Reload the open editor buffer for the affected file (if open and not dirty).
+          if (relPath) {
+            await useEditorStore.getState().refreshTabFromDisk(matchedWorkspace.id, relPath);
+          }
+        }
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve file change';
       set({ error: errorMessage, loading: false });

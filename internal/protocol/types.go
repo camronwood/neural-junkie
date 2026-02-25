@@ -27,6 +27,10 @@ const (
 	MessageTypeToolApproval      MessageType = "tool_approval"
 	MessageTypeStreamDelta       MessageType = "stream_delta"
 	MessageTypeStreamEnd         MessageType = "stream_end"
+	MessageTypeCollabPlan        MessageType = "collaboration_plan"
+	MessageTypeCollabTask        MessageType = "collaboration_task"
+	MessageTypeCollabStatus      MessageType = "collaboration_status"
+	MessageTypeCollabDiscussion  MessageType = "collaboration_discussion"
 )
 
 // AgentType defines the specialty of an agent
@@ -78,18 +82,18 @@ const (
 
 // Message represents a message in the chat room
 type Message struct {
-	ID                string                 `json:"id"`
-	Type              MessageType            `json:"type"`
-	Channel           string                 `json:"channel"`
-	From              AgentInfo              `json:"from"`
-	Content           string                 `json:"content"`
-	Timestamp         time.Time              `json:"timestamp"`
-	ReplyTo           string                 `json:"reply_to,omitempty"`        // ID of message being replied to
-	ThreadID          string                 `json:"thread_id,omitempty"`       // ID of the thread this message belongs to
-	IsThreadReply     bool                   `json:"is_thread_reply,omitempty"` // Whether this is a reply in a thread
-	Metadata          map[string]interface{} `json:"metadata,omitempty"`
-	Tags              []string               `json:"tags,omitempty"`               // e.g., ["urgent", "security", "bug"]
-	Mentions          []string               `json:"mentions,omitempty"`           // Agent IDs mentioned
+	ID            string                 `json:"id"`
+	Type          MessageType            `json:"type"`
+	Channel       string                 `json:"channel"`
+	From          AgentInfo              `json:"from"`
+	Content       string                 `json:"content"`
+	Timestamp     time.Time              `json:"timestamp"`
+	ReplyTo       string                 `json:"reply_to,omitempty"`        // ID of message being replied to
+	ThreadID      string                 `json:"thread_id,omitempty"`       // ID of the thread this message belongs to
+	IsThreadReply bool                   `json:"is_thread_reply,omitempty"` // Whether this is a reply in a thread
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	Tags          []string               `json:"tags,omitempty"`     // e.g., ["urgent", "security", "bug"]
+	Mentions      []string               `json:"mentions,omitempty"` // Agent IDs mentioned
 }
 
 // IsFromSystem checks if the message is from a system agent
@@ -102,20 +106,20 @@ type AgentInfo struct {
 	ID                 string    `json:"id"`
 	Name               string    `json:"name"`
 	Type               AgentType `json:"type"`
-	Expertise          []string  `json:"expertise"`            // Specific skills/technologies
-	Status             string    `json:"status"`               // "active", "busy", "idle", "paused", "removed"
-	Model              string    `json:"model"`                // AI model being used
-	AIProvider         string    `json:"ai_provider"`          // AI provider being used ("claude", "ollama")
-	AIModel            string    `json:"ai_model"`             // Specific model name (e.g., "claude-sonnet", "llama3.1")
-	IsPaused           bool      `json:"is_paused"`            // Whether the agent is paused
-	SupportsVision     bool      `json:"supports_vision"`      // Whether the agent can process images
-	IndexingStatus     string    `json:"indexing_status"`      // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
-	IndexProgress      int       `json:"index_progress"`       // 0-100 percentage (for repo/confluence agents)
-	RepositoryPath     string    `json:"repository_path"`      // Path to repository (for repo agents)
-	KnowledgePath      string    `json:"knowledge_path"`       // Path to knowledge base (for helper agents)
-	ConfluenceSpaceKey string    `json:"confluence_space_key"` // Confluence space key (for confluence agents)
-	LastActiveTime     time.Time `json:"last_active_time"`     // When agent was last in a channel
-	RemovedFrom        []string  `json:"removed_from"`         // List of channels agent was removed from
+	Expertise          []string  `json:"expertise"`               // Specific skills/technologies
+	Status             string    `json:"status"`                  // "active", "busy", "idle", "paused", "removed"
+	Model              string    `json:"model"`                   // AI model being used
+	AIProvider         string    `json:"ai_provider"`             // AI provider being used ("claude", "ollama")
+	AIModel            string    `json:"ai_model"`                // Specific model name (e.g., "claude-sonnet", "llama3.1")
+	IsPaused           bool      `json:"is_paused"`               // Whether the agent is paused
+	SupportsVision     bool      `json:"supports_vision"`         // Whether the agent can process images
+	IndexingStatus     string    `json:"indexing_status"`         // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
+	IndexProgress      int       `json:"index_progress"`          // 0-100 percentage (for repo/confluence agents)
+	RepositoryPath     string    `json:"repository_path"`         // Path to repository (for repo agents)
+	KnowledgePath      string    `json:"knowledge_path"`          // Path to knowledge base (for helper agents)
+	ConfluenceSpaceKey string    `json:"confluence_space_key"`    // Confluence space key (for confluence agents)
+	LastActiveTime     time.Time `json:"last_active_time"`        // When agent was last in a channel
+	RemovedFrom        []string  `json:"removed_from"`            // List of channels agent was removed from
 	ApprovalMode       string    `json:"approval_mode,omitempty"` // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
 }
 
@@ -185,10 +189,35 @@ func NewMessage(msgType MessageType, channel string, from AgentInfo, content str
 		Mentions:  []string{},
 	}
 
-	// Parse mentions from content
-	msg.Mentions = ParseMentions(content)
+	// Parse mentions only for actionable human-authored messages.
+	if ShouldParseMentions(msgType, from) {
+		msg.Mentions = ParseMentions(content)
+	}
 
 	return msg
+}
+
+// IsActionableMentionType indicates message types where @mentions should be
+// interpreted as routing signals.
+func IsActionableMentionType(msgType MessageType) bool {
+	switch msgType {
+	case MessageTypeChat,
+		MessageTypeQuestion,
+		MessageTypeAnswer,
+		MessageTypeCollabDiscussion,
+		MessageTypeCollabTask,
+		MessageTypeCollabPlan:
+		return true
+	default:
+		return false
+	}
+}
+
+// ShouldParseMentions determines if mention extraction should run at message
+// creation time.
+func ShouldParseMentions(msgType MessageType, from AgentInfo) bool {
+	isUserLikeSender := from.Type == "human" || (from.Type == AgentTypeGeneral && !strings.EqualFold(from.Name, "system"))
+	return isUserLikeSender && IsActionableMentionType(msgType)
 }
 
 // AddTag adds a tag to the message
@@ -298,6 +327,124 @@ func (m *Message) GetThreadID() string {
 	return m.ThreadID
 }
 
+// GetCollaborationID returns the collaboration ID from message metadata, if any.
+func (m *Message) GetCollaborationID() string {
+	if id, ok := m.Metadata["collaboration_id"].(string); ok {
+		return id
+	}
+	return ""
+}
+
+// SetCollaborationID tags a message as belonging to a collaboration.
+func (m *Message) SetCollaborationID(id string) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["collaboration_id"] = id
+}
+
+// GetCollaborationPhase returns the collaboration phase from metadata.
+func (m *Message) GetCollaborationPhase() string {
+	if p, ok := m.Metadata["collaboration_phase"].(string); ok {
+		return p
+	}
+	return ""
+}
+
+// SetCollaborationPhase records the collaboration phase in metadata.
+func (m *Message) SetCollaborationPhase(phase string) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["collaboration_phase"] = phase
+}
+
+// GetArtifactAction returns the artifact action (propose/edit/approve/comment).
+func (m *Message) GetArtifactAction() string {
+	if a, ok := m.Metadata["artifact_action"].(string); ok {
+		return a
+	}
+	return ""
+}
+
+// SetArtifactAction sets the artifact action in metadata.
+func (m *Message) SetArtifactAction(action string) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["artifact_action"] = action
+}
+
+// GetTaskID returns the task ID from metadata.
+func (m *Message) GetTaskID() string {
+	if id, ok := m.Metadata["task_id"].(string); ok {
+		return id
+	}
+	return ""
+}
+
+// SetTaskID tags a message with a specific collaboration task.
+func (m *Message) SetTaskID(id string) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["task_id"] = id
+}
+
+// GetTaskStatus returns task status metadata for collaboration execution.
+func (m *Message) GetTaskStatus() string {
+	if status, ok := m.Metadata["task_status"].(string); ok {
+		return status
+	}
+	return ""
+}
+
+// SetTaskStatus annotates a collaboration task status on the message.
+func (m *Message) SetTaskStatus(status string) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["task_status"] = status
+}
+
+// GetTaskOutput returns task output metadata for collaboration execution.
+func (m *Message) GetTaskOutput() string {
+	if output, ok := m.Metadata["task_output"].(string); ok {
+		return output
+	}
+	return ""
+}
+
+// SetTaskOutput records task output text in metadata.
+func (m *Message) SetTaskOutput(output string) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["task_output"] = output
+}
+
+// SetErrorMetadata records a user-safe error classification on the message.
+func (m *Message) SetErrorMetadata(code string, retryable bool) {
+	if m.Metadata == nil {
+		m.Metadata = make(map[string]interface{})
+	}
+	m.Metadata["error_code"] = code
+	m.Metadata["retryable"] = retryable
+}
+
+// GetErrorCode returns the structured error code from metadata, if present.
+func (m *Message) GetErrorCode() string {
+	if c, ok := m.Metadata["error_code"].(string); ok {
+		return c
+	}
+	return ""
+}
+
+// IsCollaborationMessage returns true if this message is part of a collaboration.
+func (m *Message) IsCollaborationMessage() bool {
+	return m.GetCollaborationID() != ""
+}
+
 // IsUserCreatedAgent checks if an agent type is user-created (not system agent)
 func IsUserCreatedAgent(agentType string) bool {
 	return agentType == "repo" || agentType == "helper" || agentType == "confluence"
@@ -305,8 +452,8 @@ func IsUserCreatedAgent(agentType string) bool {
 
 // CommandSuggestion represents a command suggested by an agent
 type CommandSuggestion struct {
-	ID          string    `json:"id"`          // Unique identifier for this suggestion
-	Command     string    `json:"command"`     // The command to execute
+	ID          string    `json:"id"`      // Unique identifier for this suggestion
+	Command     string    `json:"command"` // The command to execute
 	Plugin      string    `json:"plugin"`
 	Description string    `json:"description"` // Human-readable description
 	IsSafe      bool      `json:"is_safe"`     // Whether command is read-only/safe

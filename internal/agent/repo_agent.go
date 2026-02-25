@@ -70,6 +70,8 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 		stopCh:            make(chan struct{}),
 		msgCh:             make(chan *protocol.Message, 100),
 		respondedMessages: make(map[string]bool),
+		activeChannels:    make(map[string]context.CancelFunc),
+		WorkspacePath:     os.Getenv("WORKSPACE_PATH"),
 	}
 
 	repoAgent := &RepoAgent{
@@ -93,8 +95,14 @@ func (ra *RepoAgent) StartWithIndexing(ctx context.Context, channel string) erro
 		return fmt.Errorf("failed to subscribe to channel: %w", err)
 	}
 
-	// Start indexing in background
-	go ra.indexRepository(ctx)
+	// In tests (mock providers), run indexing synchronously to avoid
+	// goroutine races with temp directory cleanup.
+	if _, ok := ra.AI.(*ai.MockProvider); ok {
+		ra.indexRepository(ctx)
+	} else {
+		// Start indexing in background for normal runtime usage.
+		go ra.indexRepository(ctx)
+	}
 
 	// Start message processing loop
 	go func() {
@@ -377,11 +385,32 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		response,
 	)
 	responseMsg.ReplyTo = msg.ID
+	if collabID := msg.GetCollaborationID(); collabID != "" {
+		responseMsg.SetCollaborationID(collabID)
+		if phase := msg.GetCollaborationPhase(); phase != "" {
+			responseMsg.SetCollaborationPhase(phase)
+		}
+		if taskID := msg.GetTaskID(); taskID != "" {
+			responseMsg.SetTaskID(taskID)
+		}
+		if taskStatus := msg.GetTaskStatus(); taskStatus != "" {
+			responseMsg.SetTaskStatus(taskStatus)
+		}
+		if taskOutput := msg.GetTaskOutput(); taskOutput != "" {
+			responseMsg.SetTaskOutput(taskOutput)
+		}
+	}
 
 	if err := ra.Hub.SendMessage(responseMsg); err != nil {
 		log.Printf("[%s] Error sending message: %v", ra.Info.Name, err)
 		ra.sendThinkingStatus(msg, protocol.ThinkingStatusError)
 		return
+	}
+	if collabID := responseMsg.GetCollaborationID(); collabID != "" && ra.Collab != nil {
+		if err := ra.Collab.RecordMessage(collabID, responseMsg); err != nil {
+			log.Printf("[%s] Warning: failed to record collaboration message: %v", ra.Info.Name, err)
+		}
+		ra.Collab.AnalyzeConsensus(collabID, responseMsg)
 	}
 	ra.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 }
@@ -390,6 +419,17 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 	// Never respond to commands - let the command handler process them
 	if len(msg.Content) > 0 && msg.Content[0] == '/' {
+		return false
+	}
+
+	// Collaboration coordination messages can originate from System and still
+	// be actionable, so evaluate this before generic system-message rejection.
+	if collabID := msg.GetCollaborationID(); collabID != "" && ra.Collab != nil {
+		if ra.Collab.IsParticipant(collabID, ra.Info.ID) && ra.Collab.IsActive(collabID) {
+			if ra.Collab.IsAgentTurn(collabID, ra.Info.ID) || msg.IsMentioned(ra.Info.ID) {
+				return true
+			}
+		}
 		return false
 	}
 

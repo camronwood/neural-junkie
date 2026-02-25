@@ -63,6 +63,16 @@ func (m *mockHubClientReview) GetCommandHandler() agent.CommandHandlerInterface 
 	return nil
 }
 
+func (m *mockHubClientReview) BroadcastDirect(channelName string, msg *protocol.Message) {}
+
+func (m *mockHubClientReview) GetAgentChannels(agentID string) []string {
+	return []string{"general"}
+}
+
+func (m *mockHubClientReview) GetChannelType(channelName string) protocol.ChannelType {
+	return protocol.ChannelTypePublic
+}
+
 // Helper function to broadcast a message to all subscribers
 func (m *mockHubClientReview) BroadcastMessage(msg *protocol.Message) {
 	for _, subCh := range m.subscribers {

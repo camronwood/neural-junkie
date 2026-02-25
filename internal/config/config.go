@@ -22,6 +22,9 @@ type ProviderConfig struct {
 	Model    string            `json:"model,omitempty"`
 	Headers  map[string]string `json:"headers,omitempty"`
 	WorkDir  string            `json:"work_dir,omitempty"`
+	// TimeoutSeconds is primarily used by CLI providers to control max
+	// runtime for a single invocation. If unset or <= 0, provider default applies.
+	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
 }
 
 type AgentConfig struct {

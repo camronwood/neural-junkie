@@ -1,9 +1,14 @@
 package test
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -273,6 +278,76 @@ func TestMessageBroadcasting(t *testing.T) {
 		// Test passed
 	case <-time.After(2 * time.Second):
 		t.Error("Test timed out waiting for broadcast")
+	}
+}
+
+func TestHubSystemMentionNoiseSuppressed(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-channel", "Test channel", "test-project")
+
+	systemMsg := protocol.NewMessage(
+		protocol.MessageTypeSystemInfo,
+		"test-channel",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"❌ Agent @ghost not found",
+	)
+	if err := h.SendMessage(systemMsg); err != nil {
+		t.Fatalf("expected system message send to succeed, got %v", err)
+	}
+
+	msgs, err := h.GetMessages("test-channel", 10)
+	if err != nil {
+		t.Fatalf("expected to get messages, got %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected exactly one stored system message, got %d", len(msgs))
+	}
+	if len(msgs[0].Mentions) != 0 {
+		t.Fatalf("expected no mentions on system message, got %v", msgs[0].Mentions)
+	}
+}
+
+func TestSessionSnapshotHealthAndAtomicSaves(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-channel", "Test channel", "test-project")
+	msg := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"test-channel",
+		protocol.AgentInfo{ID: "user-1", Name: "User", Type: "human"},
+		"hello snapshot",
+	)
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("expected send to succeed: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "last-session.json")
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := h.SaveSessionToFile(path); err != nil {
+				t.Errorf("save failed: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected snapshot file to exist, got %v", err)
+	}
+	var snapshot map[string]interface{}
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		t.Fatalf("expected valid JSON snapshot, got %v", err)
+	}
+
+	health := h.GetSessionSaveHealth()
+	if health["last_size_bytes"].(int) <= 0 {
+		t.Fatalf("expected positive snapshot size, got %v", health["last_size_bytes"])
+	}
+	if health["age_seconds"].(int64) < 0 {
+		t.Fatalf("expected non-negative snapshot age, got %v", health["age_seconds"])
 	}
 }
 
@@ -605,5 +680,172 @@ func TestErrorHandling(t *testing.T) {
 	_, err = h.Subscribe("non-existent")
 	if err == nil {
 		t.Error("Expected error when subscribing to non-existent channel")
+	}
+}
+
+func TestHubAttachesCollaborationData(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")
+
+	agentA := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	agentB := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	if err := h.RegisterAgent(agentA); err != nil {
+		t.Fatalf("register agentA: %v", err)
+	}
+	if err := h.RegisterAgent(agentB); err != nil {
+		t.Fatalf("register agentB: %v", err)
+	}
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("Build feature", []string{"a1", "a2"}, "test-collab", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+
+	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "test-collab", *agentA, "Initial proposal")
+	msg.SetCollaborationID(collab.ID)
+	msg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("send message: %v", err)
+	}
+
+	stored, err := h.GetMessages("test-collab", 10)
+	if err != nil {
+		t.Fatalf("get messages: %v", err)
+	}
+	if len(stored) == 0 {
+		t.Fatal("expected at least one message")
+	}
+	if stored[0].Metadata == nil || stored[0].Metadata["collaboration_data"] == nil {
+		t.Fatalf("expected collaboration_data metadata to be attached")
+	}
+}
+
+func TestHubAutoIngestsPlanAndTasks(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")
+
+	agentA := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	agentB := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(agentA)
+	_ = h.RegisterAgent(agentB)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("Plan feature", []string{"a1", "a2"}, "test-collab", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+
+	planMsg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "test-collab", *agentA, "Here's my proposal\n\n## Plan\n\n- Task 1: @AgentA - Build API\n- Task 2: @AgentB - Build UI")
+	planMsg.SetCollaborationID(collab.ID)
+	planMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	if err := h.SendMessage(planMsg); err != nil {
+		t.Fatalf("send plan message: %v", err)
+	}
+
+	updated, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("get collaboration: %v", err)
+	}
+	if updated.Plan == nil || updated.Plan.Version == 0 {
+		t.Fatalf("expected plan artifact to be updated")
+	}
+	if len(updated.Tasks) == 0 {
+		t.Fatalf("expected tasks to be auto-extracted from plan")
+	}
+}
+
+func TestHubTaskLifecycleAutoCompletesCollaboration(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")
+
+	agentA := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	agentB := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(agentA)
+	_ = h.RegisterAgent(agentB)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("Execute tasks", []string{"a1", "a2"}, "test-collab", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	err = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{
+			ID:           "task-1",
+			Title:        "Build API",
+			Description:  "Implement endpoints",
+			AssignedTo:   "a1",
+			AssignedName: "AgentA",
+			Status:       collaboration.TaskPending,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("set tasks: %v", err)
+	}
+
+	workingMsg := protocol.NewMessage(protocol.MessageTypeChat, "test-collab", *agentA, "Working on this now")
+	workingMsg.SetCollaborationID(collab.ID)
+	workingMsg.SetTaskID("task-1")
+	if err := h.SendMessage(workingMsg); err != nil {
+		t.Fatalf("send working message: %v", err)
+	}
+
+	afterWorking, _ := cm.GetCollaboration(collab.ID)
+	if len(afterWorking.Tasks) == 0 || afterWorking.Tasks[0].Status != collaboration.TaskInProgress {
+		t.Fatalf("expected task to transition to in_progress, got %+v", afterWorking.Tasks)
+	}
+
+	doneMsg := protocol.NewMessage(protocol.MessageTypeChat, "test-collab", *agentA, "Task completed and validated")
+	doneMsg.SetCollaborationID(collab.ID)
+	doneMsg.SetTaskID("task-1")
+	if err := h.SendMessage(doneMsg); err != nil {
+		t.Fatalf("send completed message: %v", err)
+	}
+
+	afterDone, _ := cm.GetCollaboration(collab.ID)
+	if afterDone.Tasks[0].Status != collaboration.TaskCompleted {
+		t.Fatalf("expected task to be completed, got %s", afterDone.Tasks[0].Status)
+	}
+	if afterDone.Phase != collaboration.PhaseCompleted {
+		t.Fatalf("expected collaboration to auto-complete, got %s", afterDone.Phase)
+	}
+}
+
+func TestSessionSnapshotRestoresCollaborations(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")
+
+	agentA := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	agentB := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(agentA)
+	_ = h.RegisterAgent(agentB)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("Persist me", []string{"a1", "a2"}, "test-collab", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	if err := cm.UpdateArtifact(collab.ID, "a1", "AgentA", "## Plan\n\n- Task 1: @AgentA - Persist this"); err != nil {
+		t.Fatalf("update artifact: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "session.json")
+	if err := h.SaveSessionToFile(path); err != nil {
+		t.Fatalf("save session: %v", err)
+	}
+
+	restored := hub.NewHub()
+	if err := restored.LoadSessionFromFile(path); err != nil {
+		t.Fatalf("load session: %v", err)
+	}
+
+	restoredCollab, err := restored.GetCollaborationManager().GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("expected restored collaboration, got %v", err)
+	}
+	if restoredCollab.Plan == nil || restoredCollab.Plan.Version == 0 {
+		t.Fatalf("expected restored plan artifact, got %+v", restoredCollab.Plan)
 	}
 }

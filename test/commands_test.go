@@ -3,9 +3,10 @@ package test
 import (
 	"context"
 	"fmt"
-	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -100,6 +101,8 @@ func TestListAgentsCommand(t *testing.T) {
 
 // TestCreateRepoAgentCommand tests the create repo agent command
 func TestCreateRepoAgentCommand(t *testing.T) {
+	useIsolatedRepoStorage(t)
+
 	h := hub.NewHub()
 	handler, err := hub.NewCommandHandler(h)
 	if err != nil {
@@ -109,8 +112,8 @@ func TestCreateRepoAgentCommand(t *testing.T) {
 	// Create the test channel
 	h.CreateChannel("test-channel", "Test channel", "test-project")
 
-	// Create test directory
-	os.MkdirAll("/tmp/test-repo", 0755)
+	// Create isolated test directory
+	testRepoPath := t.TempDir()
 
 	// Create test message with create repo agent command
 	msg := protocol.NewMessage(
@@ -121,7 +124,7 @@ func TestCreateRepoAgentCommand(t *testing.T) {
 			Name: "TestUser",
 			Type: protocol.AgentTypeGeneral,
 		},
-		"/create-repo-agent /tmp/test-repo TestRepoAgent",
+		fmt.Sprintf("/create-repo-agent %s TestRepoAgent", testRepoPath),
 	)
 
 	// Process command
@@ -141,6 +144,28 @@ func TestCreateRepoAgentCommand(t *testing.T) {
 		!strings.Contains(response.Content, "error") &&
 		!strings.Contains(response.Content, "not found") {
 		t.Error("Expected create repo agent response to contain status information")
+	}
+
+	// Wait for indexing to complete to avoid background writes during test cleanup.
+	deadline := time.Now().Add(2 * time.Second)
+	ready := false
+	for time.Now().Before(deadline) {
+		agents := h.ListAgents()
+		for _, a := range agents {
+			if strings.EqualFold(a.Name, "TestRepoAgent") &&
+				a.Type == protocol.AgentTypeRepo &&
+				a.IndexingStatus == string(protocol.IndexingStatusReady) {
+				ready = true
+				break
+			}
+		}
+		if ready {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if !ready {
+		t.Fatal("Expected repo agent indexing to complete")
 	}
 }
 
@@ -659,12 +684,15 @@ func TestInvalidCommands(t *testing.T) {
 
 // TestCommandParsing tests command parsing with various formats
 func TestCommandParsing(t *testing.T) {
+	useIsolatedRepoStorage(t)
+
 	h := hub.NewHub()
 	handler, err := hub.NewCommandHandler(h)
 	if err != nil {
 		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
 	}
 	workspaceDir := t.TempDir()
+	nonExistentRepoPath := filepath.Join(workspaceDir, "missing-repo")
 
 	testCases := []struct {
 		command    string
@@ -672,7 +700,7 @@ func TestCommandParsing(t *testing.T) {
 	}{
 		{"/help", true},
 		{"/list-agents", true},
-		{"/create-repo-agent /tmp/test TestAgent", true},
+		{fmt.Sprintf("/create-repo-agent %s TestAgent", nonExistentRepoPath), true},
 		{"/delete-agent TestAgent", true},
 		{"/pause-agent TestAgent", true},
 		{"/unpause-agent TestAgent", true},

@@ -23,16 +23,17 @@ import (
 
 // CommandHandler handles chat commands
 type CommandHandler struct {
-	hub               *Hub
-	aiProvider        ai.AIProvider
-	repoAgents        map[string]*agent.RepoAgent        // Track repo agents for management
-	helperAgents      map[string]*agent.HelperAgent      // Track helper agents for management
-	confluenceAgents  map[string]*agent.ConfluenceAgent  // Track confluence agents for management
-	cliAgents         map[string]*agent.Agent             // Track CLI proxy agents
-	assistantAgent    *agent.AssistantAgent              // Track assistant agent for meeting notes
-	exportStorage     *mcp_export.ExportStorage          // Export storage for MCP exports
-	pendingReviews    map[string]*protocol.PendingReview // Track pending reviews by repo path
-	pendingMutex      sync.Mutex                         // Protects pending reviews map
+	hub              *Hub
+	aiProvider       ai.AIProvider
+	repoAgents       map[string]*agent.RepoAgent        // Track repo agents for management
+	helperAgents     map[string]*agent.HelperAgent      // Track helper agents for management
+	confluenceAgents map[string]*agent.ConfluenceAgent  // Track confluence agents for management
+	cliAgents        map[string]*agent.Agent            // Track CLI proxy agents
+	runtimeAgents    map[string]*agent.Agent            // Track runtime specialist/moderator/assistant/CLI agents
+	assistantAgent   *agent.AssistantAgent              // Track assistant agent for meeting notes
+	exportStorage    *mcp_export.ExportStorage          // Export storage for MCP exports
+	pendingReviews   map[string]*protocol.PendingReview // Track pending reviews by repo path
+	pendingMutex     sync.Mutex                         // Protects pending reviews map
 }
 
 type commandExecutor func(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error)
@@ -59,14 +60,15 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 	}
 
 	ch := &CommandHandler{
-		hub:               hub,
-		aiProvider:        aiProvider,
-		repoAgents:        make(map[string]*agent.RepoAgent),
-		helperAgents:      make(map[string]*agent.HelperAgent),
-		confluenceAgents:  make(map[string]*agent.ConfluenceAgent),
-		cliAgents:         make(map[string]*agent.Agent),
-		exportStorage:     exportStorage,
-		pendingReviews:    make(map[string]*protocol.PendingReview),
+		hub:              hub,
+		aiProvider:       aiProvider,
+		repoAgents:       make(map[string]*agent.RepoAgent),
+		helperAgents:     make(map[string]*agent.HelperAgent),
+		confluenceAgents: make(map[string]*agent.ConfluenceAgent),
+		cliAgents:        make(map[string]*agent.Agent),
+		runtimeAgents:    make(map[string]*agent.Agent),
+		exportStorage:    exportStorage,
+		pendingReviews:   make(map[string]*protocol.PendingReview),
 	}
 	ch.validateCommandDefinitions()
 	return ch, nil
@@ -99,30 +101,46 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 
 func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 	return map[string]commandExecutor{
-		"/create-repo-agent":         ch.handleCreateRepoAgent,
-		"/create-confluence-agent":   ch.handleCreateConfluenceAgent,
-		"/create-helper":             ch.handleCreateHelper,
-		"/create-expert":             ch.handleCreateExpert,
-		"/list-helper-templates":     func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListHelperTemplates(ctx, msg) },
-		"/delete-agent":              ch.handleDeleteAgent,
-		"/reindex-agent":             ch.handleReindexAgent,
-		"/reindex-confluence-agent":  ch.handleReindexConfluenceAgent,
-		"/pause-agent":               ch.handlePauseAgent,
-		"/unpause-agent":             ch.handleUnpauseAgent,
-		"/enable-watch":              ch.handleEnableWatch,
-		"/disable-watch":             ch.handleDisableWatch,
-		"/list-agents":               func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListAgents(ctx, msg) },
-		"/list-confluence-agents":    func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListConfluenceAgents(ctx, msg) },
-		"/remove-agent":              ch.handleRemoveAgent,
-		"/recall-agent":              ch.handleRecallAgent,
-		"/list-removed-agents":       func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListRemovedAgents(ctx, msg) },
-		"/export-agent-mcp":          ch.handleExportAgentMCP,
-		"/list-exports":              func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListExports(ctx, msg) },
-		"/delete-export":             ch.handleDeleteExport,
-		"/import-agent-mcp":          ch.handleImportAgentMCP,
-		"/export-all-agents":         func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleExportAllAgents(ctx, msg) },
-		"/test-anthropic-connection": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleTestAnthropicConnection(ctx, msg) },
-		"/test-github-connection":    func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleTestGitHubConnection(ctx, msg) },
+		"/create-repo-agent":       ch.handleCreateRepoAgent,
+		"/create-confluence-agent": ch.handleCreateConfluenceAgent,
+		"/create-helper":           ch.handleCreateHelper,
+		"/create-expert":           ch.handleCreateExpert,
+		"/list-helper-templates": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListHelperTemplates(ctx, msg)
+		},
+		"/delete-agent":             ch.handleDeleteAgent,
+		"/reindex-agent":            ch.handleReindexAgent,
+		"/reindex-confluence-agent": ch.handleReindexConfluenceAgent,
+		"/pause-agent":              ch.handlePauseAgent,
+		"/unpause-agent":            ch.handleUnpauseAgent,
+		"/enable-watch":             ch.handleEnableWatch,
+		"/disable-watch":            ch.handleDisableWatch,
+		"/list-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListAgents(ctx, msg)
+		},
+		"/list-confluence-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListConfluenceAgents(ctx, msg)
+		},
+		"/remove-agent": ch.handleRemoveAgent,
+		"/recall-agent": ch.handleRecallAgent,
+		"/list-removed-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListRemovedAgents(ctx, msg)
+		},
+		"/export-agent-mcp": ch.handleExportAgentMCP,
+		"/list-exports": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListExports(ctx, msg)
+		},
+		"/delete-export":    ch.handleDeleteExport,
+		"/import-agent-mcp": ch.handleImportAgentMCP,
+		"/export-all-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleExportAllAgents(ctx, msg)
+		},
+		"/test-anthropic-connection": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleTestAnthropicConnection(ctx, msg)
+		},
+		"/test-github-connection": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleTestGitHubConnection(ctx, msg)
+		},
 		"/test-confluence-connection": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
 			return ch.handleTestConfluenceConnection(ctx, msg)
 		},
@@ -131,41 +149,61 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/create-channel":       ch.handleCreateChannelCmd,
 		"/add-to-channel":       ch.handleAddToChannel,
 		"/remove-from-channel":  ch.handleRemoveFromChannel,
-		"/list-channels":        func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListChannels(ctx, msg) },
-		"/delete-channel":       ch.handleDeleteChannelCmd,
-		"/open-terminal":        ch.handleOpenTerminal,
-		"/create-cli-agent":     ch.handleCreateCLIAgent,
-		"/list-cli-agents":      func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListCLIAgents(ctx, msg) },
-		"/help":                 func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleHelp(ctx, msg) },
-		"/migrate-agent-names":  func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleMigrateAgentNames(ctx, msg) },
-		"/open-file":            ch.handleOpenFile,
-		"/add-workspace":        ch.handleAddWorkspace,
-		"/list-workspaces":      func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListWorkspaces(ctx, msg) },
-		"/remind":               ch.handleReminder,
-		"/remind-recurring":     ch.handleReminder,
-		"/task-add":             ch.handleTask,
-		"/task-list":            ch.handleTask,
-		"/task-done":            ch.handleTask,
-		"/note-save":            ch.handleNote,
-		"/note-search":          ch.handleNote,
-		"/meeting-add":          ch.handleMeeting,
-		"/ingest-meetings":      func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleIngestMeetings(ctx, msg) },
-		"/search-meetings":      ch.handleSearchMeetings,
-		"/meeting-summary":      ch.handleMeetingSummary,
-		"/action-items":         func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleActionItems(ctx, msg) },
-		"/list-meetings":        func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListMeetings(ctx, msg) },
-		"/summarize":            ch.handleSummarize,
-		"/help-assistant":       func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleAssistantHelp(ctx, msg) },
-		"/analyze-design":       ch.handleAnalyzeDesign,
-		"/approve-file":         ch.handleApproveFile,
-		"/reject-file":          ch.handleRejectFile,
-		"/approve-delete":       ch.handleApproveDelete,
-		"/list-file-changes":    func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) { return ch.handleListFileChanges(ctx, msg) },
-		"/collaborate":          ch.handleCollaborate,
-		"/approve-plan":         ch.handleApprovePlan,
-		"/revise-plan":          ch.handleRevisePlan,
-		"/cancel-plan":          ch.handleCancelPlan,
-		"/collab-status":        ch.handleCollabStatus,
+		"/list-channels": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListChannels(ctx, msg)
+		},
+		"/delete-channel":   ch.handleDeleteChannelCmd,
+		"/open-terminal":    ch.handleOpenTerminal,
+		"/create-cli-agent": ch.handleCreateCLIAgent,
+		"/list-cli-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListCLIAgents(ctx, msg)
+		},
+		"/help": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleHelp(ctx, msg)
+		},
+		"/migrate-agent-names": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleMigrateAgentNames(ctx, msg)
+		},
+		"/open-file":     ch.handleOpenFile,
+		"/add-workspace": ch.handleAddWorkspace,
+		"/list-workspaces": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListWorkspaces(ctx, msg)
+		},
+		"/remind":           ch.handleReminder,
+		"/remind-recurring": ch.handleReminder,
+		"/task-add":         ch.handleTask,
+		"/task-list":        ch.handleTask,
+		"/task-done":        ch.handleTask,
+		"/note-save":        ch.handleNote,
+		"/note-search":      ch.handleNote,
+		"/meeting-add":      ch.handleMeeting,
+		"/ingest-meetings": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleIngestMeetings(ctx, msg)
+		},
+		"/search-meetings": ch.handleSearchMeetings,
+		"/meeting-summary": ch.handleMeetingSummary,
+		"/action-items": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleActionItems(ctx, msg)
+		},
+		"/list-meetings": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListMeetings(ctx, msg)
+		},
+		"/summarize": ch.handleSummarize,
+		"/help-assistant": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleAssistantHelp(ctx, msg)
+		},
+		"/analyze-design": ch.handleAnalyzeDesign,
+		"/approve-file":   ch.handleApproveFile,
+		"/reject-file":    ch.handleRejectFile,
+		"/approve-delete": ch.handleApproveDelete,
+		"/list-file-changes": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleListFileChanges(ctx, msg)
+		},
+		"/collaborate":   ch.handleCollaborate,
+		"/approve-plan":  ch.handleApprovePlan,
+		"/revise-plan":   ch.handleRevisePlan,
+		"/cancel-plan":   ch.handleCancelPlan,
+		"/collab-status": ch.handleCollabStatus,
 	}
 }
 
@@ -177,7 +215,7 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 
 	repoPath := parts[1]
 	agentName := ""
-	provider := "ollama"  // Default to ollama
+	provider := "ollama" // Default to ollama
 	model := ""
 
 	// Parse arguments
@@ -978,6 +1016,8 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel,
 			fmt.Sprintf("❌ Failed to create %s agent: %v", expertType, err)), nil
 	}
+	agentInstance.SetCollabClient(ch.hub.NewCollaborationClientAdapter())
+	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 
 	// Register with hub
 	if err := ch.hub.RegisterAgent(&agentInstance.Info); err != nil {
@@ -1086,7 +1126,7 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 
 // systemResponse creates a system message response
 func (ch *CommandHandler) systemResponse(channel, content string) *protocol.Message {
-	return protocol.NewMessage(
+	msg := protocol.NewMessage(
 		protocol.MessageTypeSystemInfo,
 		channel,
 		protocol.AgentInfo{
@@ -1096,6 +1136,8 @@ func (ch *CommandHandler) systemResponse(channel, content string) *protocol.Mess
 		},
 		content,
 	)
+	msg.Mentions = []string{}
+	return msg
 }
 
 // handleCreateConfluenceAgent creates a new Confluence space expert agent
@@ -3091,7 +3133,6 @@ func (ch *CommandHandler) handleSwitchAllProviders(ctx context.Context, msg *pro
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Switched %d agents to %s (%s)", switchedCount, provider, model)), nil
 }
 
-
 // ── Channel management commands ──────────────────────────────────────────
 
 func (ch *CommandHandler) handleCreateChannelCmd(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
@@ -3268,6 +3309,7 @@ func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protoco
 
 	// Create agent from registry config
 	agentInstance := agent.NewCLIAgentFromConfig(cfg, name, provider, ch.hub)
+	agentInstance.SetCollabClient(ch.hub.NewCollaborationClientAdapter())
 
 	if cfg.ApprovalMode != "" {
 		agentInstance.Info.ApprovalMode = cfg.ApprovalMode
@@ -3288,6 +3330,7 @@ func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protoco
 	}()
 
 	ch.cliAgents[name] = agentInstance
+	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 
 	// Persist for My Agents panel
 	agent.SaveCLIAgent(cliType, name, workDir)
@@ -3382,6 +3425,15 @@ func (ch *CommandHandler) handleOpenTerminal(ctx context.Context, msg *protocol.
 // SetAssistantAgent sets the assistant agent reference for meeting notes functionality
 func (ch *CommandHandler) SetAssistantAgent(assistant *agent.AssistantAgent) {
 	ch.assistantAgent = assistant
+}
+
+// RegisterRuntimeAgent tracks server-created runtime agents so collaboration
+// wiring can reliably reach specialists/moderator/assistant and startup CLIs.
+func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
+	if agentInstance == nil {
+		return
+	}
+	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 }
 
 // Ensure CommandHandler implements CommandHandlerInterface
@@ -4025,6 +4077,14 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create collaboration: %v", err)), nil
 	}
 
+	// Ensure all collaboration participants are actually joined to the channel
+	// where the collaboration is happening so they can subscribe/respond.
+	for _, participantID := range agentIDs {
+		if err := ch.hub.AddAgentToChannel(participantID, msg.Channel); err != nil {
+			log.Printf("[Collaboration] Warning: failed to add participant %s to channel %s: %v", participantID, msg.Channel, err)
+		}
+	}
+
 	// Build agent list for display
 	var agentListStr strings.Builder
 	for i, a := range collab.Agents {
@@ -4044,6 +4104,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	)
 	seedMsg.SetCollaborationID(collab.ID)
 	seedMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	inheritWorkspaceContextMetadata(msg, seedMsg)
 
 	if err := ch.hub.SendMessage(seedMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send seed message: %v", err)
@@ -4067,6 +4128,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	turnMsg.SetCollaborationID(collab.ID)
 	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
 	turnMsg.Mentions = []string{firstAgent.AgentID}
+	inheritWorkspaceContextMetadata(msg, turnMsg)
 
 	if err := ch.hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send first turn message: %v", err)
@@ -4078,6 +4140,14 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 // setCollabClientOnAgent sets the CollaborationClient on any agent type
 // that embeds the base Agent struct. It searches known agent registries.
 func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, client agent.CollaborationClient) {
+	if runtimeAgent, ok := ch.runtimeAgents[agentID]; ok && runtimeAgent != nil {
+		runtimeAgent.SetCollabClient(client)
+		return
+	}
+	if ch.assistantAgent != nil && ch.assistantAgent.Info.ID == agentID {
+		ch.assistantAgent.SetCollabClient(client)
+		return
+	}
 	for _, ra := range ch.repoAgents {
 		if ra.GetAgentInfo().ID == agentID {
 			ra.SetCollabClient(client)
@@ -4092,7 +4162,7 @@ func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, clie
 	}
 	for _, ca := range ch.cliAgents {
 		if ca.Info.ID == agentID {
-			ca.Collab = client
+			ca.SetCollabClient(client)
 			return
 		}
 	}
@@ -4115,6 +4185,14 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	collab, err := cm.ApprovePlan(collabID)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+	if len(collab.Tasks) == 0 && collab.Plan != nil && strings.TrimSpace(collab.Plan.Content) != "" {
+		extractedTasks := collaboration.ExtractTasksFromPlan(collab.Plan.Content, collab.Agents)
+		if len(extractedTasks) > 0 {
+			if err := cm.SetTasks(collabID, extractedTasks); err != nil {
+				log.Printf("[Collaboration] Failed to set extracted tasks for %s: %v", collabID[:8], err)
+			}
+		}
 	}
 
 	// Transition to executing
@@ -4143,6 +4221,8 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 		taskMsg.SetCollaborationID(collabID)
 		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
 		taskMsg.SetTaskID(task.ID)
+		taskMsg.SetTaskStatus(string(collaboration.TaskPending))
+		inheritWorkspaceContextMetadata(msg, taskMsg)
 
 		if task.AssignedTo != "" {
 			taskMsg.Mentions = []string{task.AssignedTo}
@@ -4184,6 +4264,7 @@ func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Me
 	)
 	revisionMsg.SetCollaborationID(collabID)
 	revisionMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	inheritWorkspaceContextMetadata(msg, revisionMsg)
 
 	// Mention all agents to notify them
 	for _, a := range collab.Agents {
@@ -4214,6 +4295,65 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 	}
 
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8])), nil
+}
+
+func inheritWorkspaceContextMetadata(src, dst *protocol.Message) {
+	if src == nil || dst == nil || src.Metadata == nil {
+		return
+	}
+	rawCtx, ok := src.Metadata["workspace_context"]
+	if !ok {
+		return
+	}
+	ctxMap, ok := rawCtx.(map[string]interface{})
+	if !ok {
+		return
+	}
+	safeCtx := map[string]interface{}{}
+	if workspaceName, ok := ctxMap["workspace_name"].(string); ok {
+		safeCtx["workspace_name"] = workspaceName
+	}
+	if workspacePath, ok := ctxMap["workspace_path"].(string); ok {
+		safeCtx["workspace_path"] = workspacePath
+	}
+	if fileTree, ok := ctxMap["file_tree"].(string); ok {
+		if len(fileTree) > 12000 {
+			fileTree = fileTree[:12000] + "\n... (truncated)"
+		}
+		safeCtx["file_tree"] = fileTree
+	}
+	if openFiles, ok := ctxMap["open_files"].([]interface{}); ok {
+		trimmedFiles := make([]map[string]interface{}, 0, len(openFiles))
+		for _, entry := range openFiles {
+			fileMeta, ok := entry.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			trimmed := map[string]interface{}{}
+			if path, ok := fileMeta["path"].(string); ok {
+				trimmed["path"] = path
+			}
+			if language, ok := fileMeta["language"].(string); ok {
+				trimmed["language"] = language
+			}
+			if isActive, ok := fileMeta["is_active"].(bool); ok {
+				trimmed["is_active"] = isActive
+			}
+			if len(trimmed) > 0 {
+				trimmedFiles = append(trimmedFiles, trimmed)
+			}
+		}
+		if len(trimmedFiles) > 0 {
+			safeCtx["open_files"] = trimmedFiles
+		}
+	}
+	if len(safeCtx) == 0 {
+		return
+	}
+	if dst.Metadata == nil {
+		dst.Metadata = map[string]interface{}{}
+	}
+	dst.Metadata["workspace_context"] = safeCtx
 }
 
 func (ch *CommandHandler) handleCollabStatus(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
