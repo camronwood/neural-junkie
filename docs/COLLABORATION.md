@@ -28,7 +28,7 @@ Creates a collaboration in `planning` phase and starts a bounded discussion.
 /approve-plan <collab-id>
 ```
 
-Moves collaboration from `reviewing` -> `approved` -> `executing` and dispatches task messages to assigned agents.
+Moves collaboration from `reviewing` -> `approved` -> `executing` and emits task messages to assigned agents.
 
 ### Revise plan
 

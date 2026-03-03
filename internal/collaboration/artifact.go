@@ -52,9 +52,12 @@ func (cm *CollaborationManager) GetArtifact(collabID string) (*SharedArtifact, e
 
 // Task heading patterns used to detect structured plans in agent responses.
 var (
-	taskHeadingRe = regexp.MustCompile(`(?m)^#{1,4}\s+(?:Task\s+\d+|Tasks?)`)
-	planHeadingRe = regexp.MustCompile(`(?m)^#{1,4}\s+(?:Plan|Project Plan|Implementation Plan|Proposed Plan)`)
-	taskItemRe    = regexp.MustCompile(`(?m)^[-*]\s+\*?\*?(?:Task\s+\d+[:\s]|@\w+[:\s])(.+)`)
+	taskHeadingRe      = regexp.MustCompile(`(?m)^#{1,4}\s+(?:Task\s+\d+|Tasks?)`)
+	planHeadingRe      = regexp.MustCompile(`(?m)^#{1,4}\s+(?:Plan|Project Plan|Implementation Plan|Proposed Plan)`)
+	taskTitleHeadingRe = regexp.MustCompile(`(?i)^#{1,6}\s+Task\s+\d+`)
+	taskListPrefixRe   = regexp.MustCompile(`^(?:[-*]|\d+\.)\s+`)
+	taskNumberPrefixRe = regexp.MustCompile(`(?i)^Task\s+\d+[:\s-]*`)
+	mentionLeadRe      = regexp.MustCompile(`^@([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)[:\s-]*`)
 )
 
 // ExtractPlanFromResponse attempts to extract a structured plan from an
@@ -91,14 +94,15 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 		agentByName[strings.ToLower(a.AgentName)] = a
 	}
 
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
+	for i := 0; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
 		if trimmed == "" {
 			continue
 		}
 
-		// Format: "- Task N: @AgentName - description" or "- @AgentName: description"
-		if matches := taskItemRe.FindStringSubmatch(trimmed); len(matches) > 1 {
+		// Format: "- Task N: @AgentName - description", "- @AgentName: description",
+		// or numbered list equivalents.
+		if isTaskListLine(trimmed) {
 			task := parseTaskLine(trimmed, agentByName, now)
 			if task != nil {
 				tasks = append(tasks, *task)
@@ -108,7 +112,7 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 
 		// Format: "### Task N: description (@AgentName)"
 		if isTaskHeading(trimmed) {
-			task := parseTaskHeading(trimmed, agentByName, now)
+			task := parseTaskHeading(trimmed, collectTaskHeadingContext(lines, i+1), agentByName, now)
 			if task != nil {
 				tasks = append(tasks, *task)
 			}
@@ -119,8 +123,31 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 }
 
 func isTaskHeading(line string) bool {
-	lower := strings.ToLower(line)
-	return strings.HasPrefix(lower, "#") && strings.Contains(lower, "task")
+	return taskTitleHeadingRe.MatchString(strings.TrimSpace(line))
+}
+
+func isTaskListLine(line string) bool {
+	withoutPrefix := strings.TrimSpace(taskListPrefixRe.ReplaceAllString(strings.TrimSpace(line), ""))
+	if withoutPrefix == "" {
+		return false
+	}
+	lower := strings.ToLower(withoutPrefix)
+	return strings.HasPrefix(withoutPrefix, "@") || strings.HasPrefix(lower, "task ")
+}
+
+func collectTaskHeadingContext(lines []string, start int) []string {
+	context := make([]string, 0, 3)
+	for i := start; i < len(lines) && len(context) < 3; i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			continue
+		}
+		if isTaskHeading(trimmed) {
+			break
+		}
+		context = append(context, trimmed)
+	}
+	return context
 }
 
 var agentMentionRe = regexp.MustCompile(`@([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)`)
@@ -138,10 +165,10 @@ func parseTaskLine(line string, agents map[string]CollaborationAgent, now time.T
 		}
 	}
 
-	// Strip the bullet, "Task N:", and agent mention to get the description
-	desc := line
-	desc = strings.TrimLeft(desc, "-* ")
-	desc = regexp.MustCompile(`(?i)^Task\s+\d+[:\s]*`).ReplaceAllString(desc, "")
+	// Strip bullet/number prefix, task numbering, and leading assignee mention.
+	desc := strings.TrimSpace(taskListPrefixRe.ReplaceAllString(strings.TrimSpace(line), ""))
+	desc = strings.TrimSpace(taskNumberPrefixRe.ReplaceAllString(desc, ""))
+	desc = strings.TrimSpace(mentionLeadRe.ReplaceAllString(desc, ""))
 	desc = agentMentionRe.ReplaceAllString(desc, "")
 	desc = strings.TrimLeft(desc, " -:–")
 	desc = strings.TrimSpace(desc)
@@ -162,7 +189,7 @@ func parseTaskLine(line string, agents map[string]CollaborationAgent, now time.T
 	}
 }
 
-func parseTaskHeading(line string, agents map[string]CollaborationAgent, now time.Time) *CollaborationTask {
+func parseTaskHeading(line string, context []string, agents map[string]CollaborationAgent, now time.Time) *CollaborationTask {
 	// Remove leading '#' characters
 	content := strings.TrimLeft(line, "# ")
 
@@ -177,11 +204,27 @@ func parseTaskHeading(line string, agents map[string]CollaborationAgent, now tim
 			break
 		}
 	}
+	if assignedTo == "" {
+		for _, ctx := range context {
+			mentions = agentMentionRe.FindAllStringSubmatch(ctx, -1)
+			for _, m := range mentions {
+				name := strings.ToLower(m[1])
+				if agent, ok := agents[name]; ok {
+					assignedTo = agent.AgentID
+					assignedName = agent.AgentName
+					break
+				}
+			}
+			if assignedTo != "" {
+				break
+			}
+		}
+	}
 
 	// Clean up parenthetical agent references: "description (@Agent)"
-	desc := regexp.MustCompile(`\(@\w+\)`).ReplaceAllString(content, "")
+	desc := regexp.MustCompile(`\(@[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*\)`).ReplaceAllString(content, "")
 	desc = agentMentionRe.ReplaceAllString(desc, "")
-	desc = regexp.MustCompile(`(?i)^Task\s+\d+[:\s]*`).ReplaceAllString(desc, "")
+	desc = taskNumberPrefixRe.ReplaceAllString(desc, "")
 	desc = strings.TrimSpace(desc)
 
 	if desc == "" {

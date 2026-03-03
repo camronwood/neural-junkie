@@ -47,7 +47,7 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		Type:         "gemini",
 		Command:      "gemini",
 		ProviderName: "gemini-cli",
-		ModelName:    "gemini-agent",
+		ModelName:    "gemini-2.5-flash",
 		DefaultName:  "Gemini",
 		BaseArgs:     []string{"--output-format", "text", "-p"},
 		Expertise: []string{

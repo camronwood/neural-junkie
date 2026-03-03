@@ -303,36 +303,42 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, h
 		return
 	}
 
-	// Only look at the last message. This is a targeted race-condition recovery,
-	// not a full backlog replay.
-	last := history[len(history)-1]
+	// Walk backward and recover the newest actionable message, even if there are
+	// join/system events after it.
+	for i := len(history) - 1; i >= 0; i-- {
+		candidate := history[i]
+		if candidate == nil {
+			continue
+		}
+		if candidate.From.ID == a.Info.ID || candidate.From.Name == a.Info.Name {
+			continue
+		}
+		if candidate.Type == protocol.MessageTypeAgentStatus {
+			continue
+		}
+		if !a.shouldRespond(candidate) {
+			continue
+		}
 
-	// Human-originated message recovery (existing DM/channel race fix).
-	shouldProcess := last.From.Type == "human"
-
-	// Collaboration kickoff recovery: if the latest message is a collaboration
-	// system message (seed/turn prompt), process it once subscribed.
-	if !shouldProcess && last.IsCollaborationMessage() &&
-		last.Type == protocol.MessageTypeCollabDiscussion &&
-		a.Collab != nil &&
-		a.Collab.IsParticipant(last.GetCollaborationID(), a.Info.ID) &&
-		a.Collab.IsActive(last.GetCollaborationID()) {
-		shouldProcess = true
-	}
-
-	if !shouldProcess {
-		return
-	}
-
-	// Check that we haven't already responded
-	for _, m := range history {
-		if m.From.ID == a.Info.ID && m.Type == protocol.MessageTypeChat &&
-			m.Timestamp.After(last.Timestamp) {
+		alreadyResponded := false
+		for j := i + 1; j < len(history); j++ {
+			m := history[j]
+			if m == nil {
+				continue
+			}
+			if m.From.ID == a.Info.ID && (m.Type == protocol.MessageTypeChat || m.Type == protocol.MessageTypeAnswer) {
+				alreadyResponded = true
+				break
+			}
+		}
+		if alreadyResponded {
 			return
 		}
+
+		log.Printf("[%s] Found unanswered message in %s history, processing...", a.Info.Name, channel)
+		a.handleMessage(ctx, candidate)
+		return
 	}
-	log.Printf("[%s] Found unanswered message in %s history, processing...", a.Info.Name, channel)
-	a.handleMessage(ctx, last)
 }
 
 // discoverChannels periodically checks for new channels this agent was added to.
@@ -1200,7 +1206,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 		history = history[len(history)-10:]
 	}
 
-	response, err := a.AI.GenerateResponse(ctx, prompt, historyToMessages(history))
+	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+	response, err := a.AI.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
 		return "", err
 	}
@@ -1210,11 +1217,14 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 
 // generateResponseStreaming builds the same prompt as generateResponse but
 // streams the AI response token-by-token. Each token is broadcast to
-// subscribers as a stream_delta message. The full accumulated text is
-// returned so the caller can store it as a normal chat message.
-func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, sp ai.StreamingProvider) (string, error) {
+// subscribers as a stream_delta message. Returns the full accumulated text
+// and the stable stream message ID so the caller can reuse it for the
+// final chat message (allowing the frontend to correlate streaming with
+// the persisted message).
+func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, sp ai.StreamingProvider) (string, string, error) {
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
-		return a.generateDesignAnalysisResponse(ctx, msg)
+		resp, err := a.generateDesignAnalysisResponse(ctx, msg)
+		return resp, "", err
 	}
 
 	prompt := a.buildPrompt(msg)
@@ -1265,9 +1275,10 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	// correlate deltas with the final message.
 	streamMsgID := uuid.New().String()
 
-	tokenCh, err := sp.GenerateResponseStream(ctx, prompt, historyToMessages(history))
+	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+	tokenCh, err := sp.GenerateResponseStream(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	var fullResponse strings.Builder
@@ -1278,7 +1289,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 				streamErr = token.Error
 				break
 			}
-			return "", token.Error
+			return "", "", token.Error
 		}
 		if token.Content != "" {
 			fullResponse.WriteString(token.Content)
@@ -1324,7 +1335,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 	a.Hub.BroadcastDirect(msg.Channel, endMsg)
 
-	return fullResponse.String(), nil
+	return fullResponse.String(), streamMsgID, nil
 }
 
 // isRepoOrHelperAgent returns true for agent types that already have their
@@ -2446,21 +2457,7 @@ func (a *Agent) SetAIProvider(newProvider ai.AIProvider) error {
 
 	a.Info.AIProvider = aiProvider
 	a.Info.AIModel = aiModel
-
-	// Send status update to hub
-	statusMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentStatus,
-		"general",
-		a.Info,
-		fmt.Sprintf("🔄 %s switched to %s (%s)", a.Info.Name, aiProvider, aiModel),
-	)
-	statusMsg.Metadata = map[string]interface{}{
-		"ai_provider": aiProvider,
-		"ai_model":    aiModel,
-		"model":       aiModel,
-	}
-
-	return a.Hub.SendMessage(statusMsg)
+	return nil
 }
 
 // GetAIProvider returns the current AI provider

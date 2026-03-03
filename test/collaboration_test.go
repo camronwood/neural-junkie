@@ -300,7 +300,7 @@ func TestDiscussionTurnTaking(t *testing.T) {
 
 	cm := collaboration.NewCollaborationManager(hub)
 	collab, _ := cm.CreateCollaboration("test", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{
-		MaxRounds: 2,
+		MaxRounds:  2,
 		TurnBudget: 1,
 	})
 
@@ -503,6 +503,38 @@ func TestSetAndUpdateTasks(t *testing.T) {
 	}
 }
 
+func TestAddParticipantsToPlanningCollaboration(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	hub.addAgent("a3", "DevOpsPro", protocol.AgentTypeDevOps, []string{"kubernetes"})
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("test", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration failed: %v", err)
+	}
+
+	added, err := cm.AddParticipants(collab.ID, []string{"a3"})
+	if err != nil {
+		t.Fatalf("AddParticipants failed: %v", err)
+	}
+	if len(added) != 1 || added[0].AgentID != "a3" {
+		t.Fatalf("expected agent a3 to be added, got %+v", added)
+	}
+
+	updated, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration failed: %v", err)
+	}
+	if len(updated.Agents) != 3 {
+		t.Fatalf("expected 3 participants after add, got %d", len(updated.Agents))
+	}
+	if updated.Discussion == nil || len(updated.Discussion.Participants) != 3 {
+		t.Fatalf("expected discussion participants to include added agent, got %+v", updated.Discussion)
+	}
+}
+
 // ── Artifact Tests ───────────────────────────────────────────────────
 
 func TestUpdateArtifact(t *testing.T) {
@@ -596,6 +628,55 @@ func TestExtractTasksFromPlan(t *testing.T) {
 	}
 	if tasks[1].AssignedTo != "sec-1" {
 		t.Errorf("task 1 should be assigned to sec-1, got %s", tasks[1].AssignedTo)
+	}
+}
+
+func TestExtractTasksFromPlanSupportsKebabMentions(t *testing.T) {
+	agents := []collaboration.CollaborationAgent{
+		{AgentID: "a-1", AgentName: "agent-a", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "b-1", AgentName: "agent-b", AgentType: protocol.AgentTypeFrontend},
+	}
+
+	planContent := `## Tasks
+
+- @agent-a: implement backend parser support
+- @agent-b: add UI wiring for collaborations
+`
+
+	tasks := collaboration.ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(tasks))
+	}
+	if tasks[0].AssignedName != "agent-a" || tasks[1].AssignedName != "agent-b" {
+		t.Fatalf("expected assignments to resolve kebab-case mentions, got %+v", tasks)
+	}
+}
+
+func TestExtractTasksFromPlanSupportsHeadingWithAssignedLine(t *testing.T) {
+	agents := []collaboration.CollaborationAgent{
+		{AgentID: "rust-1", AgentName: "RustExpert", AgentType: protocol.AgentTypeRust},
+		{AgentID: "sec-1", AgentName: "SecurityExpert", AgentType: protocol.AgentTypeSecurity},
+	}
+
+	planContent := `## Plan
+
+### Task 1: Build CLI command interface
+- Assigned to: @RustExpert
+- Acceptance: command parses args and prints help
+
+### Task 2: Add encryption key handling
+- Assigned to: @SecurityExpert
+`
+
+	tasks := collaboration.ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d", len(tasks))
+	}
+	if tasks[0].AssignedTo != "rust-1" {
+		t.Fatalf("expected task 1 assigned to rust-1, got %s", tasks[0].AssignedTo)
+	}
+	if tasks[1].AssignedTo != "sec-1" {
+		t.Fatalf("expected task 2 assigned to sec-1, got %s", tasks[1].AssignedTo)
 	}
 }
 

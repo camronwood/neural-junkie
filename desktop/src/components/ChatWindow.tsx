@@ -34,7 +34,7 @@ import type {
   Message,
   ThinkingStatusMetadata,
 } from '../types/protocol';
-import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
+import { isCollaborationMessage } from '../types/protocol';
 
 interface ChatWindowProps {
   onOpenSettings?: () => void;
@@ -104,10 +104,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // State for active collaboration panel
   const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
+  const activeCollabRef = useRef<Collaboration | null>(null);
+  const collaborationsByIDRef = useRef<Record<string, Collaboration>>({});
   const [taskManagementOpen, setTaskManagementOpen] = useState(false);
   const [collaborationsByID, setCollaborationsByID] = useState<Record<string, Collaboration>>({});
   const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
   const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
+
+  const isTerminalCollaborationPhase = (phase?: Collaboration['phase']) =>
+    phase === 'completed' || phase === 'cancelled';
+
+  useEffect(() => {
+    activeCollabRef.current = activeCollab;
+  }, [activeCollab]);
+
+  useEffect(() => {
+    collaborationsByIDRef.current = collaborationsByID;
+  }, [collaborationsByID]);
 
   // State for sharing workspace context with agents
   const [shareWorkspace, setShareWorkspace] = useState<boolean>(() => {
@@ -210,19 +224,85 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api, setChannels]);
 
+  const mergeCollaborationSnapshot = useCallback((snapshot: Collaboration) => {
+    if (!snapshot?.id) return;
+    const isTerminal = isTerminalCollaborationPhase(snapshot.phase);
+    setCollaborationsByID(prev => {
+      if (isTerminal) {
+        if (!prev[snapshot.id]) return prev;
+        const next = { ...prev };
+        delete next[snapshot.id];
+        return next;
+      }
+      const existing = prev[snapshot.id];
+      if (!existing) {
+        return { ...prev, [snapshot.id]: snapshot };
+      }
+      if (existing.updated_at === snapshot.updated_at && existing.phase === snapshot.phase) {
+        return prev;
+      }
+      const nextTime = Date.parse(snapshot.updated_at || '');
+      const existingTime = Date.parse(existing.updated_at || '');
+      if (!Number.isNaN(nextTime) && !Number.isNaN(existingTime) && nextTime < existingTime) {
+        return prev;
+      }
+      return { ...prev, [snapshot.id]: snapshot };
+    });
+    if (isTerminal) {
+      setActiveCollab(current => (current?.id === snapshot.id ? null : current));
+    }
+  }, []);
+
+  const loadCollaborations = useCallback(async (targetChannel: string) => {
+    try {
+      const snapshots = await api.fetchCollaborations(targetChannel);
+      setCollaborationsByID(prev => {
+        const next: Record<string, Collaboration> = {};
+
+        // Keep tracked collaborations from other channels as-is.
+        for (const [id, collab] of Object.entries(prev)) {
+          if (collab.channel !== targetChannel) {
+            next[id] = collab;
+          }
+        }
+
+        // Replace this channel's tracked collaborations with the latest snapshots.
+        for (const snapshot of snapshots) {
+          if (!snapshot?.id || isTerminalCollaborationPhase(snapshot.phase)) continue;
+          next[snapshot.id] = snapshot;
+        }
+
+        return next;
+      });
+      setActiveCollab(current => {
+        if (!current || current.channel !== targetChannel) return current;
+        const refreshed = snapshots.find(snapshot => snapshot.id === current.id);
+        if (!refreshed || isTerminalCollaborationPhase(refreshed.phase)) {
+          return null;
+        }
+        return refreshed;
+      });
+    } catch (error) {
+      console.error('Failed to load collaborations:', error);
+    }
+  }, [api]);
+
   // Handle switching channel: switch store state, then load fresh messages
   const handleSwitchChannel = useCallback(async (channelName: string) => {
     if (channelName === channel) return;
+    // Collaboration side panel is channel-scoped; clear when navigating.
+    setActiveCollab(null);
     switchChannel(channelName);
     localStorage.setItem('last-channel', channelName);
     try {
       const msgs = await api.fetchMessages(channelName, 50);
       setMessages(msgs);
       cleanupStaleThinking(channelName, msgs);
+      await loadCollaborations(channelName);
     } catch (error) {
       console.error('Failed to load messages for channel:', error);
     }
-  }, [api, channel, switchChannel, setMessages, cleanupStaleThinking]);
+  }, [api, channel, switchChannel, setMessages, cleanupStaleThinking, loadCollaborations]);
 
   // Create a custom channel
   const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
@@ -321,19 +401,40 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       // Track collaboration snapshots from message metadata.
       const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
       if (collabData?.id) {
-        setCollaborationsByID(prev => {
-          const existing = prev[collabData.id];
-          if (!existing) {
-            return { ...prev, [collabData.id]: collabData };
+        const collabChannel = collabData.channel || message.channel;
+        const isActiveChannelCollab = !collabChannel || collabChannel === channel;
+        const previousSnapshot = collaborationsByIDRef.current[collabData.id];
+        if (
+          previousSnapshot &&
+          isActiveChannelCollab &&
+          (collabData.phase === 'planning' || collabData.phase === 'reviewing')
+        ) {
+          const existingIDs = new Set((previousSnapshot.agents || []).map(a => a.agent_id));
+          const addedAgents = (collabData.agents || []).filter(a => !existingIDs.has(a.agent_id));
+          if (addedAgents.length > 0) {
+            const names = addedAgents.map(a => `@${a.agent_name}`).join(', ');
+            addToast({
+              type: 'info',
+              title: 'Collaborator added',
+              message: `${names} joined "${collabData.title}".`,
+            });
           }
-          const nextTime = Date.parse(collabData.updated_at || '');
-          const existingTime = Date.parse(existing.updated_at || '');
-          if (!Number.isNaN(nextTime) && !Number.isNaN(existingTime) && nextTime < existingTime) {
-            return prev;
+        }
+        mergeCollaborationSnapshot(collabData);
+        const currentlyOpen = activeCollabRef.current;
+        if (currentlyOpen?.id === collabData.id) {
+          if (isTerminalCollaborationPhase(collabData.phase)) {
+            setActiveCollab(null);
+          } else if (isActiveChannelCollab) {
+            setActiveCollab(collabData);
           }
-          return { ...prev, [collabData.id]: collabData };
-        });
-        if (isCollaborationMessage(message) || getCollaborationId(message)) {
+        } else if (
+          !currentlyOpen &&
+          isActiveChannelCollab &&
+          isCollaborationMessage(message) &&
+          !isTerminalCollaborationPhase(collabData.phase)
+        ) {
+          // Auto-open the collaboration panel when a new planning/reviewing flow starts.
           setActiveCollab(collabData);
         }
       }
@@ -405,6 +506,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       // Load existing messages
       const existingMessages = await api.fetchMessages(channel, 50);
       setMessages(existingMessages);
+      await loadCollaborations(channel);
 
       // Load agents, counts, channels, and command definitions
       await Promise.all([loadAgents(), loadCounts(), loadChannels()]);
@@ -572,10 +674,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   useEffect(() => {
     if (!taskManagementOpen) return;
+    void loadCollaborations(channel);
     loadAssistantState();
     const id = window.setInterval(loadAssistantState, 10000);
     return () => window.clearInterval(id);
-  }, [taskManagementOpen, loadAssistantState]);
+  }, [taskManagementOpen, loadAssistantState, loadCollaborations, channel]);
 
   return (
     <ErrorBoundary>
@@ -598,7 +701,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                   </span>
                 )}
                 {agentCount > 0 && !isDM && (
-                  <span className="text-[10px] text-slack-textMuted bg-slack-bgHover px-1.5 py-0.5 rounded">
+                  <span className="text-xs text-slack-textMuted bg-slack-bgHover px-1.5 py-0.5 rounded">
                     {agentCount} agent{agentCount !== 1 ? 's' : ''}
                   </span>
                 )}
@@ -609,6 +712,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor()}`} />
             <span className="text-slack-textMuted">{getStatusText()}</span>
           </div>
+          <input
+            type="text"
+            value={messageSearchQuery}
+            onChange={(e) => setMessageSearchQuery(e.target.value)}
+            placeholder="Search chat..."
+            className="ml-2 w-44 sm:w-56 px-2 py-1 rounded bg-slack-bg border border-slack-border text-xs text-slack-text placeholder:text-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+          />
         </div>
         
         <div className="flex items-center gap-1">
@@ -684,7 +794,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           >
             <MyAgentsIcon className="w-3.5 h-3.5" />
             {totalAgentsCount > 0 && (
-              <span className="absolute -bottom-0.5 -right-0.5 bg-white text-slack-accent text-[9px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center">
+              <span className="absolute -bottom-0.5 -right-0.5 bg-white text-slack-accent text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
                 {totalAgentsCount}
               </span>
             )}
@@ -713,7 +823,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           >
             <TerminalIcon className="w-3.5 h-3.5" />
             {useTerminalStore.getState().suggestedCommands.length > 0 && (
-              <span className="absolute -bottom-0.5 -right-0.5 bg-yellow-500 text-black text-[9px] font-bold rounded-full h-3.5 w-3.5 flex items-center justify-center">
+              <span className="absolute -bottom-0.5 -right-0.5 bg-yellow-500 text-black text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
                 {useTerminalStore.getState().suggestedCommands.length}
               </span>
             )}
@@ -785,15 +895,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           style={{ 
             flex: '1 1 auto',
             minWidth: '300px',
+            minHeight: 0,
           }}
         >
 
         {/* Messages */}
         <MessageList
+          key={channel}
           messages={messages}
           threadMetadata={threadMetadata}
           onOpenThread={openThread}
           streamingMessages={streamingMessages}
+          searchQuery={messageSearchQuery}
         />
 
         {/* Input */}
@@ -884,6 +997,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                   message: error instanceof Error ? error.message : 'Failed to dismiss assistant reminder.',
                 });
               }
+            }}
+            onCollaborationCommand={async (command, collaborationID, feedbackText) => {
+              const from = { name: username || 'User', type: 'human' };
+              const shortID = collaborationID.slice(0, 8);
+              let content = '';
+              if (command === 'approve') {
+                content = `/approve-plan ${shortID}`;
+              } else if (command === 'revise') {
+                const trimmed = (feedbackText || '').trim();
+                if (!trimmed) {
+                  throw new Error('Revision feedback is required.');
+                }
+                content = `/revise-plan ${shortID} ${trimmed}`;
+              } else {
+                content = `/cancel-plan ${shortID}`;
+              }
+              await api.sendMessage(channel, content, from);
             }}
           />
         )}

@@ -51,7 +51,9 @@ export function ChannelSidebar({
     return (w >= MIN_WIDTH && w <= 400) ? w : DEFAULT_WIDTH;
   });
   const [isResizing, setIsResizing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   // Separate channels by type, sorted alphabetically for stable ordering
   const publicChannels = channels
@@ -63,6 +65,25 @@ export function ChannelSidebar({
   const dmChannels = channels
     .filter(c => c.type === 'dm')
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredPublicChannels = publicChannels.filter((c) => {
+    if (!normalizedQuery) return true;
+    return (
+      c.name.toLowerCase().includes(normalizedQuery) ||
+      (c.description || '').toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const filteredCustomChannels = customChannels.filter((c) => {
+    if (!normalizedQuery) return true;
+    return (
+      c.name.toLowerCase().includes(normalizedQuery) ||
+      (c.description || '').toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const filteredDMChannels = dmChannels.filter((c) => {
+    if (!normalizedQuery) return true;
+    return parseDMDisplayName(c).toLowerCase().includes(normalizedQuery);
+  });
 
   // Build a set of agent IDs that already have an active DM.
   // Fallback to matching by parsed DM display name when restored sessions
@@ -76,6 +97,22 @@ export function ChannelSidebar({
       return matched ? [matched.id] : [];
     })
   );
+
+  const filteredAgentsWithoutDM = agents
+    .filter(a => a.status === 'active' && !agentsWithDM.has(a.id))
+    .filter(a => {
+      if (!normalizedQuery) return true;
+      return (
+        a.name.toLowerCase().includes(normalizedQuery) ||
+        a.type.toLowerCase().includes(normalizedQuery)
+      );
+    });
+
+  const hasSearchResults =
+    filteredPublicChannels.length > 0 ||
+    filteredCustomChannels.length > 0 ||
+    filteredDMChannels.length > 0 ||
+    filteredAgentsWithoutDM.length > 0;
 
   // Resize drag handling
   useEffect(() => {
@@ -193,7 +230,7 @@ export function ChannelSidebar({
           style={{ backgroundColor: getAgentColor(agent.type) }}
         />
         {agent.name}
-        <span className="ml-auto text-[10px] opacity-50">{agent.type}</span>
+        <span className="ml-auto text-xs opacity-50">{agent.type}</span>
       </button>
     );
   };
@@ -207,6 +244,13 @@ export function ChannelSidebar({
       {/* Header */}
       <div className="px-3 py-2 border-b border-white/10">
         <h2 className="text-sm font-bold text-white truncate">Neural Junkie</h2>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search chats/channels..."
+          className="mt-2 w-full px-2 py-1 rounded bg-[#0f1115] border border-white/10 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-slack-accent"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-4 text-sm">
@@ -225,10 +269,10 @@ export function ChannelSidebar({
             </button>
           </div>
           <div className="space-y-0.5">
-            {publicChannels.map(ch => (
+            {filteredPublicChannels.map(ch => (
               <ChannelItem key={ch.id} ch={ch} />
             ))}
-            {customChannels.map(ch => (
+            {filteredCustomChannels.map(ch => (
               <ChannelItem key={ch.id} ch={ch} />
             ))}
           </div>
@@ -243,18 +287,20 @@ export function ChannelSidebar({
           </div>
           <div className="space-y-0.5">
             {/* Active DM channels first */}
-            {dmChannels.map(ch => (
+            {filteredDMChannels.map(ch => (
               <DMItem key={ch.id} ch={ch} />
             ))}
 
             {/* Agents without a DM yet */}
-            {agents
-              .filter(a => a.status === 'active' && !agentsWithDM.has(a.id))
-              .map(agent => (
-                <AgentDMEntry key={agent.id} agent={agent} />
-              ))}
+            {filteredAgentsWithoutDM.map(agent => (
+              <AgentDMEntry key={agent.id} agent={agent} />
+            ))}
           </div>
         </div>
+
+        {normalizedQuery && !hasSearchResults && (
+          <div className="px-2 text-xs text-slack-textMuted">No chats or channels found.</div>
+        )}
       </div>
 
       {/* Resize handle */}

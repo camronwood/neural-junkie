@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useChatStore } from '../stores/chatStore';
 
 interface ProviderConfig {
   id: string;
@@ -10,6 +11,8 @@ interface ProviderConfig {
   headers?: Record<string, string>;
   work_dir?: string;
 }
+
+type GeminiProfile = 'fast' | 'deep';
 
 interface ProviderManagerProps {
   serverAddr: string;
@@ -28,6 +31,9 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
   const [editing, setEditing] = useState<ProviderConfig | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, { success: boolean; error?: string }>>({});
+  const [geminiProfileStatus, setGeminiProfileStatus] = useState<string>('');
+  const messages = useChatStore((state) => state.messages);
+  const agents = useChatStore((state) => state.agents);
 
   useEffect(() => { loadProviders(); }, []);
 
@@ -52,6 +58,49 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
     setEditing(null);
     setIsNew(false);
     loadProviders();
+  }
+
+  function detectGeminiProfile(model?: string): GeminiProfile {
+    const normalized = (model || '').toLowerCase();
+    if (normalized.includes('flash')) return 'fast';
+    return 'deep';
+  }
+
+  async function applyGeminiProfile(profile: GeminiProfile) {
+    const geminiModel = profile === 'fast' ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
+    const existing = providers.find((p) => p.type === 'gemini-cli');
+    const payload: ProviderConfig = existing
+      ? { ...existing, model: geminiModel }
+      : {
+          id: 'gemini-cli',
+          type: 'gemini-cli',
+          name: 'Gemini CLI (Auto-detected)',
+          model: geminiModel,
+        };
+
+    const method = existing ? 'PUT' : 'POST';
+    const url = existing
+      ? `${serverAddr}/api/providers/${payload.id}`
+      : `${serverAddr}/api/providers`;
+
+    setGeminiProfileStatus('Applying...');
+    try {
+      const resp = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(err || 'Failed to apply Gemini profile');
+      }
+      await loadProviders();
+      setGeminiProfileStatus(
+        `Gemini profile set to ${profile === 'fast' ? 'Fast' : 'Deep'} (${geminiModel}).`
+      );
+    } catch (e) {
+      setGeminiProfileStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   async function deleteProvider(id: string) {
@@ -81,6 +130,40 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
     setIsNew(true);
   }
 
+  const usageInsights = useMemo(() => {
+    const providerByAgentId = new Map<string, string>();
+    for (const agent of agents) {
+      providerByAgentId.set(agent.id, (agent.ai_provider || '').toLowerCase());
+    }
+
+    const providerMessageCount = new Map<string, number>();
+    let localMessages = 0;
+    let cloudMessages = 0;
+    let totalAgentMessages = 0;
+
+    for (const msg of messages) {
+      if (!msg.from || msg.from.type === 'human') continue;
+      if (msg.type !== 'chat' && msg.type !== 'answer') continue;
+
+      const provider = ((msg.from.ai_provider || providerByAgentId.get(msg.from.id) || 'unknown') as string).toLowerCase();
+      providerMessageCount.set(provider, (providerMessageCount.get(provider) || 0) + 1);
+      totalAgentMessages++;
+
+      const isLocal = provider === 'ollama' || provider === 'lmstudio' || provider.endsWith('-cli');
+      if (isLocal) {
+        localMessages++;
+      } else {
+        cloudMessages++;
+      }
+    }
+
+    const rankedProviders = Array.from(providerMessageCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+
+    return { totalAgentMessages, localMessages, cloudMessages, rankedProviders };
+  }, [agents, messages]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -91,6 +174,79 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
       </div>
 
       {/* Provider list */}
+      <div className="p-3 bg-gray-800/60 border border-gray-700 rounded-lg">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm text-white font-medium">Gemini Profile</div>
+            <div className="text-xs text-gray-400">
+              Fast uses Flash for low latency. Deep uses Pro for higher quality.
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => applyGeminiProfile('fast')}
+              className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-500"
+            >
+              Fast (Flash)
+            </button>
+            <button
+              onClick={() => applyGeminiProfile('deep')}
+              className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-500"
+            >
+              Deep (Pro)
+            </button>
+          </div>
+        </div>
+        {(() => {
+          const geminiProvider = providers.find((p) => p.type === 'gemini-cli');
+          if (!geminiProvider && !geminiProfileStatus) return null;
+          return (
+            <div className="mt-2 text-xs text-gray-300">
+              {geminiProvider
+                ? `Current model: ${geminiProvider.model || 'gemini-2.5-flash'} (${detectGeminiProfile(geminiProvider.model) === 'fast' ? 'Fast' : 'Deep'})`
+                : 'Gemini provider will be created on first apply.'}
+              {geminiProfileStatus ? ` ${geminiProfileStatus}` : ''}
+            </div>
+          );
+        })()}
+      </div>
+
+      <div className="p-3 bg-gray-800/60 border border-gray-700 rounded-lg">
+        <div className="text-sm text-white font-medium">Usage & Cost Insights</div>
+        <div className="text-xs text-gray-400 mt-1">
+          Quick estimate by provider activity. Cloud providers typically bill by tokens; local providers generally do not.
+        </div>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="rounded border border-gray-700 bg-gray-900/60 p-2">
+            <div className="text-[11px] uppercase tracking-wide text-gray-400">Agent messages</div>
+            <div className="text-lg font-semibold text-white">{usageInsights.totalAgentMessages}</div>
+          </div>
+          <div className="rounded border border-gray-700 bg-gray-900/60 p-2">
+            <div className="text-[11px] uppercase tracking-wide text-gray-400">Local activity</div>
+            <div className="text-lg font-semibold text-emerald-400">{usageInsights.localMessages}</div>
+          </div>
+          <div className="rounded border border-gray-700 bg-gray-900/60 p-2">
+            <div className="text-[11px] uppercase tracking-wide text-gray-400">Cloud activity</div>
+            <div className="text-lg font-semibold text-amber-300">{usageInsights.cloudMessages}</div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <div className="text-xs text-gray-300 mb-1">Top providers by activity</div>
+          {usageInsights.rankedProviders.length === 0 ? (
+            <div className="text-xs text-gray-500">No agent activity yet.</div>
+          ) : (
+            <div className="space-y-1">
+              {usageInsights.rankedProviders.map(([provider, count]) => (
+                <div key={provider} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-300">{provider || 'unknown'}</span>
+                  <span className="text-white font-medium">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-2">
         {providers.map(p => (
           <div key={p.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">

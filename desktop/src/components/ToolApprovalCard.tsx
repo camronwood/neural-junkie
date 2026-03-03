@@ -107,7 +107,7 @@ export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
           </div>
 
           {inputDisplay && (
-            <code className="text-xs text-slack-textMuted bg-slack-bgHover px-1.5 py-0.5 rounded break-all">
+            <code className="text-xs text-slack-text bg-slack-bgHover px-1.5 py-0.5 rounded break-all">
               {inputDisplay}
             </code>
           )}

@@ -89,11 +89,11 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 func (ra *RepoAgent) StartWithIndexing(ctx context.Context, channel string) error {
 	ra.Context.CurrentChannel = channel
 
-	// Subscribe to channel messages
-	subCh, err := ra.Hub.Subscribe(channel)
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to channel: %w", err)
+	// Start on the initial channel using shared channel lifecycle logic.
+	if err := ra.AddChannel(ctx, channel); err != nil {
+		return err
 	}
+	go ra.discoverChannels(ctx)
 
 	// In tests (mock providers), run indexing synchronously to avoid
 	// goroutine races with temp directory cleanup.
@@ -103,23 +103,6 @@ func (ra *RepoAgent) StartWithIndexing(ctx context.Context, channel string) erro
 		// Start indexing in background for normal runtime usage.
 		go ra.indexRepository(ctx)
 	}
-
-	// Start message processing loop
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ra.stopCh:
-				return
-			case msg := <-subCh:
-				if msg == nil {
-					return
-				}
-				ra.handleMessage(ctx, msg)
-			}
-		}
-	}()
 
 	return nil
 }

@@ -9,6 +9,7 @@ interface CommandFormProps {
 }
 
 export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormProps) {
+  const isCollaborateCommand = command.name === '/collaborate';
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const arg of command.arguments) {
@@ -16,6 +17,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
     }
     return initial;
   });
+  const [selectedCollaborators, setSelectedCollaborators] = useState<Set<string>>(new Set());
 
   const firstInputRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
 
@@ -30,6 +32,18 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (isCollaborateCommand) {
+      const description = values.description?.trim() || '';
+      if (selectedCollaborators.size < 2 || !description) {
+        return;
+      }
+      const mentions = agents
+        .filter(agent => selectedCollaborators.has(agent.id))
+        .map(agent => `@${agent.name}`);
+      onSubmit([command.name, ...mentions, description].join(' '));
+      return;
+    }
+
     const parts = [command.name];
     for (const arg of command.arguments) {
       const v = values[arg.name]?.trim();
@@ -43,9 +57,27 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
     onSubmit(parts.join(' '));
   };
 
-  const canSubmit = command.arguments
-    .filter(a => a.required)
-    .every(a => values[a.name]?.trim());
+  const canSubmit = isCollaborateCommand
+    ? selectedCollaborators.size >= 2 && !!values.description?.trim()
+    : command.arguments
+        .filter(a => a.required)
+        .every(a => values[a.name]?.trim());
+
+  const toggleCollaborator = (agentID: string) => {
+    setSelectedCollaborators(prev => {
+      const next = new Set(prev);
+      if (next.has(agentID)) {
+        next.delete(agentID);
+      } else {
+        next.add(agentID);
+      }
+      return next;
+    });
+  };
+
+  const selectableCollaborators = agents.filter(
+    a => a.status === 'active' && a.type !== 'human' && a.type !== 'moderator'
+  );
 
   const renderField = (arg: CommandArgument, idx: number) => {
     const refProp = idx === 0 ? { ref: firstInputRef as React.Ref<any> } : {};
@@ -122,16 +154,64 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
 
       {/* Fields */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {command.arguments.map((arg, idx) => (
-          <div key={arg.name}>
-            <label htmlFor={`cmd-arg-${arg.name}`} className="block text-xs font-medium text-slack-textMuted mb-1">
-              {arg.name}
-              {arg.required && <span className="text-red-400 ml-0.5">*</span>}
-              {!arg.required && <span className="ml-1 opacity-60">(optional)</span>}
-            </label>
-            {renderField(arg, idx)}
-          </div>
-        ))}
+        {isCollaborateCommand ? (
+          <>
+            <div>
+              <label htmlFor="cmd-arg-description" className="block text-xs font-medium text-slack-textMuted mb-1">
+                prompt<span className="text-red-400 ml-0.5">*</span>
+              </label>
+              <input
+                id="cmd-arg-description"
+                type="text"
+                value={values.description ?? ''}
+                onChange={e => setValue('description', e.target.value)}
+                placeholder="Describe what you want the agents to collaborate on..."
+                className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                ref={firstInputRef as React.Ref<HTMLInputElement>}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slack-textMuted mb-1">
+                agents<span className="text-red-400 ml-0.5">*</span>
+                <span className="ml-1 opacity-60">({selectedCollaborators.size} selected, min 2)</span>
+              </label>
+              <div className="max-h-48 overflow-y-auto border border-slack-border rounded bg-slack-bgHover p-1 space-y-0.5">
+                {selectableCollaborators.map(agent => {
+                  const selected = selectedCollaborators.has(agent.id);
+                  return (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => toggleCollaborator(agent.id)}
+                      className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors ${
+                        selected
+                          ? 'bg-slack-accent/20 text-slack-text'
+                          : 'text-slack-textMuted hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="flex-1 truncate">{agent.name}</span>
+                      <span className="text-xs opacity-50">{agent.type}</span>
+                    </button>
+                  );
+                })}
+                {selectableCollaborators.length === 0 && (
+                  <div className="text-xs text-slack-textMuted p-2 text-center">No active agents available</div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : (
+          command.arguments.map((arg, idx) => (
+            <div key={arg.name}>
+              <label htmlFor={`cmd-arg-${arg.name}`} className="block text-xs font-medium text-slack-textMuted mb-1">
+                {arg.name}
+                {arg.required && <span className="text-red-400 ml-0.5">*</span>}
+                {!arg.required && <span className="ml-1 opacity-60">(optional)</span>}
+              </label>
+              {renderField(arg, idx)}
+            </div>
+          ))
+        )}
       </div>
 
       {/* Footer */}

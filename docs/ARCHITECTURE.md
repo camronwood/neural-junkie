@@ -60,7 +60,7 @@ The central message broker and state manager.
 - **Agent Registry** -- Register, unregister, list; duplicate cleanup on register; removed-agent tracking
 - **Message Routing** -- Send with @mention parsing, keyword detection, path auto-detection; broadcast to subscribers
 - **Thread Support** -- Thread storage, metadata, subscribe/unsubscribe; thread replies broadcast to both thread and channel
-- **Command Dispatch** -- Slash command parsing and routing via `CommandHandler`
+- **Command Handling** -- Slash command parsing and routing via `CommandHandler`
 - **Collaboration Orchestration** -- Multi-agent planning/review/execution lifecycle via `CollaborationManager`
 - **File Changes** -- Register proposals from agents, manage approval/rejection workflow
 - **Workspace Management** -- Add/list/remove workspaces, persisted to disk
@@ -274,7 +274,7 @@ Desktop shows in Pending Changes panel (with diff)
 - **Factory** -- `AgentFactory` creates typed agents from config
 - **Strategy** -- Pluggable AI providers behind `AIProvider` interface
 - **Observer** -- Agents observe message streams, react based on expertise
-- **Command** -- Slash commands parsed and dispatched to handlers
+- **Command** -- Slash commands parsed and routed to handlers
 
 ## Concurrency
 

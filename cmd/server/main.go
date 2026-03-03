@@ -140,6 +140,7 @@ func main() {
 	http.HandleFunc("/api/cached-agents", corsMiddleware(handleCachedAgents)) // Keep for backwards compatibility
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
+	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
 	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
 	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
@@ -1170,6 +1171,20 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messages)
 }
 
+func handleCollaborations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	includeTerminal := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_terminal")), "true")
+	collaborations := chatHub.ListCollaborationSnapshots(channel, includeTerminal)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(collaborations)
+}
+
 // handleBroadcastDirect accepts a message and broadcasts it to channel
 // subscribers WITHOUT storing it or running it through the SendMessage
 // pipeline (mentions, commands, path detection). This is used by external
@@ -1601,6 +1616,23 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 		ai.WithBaseArgs(cfg.BaseArgs),
 		ai.WithModel(cfg.ModelName),
 	}
+	if cfg.Type == "gemini" {
+		// Default Gemini to a faster profile unless explicitly overridden.
+		model := ""
+		if appConfig != nil {
+			if p := appConfig.GetProvider(cfg.ProviderName); p != nil {
+				model = strings.TrimSpace(p.Model)
+			}
+		}
+		if model == "" {
+			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
+		}
+		if model == "" {
+			model = "gemini-2.5-flash"
+		}
+		_ = os.Setenv("GEMINI_MODEL", model)
+		opts = append(opts, ai.WithEnv("GEMINI_MODEL", model))
+	}
 	provider := ai.NewCLIAgentProvider(cfg.Command, workDir, cfg.ProviderName, opts...)
 
 	// Forward configured env vars
@@ -1941,6 +1973,14 @@ func buildProviderFromConfig(pcfg *config.ProviderConfig) (ai.AIProvider, error)
 		if pcfg.TimeoutSeconds > 0 {
 			opts = append(opts, ai.WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
 		}
+		model := strings.TrimSpace(pcfg.Model)
+		if model == "" {
+			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
+		}
+		if model == "" {
+			model = "gemini-2.5-flash"
+		}
+		opts = append(opts, ai.WithEnv("GEMINI_MODEL", model), ai.WithModel(model))
 		return ai.NewGeminiCLIProvider(workDir, opts...), nil
 
 	default:
@@ -2114,6 +2154,14 @@ func handleProviders(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "id and type are required", http.StatusBadRequest)
 			return
 		}
+		if p.Type == "gemini-cli" {
+			model := strings.TrimSpace(p.Model)
+			if model == "" {
+				model = "gemini-2.5-flash"
+				p.Model = model
+			}
+			_ = os.Setenv("GEMINI_MODEL", model)
+		}
 		if err := appConfig.AddProvider(p); err != nil {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
@@ -2170,6 +2218,14 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		p.ID = id
+		if p.Type == "gemini-cli" || id == "gemini-cli" {
+			model := strings.TrimSpace(p.Model)
+			if model == "" {
+				model = "gemini-2.5-flash"
+				p.Model = model
+			}
+			_ = os.Setenv("GEMINI_MODEL", model)
+		}
 		if err := appConfig.UpdateProvider(p); err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -3368,55 +3424,26 @@ func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the agent
-	agents := chatHub.ListAgents()
-	var targetAgent *protocol.AgentInfo
-	for _, agent := range agents {
-		if agent.ID == agentID {
-			targetAgent = agent
-			break
-		}
+	commandHandler := chatHub.GetCommandHandler()
+	if commandHandler == nil {
+		http.Error(w, "Command handler not initialized", http.StatusServiceUnavailable)
+		return
 	}
-
-	if targetAgent == nil {
-		http.Error(w, "Agent not found", http.StatusNotFound)
+	ch, ok := commandHandler.(*hub.CommandHandler)
+	if !ok {
+		http.Error(w, "Unsupported command handler type", http.StatusInternalServerError)
 		return
 	}
 
-	// Set default model if not provided
-	if request.Model == "" {
-		if request.Provider == "ollama" {
-			request.Model = "llama3.1"
-		} else if request.Provider == "lmstudio" {
-			request.Model = "" // Will be determined from available models
-		} else {
-			request.Model = "claude-sonnet"
-		}
+	targetAgent, err := ch.SwitchAgentProvider(agentID, request.Provider, request.Model, "general", nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
-
-	// Update agent info
-	targetAgent.AIProvider = request.Provider
-	targetAgent.AIModel = request.Model
-	targetAgent.Model = request.Model
-
-	// Broadcast the change
-	statusMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentStatus,
-		"general",
-		*targetAgent,
-		fmt.Sprintf("🔄 %s switched to %s (%s)", targetAgent.Name, request.Provider, request.Model),
-	)
-	statusMsg.Metadata = map[string]interface{}{
-		"ai_provider": request.Provider,
-		"ai_model":    request.Model,
-		"model":       request.Model,
-	}
-
-	chatHub.SendMessage(statusMsg)
 
 	response := map[string]interface{}{
 		"success": true,
-		"message": fmt.Sprintf("Agent %s switched to %s (%s)", targetAgent.Name, request.Provider, request.Model),
+		"message": fmt.Sprintf("Agent %s switched to %s (%s)", targetAgent.Name, targetAgent.AIProvider, targetAgent.AIModel),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -3446,42 +3473,21 @@ func handleSwitchAllProviders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set default model if not provided
-	if request.Model == "" {
-		if request.Provider == "ollama" {
-			request.Model = "llama3.1"
-		} else if request.Provider == "lmstudio" {
-			request.Model = "" // Will be determined from available models
-		} else {
-			request.Model = "claude-sonnet"
-		}
+	commandHandler := chatHub.GetCommandHandler()
+	if commandHandler == nil {
+		http.Error(w, "Command handler not initialized", http.StatusServiceUnavailable)
+		return
+	}
+	ch, ok := commandHandler.(*hub.CommandHandler)
+	if !ok {
+		http.Error(w, "Unsupported command handler type", http.StatusInternalServerError)
+		return
 	}
 
-	// Switch all agents
-	agents := chatHub.ListAgents()
-	switchedCount := 0
-
-	for _, agent := range agents {
-		// Update agent info
-		agent.AIProvider = request.Provider
-		agent.AIModel = request.Model
-		agent.Model = request.Model
-
-		// Broadcast the change
-		statusMsg := protocol.NewMessage(
-			protocol.MessageTypeAgentStatus,
-			"general",
-			*agent,
-			fmt.Sprintf("🔄 %s switched to %s (%s)", agent.Name, request.Provider, request.Model),
-		)
-		statusMsg.Metadata = map[string]interface{}{
-			"ai_provider": request.Provider,
-			"ai_model":    request.Model,
-			"model":       request.Model,
-		}
-
-		chatHub.SendMessage(statusMsg)
-		switchedCount++
+	switchedCount, err := ch.SwitchAllProviders(request.Provider, request.Model, "general", nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	response := map[string]interface{}{

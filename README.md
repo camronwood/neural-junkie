@@ -22,7 +22,7 @@ Neural Junkie isn't a chatbot. It's a distributed intelligence grid.
 
 ```mermaid
 graph TB
-    Core[🧠 The Core · Hub<br/>Signal routing · Channel management<br/>Command dispatch · Session persistence]
+    Core[🧠 The Core · Hub<br/>Signal routing · Channel management<br/>Command handling · Session persistence]
 
     Core --> Moderator[🎯 Moderator<br/>Auto-started · Chat commands<br/>User guidance · Safety net]
     Core --> Assistant[📋 Assistant<br/>Reminders · Tasks · Notes<br/>Meeting summaries]
@@ -231,6 +231,7 @@ neural-junkie/
 | **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI agent setup and custom CLI agents |
 | **[Agent Review](docs/AGENT_REVIEW.md)** | Second-opinion review system |
 | **[Collaboration](docs/COLLABORATION.md)** | Structured multi-agent planning, bounded discussion, task delegation, and execution |
+| **[User Value Guide](docs/USER_VALUE_GUIDE.md)** | Product-oriented overview of what the app is, why it matters, and how to get value fast |
 | **[Status](docs/STATUS.md)** | Current project status |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
 

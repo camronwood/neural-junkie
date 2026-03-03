@@ -813,6 +813,39 @@ func TestHubTaskLifecycleAutoCompletesCollaboration(t *testing.T) {
 	}
 }
 
+func TestHubCollaborationMentionAutoAddsParticipant(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")
+
+	agentA := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	agentB := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	agentC := &protocol.AgentInfo{ID: "a3", Name: "DevOpsPro", Type: protocol.AgentTypeDevOps, Status: "active"}
+	_ = h.RegisterAgent(agentA)
+	_ = h.RegisterAgent(agentB)
+	_ = h.RegisterAgent(agentC)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("Plan feature", []string{"a1", "a2"}, "test-collab", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+
+	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "test-collab", *agentA, "@DevOpsPro can you help with deployment?")
+	msg.SetCollaborationID(collab.ID)
+	msg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("send mention message: %v", err)
+	}
+
+	updated, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("get collaboration: %v", err)
+	}
+	if len(updated.Agents) != 3 {
+		t.Fatalf("expected collaboration to include auto-added participant, got %d agents", len(updated.Agents))
+	}
+}
+
 func TestSessionSnapshotRestoresCollaborations(t *testing.T) {
 	h := hub.NewHub()
 	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")

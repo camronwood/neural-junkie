@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -14,7 +15,21 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/creack/pty"
 )
+
+type approvalChannelContextKey string
+
+const toolApprovalChannelKey approvalChannelContextKey = "tool_approval_channel"
+
+// WithToolApprovalChannel attaches the current chat channel to a context so
+// CLI hooks (e.g. Gemini BeforeTool) can emit approval cards in the same channel.
+func WithToolApprovalChannel(ctx context.Context, channel string) context.Context {
+	if channel == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, toolApprovalChannelKey, channel)
+}
 
 // ansiRegex strips ANSI escape sequences (colors, cursor control, etc.)
 // that leak through the PTY since the subprocess thinks it's a real terminal.
@@ -181,6 +196,15 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	for key, value := range c.Env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
+	if c.ProviderName == "gemini-cli" {
+		// Allow runtime profile switching without rebuilding the agent instance.
+		if model := strings.TrimSpace(os.Getenv("GEMINI_MODEL")); model != "" {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("GEMINI_MODEL=%s", model))
+		}
+	}
+	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
+	}
 
 	// Capture stdout and stderr
 	var stdout, stderr bytes.Buffer
@@ -272,6 +296,75 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	for key, value := range c.Env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
+	if c.ProviderName == "gemini-cli" {
+		// Allow runtime profile switching without rebuilding the agent instance.
+		if model := strings.TrimSpace(os.Getenv("GEMINI_MODEL")); model != "" {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("GEMINI_MODEL=%s", model))
+		}
+	}
+	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
+	}
+
+	if c.shouldUsePTYStreaming() {
+		ptmx, err := pty.Start(cmd)
+		if err == nil {
+			ch := make(chan StreamToken, 64)
+			go func() {
+				defer close(ch)
+				defer cancel()
+				defer func() { _ = ptmx.Close() }()
+
+				done := make(chan struct{})
+				defer close(done)
+				go func() {
+					select {
+					case <-timeoutCtx.Done():
+						if cmd.Process != nil {
+							_ = cmd.Process.Kill()
+						}
+						_ = ptmx.Close()
+					case <-done:
+					}
+				}()
+
+				buf := make([]byte, 1024)
+				for {
+					n, readErr := ptmx.Read(buf)
+					if n > 0 {
+						clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
+						if clean != "" {
+							ch <- StreamToken{Content: clean}
+						}
+					}
+					if readErr != nil {
+						if errors.Is(readErr, io.EOF) || strings.Contains(readErr.Error(), "input/output error") {
+							break
+						}
+						if timeoutCtx.Err() == context.DeadlineExceeded {
+							ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+							return
+						}
+						ch <- StreamToken{Error: fmt.Errorf("CLI agent stream read error: %w", readErr), Done: true}
+						return
+					}
+				}
+
+				if err := cmd.Wait(); err != nil {
+					if timeoutCtx.Err() == context.DeadlineExceeded {
+						ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+						return
+					}
+					ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %w", err), Done: true}
+					return
+				}
+				ch <- StreamToken{Done: true}
+			}()
+
+			return ch, nil
+		}
+		log.Printf("[CLIAgent/%s] PTY streaming unavailable, falling back to pipe: %v", c.ProviderName, err)
+	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -329,6 +422,15 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	return ch, nil
 }
 
+func (c *CLIAgentProvider) shouldUsePTYStreaming() bool {
+	if os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_PTY") == "1" {
+		return false
+	}
+	// Default to PTY streaming for all CLI-backed agents so CLIs that
+	// buffer on non-TTY stdout still emit incremental tokens.
+	return true
+}
+
 // truncateError extracts the first meaningful error line from verbose CLI output.
 // Skips non-error preamble lines (e.g. "Loaded cached credentials.").
 func truncateError(s string) string {
@@ -367,6 +469,12 @@ func (c *CLIAgentProvider) buildPromptWithHistory(prompt string, history []proto
 
 	// Include limited history for context
 	historyLimit := 8
+	perMessageLimit := 2000
+	if c.ProviderName == "gemini-cli" {
+		// Keep Gemini context slimmer to reduce end-to-end latency.
+		historyLimit = 4
+		perMessageLimit = 700
+	}
 	startIdx := 0
 	if len(history) > historyLimit {
 		startIdx = len(history) - historyLimit
@@ -378,7 +486,11 @@ func (c *CLIAgentProvider) buildPromptWithHistory(prompt string, history []proto
 		if role == "" {
 			role = string(msg.From.Type)
 		}
-		sb.WriteString(fmt.Sprintf("[%s]: %s\n", role, msg.Content))
+		content := strings.TrimSpace(msg.Content)
+		if len(content) > perMessageLimit {
+			content = content[:perMessageLimit] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("[%s]: %s\n", role, content))
 	}
 	sb.WriteString("\n---\n\n")
 	sb.WriteString("Now respond to the following:\n\n")

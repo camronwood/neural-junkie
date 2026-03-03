@@ -124,7 +124,7 @@ go run cmd/helper-agent/main.go --name day-one --channel general
 
 **Use Cases:**
 - Managing subenvironments (create, deploy, wake, destroy)
-- kubectl operations through dispatch CLI
+- kubectl operations through integrated CLI tooling
 - Checking pod logs and troubleshooting issues
 - Database queries and debugging
 - Remote development setup with DevSpace
@@ -141,7 +141,7 @@ go run cmd/helper-agent/main.go --name day-one --channel general
 - "How do I port forward to access my service locally?"
 
 **Special Features:**
-- **Dispatch CLI Integration**: Uses dispatch commands for consistency
+- **CLI Integration**: Uses standard CLI workflows for consistency
 - **Database Expertise**: PostgreSQL, MySQL, Redis query assistance
 - **Remote Development**: DevSpace configuration and troubleshooting
 - **Kubernetes Operations**: Pod management, service discovery, resource monitoring

@@ -194,7 +194,7 @@ export function ThreadPanel({ threadId, parentMessage, onClose }: ThreadPanelPro
         <h2 className="font-bold text-slack-text">Thread</h2>
         <button
           onClick={onClose}
-          className="text-slack-textMuted hover:text-slack-text transition-colors"
+          className="p-1.5 rounded text-slack-textMuted hover:text-slack-text hover:bg-slack-bg transition-colors"
           aria-label="Close thread"
         >
           <svg

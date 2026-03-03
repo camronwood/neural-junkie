@@ -17,7 +17,6 @@ Created `docs/archive/` directory and moved 13 historical documentation files:
 - CLEANUP_COMPLETE.md
 - CLEANUP_TAURI.md
 - DAY-ONE-EXPERT-SETUP-COMPLETE.md
-- DISPATCH_IMPLEMENTATION_SUMMARY.md
 - HELPER_AGENTS_IMPLEMENTATION.md
 - MESSAGE_DEDUPLICATION_FIX.md
 - STATUS_INDICATORS_IMPLEMENTATION.md
@@ -68,7 +67,7 @@ These files contain valuable historical context but were cluttering the root dir
 - Kept: `desktop/MIGRATION_SUMMARY.md` (historical reference)
 
 **Repo-Specific Scripts:**
-- `create-dispatch-agent.sh` (hardcoded external repo path)
+- `create-helper-agent.sh` (hardcoded external repo path)
 
 ### 5. Sample File Reorganized ✅
 

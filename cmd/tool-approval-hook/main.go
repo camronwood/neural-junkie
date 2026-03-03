@@ -62,7 +62,7 @@ func main() {
 	serverURL := flag.String("server", "http://localhost:8080", "Neural Junkie server URL")
 	agentName := flag.String("agent", "Gemini", "Agent display name")
 	agentID := flag.String("agent-id", "gemini-cli", "Agent ID")
-	channel := flag.String("channel", "general", "Chat channel for approval messages")
+	channel := flag.String("channel", "", "Chat channel for approval messages")
 	mode := flag.String("mode", "interactive", "Approval mode: interactive, auto_edit, yolo")
 	flag.Parse()
 
@@ -79,6 +79,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	resolvedChannel := *channel
+	if resolvedChannel == "" {
+		resolvedChannel = os.Getenv("NEURAL_JUNKIE_CHANNEL")
+	}
+	if resolvedChannel == "" {
+		resolvedChannel = "general"
+	}
+
 	// Build request to Neural Junkie server
 	req := approvalRequest{
 		AgentID:   *agentID,
@@ -86,7 +94,7 @@ func main() {
 		SessionID: input.SessionID,
 		ToolName:  input.ToolName,
 		ToolInput: input.ToolInput,
-		Channel:   *channel,
+		Channel:   resolvedChannel,
 		Mode:      *mode,
 	}
 

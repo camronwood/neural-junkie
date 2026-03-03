@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -166,6 +168,61 @@ func TestCreateRepoAgentCommand(t *testing.T) {
 	}
 	if !ready {
 		t.Fatal("Expected repo agent indexing to complete")
+	}
+}
+
+func TestSwitchProviderUpdatesRuntimeAgent(t *testing.T) {
+	h := hub.NewHub()
+	handler, err := hub.NewCommandHandler(h)
+	if err != nil {
+		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
+	}
+	h.CreateChannel("test-channel", "Test channel", "test-project")
+
+	runtimeAgent := agent.NewAgentWithProvider(
+		protocol.AgentTypeBackend,
+		"SwitchTarget",
+		[]string{"backend"},
+		ai.NewMockProvider(),
+		h,
+		"mock",
+		"mock-model",
+	)
+	handler.RegisterRuntimeAgent(runtimeAgent)
+	if err := h.RegisterAgent(&runtimeAgent.Info); err != nil {
+		t.Fatalf("Expected runtime agent registration to succeed, got error: %v", err)
+	}
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"test-channel",
+		protocol.AgentInfo{
+			ID:   "user-123",
+			Name: "TestUser",
+			Type: protocol.AgentTypeGeneral,
+		},
+		"/switch-provider SwitchTarget ollama llama3.2",
+	)
+
+	response, err := handler.ProcessCommand(context.Background(), msg)
+	if err != nil {
+		t.Fatalf("Expected switch provider command to succeed, got error: %v", err)
+	}
+	if response == nil {
+		t.Fatal("Expected switch provider command to return a response")
+	}
+	if !strings.Contains(response.Content, "switched") {
+		t.Fatalf("Expected success response, got: %s", response.Content)
+	}
+
+	if runtimeAgent.GetAIProvider().GetModel() != "llama3.2" {
+		t.Fatalf("Expected runtime provider model to be updated to llama3.2, got %s", runtimeAgent.GetAIProvider().GetModel())
+	}
+	if runtimeAgent.Info.AIProvider != "ollama" {
+		t.Fatalf("Expected runtime provider to be ollama, got %s", runtimeAgent.Info.AIProvider)
+	}
+	if runtimeAgent.Info.AIModel != "llama3.2" {
+		t.Fatalf("Expected runtime AI model to be llama3.2, got %s", runtimeAgent.Info.AIModel)
 	}
 }
 

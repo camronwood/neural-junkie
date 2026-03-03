@@ -190,7 +190,7 @@ export function CommandPalette({
                           <span className="font-mono text-sm text-slack-accent shrink-0">{cmd.name}</span>
                           <span className="text-xs text-slack-textMuted truncate">{cmd.description}</span>
                           {cmd.arguments.length > 0 && (
-                            <span className="ml-auto text-[10px] text-slack-textMuted shrink-0 opacity-60">
+                            <span className="ml-auto text-xs text-slack-textMuted shrink-0 opacity-60">
                               {cmd.arguments.filter(a => a.required).length} arg{cmd.arguments.filter(a => a.required).length !== 1 ? 's' : ''}
                             </span>
                           )}
@@ -204,9 +204,9 @@ export function CommandPalette({
 
             {/* Footer hint */}
             <div className="px-4 py-2 border-t border-slack-border text-[11px] text-slack-textMuted flex gap-4">
-              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-[10px]">↑↓</kbd> navigate</span>
-              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-[10px]">↵</kbd> select</span>
-              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-[10px]">esc</kbd> close</span>
+              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">↑↓</kbd> navigate</span>
+              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">↵</kbd> select</span>
+              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">esc</kbd> close</span>
             </div>
           </>
         )}

@@ -658,6 +658,10 @@ func (a *Analyzer) IsIndexStale(ctx context.Context, repoPath string, index *Rep
 	}
 
 	// Check for new files that aren't in the index
+	keyFileSet := make(map[string]struct{}, len(KeyFileTypes))
+	for _, keyFile := range KeyFileTypes {
+		keyFileSet[keyFile] = struct{}{}
+	}
 	newFilesFound := false
 	filepath.Walk(repoPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -677,6 +681,12 @@ func (a *Analyzer) IsIndexStale(ctx context.Context, repoPath string, index *Rep
 		_, inSourceFiles := index.SourceFiles[relPath]
 
 		if !inKeyFiles && !inSourceFiles {
+			// Ignore non-indexed assets so they don't force unnecessary reindexing.
+			if _, isKeyFile := keyFileSet[filepath.Base(relPath)]; !isKeyFile {
+				if _, isSourceLike := LanguageExtensions[strings.ToLower(filepath.Ext(relPath))]; !isSourceLike {
+					return nil
+				}
+			}
 			newFilesFound = true
 			return filepath.SkipDir // Stop walking this directory
 		}

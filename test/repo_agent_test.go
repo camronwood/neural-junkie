@@ -10,7 +10,9 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/repo"
 )
 
 // Mock hub client for repository agent testing
@@ -292,23 +294,55 @@ This is a test repository for testing the repository agent.
 	// Wait for indexing to complete
 	time.Sleep(1 * time.Second)
 
-	// Test search functionality (simplified)
+	storage, err := repo.NewStorage()
+	if err != nil {
+		t.Fatalf("Expected storage initialization to succeed, got error: %v", err)
+	}
+	cacheKey, err := storage.GetCacheKeyForPath(testRepoPath)
+	if err != nil {
+		t.Fatalf("Expected cache key generation to succeed, got error: %v", err)
+	}
+	index, err := storage.LoadIndex(cacheKey)
+	if err != nil {
+		t.Fatalf("Expected indexed repository to be loadable, got error: %v", err)
+	}
+
+	if len(index.SourceFiles) < 2 {
+		t.Fatalf("Expected at least 2 indexed source files, got %d", len(index.SourceFiles))
+	}
+	if _, ok := index.SourceFiles["main.go"]; !ok {
+		t.Fatalf("Expected main.go to be indexed")
+	}
+	if _, ok := index.SourceFiles["utils.go"]; !ok {
+		t.Fatalf("Expected utils.go to be indexed")
+	}
+
+	// Test search functionality against actual repository search APIs.
 	searchTests := []struct {
-		query    string
-		expected int // minimum expected results
+		query       string
+		minExpected int
 	}{
-		{"Hello", 1},       // Should find "Hello, World!"
-		{"test", 3},        // Should find multiple occurrences
-		{"function", 2},    // Should find function definitions
-		{"fmt.Println", 2}, // Should find fmt.Println calls
-		{"toUpperCase", 2}, // Should find function definition and usage
-		{"nonexistent", 0}, // Should find nothing
+		{"main", 1},
+		{"utils", 1},
+		{"go", 1},
+		{"nonexistent", 0},
 	}
 
 	for _, test := range searchTests {
-		// Test search (simplified for test)
-		t.Logf("Testing search for query: %s", test.query)
-		// Note: Actual search functionality would be tested in integration tests
+		results := repo.SearchRelevantFiles(test.query, index, 10)
+		if len(results) < test.minExpected {
+			t.Fatalf("Expected at least %d results for query %q, got %d", test.minExpected, test.query, len(results))
+		}
+	}
+
+	pathResults := repo.SearchByPath("main", index)
+	if len(pathResults) == 0 {
+		t.Fatalf("Expected path search for 'main' to return results")
+	}
+
+	langResults := repo.SearchByLanguage("Go", index)
+	if len(langResults) < 2 {
+		t.Fatalf("Expected language search for Go to return >=2 files, got %d", len(langResults))
 	}
 
 	// Clean up immediately after test
@@ -541,6 +575,72 @@ This is a test repository for testing the repository agent.`,
 
 	// Clean up immediately after test
 	cleanupRepoAgentCacheImmediate(t, testRepoPath)
+}
+
+func TestRepoAgentRespondsInDMChannel(t *testing.T) {
+	useIsolatedRepoStorage(t)
+	tempDir := t.TempDir()
+	testRepoPath := filepath.Join(tempDir, "test-repo")
+	if err := os.MkdirAll(testRepoPath, 0755); err != nil {
+		t.Fatalf("Failed to create test repository: %v", err)
+	}
+	cleanupRepoAgentCache(t, testRepoPath)
+
+	testFile := filepath.Join(testRepoPath, "main.go")
+	if err := os.WriteFile(testFile, []byte("package main\nfunc main() {}\n"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	chatHub := hub.NewHub()
+	mockAI := ai.NewMockProvider()
+	repoAgent, err := agent.NewRepoAgent("DMRepoAgent", testRepoPath, mockAI, chatHub)
+	if err != nil {
+		t.Fatalf("Expected repository agent creation to succeed, got error: %v", err)
+	}
+	if err := chatHub.RegisterAgent(&repoAgent.Info); err != nil {
+		t.Fatalf("Expected agent registration to succeed, got error: %v", err)
+	}
+	if err := chatHub.JoinChannel(repoAgent.Info.ID, "general"); err != nil {
+		t.Fatalf("Expected agent to join general channel, got error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer repoAgent.Stop()
+
+	if err := repoAgent.StartWithIndexing(ctx, "general"); err != nil {
+		t.Fatalf("Expected repository agent to start with indexing, got error: %v", err)
+	}
+
+	dmChannel, err := chatHub.CreateDMChannel("alice", repoAgent.Info.ID)
+	if err != nil {
+		t.Fatalf("Expected DM channel creation to succeed, got error: %v", err)
+	}
+
+	userMsg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		dmChannel.Name,
+		protocol.AgentInfo{ID: "user-1", Name: "alice", Type: protocol.AgentTypeGeneral},
+		"@DMRepoAgent can you summarize this repo?",
+	)
+	userMsg.Mentions = []string{repoAgent.Info.ID}
+	if err := chatHub.SendMessage(userMsg); err != nil {
+		t.Fatalf("Expected DM message send to succeed, got error: %v", err)
+	}
+
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		msgs, _ := chatHub.GetMessages(dmChannel.Name, 50)
+		for _, m := range msgs {
+			if m.From.ID == repoAgent.Info.ID && (m.Type == protocol.MessageTypeChat || m.Type == protocol.MessageTypeAnswer) {
+				cleanupRepoAgentCacheImmediate(t, testRepoPath)
+				return
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	t.Fatal("Expected repo agent to respond in DM channel")
 }
 
 // TestRepoAgentErrorHandling tests error handling in repository agent

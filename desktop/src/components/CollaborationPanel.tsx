@@ -192,7 +192,7 @@ export function CollaborationPanel({ collaboration, onClose }: CollaborationPane
                       Task {i + 1}: {task.title}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)', marginTop: 2 }}>
-                      Assigned to @{task.assigned_name}
+                      Assigned to @{task.assigned_name || 'unassigned'}
                     </div>
                   </div>
                 </div>

@@ -19,7 +19,7 @@ graph TB
     subgraph "New Route-Centric Services"
         Ingestion[ms-ingestion-engine<br/>Webhook Intake & Validation]
         Deliveries[ms-deliveries<br/>Delivery Processing & Shadow Mode]
-        Dispatch[ms-dispatch<br/>Route Optimization & TSP]
+        RoutePlanner[ms-route-planner<br/>Route Optimization & TSP]
         Automation[ms-automation-engine<br/>Custom Workflows]
     end
     
@@ -51,18 +51,18 @@ graph TB
     APIGW --> OrderQuote
     APIGW --> Locations
     
-    Deliveries --> Dispatch
+    Deliveries --> RoutePlanner
     Deliveries --> Automation
-    Dispatch --> Automation
+    RoutePlanner --> Automation
     
     Ingestion --> OrderDB
     Deliveries --> OrderDB
-    Dispatch --> OrderDB
+    RoutePlanner --> OrderDB
     Automation --> OrderDB
     
     Ingestion --> Kafka
     Deliveries --> Kafka
-    Dispatch --> Kafka
+    RoutePlanner --> Kafka
     Automation --> Kafka
     
     Kafka --> DriverEngagement

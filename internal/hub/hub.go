@@ -340,7 +340,8 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	// naturally contain @ symbols (file paths, code references) that should
 	// not be treated as mention attempts.
 	mentionStrings := []string{}
-	if protocol.ShouldParseMentions(msg.Type, msg.From) {
+	allowMentionValidationErrors := protocol.ShouldParseMentions(msg.Type, msg.From)
+	if allowMentionValidationErrors || h.shouldParseCollaborationMentions(msg) {
 		mentionStrings = protocol.ParseMentions(msg.Content)
 	}
 	hasInvalidMentions := false
@@ -351,35 +352,39 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		agentIDs := h.ResolveMentionsWithValidation(mentionStrings, resolvedMentions)
 		msg.Mentions = agentIDs
 
-		// Send system messages for unresolved mentions
-		for _, mention := range mentionStrings {
-			if !resolvedMentions[mention] {
-				hasInvalidMentions = true
+		h.maybeExpandCollaborationParticipants(msg, agentIDs)
 
-				// Send error message for not found agent
-				errorMsg := protocol.NewMessage(
-					protocol.MessageTypeSystemInfo,
-					msg.Channel,
-					protocol.AgentInfo{
-						ID:   "system",
-						Name: "System",
-						Type: protocol.AgentTypeGeneral,
-					},
-					fmt.Sprintf("❌ Agent @%s not found. Available agents: %s",
-						mention, h.getAgentListString()),
-				)
+		// Send system messages for unresolved mentions (user-authored mentions only).
+		if allowMentionValidationErrors {
+			for _, mention := range mentionStrings {
+				if !resolvedMentions[mention] {
+					hasInvalidMentions = true
 
-				// Lock and send error message immediately
-				h.mu.Lock()
-				h.messages[msg.Channel] = append(h.messages[msg.Channel], errorMsg)
-				h.broadcast(msg.Channel, errorMsg)
-				h.mu.Unlock()
+					// Send error message for not found agent
+					errorMsg := protocol.NewMessage(
+						protocol.MessageTypeSystemInfo,
+						msg.Channel,
+						protocol.AgentInfo{
+							ID:   "system",
+							Name: "System",
+							Type: protocol.AgentTypeGeneral,
+						},
+						fmt.Sprintf("❌ Agent @%s not found. Available agents: %s",
+							mention, h.getAgentListString()),
+					)
+
+					// Lock and send error message immediately
+					h.mu.Lock()
+					h.messages[msg.Channel] = append(h.messages[msg.Channel], errorMsg)
+					h.broadcast(msg.Channel, errorMsg)
+					h.mu.Unlock()
+				}
 			}
 		}
 
 		// If all mentions were invalid, don't process the message further
 		// This prevents agents from responding to invalid @mentions
-		if hasInvalidMentions && len(agentIDs) == 0 {
+		if allowMentionValidationErrors && hasInvalidMentions && len(agentIDs) == 0 {
 			// Set mentions to a dummy value so agents will see HasMentions() = true
 			// but IsMentioned(agentID) = false, preventing all agents from responding
 			msg.Mentions = []string{"__INVALID__"}
@@ -482,6 +487,99 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	}
 
 	return nil
+}
+
+func (h *Hub) shouldParseCollaborationMentions(msg *protocol.Message) bool {
+	if msg == nil || h.collabManager == nil || msg.IsFromSystem() {
+		return false
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" {
+		return false
+	}
+	if msg.Type != protocol.MessageTypeCollabDiscussion &&
+		msg.Type != protocol.MessageTypeChat &&
+		msg.Type != protocol.MessageTypeAnswer &&
+		msg.Type != protocol.MessageTypeCollabPlan {
+		return false
+	}
+	if !h.collabManager.IsParticipant(collabID, msg.From.ID) {
+		return false
+	}
+	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snapshot == nil {
+		return false
+	}
+	return snapshot.Phase == collaboration.PhasePlanning || snapshot.Phase == collaboration.PhaseReviewing
+}
+
+func (h *Hub) maybeExpandCollaborationParticipants(msg *protocol.Message, mentionedAgentIDs []string) {
+	if msg == nil || h.collabManager == nil || msg.IsFromSystem() {
+		return
+	}
+	collabID := msg.GetCollaborationID()
+	if collabID == "" || len(mentionedAgentIDs) == 0 {
+		return
+	}
+	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snapshot == nil {
+		return
+	}
+	if snapshot.Phase != collaboration.PhasePlanning && snapshot.Phase != collaboration.PhaseReviewing {
+		return
+	}
+	if !h.collabManager.IsParticipant(collabID, msg.From.ID) {
+		return
+	}
+
+	candidates := make([]string, 0, len(mentionedAgentIDs))
+	for _, agentID := range mentionedAgentIDs {
+		if agentID == "" || h.collabManager.IsParticipant(collabID, agentID) {
+			continue
+		}
+		candidates = append(candidates, agentID)
+	}
+	if len(candidates) == 0 {
+		return
+	}
+
+	added, err := h.collabManager.AddParticipants(collabID, candidates)
+	if err != nil || len(added) == 0 {
+		return
+	}
+
+	for _, participant := range added {
+		if err := h.AddAgentToChannel(participant.AgentID, msg.Channel); err != nil {
+			log.Printf("[Collaboration] Failed to add %s to channel %s: %v", participant.AgentName, msg.Channel, err)
+		}
+	}
+
+	if h.commandHandler != nil {
+		client := h.NewCollaborationClientAdapter()
+		for _, participant := range added {
+			h.commandHandler.setCollabClientOnAgent(participant.AgentID, participant.AgentName, client)
+		}
+	}
+
+	parts := make([]string, 0, len(added))
+	for _, participant := range added {
+		parts = append(parts, fmt.Sprintf("@%s (%s)", participant.AgentName, participant.Role))
+	}
+	notice := protocol.NewMessage(
+		protocol.MessageTypeCollabStatus,
+		msg.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("➕ Added to collaboration `%s`: %s", collabID[:8], strings.Join(parts, ", ")),
+	)
+	notice.SetCollaborationID(collabID)
+	notice.SetCollaborationPhase(string(snapshot.Phase))
+	if notice.Metadata == nil {
+		notice.Metadata = map[string]interface{}{}
+	}
+	notice.Metadata["collab_internal_event"] = true
+	if err := h.SendMessage(notice); err != nil {
+		log.Printf("[Collaboration] Failed to broadcast participant add notice: %v", err)
+	}
 }
 
 func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
@@ -1395,6 +1493,15 @@ func (h *Hub) GetToolApprovalManager() *ToolApprovalManager {
 // GetCollaborationManager returns the collaboration manager
 func (h *Hub) GetCollaborationManager() *collaboration.CollaborationManager {
 	return h.collabManager
+}
+
+// ListCollaborationSnapshots returns collaboration snapshots suitable for UI
+// consumption. Data is deep-copied by the collaboration manager.
+func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) []*collaboration.Collaboration {
+	if h.collabManager == nil {
+		return []*collaboration.Collaboration{}
+	}
+	return h.collabManager.ListSnapshots(channel, includeTerminal)
 }
 
 // NewCollaborationClientAdapter creates an adapter that implements

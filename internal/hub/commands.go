@@ -3029,15 +3029,10 @@ func (ch *CommandHandler) handleSwitchProvider(ctx context.Context, msg *protoco
 		model = parts[3]
 	}
 
-	// Validate provider
-	if provider != "claude" && provider != "ollama" && provider != "lmstudio" {
-		return ch.systemResponse(msg.Channel, "❌ Invalid provider. Use 'claude', 'ollama', or 'lmstudio'"), nil
-	}
-
 	// Find the agent
 	var targetAgent *protocol.AgentInfo
 	for _, agent := range ch.hub.ListAgents() {
-		if agent.Name == agentName {
+		if strings.EqualFold(agent.Name, agentName) {
 			targetAgent = agent
 			break
 		}
@@ -3047,32 +3042,14 @@ func (ch *CommandHandler) handleSwitchProvider(ctx context.Context, msg *protoco
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Agent '%s' not found", agentName)), nil
 	}
 
-	// Note: Provider switching is handled at the agent level
-	// This command updates the agent info but doesn't actually switch the running agent's provider
-
-	// Find the actual agent instance and switch provider
-	// Note: This is a simplified implementation - in practice you'd need to access the running agent
-	// For now, we'll just update the agent info and broadcast the change
-	targetAgent.AIProvider = provider
-	targetAgent.AIModel = model
-	targetAgent.Model = model
-
-	// Broadcast the change
-	statusMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentStatus,
-		msg.Channel,
-		*targetAgent,
-		fmt.Sprintf("🔄 %s switched to %s (%s)", targetAgent.Name, provider, model),
-	)
-	statusMsg.Metadata = map[string]interface{}{
-		"ai_provider": provider,
-		"ai_model":    model,
-		"model":       model,
+	if _, err := ch.SwitchAgentProvider(targetAgent.ID, provider, model, msg.Channel, msg.Metadata); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to switch %s: %v", agentName, err)), nil
 	}
-
-	ch.hub.SendMessage(statusMsg)
-
-	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ %s switched to %s (%s)", agentName, provider, model)), nil
+	modelLabel := model
+	if modelLabel == "" {
+		modelLabel = "(default)"
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ %s switched to %s (%s)", agentName, provider, modelLabel)), nil
 }
 
 // handleSwitchAllProviders handles /switch-all-providers command
@@ -3087,50 +3064,174 @@ func (ch *CommandHandler) handleSwitchAllProviders(ctx context.Context, msg *pro
 		model = parts[2]
 	}
 
-	// Validate provider
-	if provider != "claude" && provider != "ollama" && provider != "lmstudio" {
-		return ch.systemResponse(msg.Channel, "❌ Invalid provider. Use 'claude', 'ollama', or 'lmstudio'"), nil
+	switchedCount, err := ch.SwitchAllProviders(provider, model, msg.Channel, msg.Metadata)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to switch providers: %v", err)), nil
 	}
 
-	// Set default models
-	if model == "" {
-		if provider == "ollama" {
-			model = "llama3.1"
-		} else if provider == "lmstudio" {
-			model = "" // Will be determined from available models
-		} else {
-			model = "claude-sonnet"
+	modelLabel := model
+	if modelLabel == "" {
+		modelLabel = "(default)"
+	}
+	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Switched %d agents to %s (%s)", switchedCount, provider, modelLabel)), nil
+}
+
+type providerSwitchableAgent interface {
+	SetAIProvider(newProvider ai.AIProvider) error
+	GetAgentInfo() protocol.AgentInfo
+}
+
+func (ch *CommandHandler) resolveRuntimeAgent(agentID string) providerSwitchableAgent {
+	if runtimeAgent, ok := ch.runtimeAgents[agentID]; ok && runtimeAgent != nil {
+		return runtimeAgent
+	}
+	if repoAgent, ok := ch.repoAgents[agentID]; ok && repoAgent != nil {
+		return repoAgent
+	}
+	if helperAgent, ok := ch.helperAgents[agentID]; ok && helperAgent != nil {
+		return helperAgent
+	}
+	if ch.assistantAgent != nil && ch.assistantAgent.Info.ID == agentID {
+		return ch.assistantAgent.Agent
+	}
+	for _, confluenceAgent := range ch.confluenceAgents {
+		if confluenceAgent != nil && confluenceAgent.Info.ID == agentID {
+			return confluenceAgent
 		}
 	}
+	for _, cliAgent := range ch.cliAgents {
+		if cliAgent != nil && cliAgent.Info.ID == agentID {
+			return cliAgent
+		}
+	}
+	return nil
+}
 
-	// Switch all agents
+func defaultModelForProvider(provider string) string {
+	switch provider {
+	case "ollama":
+		return "llama3.1"
+	case "claude":
+		return "claude-sonnet"
+	case "lmstudio":
+		return ""
+	default:
+		return ""
+	}
+}
+
+func buildProviderForSwitch(provider, model string, metadata map[string]interface{}) (ai.AIProvider, string, error) {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	resolvedModel := strings.TrimSpace(model)
+	if resolvedModel == "" {
+		resolvedModel = defaultModelForProvider(provider)
+	}
+
+	switch provider {
+	case "ollama":
+		return ai.NewOllamaProviderWithConfig("", resolvedModel), resolvedModel, nil
+	case "lmstudio":
+		endpoint := ""
+		if metadata != nil {
+			if ep, ok := metadata["lm_studio_endpoint"].(string); ok {
+				endpoint = ep
+			}
+		}
+		return ai.NewLMStudioProviderWithConfig(endpoint, resolvedModel), resolvedModel, nil
+	case "claude":
+		var apiKey, aiHubEndpoint string
+		useAIHub := false
+		if metadata != nil {
+			if key, ok := metadata["anthropic_api_key"].(string); ok {
+				apiKey = key
+			}
+			if use, ok := metadata["use_ai_hub"].(bool); ok {
+				useAIHub = use
+			}
+			if endpoint, ok := metadata["ai_hub_endpoint"].(string); ok {
+				aiHubEndpoint = endpoint
+			}
+		}
+		if apiKey != "" {
+			return ai.NewClaudeProviderWithConfig(apiKey, useAIHub, aiHubEndpoint, resolvedModel), resolvedModel, nil
+		}
+		claudeProvider, err := ai.NewClaudeProvider()
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to initialize claude provider: %w", err)
+		}
+		return claudeProvider, resolvedModel, nil
+	default:
+		return nil, "", fmt.Errorf("invalid provider %q (allowed: claude, ollama, lmstudio)", provider)
+	}
+}
+
+// SwitchAgentProvider switches a single live agent's provider/model.
+func (ch *CommandHandler) SwitchAgentProvider(agentID, provider, model, channel string, metadata map[string]interface{}) (*protocol.AgentInfo, error) {
+	targetAgent, err := ch.hub.GetAgent(agentID)
+	if err != nil {
+		return nil, fmt.Errorf("agent not found")
+	}
+
+	runtimeAgent := ch.resolveRuntimeAgent(agentID)
+	if runtimeAgent == nil {
+		return nil, fmt.Errorf("runtime instance for agent %q not found", targetAgent.Name)
+	}
+
+	newProvider, resolvedModel, err := buildProviderForSwitch(provider, model, metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := runtimeAgent.SetAIProvider(newProvider); err != nil {
+		return nil, err
+	}
+
+	// Keep hub metadata in sync for list/detail APIs.
+	targetAgent.AIProvider = strings.ToLower(provider)
+	targetAgent.AIModel = resolvedModel
+	targetAgent.Model = resolvedModel
+	runtimeInfo := runtimeAgent.GetAgentInfo()
+	targetAgent.ApprovalMode = runtimeInfo.ApprovalMode
+
+	// Emit a status event in the caller's channel so UI updates immediately.
+	broadcastChannel := channel
+	if strings.TrimSpace(broadcastChannel) == "" {
+		broadcastChannel = "general"
+	}
+	statusMsg := protocol.NewMessage(
+		protocol.MessageTypeAgentStatus,
+		broadcastChannel,
+		*targetAgent,
+		fmt.Sprintf("🔄 %s switched to %s (%s)", targetAgent.Name, targetAgent.AIProvider, targetAgent.AIModel),
+	)
+	statusMsg.Metadata = map[string]interface{}{
+		"ai_provider": targetAgent.AIProvider,
+		"ai_model":    targetAgent.AIModel,
+		"model":       targetAgent.Model,
+	}
+	ch.hub.SendMessage(statusMsg)
+
+	return targetAgent, nil
+}
+
+// SwitchAllProviders switches all currently registered live agents.
+func (ch *CommandHandler) SwitchAllProviders(provider, model, channel string, metadata map[string]interface{}) (int, error) {
 	agents := ch.hub.ListAgents()
 	switchedCount := 0
+	var failures []string
 
-	for _, agent := range agents {
-		// Update agent info
-		agent.AIProvider = provider
-		agent.AIModel = model
-		agent.Model = model
-
-		// Broadcast the change
-		statusMsg := protocol.NewMessage(
-			protocol.MessageTypeAgentStatus,
-			msg.Channel,
-			*agent,
-			fmt.Sprintf("🔄 %s switched to %s (%s)", agent.Name, provider, model),
-		)
-		statusMsg.Metadata = map[string]interface{}{
-			"ai_provider": provider,
-			"ai_model":    model,
-			"model":       model,
+	for _, agentInfo := range agents {
+		if _, err := ch.SwitchAgentProvider(agentInfo.ID, provider, model, channel, metadata); err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", agentInfo.Name, err))
+			continue
 		}
-
-		ch.hub.SendMessage(statusMsg)
 		switchedCount++
 	}
 
-	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Switched %d agents to %s (%s)", switchedCount, provider, model)), nil
+	if len(failures) > 0 {
+		return switchedCount, fmt.Errorf(strings.Join(failures, "; "))
+	}
+	return switchedCount, nil
 }
 
 // ── Channel management commands ──────────────────────────────────────────
@@ -4168,7 +4269,7 @@ func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, clie
 	}
 	// System agents (specialist, moderator, assistant) are tracked differently;
 	// we set the field via the hub's registered agent lookup.
-	log.Printf("[Collaboration] Setting collab client on agent %s (%s) via hub lookup", agentName, agentID[:8])
+	log.Printf("[Collaboration] Setting collab client on agent %s (%s) via hub lookup", agentName, shortID(agentID))
 }
 
 func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {

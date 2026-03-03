@@ -75,7 +75,7 @@ const Toast: React.FC<ToastProps> = ({ toast }) => {
       <div className="flex-shrink-0 ml-3">
         <button
           onClick={() => removeToast(toast.id)}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-current opacity-70 hover:opacity-100 transition-opacity"
         >
           <span className="sr-only">Close</span>
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

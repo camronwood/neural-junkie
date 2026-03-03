@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration } from '../types/protocol';
 
 export class ChatAPI {
   private baseURL: string;
@@ -21,6 +21,25 @@ export class ChatAPI {
       throw new Error(`Failed to fetch messages: ${response.statusText}`);
     }
     
+    return response.json();
+  }
+
+  // Fetch collaboration snapshots for task/collaboration management UIs
+  async fetchCollaborations(channel?: string, includeTerminal: boolean = false): Promise<Collaboration[]> {
+    const params = new URLSearchParams();
+    if (channel) {
+      params.set('channel', channel);
+    }
+    if (includeTerminal) {
+      params.set('include_terminal', 'true');
+    }
+    const query = params.toString();
+    const response = await fetch(`${this.baseURL}/api/collaborations${query ? `?${query}` : ''}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch collaborations: ${response.statusText}`);
+    }
+
     return response.json();
   }
 

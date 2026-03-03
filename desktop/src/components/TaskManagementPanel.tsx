@@ -23,6 +23,11 @@ interface TaskManagementPanelProps {
   onOpenCollaboration: (collaboration: Collaboration) => void;
   onAssistantTaskDone: (taskID: string) => void;
   onAssistantReminderDismiss: (reminderID: string) => void;
+  onCollaborationCommand: (
+    command: 'approve' | 'revise' | 'cancel',
+    collaborationID: string,
+    feedback?: string
+  ) => Promise<void>;
 }
 
 function statusIcon(status: CollaborationTaskStatus): string {
@@ -66,11 +71,14 @@ export function TaskManagementPanel({
   onOpenCollaboration,
   onAssistantTaskDone,
   onAssistantReminderDismiss,
+  onCollaborationCommand,
 }: TaskManagementPanelProps) {
   const [viewMode, setViewMode] = useState<TaskViewMode>('by_agent');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [query, setQuery] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('');
+  const [revisionFeedback, setRevisionFeedback] = useState<Record<string, string>>({});
+  const [submittingByCollab, setSubmittingByCollab] = useState<Record<string, boolean>>({});
   const statusFilters: StatusFilter[] = ['all', 'pending', 'in_progress', 'blocked', 'completed'];
 
   const tasks = useMemo(() => {
@@ -129,6 +137,20 @@ export function TaskManagementPanel({
     return out;
   }, [tasks]);
 
+  const visibleCollaborations = useMemo(() => {
+    const queryLower = query.trim().toLowerCase();
+    return collaborations
+      .filter(collab => {
+        if (!queryLower) return true;
+        return (
+          collab.title.toLowerCase().includes(queryLower) ||
+          collab.description.toLowerCase().includes(queryLower) ||
+          collab.phase.toLowerCase().includes(queryLower)
+        );
+      })
+      .sort((a, b) => toTimestamp(b.updated_at) - toTimestamp(a.updated_at));
+  }, [collaborations, query]);
+
   const assistantPendingTasks = useMemo(
     () => assistantTasks.filter(task => task.status !== 'done'),
     [assistantTasks]
@@ -142,6 +164,22 @@ export function TaskManagementPanel({
     [assistantReminders]
   );
   const hasAssistantData = assistantTasks.length > 0 || activeReminders.length > 0;
+
+  const runCollabCommand = async (command: 'approve' | 'revise' | 'cancel', collab: Collaboration) => {
+    const collabID = collab.id;
+    if (!collabID) return;
+    setSubmittingByCollab(prev => ({ ...prev, [collabID]: true }));
+    try {
+      if (command === 'revise') {
+        await onCollaborationCommand('revise', collabID, revisionFeedback[collabID] || '');
+        setRevisionFeedback(prev => ({ ...prev, [collabID]: '' }));
+      } else {
+        await onCollaborationCommand(command, collabID);
+      }
+    } finally {
+      setSubmittingByCollab(prev => ({ ...prev, [collabID]: false }));
+    }
+  };
 
   return (
     <div
@@ -178,6 +216,9 @@ export function TaskManagementPanel({
             cursor: 'pointer',
             color: 'var(--text-secondary, #888)',
             fontSize: 18,
+            padding: '6px',
+            borderRadius: 6,
+            lineHeight: 1,
           }}
           aria-label="Close task management panel"
         >
@@ -255,7 +296,7 @@ export function TaskManagementPanel({
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
-        {tasks.length === 0 && !hasAssistantData ? (
+        {tasks.length === 0 && visibleCollaborations.length === 0 && !hasAssistantData ? (
           <div
             style={{
               border: '1px dashed var(--border-color, #444)',
@@ -269,6 +310,31 @@ export function TaskManagementPanel({
           </div>
         ) : (
           <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)', marginBottom: 6 }}>
+                Collaborations • {visibleCollaborations.length} tracked
+              </div>
+              {visibleCollaborations.length === 0 ? (
+                <div style={{ marginBottom: 12, color: 'var(--text-secondary, #999)', fontSize: 12 }}>
+                  No collaborations match current filters.
+                </div>
+              ) : (
+                visibleCollaborations.map(collab => (
+                  <CollaborationRow
+                    key={collab.id}
+                    collaboration={collab}
+                    onOpenCollaboration={onOpenCollaboration}
+                    feedback={revisionFeedback[collab.id] || ''}
+                    setFeedback={(value) =>
+                      setRevisionFeedback(prev => ({ ...prev, [collab.id]: value }))
+                    }
+                    isSubmitting={!!submittingByCollab[collab.id]}
+                    onRunCommand={(command) => runCollabCommand(command, collab)}
+                  />
+                ))
+              )}
+            </div>
+
             {tasks.length > 0 ? (
               viewMode === 'by_agent' ? (
                 Array.from(groupedByAgent.entries()).map(([agentName, rows]) => (
@@ -415,6 +481,133 @@ export function TaskManagementPanel({
               )}
             </div>
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CollaborationRow({
+  collaboration,
+  onOpenCollaboration,
+  feedback,
+  setFeedback,
+  isSubmitting,
+  onRunCommand,
+}: {
+  collaboration: Collaboration;
+  onOpenCollaboration: (collaboration: Collaboration) => void;
+  feedback: string;
+  setFeedback: (value: string) => void;
+  isSubmitting: boolean;
+  onRunCommand: (command: 'approve' | 'revise' | 'cancel') => void;
+}) {
+  const isTerminal = collaboration.phase === 'completed' || collaboration.phase === 'cancelled';
+  return (
+    <div
+      style={{
+        padding: '8px 10px',
+        marginBottom: 6,
+        borderRadius: 6,
+        backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
+        fontSize: 12,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <div style={{ color: 'var(--text-primary, #eee)', fontWeight: 500 }}>
+          {collaboration.title}
+        </div>
+        <div style={{ color: 'var(--text-secondary, #999)', fontSize: 11 }}>
+          {collaboration.phase}
+        </div>
+      </div>
+      <div style={{ marginTop: 4, color: 'var(--text-secondary, #999)', fontSize: 11 }}>
+        {collaboration.tasks?.length || 0} task(s) • updated {formatUpdatedAt(collaboration.updated_at)}
+      </div>
+      <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => onOpenCollaboration(collaboration)}
+          style={{
+            border: '1px solid var(--border-color, #444)',
+            borderRadius: 6,
+            backgroundColor: 'transparent',
+            color: 'var(--text-secondary, #999)',
+            fontSize: 11,
+            padding: '2px 8px',
+            cursor: 'pointer',
+          }}
+        >
+          Open
+        </button>
+        {collaboration.phase === 'reviewing' && (
+          <>
+            <button
+              disabled={isSubmitting}
+              onClick={() => onRunCommand('approve')}
+              style={{
+                border: '1px solid #10b981',
+                borderRadius: 6,
+                backgroundColor: 'transparent',
+                color: '#10b981',
+                fontSize: 11,
+                padding: '2px 8px',
+                cursor: 'pointer',
+                opacity: isSubmitting ? 0.6 : 1,
+              }}
+            >
+              Approve
+            </button>
+            <input
+              type="text"
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              placeholder="Revision feedback..."
+              style={{
+                flex: 1,
+                minWidth: 140,
+                padding: '2px 8px',
+                borderRadius: 6,
+                border: '1px solid var(--border-color, #444)',
+                backgroundColor: 'var(--bg-secondary, #1e1e1e)',
+                color: 'var(--text-primary, #eee)',
+                fontSize: 11,
+              }}
+            />
+            <button
+              disabled={isSubmitting || !feedback.trim()}
+              onClick={() => onRunCommand('revise')}
+              style={{
+                border: '1px solid #3b82f6',
+                borderRadius: 6,
+                backgroundColor: 'transparent',
+                color: '#3b82f6',
+                fontSize: 11,
+                padding: '2px 8px',
+                cursor: 'pointer',
+                opacity: isSubmitting || !feedback.trim() ? 0.6 : 1,
+              }}
+            >
+              Revise
+            </button>
+          </>
+        )}
+        {!isTerminal && (
+          <button
+            disabled={isSubmitting}
+            onClick={() => onRunCommand('cancel')}
+            style={{
+              border: '1px solid #ef4444',
+              borderRadius: 6,
+              backgroundColor: 'transparent',
+              color: '#ef4444',
+              fontSize: 11,
+              padding: '2px 8px',
+              cursor: 'pointer',
+              opacity: isSubmitting ? 0.6 : 1,
+            }}
+          >
+            Cancel
+          </button>
         )}
       </div>
     </div>

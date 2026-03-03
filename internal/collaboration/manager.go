@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -174,6 +175,106 @@ func (cm *CollaborationManager) ListActive() []*Collaboration {
 		}
 	}
 	return out
+}
+
+// ListSnapshots returns deep-copied collaboration snapshots optionally filtered
+// by channel and terminal-state inclusion. Results are sorted by most recently
+// updated collaboration first.
+func (cm *CollaborationManager) ListSnapshots(channel string, includeTerminal bool) []*Collaboration {
+	cm.mu.RLock()
+	candidates := make([]*Collaboration, 0, len(cm.collaborations))
+	for _, c := range cm.collaborations {
+		if c == nil {
+			continue
+		}
+		if channel != "" && c.Channel != channel {
+			continue
+		}
+		if !includeTerminal && (c.Phase == PhaseCompleted || c.Phase == PhaseCancelled) {
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+	cm.mu.RUnlock()
+
+	snapshots := make([]*Collaboration, 0, len(candidates))
+	for _, c := range candidates {
+		cloned, err := cloneCollaboration(c)
+		if err != nil {
+			log.Printf("[CollaborationManager] Failed to clone collaboration %s for list: %v", shortCollabID(c.ID), err)
+			continue
+		}
+		snapshots = append(snapshots, cloned)
+	}
+
+	sort.SliceStable(snapshots, func(i, j int) bool {
+		return snapshots[i].UpdatedAt.After(snapshots[j].UpdatedAt)
+	})
+	return snapshots
+}
+
+// AddParticipants adds one or more agents to an active planning/reviewing
+// collaboration and extends the discussion participant list for turn-taking.
+// Returns snapshots of newly-added participants.
+func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []string) ([]CollaborationAgent, error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.Phase != PhasePlanning && c.Phase != PhaseReviewing {
+		return nil, fmt.Errorf("cannot add participants while collaboration is in %s phase", c.Phase)
+	}
+
+	existing := make(map[string]struct{}, len(c.Agents))
+	for _, participant := range c.Agents {
+		existing[participant.AgentID] = struct{}{}
+	}
+
+	added := make([]CollaborationAgent, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		if id == "" {
+			continue
+		}
+		if _, already := existing[id]; already {
+			continue
+		}
+
+		info, err := cm.hub.GetAgent(id)
+		if err != nil || info == nil {
+			return nil, fmt.Errorf("agent %s not found", id)
+		}
+
+		participant := CollaborationAgent{
+			AgentID:   info.ID,
+			AgentName: info.Name,
+			AgentType: info.Type,
+			Expertise: info.Expertise,
+			Role:      SuggestRole(info.Type, info.Expertise),
+		}
+		c.Agents = append(c.Agents, participant)
+		existing[id] = struct{}{}
+		added = append(added, participant)
+
+		if c.Discussion != nil {
+			c.Discussion.Participants = append(c.Discussion.Participants, id)
+			if c.Discussion.TurnsThisRound == nil {
+				c.Discussion.TurnsThisRound = make(map[string]int)
+			}
+			if c.Discussion.Consensus == nil {
+				c.Discussion.Consensus = make(map[string]ConsensusState)
+			}
+			c.Discussion.TurnsThisRound[id] = 0
+			c.Discussion.Consensus[id] = ConsensusUndecided
+		}
+	}
+
+	if len(added) > 0 {
+		c.UpdatedAt = time.Now()
+	}
+	return added, nil
 }
 
 // ApprovePlan transitions a collaboration from reviewing -> executing
