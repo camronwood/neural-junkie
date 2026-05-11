@@ -4,6 +4,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
 import { getContentHash } from '../utils/markdownRenderer';
+import { mapHighlighterLanguage, normalizeAgentMessageMarkdown } from '../utils/markdownNormalize';
 
 interface MessageContentProps {
   content: string;
@@ -125,15 +126,17 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
 }
 
 function parseContent(content: string): ContentPart[] {
+  const normalized = normalizeAgentMessageMarkdown(content);
   const parts: ContentPart[] = [];
-  const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+  // Language optional; Unix/Windows newlines; non-greedy body until closing ```
+  const codeBlockRegex = /```([\w-]*)?\s*\r?\n([\s\S]*?)```/g;
   let lastIndex = 0;
   let match;
 
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  while ((match = codeBlockRegex.exec(normalized)) !== null) {
     // Add text before code block
     if (match.index > lastIndex) {
-      const textContent = content.substring(lastIndex, match.index);
+      const textContent = normalized.substring(lastIndex, match.index);
       if (textContent.trim()) {
         parts.push({ type: 'text', content: textContent });
       }
@@ -153,8 +156,8 @@ function parseContent(content: string): ContentPart[] {
   }
 
   // Add remaining text
-  if (lastIndex < content.length) {
-    const textContent = content.substring(lastIndex);
+  if (lastIndex < normalized.length) {
+    const textContent = normalized.substring(lastIndex);
     if (textContent.trim()) {
       parts.push({ type: 'text', content: textContent });
     }
@@ -162,7 +165,7 @@ function parseContent(content: string): ContentPart[] {
 
   // If no code blocks found, return the entire content as text
   if (parts.length === 0) {
-    parts.push({ type: 'text', content });
+    parts.push({ type: 'text', content: normalized });
   }
 
   return parts;
@@ -243,25 +246,30 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
 }
 
 function CodeBlock({ content, language }: { content: string; language: string }) {
+  const hl = mapHighlighterLanguage(language || 'text');
   return (
-    <div className="my-3 rounded overflow-hidden border border-slack-border">
-      {/* Language label */}
-      <div className="px-3 py-1 bg-slack-bgHover border-b border-slack-border text-xs text-slack-textMuted font-mono">
-        {language}
+    <div className="my-3 overflow-hidden rounded-md border border-slack-border shadow-sm">
+      <div className="border-b border-slack-border bg-slack-bgHover px-3 py-1.5 text-xs font-mono text-slack-textMuted">
+        {language || 'text'}
       </div>
-      
-      {/* Code content */}
       <SyntaxHighlighter
-        language={language}
+        language={hl}
         style={vscDarkPlus}
         customStyle={{
           margin: 0,
-          padding: '1rem',
+          padding: '0.75rem 1rem',
           background: '#1e1e1e',
-          fontSize: '0.875rem',
+          fontSize: '0.8125rem',
+          lineHeight: 1.55,
         }}
-        showLineNumbers={true}
-        wrapLongLines={false}
+        codeTagProps={{
+          style: {
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          },
+        }}
+        showLineNumbers={content.split('\n').length <= 40}
+        wrapLongLines
       >
         {content}
       </SyntaxHighlighter>
