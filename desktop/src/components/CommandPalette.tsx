@@ -129,13 +129,19 @@ export function CommandPalette({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+      role="presentation"
+    >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} role="presentation" aria-hidden />
 
       {/* Palette */}
       <div
-        className="relative bg-slack-bg border border-slack-border rounded-lg shadow-2xl w-full max-w-lg overflow-hidden flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="relative z-10 flex w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slack-border bg-slack-bg shadow-2xl"
         style={{ maxHeight: '60vh' }}
         onKeyDown={handleKeyDown}
       >
@@ -165,8 +171,11 @@ export function CommandPalette({
             {/* Results */}
             <div ref={listRef} className="flex-1 overflow-y-auto">
               {flatList.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-slack-textMuted">
-                  No matching commands
+                <div className="px-4 py-10 text-center text-sm text-slack-textMuted">
+                  <p className="font-medium text-slack-text">No matching commands</p>
+                  <p className="mt-2 text-xs leading-relaxed">
+                    Try another keyword, or clear the search to browse all commands.
+                  </p>
                 </div>
               ) : (
                 Array.from(grouped.entries()).map(([category, cmds]) => (

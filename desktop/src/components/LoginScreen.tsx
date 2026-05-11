@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import { saveCredentials, loadCredentials } from '../utils/secureStorage';
+import { getHubBaseURL } from '../config/hubUrl';
 
 interface LoginScreenProps {
   onConnect: () => void;
@@ -44,7 +45,7 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
     // Validate inputs
     const name = nameInput.trim() || 'Anonymous';
     const chan = channelInput.trim() || 'general';
-    const server = serverInput.trim() || 'localhost:8080';
+    const server = serverInput.trim() || getHubBaseURL();
 
     setError(null);
     setIsConnecting(true);
@@ -79,15 +80,21 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !isConnecting) {
-      handleConnect();
-    }
+  const handleFormKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (isConnecting || isLoadingCredentials) return;
+    if (e.target instanceof HTMLTextAreaElement) return;
+    e.preventDefault();
+    handleConnect();
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slack-bg p-8">
-      <div className="w-full max-w-md">
+      <div
+        className="w-full max-w-md"
+        onKeyDown={handleFormKeyDown}
+        aria-busy={isConnecting || isLoadingCredentials}
+      >
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-slack-text mb-2">
@@ -99,7 +106,7 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
         </div>
 
         {/* Form */}
-        <div className="bg-slack-bgHover rounded-lg p-6 shadow-xl border border-slack-border">
+        <div className="bg-slack-bgHover rounded-xl p-6 shadow-xl border border-slack-border">
           <div className="space-y-4">
             {/* Name Input */}
             <div>
@@ -111,10 +118,10 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
                 type="text"
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
-                onKeyPress={handleKeyPress}
                 placeholder="Enter your name"
+                autoComplete="username"
                 disabled={isConnecting}
-                className="w-full px-4 py-2 bg-slack-bg text-slack-text placeholder-slack-textMuted rounded border border-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
+                className="w-full px-4 py-2 bg-slack-bg text-slack-text placeholder-slack-textMuted rounded-md border border-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
               />
             </div>
 
@@ -128,10 +135,10 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
                 type="text"
                 value={channelInput}
                 onChange={(e) => setChannelInput(e.target.value)}
-                onKeyPress={handleKeyPress}
                 placeholder="general"
+                autoComplete="off"
                 disabled={isConnecting}
-                className="w-full px-4 py-2 bg-slack-bg text-slack-text placeholder-slack-textMuted rounded border border-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
+                className="w-full px-4 py-2 bg-slack-bg text-slack-text placeholder-slack-textMuted rounded-md border border-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
               />
             </div>
 
@@ -145,10 +152,10 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
                 type="text"
                 value={serverInput}
                 onChange={(e) => setServerInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="localhost:8080"
+                placeholder={getHubBaseURL().replace(/^https?:\/\//, '')}
+                autoComplete="url"
                 disabled={isConnecting}
-                className="w-full px-4 py-2 bg-slack-bg text-slack-text placeholder-slack-textMuted rounded border border-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
+                className="w-full px-4 py-2 bg-slack-bg text-slack-text placeholder-slack-textMuted rounded-md border border-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
               />
             </div>
 
@@ -169,18 +176,23 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
 
             {/* Error Message */}
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/50 rounded text-red-500 text-sm">
+              <div
+                className="p-3 bg-red-500/10 border border-red-500/50 rounded-md text-red-300 text-sm"
+                role="alert"
+              >
                 {error}
               </div>
             )}
 
             {/* Connect Button */}
             <button
+              type="button"
               onClick={handleConnect}
               disabled={isConnecting || isLoadingCredentials}
-              className="w-full px-4 py-3 bg-slack-accent hover:bg-slack-accentHover text-white font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-busy={isConnecting}
+              className="w-full px-4 py-3 bg-slack-accent hover:bg-slack-accentHover text-white font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
             >
-              {isLoadingCredentials ? 'Loading...' : isConnecting ? 'Connecting...' : 'Connect'}
+              {isLoadingCredentials ? 'Loading…' : isConnecting ? 'Connecting…' : 'Connect'}
             </button>
           </div>
         </div>

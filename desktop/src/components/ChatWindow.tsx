@@ -713,16 +713,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             <span className="text-slack-textMuted">{getStatusText()}</span>
           </div>
           <input
-            type="text"
+            type="search"
             value={messageSearchQuery}
             onChange={(e) => setMessageSearchQuery(e.target.value)}
-            placeholder="Search chat..."
-            className="ml-2 w-44 sm:w-56 px-2 py-1 rounded bg-slack-bg border border-slack-border text-xs text-slack-text placeholder:text-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+            placeholder="Search chat…"
+            aria-label="Search messages in this channel"
+            className="ml-2 w-44 sm:w-56 rounded-md border border-slack-border bg-slack-bg px-2 py-1 text-xs text-slack-text placeholder:text-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
           />
         </div>
         
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => {
               const next = !channelSidebarOpen;
               setChannelSidebarOpen(next);
@@ -734,6 +736,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
             }`}
             title="Toggle channels sidebar (⌘B)"
+            aria-label="Toggle channels sidebar"
+            aria-pressed={channelSidebarOpen}
           >
             <LeftSidebarIcon className="w-3.5 h-3.5" />
           </button>
@@ -741,14 +745,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <div className="w-px h-5 bg-slack-border mx-0.5" />
 
           <button
+            type="button"
             onClick={openCommandPalette}
-            className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold"
+            className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
             title="Command palette"
+            aria-label="Open command palette"
           >
             /
           </button>
 
           <button
+            type="button"
             onClick={() => {
               const next = !shareWorkspace;
               setShareWorkspace(next);
@@ -760,6 +767,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
             }`}
             title={shareWorkspace ? 'Workspace sharing ON — agents can see your files' : 'Share workspace context with agents'}
+            aria-label={shareWorkspace ? 'Workspace sharing on' : 'Share workspace context with agents'}
+            aria-pressed={shareWorkspace}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
@@ -770,27 +779,34 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </button>
 
           <button
+            type="button"
             onClick={() => setPendingChangesOpen(true)}
-            className="w-7 h-7 bg-orange-600 hover:bg-orange-700 text-white rounded transition-colors flex items-center justify-center relative"
+            className="w-7 h-7 bg-orange-600 hover:bg-orange-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400"
             title="Pending changes"
+            aria-label="Open pending file changes"
           >
             <PendingChangesIcon className="w-3.5 h-3.5" />
           </button>
 
           <button
+            type="button"
             onClick={() => setTaskManagementOpen(true)}
             className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
               taskManagementOpen ? 'bg-violet-600 hover:bg-violet-700' : 'bg-violet-700/80 hover:bg-violet-700'
             } text-white`}
             title="Task management (⌘⇧T)"
+            aria-label="Open task management"
+            aria-pressed={taskManagementOpen}
           >
             <TaskManagementIcon className="w-3.5 h-3.5" />
           </button>
           
           <button
+            type="button"
             onClick={() => setMyAgentsPanelOpen(true)}
-            className="w-7 h-7 bg-slack-accent hover:bg-slack-accentHover text-white rounded transition-colors flex items-center justify-center relative"
+            className="w-7 h-7 bg-slack-accent hover:bg-slack-accentHover text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
             title="My agents"
+            aria-label="Open my agents"
           >
             <MyAgentsIcon className="w-3.5 h-3.5" />
             {totalAgentsCount > 0 && (
@@ -801,25 +817,31 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </button>
           
           <button
+            type="button"
             onClick={() => setFileExplorerOpen(true)}
-            className="w-7 h-7 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center justify-center"
+            className="w-7 h-7 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400"
             title="File explorer"
+            aria-label="Open file explorer"
           >
             <FilesIcon className="w-3.5 h-3.5" />
           </button>
           
           <button
+            type="button"
             onClick={() => setCodeEditorOpen(true)}
-            className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center justify-center"
+            className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
             title="Code editor"
+            aria-label="Open code editor"
           >
             <EditorIcon className="w-3.5 h-3.5" />
           </button>
           
           <button
+            type="button"
             onClick={() => useTerminalStore.getState().togglePanel()}
-            className="w-7 h-7 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors flex items-center justify-center relative"
+            className="w-7 h-7 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-400"
             title="Terminal (⌘J)"
+            aria-label="Toggle terminal panel"
           >
             <TerminalIcon className="w-3.5 h-3.5" />
             {useTerminalStore.getState().suggestedCommands.length > 0 && (
@@ -833,9 +855,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           
           {onOpenSettings && (
             <button
+              type="button"
               onClick={onOpenSettings}
-              className="w-7 h-7 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded transition-colors flex items-center justify-center"
+              className="w-7 h-7 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
               title="Settings (⌘,)"
+              aria-label="Open settings"
             >
               <SettingsIcon className="w-3.5 h-3.5" />
             </button>
@@ -843,9 +867,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           
           {onLogout && (
             <button
+              type="button"
               onClick={handleLogout}
-              className="w-7 h-7 text-slack-textMuted hover:text-red-500 hover:bg-red-500/10 rounded transition-colors flex items-center justify-center"
+              className="w-7 h-7 text-slack-textMuted hover:text-red-500 hover:bg-red-500/10 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
               title="Logout"
+              aria-label="Log out"
             >
               <LogoutIcon className="w-3.5 h-3.5" />
             </button>
