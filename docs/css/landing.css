@@ -66,6 +66,43 @@ a:hover {
   margin-inline: auto;
 }
 
+/* Early-access / development notice */
+.dev-banner {
+  background: rgba(212, 168, 75, 0.09);
+  border-bottom: 1px solid rgba(212, 168, 75, 0.28);
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.dev-banner-inner {
+  padding: 0.65rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+}
+
+.dev-banner strong {
+  font-weight: 700;
+  color: #e8c96b;
+  letter-spacing: 0.02em;
+}
+
+.dev-banner span {
+  color: var(--text-muted);
+}
+
+.dev-banner a {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dev-banner-highlight {
+  font-weight: 600;
+  color: var(--text);
+}
+
 /* Header */
 .site-header {
   padding: 1rem 0;
