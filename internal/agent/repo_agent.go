@@ -329,6 +329,14 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		return
 	}
 
+	// Add to history before eligibility checks so we retain ordering for all traffic.
+	ra.addToHistory(msg)
+
+	// Decide if we should respond (before marking "responded" to avoid suppressing future unrelated work)
+	if !ra.shouldRespondToRepo(msg) {
+		return
+	}
+
 	// Check if we've already responded to this message
 	ra.respondedMutex.Lock()
 	if ra.respondedMessages[msg.ID] {
@@ -338,14 +346,6 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	ra.respondedMessages[msg.ID] = true
 	ra.respondedMutex.Unlock()
-
-	// Add to history
-	ra.addToHistory(msg)
-
-	// Decide if we should respond
-	if !ra.shouldRespondToRepo(msg) {
-		return
-	}
 
 	log.Printf("[%s] Processing message from %s: %s", ra.Info.Name, msg.From.Name, msg.Content)
 

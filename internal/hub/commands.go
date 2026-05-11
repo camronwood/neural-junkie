@@ -17,6 +17,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
 )
@@ -1953,22 +1954,30 @@ func (ch *CommandHandler) handleOpenFile(ctx context.Context, msg *protocol.Mess
 	}
 
 	filePath := strings.Join(parts[1:], " ")
-	resolved := filePath
-
-	if !filepath.IsAbs(resolved) {
-		if wm := ch.hub.GetWorkspaceManager(); wm != nil {
-			workspaces := wm.ListWorkspaces()
-			if len(workspaces) > 0 {
-				resolved = filepath.Join(workspaces[0].Path, resolved)
-			}
+	wm := ch.hub.GetWorkspaceManager()
+	if wm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Workspace manager is not available"), nil
+	}
+	var absPath string
+	found := false
+	for _, ws := range wm.ListWorkspaces() {
+		candidate := filePath
+		if !filepath.IsAbs(candidate) {
+			candidate = filepath.Join(ws.Path, candidate)
+		}
+		p, err := pathutil.WithinRoot(ws.Path, candidate)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(p); err == nil {
+			absPath = p
+			found = true
+			break
 		}
 	}
-	absPath, err := filepath.Abs(resolved)
-	if err != nil {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to resolve file path: %v", err)), nil
-	}
-	if _, err := os.Stat(absPath); err != nil {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ File not found: %s", absPath)), nil
+	if !found {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ File not found or path not under any workspace: %s", filePath)), nil
 	}
 
 	return ch.systemResponse(msg.Channel,

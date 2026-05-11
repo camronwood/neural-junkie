@@ -15,6 +15,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -1677,17 +1678,16 @@ func (h *Hub) resolveWorkspacePath(filePath, workspaceRoot string) (string, erro
 	if filePath == "" {
 		return "", fmt.Errorf("empty file path")
 	}
-
-	// If path is already absolute, return a cleaned absolute path as-is.
-	if filepath.IsAbs(filePath) {
-		return filepath.Clean(filePath), nil
-	}
-
 	if workspaceRoot == "" {
-		return "", fmt.Errorf("missing workspace root for relative path: %s", filePath)
+		return "", fmt.Errorf("missing workspace root for path: %s", filePath)
 	}
-
-	return filepath.Join(workspaceRoot, filePath), nil
+	var candidate string
+	if filepath.IsAbs(filePath) {
+		candidate = filePath
+	} else {
+		candidate = filepath.Join(workspaceRoot, filePath)
+	}
+	return pathutil.WithinRoot(workspaceRoot, candidate)
 }
 
 // resolveWorkspaceRoot returns the workspace root path from message context only.

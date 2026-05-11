@@ -454,11 +454,12 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	// Try streaming path first, fall back to batch
 	var response string
+	var streamMsgID string
 	var err error
 
 	if sp, ok := a.AI.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
-		response, err = a.generateResponseStreaming(ctx, msg, sp)
+		response, streamMsgID, err = a.generateResponseStreaming(ctx, msg, sp)
 	} else {
 		log.Printf("[%s] 📝 Generating response (batch)...", a.Info.Name)
 		response, err = a.generateResponse(ctx, msg)
@@ -501,13 +502,17 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	log.Printf("[%s] ✍️  Generated response: %s", a.Info.Name, response[:min(50, len(response))])
 
-	// Send response
+	// Send response -- reuse the stream message ID when available so the
+	// frontend can correlate deltas with the final persisted message.
 	responseMsg := protocol.NewMessage(
 		protocol.MessageTypeChat,
 		msg.Channel,
 		a.Info,
 		response,
 	)
+	if streamMsgID != "" {
+		responseMsg.ID = streamMsgID
+	}
 	responseMsg.ReplyTo = msg.ID
 
 	// If responding to a thread message, keep it in the thread
@@ -1578,8 +1583,10 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	}
 
 	// Add context about other agents in the channel
-	agents, _ := a.Hub.GetChannelAgents(msg.Channel)
-	if len(agents) > 1 && !isCollab {
+	agents, errAgents := a.Hub.GetChannelAgents(msg.Channel)
+	if errAgents != nil {
+		log.Printf("[%s] GetChannelAgents(%s): %v", a.Info.Name, msg.Channel, errAgents)
+	} else if len(agents) > 1 && !isCollab {
 		system.WriteString("\nOther agents in this channel:\n")
 		for _, agent := range agents {
 			if agent.ID != a.Info.ID {

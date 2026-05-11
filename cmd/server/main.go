@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -25,6 +27,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
 	"github.com/gorilla/websocket"
@@ -33,9 +36,7 @@ import (
 var (
 	addr     = flag.String("addr", ":8080", "HTTP service address")
 	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for demo
-		},
+		CheckOrigin: checkWebSocketOrigin,
 	}
 	chatHub          *hub.Hub
 	workspaceManager *hub.WorkspaceManager
@@ -51,7 +52,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		// Note: do not send Access-Control-Allow-Credentials with wildcard Origin (invalid CORS pairing).
 
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {
@@ -61,6 +62,43 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		next(w, r)
 	}
+}
+
+// checkWebSocketOrigin restricts browser WebSocket hijacking (CSWSH). Non-browser clients often omit Origin.
+// Override with NEURAL_JUNKIE_WS_ORIGINS (comma-separated full Origin URLs) for extra dev hosts.
+func checkWebSocketOrigin(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	u, err := url.Parse(o)
+	if err != nil || u.Hostname() == "" {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	switch host {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	if strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	if rh := r.Host; rh != "" {
+		reqHost, _, splitErr := net.SplitHostPort(rh)
+		if splitErr != nil {
+			reqHost = rh
+		}
+		if strings.EqualFold(host, strings.ToLower(reqHost)) {
+			return true
+		}
+	}
+	for _, extra := range strings.Split(os.Getenv("NEURAL_JUNKIE_WS_ORIGINS"), ",") {
+		if strings.TrimSpace(extra) == o {
+			return true
+		}
+	}
+	log.Printf("websocket: rejected Origin %q for Host %q (set NEURAL_JUNKIE_WS_ORIGINS to allow)", o, r.Host)
+	return false
 }
 
 func main() {
@@ -1729,7 +1767,11 @@ func configureGeminiApprovalHook() {
 		}
 	}
 
-	hookBinAbs, _ := filepath.Abs(hookBin)
+	hookBinAbs, errAbs := filepath.Abs(hookBin)
+	if errAbs != nil {
+		log.Printf("⚠️  Could not resolve absolute path for tool-approval-hook: %v", errAbs)
+		return
+	}
 	serverURL := fmt.Sprintf("http://localhost%s", *addr)
 	hookCommand := fmt.Sprintf("%s --server %s --agent Gemini --agent-id gemini-cli --mode interactive", hookBinAbs, serverURL)
 
@@ -1737,7 +1779,10 @@ func configureGeminiApprovalHook() {
 	var settings map[string]interface{}
 	data, err := os.ReadFile(settingsPath)
 	if err == nil {
-		json.Unmarshal(data, &settings)
+		if jerr := json.Unmarshal(data, &settings); jerr != nil {
+			log.Printf("⚠️  Could not parse Gemini settings.json: %v", jerr)
+			settings = nil
+		}
 	}
 	if settings == nil {
 		settings = make(map[string]interface{})
@@ -2479,18 +2524,8 @@ func handleFiles(w http.ResponseWriter, r *http.Request) {
 
 	fullPath := filepath.Join(workspace.Path, path)
 
-	// Security check - ensure path is within workspace
-	absPath, err := filepath.Abs(fullPath)
+	absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
 	if err != nil {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
-		return
-	}
-	workspaceAbsPath, err := filepath.Abs(workspace.Path)
-	if err != nil {
-		http.Error(w, "Invalid workspace path", http.StatusInternalServerError)
-		return
-	}
-	if !strings.HasPrefix(absPath, workspaceAbsPath) {
 		http.Error(w, "Path outside workspace", http.StatusForbidden)
 		return
 	}
@@ -2546,18 +2581,8 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 
 		fullPath := filepath.Join(workspace.Path, path)
 
-		// Security check
-		absPath, err := filepath.Abs(fullPath)
+		absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
 		if err != nil {
-			http.Error(w, "Invalid path", http.StatusBadRequest)
-			return
-		}
-		workspaceAbsPath, err := filepath.Abs(workspace.Path)
-		if err != nil {
-			http.Error(w, "Invalid workspace path", http.StatusInternalServerError)
-			return
-		}
-		if !strings.HasPrefix(absPath, workspaceAbsPath) {
 			http.Error(w, "Path outside workspace", http.StatusForbidden)
 			return
 		}
@@ -2590,18 +2615,8 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 
 		fullPath := filepath.Join(workspace.Path, req.Path)
 
-		// Security check
-		absPath, err := filepath.Abs(fullPath)
+		absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
 		if err != nil {
-			http.Error(w, "Invalid path", http.StatusBadRequest)
-			return
-		}
-		workspaceAbsPath, err := filepath.Abs(workspace.Path)
-		if err != nil {
-			http.Error(w, "Invalid workspace path", http.StatusInternalServerError)
-			return
-		}
-		if !strings.HasPrefix(absPath, workspaceAbsPath) {
 			http.Error(w, "Path outside workspace", http.StatusForbidden)
 			return
 		}
@@ -2647,18 +2662,8 @@ func handleFileCreate(w http.ResponseWriter, r *http.Request) {
 
 	fullPath := filepath.Join(workspace.Path, req.Path)
 
-	// Security check
-	absPath, err := filepath.Abs(fullPath)
+	absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
 	if err != nil {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
-		return
-	}
-	workspaceAbsPath, err := filepath.Abs(workspace.Path)
-	if err != nil {
-		http.Error(w, "Invalid workspace path", http.StatusInternalServerError)
-		return
-	}
-	if !strings.HasPrefix(absPath, workspaceAbsPath) {
 		http.Error(w, "Path outside workspace", http.StatusForbidden)
 		return
 	}
@@ -2708,23 +2713,13 @@ func handleFileRename(w http.ResponseWriter, r *http.Request) {
 	oldFullPath := filepath.Join(workspace.Path, req.OldPath)
 	newFullPath := filepath.Join(workspace.Path, req.NewPath)
 
-	// Security checks
-	oldAbsPath, err := filepath.Abs(oldFullPath)
+	oldAbsPath, err := pathutil.WithinRoot(workspace.Path, oldFullPath)
 	if err != nil {
-		http.Error(w, "Invalid old path", http.StatusBadRequest)
+		http.Error(w, "Path outside workspace", http.StatusForbidden)
 		return
 	}
-	newAbsPath, err := filepath.Abs(newFullPath)
+	newAbsPath, err := pathutil.WithinRoot(workspace.Path, newFullPath)
 	if err != nil {
-		http.Error(w, "Invalid new path", http.StatusBadRequest)
-		return
-	}
-	workspaceAbsPath, err := filepath.Abs(workspace.Path)
-	if err != nil {
-		http.Error(w, "Invalid workspace path", http.StatusInternalServerError)
-		return
-	}
-	if !strings.HasPrefix(oldAbsPath, workspaceAbsPath) || !strings.HasPrefix(newAbsPath, workspaceAbsPath) {
 		http.Error(w, "Path outside workspace", http.StatusForbidden)
 		return
 	}
@@ -2758,18 +2753,8 @@ func handleFileDelete(w http.ResponseWriter, r *http.Request) {
 
 	fullPath := filepath.Join(workspace.Path, path)
 
-	// Security check
-	absPath, err := filepath.Abs(fullPath)
+	absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
 	if err != nil {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
-		return
-	}
-	workspaceAbsPath, err := filepath.Abs(workspace.Path)
-	if err != nil {
-		http.Error(w, "Invalid workspace path", http.StatusInternalServerError)
-		return
-	}
-	if !strings.HasPrefix(absPath, workspaceAbsPath) {
 		http.Error(w, "Path outside workspace", http.StatusForbidden)
 		return
 	}
@@ -2899,15 +2884,16 @@ func handleProposeFileChangeFromMessage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	targetPath = filepath.Clean(targetPath)
-	if filepath.IsAbs(targetPath) {
-		if !strings.HasPrefix(targetPath, filepath.Clean(workspace.Path)) {
-			http.Error(w, "Target path is outside workspace", http.StatusBadRequest)
-			return
-		}
-	} else {
-		targetPath = filepath.Join(workspace.Path, targetPath)
+	candidate := filepath.Clean(targetPath)
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(workspace.Path, candidate)
 	}
+	absTarget, err := pathutil.WithinRoot(workspace.Path, candidate)
+	if err != nil {
+		http.Error(w, "Target path is outside workspace", http.StatusBadRequest)
+		return
+	}
+	targetPath = absTarget
 
 	info, statErr := os.Stat(targetPath)
 	if statErr != nil || info.IsDir() {

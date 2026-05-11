@@ -121,7 +121,10 @@ func (h *HelperAgent) loadKnowledgeFile(path string) error {
 	}
 
 	// Store with relative filename as key
-	relPath, _ := filepath.Rel(h.KnowledgePath, path)
+	relPath, relErr := filepath.Rel(h.KnowledgePath, path)
+	if relErr != nil {
+		return fmt.Errorf("knowledge path rel: %w", relErr)
+	}
 	h.Knowledge.Documents[relPath] = string(content)
 
 	// Extract topics/headings for indexing

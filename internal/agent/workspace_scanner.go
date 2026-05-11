@@ -182,7 +182,10 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 			if repo.ShouldIgnore(info.Name()) {
 				return filepath.SkipDir
 			}
-			rel, _ := filepath.Rel(absWorkspace, path)
+			rel, relErr := filepath.Rel(absWorkspace, path)
+			if relErr != nil {
+				return nil
+			}
 			if rel != "." && strings.Count(rel, string(filepath.Separator)) >= maxScanDepth {
 				return filepath.SkipDir
 			}
