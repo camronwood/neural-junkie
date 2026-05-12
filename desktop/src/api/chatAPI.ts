@@ -1,15 +1,16 @@
 import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration } from '../types/protocol';
-import { getHubBaseURL } from '../config/hubUrl';
+import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
 
 export class ChatAPI {
   private baseURL: string;
   private commandsCache: CommandDefinition[] | null = null;
 
   constructor(serverAddr: string = getHubBaseURL()) {
+    const normalized = normalizeLegacyHubServerAddr(serverAddr);
     // Ensure we have http:// prefix
-    this.baseURL = serverAddr.startsWith('http')
-      ? serverAddr
-      : `http://${serverAddr}`;
+    this.baseURL = normalized.startsWith('http')
+      ? normalized
+      : `http://${normalized}`;
   }
 
   // Fetch existing messages for a channel

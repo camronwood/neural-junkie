@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
-import { getHubBaseURL } from '../config/hubUrl';
+import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
 
 interface ChatState {
   // Connection
@@ -135,7 +135,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   
-  setServerAddr: (addr) => set({ serverAddr: addr }),
+  setServerAddr: (addr) => set({ serverAddr: normalizeLegacyHubServerAddr(addr) }),
   
   setChannel: (channel) => set({ channel }),
   
