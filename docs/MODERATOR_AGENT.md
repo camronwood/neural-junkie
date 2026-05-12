@@ -258,7 +258,7 @@ Potential improvements:
 - Check if keywords match unintended queries
 
 ### Server won't start
-- Check port 8080 availability
+- Check port 18765 availability
 - Verify AI provider configuration
 - Check server logs for errors
 
@@ -266,7 +266,6 @@ Potential improvements:
 
 - [Getting Started](GETTING_STARTED.md) - Setup guide
 - [Architecture](ARCHITECTURE.md) - System architecture
-- [Helper Agents](HELPER_AGENTS.md) - Custom expert agents
 - [Repo Agents](REPO_AGENTS.md) - Repository experts
 
 ---

@@ -84,7 +84,7 @@ Then you're ready to start services with `make start-all`!
 Alex: Thanks! Services are running. Now I'm looking at the code - where's the main API server code?
 
 Backend Expert: The main API server is in `cmd/server/main.go`. This is the entry point that:
-- Starts the HTTP server on port 8080
+- Starts the HTTP server on port 18765
 - Sets up WebSocket handlers for real-time communication
 - Initializes the hub for message routing
 - Serves the web UI

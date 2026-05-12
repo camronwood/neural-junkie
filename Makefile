@@ -17,8 +17,6 @@ build: ## Build all binaries
 	@go build -o bin/server cmd/server/main.go
 	@echo "🔨 Building agent runner..."
 	@go build -o bin/agent cmd/agent/main.go
-	@echo "🔨 Building helper agent runner..."
-	@go build -o bin/helper-agent cmd/helper-agent/main.go
 	@echo "🔨 Building CLI..."
 	@go build -o bin/cli cmd/cli/main.go
 	@echo "🔨 Building interactive chat..."
@@ -28,7 +26,7 @@ build: ## Build all binaries
 	@echo "💡 For GUI, run: make gui-build"
 
 run-server: ## Start the chat hub server
-	@echo "🚀 Starting chat hub server on http://localhost:8080"
+	@echo "🚀 Starting chat hub server on http://localhost:18765"
 	@go run cmd/server/main.go
 
 server: setup-env ## Start server with environment loaded
@@ -113,16 +111,6 @@ agent-devops: setup-env ## Start DevOps Pro agent
 	@echo "🤖 Starting DevOps Pro..."
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOps Pro"'
 
-helper-agent: setup-env ## Start a helper agent (usage: make helper-agent NAME=day-one CHANNEL=general)
-	@if [ -z "$(NAME)" ]; then \
-		echo "❌ Error: NAME is required"; \
-		echo "Usage: make helper-agent NAME=<helper-name> CHANNEL=<channel>"; \
-		echo "Example: make helper-agent NAME=day-one CHANNEL=general"; \
-		exit 1; \
-	fi
-	@echo "🎯 Starting helper agent: $(NAME)..."
-	@bash -c 'source load-env.sh && go run cmd/helper-agent/main.go --name "$(NAME)" --channel "$${CHANNEL:-general}"'
-
 agents: setup-env ## Start all agents with environment loaded
 	@echo "🤖 Starting all agents with environment from env.local..."
 	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "GoExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
@@ -140,7 +128,7 @@ agents: setup-env ## Start all agents with environment loaded
 
 stop: ## Stop all running processes (server, agents, GUI)
 	@echo "🛑 Stopping all Neural Junkie processes..."
-	@lsof -ti :8080 2>/dev/null | xargs kill -9 2>/dev/null || true
+	@lsof -ti :18765 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@lsof -ti :1420 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@pkill -f "cmd/server/main.go" 2>/dev/null || true
 	@pkill -f "cmd/agent/main.go" 2>/dev/null || true
@@ -170,8 +158,18 @@ start-all: setup-env ## Start server and all agents with environment loaded
 	@echo "🚀 Starting complete Neural Junkie system..."
 	@echo "   (Specialist agents are started in-process by the server via config)"
 	@bash -c 'source load-env.sh && go run cmd/server/main.go &'
-	@sleep 3
-	@echo "✅ System started! Opening GUI..."
+	@echo "⏳ Waiting for hub at http://localhost:18765/api/health ..."
+	@ok=0; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60; do \
+		if curl -sf http://localhost:18765/api/health | grep -q '"status":"ok"'; then ok=1; break; fi; \
+		sleep 1; \
+	done; \
+	if [ "$$ok" != "1" ]; then \
+		echo "❌ Hub did not become healthy within 60s."; \
+		echo "   Common cause: port 18765 already in use. Check: lsof -i :18765"; \
+		echo "   Start the hub alone to see the error: make server"; \
+		exit 1; \
+	fi
+	@echo "✅ Hub is up. Opening GUI..."
 	@cd desktop && npm run tauri:dev
 
 demo: ## Run a complete demo

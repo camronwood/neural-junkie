@@ -137,7 +137,7 @@ User: What's the main entry point of this application?
 
 todo-app Expert: Based on the repository structure, the main entry point is 
                   `cmd/server/main.go`. This file initializes the HTTP server 
-                  on port 8080 and sets up the following routes:
+                  on port 18765 and sets up the following routes:
                   - GET  /api/todos - List all todos
                   - POST /api/todos - Create a new todo
                   - PUT  /api/todos/:id - Update a todo

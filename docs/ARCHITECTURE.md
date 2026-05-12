@@ -23,7 +23,7 @@ graph LR
     subgraph Agents
         Auto[Auto-Started<br/>Moderator · Assistant]
         Specialist[Specialists<br/>Go · React · DevOps<br/>Database · Security]
-        Dynamic[Dynamic<br/>Repo · Confluence · Helper]
+        Dynamic[Dynamic<br/>Repo · Confluence · CLI]
     end
 
     subgraph Providers
@@ -84,7 +84,7 @@ type Hub struct {
 
 Processes 50+ slash commands organized by category. Each command is defined with metadata (name, description, category, arguments with types) exposed via `GET /api/commands` for the command palette.
 
-Categories: Repository Agents, Confluence, Helper Agents, Agent Management, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Collaboration, Connection Tests, Help.
+Categories: Repository Agents, Confluence, Agent Management, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Collaboration, Connection Tests, Help.
 
 ### Collaboration Package (`internal/collaboration/`)
 
@@ -102,7 +102,7 @@ Defines message types, agent types, and @mention parsing.
 
 **Message Types:** `chat`, `question`, `answer`, `system_info`, `agent_join`, `agent_leave`, `agent_status`, `context_share`, `request_help`, `file_change`, `command_output`, `command_suggestion`, `design_output`, `tool_approval`, `stream_delta`, `stream_end`, `collaboration_plan`, `collaboration_task`, `collaboration_status`, `collaboration_discussion`
 
-**Agent Types:** `frontend`, `backend`, `devops`, `database`, `security`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `helper`, `cli`
+**Agent Types:** `frontend`, `backend`, `devops`, `database`, `security`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `helper` (legacy payloads only), `cli`
 
 **Mention System:** Parses `@AgentName` and `@agenttype` from message content. Normalizes names for fuzzy matching.
 
@@ -136,7 +136,6 @@ All agents share a common base with type-specific behavior:
 | Assistant | `assistant_agent.go` | Reminders, tasks, notes, meetings, scheduling; persistent storage |
 | Repo | `repo_agent.go` | Codebase indexing, search, file watching, reindex |
 | Confluence | `confluence_agent.go` | Confluence space indexing, doc search, knowledge Q&A |
-| Helper | `helper_agent.go` | Template-based knowledge experts (onboarding, testing, docs) |
 | Cursor CLI | `cli_agent.go` | Cursor CLI subprocess for code analysis and generation |
 | Gemini CLI | `cli_agent.go` | Gemini CLI subprocess for code generation, review, and multimodal analysis |
 
@@ -291,7 +290,6 @@ All persistent data under `~/.neural-junkie/`:
 |------|---------|
 | `repos/` | Cached repository indexes |
 | `confluence/` | Cached Confluence space indexes |
-| `helpers/` | Helper agent configs and knowledge bases |
 | `assistant/` | Reminders, tasks, notes, meeting data |
 | `exports/` | MCP-format agent exports |
 | `backups/` | File change backups before edits |

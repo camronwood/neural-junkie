@@ -45,3 +45,6 @@ desktop/node_modules/
 /gui
 /tool-approval-hook
 
+# Runtime session data / agent backups
+.neural-junkie/
+

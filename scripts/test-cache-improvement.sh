@@ -15,7 +15,7 @@ check_cache() {
     echo "📂 Checking cache for: $repo_path"
     
     # Use Go to generate cache key and check existence
-    go run -C /Users/camron.wood.ext/development/sandbox/neural-junkie <<EOF
+    go run -C /Users/camronwood/development/sandbox/neural-junkie <<EOF
 package main
 
 import (
@@ -55,7 +55,7 @@ EOF
 }
 
 # Test with the current repo
-CURRENT_REPO="/Users/camron.wood.ext/development/sandbox/neural-junkie"
+CURRENT_REPO="/Users/camronwood/development/sandbox/neural-junkie"
 
 echo "1️⃣  Check current cache status for neural-junkie repo:"
 check_cache "$CURRENT_REPO"

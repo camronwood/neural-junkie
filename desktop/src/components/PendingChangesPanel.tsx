@@ -23,12 +23,10 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
 
   const [selectedChange, setSelectedChange] = useState<FileChange | null>(null);
 
-  // Fetch changes on mount
   useEffect(() => {
     fetchPendingChanges();
   }, [fetchPendingChanges]);
 
-  // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       refreshChanges();
@@ -70,9 +68,8 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
   };
 
   const getOperationCounts = () => {
-    // Ensure pendingChanges is always an array
     const changes = Array.isArray(pendingChanges) ? pendingChanges : [];
-    
+
     const counts = {
       create: 0,
       edit: 0,
@@ -91,20 +88,19 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
   const counts = getOperationCounts();
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+      <div className="bg-slack-bg border border-slack-border rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] flex flex-col text-slack-text">
+        <div className="flex items-center justify-between p-4 border-b border-slack-border bg-slack-bgHover/50">
           <div>
-            <h2 className="text-xl font-semibold">Pending File Changes</h2>
-            <p className="text-sm text-gray-600">
+            <h2 className="text-lg font-semibold text-slack-text">Pending File Changes</h2>
+            <p className="text-sm text-slack-textMuted mt-0.5">
               {counts.total} pending changes
               {counts.create > 0 && ` • ${counts.create} create`}
               {counts.edit > 0 && ` • ${counts.edit} edit`}
@@ -112,17 +108,19 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
               {counts.move > 0 && ` • ${counts.move} move`}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={refreshChanges}
               disabled={loading}
-              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              className="px-3 py-1.5 text-xs rounded bg-slack-accent text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
             >
               {loading ? '⟳' : '🔄'} Refresh
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100 text-xl leading-none"
+              className="p-1.5 rounded text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover text-xl leading-none"
               aria-label="Close pending changes panel"
             >
               ×
@@ -130,17 +128,17 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
           </div>
         </div>
 
-        {/* Error Message */}
         {error && (
-          <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <span className="text-red-600 mr-2">⚠️</span>
-                <span className="text-red-800">{error}</span>
+          <div className="mx-4 mt-4 p-3 rounded-lg border border-red-500/40 bg-red-950/30">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center min-w-0">
+                <span className="text-red-400 mr-2 shrink-0">⚠️</span>
+                <span className="text-red-200 text-sm break-words">{error}</span>
               </div>
               <button
+                type="button"
                 onClick={clearError}
-                className="text-red-600 hover:text-red-800"
+                className="text-red-400 hover:text-red-300 shrink-0"
               >
                 ×
               </button>
@@ -148,17 +146,16 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
           </div>
         )}
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
           {loading && (Array.isArray(pendingChanges) ? pendingChanges.length === 0 : true) ? (
             <div className="flex items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600">Loading changes...</span>
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-slack-border border-t-slack-accent" />
+              <span className="ml-2 text-sm text-slack-textMuted">Loading changes...</span>
             </div>
           ) : (Array.isArray(pendingChanges) ? pendingChanges.length === 0 : true) ? (
-            <div className="text-center text-gray-500 p-8">
+            <div className="text-center text-slack-textMuted p-8">
               <div className="text-4xl mb-4">📝</div>
-              <h3 className="text-lg font-medium mb-2">No Pending Changes</h3>
+              <h3 className="text-lg font-medium mb-2 text-slack-text">No Pending Changes</h3>
               <p className="text-sm">All file changes have been processed.</p>
             </div>
           ) : (
@@ -176,20 +173,16 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="border-t p-4 bg-gray-50">
-          <div className="flex items-center justify-between text-sm text-gray-600">
+        <div className="border-t border-slack-border p-4 bg-slack-bgHover/40">
+          <div className="flex items-center justify-between text-xs text-slack-textMuted">
             <div>
-              💡 <strong>Tip:</strong> Click "Preview" to see detailed changes before approving
+              Tip: use Preview to review changes before approving.
             </div>
-            <div>
-              Auto-refresh: 30s
-            </div>
+            <div>Auto-refresh: 30s</div>
           </div>
         </div>
       </div>
 
-      {/* Preview Modal */}
       {selectedChange && (
         <FileChangePreview
           change={selectedChange}

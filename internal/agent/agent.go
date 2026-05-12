@@ -1344,11 +1344,10 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 }
 
 // isRepoOrHelperAgent returns true for agent types that already have their
-// own file-context strategy (repo agents use their index, helpers use
-// knowledge bases, CLI agents have shell access).
+// own file-context strategy (repo agents use their index, CLI agents have shell access).
 func (a *Agent) isRepoOrHelperAgent() bool {
 	switch a.Info.Type {
-	case protocol.AgentTypeRepo, protocol.AgentTypeHelper, protocol.AgentTypeCLI,
+	case protocol.AgentTypeRepo, protocol.AgentTypeCLI,
 		protocol.AgentTypeModerator, protocol.AgentTypeAssistant, protocol.AgentTypeConfluence:
 		return true
 	default:

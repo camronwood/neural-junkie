@@ -216,21 +216,8 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           command = `/create-repo-agent ${agent.path} ${agent.name}`;
           break;
         case 'helper':
-          // Map agent names to correct template names
-          let templateName = '';
-          const agentNameLower = agent.name.toLowerCase();
-          if (agentNameLower.includes('day one') || agentNameLower.includes('day-one')) {
-            templateName = 'day-one';
-          } else if (agentNameLower.includes('testing') || agentNameLower.includes('test')) {
-            templateName = 'testing-expert';
-          } else if (agentNameLower.includes('docs') || agentNameLower.includes('documentation')) {
-            templateName = 'docs-expert';
-          } else {
-            // Fallback: try to extract from name
-            templateName = agent.name.toLowerCase().replace(/\s+/g, '-');
-          }
-          command = `/create-helper ${templateName}`;
-          break;
+          console.warn('Helper agents are no longer supported; remove this cache entry or use a repo/Confluence agent.');
+          return;
         case 'confluence':
           // Extract space key from path or metadata
           const spaceKey = agent.metadata?.space_key || agent.path;
@@ -482,7 +469,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           <div className="flex gap-1 flex-wrap">
             {(activeTab === 'active'
               ? ['all', 'backend', 'frontend', 'rust', 'devops', 'database', 'security', 'cli', 'assistant', 'moderator']
-              : ['all', 'repo', 'helper', 'confluence']
+              : ['all', 'repo', 'confluence']
             ).map((type) => (
               <button
                 key={type}
@@ -528,7 +515,6 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                 <div className="bg-slack-bgHover rounded p-4 text-left text-sm">
                   <p className="font-medium text-slack-text mb-2">Create agents using:</p>
                   <code className="block bg-slack-bg p-2 rounded mb-1">/create-repo-agent &lt;path&gt; [name]</code>
-                  <code className="block bg-slack-bg p-2 rounded mb-1">/create-helper &lt;template&gt;</code>
                   <code className="block bg-slack-bg p-2 rounded">/create-confluence-agent &lt;space-key&gt; [name]</code>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 import { extractTitle, getContentHash, renderMarkdown, splitMarkdownAndMermaid, type MarkdownSegment } from '../utils/markdownRenderer';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
@@ -120,7 +121,7 @@ export function MarkdownPreview({ workspaceId, filePath }: MarkdownPreviewProps)
   const [isRendering] = useState<boolean>(false);
   
   const contentHashRef = useRef<string>('');
-  const apiRef = useRef<ChatAPI>(new ChatAPI('localhost:8080'));
+  const apiRef = useRef<ChatAPI>(new ChatAPI(getHubBaseURL()));
   const intervalRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -166,7 +167,7 @@ export function MarkdownPreview({ workspaceId, filePath }: MarkdownPreviewProps)
       if (!loading && !isRendering) {
         fetchContent();
       }
-    }, 2000);
+    }, 8000);
 
     return () => {
       if (intervalRef.current) {

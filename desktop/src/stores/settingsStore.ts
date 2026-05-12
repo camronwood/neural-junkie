@@ -52,6 +52,8 @@ export interface LayoutSettings {
   terminalPanelVisible: boolean;
   myAgentsPanelVisible: boolean;
   pendingChangesPanelVisible: boolean;
+  /** When false, agent shortcuts under Direct Messages are hidden (existing DM rows stay). */
+  sidebarAgentsVisible: boolean;
 }
 
 interface SettingsState {
@@ -131,6 +133,7 @@ const defaultLayoutSettings: LayoutSettings = {
   terminalPanelVisible: false,
   myAgentsPanelVisible: false,
   pendingChangesPanelVisible: false,
+  sidebarAgentsVisible: true,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

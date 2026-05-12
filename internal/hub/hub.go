@@ -411,6 +411,9 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		// If command was processed, send the response instead
 		if response != nil {
 			msg = response
+			// Re-attach collaboration snapshot when the handler returns a new message
+			// (e.g. /cancel-plan) so metadata includes collaboration_data for the UI.
+			h.attachCollaborationData(msg)
 		}
 	}
 

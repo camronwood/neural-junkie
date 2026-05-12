@@ -122,7 +122,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
     }
 
     const config = {
-      server: { host: 'localhost', port: 8080 },
+      server: { host: 'localhost', port: 18765 },
       ai: {
         default_provider_id: providers[0].id,
         providers,

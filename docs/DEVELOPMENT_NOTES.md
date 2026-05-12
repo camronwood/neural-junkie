@@ -9,7 +9,6 @@ neural-junkie/
 ├── cmd/                       # Entry points
 │   ├── server/                # Hub server (HTTP + WebSocket)
 │   ├── agent/                 # Standalone agent runner
-│   ├── helper-agent/          # Helper agent runner
 │   ├── chat/                  # Interactive terminal chat
 │   └── cli/                   # CLI tool + MCP resource server
 ├── desktop/                   # Tauri + React desktop app

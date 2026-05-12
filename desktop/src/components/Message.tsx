@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import type { Message as MessageType, CommandOutput as CommandOutputType, MessageErrorMetadata, ThreadMetadata } from '../types/protocol';
 import { getAgentColor, isSystemMessage, isCollaborationMessage } from '../types/protocol';
 import { MessageContent } from './MessageContent';
@@ -19,7 +19,7 @@ interface MessageProps {
   isStreaming?: boolean;
 }
 
-export function Message({ message, threadMetadata, onOpenThread, isStreaming }: MessageProps) {
+function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: MessageProps) {
   const [proposing, setProposing] = useState(false);
   const isSystem = isSystemMessage(message.type);
   const isCommandOutput = message.type === 'command_output';
@@ -245,6 +245,15 @@ export function Message({ message, threadMetadata, onOpenThread, isStreaming }: 
     </div>
   );
 }
+
+export const Message = memo(MessageImpl, (prev, next) => {
+  return (
+    prev.message === next.message &&
+    prev.isStreaming === next.isStreaming &&
+    prev.threadMetadata === next.threadMetadata &&
+    prev.onOpenThread === next.onOpenThread
+  );
+});
 
 function shouldShowProposeAction(message: MessageType): boolean {
   if (message.type !== 'chat') return false;

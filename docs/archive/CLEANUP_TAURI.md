@@ -189,7 +189,7 @@ But honestly, Tauri is much better for this use case.
 
 If someone needs a simpler option without Rust/Node:
 - The **Terminal Chat** (`make chat`) works great
-- The **Web UI** (`http://localhost:8080`) is browser-based
+- The **Web UI** (`http://localhost:18765`) is browser-based
 - Both are maintained and work well
 
 ## 📝 Checklist

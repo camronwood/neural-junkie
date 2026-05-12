@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, startTransition } from 'react';
 import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -152,8 +152,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
   
-  const [api] = useState(() => new ChatAPI(serverAddr));
-  const wsURL = api.getWebSocketURL(channel);
+  const api = useMemo(() => new ChatAPI(serverAddr), [serverAddr]);
+  const wsURL = useMemo(() => api.getWebSocketURL(channel), [api, channel]);
   
   // Debounce timeout ref for agent list refresh
   const agentRefreshTimeoutRef = useRef<number | null>(null);
@@ -342,6 +342,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const { status } = useWebSocket({
     url: wsURL,
     onMessage: async (message: Message) => {
+      try {
       // Handle all agent_status messages - never add them to chat
       if (message.type === 'agent_status') {
         // Handle thinking status -> typing indicator
@@ -398,65 +399,63 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         return;
       }
 
-      // Track collaboration snapshots from message metadata.
+      // Track collaboration snapshots from message metadata (transition: keeps typing/input responsive during agent bursts).
       const collabData = message.metadata?.collaboration_data as Collaboration | undefined;
       if (collabData?.id) {
-        const collabChannel = collabData.channel || message.channel;
-        const isActiveChannelCollab = !collabChannel || collabChannel === channel;
-        const previousSnapshot = collaborationsByIDRef.current[collabData.id];
-        if (
-          previousSnapshot &&
-          isActiveChannelCollab &&
-          (collabData.phase === 'planning' || collabData.phase === 'reviewing')
-        ) {
-          const existingIDs = new Set((previousSnapshot.agents || []).map(a => a.agent_id));
-          const addedAgents = (collabData.agents || []).filter(a => !existingIDs.has(a.agent_id));
-          if (addedAgents.length > 0) {
-            const names = addedAgents.map(a => `@${a.agent_name}`).join(', ');
-            addToast({
-              type: 'info',
-              title: 'Collaborator added',
-              message: `${names} joined "${collabData.title}".`,
-            });
+        startTransition(() => {
+          const collabChannel = collabData.channel || message.channel;
+          const isActiveChannelCollab = !collabChannel || collabChannel === channel;
+          const previousSnapshot = collaborationsByIDRef.current[collabData.id];
+          if (
+            previousSnapshot &&
+            isActiveChannelCollab &&
+            (collabData.phase === 'planning' || collabData.phase === 'reviewing')
+          ) {
+            const existingIDs = new Set((previousSnapshot.agents || []).map(a => a.agent_id));
+            const addedAgents = (collabData.agents || []).filter(a => !existingIDs.has(a.agent_id));
+            if (addedAgents.length > 0) {
+              const names = addedAgents.map(a => `@${a.agent_name}`).join(', ');
+              addToast({
+                type: 'info',
+                title: 'Collaborator added',
+                message: `${names} joined "${collabData.title}".`,
+              });
+            }
           }
-        }
-        mergeCollaborationSnapshot(collabData);
-        const currentlyOpen = activeCollabRef.current;
-        if (currentlyOpen?.id === collabData.id) {
-          if (isTerminalCollaborationPhase(collabData.phase)) {
-            setActiveCollab(null);
-          } else if (isActiveChannelCollab) {
+          mergeCollaborationSnapshot(collabData);
+          const currentlyOpen = activeCollabRef.current;
+          if (currentlyOpen?.id === collabData.id) {
+            if (isTerminalCollaborationPhase(collabData.phase)) {
+              setActiveCollab(null);
+            } else if (isActiveChannelCollab) {
+              setActiveCollab(collabData);
+            }
+          } else if (
+            !currentlyOpen &&
+            isActiveChannelCollab &&
+            isCollaborationMessage(message) &&
+            !isTerminalCollaborationPhase(collabData.phase)
+          ) {
             setActiveCollab(collabData);
           }
-        } else if (
-          !currentlyOpen &&
-          isActiveChannelCollab &&
-          isCollaborationMessage(message) &&
-          !isTerminalCollaborationPhase(collabData.phase)
-        ) {
-          // Auto-open the collaboration panel when a new planning/reviewing flow starts.
-          setActiveCollab(collabData);
-        }
+        });
       }
 
       // Handle thread messages - only update metadata, ThreadPanel's WebSocket will add the actual message
       if (message.is_thread_reply && message.thread_id) {
-        // Just update thread metadata (don't add message - ThreadPanel's WS will do that)
-        try {
-          const metadata = await api.fetchThreadMetadata(message.thread_id);
-          updateThreadMetadata(message.thread_id, metadata);
-        } catch (error) {
-          console.error('Failed to fetch thread metadata:', error);
-        }
+        void api
+          .fetchThreadMetadata(message.thread_id)
+          .then(metadata => updateThreadMetadata(message.thread_id!, metadata))
+          .catch(error => console.error('Failed to fetch thread metadata:', error));
       } else if (message.channel && message.channel !== channel) {
         // Message belongs to a different channel -- cache it and mark unread
         addMessageToCache(message.channel, message);
         markChannelUnread(message.channel);
       } else {
-        // Message belongs to the active channel
+        // Message belongs to the active channel (never wrap addMessage in startTransition —
+        // high-frequency agent_status updates can starve transitions and leave the chat empty).
         addMessage(message);
-        
-        // Check for suggested commands in the message
+
         if (message.metadata?.suggested_commands) {
           const suggestions = message.metadata.suggested_commands as any[];
           suggestions.forEach((suggestion) => {
@@ -464,7 +463,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           });
         }
 
-        // Handle agent-open-terminal events
         if (message.metadata?.event === 'agent-open-terminal') {
           const agentName = message.metadata.agent_name as string || 'Agent';
           const cwd = message.metadata.cwd as string || undefined;
@@ -484,6 +482,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         debouncedRefreshAgents();
         loadChannels();
       }
+      } catch (err) {
+        console.error('[ChatWindow] WebSocket message handler error:', err);
+      }
     },
     onConnect: () => {
       console.log('Connected to chat');
@@ -500,38 +501,44 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     },
   });
 
-  // Load initial data when connected
+  // Load initial data when connected (parallelize; never skip channels because another request failed)
   const loadInitialData = async () => {
-    try {
-      // Load existing messages
-      const existingMessages = await api.fetchMessages(channel, 50);
-      setMessages(existingMessages);
-      await loadCollaborations(channel);
+    const results = await Promise.allSettled([
+      api.fetchMessages(channel, 50).then(msgs => setMessages(msgs)),
+      loadCollaborations(channel),
+      loadAgents(),
+      loadCounts(),
+      loadChannels(),
+    ]);
 
-      // Load agents, counts, channels, and command definitions
-      await Promise.all([loadAgents(), loadCounts(), loadChannels()]);
-
-      try {
-        const defs = await api.fetchCommands();
-        setCommandDefs(defs);
-      } catch (err) {
-        console.error('Failed to load command definitions:', err);
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const label = ['messages', 'collaborations', 'agents', 'counts', 'channels'][i];
+        console.error(`[loadInitialData] ${label} failed:`, r.reason);
       }
+    });
 
-      // Send join message only once per session (not on every channel switch)
-      if (!hasJoinedRef.current) {
-        hasJoinedRef.current = true;
-        setTimeout(async () => {
+    try {
+      const defs = await api.fetchCommands();
+      setCommandDefs(defs);
+    } catch (err) {
+      console.error('Failed to load command definitions:', err);
+    }
+
+    if (!hasJoinedRef.current) {
+      hasJoinedRef.current = true;
+      setTimeout(async () => {
+        try {
           await api.sendMessage(
             channel,
             `${username} has joined the chat`,
             { name: username, type: 'human' },
             'system_info'
           );
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Failed to load initial data:', error);
+        } catch (e) {
+          console.error('[loadInitialData] join message failed:', e);
+        }
+      }, 500);
     }
   };
 
@@ -676,7 +683,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     if (!taskManagementOpen) return;
     void loadCollaborations(channel);
     loadAssistantState();
-    const id = window.setInterval(loadAssistantState, 10000);
+    const id = window.setInterval(loadAssistantState, 30000);
     return () => window.clearInterval(id);
   }, [taskManagementOpen, loadAssistantState, loadCollaborations, channel]);
 
@@ -964,6 +971,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <CollaborationPanel
             collaboration={activeCollab}
             onClose={() => setActiveCollab(null)}
+            onAfterCollaborationCommand={async () => {
+              await loadCollaborations(channel);
+            }}
           />
         )}
 
@@ -1039,7 +1049,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               } else {
                 content = `/cancel-plan ${shortID}`;
               }
-              await api.sendMessage(channel, content, from);
+              try {
+                await api.sendMessage(channel, content, from);
+                await loadCollaborations(channel);
+              } catch (e) {
+                addToast({
+                  type: 'error',
+                  title: 'Collaboration command failed',
+                  message: e instanceof Error ? e.message : 'Request failed.',
+                });
+                throw e;
+              }
             }}
           />
         )}

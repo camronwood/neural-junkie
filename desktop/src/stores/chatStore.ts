@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 
 interface ChatState {
   // Connection
@@ -107,7 +108,7 @@ interface ChatState {
 
 const initialState = {
   connectionStatus: 'disconnected' as ConnectionStatus,
-  serverAddr: 'localhost:8080',
+  serverAddr: getHubBaseURL(),
   channel: localStorage.getItem('last-channel') || 'general',
   username: '',
   messages: [],
@@ -147,11 +148,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return state;
       }
 
-      // Prevent duplicate messages (can happen with React StrictMode double-mounting)
-      const isDuplicate = state.messages.some(m => m.id === message.id);
-      if (isDuplicate) {
-        console.log('[ChatStore] Skipping duplicate message:', message.id);
-        return state;
+      const existingIdx = state.messages.findIndex(m => m.id === message.id);
+      if (existingIdx !== -1) {
+        // A message with this ID already exists (e.g. promoted from streaming).
+        // Replace it with the authoritative final version which carries full metadata.
+        const updated = [...state.messages];
+        updated[existingIdx] = message;
+        return { messages: updated, isTyping: false };
       }
       
       return {
@@ -395,8 +398,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   finalizeStream: (streamId) =>
     set((state) => {
+      const streamed = state.streamingMessages[streamId];
       const { [streamId]: _removed, ...rest } = state.streamingMessages;
-      return { streamingMessages: rest };
+      if (!streamed || !streamed.content?.trim()) {
+        return { streamingMessages: rest };
+      }
+      // Promote the accumulated streaming content into the main messages list
+      // so the text stays visible while the final chat message is in flight.
+      // addMessage will replace this entry with the authoritative version.
+      const alreadyInMessages = state.messages.some(m => m.id === streamId);
+      if (alreadyInMessages) {
+        return { streamingMessages: rest };
+      }
+      return {
+        streamingMessages: rest,
+        messages: [...state.messages, { ...streamed, type: 'chat' as Message['type'] }],
+      };
     }),
   
   // Provider switching actions

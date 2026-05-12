@@ -271,6 +271,15 @@ func (c *CLIAgentProvider) GetModel() string {
 // SupportsStreaming returns true -- CLI agents stream stdout in real time.
 func (c *CLIAgentProvider) SupportsStreaming() bool { return true }
 
+// useInteractiveMode uses stdin + PTY without headless -p for CLIs that only
+// stream incrementally when attached to a real terminal.
+func (c *CLIAgentProvider) useInteractiveMode() bool {
+	if os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_INTERACTIVE") == "1" {
+		return false
+	}
+	return c.ProviderName == "cursor-cli"
+}
+
 // GenerateResponseStream invokes the CLI agent and streams its stdout
 // in chunks back through the returned channel. Uses a pipe for stdout
 // and captures stderr separately so error dumps don't leak into chat.
@@ -283,6 +292,10 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	fullPrompt := c.buildPromptWithHistory(combinedPrompt, conversationHistory)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, c.Timeout)
+
+	if c.useInteractiveMode() {
+		return c.streamInteractiveMode(timeoutCtx, cancel, fullPrompt)
+	}
 
 	args := make([]string, len(c.BaseArgs))
 	copy(args, c.BaseArgs)
@@ -334,7 +347,7 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 					if n > 0 {
 						clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
 						if clean != "" {
-							ch <- StreamToken{Content: clean}
+							smoothStreamChunk(clean, ch)
 						}
 					}
 					if readErr != nil {
@@ -396,7 +409,7 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 			if n > 0 {
 				clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
 				if clean != "" {
-					ch <- StreamToken{Content: clean}
+					smoothStreamChunk(clean, ch)
 				}
 			}
 			if readErr != nil {
@@ -420,6 +433,149 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	}()
 
 	return ch, nil
+}
+
+// streamInteractiveMode starts the CLI without -p, feeds the prompt via a
+// stdin pipe, and reads streaming output from a PTY-backed stdout. This lets
+// the subprocess detect a real terminal (isatty(1) == true) and emit tokens
+// incrementally rather than buffering the full response.
+func (c *CLIAgentProvider) streamInteractiveMode(ctx context.Context, cancel context.CancelFunc, prompt string) (<-chan StreamToken, error) {
+	args := []string{"--output-format", "text"}
+	cmd := exec.CommandContext(ctx, c.Command, args...)
+	if c.WorkDir != "" {
+		cmd.Dir = c.WorkDir
+	}
+	cmd.Env = os.Environ()
+	for key, value := range c.Env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
+	}
+	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
+	}
+
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to open PTY for interactive streaming: %w", err)
+	}
+
+	cmd.Stdout = tty
+	cmd.Stderr = tty
+
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		ptmx.Close()
+		tty.Close()
+		cancel()
+		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
+	}
+
+	log.Printf("[CLIAgent/%s] Starting interactive mode: %s %v (workDir: %s)",
+		c.ProviderName, c.Command, args, c.WorkDir)
+
+	if err := cmd.Start(); err != nil {
+		ptmx.Close()
+		tty.Close()
+		cancel()
+		return nil, fmt.Errorf("failed to start CLI agent in interactive mode: %w", err)
+	}
+	tty.Close()
+
+	go func() {
+		defer stdinPipe.Close()
+		_, _ = io.WriteString(stdinPipe, prompt+"\n")
+	}()
+
+	ch := make(chan StreamToken, 64)
+	go func() {
+		defer close(ch)
+		defer cancel()
+		defer func() { _ = ptmx.Close() }()
+
+		done := make(chan struct{})
+		defer close(done)
+		go func() {
+			select {
+			case <-ctx.Done():
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				_ = ptmx.Close()
+			case <-done:
+			}
+		}()
+
+		buf := make([]byte, 1024)
+		for {
+			n, readErr := ptmx.Read(buf)
+			if n > 0 {
+				clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
+				if clean != "" {
+					ch <- StreamToken{Content: clean}
+				}
+			}
+			if readErr != nil {
+				if errors.Is(readErr, io.EOF) || strings.Contains(readErr.Error(), "input/output error") {
+					break
+				}
+				if ctx.Err() == context.DeadlineExceeded {
+					ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+					return
+				}
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent stream read error: %w", readErr), Done: true}
+				return
+			}
+		}
+
+		if err := cmd.Wait(); err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+				return
+			}
+			ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %w", err), Done: true}
+			return
+		}
+		ch <- StreamToken{Done: true}
+	}()
+
+	return ch, nil
+}
+
+// smoothStreamChunk breaks a large text chunk into smaller segments sent with
+// micro-delays so bursty CLI output appears as smooth incremental streaming.
+// Chunks below the threshold are sent immediately with no overhead.
+func smoothStreamChunk(text string, ch chan<- StreamToken) {
+	const (
+		chunkSize    = 30
+		baseDelay    = 15 * time.Millisecond
+		threshold    = 100
+		maxTotalTime = 1500 * time.Millisecond
+	)
+
+	if len(text) <= threshold {
+		ch <- StreamToken{Content: text}
+		return
+	}
+
+	numChunks := (len(text) + chunkSize - 1) / chunkSize
+	delay := baseDelay
+	if total := time.Duration(numChunks) * delay; total > maxTotalTime {
+		delay = maxTotalTime / time.Duration(numChunks)
+	}
+
+	for len(text) > 0 {
+		end := chunkSize
+		if end > len(text) {
+			end = len(text)
+		} else if idx := strings.LastIndexByte(text[:end], ' '); idx > end/2 {
+			end = idx + 1
+		}
+		ch <- StreamToken{Content: text[:end]}
+		text = text[end:]
+		if len(text) > 0 {
+			time.Sleep(delay)
+		}
+	}
 }
 
 func (c *CLIAgentProvider) shouldUsePTYStreaming() bool {

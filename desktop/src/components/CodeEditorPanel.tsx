@@ -55,7 +55,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   // Editor state
   const [editor, setEditor] = useState<any>(null);
 
-  // const [api] = useState(() => new ChatAPI('localhost:8080'));
+  // const [api] = useState(() => new ChatAPI('localhost:18765'));
 
   const activeTab = getActiveTab();
 

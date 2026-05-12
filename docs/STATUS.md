@@ -18,7 +18,7 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - File change proposal and approval workflow
 - Workspace management
 
-### Agent Types (11)
+### Agent Types (10)
 - **Moderator** -- Auto-started, chat guidance, command help, safety-net timer
 - **Assistant** -- Reminders, tasks, notes, meetings, scheduling (persistent storage)
 - **Frontend** (ReactExpert) -- React, Vue, Angular, TypeScript, CSS, UI/UX, vision
@@ -28,7 +28,6 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - **Security** (SecurityExpert) -- Auth, OAuth/JWT, encryption, OWASP, compliance
 - **Repository Expert** -- Codebase indexing, file watching, project-specific Q&A
 - **Confluence Agent** -- Confluence Cloud space indexing and documentation search
-- **Helper Agent** -- Template-based custom knowledge experts
 - **Cursor CLI Agent** -- Cursor CLI integration for code analysis
 
 ### AI Providers
@@ -37,6 +36,11 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - **LM Studio** -- Local OpenAI-compatible server
 - **Mock** -- Rule-based responses for testing
 - Per-agent provider switching, global provider switching
+
+### Desktop performance
+- Assistant state refresh while the task panel is open: every 30s (reduced from 10s).
+- Markdown preview polling for the active file: every 8s (reduced from 2s).
+- Parsed markdown parts for large messages are LRU-cached to avoid repeat work when messages re-render.
 
 ### User Interfaces
 - **Desktop App** -- Tauri + React + TypeScript with Tailwind CSS

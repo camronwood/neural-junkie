@@ -557,22 +557,34 @@ function CollaborationRow({
             >
               Approve
             </button>
-            <input
-              type="text"
-              value={feedback}
-              onChange={e => setFeedback(e.target.value)}
-              placeholder="Revision feedback..."
-              style={{
-                flex: 1,
-                minWidth: 140,
-                padding: '2px 8px',
-                borderRadius: 6,
-                border: '1px solid var(--border-color, #444)',
-                backgroundColor: 'var(--bg-secondary, #1e1e1e)',
-                color: 'var(--text-primary, #eee)',
-                fontSize: 11,
-              }}
-            />
+            <div style={{ width: '100%', flexBasis: '100%' }}>
+              <textarea
+                value={feedback}
+                onChange={e => setFeedback(e.target.value)}
+                placeholder="Revision feedback… (⌘↵ / Ctrl+↵ to send)"
+                rows={3}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border-color, #444)',
+                  backgroundColor: 'var(--bg-secondary, #1e1e1e)',
+                  color: 'var(--text-primary, #eee)',
+                  fontSize: 11,
+                  lineHeight: 1.4,
+                  resize: 'vertical',
+                  minHeight: 64,
+                  fontFamily: 'inherit',
+                }}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return;
+                  if (!(e.metaKey || e.ctrlKey)) return;
+                  e.preventDefault();
+                  if (!isSubmitting && feedback.trim()) onRunCommand('revise');
+                }}
+              />
+            </div>
             <button
               disabled={isSubmitting || !feedback.trim()}
               onClick={() => onRunCommand('revise')}

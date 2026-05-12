@@ -77,6 +77,6 @@ go run cmd/cli/main.go --watch --channel general
 
 Or view it in the web UI:
 ```
-http://localhost:8080
+http://localhost:18765
 ```
 

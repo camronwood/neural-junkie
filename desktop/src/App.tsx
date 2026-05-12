@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useChatStore } from './stores/chatStore';
 import { loadCredentials } from './utils/secureStorage';
 import { ChatAPI } from './api/chatAPI';
+import { getHubBaseURL } from './config/hubUrl';
 
 type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
 
@@ -24,7 +25,7 @@ function App() {
   const { togglePanel } = useTerminalStore();
   const { setUsername, setChannel, setServerAddr } = useChatStore();
 
-  const serverAddr = 'http://localhost:8080';
+  const serverAddr = getHubBaseURL();
 
   // Load settings on app start
   useEffect(() => {
@@ -117,7 +118,12 @@ function App() {
   }
 
   if (phase === 'loading') {
-    return <LoadingScreen onReady={onServerReady} />;
+    return (
+      <LoadingScreen
+        onReady={onServerReady}
+        onContinueWithoutHub={() => setPhase('login')}
+      />
+    );
   }
 
   if (phase === 'setup') {

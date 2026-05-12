@@ -5,6 +5,7 @@ import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
 import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings } from '../types/protocol';
 import { ProviderManager } from './ProviderManager';
 import { OllamaManager } from './OllamaManager';
+import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -36,7 +37,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     fetchOllamaModels,
     fetchLMStudioModels
   } = useSettingsStore();
-  const { switchAllAgentProviders } = useChatStore();
+  const { switchAllAgentProviders, serverAddr: chatServerAddr } = useChatStore();
+  const hubHttp =
+    chatServerAddr.startsWith('http') ? chatServerAddr : `http://${chatServerAddr}`;
   const [activeTab, setActiveTab] = useState<'appearance' | 'layout' | 'integrations' | 'ai-providers' | 'developer' | 'about'>('appearance');
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
   
@@ -601,6 +604,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
               </div>
+
+              {/* Sidebar agent shortcuts */}
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Sidebar agent shortcuts</div>
+                  <div className="text-sm text-slack-textMuted">
+                    Show agents without a DM under Direct Messages. Turn off for a cleaner list; open DMs stay.
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.sidebarAgentsVisible}
+                    onChange={(e) => updateLayoutSettings({ sidebarAgentsVisible: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
             </div>
           )}
 
@@ -895,12 +917,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <div className="space-y-8">
               {/* Dynamic Provider Registry */}
               <div className="border border-slack-border rounded-lg p-6">
-                <ProviderManager serverAddr="http://localhost:8080" />
+                <ProviderManager serverAddr={hubHttp} />
               </div>
 
               {/* Ollama Lifecycle Management */}
               <div className="border border-slack-border rounded-lg p-6">
-                <OllamaManager serverAddr="http://localhost:8080" />
+                <OllamaManager serverAddr={hubHttp} />
               </div>
 
               {/* Ollama Settings (legacy) */}
@@ -1173,11 +1195,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <div className="space-y-3">
                   <div className="p-3 bg-slack-bgHover rounded text-sm">
                     <span className="text-slack-textMuted">Server:</span>
-                    <span className="ml-2 text-slack-text font-mono">localhost:8080</span>
+                    <span className="ml-2 text-slack-text font-mono">{getHubBaseURL()}</span>
                   </div>
                   <div className="p-3 bg-slack-bgHover rounded text-sm">
                     <span className="text-slack-textMuted">WebSocket:</span>
-                    <span className="ml-2 text-slack-text font-mono">ws://localhost:8080/ws</span>
+                    <span className="ml-2 text-slack-text font-mono">{getHubWebSocketURL()}</span>
                   </div>
                 </div>
               </div>

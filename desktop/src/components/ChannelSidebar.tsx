@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { Channel, AgentInfo } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
+import { useSettingsStore } from '../stores/settingsStore';
 
 interface ChannelSidebarProps {
   channels: Channel[];
@@ -23,6 +24,8 @@ export function ChannelSidebar({
   onCreateDM,
 }: ChannelSidebarProps) {
   const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore();
+  const sidebarAgentsVisible = useSettingsStore(s => s.layoutSettings.sidebarAgentsVisible);
+  const updateLayoutSettings = useSettingsStore(s => s.updateLayoutSettings);
 
   const parseDMDisplayName = (dmChannel: Channel): string => {
     const directAgent = dmChannel.agents?.[0]?.name;
@@ -112,7 +115,7 @@ export function ChannelSidebar({
     filteredPublicChannels.length > 0 ||
     filteredCustomChannels.length > 0 ||
     filteredDMChannels.length > 0 ||
-    filteredAgentsWithoutDM.length > 0;
+    (sidebarAgentsVisible && filteredAgentsWithoutDM.length > 0);
 
   // Resize drag handling
   useEffect(() => {
@@ -243,7 +246,25 @@ export function ChannelSidebar({
     >
       {/* Header */}
       <div className="px-3 py-2 border-b border-white/10">
-        <h2 className="text-sm font-bold text-white truncate">Neural Junkie</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-white truncate">Neural Junkie</h2>
+          <button
+            type="button"
+            onClick={() => void updateLayoutSettings({ sidebarAgentsVisible: !sidebarAgentsVisible })}
+            className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+              sidebarAgentsVisible
+                ? 'border-white/20 text-white/70 hover:bg-white/10'
+                : 'border-slack-accent/50 text-slack-accent hover:bg-white/10'
+            }`}
+            title={
+              sidebarAgentsVisible
+                ? 'Hide agent shortcuts under Direct Messages'
+                : 'Show agent shortcuts under Direct Messages'
+            }
+          >
+            {sidebarAgentsVisible ? 'Agents' : 'Agents off'}
+          </button>
+        </div>
         <input
           type="text"
           value={searchQuery}
@@ -291,10 +312,10 @@ export function ChannelSidebar({
               <DMItem key={ch.id} ch={ch} />
             ))}
 
-            {/* Agents without a DM yet */}
-            {filteredAgentsWithoutDM.map(agent => (
-              <AgentDMEntry key={agent.id} agent={agent} />
-            ))}
+            {sidebarAgentsVisible &&
+              filteredAgentsWithoutDM.map(agent => (
+                <AgentDMEntry key={agent.id} agent={agent} />
+              ))}
           </div>
         </div>
 

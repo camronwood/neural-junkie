@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Check if server is running
-if ! curl -s http://localhost:8080/api/channels > /dev/null 2>&1; then
+if ! curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo -e "${RED}❌ Server not running!${NC}"
     echo ""
     echo "Please start the server first:"
@@ -79,21 +79,21 @@ if [ "$MODE" = "messages" ]; then
     sleep 1
     
     echo "📤 Sending React question..."
-    curl -s -X POST http://localhost:8080/api/send \
+    curl -s -X POST http://localhost:18765/api/send \
       -H "Content-Type: application/json" \
       -d '{"channel": "general", "content": "What are the best practices for using React hooks?", "type": "question"}'
     echo " ✓"
     sleep 3
     
     echo "📤 Sending database question..."
-    curl -s -X POST http://localhost:8080/api/send \
+    curl -s -X POST http://localhost:18765/api/send \
       -H "Content-Type: application/json" \
       -d '{"channel": "general", "content": "How can I optimize my PostgreSQL queries?", "type": "question"}'
     echo " ✓"
     sleep 3
     
     echo "📤 Sending DevOps question..."
-    curl -s -X POST http://localhost:8080/api/send \
+    curl -s -X POST http://localhost:18765/api/send \
       -H "Content-Type: application/json" \
       -d '{"channel": "general", "content": "What is the best way to set up Kubernetes monitoring?", "type": "question"}'
     echo " ✓"
@@ -113,7 +113,7 @@ if [ "$MODE" = "interactive" ]; then
     echo ""
     
     # Check for agents
-    AGENT_COUNT=$(curl -s http://localhost:8080/api/agents | jq '. | length' 2>/dev/null || echo "0")
+    AGENT_COUNT=$(curl -s http://localhost:18765/api/agents | jq '. | length' 2>/dev/null || echo "0")
     
     if [ "$AGENT_COUNT" -eq "0" ]; then
         echo -e "${YELLOW}⚠️  No agents detected. Starting agents...${NC}"

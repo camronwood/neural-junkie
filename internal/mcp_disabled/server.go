@@ -29,7 +29,7 @@ func GetMCPServerConfig(agentType string) *MCPServerConfig {
 	// Get port from environment
 	portFlag := fmt.Sprintf("MCP_%s_PORT", agentType)
 	portStr := os.Getenv(portFlag)
-	port := 8080 // default
+	port := 18765 // default
 	if portStr != "" {
 		if p, err := strconv.Atoi(portStr); err == nil {
 			port = p

@@ -19,7 +19,7 @@ NC='\033[0m'
 
 # Check server
 echo -e "${BLUE}Checking server...${NC}"
-if ! curl -s http://localhost:8080/api/channels > /dev/null 2>&1; then
+if ! curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo -e "${RED}✗ Server not running${NC}"
     echo "Start with: make server"
     exit 1
@@ -29,7 +29,7 @@ echo ""
 
 # Test 1: Send a simple message
 echo -e "${BLUE}Test 1: Sending simple message...${NC}"
-RESPONSE=$(curl -s -X POST http://localhost:8080/api/send \
+RESPONSE=$(curl -s -X POST http://localhost:18765/api/send \
     -H "Content-Type: application/json" \
     -d '{
         "channel": "general",
@@ -48,7 +48,7 @@ echo ""
 # Test 2: Send multiple messages
 echo -e "${BLUE}Test 2: Sending multiple messages...${NC}"
 for i in {1..5}; do
-    curl -s -X POST http://localhost:8080/api/send \
+    curl -s -X POST http://localhost:18765/api/send \
         -H "Content-Type: application/json" \
         -d "{
             \"channel\": \"general\",
@@ -70,7 +70,7 @@ echo -e "${BLUE}Test 3: Testing different message types...${NC}"
 
 MESSAGE_TYPES=("question" "statement" "system_info")
 for msg_type in "${MESSAGE_TYPES[@]}"; do
-    curl -s -X POST http://localhost:8080/api/send \
+    curl -s -X POST http://localhost:18765/api/send \
         -H "Content-Type: application/json" \
         -d "{
             \"channel\": \"general\",
@@ -91,7 +91,7 @@ echo -e "${BLUE}Test 4: Sending messages to trigger agent responses...${NC}"
 
 # Frontend question
 echo -e "  Sending frontend question..."
-curl -s -X POST http://localhost:8080/api/send \
+curl -s -X POST http://localhost:18765/api/send \
     -H "Content-Type: application/json" \
     -d '{
         "channel": "general",
@@ -103,7 +103,7 @@ sleep 2
 
 # Backend question
 echo -e "  Sending backend question..."
-curl -s -X POST http://localhost:8080/api/send \
+curl -s -X POST http://localhost:18765/api/send \
     -H "Content-Type: application/json" \
     -d '{
         "channel": "general",
@@ -115,7 +115,7 @@ sleep 2
 
 # DevOps question
 echo -e "  Sending DevOps question..."
-curl -s -X POST http://localhost:8080/api/send \
+curl -s -X POST http://localhost:18765/api/send \
     -H "Content-Type: application/json" \
     -d '{
         "channel": "general",
@@ -128,7 +128,7 @@ echo ""
 
 # Test 5: Check recent messages
 echo -e "${BLUE}Test 5: Retrieving recent messages...${NC}"
-MESSAGES=$(curl -s http://localhost:8080/api/channels/general/messages?limit=10)
+MESSAGES=$(curl -s http://localhost:18765/api/channels/general/messages?limit=10)
 
 if [ $? -eq 0 ]; then
     MESSAGE_COUNT=$(echo "$MESSAGES" | jq '. | length' 2>/dev/null || echo "0")

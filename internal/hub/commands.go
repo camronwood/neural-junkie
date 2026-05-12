@@ -27,7 +27,6 @@ type CommandHandler struct {
 	hub              *Hub
 	aiProvider       ai.AIProvider
 	repoAgents       map[string]*agent.RepoAgent        // Track repo agents for management
-	helperAgents     map[string]*agent.HelperAgent      // Track helper agents for management
 	confluenceAgents map[string]*agent.ConfluenceAgent  // Track confluence agents for management
 	cliAgents        map[string]*agent.Agent            // Track CLI proxy agents
 	runtimeAgents    map[string]*agent.Agent            // Track runtime specialist/moderator/assistant/CLI agents
@@ -64,7 +63,6 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 		hub:              hub,
 		aiProvider:       aiProvider,
 		repoAgents:       make(map[string]*agent.RepoAgent),
-		helperAgents:     make(map[string]*agent.HelperAgent),
 		confluenceAgents: make(map[string]*agent.ConfluenceAgent),
 		cliAgents:        make(map[string]*agent.Agent),
 		runtimeAgents:    make(map[string]*agent.Agent),
@@ -104,11 +102,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 	return map[string]commandExecutor{
 		"/create-repo-agent":       ch.handleCreateRepoAgent,
 		"/create-confluence-agent": ch.handleCreateConfluenceAgent,
-		"/create-helper":           ch.handleCreateHelper,
 		"/create-expert":           ch.handleCreateExpert,
-		"/list-helper-templates": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
-			return ch.handleListHelperTemplates(ctx, msg)
-		},
 		"/delete-agent":             ch.handleDeleteAgent,
 		"/reindex-agent":            ch.handleReindexAgent,
 		"/reindex-confluence-agent": ch.handleReindexConfluenceAgent,
@@ -399,12 +393,6 @@ func (ch *CommandHandler) handleDeleteAgent(ctx context.Context, msg *protocol.M
 		delete(ch.repoAgents, agentID)
 	}
 
-	// If it's a helper agent, stop it
-	if helperAgent, ok := ch.helperAgents[agentID]; ok {
-		helperAgent.Stop()
-		delete(ch.helperAgents, agentID)
-	}
-
 	// If it's a confluence agent, clean up by name
 	for name, confluenceAgent := range ch.confluenceAgents {
 		if confluenceAgent.Info.ID == agentID {
@@ -489,11 +477,6 @@ func (ch *CommandHandler) handlePauseAgent(ctx context.Context, msg *protocol.Me
 				repoAgent.Pause()
 			}
 
-			// If it's a helper agent we manage, pause it
-			if helperAgent, ok := ch.helperAgents[a.ID]; ok {
-				helperAgent.Pause()
-			}
-
 			// If it's a confluence agent we manage, pause it
 			for _, confluenceAgent := range ch.confluenceAgents {
 				if confluenceAgent.Info.ID == a.ID {
@@ -532,11 +515,6 @@ func (ch *CommandHandler) handleUnpauseAgent(ctx context.Context, msg *protocol.
 			// If it's a repo agent we manage, unpause it
 			if repoAgent, ok := ch.repoAgents[a.ID]; ok {
 				repoAgent.Unpause()
-			}
-
-			// If it's a helper agent we manage, unpause it
-			if helperAgent, ok := ch.helperAgents[a.ID]; ok {
-				helperAgent.Unpause()
 			}
 
 			// If it's a confluence agent we manage, unpause it
@@ -593,12 +571,6 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 				}
 			}
 
-			if a.Type == protocol.AgentTypeHelper {
-				if a.KnowledgePath != "" {
-					response.WriteString(fmt.Sprintf("\n  📚 %s", filepath.Base(a.KnowledgePath)))
-				}
-			}
-
 			response.WriteString("\n")
 		}
 		response.WriteString("\n")
@@ -648,12 +620,6 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 				}
 			}
 
-			if a.Type == protocol.AgentTypeHelper {
-				if a.KnowledgePath != "" {
-					response.WriteString(fmt.Sprintf("\n  📚 %s", filepath.Base(a.KnowledgePath)))
-				}
-			}
-
 			response.WriteString("\n")
 		}
 		response.WriteString("\n")
@@ -674,7 +640,6 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 		response.WriteString("**Create agents:**\n")
 		response.WriteString("• `/create-repo-agent <path>` - Repository expert\n")
 		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (rust, backend, frontend, ...)\n")
-		response.WriteString("• `/create-helper <template>` - Helper agent\n")
 		response.WriteString("• `/create-confluence-agent <space>` - Confluence expert\n")
 	}
 
@@ -751,147 +716,6 @@ func (ch *CommandHandler) handleDisableWatch(ctx context.Context, msg *protocol.
 
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("🚫 Auto-watch disabled for '%s'", agentName)), nil
-}
-
-// handleCreateHelper creates a new helper agent
-func (ch *CommandHandler) handleCreateHelper(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	if len(parts) < 2 {
-		return ch.systemResponse(msg.Channel,
-			"Usage: /create-helper <template-name>\n\n"+
-				"**Available templates:**\n"+
-				"• `day-one` or `dayoneexpert` - Day One Expert (onboarding help)\n"+
-				"• `testing-expert` or `testingexpert` - Testing Expert (testing practices)\n"+
-				"• `docs-expert` or `docsexpert` - Docs Expert (documentation help)\n\n"+
-				"Use `/list-helper-templates` for detailed information."), nil
-	}
-
-	templateName := parts[1]
-
-	// Get template configuration
-	templates := agent.DefaultHelperAgentConfigs()
-
-	// Try exact match first
-	config, ok := templates[templateName]
-
-	// If not found, try case-insensitive match and common variations
-	if !ok {
-		// Normalize the input (lowercase, replace underscores with hyphens)
-		normalized := strings.ToLower(strings.ReplaceAll(templateName, "_", "-"))
-
-		// Try normalized match
-		config, ok = templates[normalized]
-
-		// If still not found, try common variations
-		if !ok {
-			variations := map[string]string{
-				"dayoneexpert":   "day-one",
-				"dayone":         "day-one",
-				"day-one-expert": "day-one",
-				"testingexpert":  "testing-expert",
-				"testing":        "testing-expert",
-				"docsexpert":     "docs-expert",
-				"docs":           "docs-expert",
-				"docs-expert":    "docs-expert",
-			}
-
-			if variation, exists := variations[normalized]; exists {
-				config, ok = templates[variation]
-			}
-		}
-	}
-
-	if !ok {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Unknown template '%s'\n"+
-				"Use `/list-helper-templates` to see available templates.\n\n"+
-				"**Common variations:**\n"+
-				"• `day-one` or `dayoneexpert` for Day One Expert\n"+
-				"• `testing-expert` or `testingexpert` for Testing Expert\n"+
-				"• `docs-expert` or `docsexpert` for Docs Expert", templateName)), nil
-	}
-
-	// Initialize storage and save template if needed
-	storage, err := agent.NewHelperAgentStorage()
-	if err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to initialize storage: %v", err)), nil
-	}
-
-	// Check if config already exists
-	_, err = storage.LoadConfig(templateName)
-	if err != nil {
-		// Save the template config
-		if err := storage.EnsureKnowledgePath(templateName); err != nil {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("❌ Failed to create knowledge directory: %v", err)), nil
-		}
-
-		config.KnowledgePath = storage.GetKnowledgePath(templateName)
-		if err := storage.SaveConfig(templateName, config); err != nil {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("❌ Failed to save configuration: %v", err)), nil
-		}
-
-		// Create example knowledge
-		if err := storage.CreateDefaultTemplates(); err != nil {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("⚠️  Warning: Failed to create example knowledge: %v", err)), nil
-		}
-	}
-
-	// Normalize the agent name for @mention compatibility
-	config.Name = protocol.NormalizeAgentName(config.Name)
-
-	// Create helper agent
-	helperAgent, err := agent.NewHelperAgent(config, ch.aiProvider, ch.hub)
-	if err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to create helper agent: %v", err)), nil
-	}
-
-	// Check if agent with same name already exists
-	existingAgents := ch.hub.ListAgents()
-	for _, existingAgent := range existingAgents {
-		if strings.EqualFold(existingAgent.Name, config.Name) && existingAgent.Type == protocol.AgentTypeHelper {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("❌ Helper agent '%s' already exists. Use /delete-agent to remove it first.", config.Name)), nil
-		}
-	}
-
-	// Register with hub
-	if err := ch.hub.RegisterAgent(&helperAgent.Info); err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to register agent: %v", err)), nil
-	}
-
-	// Join channel
-	if err := ch.hub.JoinChannel(helperAgent.Info.ID, msg.Channel); err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to join channel: %v", err)), nil
-	}
-
-	// Start agent
-	if err := helperAgent.Start(ctx, msg.Channel); err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to start agent: %v", err)), nil
-	}
-
-	// Track the helper agent
-	ch.helperAgents[helperAgent.Info.ID] = helperAgent
-
-	statusMsg := fmt.Sprintf("🤖 Created helper agent: **%s**\n\n"+
-		"**Description:** %s\n\n"+
-		"**Expertise:** %s\n\n"+
-		"**Knowledge Base:** %s\n\n"+
-		"You can customize the knowledge base by adding .md or .txt files to:\n"+
-		"`%s`",
-		config.Name,
-		config.Description,
-		strings.Join(config.Expertise, ", "),
-		filepath.Base(config.KnowledgePath),
-		config.KnowledgePath)
-
-	return ch.systemResponse(msg.Channel, statusMsg), nil
 }
 
 // handleCreateExpert creates a specialist agent from a known type (backend, frontend, etc.)
@@ -1058,32 +882,6 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 			expertType, name, agentType, providerDisplay, expertiseStr, name)), nil
 }
 
-// handleListHelperTemplates lists available helper agent templates
-func (ch *CommandHandler) handleListHelperTemplates(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
-	templates := agent.DefaultHelperAgentConfigs()
-
-	var response strings.Builder
-	response.WriteString("📋 **Available Helper Agent Templates:**\n\n")
-
-	// Sort templates for consistent output
-	templateNames := []string{"day-one", "testing-expert", "docs-expert"}
-
-	for _, name := range templateNames {
-		if config, ok := templates[name]; ok {
-			response.WriteString(fmt.Sprintf("**`%s`** - %s\n", name, config.Name))
-			response.WriteString(fmt.Sprintf("  %s\n", config.Description))
-			response.WriteString(fmt.Sprintf("  Keywords: %s\n\n", strings.Join(config.Keywords[:3], ", ")))
-		}
-	}
-
-	response.WriteString("\n**Usage:**\n")
-	response.WriteString("```\n/create-helper <template-name>\n```\n\n")
-	response.WriteString("**Example:**\n")
-	response.WriteString("```\n/create-helper day-one\n```\n")
-
-	return ch.systemResponse(msg.Channel, response.String()), nil
-}
-
 // handleHelp shows available commands
 func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
 	help := "**Available Commands:**\n\n" +
@@ -1094,9 +892,6 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/disable-watch <name>` - Disable automatic file watching\n\n" +
 		"**Expert Agents:**\n" +
 		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (rust, backend, frontend, devops, database, security)\n\n" +
-		"**Helper Agents:**\n" +
-		"• `/create-helper <template>` - Create a helper agent (e.g., day-one, testing-expert)\n" +
-		"• `/list-helper-templates` - Show available helper agent templates\n\n" +
 		"**Agent Management:**\n" +
 		"• `/remove-agent <name>` - Remove agent from conversation (can recall later)\n" +
 		"• `/recall-agent <name>` - Recall a removed agent back to conversation\n" +
@@ -1118,7 +913,6 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"**Examples:**\n" +
 		"```\n" +
 		"/create-repo-agent /path/to/my-project MyProjectExpert\n" +
-		"/create-helper day-one\n" +
 		"/enable-watch MyProjectExpert\n" +
 		"```\n"
 
@@ -1480,24 +1274,6 @@ func (ch *CommandHandler) handleExportAgentMCP(ctx context.Context, msg *protoco
 		}
 	}
 
-	// Find agent in helper agents
-	if agentType == protocol.AgentTypeHelper {
-		if helperAgent, exists := ch.helperAgents[agentID]; exists {
-			export, err := helperAgent.ExportToMCP()
-			if err != nil {
-				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to export helper agent: %v", err)), nil
-			}
-
-			if err := ch.exportStorage.SaveExport(export); err != nil {
-				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to save export: %v", err)), nil
-			}
-
-			metadata := helperAgent.GetExportMetadata()
-			return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Exported helper agent '%s'\n📄 Resources: %d\n💬 Prompts: %d",
-				agentName, metadata.ResourceCount, metadata.PromptCount)), nil
-		}
-	}
-
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Agent '%s' not found. Use /list-agents to see available agents.", agentName)), nil
 }
 
@@ -1527,8 +1303,8 @@ func (ch *CommandHandler) handleListExports(ctx context.Context, msg *protocol.M
 
 	stats, err := ch.exportStorage.GetExportStats()
 	if err == nil {
-		response.WriteString(fmt.Sprintf("📊 **Total:** %d exports (%d repo, %d helper) | %.1f KB total",
-			stats.TotalExports, stats.RepoExports, stats.HelperExports, float64(stats.TotalSize)/1024))
+		response.WriteString(fmt.Sprintf("📊 **Total:** %d exports (%d repo) | %.1f KB total",
+			stats.TotalExports, stats.RepoExports, float64(stats.TotalSize)/1024))
 	}
 
 	return ch.systemResponse(msg.Channel, response.String()), nil
@@ -1583,11 +1359,10 @@ func (ch *CommandHandler) handleImportAgentMCP(ctx context.Context, msg *protoco
 	}
 
 	// Check if agent already exists
-	if _, exists := ch.repoAgents[export.Agent.Name]; exists {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Repo agent '%s' already exists", export.Agent.Name)), nil
-	}
-	if _, exists := ch.helperAgents[export.Agent.Name]; exists {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Helper agent '%s' already exists", export.Agent.Name)), nil
+	for _, a := range ch.hub.ListAgents() {
+		if strings.EqualFold(a.Name, export.Agent.Name) {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ An agent named '%s' already exists", export.Agent.Name)), nil
+		}
 	}
 
 	// Create agent based on type
@@ -1626,46 +1401,7 @@ func (ch *CommandHandler) handleImportAgentMCP(ctx context.Context, msg *protoco
 			export.Agent.Name, filePath, export.GetResourceCount(), export.GetPromptCount())), nil
 
 	case "helper":
-		// For helper agents, we need the knowledge path
-		if export.Agent.KnowledgePath == "" {
-			return ch.systemResponse(msg.Channel, "❌ Knowledge path not found in export. Cannot recreate helper agent."), nil
-		}
-
-		// Create helper agent config
-		config := &agent.HelperAgentConfig{
-			Name:          export.Agent.Name,
-			Description:   export.Agent.Description,
-			Expertise:     export.Agent.Expertise,
-			Keywords:      export.Agent.Keywords,
-			KnowledgePath: export.Agent.KnowledgePath,
-		}
-
-		// Create helper agent
-		helperAgent, err := agent.NewHelperAgent(config, ch.aiProvider, ch.hub)
-		if err != nil {
-			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create helper agent: %v", err)), nil
-		}
-
-		// Register with hub
-		if err := ch.hub.RegisterAgent(&helperAgent.Info); err != nil {
-			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to register agent: %v", err)), nil
-		}
-
-		// Join channel
-		if err := ch.hub.JoinChannel(helperAgent.Info.ID, msg.Channel); err != nil {
-			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to join channel: %v", err)), nil
-		}
-
-		// Start the agent
-		if err := helperAgent.Start(ctx, msg.Channel); err != nil {
-			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to start agent: %v", err)), nil
-		}
-
-		// Track the helper agent
-		ch.helperAgents[helperAgent.Info.ID] = helperAgent
-
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Imported helper agent '%s' from %s\n📄 Resources: %d | 💬 Prompts: %d",
-			export.Agent.Name, filePath, export.GetResourceCount(), export.GetPromptCount())), nil
+		return ch.systemResponse(msg.Channel, "❌ Helper agent imports are no longer supported. Create a repository or Confluence agent instead."), nil
 
 	default:
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Unsupported agent type: %s", export.Agent.Type)), nil
@@ -1693,22 +1429,6 @@ func (ch *CommandHandler) handleExportAllAgents(ctx context.Context, msg *protoc
 		exported = append(exported, fmt.Sprintf("%s (repo)", name))
 	}
 
-	// Export all helper agents
-	for name, helperAgent := range ch.helperAgents {
-		export, err := helperAgent.ExportToMCP()
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("Helper agent '%s': %v", name, err))
-			continue
-		}
-
-		if err := ch.exportStorage.SaveExport(export); err != nil {
-			errors = append(errors, fmt.Sprintf("Helper agent '%s': %v", name, err))
-			continue
-		}
-
-		exported = append(exported, fmt.Sprintf("%s (helper)", name))
-	}
-
 	// Build response
 	var response strings.Builder
 	if len(exported) > 0 {
@@ -1717,7 +1437,7 @@ func (ch *CommandHandler) handleExportAllAgents(ctx context.Context, msg *protoc
 			response.WriteString(fmt.Sprintf("  • %s\n", name))
 		}
 	} else {
-		response.WriteString("📦 No agents available to export. Create agents first with /create-repo-agent or /create-helper.\n")
+		response.WriteString("📦 No agents available to export. Create agents first with /create-repo-agent.\n")
 	}
 
 	if len(errors) > 0 {
@@ -1847,29 +1567,7 @@ func (ch *CommandHandler) handleMigrateAgentNames(ctx context.Context, msg *prot
 		errors = append(errors, fmt.Sprintf("Failed to initialize repo storage: %v", err))
 	}
 
-	// 2. Migrate helper agents
-	response.WriteString("\n**Helper Agents:**\n")
-	helperStorage, err := agent.NewHelperAgentStorage()
-	if err == nil {
-		configs, err := helperStorage.ListConfigsWithMetadata()
-		if err == nil {
-			for _, configData := range configs {
-				if name, ok := configData["name"].(string); ok {
-					normalized := protocol.NormalizeAgentName(name)
-					if name != normalized {
-						response.WriteString(fmt.Sprintf("  • %s → %s\n", name, normalized))
-						migrated = append(migrated, fmt.Sprintf("%s (helper)", name))
-					}
-				}
-			}
-		} else {
-			errors = append(errors, fmt.Sprintf("Failed to load helper configs: %v", err))
-		}
-	} else {
-		errors = append(errors, fmt.Sprintf("Failed to initialize helper storage: %v", err))
-	}
-
-	// 3. Migrate Confluence agents (check exports)
+	// 2. Migrate Confluence agents (check exports)
 	response.WriteString("\n**Confluence Agents:**\n")
 	exports, err := ch.exportStorage.ListExports()
 	if err == nil {
@@ -3097,9 +2795,6 @@ func (ch *CommandHandler) resolveRuntimeAgent(agentID string) providerSwitchable
 	if repoAgent, ok := ch.repoAgents[agentID]; ok && repoAgent != nil {
 		return repoAgent
 	}
-	if helperAgent, ok := ch.helperAgents[agentID]; ok && helperAgent != nil {
-		return helperAgent
-	}
 	if ch.assistantAgent != nil && ch.assistantAgent.Info.ID == agentID {
 		return ch.assistantAgent.Agent
 	}
@@ -3633,25 +3328,6 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},
 			},
-		},
-
-		// ── Helper Agents ──────────────────────────────────────────────
-		{
-			Name:        "/create-helper",
-			Description: "Create a custom helper/expert agent from a template",
-			Category:    "Helper Agents",
-			Arguments: []protocol.CommandArgument{
-				{Name: "template", Description: "Template name (e.g. day-one, testing-expert)", Type: "string", Required: true},
-				{Name: "agent-name", Description: "Custom name for the agent", Type: "string", Required: false},
-				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
-				{Name: "model", Description: "AI model name", Type: "model", Required: false},
-			},
-		},
-		{
-			Name:        "/list-helper-templates",
-			Description: "List available helper agent templates",
-			Category:    "Helper Agents",
-			Arguments:   []protocol.CommandArgument{},
 		},
 
 		// ── Agent Management ───────────────────────────────────────────
@@ -4264,12 +3940,6 @@ func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, clie
 			return
 		}
 	}
-	for _, ha := range ch.helperAgents {
-		if ha.GetAgentInfo().ID == agentID {
-			ha.SetCollabClient(client)
-			return
-		}
-	}
 	for _, ca := range ch.cliAgents {
 		if ca.Info.ID == agentID {
 			ca.SetCollabClient(client)
@@ -4343,7 +4013,9 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 		}
 	}
 
-	return ch.systemResponse(msg.Channel, taskSummary.String()), nil
+	out := ch.systemResponse(msg.Channel, taskSummary.String())
+	out.SetCollaborationID(collabID)
+	return out, nil
 }
 
 func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
@@ -4404,7 +4076,9 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
-	return ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8])), nil
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8]))
+	out.SetCollaborationID(collabID)
+	return out, nil
 }
 
 func inheritWorkspaceContextMetadata(src, dst *protocol.Message) {

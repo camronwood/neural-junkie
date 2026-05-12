@@ -150,7 +150,7 @@ The moderator:
 
 - Read [Moderator Agent Documentation](MODERATOR_AGENT.md) for technical details
 - Check out [Getting Started](GETTING_STARTED.md) for system setup
-- Learn about [Helper Agents](HELPER_AGENTS.md) and [Repo Agents](REPO_AGENTS.md)
+- Learn about [Repo Agents](REPO_AGENTS.md)
 
 ---
 

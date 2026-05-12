@@ -149,7 +149,7 @@ func (s *AssistantStorage) ensureDefaultConfig() error {
 		DefaultChannel:      "general",
 		ReminderAdvance:     15, // 15 minutes before meetings
 		Keywords:            []string{"meeting", "deadline", "review", "deploy", "release"},
-		MeetingNotesDir:     "/Users/camron.wood.ext/development/meeting-notes",
+		MeetingNotesDir:     "/Users/camronwood/development/meeting-notes",
 		AutoIngestEnabled:   true,
 		ProactiveAssistance: true,
 	}

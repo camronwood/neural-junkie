@@ -406,82 +406,6 @@ func TestWatchCommands(t *testing.T) {
 	}
 }
 
-// TestCreateHelperCommand tests the create helper command
-func TestCreateHelperCommand(t *testing.T) {
-	h := hub.NewHub()
-	handler, err := hub.NewCommandHandler(h)
-	if err != nil {
-		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
-	}
-
-	// Create test message with create helper command
-	msg := protocol.NewMessage(
-		protocol.MessageTypeChat,
-		"test-channel",
-		protocol.AgentInfo{
-			ID:   "user-123",
-			Name: "TestUser",
-			Type: protocol.AgentTypeGeneral,
-		},
-		"/create-helper TestHelper Test helper agent",
-	)
-
-	// Process command
-	ctx := context.Background()
-	response, err := handler.ProcessCommand(ctx, msg)
-	if err != nil {
-		t.Fatalf("Expected create helper command to succeed, got error: %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected create helper command to return a response")
-	}
-
-	// The command should either succeed or provide information
-	if !strings.Contains(response.Content, "created") &&
-		!strings.Contains(response.Content, "helper") {
-		t.Error("Expected create helper response to contain helper information")
-	}
-}
-
-// TestListHelperTemplatesCommand tests the list helper templates command
-func TestListHelperTemplatesCommand(t *testing.T) {
-	h := hub.NewHub()
-	handler, err := hub.NewCommandHandler(h)
-	if err != nil {
-		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
-	}
-
-	// Create test message with list helper templates command
-	msg := protocol.NewMessage(
-		protocol.MessageTypeChat,
-		"test-channel",
-		protocol.AgentInfo{
-			ID:   "user-123",
-			Name: "TestUser",
-			Type: protocol.AgentTypeGeneral,
-		},
-		"/list-helper-templates",
-	)
-
-	// Process command
-	ctx := context.Background()
-	response, err := handler.ProcessCommand(ctx, msg)
-	if err != nil {
-		t.Fatalf("Expected list helper templates command to succeed, got error: %v", err)
-	}
-
-	if response == nil {
-		t.Fatal("Expected list helper templates command to return a response")
-	}
-
-	// Should contain template information
-	if !strings.Contains(response.Content, "templates") &&
-		!strings.Contains(response.Content, "Available") {
-		t.Error("Expected list helper templates response to contain template information")
-	}
-}
-
 // TestConfluenceCommands tests confluence-related commands
 func TestConfluenceCommands(t *testing.T) {
 	h := hub.NewHub()
@@ -764,8 +688,7 @@ func TestCommandParsing(t *testing.T) {
 		{"/reindex-agent TestAgent", true},
 		{"/enable-watch TestAgent", true},
 		{"/disable-watch TestAgent", true},
-		{"/create-helper TestHelper Test description", true},
-		{"/list-helper-templates", true},
+		{"/create-expert rust", true},
 		{"/create-confluence-agent TestAgent", true},
 		{"/list-confluence-agents", true},
 		{fmt.Sprintf("/add-workspace %s", workspaceDir), true},

@@ -10,14 +10,14 @@ Use this runbook when Assistant reminders/tasks appear conversational but do not
 
 ## 0) Preconditions
 
-- Server expected at `http://localhost:8080`.
+- Server expected at `http://localhost:18765`.
 - You can run local CLI commands (`curl`, `make`, `lsof`).
-- If you use `make refresh`, confirm no stale process still owns `:8080`.
+- If you use `make refresh`, confirm no stale process still owns `:18765`.
 
 ## 1) Quick Health + Log Baseline
 
 ```bash
-curl -s "http://localhost:8080/api/health"
+curl -s "http://localhost:18765/api/health"
 ```
 
 Expected:
@@ -41,7 +41,7 @@ Look for:
 Send a controlled reminder message:
 
 ```bash
-curl -s -X POST "http://localhost:8080/api/send" \
+curl -s -X POST "http://localhost:18765/api/send" \
   -H "Content-Type: application/json" \
   -d '{"channel":"dm-camron-assistant","content":"set a reminder for 25s from now to run persistence probe","type":"question","from":{"name":"Camron","type":"human"}}'
 ```
@@ -49,7 +49,7 @@ curl -s -X POST "http://localhost:8080/api/send" \
 Immediately verify state:
 
 ```bash
-curl -s "http://localhost:8080/api/assistant/state?channel=dm-camron-assistant"
+curl -s "http://localhost:18765/api/assistant/state?channel=dm-camron-assistant"
 ```
 
 Pass criteria:
@@ -65,7 +65,7 @@ Wait past trigger time and re-check:
 
 ```bash
 sleep 30
-curl -s "http://localhost:8080/api/assistant/state?channel=dm-camron-assistant"
+curl -s "http://localhost:18765/api/assistant/state?channel=dm-camron-assistant"
 ```
 
 Pass criteria:
@@ -77,7 +77,7 @@ Pass criteria:
 If collaboration capacity is full, cancel stale plans first:
 
 ```bash
-curl -s -X POST "http://localhost:8080/api/send" \
+curl -s -X POST "http://localhost:18765/api/send" \
   -H "Content-Type: application/json" \
   -d '{"channel":"unit-testing","content":"/cancel-plan <collab_id>","type":"question","from":{"name":"Camron","type":"human"}}'
 ```
@@ -85,7 +85,7 @@ curl -s -X POST "http://localhost:8080/api/send" \
 Start a fresh collaboration:
 
 ```bash
-curl -s -X POST "http://localhost:8080/api/send" \
+curl -s -X POST "http://localhost:18765/api/send" \
   -H "Content-Type: application/json" \
   -d '{"channel":"unit-testing","content":"/collaborate @RustExpert @ReactExpert run collaboration probe","type":"question","from":{"name":"Camron","type":"human"}}'
 ```
@@ -97,10 +97,10 @@ Pass criteria in logs:
 
 ## 5) If Results Do Not Match Source (Stale Runtime Playbook)
 
-1. Stop anything on `:8080`:
+1. Stop anything on `:18765`:
 
 ```bash
-lsof -ti :8080 | xargs kill -9 2>/dev/null || true
+lsof -ti :18765 | xargs kill -9 2>/dev/null || true
 ```
 
 2. Restart from current source:

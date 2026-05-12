@@ -19,7 +19,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
   });
   const [selectedCollaborators, setSelectedCollaborators] = useState<Set<string>>(new Set());
 
-  const firstInputRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
+  const firstInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>(null);
 
   useEffect(() => {
     firstInputRef.current?.focus();
@@ -160,14 +160,14 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
               <label htmlFor="cmd-arg-description" className="block text-xs font-medium text-slack-textMuted mb-1">
                 prompt<span className="text-red-400 ml-0.5">*</span>
               </label>
-              <input
+              <textarea
                 id="cmd-arg-description"
-                type="text"
+                rows={4}
                 value={values.description ?? ''}
                 onChange={e => setValue('description', e.target.value)}
                 placeholder="Describe what you want the agents to collaborate on..."
-                className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
-                ref={firstInputRef as React.Ref<HTMLInputElement>}
+                className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent resize-y min-h-[5rem]"
+                ref={firstInputRef as React.Ref<HTMLTextAreaElement>}
               />
             </div>
             <div>

@@ -49,7 +49,7 @@ fi
 # Check if server is running
 echo ""
 echo "📡 Checking server status..."
-if curl -s http://localhost:8080/api/channels > /dev/null 2>&1; then
+if curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo "✅ Server is running"
 else
     echo "❌ Server is not running"
@@ -66,7 +66,7 @@ else
         sleep 3
         
         # Verify server started
-        if curl -s http://localhost:8080/api/channels > /dev/null 2>&1; then
+        if curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
             echo "✅ Server is ready"
         else
             echo "❌ Failed to start server. Check /tmp/ai-chat-server.log"
@@ -91,7 +91,7 @@ go run cmd/agent/main.go \
     --name "$AGENT_NAME" \
     --mock=false \
     --channel general \
-    --server http://localhost:8080
+    --server http://localhost:18765
 
 echo ""
 echo "================================================"

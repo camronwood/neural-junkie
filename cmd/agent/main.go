@@ -22,7 +22,7 @@ var (
 	agentType  = flag.String("type", "backend", "Agent type (frontend, backend, devops, database, security, rust, repo)")
 	agentName  = flag.String("name", "", "Agent name (optional, will be auto-generated)")
 	channel    = flag.String("channel", "general", "Channel to join")
-	serverAddr = flag.String("server", "http://localhost:8080", "Chat hub server address")
+	serverAddr = flag.String("server", "http://localhost:18765", "Chat hub server address")
 	useMock    = flag.Bool("mock", false, "Use mock AI responses (set to true for testing without API calls)")
 	repoPath   = flag.String("repo-path", "", "Repository path (required for repo type agents)")
 	modelName  = flag.String("model", "", "Ollama model to use (overrides OLLAMA_MODEL env var)")

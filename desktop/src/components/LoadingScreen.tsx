@@ -1,21 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getHubBaseURL } from '../config/hubUrl';
 
 interface LoadingScreenProps {
   onReady: () => void;
   onError?: (error: string) => void;
+  /** When hub never responds, let user open sign-in to enter a different server URL. */
+  onContinueWithoutHub?: () => void;
 }
 
-export function LoadingScreen({ onReady, onError }: LoadingScreenProps) {
+const HUB_WAIT_MS = 50_000;
+
+export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: LoadingScreenProps) {
   const [status, setStatus] = useState('Connecting to hub…');
   const [hasError, setHasError] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
+  const hubUrl = getHubBaseURL();
+  const finishedRef = useRef(false);
+
+  const markConnected = () => {
+    finishedRef.current = true;
+  };
 
   useEffect(() => {
+    finishedRef.current = false;
+
     const unlisten1 = listen<boolean>('server-ready', () => {
       setStatus('Ready');
       setHasError(false);
+      markConnected();
       setTimeout(onReady, 280);
     });
 
@@ -27,31 +40,46 @@ export function LoadingScreen({ onReady, onError }: LoadingScreenProps) {
 
     const pollInterval = setInterval(async () => {
       try {
-        const resp = await fetch(`${getHubBaseURL()}/api/health`);
+        const resp = await fetch(`${hubUrl}/api/health`);
         if (!resp.ok) return;
         const data = (await resp.json()) as { status?: string };
         if (data.status !== 'ok') return;
         clearInterval(pollInterval);
         setHasError(false);
         setStatus('Ready');
+        markConnected();
         setTimeout(onReady, 280);
       } catch {
-        /* hub still starting */
+        /* hub still starting or wrong host/port */
       }
     }, 1000);
 
+    const timeoutId = window.setTimeout(() => {
+      if (!finishedRef.current) {
+        setHasError(true);
+        setStatus('Still waiting for the hub');
+        onError?.(
+          `No answer from ${hubUrl} after ${HUB_WAIT_MS / 1000}s. Start the hub (e.g. make server) or rebuild with VITE_NJ_HUB_URL if the port differs.`
+        );
+      }
+    }, HUB_WAIT_MS);
+
     return () => {
+      clearTimeout(timeoutId);
       unlisten1.then(fn => fn());
       unlisten2.then(fn => fn());
       clearInterval(pollInterval);
     };
-  }, [onReady, onError, retryToken]);
+  }, [onReady, onError, retryToken, hubUrl]);
 
   const handleRetry = () => {
+    finishedRef.current = false;
     setHasError(false);
     setStatus('Retrying connection…');
     setRetryToken(t => t + 1);
   };
+
+  const showActions = hasError;
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-slack-bg px-6">
@@ -67,28 +95,37 @@ export function LoadingScreen({ onReady, onError }: LoadingScreenProps) {
         </div>
         <h1 className="text-xl font-semibold tracking-tight text-slack-text">Neural Junkie</h1>
         <p className="mt-3 text-sm leading-relaxed text-slack-textMuted">{status}</p>
+        <p className="mt-2 font-mono text-[11px] text-slack-textMuted/90 break-all">
+          {hubUrl}
+        </p>
 
-        {!hasError && (
+        {!showActions && (
           <div className="mt-8 flex justify-center" aria-hidden>
             <div className="h-9 w-9 animate-spin rounded-full border-2 border-slack-accent border-t-transparent" />
           </div>
         )}
 
-        {hasError && (
-          <div className="mt-6 space-y-4">
+        {showActions && (
+          <div className="mt-6 space-y-3">
             <div
               className="rounded-lg border border-red-500/40 bg-red-950/30 px-4 py-3 text-left text-xs leading-relaxed text-red-100/95"
               role="alert"
             >
-              The hub did not become healthy in time. If you use dev mode, run{' '}
-              <code className="rounded bg-slack-bg px-1.5 py-0.5 font-mono text-[11px] text-slack-text">
-                make server
-              </code>{' '}
-              or align{' '}
-              <code className="rounded bg-slack-bg px-1.5 py-0.5 font-mono text-[11px] text-slack-text">
-                NEURAL_JUNKIE_HUB_URL
-              </code>{' '}
-              with your hub.
+              <p className="font-medium text-red-200">Hub not reachable</p>
+              <p className="mt-2">
+                Start the Go hub so <span className="font-mono text-red-100/90">{hubUrl}/api/health</span> returns{' '}
+                <code className="rounded bg-slack-bg px-1 py-0.5 font-mono text-[11px]">{`{"status":"ok"}`}</code>
+                . From the repo:{' '}
+                <code className="rounded bg-slack-bg px-1.5 py-0.5 font-mono text-[11px] text-slack-text">
+                  make server
+                </code>{' '}
+                or{' '}
+                <code className="rounded bg-slack-bg px-1.5 py-0.5 font-mono text-[11px] text-slack-text">
+                  make start-all
+                </code>
+                . If the hub uses another port, set <strong>VITE_NJ_HUB_URL</strong> when building the desktop app, or use{' '}
+                <strong>Continue to sign-in</strong> and enter the URL there.
+              </p>
             </div>
             <button
               type="button"
@@ -97,6 +134,15 @@ export function LoadingScreen({ onReady, onError }: LoadingScreenProps) {
             >
               Check again
             </button>
+            {onContinueWithoutHub && (
+              <button
+                type="button"
+                onClick={onContinueWithoutHub}
+                className="w-full rounded-md border border-slack-border bg-slack-bg py-2.5 text-sm font-medium text-slack-text hover:bg-slack-bgHover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
+              >
+                Continue to sign-in
+              </button>
+            )}
           </div>
         )}
       </div>

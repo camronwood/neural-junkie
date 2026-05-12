@@ -35,7 +35,6 @@ graph TB
 
     Core --> RepoAgents[📂 Repo Agents<br/>Codebase indexing · File watch<br/>Project-specific expertise]
     Core --> ConfluenceAgents[📚 Confluence Agents<br/>Space indexing · Doc search<br/>Knowledge Q&A]
-    Core --> HelperAgents[🎯 Helper Agents<br/>Onboarding · Testing<br/>Custom templates]
 
     style Core fill:#1a1a2e,stroke:#e94560,color:#fff,stroke-width:2px
     style Moderator fill:#16213e,stroke:#0f3460,color:#fff
@@ -47,13 +46,12 @@ graph TB
     style SecurityExpert fill:#0f3460,stroke:#533483,color:#fff
     style RepoAgents fill:#533483,stroke:#e94560,color:#fff
     style ConfluenceAgents fill:#533483,stroke:#e94560,color:#fff
-    style HelperAgents fill:#533483,stroke:#e94560,color:#fff
 ```
 
 ## What's In the Box
 
 - **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
-- **10 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Rust, Repo, Confluence, Helper, and Moderator/Assistant (auto-started)
+- **9 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Rust, Repo, Confluence, and Moderator/Assistant (auto-started); plus on-demand **Expert** and **CLI** agents via commands
 - **Dynamic AI Providers** -- Ollama (managed), Claude, LM Studio, and any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)
 - **First-Run Setup Wizard** -- Guided onboarding to configure your AI backend and enable agents
 - **Auto-Updates** -- In-app update notifications with one-click install via Tauri updater
@@ -96,7 +94,7 @@ make gui             # Terminal 3: Desktop app
 make chat
 
 # Web UI
-open http://localhost:8080
+open http://localhost:18765
 
 # CLI (scripting/automation)
 go run cmd/cli/main.go --channel general --message "Your question"
@@ -161,7 +159,6 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 |-------|-------------|---------|
 | **Repo Agent** | `/create-repo-agent /path provider` | Indexes a codebase, watches for changes, answers project questions |
 | **Confluence Agent** | `/create-confluence-agent space-key` | Indexes a Confluence space for documentation Q&A |
-| **Helper Agent** | `/create-helper template-name` | Custom knowledge-base expert (onboarding, testing, docs) |
 | **Expert Agent** | `/create-expert type [name]` | Spin up any specialist on the fly (rust, backend, frontend, devops, database, security) |
 
 ## Commands
@@ -173,7 +170,6 @@ Type `/` in the chat or click the **`/`** button to open the command palette. Co
 | **Repo Agents** | `/create-repo-agent`, `/reindex-agent`, `/enable-watch`, `/disable-watch` |
 | **Confluence** | `/create-confluence-agent`, `/reindex-confluence-agent`, `/list-confluence-agents` |
 | **Experts** | `/create-expert` |
-| **Helpers** | `/create-helper`, `/list-helper-templates` |
 | **Agent Mgmt** | `/list-agents`, `/delete-agent`, `/pause-agent`, `/unpause-agent`, `/remove-agent`, `/recall-agent` |
 | **Providers** | `/switch-provider`, `/switch-all-providers` |
 | **Files** | `/open-file`, `/list-file-changes`, `/approve-file`, `/reject-file` |
@@ -191,7 +187,6 @@ neural-junkie/
 ├── cmd/
 │   ├── server/          # Hub server (HTTP + WebSocket + config API)
 │   ├── agent/           # Standalone agent runner
-│   ├── helper-agent/    # Helper agent runner
 │   ├── chat/            # Interactive terminal chat
 │   └── cli/             # CLI tool (automation, MCP server)
 ├── desktop/             # Tauri + React desktop app
@@ -223,7 +218,6 @@ neural-junkie/
 | **[Architecture](docs/ARCHITECTURE.md)** | System design, data flow, patterns |
 | **[Repo Agents](docs/REPO_AGENTS.md)** | Repository indexing and analysis |
 | **[Confluence Agents](docs/CONFLUENCE_AGENTS.md)** | Confluence space integration |
-| **[Helper Agents](docs/HELPER_AGENTS.md)** | Custom knowledge-base experts |
 | **[Assistant Agent](docs/ASSISTANT_AGENT.md)** | Reminders, tasks, notes, meetings |
 | **[Moderator Agent](docs/MODERATOR_AGENT.md)** | Chat guidance and command help |
 | **[MCP Integration](docs/MCP_INTEGRATION.md)** | MCP tool servers for agents |
@@ -251,7 +245,6 @@ make build            # Build all Go binaries
 make test             # Run Go tests
 make pull-models      # Pull Ollama models
 make repo-agent       # Create repo agent: make repo-agent PATH=/path NAME="Name"
-make helper-agent     # Start helper: make helper-agent NAME=day-one
 make clean            # Remove build artifacts
 
 # Packaging & Release

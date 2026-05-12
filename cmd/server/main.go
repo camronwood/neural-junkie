@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	addr     = flag.String("addr", ":8080", "HTTP service address")
+	addr     = flag.String("addr", ":18765", "HTTP service address")
 	upgrader = websocket.Upgrader{
 		CheckOrigin: checkWebSocketOrigin,
 	}
@@ -116,7 +116,7 @@ func main() {
 	// Override addr flag from config if not explicitly set via CLI
 	if appConfig.Server.Port != 0 {
 		defaultAddr := fmt.Sprintf(":%d", appConfig.Server.Port)
-		if *addr == ":8080" {
+		if *addr == ":18765" {
 			*addr = defaultAddr
 		}
 	}
@@ -2343,15 +2343,6 @@ func getAllCachedAgents() ([]map[string]interface{}, error) {
 		repoAgents, err := repoStorage.GetAllCachedRepos()
 		if err == nil {
 			allAgents = append(allAgents, repoAgents...)
-		}
-	}
-
-	// Get cached helper agents
-	helperStorage, err := agent.NewHelperAgentStorage()
-	if err == nil {
-		helperAgents, err := helperStorage.ListConfigsWithMetadata()
-		if err == nil {
-			allAgents = append(allAgents, helperAgents...)
 		}
 	}
 

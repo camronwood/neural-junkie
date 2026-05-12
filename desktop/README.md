@@ -123,7 +123,7 @@ desktop/
 
 ### Server Address
 
-Default: `localhost:8080`
+Default: `localhost:18765`
 
 You can change this in the login screen or update the default in `src/stores/chatStore.ts`.
 
@@ -142,7 +142,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ### WebSocket connection fails
-Make sure the Go backend server is running on `localhost:8080`:
+Make sure the Go backend server is running on `localhost:18765`:
 ```bash
 make server
 ```

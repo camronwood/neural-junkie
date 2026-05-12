@@ -118,7 +118,7 @@ Where `<cache-key>` is the SHA256 hash of the absolute repository path.
 ### Example Cache Keys
 
 ```
-Repository: /Users/camron.wood.ext/development/sandbox/neural-junkie
+Repository: /Users/camronwood/development/sandbox/neural-junkie
 Cache Key:  20c9c3f75f65c72c117bf7e8c139f6abfa8f7ff056ebe9baa519eed962c53fc9
 Location:   ~/.neural-junkie/repos/20c9c3f75f65c72c117bf7e8c139f6abfa8f7ff056ebe9baa519eed962c53fc9/
 ```

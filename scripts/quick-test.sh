@@ -36,7 +36,7 @@ echo -e "  ${GREEN}✓${NC} Server started (PID: $SERVER_PID)"
 sleep 2
 
 # Check if server is running
-if ! curl -s http://localhost:8080/api/channels > /dev/null 2>&1; then
+if ! curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo -e "${RED}✗ Server failed to start!${NC}"
     echo "Check logs: tail /tmp/ai-chat-server.log"
     exit 1
@@ -66,7 +66,7 @@ sleep 2
 echo ""
 
 # Check agents
-AGENT_COUNT=$(curl -s http://localhost:8080/api/agents | jq '. | length' 2>/dev/null || echo "0")
+AGENT_COUNT=$(curl -s http://localhost:18765/api/agents | jq '. | length' 2>/dev/null || echo "0")
 echo -e "  ${GREEN}✓${NC} Active agents: $AGENT_COUNT"
 echo ""
 
@@ -75,7 +75,7 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}✅ Setup Complete!${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
-echo -e "${BLUE}Server:${NC}  http://localhost:8080"
+echo -e "${BLUE}Server:${NC}  http://localhost:18765"
 echo -e "${BLUE}Agents:${NC}  $AGENT_COUNT active"
 echo ""
 echo -e "${YELLOW}Now you can:${NC}"
@@ -89,7 +89,7 @@ echo "     make chat"
 echo "     (or: go run cmd/chat/main.go)"
 echo ""
 echo -e "  ${BLUE}3. Test the Web UI:${NC}"
-echo "     open http://localhost:8080"
+echo "     open http://localhost:18765"
 echo ""
 echo -e "${YELLOW}Example questions to try:${NC}"
 echo "  • How do I prevent SQL injection?"

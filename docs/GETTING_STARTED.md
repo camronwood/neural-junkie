@@ -23,7 +23,7 @@ make start-all     # Starts server, agents, and desktop app
 ```
 
 This launches:
-- The **Hub server** on `http://localhost:8080`
+- The **Hub server** on `http://localhost:18765`
 - **Moderator** and **Assistant** agents (auto-started with the server)
 - 5 **specialist agents**: GoExpert, SQLMaster, SecurityExpert, ReactExpert, DevOpsPro
 - The **Tauri desktop app**
@@ -46,7 +46,7 @@ make gui          # Desktop app (recommended)
 # OR
 make chat         # Terminal chat
 # OR
-open http://localhost:8080   # Web UI
+open http://localhost:18765   # Web UI
 ```
 
 ## AI Provider Configuration
@@ -113,7 +113,7 @@ go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
 |-----------|---------|----------|
 | **Desktop App** | `make gui` | Full experience -- command palette, file explorer, code editor, threads |
 | **Terminal Chat** | `make chat` | Terminal users, SSH sessions |
-| **Web UI** | `http://localhost:8080` | Quick access, remote/mobile |
+| **Web UI** | `http://localhost:18765` | Quick access, remote/mobile |
 | **CLI** | `go run cmd/cli/main.go` | Scripting, automation, MCP server |
 
 ## Using the Desktop App
@@ -189,17 +189,6 @@ CONFLUENCE_API_TOKEN=your-api-token
 
 See [CONFLUENCE_AGENTS.md](CONFLUENCE_AGENTS.md) for full documentation.
 
-### Helper Agent
-
-Create custom knowledge-base experts from templates:
-
-```
-/create-helper day-one
-/list-helper-templates
-```
-
-See [HELPER_AGENTS.md](HELPER_AGENTS.md) for full documentation.
-
 ## Make Targets
 
 ```bash
@@ -221,7 +210,6 @@ make agent-frontend   # ReactExpert
 make agent-database   # SQLMaster
 make agent-security   # SecurityExpert
 make agent-devops     # DevOpsPro
-make helper-agent NAME=day-one   # Helper agent
 
 # Dynamic agents
 make repo-agent PATH=/path/to/repo NAME="Agent Name"
@@ -246,7 +234,7 @@ All make targets automatically load from `env.local`. Key variables:
 | `AI_HUB_MODEL` | Claude model | `claude-sonnet` |
 | `OLLAMA_MODEL` | Ollama utility model | `qwen2.5:7b` |
 | `OLLAMA_CODE_MODEL` | Ollama code model | `qwen2.5-coder:14b` |
-| `SERVER_PORT` | Server port | `8080` |
+| `SERVER_PORT` | Server port | `18765` |
 | `ENABLE_MCP` | Enable MCP tool servers | `true` |
 | `CONFLUENCE_DOMAIN` | Confluence Cloud domain | -- |
 | `CONFLUENCE_EMAIL` | Confluence email | -- |
@@ -261,17 +249,17 @@ See `env.example` for the full list with descriptions.
 ### "Connection refused"
 Server isn't running. Start it with `make server`.
 ```bash
-curl http://localhost:8080/api/channels
+curl http://localhost:18765/api/channels
 ```
 
 ### "No agents responding"
 Check agents are running:
 ```bash
-curl http://localhost:8080/api/agents
+curl http://localhost:18765/api/agents
 ```
 
-### Port 8080 already in use
-Edit `env.local` and set `SERVER_PORT=8081`.
+### Port 18765 already in use
+Edit `env.local` and set `SERVER_PORT` to a free port (e.g. `18766`).
 
 ### Desktop app won't start
 ```bash

@@ -1,10 +1,11 @@
 import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration } from '../types/protocol';
+import { getHubBaseURL } from '../config/hubUrl';
 
 export class ChatAPI {
   private baseURL: string;
   private commandsCache: CommandDefinition[] | null = null;
 
-  constructor(serverAddr: string = 'localhost:8080') {
+  constructor(serverAddr: string = getHubBaseURL()) {
     // Ensure we have http:// prefix
     this.baseURL = serverAddr.startsWith('http')
       ? serverAddr

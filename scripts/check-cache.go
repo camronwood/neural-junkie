@@ -10,7 +10,7 @@ import (
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: go run check-cache.go <repo-path>")
-		fmt.Println("Example: go run check-cache.go /Users/camron.wood.ext/development/sandbox/neural-junkie")
+		fmt.Println("Example: go run check-cache.go /Users/camronwood/development/sandbox/neural-junkie")
 		os.Exit(1)
 	}
 

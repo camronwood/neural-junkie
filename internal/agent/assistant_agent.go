@@ -380,10 +380,6 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 	prompt.WriteString("• /enable-watch <name> - Enable automatic file watching and reindexing for a repo agent\n")
 	prompt.WriteString("• /disable-watch <name> - Disable automatic file watching\n\n")
 
-	prompt.WriteString("**Helper Agents:**\n")
-	prompt.WriteString("• /create-helper <template> - Create a helper agent from a template (e.g., day-one, testing-expert, docs-expert)\n")
-	prompt.WriteString("• /list-helper-templates - Show available helper agent templates\n\n")
-
 	prompt.WriteString("**Agent Management:**\n")
 	prompt.WriteString("• /remove-agent <name> - Remove agent from conversation (can recall later)\n")
 	prompt.WriteString("• /recall-agent <name> - Recall a removed agent back to conversation\n")

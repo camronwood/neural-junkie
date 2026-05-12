@@ -30,7 +30,7 @@ sleep 1
 echo "✅ System started!"
 echo ""
 echo "Agents running:"
-curl -s http://localhost:8080/api/agents | python3 -c "import sys, json; agents = json.load(sys.stdin); print(f'  Total: {len(agents)} agents'); [print(f'    - {a[\"name\"]} ({a[\"type\"]})') for a in agents]"
+curl -s http://localhost:18765/api/agents | python3 -c "import sys, json; agents = json.load(sys.stdin); print(f'  Total: {len(agents)} agents'); [print(f'    - {a[\"name\"]} ({a[\"type\"]})') for a in agents]"
 echo ""
 echo "Starting GUI in 2 seconds..."
 sleep 2

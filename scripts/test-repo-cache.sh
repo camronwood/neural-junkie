@@ -51,7 +51,7 @@ fi
 # Check if server is running
 echo ""
 echo -e "${BLUE}📡 Checking server...${NC}"
-if curl -s http://localhost:8080/api/channels > /dev/null 2>&1; then
+if curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo "✅ Server is running"
 else
     echo "❌ Server not running. Start it with: go run cmd/server/main.go"
@@ -75,7 +75,7 @@ go run cmd/agent/main.go \
     --name "$AGENT_NAME" \
     --mock=true \
     --channel general \
-    --server http://localhost:8080 > /tmp/agent-cache-test-1.log 2>&1 &
+    --server http://localhost:18765 > /tmp/agent-cache-test-1.log 2>&1 &
 
 AGENT_PID=$!
 echo "Agent PID: $AGENT_PID"
@@ -125,7 +125,7 @@ go run cmd/agent/main.go \
     --name "$AGENT_NAME" \
     --mock=true \
     --channel general \
-    --server http://localhost:8080 > /tmp/agent-cache-test-2.log 2>&1 &
+    --server http://localhost:18765 > /tmp/agent-cache-test-2.log 2>&1 &
 
 AGENT_PID=$!
 echo "Agent PID: $AGENT_PID"
@@ -197,7 +197,7 @@ if [ -f "$REPO_PATH/README.md" ]; then
         --name "$AGENT_NAME" \
         --mock=true \
         --channel general \
-        --server http://localhost:8080 > /tmp/agent-cache-test-3.log 2>&1 &
+        --server http://localhost:18765 > /tmp/agent-cache-test-3.log 2>&1 &
     
     AGENT_PID=$!
     

@@ -136,8 +136,8 @@ func (w *Watcher) shouldIgnoreEvent(event fsnotify.Event) bool {
 		}
 	}
 
-	// Ignore chmod events (we only care about writes and creates)
-	if event.Op&fsnotify.Chmod == fsnotify.Chmod {
+	// Ignore chmod-only events. Some platforms emit Write|Chmod — must not drop those.
+	if event.Op == fsnotify.Chmod {
 		return true
 	}
 

@@ -3,6 +3,7 @@ import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 import type { FileNode } from '../stores/fileExplorerStore';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
@@ -75,7 +76,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     isDir: boolean;
   } | null>(null);
 
-  const [api] = useState(() => new ChatAPI('localhost:8080'));
+  const [api] = useState(() => new ChatAPI(getHubBaseURL()));
 
   // Load workspaces on mount
   useEffect(() => {

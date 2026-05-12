@@ -23,7 +23,7 @@ neural-junkie/
 
 ### Port Allocation
 
-- Hub Server: `:8080` (existing)
+- Hub Server: `:18765` (existing)
 - Backend MCP: `:8081`
 - DevOps MCP: `:8082`
 - Database MCP: `:8083`

@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	serverAddr = flag.String("server", "localhost:8080", "Chat hub server address")
+	serverAddr = flag.String("server", "localhost:18765", "Chat hub server address")
 	channel    = flag.String("channel", "general", "Channel to join")
 	username   = flag.String("name", "", "Your display name (optional)")
 )

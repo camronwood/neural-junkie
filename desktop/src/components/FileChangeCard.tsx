@@ -10,21 +10,31 @@ interface FileChangeCardProps {
 export function FileChangeCard({ change, onPreview, onApprove, onReject }: FileChangeCardProps) {
   const getOperationIcon = (operation: string) => {
     switch (operation) {
-      case 'create': return '📄';
-      case 'edit': return '✏️';
-      case 'delete': return '🗑️';
-      case 'move': return '📁';
-      default: return '📄';
+      case 'create':
+        return '📄';
+      case 'edit':
+        return '✏️';
+      case 'delete':
+        return '🗑️';
+      case 'move':
+        return '📁';
+      default:
+        return '📄';
     }
   };
 
-  const getOperationColor = (operation: string) => {
+  const getOperationStyles = (operation: string) => {
     switch (operation) {
-      case 'create': return 'text-green-600 bg-green-50 border-green-200';
-      case 'edit': return 'text-blue-600 bg-blue-50 border-blue-200';
-      case 'delete': return 'text-red-600 bg-red-50 border-red-200';
-      case 'move': return 'text-purple-600 bg-purple-50 border-purple-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+      case 'create':
+        return 'border-emerald-500/35 bg-emerald-950/15';
+      case 'edit':
+        return 'border-sky-500/35 bg-sky-950/15';
+      case 'delete':
+        return 'border-red-500/35 bg-red-950/15';
+      case 'move':
+        return 'border-violet-500/35 bg-violet-950/15';
+      default:
+        return 'border-slack-border bg-slack-bgHover/40';
     }
   };
 
@@ -32,16 +42,16 @@ export function FileChangeCard({ change, onPreview, onApprove, onReject }: FileC
     const now = new Date();
     const expires = new Date(expiresAt);
     const diff = expires.getTime() - now.getTime();
-    
-    if (diff <= 0) return { text: 'Expired', color: 'text-red-600' };
-    
+
+    if (diff <= 0) return { text: 'Expired', color: 'text-red-400' };
+
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(minutes / 60);
-    
+
     if (hours > 0) {
-      return { text: `${hours}h ${minutes % 60}m`, color: 'text-gray-600' };
+      return { text: `${hours}h ${minutes % 60}m`, color: 'text-slack-textMuted' };
     }
-    return { text: `${minutes}m`, color: 'text-gray-600' };
+    return { text: `${minutes}m`, color: 'text-slack-textMuted' };
   };
 
   const getDisplayPath = () => {
@@ -55,90 +65,87 @@ export function FileChangeCard({ change, onPreview, onApprove, onReject }: FileC
   const isExpired = timeInfo.text === 'Expired';
 
   return (
-    <div className={`border rounded-lg p-4 mb-3 ${getOperationColor(change.operation)} ${
-      isExpired ? 'opacity-60' : ''
-    }`}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center space-x-2">
-          <span className="text-lg">{getOperationIcon(change.operation)}</span>
-          <div>
-            <h4 className="font-semibold text-sm">
+    <div
+      className={`border rounded-lg p-4 mb-3 text-slack-text ${getOperationStyles(change.operation)} ${
+        isExpired ? 'opacity-60' : ''
+      }`}
+    >
+      <div className="flex items-start justify-between mb-3 gap-2">
+        <div className="flex items-center space-x-2 min-w-0">
+          <span className="text-lg shrink-0">{getOperationIcon(change.operation)}</span>
+          <div className="min-w-0">
+            <h4 className="font-semibold text-sm text-slack-text">
               {change.operation.charAt(0).toUpperCase() + change.operation.slice(1)} File
             </h4>
-            <p className="text-xs text-gray-600">{change.agent.name}</p>
+            <p className="text-xs text-slack-textMuted truncate">{change.agent.name}</p>
           </div>
         </div>
-        <div className="text-right">
-          <div className={`text-xs ${timeInfo.color}`}>
-            {timeInfo.text}
-          </div>
-          <div className="text-xs text-gray-500">
+        <div className="text-right shrink-0">
+          <div className={`text-xs ${timeInfo.color}`}>{timeInfo.text}</div>
+          <div className="text-xs text-slack-textMuted">
             {new Date(change.requested_at).toLocaleTimeString()}
           </div>
         </div>
       </div>
 
-      {/* File Path */}
       <div className="mb-3">
-        <div className="text-sm font-medium text-gray-700 mb-1">File:</div>
-        <div className="text-sm font-mono bg-white border rounded px-2 py-1 break-all">
+        <div className="text-xs font-medium text-slack-textMuted mb-1">File</div>
+        <div className="text-sm font-mono bg-[#0f1115] border border-slack-border rounded px-2 py-1 break-all text-slack-text">
           {getDisplayPath()}
         </div>
       </div>
 
-      {/* Channel */}
       <div className="mb-3">
-        <div className="text-xs text-gray-500">
-          Channel: <span className="font-medium">{change.channel}</span>
+        <div className="text-xs text-slack-textMuted">
+          Channel: <span className="font-medium text-slack-text">{change.channel}</span>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex space-x-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex flex-wrap gap-2">
           <button
+            type="button"
             onClick={() => onPreview(change)}
-            className="px-3 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1 text-xs rounded border border-slack-border bg-slack-bgHover text-slack-text hover:bg-slack-border focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
             disabled={isExpired}
           >
-            👁️ Preview
+            Preview
           </button>
-          
+
           {change.operation === 'delete' ? (
             <button
+              type="button"
               onClick={() => onApprove(change.id)}
-              className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+              className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
               disabled={isExpired}
             >
-              🗑️ Approve Delete
+              Approve Delete
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => onApprove(change.id)}
-              className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+              className="px-3 py-1 text-xs rounded bg-emerald-600 text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
               disabled={isExpired}
             >
-              ✅ Approve
+              Approve
             </button>
           )}
-          
+
           <button
+            type="button"
             onClick={() => onReject(change.id, 'No reason provided')}
-            className="px-3 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+            className="px-3 py-1 text-xs rounded border border-slack-border bg-slack-bg text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50"
             disabled={isExpired}
           >
-            ❌ Reject
+            Reject
           </button>
         </div>
 
-        {/* Status indicator */}
-        <div className="flex items-center space-x-1">
-          {isExpired && (
-            <span className="text-xs text-red-600 font-medium">EXPIRED</span>
-          )}
+        <div className="flex items-center gap-1">
+          {isExpired && <span className="text-xs text-red-400 font-medium">EXPIRED</span>}
           {change.operation === 'delete' && (
-            <span className="text-xs text-red-600 font-medium">⚠️ DELETE</span>
+            <span className="text-xs text-red-400 font-medium">DELETE</span>
           )}
         </div>
       </div>

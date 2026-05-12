@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 
-const api = new ChatAPI('localhost:8080');
+const api = new ChatAPI(getHubBaseURL());
 
 export interface Workspace {
   id: string;

@@ -10,7 +10,7 @@
 //	  "BeforeTool": [{
 //	    "hooks": [{
 //	      "type": "command",
-//	      "command": "tool-approval-hook --server http://localhost:8080 --agent Gemini",
+//	      "command": "tool-approval-hook --server http://localhost:18765 --agent Gemini",
 //	      "timeout": 180000
 //	    }]
 //	  }]
@@ -59,7 +59,7 @@ type hookOutput struct {
 }
 
 func main() {
-	serverURL := flag.String("server", "http://localhost:8080", "Neural Junkie server URL")
+	serverURL := flag.String("server", "http://localhost:18765", "Neural Junkie server URL")
 	agentName := flag.String("agent", "Gemini", "Agent display name")
 	agentID := flag.String("agent-id", "gemini-cli", "Agent ID")
 	channel := flag.String("channel", "", "Chat channel for approval messages")

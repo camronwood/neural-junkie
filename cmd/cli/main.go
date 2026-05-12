@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	serverAddr = flag.String("server", "http://localhost:8080", "Chat hub server address")
+	serverAddr = flag.String("server", "http://localhost:18765", "Chat hub server address")
 	channel    = flag.String("channel", "general", "Channel name")
 	message    = flag.String("message", "", "Message to send")
 	list       = flag.String("list", "", "List items (channels, agents, messages)")
@@ -21,7 +21,7 @@ var (
 	create     = flag.String("create", "", "Create a new channel")
 
 	// Export commands
-	export     = flag.String("export", "", "Export agent (repo-agent, helper-agent)")
+	export     = flag.String("export", "", "Export agent (repo-agent)")
 	exportName = flag.String("name", "", "Agent name to export")
 	output     = flag.String("output", "", "Output file path")
 	importPath = flag.String("import", "", "Import agent from file path")
@@ -78,7 +78,6 @@ func printUsage() {
 	fmt.Println("    go run cmd/cli/main.go --create \"new-project\"")
 	fmt.Println("\n  Export agents:")
 	fmt.Println("    go run cmd/cli/main.go --export repo-agent --name \"MyProject Expert\" --output export.json")
-	fmt.Println("    go run cmd/cli/main.go --export helper-agent --name \"Day One Expert\" --output export.json")
 	fmt.Println("\n  List exports:")
 	fmt.Println("    go run cmd/cli/main.go --list exports")
 	fmt.Println("\n  Import agent:")

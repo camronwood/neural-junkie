@@ -10,7 +10,7 @@ pkill -f "bin/server" 2>/dev/null
 sleep 2
 
 # Start fresh server
-cd /Users/camron.wood.ext/development/sandbox/neural-junkie
+cd /Users/camronwood/development/sandbox/neural-junkie
 ./bin/server > /dev/null 2>&1 &
 SERVER_PID=$!
 sleep 2
@@ -27,12 +27,12 @@ echo ""
 
 # Check agent is registered
 echo "📋 Registered agents:"
-curl -s http://localhost:8080/api/agents | jq '.[] | {name: .name, id: .id}'
+curl -s http://localhost:18765/api/agents | jq '.[] | {name: .name, id: .id}'
 echo ""
 
 # Send a test message
 echo "📤 Sending test message..."
-curl -s -X POST http://localhost:8080/api/send \
+curl -s -X POST http://localhost:18765/api/send \
   -H "Content-Type: application/json" \
   -d '{"channel": "general", "content": "TEST: What are the best security practices?", "type": "question", "from": {"name": "TestUser", "type": "human"}}' 
 echo ""
@@ -44,7 +44,7 @@ sleep 5
 # Count responses
 echo ""
 echo "📊 Messages from Security Expert:"
-curl -s 'http://localhost:8080/api/messages?channel=general&limit=50' | \
+curl -s 'http://localhost:18765/api/messages?channel=general&limit=50' | \
   jq '.[] | select(.from.name == "Security Expert") | {id: .id[0:8], content: .content[0:50]}'
 
 echo ""

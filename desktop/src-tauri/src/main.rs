@@ -508,16 +508,29 @@ type SidecarChild = Arc<Mutex<Option<tauri::api::process::CommandChild>>>;
 
 static SIDECAR_READY: AtomicBool = AtomicBool::new(false);
 
+fn dev_hub_health_url() -> String {
+    let base = std::env::var("NEURAL_JUNKIE_HUB_URL")
+        .or_else(|_| std::env::var("VITE_NJ_HUB_URL"))
+        .unwrap_or_else(|_| "http://localhost:18765".to_string());
+    let base = base.trim_end_matches('/');
+    format!("{}/api/health", base)
+}
+
 fn wait_for_server_health(timeout: std::time::Duration) -> bool {
+    let health_url = dev_hub_health_url();
     let start = Instant::now();
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()
         .unwrap();
     while start.elapsed() < timeout {
-        if let Ok(resp) = client.get("http://localhost:8080/api/health").send() {
+        if let Ok(resp) = client.get(&health_url).send() {
             if resp.status().is_success() {
-                return true;
+                if let Ok(v) = resp.json::<serde_json::Value>() {
+                    if v.get("status").and_then(|s| s.as_str()) == Some("ok") {
+                        return true;
+                    }
+                }
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(300));
@@ -565,12 +578,16 @@ fn main() {
                 // Only spawn sidecar in production builds; in dev the server
                 // is started separately via `make server` or `make refresh`.
                 if cfg!(debug_assertions) {
-                    // In dev mode, just poll for an already-running server
-                    if wait_for_server_health(std::time::Duration::from_secs(10)) {
+                    // In dev mode, just poll for an already-running server (longer window: first Rust build + hub start).
+                    if wait_for_server_health(std::time::Duration::from_secs(120)) {
                         SIDECAR_READY.store(true, Ordering::Relaxed);
                         let _ = app_handle.emit_all("server-ready", true);
                     } else {
-                        let _ = app_handle.emit_all("server-error", "Server not detected on port 8080. Start it with: make server");
+                        let msg = format!(
+                            "Neural Junkie hub not healthy at {}. From neural-junkie run: make server. If port 18765 is in use, set NEURAL_JUNKIE_HUB_URL and VITE_NJ_HUB_URL to match (e.g. http://127.0.0.1:18766) and start the hub with -addr :18766.",
+                            dev_hub_health_url()
+                        );
+                        let _ = app_handle.emit_all("server-error", msg);
                     }
                     return;
                 }

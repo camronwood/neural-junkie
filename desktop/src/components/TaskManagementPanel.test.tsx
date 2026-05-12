@@ -45,7 +45,7 @@ describe('TaskManagementPanel collaboration regressions', () => {
       expect(onCollaborationCommand).toHaveBeenCalledWith('approve', collab.id)
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Revision feedback...'), {
+    fireEvent.change(screen.getByPlaceholderText(/Revision feedback/i), {
       target: { value: 'Please split the plan into two phases' },
     });
     fireEvent.click(screen.getByText('Revise'));

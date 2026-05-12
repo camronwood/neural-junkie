@@ -11,6 +11,8 @@ import type {
 interface CollaborationPanelProps {
   collaboration: Collaboration;
   onClose: () => void;
+  /** Refetch collaboration snapshots after approve/revise/cancel (keeps UI in sync). */
+  onAfterCollaborationCommand?: () => Promise<void>;
 }
 
 const phaseLabels: Record<CollaborationPhase, string> = {
@@ -40,7 +42,11 @@ function taskIcon(status: string): string {
   }
 }
 
-export function CollaborationPanel({ collaboration, onClose }: CollaborationPanelProps) {
+export function CollaborationPanel({
+  collaboration,
+  onClose,
+  onAfterCollaborationCommand,
+}: CollaborationPanelProps) {
   const { serverAddr, channel, username } = useChatStore();
   const [api] = useState(() => new ChatAPI(serverAddr));
   const [feedback, setFeedback] = useState('');
@@ -57,6 +63,7 @@ export function CollaborationPanel({ collaboration, onClose }: CollaborationPane
     setIsSubmitting(true);
     try {
       await api.sendMessage(channel, `/approve-plan ${c.id.slice(0, 8)}`, from);
+      await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
     }
@@ -68,6 +75,7 @@ export function CollaborationPanel({ collaboration, onClose }: CollaborationPane
     try {
       await api.sendMessage(channel, `/revise-plan ${c.id.slice(0, 8)} ${feedback}`, from);
       setFeedback('');
+      await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
     }
@@ -77,6 +85,7 @@ export function CollaborationPanel({ collaboration, onClose }: CollaborationPane
     setIsSubmitting(true);
     try {
       await api.sendMessage(channel, `/cancel-plan ${c.id.slice(0, 8)}`, from);
+      await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
     }
@@ -257,22 +266,36 @@ export function CollaborationPanel({ collaboration, onClose }: CollaborationPane
               >
                 Approve Plan
               </button>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="text"
-                  value={feedback}
-                  onChange={e => setFeedback(e.target.value)}
-                  placeholder="Feedback for revision..."
-                  style={{
-                    flex: 1, padding: '6px 10px', borderRadius: 6,
-                    border: '1px solid var(--border-color, #444)',
-                    backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
-                    color: 'var(--text-primary, #eee)', fontSize: 13,
-                  }}
-                  onKeyDown={e => e.key === 'Enter' && handleRevise()}
-                />
+              <textarea
+                value={feedback}
+                onChange={e => setFeedback(e.target.value)}
+                placeholder="Feedback for revision… (⌘↵ or Ctrl+↵ to send)"
+                rows={4}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border-color, #444)',
+                  backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
+                  color: 'var(--text-primary, #eee)',
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  resize: 'vertical',
+                  minHeight: 88,
+                  fontFamily: 'inherit',
+                }}
+                onKeyDown={e => {
+                  if (e.key !== 'Enter') return;
+                  if (!(e.metaKey || e.ctrlKey)) return;
+                  e.preventDefault();
+                  void handleRevise();
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button
-                  onClick={handleRevise}
+                  type="button"
+                  onClick={() => void handleRevise()}
                   disabled={isSubmitting || !feedback.trim()}
                   style={{
                     padding: '6px 12px', borderRadius: 6, border: 'none',

@@ -447,7 +447,7 @@ func (m *Message) IsCollaborationMessage() bool {
 
 // IsUserCreatedAgent checks if an agent type is user-created (not system agent)
 func IsUserCreatedAgent(agentType string) bool {
-	return agentType == "repo" || agentType == "helper" || agentType == "confluence"
+	return agentType == "repo" || agentType == "confluence"
 }
 
 // CommandSuggestion represents a command suggested by an agent
