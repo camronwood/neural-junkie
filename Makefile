@@ -128,7 +128,14 @@ agents: setup-env ## Start all agents with environment loaded
 
 stop: ## Stop all running processes (server, agents, GUI)
 	@echo "🛑 Stopping all Neural Junkie processes..."
-	@lsof -ti :18765 2>/dev/null | xargs kill -9 2>/dev/null || true
+	@bash -c 'cd "$(CURDIR)"; \
+		HUB_PORT=18765; \
+		if [ -f env.local ]; then \
+			v=$$(grep -E "^[[:space:]]*SERVER_PORT=" env.local | tail -1 | cut -d= -f2- | tr -d "\r" | tr -d " "); \
+			[ -n "$$v" ] && HUB_PORT=$$v; \
+		fi; \
+		lsof -ti :$$HUB_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; \
+		lsof -ti :18765 2>/dev/null | xargs kill -9 2>/dev/null || true'
 	@lsof -ti :1420 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@pkill -f "cmd/server/main.go" 2>/dev/null || true
 	@pkill -f "cmd/agent/main.go" 2>/dev/null || true
@@ -155,22 +162,25 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo ""
 
 start-all: setup-env ## Start server and all agents with environment loaded
-	@echo "🚀 Starting complete Neural Junkie system..."
-	@echo "   (Specialist agents are started in-process by the server via config)"
-	@bash -c 'source load-env.sh && go run cmd/server/main.go &'
-	@echo "⏳ Waiting for hub at http://localhost:18765/api/health ..."
-	@ok=0; for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60; do \
-		if curl -sf http://localhost:18765/api/health | grep -q '"status":"ok"'; then ok=1; break; fi; \
-		sleep 1; \
-	done; \
-	if [ "$$ok" != "1" ]; then \
-		echo "❌ Hub did not become healthy within 60s."; \
-		echo "   Common cause: port 18765 already in use. Check: lsof -i :18765"; \
-		echo "   Start the hub alone to see the error: make server"; \
-		exit 1; \
-	fi
-	@echo "✅ Hub is up. Opening GUI..."
-	@cd desktop && npm run tauri:dev
+	@bash -c 'cd "$(CURDIR)"; \
+		source ./load-env.sh; \
+		PORT="$${SERVER_PORT:-18765}"; \
+		echo "🚀 Starting complete Neural Junkie system..."; \
+		echo "   (Specialist agents are started in-process by the server via config)"; \
+		go run cmd/server/main.go & \
+		echo "⏳ Waiting for hub at http://localhost:$${PORT}/api/health ..."; \
+		ok=0; for i in $$(seq 1 60); do \
+			if curl -sf "http://localhost:$${PORT}/api/health" | grep -q "\"status\":\"ok\""; then ok=1; break; fi; \
+			sleep 1; \
+		done; \
+		if [ "$$ok" != "1" ]; then \
+			echo "❌ Hub did not become healthy within 60s."; \
+			echo "   Common cause: port $${PORT} already in use. Check: lsof -i :$${PORT}"; \
+			echo "   Start the hub alone to see the error: make server"; \
+			exit 1; \
+		fi; \
+		echo "✅ Hub is up. Opening GUI..."; \
+		cd desktop && npm run tauri:dev'
 
 demo: ## Run a complete demo
 	@echo "🎬 Starting demo..."
