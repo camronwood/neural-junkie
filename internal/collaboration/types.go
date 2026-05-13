@@ -36,6 +36,7 @@ const (
 	DiscussionConverged       DiscussionStatus = "converged"
 	DiscussionBudgetExhausted DiscussionStatus = "budget_exhausted"
 	DiscussionTimedOut        DiscussionStatus = "timed_out"
+	DiscussionCancelled       DiscussionStatus = "cancelled"
 )
 
 // ArtifactStatus represents the status of a shared artifact
@@ -135,6 +136,20 @@ type Collaboration struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	UpdatedAt   time.Time          `json:"updated_at"`
 	Config      DiscussionConfig   `json:"config"`
+}
+
+// DiscussionBudgetEnforced is true while the plan is still being negotiated
+// (planning / user review). After approval, execution-phase discussion is not capped.
+func (c *Collaboration) DiscussionBudgetEnforced() bool {
+	if c == nil {
+		return true
+	}
+	switch c.Phase {
+	case PhasePlanning, PhaseReviewing:
+		return true
+	default:
+		return false
+	}
 }
 
 // CollaborationTask is a unit of work assigned to a specific agent

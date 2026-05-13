@@ -10,6 +10,8 @@ interface CommandFormProps {
 
 export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormProps) {
   const isCollaborateCommand = command.name === '/collaborate';
+  const [collabRounds, setCollabRounds] = useState('');
+  const [collabMessages, setCollabMessages] = useState('');
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const arg of command.arguments) {
@@ -40,7 +42,18 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
       const mentions = agents
         .filter(agent => selectedCollaborators.has(agent.id))
         .map(agent => `@${agent.name}`);
-      onSubmit([command.name, ...mentions, description].join(' '));
+      const flags: string[] = [];
+      const r = collabRounds.trim();
+      if (r !== '') {
+        if (!/^\d+$/.test(r)) return;
+        flags.push('--rounds', r);
+      }
+      const m = collabMessages.trim();
+      if (m !== '') {
+        if (!/^\d+$/.test(m)) return;
+        flags.push('--messages', m);
+      }
+      onSubmit([command.name, ...flags, ...mentions, description].join(' '));
       return;
     }
 
@@ -57,8 +70,16 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
     onSubmit(parts.join(' '));
   };
 
+  const collabNumericOptsOk = (() => {
+    const r = collabRounds.trim();
+    const m = collabMessages.trim();
+    if (r !== '' && !/^\d+$/.test(r)) return false;
+    if (m !== '' && !/^\d+$/.test(m)) return false;
+    return true;
+  })();
+
   const canSubmit = isCollaborateCommand
-    ? selectedCollaborators.size >= 2 && !!values.description?.trim()
+    ? selectedCollaborators.size >= 2 && !!values.description?.trim() && collabNumericOptsOk
     : command.arguments
         .filter(a => a.required)
         .every(a => values[a.name]?.trim());
@@ -156,6 +177,40 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
         {isCollaborateCommand ? (
           <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="cmd-collab-rounds" className="block text-xs font-medium text-slack-textMuted mb-1">
+                  max discussion rounds <span className="opacity-60">(optional, default 3)</span>
+                </label>
+                <input
+                  id="cmd-collab-rounds"
+                  type="number"
+                  min={1}
+                  max={10}
+                  inputMode="numeric"
+                  value={collabRounds}
+                  onChange={e => setCollabRounds(e.target.value)}
+                  placeholder="3"
+                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                />
+              </div>
+              <div>
+                <label htmlFor="cmd-collab-messages" className="block text-xs font-medium text-slack-textMuted mb-1">
+                  max agent messages <span className="opacity-60">(optional, default 20)</span>
+                </label>
+                <input
+                  id="cmd-collab-messages"
+                  type="number"
+                  min={1}
+                  max={50}
+                  inputMode="numeric"
+                  value={collabMessages}
+                  onChange={e => setCollabMessages(e.target.value)}
+                  placeholder="20"
+                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                />
+              </div>
+            </div>
             <div>
               <label htmlFor="cmd-arg-description" className="block text-xs font-medium text-slack-textMuted mb-1">
                 prompt<span className="text-red-400 ml-0.5">*</span>

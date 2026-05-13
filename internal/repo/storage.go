@@ -68,10 +68,15 @@ func (s *Storage) GetCacheKeyForPath(repoPath string) (string, error) {
 
 // SaveIndex saves a repository index to disk using cache key
 func (s *Storage) SaveIndex(cacheKey string, index *RepositoryIndex) error {
+	if index == nil {
+		return fmt.Errorf("nil repository index")
+	}
 	repoDir := filepath.Join(s.baseDir, cacheKey)
 	if err := os.MkdirAll(repoDir, 0755); err != nil {
 		return fmt.Errorf("failed to create repo directory: %w", err)
 	}
+
+	TrimRepositoryIndexFootprint(index)
 
 	indexPath := filepath.Join(repoDir, "index.json")
 	data, err := json.MarshalIndent(index, "", "  ")
@@ -102,6 +107,8 @@ func (s *Storage) LoadIndex(cacheKey string) (*RepositoryIndex, error) {
 	if err := json.Unmarshal(data, &index); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal index: %w", err)
 	}
+
+	TrimRepositoryIndexFootprint(&index)
 
 	return &index, nil
 }

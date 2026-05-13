@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { ChatAPI } from '../api/chatAPI';
@@ -16,18 +17,34 @@ const DEFAULT_WIDTH = 384; // w-96 = 384px
 const STORAGE_KEY = 'my-agents-panel-width';
 
 export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
-  const { 
-    serverAddr, 
-    channel, 
-    username, 
+  const {
+    serverAddr,
+    channel,
+    username,
     agents,
     loadingAgents,
-    myAgents, 
+    myAgents,
     setMyAgents,
     removedAgents,
-    setRemovedAgents
-  } = useChatStore();
-  
+    setRemovedAgents,
+    switchAgentProvider,
+  } = useChatStore(
+    (s) => ({
+      serverAddr: s.serverAddr,
+      channel: s.channel,
+      username: s.username,
+      agents: s.agents,
+      loadingAgents: s.loadingAgents,
+      myAgents: s.myAgents,
+      setMyAgents: s.setMyAgents,
+      removedAgents: s.removedAgents,
+      setRemovedAgents: s.setRemovedAgents,
+      switchAgentProvider: s.switchAgentProvider,
+    }),
+    shallow
+  );
+  const { fetchOllamaModels, fetchLMStudioModels } = useSettingsStore();
+
   const [activeTab, setActiveTab] = useState<TabType>('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
@@ -38,8 +55,6 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
   const [infoAgentId, setInfoAgentId] = useState<string | null>(null);
   const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]);
   const [availableLMStudioModels, setAvailableLMStudioModels] = useState<string[]>([]);
-  const { switchAgentProvider } = useChatStore();
-  const { fetchOllamaModels, fetchLMStudioModels } = useSettingsStore();
 
   // Resize state
   const [width, setWidth] = useState<number>(() => {
@@ -685,6 +700,14 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
             onExport={handleExportAgent}
             onRemove={handleRemoveAgent}
             onApprovalModeChange={handleApprovalModeChange}
+            onAfterRulesSaved={async () => {
+              try {
+                const fresh = await api.fetchAgents();
+                useChatStore.getState().setAgents(fresh);
+              } catch (e) {
+                console.error('Failed to refresh agents after rules save:', e);
+              }
+            }}
             switchingProvider={switchingProvider}
             availableOllamaModels={availableOllamaModels}
             availableLMStudioModels={availableLMStudioModels}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import { saveCredentials, loadCredentials } from '../utils/secureStorage';
@@ -9,7 +10,16 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onConnect }: LoginScreenProps) {
-  const { setUsername, setChannel, setServerAddr, serverAddr, channel } = useChatStore();
+  const { setUsername, setChannel, setServerAddr, serverAddr, channel } = useChatStore(
+    (s) => ({
+      setUsername: s.setUsername,
+      setChannel: s.setChannel,
+      setServerAddr: s.setServerAddr,
+      serverAddr: s.serverAddr,
+      channel: s.channel,
+    }),
+    shallow
+  );
   
   const [nameInput, setNameInput] = useState('');
   const [channelInput, setChannelInput] = useState(channel);

@@ -53,6 +53,9 @@ type Hub struct {
 	// Collaboration manager for multi-agent collaboration sessions
 	collabManager *collaboration.CollaborationManager
 
+	// Per-agent custom rules (markdown), persisted on disk
+	agentRulesStore *agent.AgentCustomRulesStorage
+
 	// Session snapshot save synchronization and observability.
 	sessionSaveMu   sync.Mutex
 	sessionHealthMu sync.RWMutex
@@ -107,6 +110,13 @@ func NewHub() *Hub {
 	// Initialize collaboration manager
 	hub.collabManager = collaboration.NewCollaborationManager(hub)
 	fmt.Printf("DEBUG: Collaboration manager initialized successfully\n")
+
+	rulesStore, err := agent.NewAgentCustomRulesStorage()
+	if err != nil {
+		log.Printf("Warning: agent custom rules storage unavailable: %v", err)
+	} else {
+		hub.agentRulesStore = rulesStore
+	}
 
 	return hub
 }
@@ -164,16 +174,40 @@ func (h *Hub) GetChannel(name string) (*protocol.Channel, error) {
 	return channel, nil
 }
 
+// inferChannelTypeForName fixes DM classification when legacy snapshots omitted
+// "type" or stored the wrong value — the UI sidebar keys off type === dm.
+func inferChannelTypeForName(name string, t protocol.ChannelType) protocol.ChannelType {
+	n := strings.ToLower(strings.TrimSpace(name))
+	if strings.HasPrefix(n, "dm-") {
+		return protocol.ChannelTypeDM
+	}
+	if t == "" {
+		return protocol.ChannelTypePublic
+	}
+	return t
+}
+
+func (h *Hub) repairChannelTypesLocked() {
+	for _, ch := range h.channels {
+		if ch == nil {
+			continue
+		}
+		if want := inferChannelTypeForName(ch.Name, ch.Type); want != ch.Type {
+			ch.Type = want
+		}
+	}
+}
+
 // ListChannels returns all available channels in a stable order:
 // public first, then custom, then DM, alphabetical within each group.
 func (h *Hub) ListChannels() []*protocol.Channel {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
+	h.mu.Lock()
+	h.repairChannelTypesLocked()
 	channels := make([]*protocol.Channel, 0, len(h.channels))
 	for _, ch := range h.channels {
 		channels = append(channels, ch)
 	}
+	h.mu.Unlock()
 
 	typeOrder := map[protocol.ChannelType]int{
 		protocol.ChannelTypePublic: 0,
@@ -224,6 +258,11 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 
 	// Register the new agent
 	h.agents[agent.ID] = agent
+	if h.agentRulesStore != nil {
+		if md, ok := h.agentRulesStore.Get(agent.ID); ok {
+			agent.CustomRulesMarkdown = md
+		}
+	}
 	return nil
 }
 
@@ -289,7 +328,7 @@ func (h *Hub) JoinChannel(agentID, channelName string, greeting ...string) error
 		content,
 	)
 
-	h.messages[channelName] = append(h.messages[channelName], joinMsg)
+	h.appendChannelMessageLocked(channelName, joinMsg)
 	h.broadcast(channelName, joinMsg)
 
 	return nil
@@ -326,7 +365,7 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 		fmt.Sprintf("%s has left the channel", agent.Name),
 	)
 
-	h.messages[channelName] = append(h.messages[channelName], leaveMsg)
+	h.appendChannelMessageLocked(channelName, leaveMsg)
 	h.broadcast(channelName, leaveMsg)
 
 	return nil
@@ -376,7 +415,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 
 					// Lock and send error message immediately
 					h.mu.Lock()
-					h.messages[msg.Channel] = append(h.messages[msg.Channel], errorMsg)
+					h.appendChannelMessageLocked(msg.Channel, errorMsg)
 					h.broadcast(msg.Channel, errorMsg)
 					h.mu.Unlock()
 				}
@@ -392,7 +431,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 
 			// Store the message for history so user can see what they typed
 			h.mu.Lock()
-			h.messages[msg.Channel] = append(h.messages[msg.Channel], msg)
+			h.appendChannelMessageLocked(msg.Channel, msg)
 			h.mu.Unlock()
 			return nil
 		}
@@ -471,7 +510,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		}
 
 		// Add to thread storage
-		h.threads[threadID] = append(h.threads[threadID], msg)
+		h.appendThreadMessageLocked(threadID, msg)
 
 		// Update thread metadata
 		h.updateThreadMetadata(threadID, msg)
@@ -480,13 +519,13 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		h.broadcastToThread(threadID, msg)
 
 		// ALSO add to channel message history so agents can see it when polling
-		h.messages[msg.Channel] = append(h.messages[msg.Channel], msg)
+		h.appendChannelMessageLocked(msg.Channel, msg)
 
 		// ALSO broadcast to channel subscribers (so agents can see mentions)
 		h.broadcast(msg.Channel, msg)
 	} else {
 		// Regular channel message
-		h.messages[msg.Channel] = append(h.messages[msg.Channel], msg)
+		h.appendChannelMessageLocked(msg.Channel, msg)
 		h.broadcast(msg.Channel, msg)
 	}
 
@@ -1004,6 +1043,37 @@ func (h *Hub) GetAgent(agentID string) (*protocol.AgentInfo, error) {
 	return agent, nil
 }
 
+// SetAgentCustomRulesMarkdown updates persisted per-agent instructions (markdown).
+func (h *Hub) SetAgentCustomRulesMarkdown(agentID, markdown string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	ag, ok := h.agents[agentID]
+	if !ok {
+		return fmt.Errorf("agent %s not found", agentID)
+	}
+	ag.CustomRulesMarkdown = strings.TrimSpace(markdown)
+	if h.agentRulesStore != nil {
+		if err := h.agentRulesStore.Set(agentID, ag.CustomRulesMarkdown); err != nil {
+			return err
+		}
+	}
+	h.syncAgentInfoCopiesInChannelsLocked(agentID, ag)
+	return nil
+}
+
+// syncAgentInfoCopiesInChannelsLocked updates channel member snapshots when AgentInfo mutates.
+// Caller must hold h.mu write lock.
+func (h *Hub) syncAgentInfoCopiesInChannelsLocked(agentID string, ag *protocol.AgentInfo) {
+	for _, ch := range h.channels {
+		for i := range ch.Agents {
+			if ch.Agents[i].ID == agentID {
+				ch.Agents[i] = *ag
+			}
+		}
+	}
+}
+
 // ListAgents returns all registered agents
 func (h *Hub) ListAgents() []*protocol.AgentInfo {
 	h.mu.RLock()
@@ -1218,6 +1288,11 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 	h.mu.RLock()
 	if existing, ok := h.channels[dmName]; ok {
 		h.mu.RUnlock()
+		// Channel was restored or left over from a prior session — still join this
+		// agent so channel.Agents, GetAgentChannels, and DM rebind logic stay correct.
+		if err := h.JoinChannel(agentID, dmName); err != nil {
+			return nil, fmt.Errorf("failed to join agent to existing DM %s: %w", dmName, err)
+		}
 		return existing, nil
 	}
 	h.mu.RUnlock()
@@ -1414,7 +1489,7 @@ func (h *Hub) autoCreateRepoAgent(originalMsg *protocol.Message, repoPath string
 
 	// Send feedback message
 	h.mu.Lock()
-	h.messages[originalMsg.Channel] = append(h.messages[originalMsg.Channel], feedbackMsg)
+	h.appendChannelMessageLocked(originalMsg.Channel, feedbackMsg)
 	h.broadcast(originalMsg.Channel, feedbackMsg)
 	h.mu.Unlock()
 
@@ -1454,7 +1529,7 @@ func (h *Hub) autoCreateRepoAgent(originalMsg *protocol.Message, repoPath string
 			)
 
 			h.mu.Lock()
-			h.messages[originalMsg.Channel] = append(h.messages[originalMsg.Channel], errorMsg)
+			h.appendChannelMessageLocked(originalMsg.Channel, errorMsg)
 			h.broadcast(originalMsg.Channel, errorMsg)
 			h.mu.Unlock()
 
@@ -1463,7 +1538,7 @@ func (h *Hub) autoCreateRepoAgent(originalMsg *protocol.Message, repoPath string
 		} else if response != nil {
 			// Send the response message
 			h.mu.Lock()
-			h.messages[originalMsg.Channel] = append(h.messages[originalMsg.Channel], response)
+			h.appendChannelMessageLocked(originalMsg.Channel, response)
 			h.broadcast(originalMsg.Channel, response)
 			h.mu.Unlock()
 		}
@@ -1709,6 +1784,89 @@ func (h *Hub) resolveWorkspaceRoot(msg *protocol.Message) string {
 	return ""
 }
 
+// MetadataKeyHistoryResync is set on ephemeral agent_status messages after channel
+// history pruning so clients and agents refetch from the hub.
+const MetadataKeyHistoryResync = "history_resync"
+
+// PruneMessagesOlderThan removes channel and thread messages whose Timestamp is
+// strictly before time.Now()-maxAge. Empty threads are deleted with metadata.
+// It broadcasts an ephemeral agent_status per affected channel (see MetadataKeyHistoryResync).
+// Returns the number of messages dropped from storage.
+func (h *Hub) PruneMessagesOlderThan(maxAge time.Duration) (removed int) {
+	if maxAge <= 0 {
+		return 0
+	}
+	cutoff := time.Now().Add(-maxAge)
+	affectedChannels := make(map[string]struct{})
+	removedIDs := make(map[string]struct{})
+
+	h.mu.Lock()
+
+	for chName, msgs := range h.messages {
+		next := make([]*protocol.Message, 0, len(msgs))
+		for _, m := range msgs {
+			if m == nil {
+				continue
+			}
+			if m.Timestamp.Before(cutoff) {
+				if m.ID != "" {
+					if _, seen := removedIDs[m.ID]; !seen {
+						removedIDs[m.ID] = struct{}{}
+						removed++
+					}
+				} else {
+					removed++
+				}
+				continue
+			}
+			next = append(next, m)
+		}
+		if len(next) != len(msgs) {
+			h.messages[chName] = next
+			affectedChannels[chName] = struct{}{}
+		}
+	}
+
+	for threadID, msgs := range h.threads {
+		next := make([]*protocol.Message, 0, len(msgs))
+		for _, m := range msgs {
+			if m == nil {
+				continue
+			}
+			if m.Timestamp.Before(cutoff) {
+				if m.ID != "" {
+					if _, seen := removedIDs[m.ID]; !seen {
+						removedIDs[m.ID] = struct{}{}
+						removed++
+					}
+				} else {
+					removed++
+				}
+				continue
+			}
+			next = append(next, m)
+		}
+		if len(next) == 0 {
+			delete(h.threads, threadID)
+			delete(h.threadMetadata, threadID)
+			delete(h.threadParentAuthors, threadID)
+		} else if len(next) != len(msgs) {
+			h.threads[threadID] = next
+		}
+	}
+
+	h.mu.Unlock()
+
+	systemFrom := protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral}
+	for chName := range affectedChannels {
+		resync := protocol.NewMessage(protocol.MessageTypeAgentStatus, chName, systemFrom, "")
+		resync.Metadata[MetadataKeyHistoryResync] = true
+		h.BroadcastDirect(chName, resync)
+	}
+
+	return removed
+}
+
 // --- Session Recording ---
 
 // SessionSnapshot captures the full state of a chat session for debugging/review.
@@ -1841,7 +1999,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 			ID:          uuid.New().String(),
 			Name:        ch.Name,
 			Description: ch.Description,
-			Type:        ch.Type,
+			Type:        inferChannelTypeForName(ch.Name, ch.Type),
 			CreatedBy:   ch.CreatedBy,
 			Created:     snapshot.SavedAt,
 			Agents:      []protocol.AgentInfo{},
@@ -1878,6 +2036,8 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		}
 		h.threadSubscribers[threadID] = []chan *protocol.Message{}
 	}
+	h.repairChannelTypesLocked()
+	h.trimAllChannelAndThreadHistoryLocked()
 	h.mu.Unlock()
 
 	if h.collabManager != nil && snapshot.Collaborations != nil {
@@ -1897,12 +2057,6 @@ func (h *Hub) SaveSessionToFile(path string) error {
 	startedAt := time.Now()
 	snapshot := h.TakeSessionSnapshot()
 
-	data, err := json.MarshalIndent(snapshot, "", "  ")
-	if err != nil {
-		h.recordSessionSaveFailure(path, startedAt, err)
-		return fmt.Errorf("failed to marshal session: %w", err)
-	}
-
 	// Ensure directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -1917,11 +2071,14 @@ func (h *Hub) SaveSessionToFile(path string) error {
 		return fmt.Errorf("failed to create temp session file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	if _, err := tmpFile.Write(data); err != nil {
+	enc := json.NewEncoder(tmpFile)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(snapshot); err != nil {
 		_ = tmpFile.Close()
 		_ = os.Remove(tmpPath)
 		h.recordSessionSaveFailure(path, startedAt, err)
-		return fmt.Errorf("failed to write session file: %w", err)
+		return fmt.Errorf("failed to encode session file: %w", err)
 	}
 	if err := tmpFile.Sync(); err != nil {
 		_ = tmpFile.Close()
@@ -1949,8 +2106,12 @@ func (h *Hub) SaveSessionToFile(path string) error {
 		_ = dirHandle.Close()
 	}
 
-	h.recordSessionSaveSuccess(path, startedAt, len(data))
-	log.Printf("💾 Session saved to %s (%d bytes)", path, len(data))
+	written := 0
+	if fi, err := os.Stat(path); err == nil {
+		written = int(fi.Size())
+	}
+	h.recordSessionSaveSuccess(path, startedAt, written)
+	log.Printf("💾 Session saved to %s (%d bytes)", path, written)
 	return nil
 }
 

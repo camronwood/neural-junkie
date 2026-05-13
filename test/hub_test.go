@@ -882,3 +882,170 @@ func TestSessionSnapshotRestoresCollaborations(t *testing.T) {
 		t.Fatalf("expected restored plan artifact, got %+v", restoredCollab.Plan)
 	}
 }
+
+// TestPruneMessagesOlderThanChannelMessages drops stale channel messages by timestamp.
+func TestPruneMessagesOlderThanChannelMessages(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("prune-ch", "Prune test", "test")
+
+	old := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"prune-ch",
+		protocol.AgentInfo{ID: "u1", Name: "U1", Type: protocol.AgentTypeGeneral},
+		"stale",
+	)
+	old.Timestamp = time.Now().Add(-48 * time.Hour)
+	if err := h.SendMessage(old); err != nil {
+		t.Fatalf("send old: %v", err)
+	}
+
+	fresh := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"prune-ch",
+		protocol.AgentInfo{ID: "u2", Name: "U2", Type: protocol.AgentTypeGeneral},
+		"fresh",
+	)
+	fresh.Timestamp = time.Now().Add(-1 * time.Hour)
+	if err := h.SendMessage(fresh); err != nil {
+		t.Fatalf("send fresh: %v", err)
+	}
+
+	removed := h.PruneMessagesOlderThan(24 * time.Hour)
+	if removed != 1 {
+		t.Fatalf("expected removed 1, got %d", removed)
+	}
+	msgs, err := h.GetMessages("prune-ch", 50)
+	if err != nil {
+		t.Fatalf("get messages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message left, got %d", len(msgs))
+	}
+	if msgs[0].Content != "fresh" {
+		t.Fatalf("expected fresh message, got %q", msgs[0].Content)
+	}
+}
+
+// TestPruneMessagesOlderThanClearsEmptyThreadMaps removes thread metadata when all thread messages are pruned.
+func TestPruneMessagesOlderThanClearsEmptyThreadMaps(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("prune-ch", "Prune test", "test")
+
+	parent := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"prune-ch",
+		protocol.AgentInfo{ID: "u1", Name: "U1", Type: protocol.AgentTypeGeneral},
+		"parent",
+	)
+	parent.Timestamp = time.Now().Add(-1 * time.Hour)
+	if err := h.SendMessage(parent); err != nil {
+		t.Fatalf("send parent: %v", err)
+	}
+
+	threadReply := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"prune-ch",
+		protocol.AgentInfo{ID: "u2", Name: "U2", Type: protocol.AgentTypeGeneral},
+		"reply",
+	)
+	threadReply.ThreadID = parent.ID
+	threadReply.IsThreadReply = true
+	threadReply.Timestamp = time.Now().Add(-48 * time.Hour)
+	if err := h.SendMessage(threadReply); err != nil {
+		t.Fatalf("send thread: %v", err)
+	}
+
+	if h.GetThreadParentAuthor(parent.ID) == "" {
+		t.Fatal("expected parent author before prune")
+	}
+
+	h.PruneMessagesOlderThan(24 * time.Hour)
+
+	tm, err := h.GetThreadMessages(parent.ID, 50)
+	if err != nil {
+		t.Fatalf("get thread messages: %v", err)
+	}
+	if len(tm) != 0 {
+		t.Fatalf("expected empty thread, got %d messages", len(tm))
+	}
+	if author := h.GetThreadParentAuthor(parent.ID); author != "" {
+		t.Fatalf("expected parent author cleared, got %q", author)
+	}
+
+	chMsgs, err := h.GetMessages("prune-ch", 50)
+	if err != nil {
+		t.Fatalf("get channel: %v", err)
+	}
+	if len(chMsgs) != 1 || chMsgs[0].Content != "parent" {
+		t.Fatalf("expected only parent in channel, got len=%d first=%q", len(chMsgs), chMsgs[0].Content)
+	}
+}
+
+// TestPruneMessagesOlderThanBroadcastsResync emits an ephemeral agent_status for pruned channels.
+func TestPruneMessagesOlderThanBroadcastsResync(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("resync-ch", "Resync test", "test")
+	sub, err := h.Subscribe("resync-ch")
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+	defer h.Unsubscribe("resync-ch", sub)
+
+	stale := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"resync-ch",
+		protocol.AgentInfo{ID: "u1", Name: "U1", Type: protocol.AgentTypeGeneral},
+		"gone",
+	)
+	stale.Timestamp = time.Now().Add(-100 * time.Hour)
+	if err := h.SendMessage(stale); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	removed := h.PruneMessagesOlderThan(24 * time.Hour)
+	if removed != 1 {
+		t.Fatalf("removed %d want 1", removed)
+	}
+
+	var resync *protocol.Message
+loop:
+	for attempt := 0; attempt < 20; attempt++ {
+		select {
+		case m := <-sub:
+			if m.Type == protocol.MessageTypeAgentStatus {
+				if v, ok := m.Metadata[hub.MetadataKeyHistoryResync].(bool); ok && v {
+					resync = m
+					break loop
+				}
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timeout waiting for resync broadcast (attempt %d)", attempt)
+		}
+	}
+	if resync == nil {
+		t.Fatal("no resync agent_status received")
+	}
+	if resync.Channel != "resync-ch" {
+		t.Fatalf("channel %q", resync.Channel)
+	}
+}
+
+// TestPruneMessagesOlderThanZeroMaxAgeNoOp skips pruning when maxAge is non-positive.
+func TestPruneMessagesOlderThanZeroMaxAgeNoOp(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("x", "x", "x")
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "x", protocol.AgentInfo{ID: "a", Name: "A", Type: protocol.AgentTypeGeneral}, "hi")
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatal(err)
+	}
+	if n := h.PruneMessagesOlderThan(0); n != 0 {
+		t.Fatalf("expected 0 removed, got %d", n)
+	}
+	msgs, err := h.GetMessages("x", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 msg, got %d", len(msgs))
+	}
+}

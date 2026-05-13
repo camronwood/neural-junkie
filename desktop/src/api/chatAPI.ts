@@ -179,6 +179,68 @@ export class ChatAPI {
     return response.json();
   }
 
+  /** Create a new expert or CLI agent scoped to a fresh DM channel. */
+  async createDMAgent(payload: {
+    created_by: string;
+    mode: 'expert' | 'cli';
+    display_name: string;
+    expert_type?: string;
+    provider?: string;
+    model?: string;
+    cli_type?: string;
+    work_dir?: string;
+  }): Promise<Channel> {
+    const body: Record<string, unknown> = {
+      created_by: payload.created_by,
+      mode: payload.mode,
+      display_name: payload.display_name,
+    };
+    if (payload.mode === 'expert') {
+      body.expert_type = payload.expert_type ?? '';
+      body.provider = payload.provider ?? '';
+      body.model = payload.model ?? '';
+    } else {
+      body.cli_type = payload.cli_type ?? '';
+      body.work_dir = payload.work_dir ?? '';
+    }
+
+    const response = await fetch(`${this.baseURL}/api/channels/create-dm-agent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to create DM agent: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /** CLI agent registry keys and whether each binary appears on the server PATH. */
+  async fetchCliAgentTypes(): Promise<{ types: string[]; installed: Record<string, boolean> }> {
+    const response = await fetch(`${this.baseURL}/api/cli-agent-types`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch CLI agent types: ${response.status} ${response.statusText}`);
+    }
+    const text = await response.text();
+    let data: unknown;
+    try {
+      data = JSON.parse(text) as unknown;
+    } catch {
+      const preview = text.replace(/\s+/g, ' ').slice(0, 160);
+      throw new Error(
+        `Hub returned non-JSON from /api/cli-agent-types (wrong NEURAL_JUNKIE_HUB_URL / VITE_NJ_HUB_URL or stale sidecar?). ${preview}`
+      );
+    }
+    if (!data || typeof data !== 'object' || !Array.isArray((data as { types?: unknown }).types)) {
+      throw new Error('Hub JSON for CLI types is missing a "types" array.');
+    }
+    const obj = data as { types: string[]; installed?: Record<string, boolean> };
+    return { types: obj.types, installed: obj.installed ?? {} };
+  }
+
   // Delete a channel
   async deleteChannel(name: string): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/channels/delete`, {
@@ -260,8 +322,18 @@ export class ChatAPI {
     threadId: string,
     channel: string,
     content: string,
-    from: { name: string; type: string }
+    from: { name: string; type: string },
+    metadata?: Record<string, unknown>
   ): Promise<void> {
+    const body: Record<string, unknown> = {
+      channel,
+      content,
+      from,
+    };
+    if (metadata && Object.keys(metadata).length > 0) {
+      body.metadata = metadata;
+    }
+
     const response = await fetch(
       `${this.baseURL}/api/threads/${encodeURIComponent(threadId)}/reply`,
       {
@@ -269,11 +341,7 @@ export class ChatAPI {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          channel,
-          content,
-          from,
-        }),
+        body: JSON.stringify(body),
       }
     );
 
@@ -850,6 +918,18 @@ export class ChatAPI {
 
     if (!response.ok) {
       throw new Error(`Failed to set approval mode: ${response.statusText}`);
+    }
+  }
+
+  async setAgentCustomRulesMarkdown(agentId: string, markdown: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/agents/${encodeURIComponent(agentId)}/rules`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markdown }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save agent rules: ${response.statusText}`);
     }
   }
 

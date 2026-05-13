@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -20,6 +21,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
@@ -44,6 +47,11 @@ var (
 	serverStartTime  time.Time
 	ollamaMgr        *ollamaManager.Manager
 )
+
+var screenshotsServeDir string
+
+//go:embed showcase.html
+var showcaseHTML string
 
 // CORS middleware to allow requests from Tauri dev server
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -125,11 +133,22 @@ func main() {
 
 	sessionPath := hub.DefaultSessionPath()
 	log.Printf("💾 Session will be saved to: %s", sessionPath)
+	if fi, err := os.Stat(sessionPath); err == nil {
+		log.Printf("💾 Session file on disk: %.1f MiB", float64(fi.Size())/(1024*1024))
+		if fi.Size() > 200*1024*1024 {
+			log.Printf("⚠️  Session file is very large; consider archiving %s or set NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1 once to start fresh", sessionPath)
+		}
+	}
 	sessionRestored := false
-	if err := chatHub.LoadSessionFromFile(sessionPath); err != nil {
+	if os.Getenv("NEURAL_JUNKIE_SKIP_SESSION_RESTORE") == "1" {
+		log.Printf("⚠️  NEURAL_JUNKIE_SKIP_SESSION_RESTORE: not loading last-session.json (hub starts with default channels only)")
+	} else if err := chatHub.LoadSessionFromFile(sessionPath); err != nil {
 		log.Printf("⚠️  Failed to restore previous session: %v", err)
 	} else {
 		sessionRestored = true
+		if n := chatHub.PruneMessagesOlderThan(24 * time.Hour); n > 0 {
+			log.Printf("🧹 Pruned %d message(s) older than 24h after session restore", n)
+		}
 	}
 
 	// Initialize workspace manager
@@ -165,10 +184,19 @@ func main() {
 		log.Printf("♻️  Previous session restored (if available)")
 	}
 
+	screenshotsServeDir = resolveScreenshotsDir()
+	if screenshotsServeDir != "" {
+		log.Printf("📷 Screenshots: serving %s at /assets/screenshots/", screenshotsServeDir)
+	} else {
+		log.Printf("⚠️  Screenshots directory not found; /assets/screenshots/ will 404 (run hub from repo root or set NEURAL_JUNKIE_SCREENSHOTS_DIR)")
+	}
+
 	// HTTP routes with CORS middleware
 	http.HandleFunc("/ws", handleWebSocket) // WebSocket already handles origin
 	http.HandleFunc("/api/channels", corsMiddleware(handleChannels))
 	http.HandleFunc("/api/channels/create", corsMiddleware(handleCreateChannel))
+	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(handleCreateDMAgent))
+	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
 	http.HandleFunc("/api/channels/join", corsMiddleware(handleJoinChannel))
 	http.HandleFunc("/api/channels/delete", corsMiddleware(handleDeleteChannel))
 	http.HandleFunc("/api/channels/agents", corsMiddleware(handleChannelAgentsManage))
@@ -239,12 +267,45 @@ func main() {
 	http.HandleFunc("/api/assistant/task-done", corsMiddleware(handleAssistantTaskDone))
 	http.HandleFunc("/api/assistant/reminder-dismiss", corsMiddleware(handleAssistantReminderDismiss))
 
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
+		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))
+		pprofAddr := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PPROF_ADDR"))
+		if pprofAddr == "" {
+			pprofAddr = "127.0.0.1:6060"
+		}
+		go func() {
+			log.Printf("🔧 NEURAL_JUNKIE_DEBUG: Go pprof on http://%s/debug/pprof/ (heap, goroutine, etc.)", pprofAddr)
+			if err := http.ListenAndServe(pprofAddr, nil); err != nil {
+				log.Printf("NEURAL_JUNKIE_DEBUG pprof listener: %v", err)
+			}
+		}()
+		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: hub memory JSON at GET /api/debug/hub-memory")
+	}
+
+	// Desktop app screenshots (PNG files on disk) and showcase page
+	if screenshotsServeDir != "" {
+		shotHandler := http.StripPrefix("/assets/screenshots/", http.FileServer(http.Dir(screenshotsServeDir)))
+		http.Handle("/assets/screenshots/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			shotHandler.ServeHTTP(w, r)
+		}))
+	} else {
+		http.HandleFunc("/assets/screenshots/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r)
+		}))
+	}
+	http.HandleFunc("/app", corsMiddleware(handleAppShowcase))
+
 	// Home page handler (must be last to avoid catching API routes)
 	http.HandleFunc("/", corsMiddleware(handleHome))
 
 	log.Printf("Chat Hub Server starting on %s", *addr)
 	log.Printf("WebSocket endpoint: ws://localhost%s/ws", *addr)
 	log.Printf("Web UI: http://localhost%s", *addr)
+	log.Printf("Desktop app screenshots: http://localhost%s/app", *addr)
 	log.Printf("CORS enabled for all origins")
 
 	// Periodic session save (every 2 minutes), cancellable for clean shutdown.
@@ -262,6 +323,24 @@ func main() {
 			case <-ticker.C:
 				if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
 					log.Printf("⚠️  Periodic session save failed: %v", err)
+				}
+			}
+		}
+	}()
+
+	// Drop channel/thread messages older than 24h periodically (WebSocket resync to clients/agents).
+	sessionSaverWG.Add(1)
+	go func() {
+		defer sessionSaverWG.Done()
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sessionSaverCtx.Done():
+				return
+			case <-ticker.C:
+				if n := chatHub.PruneMessagesOlderThan(24 * time.Hour); n > 0 {
+					log.Printf("🧹 Periodic prune: removed %d message(s) older than 24h", n)
 				}
 			}
 		}
@@ -366,10 +445,11 @@ func extractDMAgentName(ch *protocol.Channel) string {
 		return strings.TrimSpace(desc[len(prefix):])
 	}
 
-	// Fallback to channel slug format: dm-<user>-<agent>
-	parts := strings.Split(ch.Name, "-")
-	if len(parts) >= 3 {
-		return parts[len(parts)-1]
+	// Fallback: dm-<user>-<agent-slug> where <agent-slug> may contain hyphens
+	// (e.g. dm-camron-cursor-buddy → "cursor-buddy", not "buddy").
+	parts := strings.SplitN(ch.Name, "-", 3)
+	if len(parts) == 3 && strings.EqualFold(parts[0], "dm") {
+		return parts[2]
 	}
 	return ""
 }
@@ -553,7 +633,55 @@ func handleAssistantReminderDismiss(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// resolveScreenshotsDir returns the absolute path to assets/screenshots for the desktop-app gallery.
+// Set NEURAL_JUNKIE_SCREENSHOTS_DIR to override (must be the directory containing the PNG files).
+func resolveScreenshotsDir() string {
+	if d := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SCREENSHOTS_DIR")); d != "" {
+		if abs, err := filepath.Abs(d); err == nil {
+			if st, err := os.Stat(abs); err == nil && st.IsDir() {
+				return abs
+			}
+		}
+		log.Printf("⚠️  NEURAL_JUNKIE_SCREENSHOTS_DIR is set but not a directory: %q", d)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	cur := wd
+	for i := 0; i < 10; i++ {
+		try := filepath.Join(cur, "assets", "screenshots")
+		if st, err := os.Stat(try); err == nil && st.IsDir() {
+			if abs, err := filepath.Abs(try); err == nil {
+				return abs
+			}
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+	return ""
+}
+
+func handleAppShowcase(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(showcaseHTML))
+}
+
 func handleHome(w http.ResponseWriter, r *http.Request) {
+	// This handler is registered as "/" and receives any path not matched by a more
+	// specific route. Never return HTML for API paths — clients may parse bodies as JSON.
+	if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
+		http.NotFound(w, r)
+		return
+	}
+
 	html := `<!DOCTYPE html>
 <html>
 <head>
@@ -762,7 +890,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         <div class="main-chat">
             <div class="chat-header">
                 <h1 id="channel-name"># general</h1>
-                <p style="color: #7f8c8d; margin-top: 5px;">Multi-agent collaboration chat room</p>
+                <p style="color: #7f8c8d; margin-top: 5px;">Multi-agent collaboration chat room · <a href="/app" style="color:#3498db;font-weight:600;">Desktop app screenshots</a></p>
             </div>
             
             <div class="messages" id="messages">
@@ -1054,6 +1182,109 @@ func handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(channel)
+}
+
+// handleCreateDMAgent creates a new expert or CLI agent and a dedicated DM channel (agent is not joined to the caller's current channel).
+func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		CreatedBy   string `json:"created_by"`
+		Mode        string `json:"mode"` // "expert" | "cli"
+		DisplayName string `json:"display_name"`
+		ExpertType  string `json:"expert_type"`
+		Provider    string `json:"provider"`
+		Model       string `json:"model"`
+		CLIType     string `json:"cli_type"`
+		WorkDir     string `json:"work_dir"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.CreatedBy) == "" {
+		http.Error(w, "created_by is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.DisplayName) == "" {
+		http.Error(w, "display_name is required", http.StatusBadRequest)
+		return
+	}
+
+	rawHandler := chatHub.GetCommandHandler()
+	ch, ok := rawHandler.(*hub.CommandHandler)
+	if !ok || ch == nil {
+		http.Error(w, "command handler unavailable", http.StatusInternalServerError)
+		return
+	}
+
+	ctx := r.Context()
+	mode := strings.ToLower(strings.TrimSpace(req.Mode))
+
+	var dmCh *protocol.Channel
+	var err error
+	switch mode {
+	case "expert":
+		if strings.TrimSpace(req.ExpertType) == "" {
+			http.Error(w, "expert_type is required for mode expert", http.StatusBadRequest)
+			return
+		}
+		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.Provider, req.Model)
+	case "cli":
+		if strings.TrimSpace(req.CLIType) == "" {
+			http.Error(w, "cli_type is required for mode cli", http.StatusBadRequest)
+			return
+		}
+		dmCh, err = ch.SpawnCLIAgentForDM(ctx, req.CreatedBy, req.CLIType, req.DisplayName, req.WorkDir)
+	default:
+		http.Error(w, `mode must be "expert" or "cli"`, http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "failed to start agent") {
+			status = http.StatusInternalServerError
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dmCh)
+}
+
+func handleCLIAgentTypes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	types := agent.ListCLIAgentTypes()
+	installed := make(map[string]bool, len(types))
+	for _, t := range types {
+		cfg, ok := agent.GetCLIAgentConfig(t)
+		if !ok {
+			continue
+		}
+		opts := []ai.CLIAgentOption{
+			ai.WithBaseArgs(cfg.BaseArgs),
+			ai.WithModel(cfg.ModelName),
+		}
+		p := ai.NewCLIAgentProvider(cfg.Command, ".", cfg.ProviderName, opts...)
+		installed[t] = p.IsCLIInstalled()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"types":     types,
+		"installed": installed,
+	})
 }
 
 func handleAgentsRoute(w http.ResponseWriter, r *http.Request) {
@@ -1349,6 +1580,7 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		agent.SanitizeInboundMessageMetadata(msg)
 	}
 
 	if err := chatHub.SendMessage(msg); err != nil {
@@ -1422,9 +1654,10 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 	}
 
 	var req struct {
-		Channel string `json:"channel"`
-		Content string `json:"content"`
-		From    *struct {
+		Channel  string                 `json:"channel"`
+		Content  string                 `json:"content"`
+		Metadata map[string]interface{} `json:"metadata,omitempty"`
+		From     *struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 			Type string `json:"type"`
@@ -1467,6 +1700,13 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 	// Mark as thread reply
 	msg.ThreadID = threadID
 	msg.IsThreadReply = true
+
+	if req.Metadata != nil {
+		for k, v := range req.Metadata {
+			msg.Metadata[k] = v
+		}
+		agent.SanitizeInboundMessageMetadata(msg)
+	}
 
 	if err := chatHub.SendMessage(msg); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -2100,6 +2340,25 @@ func initializeConfiguredAgents() {
 }
 
 // ── Health, Settings, Provider, Agent Config endpoints ───────────────
+
+// handleDebugHubMemory returns hub message counts and Go runtime memory stats.
+// Enabled only when NEURAL_JUNKIE_DEBUG=1 (localhost tooling; do not expose publicly).
+func handleDebugHubMemory(w http.ResponseWriter, r *http.Request) {
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") != "1" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(chatHub.HubMemoryReport()); err != nil {
+		log.Printf("handleDebugHubMemory: %v", err)
+	}
+}
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -3351,6 +3610,34 @@ func handleSetApprovalMode(w http.ResponseWriter, r *http.Request, agentID strin
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": req.Mode})
 }
 
+// handleSetAgentCustomRules updates persisted markdown instructions for any registered agent.
+func handleSetAgentCustomRules(w http.ResponseWriter, r *http.Request, agentID string) {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if agentID == "" {
+		http.Error(w, "Agent ID required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Markdown string `json:"markdown"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if err := chatHub.SetAgentCustomRulesMarkdown(agentID, req.Markdown); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 // handleAgentProvider handles switching individual agent providers and approval mode
 func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" && r.Method != "PUT" {
@@ -3371,6 +3658,11 @@ func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
 	// Route to approval-mode handler
 	if action == "approval-mode" {
 		handleSetApprovalMode(w, r, parts[0])
+		return
+	}
+
+	if action == "rules" {
+		handleSetAgentCustomRules(w, r, parts[0])
 		return
 	}
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import { MessageContent } from './MessageContent';
@@ -47,7 +48,10 @@ export function CollaborationPanel({
   onClose,
   onAfterCollaborationCommand,
 }: CollaborationPanelProps) {
-  const { serverAddr, channel, username } = useChatStore();
+  const { serverAddr, channel, username } = useChatStore(
+    (s) => ({ serverAddr: s.serverAddr, channel: s.channel, username: s.username }),
+    shallow
+  );
   const [api] = useState(() => new ChatAPI(serverAddr));
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -237,9 +241,26 @@ export function CollaborationPanel({
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
               fontSize: 12, color: 'var(--text-secondary, #999)',
             }}>
-              <div>Round: {c.discussion.current_round}/{c.discussion.max_rounds}</div>
-              <div>Messages: {c.discussion.total_message_count}/{c.discussion.max_total_messages}</div>
-              <div>Status: {c.discussion.status}</div>
+              {c.phase === 'planning' || c.phase === 'reviewing' ? (
+                <>
+                  <div>Round: {c.discussion.current_round}/{c.discussion.max_rounds}</div>
+                  <div>Messages: {c.discussion.total_message_count}/{c.discussion.max_total_messages}</div>
+                  <div style={{ gridColumn: '1 / -1' }}>Status: {c.discussion.status}</div>
+                  {(c.discussion.status === 'budget_exhausted' || c.discussion.status === 'timed_out') && (
+                    <div style={{ gridColumn: '1 / -1', color: '#fbbf24', lineHeight: 1.45 }}>
+                      Limits hit —{' '}
+                      <code style={{ fontSize: 11 }}>/collab-extend {c.id.slice(0, 8)} --rounds N --messages M</code>
+                      {' '}or <code style={{ fontSize: 11 }}>/cancel-plan {c.id.slice(0, 8)}</code> to stop.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{ gridColumn: '1 / -1' }}>Execution — limits off</div>
+                  <div style={{ gridColumn: '1 / -1' }}>Messages: {c.discussion.total_message_count}</div>
+                  <div style={{ gridColumn: '1 / -1' }}>Status: {c.discussion.status}</div>
+                </>
+              )}
             </div>
           </div>
         )}

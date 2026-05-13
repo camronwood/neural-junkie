@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Junkie — Desktop app</title>
+    <meta name="description" content="Screenshots of the Neural Junkie desktop app: agent hive, command palette, My Agents, and code workspace.">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --panel: #161b22;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #e94560;
+            --link: #58a6ff;
+            --border: #30363d;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        a { color: var(--link); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        header {
+            padding: 1.5rem clamp(1rem, 4vw, 2rem);
+            border-bottom: 1px solid var(--border);
+            background: var(--panel);
+        }
+        header h1 {
+            margin: 0 0 0.35rem;
+            font-size: clamp(1.35rem, 3vw, 1.75rem);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        header p {
+            margin: 0;
+            color: var(--muted);
+            max-width: 42rem;
+        }
+        nav {
+            margin-top: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.25rem;
+            font-size: 0.95rem;
+        }
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: clamp(1rem, 3vw, 2rem);
+        }
+        .intro {
+            margin-bottom: 2rem;
+            color: var(--muted);
+        }
+        .intro strong { color: var(--text); }
+        figure {
+            margin: 0 0 2.5rem;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        figcaption {
+            padding: 0.85rem 1.1rem;
+            font-size: 0.95rem;
+            color: var(--muted);
+            border-top: 1px solid var(--border);
+        }
+        figcaption span {
+            display: inline-block;
+            color: var(--accent);
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        figure img {
+            display: block;
+            width: 100%;
+            height: auto;
+            vertical-align: middle;
+        }
+        footer {
+            padding: 2rem clamp(1rem, 4vw, 2rem);
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Neural Junkie — desktop app</h1>
+        <p>High-octane agent orchestration: channels, specialists, command palette, and repo-aware tools in one Tauri + React workspace.</p>
+        <nav>
+            <a href="/">← Web chat (this hub)</a>
+            <a href="https://github.com/camronwood/neural-junkie">GitHub repository</a>
+        </nav>
+    </header>
+    <main>
+        <p class="intro">Below is the <strong>native desktop experience</strong> (not the browser chat UI). Use the web chat from the home link when the hub is running.</p>
+
+        <figure>
+            <img src="/assets/screenshots/Screenshot%202026-05-13%20at%2012.35.40%E2%80%AFPM.png" loading="lazy" alt="Neural Junkie main workspace with channels, agents, chat, and task sidebar">
+            <figcaption><span>Workspace</span> Channels, direct-message agents, multi-agent chat, and task sidebar.</figcaption>
+        </figure>
+
+        <figure>
+            <img src="/assets/screenshots/Screenshot%202026-05-13%20at%2012.36.02%E2%80%AFPM.png" loading="lazy" alt="Command palette with slash commands">
+            <figcaption><span>Command palette</span> Discover and run slash commands — repo agents, Confluence, experts, agent management.</figcaption>
+        </figure>
+
+        <figure>
+            <img src="/assets/screenshots/Screenshot%202026-05-13%20at%2012.36.21%E2%80%AFPM.png" loading="lazy" alt="My Agents dashboard with search and filters">
+            <figcaption><span>My Agents</span> Search, category filters, and status for each agent.</figcaption>
+        </figure>
+
+        <figure>
+            <img src="/assets/screenshots/Screenshot%202026-05-13%20at%2012.36.44%E2%80%AFPM.png" loading="lazy" alt="Files tree, code editor, and chat">
+            <figcaption><span>Repo workflow</span> Files tree and code editor alongside chat.</figcaption>
+        </figure>
+    </main>
+    <footer>Neural Junkie · screenshots served from this hub</footer>
+</body>
+</html>

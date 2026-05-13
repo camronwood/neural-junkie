@@ -66,6 +66,8 @@ export interface AgentInfo {
   last_active_time?: string;
   removed_from?: string[];
   approval_mode?: 'interactive' | 'auto_edit' | 'yolo';
+  /** User-defined markdown instructions merged into this agent's system prompt (server-persisted). */
+  custom_rules_markdown?: string;
 }
 
 export interface Message {
@@ -350,7 +352,8 @@ export type DiscussionStatus =
   | 'active'
   | 'converged'
   | 'budget_exhausted'
-  | 'timed_out';
+  | 'timed_out'
+  | 'cancelled';
 
 export type ArtifactStatus =
   | 'draft'
@@ -437,6 +440,19 @@ export function isCollaborationMessage(message: Message): boolean {
     message.type === 'collaboration_task' ||
     message.type === 'collaboration_status' ||
     message.type === 'collaboration_discussion'
+  );
+}
+
+/** Main-channel rows that must not be dropped when `content` is empty/whitespace (or missing). */
+export function channelTimelineAllowsEmptyContent(type: MessageType): boolean {
+  return (
+    type === 'agent_join' ||
+    type === 'agent_leave' ||
+    type === 'system_info' ||
+    type === 'collaboration_discussion' ||
+    type === 'collaboration_plan' ||
+    type === 'collaboration_task' ||
+    type === 'collaboration_status'
   );
 }
 

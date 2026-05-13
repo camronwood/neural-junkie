@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import type { Channel, AgentInfo } from '../types/protocol';
+import type { Channel, AgentInfo, ChannelType } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 
@@ -10,11 +11,21 @@ interface ChannelSidebarProps {
   onSwitchChannel: (channelName: string) => void;
   onCreateChannel: () => void;
   onCreateDM: (agentId: string) => void;
+  onOpenNewDM: () => void;
 }
 
 const MIN_WIDTH = 180;
 const DEFAULT_WIDTH = 220;
 const STORAGE_KEY = 'channel-sidebar-width';
+
+/** DM rooms use the `dm-` slug; coerce type when the hub omits or mis-stores `type` so rows appear under Direct Messages, not Channels. */
+function normalizeChannelRow(ch: Channel): Channel {
+  const name = (ch.name ?? '').trim();
+  if (name.startsWith('dm-') && (ch.type === 'public' || !ch.type)) {
+    return { ...ch, type: 'dm' as ChannelType };
+  }
+  return ch;
+}
 
 export function ChannelSidebar({
   channels,
@@ -22,10 +33,21 @@ export function ChannelSidebar({
   onSwitchChannel,
   onCreateChannel,
   onCreateDM,
+  onOpenNewDM,
 }: ChannelSidebarProps) {
-  const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore();
+  const channelsNorm = channels.map(normalizeChannelRow);
+  const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore(
+    (s) => ({
+      channel: s.channel,
+      unreadChannels: s.unreadChannels,
+      channelThinkingAgents: s.channelThinkingAgents,
+    }),
+    shallow
+  );
   const sidebarAgentsVisible = useSettingsStore(s => s.layoutSettings.sidebarAgentsVisible);
   const updateLayoutSettings = useSettingsStore(s => s.updateLayoutSettings);
+  const settings = useSettingsStore(s => s.settings);
+  const updateSettings = useSettingsStore(s => s.updateSettings);
 
   const parseDMDisplayName = (dmChannel: Channel): string => {
     const directAgent = dmChannel.agents?.[0]?.name;
@@ -58,14 +80,17 @@ export function ChannelSidebar({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
+  const hiddenDmSet = new Set(settings.hiddenDmChannelNames ?? []);
+  const hiddenAgentSet = new Set(settings.hiddenAgentIdsForSidebar ?? []);
+
   // Separate channels by type, sorted alphabetically for stable ordering
-  const publicChannels = channels
+  const publicChannels = channelsNorm
     .filter(c => c.type === 'public' || !c.type)
     .sort((a, b) => a.name.localeCompare(b.name));
-  const customChannels = channels
+  const customChannels = channelsNorm
     .filter(c => c.type === 'custom')
     .sort((a, b) => a.name.localeCompare(b.name));
-  const dmChannels = channels
+  const dmChannels = channelsNorm
     .filter(c => c.type === 'dm')
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -84,6 +109,8 @@ export function ChannelSidebar({
     );
   });
   const filteredDMChannels = dmChannels.filter((c) => {
+    const hidden = hiddenDmSet.has(c.name);
+    if (hidden && !normalizedQuery) return false;
     if (!normalizedQuery) return true;
     return parseDMDisplayName(c).toLowerCase().includes(normalizedQuery);
   });
@@ -104,6 +131,8 @@ export function ChannelSidebar({
   const filteredAgentsWithoutDM = agents
     .filter(a => a.status === 'active' && !agentsWithDM.has(a.id))
     .filter(a => {
+      const hidden = hiddenAgentSet.has(a.id);
+      if (hidden && !normalizedQuery) return false;
       if (!normalizedQuery) return true;
       return (
         a.name.toLowerCase().includes(normalizedQuery) ||
@@ -173,6 +202,18 @@ export function ChannelSidebar({
     );
   };
 
+  const hideDmFromSidebar = (channelName: string) => {
+    const cur = settings.hiddenDmChannelNames ?? [];
+    if (cur.includes(channelName)) return;
+    void updateSettings({ hiddenDmChannelNames: [...cur, channelName] });
+  };
+
+  const hideAgentShortcutFromSidebar = (agentId: string) => {
+    const cur = settings.hiddenAgentIdsForSidebar ?? [];
+    if (cur.includes(agentId)) return;
+    void updateSettings({ hiddenAgentIdsForSidebar: [...cur, agentId] });
+  };
+
   const DMItem = ({ ch }: { ch: Channel }) => {
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
@@ -180,29 +221,48 @@ export function ChannelSidebar({
     const agent = ch.agents?.[0];
     const displayName = parseDMDisplayName(ch);
     const color = agent ? getAgentColor(agent.type) : '#a9b9ba';
+    const isHiddenRow = hiddenDmSet.has(ch.name) && normalizedQuery.length > 0;
 
     return (
-      <button
-        onClick={() => onSwitchChannel(ch.name)}
-        className={`w-full text-left px-2 py-1 rounded text-sm flex items-center gap-2 transition-colors ${
-          isActive
-            ? 'bg-slack-accent text-white font-semibold'
-            : isUnread
-            ? 'text-white font-semibold hover:bg-white/10'
-            : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
-        }`}
-        title={`DM with ${displayName}`}
-      >
-        <span
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: color }}
-        />
-        <span className="truncate">{displayName}</span>
-        {isTyping && <TypingDots active={isActive} />}
-        {isUnread && !isActive && !isTyping && (
-          <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
-        )}
-      </button>
+      <div className="group flex items-center gap-0.5 w-full min-w-0">
+        <button
+          type="button"
+          onClick={() => onSwitchChannel(ch.name)}
+          className={`flex-1 min-w-0 text-left px-2 py-1 rounded text-sm flex items-center gap-2 transition-colors ${
+            isActive
+              ? 'bg-slack-accent text-white font-semibold'
+              : isUnread
+              ? 'text-white font-semibold hover:bg-white/10'
+              : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
+          }`}
+          title={`DM with ${displayName}`}
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: color }}
+          />
+          <span className="truncate">{displayName}</span>
+          {isHiddenRow && (
+            <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
+          )}
+          {isTyping && <TypingDots active={isActive} />}
+          {isUnread && !isActive && !isTyping && (
+            <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            hideDmFromSidebar(ch.name);
+          }}
+          className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
+          title="Hide from sidebar"
+          aria-label={`Hide DM ${displayName} from sidebar`}
+        >
+          ×
+        </button>
+      </div>
     );
   };
 
@@ -211,30 +271,49 @@ export function ChannelSidebar({
     const dmChannel = dmChannels.find(c =>
       c.agents?.some(a => a.id === agent.id) || c.members?.includes(agent.id)
     );
+    const isHiddenShortcut = hiddenAgentSet.has(agent.id) && normalizedQuery.length > 0;
 
     return (
-      <button
-        onClick={() => {
-          if (dmChannel) {
-            onSwitchChannel(dmChannel.name);
-          } else {
-            onCreateDM(agent.id);
-          }
-        }}
-        className={`w-full text-left px-2 py-1 rounded text-sm truncate flex items-center gap-2 transition-colors ${
-          hasDM && dmChannel?.name === activeChannel
-            ? 'bg-slack-accent text-white font-semibold'
-            : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
-        }`}
-        title={`Message ${agent.name}`}
-      >
-        <span
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: getAgentColor(agent.type) }}
-        />
-        {agent.name}
-        <span className="ml-auto text-xs opacity-50">{agent.type}</span>
-      </button>
+      <div className="group flex items-center gap-0.5 w-full min-w-0">
+        <button
+          type="button"
+          onClick={() => {
+            if (dmChannel) {
+              onSwitchChannel(dmChannel.name);
+            } else {
+              onCreateDM(agent.id);
+            }
+          }}
+          className={`flex-1 min-w-0 text-left px-2 py-1 rounded text-sm truncate flex items-center gap-2 transition-colors ${
+            hasDM && dmChannel?.name === activeChannel
+              ? 'bg-slack-accent text-white font-semibold'
+              : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
+          }`}
+          title={`Message ${agent.name}`}
+        >
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: getAgentColor(agent.type) }}
+          />
+          <span className="truncate">{agent.name}</span>
+          {isHiddenShortcut && (
+            <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
+          )}
+          <span className="ml-auto text-xs opacity-50 shrink-0">{agent.type}</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            hideAgentShortcutFromSidebar(agent.id);
+          }}
+          className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
+          title="Hide shortcut from sidebar"
+          aria-label={`Hide ${agent.name} from sidebar`}
+        >
+          ×
+        </button>
+      </div>
     );
   };
 
@@ -265,13 +344,25 @@ export function ChannelSidebar({
             {sidebarAgentsVisible ? 'Agents' : 'Agents off'}
           </button>
         </div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search chats/channels..."
-          className="mt-2 w-full px-2 py-1 rounded bg-[#0f1115] border border-white/10 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-slack-accent"
-        />
+        <div className="mt-2 flex items-center gap-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search chats/channels..."
+            className="flex-1 min-w-0 px-2 py-1 rounded bg-[#0f1115] border border-white/10 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-slack-accent"
+          />
+          {normalizedQuery.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="shrink-0 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide rounded border border-white/20 text-white/70 hover:bg-white/10"
+              title="Clear search (hidden chats reappear)"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-4 text-sm">
@@ -305,6 +396,14 @@ export function ChannelSidebar({
             <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
               Direct Messages
             </span>
+            <button
+              type="button"
+              onClick={onOpenNewDM}
+              className="text-white/40 hover:text-white text-lg leading-none"
+              title="New direct message with a new agent"
+            >
+              +
+            </button>
           </div>
           <div className="space-y-0.5">
             {/* Active DM channels first */}
@@ -320,7 +419,10 @@ export function ChannelSidebar({
         </div>
 
         {normalizedQuery && !hasSearchResults && (
-          <div className="px-2 text-xs text-slack-textMuted">No chats or channels found.</div>
+          <div className="px-2 text-xs text-slack-textMuted">
+            No chats or channels match this search. Clear the search box (Clear button above) to show all
+            channels and direct messages again.
+          </div>
         )}
       </div>
 

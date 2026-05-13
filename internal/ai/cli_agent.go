@@ -249,11 +249,11 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	// Try to parse as JSON first (if --output-format json was used)
 	parsed, err := c.parseJSONOutput(output)
 	if err == nil && parsed != "" {
-		return parsed, nil
+		return c.sanitizeGeminiCLIPromptEcho(parsed, fullPrompt), nil
 	}
 
-	// Otherwise return raw text output
-	return output, nil
+	// Otherwise return raw text output (strip Gemini PTY-style echo / noise when applicable)
+	return c.sanitizeGeminiCLIPromptEcho(output, fullPrompt), nil
 }
 
 // GenerateVisionResponse is not supported by CLI agents.
@@ -398,26 +398,55 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 		defer close(ch)
 		defer cancel()
 
-		buf := make([]byte, 4096)
-		for {
+		// Gemini CLI on a PTY often multiplexes stderr, progress UI, and echoed prompts
+		// onto the same stream. We default to pipes for gemini-cli and buffer stdout so
+		// we can strip the exact prompt echo before streaming to the hub.
+		geminiEmitted := false
+		geminiRawLen := 0
+		if c.ProviderName == "gemini-cli" {
 			if timeoutCtx.Err() != nil {
 				ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
 				_ = cmd.Process.Kill()
 				return
 			}
-			n, readErr := stdoutPipe.Read(buf)
-			if n > 0 {
-				clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
-				if clean != "" {
-					smoothStreamChunk(clean, ch)
+			raw, readErr := io.ReadAll(stdoutPipe)
+			geminiRawLen = len(raw)
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent stream read error: %w", readErr), Done: true}
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
 				}
+				return
 			}
-			if readErr != nil {
-				break
+			out := ansiRegex.ReplaceAllString(string(raw), "")
+			out = c.sanitizeGeminiCLIPromptEcho(out, fullPrompt)
+			if strings.TrimSpace(out) != "" {
+				smoothStreamChunk(out, ch)
+				geminiEmitted = true
+			}
+		} else {
+			buf := make([]byte, 4096)
+			for {
+				if timeoutCtx.Err() != nil {
+					ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+					_ = cmd.Process.Kill()
+					return
+				}
+				n, readErr := stdoutPipe.Read(buf)
+				if n > 0 {
+					clean := ansiRegex.ReplaceAllString(string(buf[:n]), "")
+					if clean != "" {
+						smoothStreamChunk(clean, ch)
+					}
+				}
+				if readErr != nil {
+					break
+				}
 			}
 		}
 
-		if err := cmd.Wait(); err != nil {
+		waitErr := cmd.Wait()
+		if waitErr != nil {
 			if timeoutCtx.Err() == context.DeadlineExceeded {
 				ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
 				return
@@ -426,6 +455,23 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 			if stderrStr != "" {
 				log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
 				ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %s", truncateError(stderrStr)), Done: true}
+				return
+			}
+			ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %w", waitErr), Done: true}
+			return
+		}
+
+		// Gemini: capacity / auth failures often land on stderr while stdout is empty or only echo.
+		if c.ProviderName == "gemini-cli" && !geminiEmitted {
+			stderrStr := strings.TrimSpace(stderrBuf.String())
+			if stderrStr != "" {
+				log.Printf("[CLIAgent/%s] stderr: %s", c.ProviderName, stderrStr)
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent error: %s", truncateError(stderrStr)), Done: true}
+				return
+			}
+			if geminiRawLen > 0 {
+				log.Printf("[CLIAgent/%s] gemini stdout %d bytes became empty after sanitization", c.ProviderName, geminiRawLen)
+				ch <- StreamToken{Error: fmt.Errorf("CLI agent returned unparseable output; check server logs"), Done: true}
 				return
 			}
 		}
@@ -582,9 +628,60 @@ func (c *CLIAgentProvider) shouldUsePTYStreaming() bool {
 	if os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_PTY") == "1" {
 		return false
 	}
-	// Default to PTY streaming for all CLI-backed agents so CLIs that
-	// buffer on non-TTY stdout still emit incremental tokens.
+	// Gemini CLI multiplexes stderr, auth status, and full-screen UI onto a PTY,
+	// which leaks into chat as black noise + echoed system prompts. Prefer a
+	// plain pipe (stderr captured separately). Opt back in with NEURAL_JUNKIE_GEMINI_CLI_PTY=1.
+	if c.ProviderName == "gemini-cli" && os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_PTY") != "1" {
+		return false
+	}
+	// Default to PTY streaming for other CLI-backed agents so tools that buffer
+	// on non-TTY stdout still emit incremental tokens.
 	return true
+}
+
+// sanitizeGeminiCLIPromptEcho removes leading CLI noise and any contiguous echo of
+// the exact prompt we passed on stdin, which Gemini sometimes prints to the terminal.
+func (c *CLIAgentProvider) sanitizeGeminiCLIPromptEcho(raw, fullPrompt string) string {
+	if c.ProviderName != "gemini-cli" {
+		return raw
+	}
+	s := strings.TrimSpace(raw)
+	s = stripCLILeadingNoiseLines(s)
+	fp := strings.TrimSpace(strings.ReplaceAll(fullPrompt, "\r\n", "\n"))
+	if fp != "" {
+		ns := strings.ReplaceAll(s, "\r\n", "\n")
+		// Echo often appears once; if the CLI prints the prompt twice, strip the last occurrence.
+		if idx := strings.LastIndex(ns, fp); idx >= 0 {
+			s = strings.TrimSpace(ns[idx+len(fp):])
+		}
+	}
+	return strings.TrimSpace(s)
+}
+
+func stripCLILeadingNoiseLines(s string) string {
+	lines := strings.Split(s, "\n")
+	i := 0
+	for i < len(lines) {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			i++
+			continue
+		}
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "loaded") && strings.Contains(lower, "credential") {
+			i++
+			continue
+		}
+		// One-line gRPC / capacity snippets occasionally land on stdout
+		if strings.Contains(line, "type.googleapis.com/google.rpc") ||
+			strings.Contains(line, "MODEL_CAPACITY_EXHAUSTED") ||
+			strings.Contains(line, "Error stating path") {
+			i++
+			continue
+		}
+		break
+	}
+	return strings.TrimSpace(strings.Join(lines[i:], "\n"))
 }
 
 // truncateError extracts the first meaningful error line from verbose CLI output.

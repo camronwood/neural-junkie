@@ -784,6 +784,96 @@ func TestSuggestRole(t *testing.T) {
 	}
 }
 
+func TestExecutionPhaseDiscussionIgnoresBudget(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{
+		MaxRounds:        1,
+		TurnBudget:       1,
+		MaxTotalMessages: 2,
+	})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("ApprovePlan: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("TransitionToExecuting: %v", err)
+	}
+
+	for i := 0; i < 12; i++ {
+		agentID := "a1"
+		if i%2 == 1 {
+			agentID = "a2"
+		}
+		msg := protocol.NewMessage(
+			protocol.MessageTypeCollabDiscussion,
+			"general",
+			protocol.AgentInfo{ID: agentID, Name: "x", Type: protocol.AgentTypeBackend},
+			"execution chatter",
+		)
+		if err := cm.RecordMessage(collab.ID, msg); err != nil {
+			t.Fatalf("RecordMessage %d: %v", i, err)
+		}
+	}
+
+	got, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration: %v", err)
+	}
+	if got.Discussion.Status != collaboration.DiscussionActive {
+		t.Fatalf("expected active discussion during execution, got %s (counts %d/%d)",
+			got.Discussion.Status, got.Discussion.TotalMessageCount, got.Discussion.MaxTotalMessages)
+	}
+}
+
+func TestExtendDiscussionLimitsReopensExhausted(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{
+		MaxRounds:        1,
+		TurnBudget:       1,
+		MaxTotalMessages: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"general",
+		protocol.AgentInfo{ID: "a1", Name: "Agent1", Type: protocol.AgentTypeBackend},
+		"one",
+	)
+	if err := cm.RecordMessage(collab.ID, msg); err != nil {
+		t.Fatalf("RecordMessage: %v", err)
+	}
+	got, _ := cm.GetCollaboration(collab.ID)
+	if got.Discussion.Status != collaboration.DiscussionBudgetExhausted {
+		t.Fatalf("expected exhausted, got %s", got.Discussion.Status)
+	}
+
+	if _, err := cm.ExtendDiscussionLimits(collab.ID, 1, 3); err != nil {
+		t.Fatalf("ExtendDiscussionLimits: %v", err)
+	}
+	got2, _ := cm.GetCollaboration(collab.ID)
+	if got2.Discussion.Status != collaboration.DiscussionActive {
+		t.Fatalf("expected active after extend, got %s", got2.Discussion.Status)
+	}
+	if got2.Discussion.MaxRounds < 2 || got2.Discussion.MaxTotalMessages < 4 {
+		t.Fatalf("expected bumped caps, got rounds=%d msgs=%d", got2.Discussion.MaxRounds, got2.Discussion.MaxTotalMessages)
+	}
+}
+
 // ── Protocol Metadata Tests ──────────────────────────────────────────
 
 func TestCollaborationMetadataHelpers(t *testing.T) {

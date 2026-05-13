@@ -424,12 +424,16 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 	prompt.WriteString("• When asked about system features or how to do things in the chat room, use the SYSTEM COMMANDS and SYSTEM KNOWLEDGE sections above to give accurate answers\n")
 	prompt.WriteString("• NEVER give generic answers about external tools (like GitHub Actions) when the user is asking about THIS system's capabilities\n\n")
 
+	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info)
+
 	// Insert system/user separator -- everything above is system context,
 	// everything below is the user's actual message and workspace data.
 	prompt.WriteString(ai.SystemPromptSeparator)
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContext(&prompt, msg)
+
+	AppendPromptAttachments(&prompt, msg)
 
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 
@@ -1574,6 +1578,8 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 
 	var prompt strings.Builder
 
+	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info)
+
 	prompt.WriteString("You are the Assistant, a helpful AI in the Neural Junkie multi-agent collaboration system.\n\n")
 	prompt.WriteString("=== YOUR ROLE ===\n")
 	prompt.WriteString("You help users stay organized and productive by managing reminders, tasks, notes, and schedules. ")
@@ -1623,6 +1629,8 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	prompt.WriteString("Use the meeting information above to provide accurate, detailed responses about the meetings. ")
 	prompt.WriteString("When asked about 'last meeting' or 'recent meeting', refer to the most recent meeting by date. ")
 	prompt.WriteString("Be specific about attendees, decisions made, action items, and next steps.\n\n")
+
+	AppendPromptAttachments(&prompt, msg)
 
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 	prompt.WriteString("Provide a helpful response based on the meeting information:")

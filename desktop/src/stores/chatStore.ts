@@ -1,10 +1,17 @@
 import { create } from 'zustand';
 import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
+import { channelTimelineAllowsEmptyContent } from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
+import {
+  capStreamContent,
+  MAX_UI_CHANNEL_MESSAGES,
+  MAX_UI_THREAD_MESSAGES,
+  trimMessagesToMax,
+} from '../config/messageLimits';
 
-interface ChatState {
+export interface ChatState {
   // Connection
   connectionStatus: ConnectionStatus;
   serverAddr: string;
@@ -68,6 +75,8 @@ interface ChatState {
   markChannelUnread: (channelName: string) => void;
   clearChannelUnread: (channelName: string) => void;
   addMessageToCache: (channelName: string, message: Message) => void;
+  /** Replace cached messages for a channel (e.g. after server-side history prune). */
+  replaceChannelMessagesCache: (channelName: string, messages: Message[]) => void;
 
   // Thread actions
   openThread: (threadId: string) => void;
@@ -106,6 +115,22 @@ interface ChatState {
   reset: () => void;
 }
 
+/** Cleared on logout/reset — see create() for stream coalescing state */
+function clearStreamCoalesceState(
+  streamPending: Map<string, Message>,
+  streamFlushRaf: { current: number }
+) {
+  if (streamFlushRaf.current !== 0) {
+    if (typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(streamFlushRaf.current);
+    } else {
+      clearTimeout(streamFlushRaf.current);
+    }
+    streamFlushRaf.current = 0;
+  }
+  streamPending.clear();
+}
+
 const initialState = {
   connectionStatus: 'disconnected' as ConnectionStatus,
   serverAddr: getHubBaseURL(),
@@ -130,7 +155,38 @@ const initialState = {
   streamingMessages: {} as Record<string, Message>,
 };
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set, get) => {
+  /** Deltas merged here and flushed once per animation frame */
+  const streamPending = new Map<string, Message>();
+  const streamFlushRaf = { current: 0 };
+
+  const flushPendingStreamDeltas = () => {
+    streamFlushRaf.current = 0;
+    if (streamPending.size === 0) return;
+    const batch = new Map(streamPending);
+    streamPending.clear();
+    set((state) => {
+      const next = { ...state.streamingMessages };
+      for (const [id, msg] of batch) {
+        next[id] = { ...msg, content: capStreamContent(msg.content ?? '') };
+      }
+      return { streamingMessages: next };
+    });
+  };
+
+  const scheduleStreamFlush = () => {
+    if (streamFlushRaf.current !== 0) return;
+    const schedule =
+      typeof requestAnimationFrame !== 'undefined'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) =>
+            window.setTimeout(() => cb(performance.now()), 16) as unknown as typeof requestAnimationFrame;
+    streamFlushRaf.current = schedule(() => {
+      flushPendingStreamDeltas();
+    }) as unknown as number;
+  };
+
+  return {
   ...initialState,
   
   setConnectionStatus: (status) => set({ connectionStatus: status }),
@@ -144,7 +200,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: (message) =>
     set((state) => {
       // Skip empty messages (some CLI agents send blank status messages)
-      if (!message.content?.trim() && message.type !== 'agent_join' && message.type !== 'agent_leave' && message.type !== 'system_info') {
+      if (!message.content?.trim() && !channelTimelineAllowsEmptyContent(message.type)) {
         return state;
       }
 
@@ -154,20 +210,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Replace it with the authoritative final version which carries full metadata.
         const updated = [...state.messages];
         updated[existingIdx] = message;
-        return { messages: updated, isTyping: false };
+        return {
+          messages: trimMessagesToMax(updated, MAX_UI_CHANNEL_MESSAGES),
+          isTyping: false,
+        };
       }
-      
+
       return {
-        messages: [...state.messages, message],
+        messages: trimMessagesToMax([...state.messages, message], MAX_UI_CHANNEL_MESSAGES),
         isTyping: false,
       };
     }),
   
-  setMessages: (messages) => set({
-    messages: messages.filter(m =>
-      !!m.content?.trim() || m.type === 'agent_join' || m.type === 'agent_leave' || m.type === 'system_info'
-    ),
-  }),
+  setMessages: (messages) =>
+    set({
+      messages: trimMessagesToMax(
+        messages.filter(
+          (m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)
+        ),
+        MAX_UI_CHANNEL_MESSAGES
+      ),
+    }),
   
   setAgents: (agents) => set({ agents }),
   
@@ -177,6 +240,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   addThinkingAgent: (channelName, agentId, agentName, agentType) =>
     set((state) => {
+      const innerExisting = state.channelThinkingAgents.get(channelName);
+      const prev = innerExisting?.get(agentId);
+      if (prev && prev.name === agentName && prev.type === agentType) {
+        return state;
+      }
       const outer = new Map(state.channelThinkingAgents);
       const inner = new Map(outer.get(channelName) || []);
       inner.set(agentId, { id: agentId, name: agentName, type: agentType });
@@ -186,9 +254,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   removeThinkingAgent: (channelName, agentId) =>
     set((state) => {
+      const inner = state.channelThinkingAgents.get(channelName);
+      if (!inner || !inner.has(agentId)) return state;
       const outer = new Map(state.channelThinkingAgents);
-      const inner = outer.get(channelName);
-      if (!inner) return state;
       const newInner = new Map(inner);
       newInner.delete(agentId);
       if (newInner.size === 0) {
@@ -202,6 +270,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearThinkingAgents: (channelName) =>
     set((state) => {
       if (channelName) {
+        if (!state.channelThinkingAgents.has(channelName)) return state;
         const outer = new Map(state.channelThinkingAgents);
         outer.delete(channelName);
         return { channelThinkingAgents: outer };
@@ -239,8 +308,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   updateAgentStatus: (agentId, updates) =>
     set((state) => {
-      const updatedAgents = state.agents.map((agent) =>
-        agent.id === agentId ? { ...agent, ...updates } : agent
+      const agent = state.agents.find((a) => a.id === agentId);
+      if (!agent) return state;
+      const changed = (Object.keys(updates) as (keyof AgentInfo)[]).some(
+        (k) => agent[k] !== updates[k]
+      );
+      if (!changed) return state;
+      const updatedAgents = state.agents.map((a) =>
+        a.id === agentId ? { ...a, ...updates } : a
       );
       return { agents: updatedAgents };
     }),
@@ -248,14 +323,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Channel actions
   setChannels: (channels) => set({ channels }),
 
-  switchChannel: (channelName) =>
+  switchChannel: (channelName) => {
+    if (streamFlushRaf.current !== 0) {
+      if (typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(streamFlushRaf.current);
+      } else {
+        clearTimeout(streamFlushRaf.current);
+      }
+      streamFlushRaf.current = 0;
+    }
+    streamPending.clear();
     set((state) => {
       // Cache current channel's messages before switching
       const newCache = new Map(state.channelMessages);
-      newCache.set(state.channel, state.messages);
+      newCache.set(state.channel, trimMessagesToMax(state.messages, MAX_UI_CHANNEL_MESSAGES));
 
       // Restore cached messages for the target channel (or empty)
-      const cachedMessages = newCache.get(channelName) || [];
+      const cachedMessages = trimMessagesToMax(
+        newCache.get(channelName) || [],
+        MAX_UI_CHANNEL_MESSAGES
+      );
 
       // Clear unread for the channel we're switching to
       const newUnread = new Set(state.unreadChannels);
@@ -267,8 +354,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         channelMessages: newCache,
         unreadChannels: newUnread,
         openThreadId: null,
+        streamingMessages: {},
       };
-    }),
+    });
+  },
 
   markChannelUnread: (channelName) =>
     set((state) => {
@@ -290,7 +379,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const newCache = new Map(state.channelMessages);
       const cached = newCache.get(channelName) || [];
       if (cached.some(m => m.id === message.id)) return state;
-      newCache.set(channelName, [...cached, message]);
+      newCache.set(
+        channelName,
+        trimMessagesToMax([...cached, message], MAX_UI_CHANNEL_MESSAGES)
+      );
+      return { channelMessages: newCache };
+    }),
+
+  replaceChannelMessagesCache: (channelName, messages) =>
+    set((state) => {
+      const newCache = new Map(state.channelMessages);
+      newCache.set(channelName, trimMessagesToMax(messages, MAX_UI_CHANNEL_MESSAGES));
       return { channelMessages: newCache };
     }),
 
@@ -312,14 +411,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       
       const newThreadMessages = new Map(state.threadMessages);
-      newThreadMessages.set(threadId, [...currentMessages, message]);
+      newThreadMessages.set(
+        threadId,
+        trimMessagesToMax([...currentMessages, message], MAX_UI_THREAD_MESSAGES)
+      );
       return { threadMessages: newThreadMessages };
     }),
   
   setThreadMessages: (threadId, messages) =>
     set((state) => {
       const newThreadMessages = new Map(state.threadMessages);
-      newThreadMessages.set(threadId, messages);
+      newThreadMessages.set(threadId, trimMessagesToMax(messages, MAX_UI_THREAD_MESSAGES));
       return { threadMessages: newThreadMessages };
     }),
   
@@ -343,13 +445,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   // Loading Agents actions
   addLoadingAgent: (agentName) => {
-    set((state) => ({
-      loadingAgents: new Set([...state.loadingAgents, agentName])
-    }));
+    set((state) => {
+      if (state.loadingAgents.has(agentName)) return state;
+      return {
+        loadingAgents: new Set([...state.loadingAgents, agentName]),
+      };
+    });
   },
   
   removeLoadingAgent: (agentName) => {
     set((state) => {
+      if (!state.loadingAgents.has(agentName)) return state;
       const newLoadingAgents = new Set(state.loadingAgents);
       newLoadingAgents.delete(agentName);
       return { loadingAgents: newLoadingAgents };
@@ -375,46 +481,77 @@ export const useChatStore = create<ChatState>((set, get) => ({
     console.log('Recalling agent:', agentId);
   },
   
-  // Streaming actions
-  appendStreamDelta: (msg) =>
-    set((state) => {
-      const existing = state.streamingMessages[msg.id];
-      if (existing) {
-        return {
-          streamingMessages: {
-            ...state.streamingMessages,
-            [msg.id]: { ...existing, content: existing.content + msg.content },
-          },
-        };
-      }
-      // First delta -- create the streaming message entry
-      return {
-        streamingMessages: {
-          ...state.streamingMessages,
-          [msg.id]: { ...msg, type: 'chat' as Message['type'] },
-        },
-      };
-    }),
+  // Streaming actions — deltas coalesced per rAF to avoid one React commit per token
+  appendStreamDelta: (msg) => {
+    const id = msg.id;
+    const chunk = msg.content ?? '';
+    const curPending = streamPending.get(id);
+    const state = get();
+    if (curPending) {
+      streamPending.set(id, {
+        ...curPending,
+        content: capStreamContent(curPending.content + chunk),
+      });
+    } else if (state.streamingMessages[id]) {
+      const existing = state.streamingMessages[id];
+      streamPending.set(id, {
+        ...existing,
+        content: capStreamContent(existing.content + chunk),
+        type: 'chat' as Message['type'],
+      });
+    } else {
+      streamPending.set(id, {
+        ...msg,
+        type: 'chat' as Message['type'],
+        content: capStreamContent(chunk),
+      });
+    }
+    scheduleStreamFlush();
+  },
 
-  finalizeStream: (streamId) =>
+  finalizeStream: (streamId) => {
+    if (streamFlushRaf.current !== 0) {
+      if (typeof cancelAnimationFrame !== 'undefined') {
+        cancelAnimationFrame(streamFlushRaf.current);
+      } else {
+        clearTimeout(streamFlushRaf.current);
+      }
+      streamFlushRaf.current = 0;
+    }
+    if (streamPending.size > 0) {
+      const batch = new Map(streamPending);
+      streamPending.clear();
+      set((state) => {
+        const next = { ...state.streamingMessages };
+        for (const [id, m] of batch) {
+          next[id] = { ...m, content: capStreamContent(m.content ?? '') };
+        }
+        return { streamingMessages: next };
+      });
+    }
     set((state) => {
       const streamed = state.streamingMessages[streamId];
+      // Unknown stream id (already finalized, or never started): no-op.
+      if (!streamed) return state;
       const { [streamId]: _removed, ...rest } = state.streamingMessages;
-      if (!streamed || !streamed.content?.trim()) {
+      if (!streamed.content?.trim()) {
         return { streamingMessages: rest };
       }
-      // Promote the accumulated streaming content into the main messages list
-      // so the text stays visible while the final chat message is in flight.
-      // addMessage will replace this entry with the authoritative version.
-      const alreadyInMessages = state.messages.some(m => m.id === streamId);
+      const alreadyInMessages = state.messages.some((m) => m.id === streamId);
       if (alreadyInMessages) {
         return { streamingMessages: rest };
       }
+      const finalized: Message = {
+        ...streamed,
+        type: 'chat' as Message['type'],
+        content: capStreamContent(streamed.content ?? ''),
+      };
       return {
         streamingMessages: rest,
-        messages: [...state.messages, { ...streamed, type: 'chat' as Message['type'] }],
+        messages: trimMessagesToMax([...state.messages, finalized], MAX_UI_CHANNEL_MESSAGES),
       };
-    }),
+    });
+  },
   
   // Provider switching actions
   switchAgentProvider: async (agentId, provider, model) => {
@@ -451,6 +588,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   logout: () => {
     console.log('[ChatStore] Logging out user');
+    clearStreamCoalesceState(streamPending, streamFlushRaf);
     set({ 
       ...initialState, 
       channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>(),
@@ -462,7 +600,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
   
-  reset: () => set({ 
+  reset: () => {
+    clearStreamCoalesceState(streamPending, streamFlushRaf);
+    set({ 
     ...initialState, 
     channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>(),
     threadMessages: new Map<string, Message[]>(),
@@ -470,6 +610,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     channelMessages: new Map<string, Message[]>(),
     unreadChannels: new Set<string>(),
     streamingMessages: {},
-  }),
-}));
+  });
+  },
+};
+});
 

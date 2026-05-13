@@ -339,6 +339,68 @@ section h2 {
   margin-inline: auto;
 }
 
+/* Desktop screenshot strip */
+.screenshot-showcase {
+  padding: clamp(2rem, 5vw, 3.5rem) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.screenshot-showcase h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+}
+
+.screenshot-frame {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.screenshot-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.screenshot-caption {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+.screenshot-actions {
+  margin: 1.25rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
+
+.screenshot-actions .btn {
+  margin: 0;
+}
+
+.local-note {
+  flex-basis: 100%;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.local-note code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-elevated);
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+}
+
 /* Footer */
 .site-footer {
   padding: 2rem 0 3rem;

@@ -311,6 +311,18 @@ func (ra *RepoAgent) Reindex(ctx context.Context) error {
 
 // handleMessage overrides the base agent's handleMessage to check indexing status
 func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
+	if msg.Type == protocol.MessageTypeAgentStatus && msg.Metadata != nil {
+		if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
+			if hist, err := ra.Hub.GetMessages(msg.Channel, 20); err == nil {
+				if ra.Context.History == nil {
+					ra.Context.History = make(map[string][]*protocol.Message)
+				}
+				ra.Context.History[msg.Channel] = hist
+			}
+			return
+		}
+	}
+
 	// Ignore own messages
 	if msg.From.ID == ra.Info.ID {
 		return
@@ -530,6 +542,8 @@ func (ra *RepoAgent) generateRepoResponse(ctx context.Context, msg *protocol.Mes
 // buildRepoPrompt constructs a specialized prompt with repository context
 func (ra *RepoAgent) buildRepoPrompt(msg *protocol.Message, index *repo.RepositoryIndex) string {
 	var prompt strings.Builder
+
+	PrependRulesAndAttachmentsForMonolithic(&prompt, msg, &ra.Info)
 
 	prompt.WriteString(fmt.Sprintf("You are %s, a repository expert agent with deep knowledge of the %s codebase.\n\n",
 		ra.Info.Name, index.Name))

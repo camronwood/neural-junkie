@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Junkie</title>
+    <meta name="description" content="High-octane agent orchestration: desktop app screenshots and links to the project.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="site-header__inner">
+            <h1>Neural Junkie</h1>
+            <p class="tagline">Stop talking to LLMs. Start running a digital hive-mind.</p>
+            <p class="lede">Agent orchestration for developers: specialized AI nodes, repo tools, and real-time collaboration in a native desktop workspace.</p>
+            <nav class="actions">
+                <a class="btn btn--primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+                <a class="btn btn--ghost" href="http://127.0.0.1:18765/">Web chat</a>
+                <a class="btn btn--ghost" href="http://127.0.0.1:18765/app">Hub screenshot gallery</a>
+            </nav>
+            <p class="hint">Web chat and <code>/app</code> require <code>make server</code> on this machine. This page also works offline for screenshots if you open it from the repo (see path note in the footer).</p>
+        </div>
+    </header>
+
+    <main class="gallery">
+        <h2 class="gallery__title">Desktop app</h2>
+        <p class="gallery__intro">Same shots as the README; paths are relative to this file inside the repo.</p>
+
+        <figure class="shot">
+            <img src="../assets/screenshots/Screenshot%202026-05-13%20at%2012.35.40%E2%80%AFPM.png" loading="lazy" alt="Main workspace with channels, agents, chat, and task sidebar">
+            <figcaption><strong>Workspace</strong> — Channels, direct-message agents, multi-agent chat, and task sidebar.</figcaption>
+        </figure>
+
+        <figure class="shot">
+            <img src="../assets/screenshots/Screenshot%202026-05-13%20at%2012.36.02%E2%80%AFPM.png" loading="lazy" alt="Command palette with slash commands">
+            <figcaption><strong>Command palette</strong> — Repo agents, Confluence, experts, agent management.</figcaption>
+        </figure>
+
+        <figure class="shot">
+            <img src="../assets/screenshots/Screenshot%202026-05-13%20at%2012.36.21%E2%80%AFPM.png" loading="lazy" alt="My Agents dashboard">
+            <figcaption><strong>My Agents</strong> — Search, category filters, and status.</figcaption>
+        </figure>
+
+        <figure class="shot">
+            <img src="../assets/screenshots/Screenshot%202026-05-13%20at%2012.36.44%E2%80%AFPM.png" loading="lazy" alt="Files tree, code editor, and chat">
+            <figcaption><strong>Repo workflow</strong> — Files tree and code editor alongside chat.</figcaption>
+        </figure>
+    </main>
+
+    <footer class="site-footer">
+        <p>Static preview: serve the <strong>repository root</strong> (not only <code>public/</code>) so <code>../assets/screenshots/</code> resolves — e.g. <code>cd neural-junkie && python3 -m http.server 8765</code> then open <code>http://127.0.0.1:8765/public/index.html</code>.</p>
+    </footer>
+</body>
+</html>

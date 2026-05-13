@@ -55,6 +55,10 @@ type Agent struct {
 	activeChannels map[string]context.CancelFunc // channel name -> cancel func for its listener
 	channelMu      sync.Mutex
 
+	// When true, Start does not run discoverChannels (no polling of Hub.GetAgentChannels).
+	// Dedicated DM instances use this so they only listen on channels passed to Start/AddChannel.
+	DisableChannelDiscovery bool
+
 	// Collaboration support (set by the hub after creation)
 	Collab CollaborationClient
 
@@ -220,9 +224,10 @@ func (a *Agent) Start(ctx context.Context, channel string) error {
 		return err
 	}
 
-	// Start periodic channel discovery so the agent picks up new
-	// channels it has been added to (DMs, custom channels, etc.)
-	go a.discoverChannels(ctx)
+	if !a.DisableChannelDiscovery {
+		// Periodic discovery: pick up channels this agent was joined to after Start.
+		go a.discoverChannels(ctx)
+	}
 
 	return nil
 }
@@ -240,7 +245,9 @@ func (a *Agent) StartMultiChannel(ctx context.Context, channels []string) error 
 		}
 	}
 
-	go a.discoverChannels(ctx)
+	if !a.DisableChannelDiscovery {
+		go a.discoverChannels(ctx)
+	}
 	return nil
 }
 
@@ -384,6 +391,17 @@ func (a *Agent) Stop() {
 func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Handle agent status messages for provider/model updates
 	if msg.Type == protocol.MessageTypeAgentStatus {
+		if msg.Metadata != nil {
+			if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
+				if hist, err := a.Hub.GetMessages(msg.Channel, 20); err == nil {
+					if a.Context.History == nil {
+						a.Context.History = make(map[string][]*protocol.Message)
+					}
+					a.Context.History[msg.Channel] = hist
+				}
+				return
+			}
+		}
 		// Check if this status message is for us (updating our provider)
 		if msg.From.ID == a.Info.ID {
 			// Extract provider info from metadata
@@ -712,6 +730,23 @@ func (a *Agent) sendThinkingStatus(originalMsg *protocol.Message, status protoco
 	}()
 }
 
+// effectiveChannelType resolves channel classification for routing. DM rooms use
+// the "dm-" name prefix; if hub metadata is missing or wrong, still treat as DM
+// so 1:1 agents answer the user.
+func (a *Agent) effectiveChannelType(channel string) protocol.ChannelType {
+	if channel == "" {
+		return protocol.ChannelTypePublic
+	}
+	t := a.Hub.GetChannelType(channel)
+	if t == protocol.ChannelTypeDM {
+		return protocol.ChannelTypeDM
+	}
+	if strings.HasPrefix(strings.ToLower(channel), "dm-") {
+		return protocol.ChannelTypeDM
+	}
+	return t
+}
+
 // shouldRespond determines if the agent should respond to a message
 func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// Never respond to commands - let the command handler process them
@@ -728,24 +763,20 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 	}
 
-	// COLLABORATION MODE: within an active collaboration, agents are
-	// allowed to respond to each other subject to the discussion's
-	// turn-taking rules. This check runs before the normal isFromAgent
-	// guard so collaboration messages bypass the anti-loop block.
+	// COLLABORATION: orchestration messages (turn prompts, tasks) are sent from
+	// System — evaluate before the generic "ignore System" rule below.
 	if collabID := msg.GetCollaborationID(); collabID != "" && a.Collab != nil {
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
 			if a.Collab.IsAgentTurn(collabID, a.Info.ID) {
 				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}
-			// Also respond if explicitly @mentioned within collaboration
 			if msg.IsMentioned(a.Info.ID) {
 				log.Printf("[%s] ✅ MENTIONED in collaboration - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}
 			return false
 		}
-		return false
 	}
 
 	// Never respond to system messages (errors, notifications, join/leave, etc.)
@@ -761,9 +792,9 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 
-	// In DM channels, always respond to non-agent messages (the user is talking directly to us)
-	channelType := a.Hub.GetChannelType(msg.Channel)
-	if channelType == protocol.ChannelTypeDM {
+	// DM channels: answer the human before any collaboration turn logic. The user
+	// is always talking to this agent in a 1:1 room.
+	if a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeDM {
 		isFromAgent := msg.From.Type == protocol.AgentTypeFrontend ||
 			msg.From.Type == protocol.AgentTypeBackend ||
 			msg.From.Type == protocol.AgentTypeDatabase ||
@@ -774,13 +805,16 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeHelper ||
 			msg.From.Type == protocol.AgentTypeAssistant ||
 			msg.From.Type == protocol.AgentTypeModerator ||
-			msg.From.Type == protocol.AgentTypeCLI
+			msg.From.Type == protocol.AgentTypeCLI ||
+			msg.From.Type == protocol.AgentTypeConfluence
 		if !isFromAgent {
 			log.Printf("[%s] ✅ DM CHANNEL - will respond", a.Info.Name)
 			return true
 		}
 		return false
 	}
+
+	channelType := a.effectiveChannelType(msg.Channel)
 
 	// THREAD HANDLING: In threads, respond if mentioned OR if we posted the parent message
 	if msg.IsInThread() {
@@ -1594,6 +1628,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		}
 	}
 
+	AppendUserAndAgentRules(&system, msg, &a.Info)
+
 	// ── USER SECTION ────────────────────────────────────────────────────
 
 	// Check if this is a review request (user asking to review another agent's response)
@@ -1627,6 +1663,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	} else {
 		user.WriteString(fmt.Sprintf("%s says:\n%s\n\n", msg.From.Name, msg.Content))
 	}
+
+	AppendPromptAttachments(&user, msg)
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContext(&user, msg)

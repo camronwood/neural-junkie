@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Message } from '../types/protocol';
+import { perfMarkStart, perfMarkEnd } from '../utils/perfMarks';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -77,11 +78,14 @@ export function useWebSocket({
       };
 
       ws.onmessage = (event) => {
+        perfMarkStart('ws.onmessage');
         try {
           const message: Message = JSON.parse(event.data);
           onMessageRef.current(message);
         } catch (error) {
           console.error('Failed to parse message:', error);
+        } finally {
+          perfMarkEnd('ws.onmessage');
         }
       };
 

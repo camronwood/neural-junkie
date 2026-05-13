@@ -2,7 +2,9 @@
 
 ## System Overview
 
-Neural Junkie is a multi-agent collaboration system where specialized AI agents communicate over a central hub, share context, and collaborate to solve complex problems. The system consists of a Go backend (hub server + agents), a Tauri + React desktop frontend, and multiple interface options (web, terminal, CLI).
+Neural Junkie is a multi-agent collaboration system where specialized AI agents communicate over a central hub, share context, and collaborate to solve complex problems. The system consists of a Go backend (hub server + optional standalone `cmd/agent` processes), a Tauri + React desktop frontend, and multiple interface options (web chat, screenshot gallery, terminal, CLI).
+
+> **Default runtime:** Moderator, Assistant, and the six specialist roles normally run **in-process** inside the hub (`initializeConfiguredAgents`), sharing the hub’s internal message delivery. **`make agents`** is optional and starts **separate** specialist processes that talk to the hub over HTTP (see README *Specialist agents*).
 
 ```mermaid
 graph LR
@@ -22,7 +24,7 @@ graph LR
 
     subgraph Agents
         Auto[Auto-Started<br/>Moderator · Assistant]
-        Specialist[Specialists<br/>Go · React · DevOps<br/>Database · Security]
+        Specialist[Specialists<br/>default: in-process<br/>optional: cmd/agent]
         Dynamic[Dynamic<br/>Repo · Confluence · CLI]
     end
 
@@ -41,8 +43,8 @@ graph LR
     Hub --> FileChanges
     Hub --> Workspaces
 
-    Auto <-->|HTTP Poll| Hub
-    Specialist <-->|HTTP Poll| Hub
+    Auto <-->|internal| Hub
+    Specialist -. optional HTTP poll .-> Hub
     Dynamic <-->|HTTP Poll| Hub
 
     Specialist --> Providers
@@ -166,7 +168,9 @@ HTTP + WebSocket server. Key endpoints:
 
 **Core:**
 - `GET /ws` -- WebSocket connection (query: `channel`, `thread`)
-- `GET /` -- Built-in web UI
+- `GET /` -- Built-in web chat UI
+- `GET /app` -- Static gallery of desktop screenshots (PNG files from disk; see `NEURAL_JUNKIE_SCREENSHOTS_DIR`)
+- `GET /assets/screenshots/*` -- Screenshot files for `/app`
 - `GET /api/commands` -- Command palette metadata
 
 **Channels & Messages:**
@@ -194,7 +198,7 @@ HTTP + WebSocket server. Key endpoints:
 - `GET /api/ollama/status`, `GET /api/ollama/models`, `POST /api/test-ollama-connection`
 - `GET /api/lmstudio/status`, `GET /api/lmstudio/models`, `POST /api/test-lmstudio-connection`
 
-**Auto-started agents:** The server creates the Moderator and Assistant agents on startup. If the Cursor CLI or Gemini CLI binaries are detected on PATH, it also starts the respective CLI agents.
+**Auto-started agents:** The server creates the Moderator and Assistant agents on startup, then starts **enabled specialist agents from config** in-process (`initializeConfiguredAgents`). If the Cursor CLI or Gemini CLI binaries are detected on PATH, it also starts the respective CLI agents.
 
 ### Desktop App (`desktop/`)
 
@@ -278,9 +282,10 @@ Desktop shows in Pending Changes panel (with diff)
 ## Concurrency
 
 - **Hub** -- Protected by `sync.RWMutex`; safe for concurrent reads
-- **Agents** -- Each runs in its own goroutine with HTTP polling
+- **Standalone `cmd/agent` processes** -- Each polls the hub over HTTP in its own goroutine
+- **In-process runtime agents** -- Run in goroutines started by the hub; message delivery is push-based from the hub (no HTTP polling loop to self)
 - **Message Channels** -- Buffered Go channels (size 100) for real-time broadcast
-- **Deduplication** -- Three-layer: polling dedup, handler-level tracking, agent-type filtering
+- **Deduplication** -- Three-layer: polling dedup (standalone agents), handler-level tracking, agent-type filtering
 
 ## Data Storage
 

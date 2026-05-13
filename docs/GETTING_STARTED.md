@@ -19,14 +19,16 @@ Get Neural Junkie running in under 5 minutes.
 ```bash
 cd neural-junkie
 make gui-install    # First time only -- installs npm + Rust deps
-make start-all     # Starts server, agents, and desktop app
+make start-all     # Hub (in-process specialists) + desktop app
 ```
 
 This launches:
 - The **Hub server** on `http://localhost:18765`
-- **Moderator** and **Assistant** agents (auto-started with the server)
-- 5 **specialist agents**: GoExpert, SQLMaster, SecurityExpert, ReactExpert, DevOpsPro
+- **Moderator** and **Assistant** (auto-started with the server)
+- **Six specialist agents** (GoExpert, ReactExpert, DevOpsPro, SQLMaster, SecurityExpert, RustExpert) **in-process** with the hub, from `~/.neural-junkie/config.json` defaults unless you changed `Agents`
 - The **Tauri desktop app**
+
+`make start-all` does **not** run `make agents`; specialists are started inside the hub (`initializeConfiguredAgents`). Use `make agents` only when you intentionally want **separate** `cmd/agent` processes (avoid duplicate agent names versus in-process config).
 
 ### Option 2: Manual Setup (Separate Terminals)
 
@@ -35,18 +37,18 @@ This launches:
 make server
 ```
 
-**Terminal 2 -- Agents:**
-```bash
-make agents
-```
-
-**Terminal 3 -- Interface:**
+**Terminal 2 -- Interface:**
 ```bash
 make gui          # Desktop app (recommended)
 # OR
 make chat         # Terminal chat
 # OR
-open http://localhost:18765   # Web UI
+open http://localhost:18765   # Web UI (browser chat client)
+```
+
+**Optional -- standalone specialist processes** (same six roles as separate OS processes; see README *Specialist agents* for duplication caveats):
+```bash
+make agents
 ```
 
 ## AI Provider Configuration
@@ -113,7 +115,8 @@ go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
 |-----------|---------|----------|
 | **Desktop App** | `make gui` | Full experience -- command palette, file explorer, code editor, threads |
 | **Terminal Chat** | `make chat` | Terminal users, SSH sessions |
-| **Web UI** | `http://localhost:18765` | Quick access, remote/mobile |
+| **Web UI** | `http://localhost:18765` | Browser chat client against the hub |
+| **Screenshot gallery** | `http://localhost:18765/app` | Still images of the **desktop** UI (PNG files under `assets/screenshots/`, or `NEURAL_JUNKIE_SCREENSHOTS_DIR`) |
 | **CLI** | `go run cmd/cli/main.go` | Scripting, automation, MCP server |
 
 ## Using the Desktop App
@@ -193,9 +196,9 @@ See [CONFLUENCE_AGENTS.md](CONFLUENCE_AGENTS.md) for full documentation.
 
 ```bash
 # Lifecycle
-make start-all        # Server + agents + desktop
+make start-all        # Hub (in-process specialists) + desktop
 make server           # Hub server (loads env.local)
-make agents           # All 5 specialist agents
+make agents           # Six specialist agents as separate processes (optional)
 make stop             # Kill all processes
 make refresh          # Stop, clear, restart
 
@@ -241,6 +244,7 @@ All make targets automatically load from `env.local`. Key variables:
 | `CONFLUENCE_API_TOKEN` | Confluence API token | -- |
 | `CURSOR_API_KEY` | Cursor CLI API key (optional) | -- |
 | `MCP_EXPORTS_DIR` | MCP export storage | `~/.neural-junkie/exports` |
+| `NEURAL_JUNKIE_SCREENSHOTS_DIR` | Absolute path to PNGs for hub `/app` gallery (optional) | (auto-discover `assets/screenshots` from cwd) |
 
 See `env.example` for the full list with descriptions.
 

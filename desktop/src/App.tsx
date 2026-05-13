@@ -9,6 +9,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { useSettingsStore } from './stores/settingsStore';
 import { useTerminalStore } from './stores/terminalStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from './stores/chatStore';
 import { loadCredentials } from './utils/secureStorage';
 import { ChatAPI } from './api/chatAPI';
@@ -23,7 +24,14 @@ function App() {
   const [previewParams, setPreviewParams] = useState<{ workspaceId: string; filePath: string } | null>(null);
   const { settings, loadSettings } = useSettingsStore();
   const { togglePanel } = useTerminalStore();
-  const { setUsername, setChannel, setServerAddr } = useChatStore();
+  const { setUsername, setChannel, setServerAddr } = useChatStore(
+    (s) => ({
+      setUsername: s.setUsername,
+      setChannel: s.setChannel,
+      setServerAddr: s.setServerAddr,
+    }),
+    shallow
+  );
 
   const serverAddr = getHubBaseURL();
 

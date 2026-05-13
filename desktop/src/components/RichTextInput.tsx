@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle, KeyboardEvent } from 'react';
 import { MentionAutocomplete } from './MentionAutocomplete';
 import type { AgentInfo } from '../types/protocol';
+import { PROMPT_ATTACHMENTS_METADATA_KEY, type PromptAttachmentPayload } from '../constants/promptMetadata';
 
 interface RichTextInputProps {
   onSend: (message: string, metadata?: Record<string, any>) => void;
@@ -27,6 +28,8 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
   const [selectedImage, setSelectedImage] = useState<{file: File, preview: string} | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<PromptAttachmentPayload[]>([]);
+  const [dragActive, setDragActive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,6 +140,74 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     }
   };
 
+  const inferLanguageFromPath = (path: string): string => {
+    const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : '';
+    const m: Record<string, string> = {
+      go: 'go',
+      rs: 'rust',
+      py: 'python',
+      ts: 'typescript',
+      tsx: 'tsx',
+      js: 'javascript',
+      jsx: 'jsx',
+      md: 'markdown',
+      json: 'json',
+      yaml: 'yaml',
+      yml: 'yaml',
+      toml: 'toml',
+      sql: 'sql',
+      sh: 'bash',
+      tf: 'hcl',
+    };
+    return m[ext] || 'text';
+  };
+
+  const binaryExt = new Set([
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp', 'zip', 'tar', 'gz', 'pdf', 'mp4', 'mp3', 'wav',
+    'exe', 'dll', 'so', 'dylib', 'woff', 'woff2', 'ttf', 'eot', 'gguf', 'bin',
+  ]);
+
+  const isBinaryPath = (path: string) => {
+    const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : '';
+    return binaryExt.has(ext);
+  };
+
+  const MAX_ATTACH_BYTES = 80_000;
+  const MAX_ATTACH_COUNT = 12;
+  const MAX_ATTACH_TOTAL = 350_000;
+
+  const ingestDroppedFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const next: PromptAttachmentPayload[] = [...pendingAttachments];
+    let total = next.reduce((s, x) => s + x.content.length, 0);
+    for (let i = 0; i < files.length; i++) {
+      if (next.length >= MAX_ATTACH_COUNT) break;
+      const file = files[i];
+      if (isBinaryPath(file.name)) continue;
+      try {
+        const text = await file.text();
+        let slice = text;
+        if (slice.length > MAX_ATTACH_BYTES) {
+          slice = slice.slice(0, MAX_ATTACH_BYTES) + '\n[truncated client-side]';
+        }
+        if (total + slice.length > MAX_ATTACH_TOTAL) break;
+        next.push({
+          path: file.name,
+          language: inferLanguageFromPath(file.name),
+          content: slice,
+        });
+        total += slice.length;
+      } catch {
+        /* skip unreadable */
+      }
+    }
+    setPendingAttachments(next);
+  };
+
+  const removeAttachmentAt = (idx: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleAnalyzeDesign = async () => {
     if (!selectedImage) return;
 
@@ -185,8 +256,17 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
   const handleSend = () => {
     const trimmed = message.trim();
     if (trimmed && !disabled) {
-      onSend(trimmed);
+      const composerMeta: Record<string, unknown> = {};
+      if (pendingAttachments.length > 0) {
+        composerMeta[PROMPT_ATTACHMENTS_METADATA_KEY] = pendingAttachments.map(({ path, language, content }) => ({
+          path,
+          language,
+          content,
+        }));
+      }
+      onSend(trimmed, Object.keys(composerMeta).length > 0 ? composerMeta : undefined);
       setMessage('');
+      setPendingAttachments([]);
       setShowMentionMenu(false);
     }
   };
@@ -261,7 +341,29 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
   }), [message]);
 
   return (
-    <div className="relative flex flex-col gap-2 p-4 border-t border-slack-border bg-slack-bg rich-text-input">
+    <div
+      className={`relative flex flex-col gap-2 p-4 border-t border-slack-border bg-slack-bg rich-text-input ${dragActive ? 'ring-2 ring-slack-accent ring-inset rounded-lg' : ''}`}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(true);
+      }}
+      onDragLeave={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.currentTarget === e.target) setDragActive(false);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragActive(false);
+        void ingestDroppedFiles(e.dataTransfer.files);
+      }}
+    >
       {/* Image Preview */}
       {selectedImage && (
         <div className="space-y-2">
@@ -293,6 +395,29 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {pendingAttachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {pendingAttachments.map((a, idx) => (
+            <div
+              key={`${a.path}-${idx}`}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-xs text-slack-text max-w-full"
+            >
+              <span className="truncate" title={a.path}>
+                {a.path}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeAttachmentAt(idx)}
+                className="text-slack-textMuted hover:text-slack-text shrink-0"
+                aria-label={`Remove ${a.path}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
         </div>
       )}
 

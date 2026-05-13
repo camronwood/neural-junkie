@@ -11,6 +11,7 @@ neural-junkie/
 │   ├── agent/                 # Standalone agent runner
 │   ├── chat/                  # Interactive terminal chat
 │   └── cli/                   # CLI tool + MCP resource server
+├── assets/                    # Icons, marketing art, desktop screenshots (hub /app)
 ├── desktop/                   # Tauri + React desktop app
 │   ├── src/                   # React components, stores, hooks, utils
 │   │   ├── components/        # 33 React components
@@ -30,10 +31,20 @@ neural-junkie/
 │   ├── filechange/            # File change proposals, approval, execution
 │   └── mcp_export/            # MCP format export/import
 ├── test/                      # Go tests
-├── docs/                      # Documentation
+├── docs/                      # Documentation + static landing (index.html)
 ├── examples/                  # Usage scenarios
+├── public/                    # Optional static preview (serve repo root for asset paths)
 └── scripts/                   # Automation scripts
 ```
+
+## Hub Web Surfaces
+
+The Go hub (`cmd/server`) serves:
+
+- **`/`** — Browser chat client (WebSocket to the hub).
+- **`/app`** — Static gallery of **desktop** screenshots (PNG files under `assets/screenshots/`, or `NEURAL_JUNKIE_SCREENSHOTS_DIR`). Markup is embedded at build time from `cmd/server/showcase.html`.
+
+Marketing / early-access copy for hosting lives under `docs/index.html` + `docs/css/landing.css`.
 
 ## Key Design Decisions
 
@@ -116,8 +127,8 @@ Key test files: `hub_test.go`, `commands_test.go`, `assistant_test.go`, `moderat
 ### Manual Testing
 
 ```bash
-make server          # Start server
-make agents          # Start agents
+make server          # Start hub (specialists in-process per config)
+# Optional: make agents   # Standalone specialist processes — avoid duplicates vs hub config
 make gui             # Open desktop app
 # Test commands, mentions, threads, file changes, etc.
 ```

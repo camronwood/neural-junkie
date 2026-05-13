@@ -85,6 +85,8 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ![Files panel, code editor, and chat](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.44%E2%80%AFPM.png)
 
+**Web hub (when the server is running):** the built-in browser UI at `http://localhost:18765` is a lightweight chat client. The **native desktop app** is what you see above; the same hub also serves a **screenshot gallery** at [`http://localhost:18765/app`](http://localhost:18765/app) (PNG files under `assets/screenshots/`, or override with `NEURAL_JUNKIE_SCREENSHOTS_DIR`). For a static HTML preview without the hub, serve the repo root and open `public/index.html` (see the note in that file).
+
 ## Quick Start
 
 ```bash
@@ -98,21 +100,27 @@ make gui-install
 make start-all
 ```
 
-That's it. The server auto-starts the **Moderator** (chat guide) and **Assistant** (tasks/reminders), then spins up the 6 specialist agents and opens the desktop app.
+That's it. **`make start-all`** starts the **hub** (with **Moderator**, **Assistant**, and the **six default specialist agents** running **in-process** per `~/.neural-junkie/config.json`) and opens the **desktop app**. It does **not** spawn separate `cmd/agent` processes; those are optional (see below).
 
 ### Other Ways to Run
 
 ```bash
 # Manual setup (separate terminals)
-make server          # Terminal 1: Hub server
-make agents          # Terminal 2: All 6 specialist agents
-make gui             # Terminal 3: Desktop app
+make server          # Terminal 1: Hub server (specialists in-process unless disabled in config)
+make gui             # Terminal 2: Desktop app
+
+# Optional: run the six specialists as separate OS processes instead of (or in
+# addition to) in-process agents — avoid duplicate names with hub config.
+make agents
 
 # Terminal chat (no GUI)
 make chat
 
-# Web UI
+# Web UI (browser chat client)
 open http://localhost:18765
+
+# Same hub: desktop app screenshot gallery (repo checkout or NEURAL_JUNKIE_SCREENSHOTS_DIR)
+open http://localhost:18765/app
 
 # CLI (scripting/automation)
 go run cmd/cli/main.go --channel general --message "Your question"
@@ -160,7 +168,9 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **Cursor** | Codebase analysis, code generation, refactoring, shell commands (requires [Cursor CLI](docs/CLI_AGENTS.md)) |
 | **Gemini** | Code generation, code review, multimodal analysis, architecture (requires [Gemini CLI](docs/CLI_AGENTS.md)) |
 
-### Specialist Agents (via `make agents`)
+### Specialist Agents (default: in-process with the hub)
+
+By default the hub starts **six** specialists from application config (`Agents` in `~/.neural-junkie/config.json`, seeded from defaults in `internal/config`): **GoExpert**, **ReactExpert**, **DevOpsPro**, **SQLMaster**, **SecurityExpert**, and **RustExpert**. They share the hub’s message path (no separate `go run cmd/agent` required for day-to-day dev).
 
 | Agent | Expertise |
 |-------|-----------|
@@ -170,6 +180,8 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **ReactExpert** | React, TypeScript, CSS, UI/UX, design analysis, vision-capable |
 | **DevOpsPro** | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform |
 | **RustExpert** | Rust, ownership, lifetimes, async/await, traits, cargo, unsafe, WASM |
+
+**Alternate layout:** `make agents` starts the same six roles as **standalone** `cmd/agent` processes (see Makefile). Only use that when you want external processes; if their names match in-process agents, you can get duplicate registrations—disable the in-process copies in config first if you need this split.
 
 ### Dynamic Agents (created via commands)
 
@@ -203,10 +215,12 @@ Type `/` in the chat or click the **`/`** button to open the command palette. Co
 ```
 neural-junkie/
 ├── cmd/
-│   ├── server/          # Hub server (HTTP + WebSocket + config API)
+│   ├── server/          # Hub server (HTTP + WebSocket + config API; embeds /app showcase)
 │   ├── agent/           # Standalone agent runner
 │   ├── chat/            # Interactive terminal chat
 │   └── cli/             # CLI tool (automation, MCP server)
+├── assets/              # Marketing images, icons, desktop screenshots (see /app)
+├── public/              # Optional static HTML preview (screenshots; serve from repo root)
 ├── desktop/             # Tauri + React desktop app
 │   ├── src/             # React frontend (components, stores, hooks)
 │   └── src-tauri/       # Rust backend (sidecar management, auto-update)
@@ -230,6 +244,8 @@ neural-junkie/
 
 ## Documentation
 
+Full index: **[DOCS.md](DOCS.md)** (`make docs` prints the same file).
+
 | Doc | What It Covers |
 |-----|----------------|
 | **[Getting Started](docs/GETTING_STARTED.md)** | Setup, configuration, first steps |
@@ -244,6 +260,7 @@ neural-junkie/
 | **[Agent Review](docs/AGENT_REVIEW.md)** | Second-opinion review system |
 | **[Collaboration](docs/COLLABORATION.md)** | Structured multi-agent planning, bounded discussion, task delegation, and execution |
 | **[User Value Guide](docs/USER_VALUE_GUIDE.md)** | Product-oriented overview of what the app is, why it matters, and how to get value fast |
+| **[Development Notes](docs/DEVELOPMENT_NOTES.md)** | Internal layout, design decisions, contributor-focused notes |
 | **[Status](docs/STATUS.md)** | Current project status |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
 
@@ -251,9 +268,9 @@ neural-junkie/
 
 ```bash
 # Development
-make start-all        # Server + agents + desktop app
+make start-all        # Hub (in-process specialists) + desktop app
 make server           # Hub server only (with env)
-make agents           # All specialist agents
+make agents           # Six specialist agents as separate processes (optional)
 make gui              # Desktop app (Tauri + React)
 make gui-install      # Install desktop dependencies
 make chat             # Terminal chat client

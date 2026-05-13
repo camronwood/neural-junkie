@@ -1,14 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo, startTransition } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import { useEditorStore } from '../stores/editorStore';
-import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
-import { buildFileTreeString } from '../utils/workspaceContext';
-import type { WorkspaceContext } from '../utils/workspaceContext';
+import { buildHumanOutboundMetadata } from '../utils/outboundChatMetadata';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageList } from './MessageList';
 import { RichTextInput } from './RichTextInput';
@@ -23,18 +21,20 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
+import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
 import { TaskManagementPanel } from './TaskManagementPanel';
 import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, TaskManagementIcon } from './Icons';
 import type {
   AssistantReminder,
   AssistantTask,
+  Channel,
   Collaboration,
   CommandDefinition,
   Message,
   ThinkingStatusMetadata,
 } from '../types/protocol';
-import { isCollaborationMessage } from '../types/protocol';
+import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
 
 interface ChatWindowProps {
   onOpenSettings?: () => void;
@@ -42,38 +42,27 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
-  const {
-    serverAddr,
-    channel,
-    username,
-    messages,
-    agents,
-    channels,
-    openThreadId,
-    threadMetadata,
-    addMessage,
-    setMessages,
-    setAgents,
-    setChannels,
-    switchChannel,
-    setIsTyping,
-    setConnectionStatus,
-    addThinkingAgent,
-    removeThinkingAgent,
-    updateAgentStatus,
-    markChannelUnread,
-    addMessageToCache,
-    cleanupStaleThinking,
-    openThread,
-    closeThread,
-    updateThreadMetadata,
-    myAgentsPanelOpen,
-    setMyAgentsPanelOpen,
-    logout,
-    appendStreamDelta,
-    finalizeStream,
-    streamingMessages,
-  } = useChatStore();
+  const { serverAddr, channel, username, agents, channels } = useChatStore(
+    (s) => ({
+      serverAddr: s.serverAddr,
+      channel: s.channel,
+      username: s.username,
+      agents: s.agents,
+      channels: s.channels,
+    }),
+    shallow
+  );
+
+  const { openThreadId, parentMessage } = useChatStore(
+    (s) => ({
+      openThreadId: s.openThreadId,
+      parentMessage: s.openThreadId ? s.messages.find((m) => m.id === s.openThreadId) ?? null : null,
+    }),
+    shallow
+  );
+
+  const myAgentsPanelOpen = useChatStore((s) => s.myAgentsPanelOpen);
+  const setMyAgentsPanelOpen = useChatStore((s) => s.setMyAgentsPanelOpen);
 
   const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
   const { layoutSettings, loadLayoutSettings } = useSettingsStore();
@@ -96,6 +85,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // State for create channel modal
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
+  const [createNewDmOpen, setCreateNewDmOpen] = useState(false);
 
   // State for command palette
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -185,13 +175,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const loadAgents = useCallback(async () => {
     try {
       const agentList = await api.fetchAgents();
-      setAgents(agentList);
-      
+      useChatStore.getState().setAgents(agentList);
+
       // Remove agents from loading state if they're now active
       const { loadingAgents, removeLoadingAgent } = useChatStore.getState();
-      const activeAgentNames = new Set(agentList.map(agent => agent.name));
-      
-      loadingAgents.forEach(agentName => {
+      const activeAgentNames = new Set(agentList.map((agent) => agent.name));
+
+      loadingAgents.forEach((agentName) => {
         if (activeAgentNames.has(agentName)) {
           removeLoadingAgent(agentName);
         }
@@ -199,7 +189,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     } catch (error) {
       console.error('Failed to load agents:', error);
     }
-  }, [api, setAgents]);
+  }, [api]);
 
   // Load counts for badges
   const loadCounts = useCallback(async () => {
@@ -218,11 +208,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const loadChannels = useCallback(async () => {
     try {
       const channelList = await api.fetchChannels();
-      setChannels(channelList);
+      useChatStore.getState().setChannels(channelList);
     } catch (error) {
       console.error('Failed to load channels:', error);
     }
-  }, [api, setChannels]);
+  }, [api]);
 
   const mergeCollaborationSnapshot = useCallback((snapshot: Collaboration) => {
     if (!snapshot?.id) return;
@@ -288,21 +278,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   }, [api]);
 
   // Handle switching channel: switch store state, then load fresh messages
-  const handleSwitchChannel = useCallback(async (channelName: string) => {
-    if (channelName === channel) return;
-    // Collaboration side panel is channel-scoped; clear when navigating.
-    setActiveCollab(null);
-    switchChannel(channelName);
-    localStorage.setItem('last-channel', channelName);
-    try {
-      const msgs = await api.fetchMessages(channelName, 50);
-      setMessages(msgs);
-      cleanupStaleThinking(channelName, msgs);
-      await loadCollaborations(channelName);
-    } catch (error) {
-      console.error('Failed to load messages for channel:', error);
-    }
-  }, [api, channel, switchChannel, setMessages, cleanupStaleThinking, loadCollaborations]);
+  const handleSwitchChannel = useCallback(
+    async (channelName: string) => {
+      if (channelName === useChatStore.getState().channel) return;
+      // Collaboration side panel is channel-scoped; clear when navigating.
+      setActiveCollab(null);
+      useChatStore.getState().switchChannel(channelName);
+      localStorage.setItem('last-channel', channelName);
+      try {
+        const msgs = await api.fetchMessages(channelName, 50);
+        useChatStore.getState().setMessages(msgs);
+        useChatStore.getState().cleanupStaleThinking(channelName, msgs);
+        await loadCollaborations(channelName);
+      } catch (error) {
+        console.error('Failed to load messages for channel:', error);
+      }
+    },
+    [api, loadCollaborations]
+  );
 
   // Create a custom channel
   const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
@@ -326,6 +319,31 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api, username, loadChannels, handleSwitchChannel]);
 
+  const handleNewDmCreated = useCallback(
+    async (ch: Channel) => {
+      try {
+        addToast({
+          type: 'success',
+          title: 'Direct message ready',
+          message: `Opened ${ch.description || ch.name}`,
+        });
+        const channelList = await api.fetchChannels();
+        const merged = channelList.some((c) => c.name === ch.name) ? channelList : [...channelList, ch];
+        useChatStore.getState().setChannels(merged);
+        await loadAgents();
+        await handleSwitchChannel(ch.name);
+      } catch (e) {
+        console.error('Failed after creating DM agent:', e);
+        addToast({
+          type: 'error',
+          title: 'Could not open DM',
+          message: e instanceof Error ? e.message : 'Unknown error',
+        });
+      }
+    },
+    [addToast, api, loadAgents, handleSwitchChannel]
+  );
+
   // Debounced agent refresh (prevents excessive API calls).
   // Channel list is only refreshed on agent_join/agent_leave, not on every status tick.
   const debouncedRefreshAgents = useCallback(() => {
@@ -343,17 +361,35 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     url: wsURL,
     onMessage: async (message: Message) => {
       try {
+        const st = useChatStore.getState();
+        const activeChannel = st.channel;
+
       // Handle all agent_status messages - never add them to chat
       if (message.type === 'agent_status') {
+        if (message.metadata?.history_resync === true) {
+          const ch = message.channel || channel;
+          try {
+            const msgs = await api.fetchMessages(ch, 50);
+            const st = useChatStore.getState();
+            st.replaceChannelMessagesCache(ch, msgs);
+            if (ch === st.channel) {
+              st.setMessages(msgs);
+              st.cleanupStaleThinking(ch, msgs);
+            }
+          } catch (e) {
+            console.error('[ChatWindow] history_resync refetch failed:', e);
+          }
+          return;
+        }
         // Handle thinking status -> typing indicator
         if (message.metadata?.thinking_status) {
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
-          const msgChannel = message.channel || channel;
+          const msgChannel = message.channel || activeChannel;
           
           if (thinkingStatus === 'started') {
-            addThinkingAgent(msgChannel, message.from.id, message.from.name, message.from.type);
+            st.addThinkingAgent(msgChannel, message.from.id, message.from.name, message.from.type);
           } else if (thinkingStatus === 'completed' || thinkingStatus === 'error') {
-            removeThinkingAgent(msgChannel, message.from.id);
+            st.removeThinkingAgent(msgChannel, message.from.id);
           }
         }
         
@@ -377,25 +413,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             statusUpdates.is_paused = message.from.is_paused;
           }
           
-          // Update agent status immediately in the store
-          updateAgentStatus(message.from.id, statusUpdates);
+          st.updateAgentStatus(message.from.id, statusUpdates);
         }
         
-        // For all agent_status types: also debounce a full refresh for safety
-        debouncedRefreshAgents();
         return; // Never add agent_status to message list
       }
       
       // Handle streaming tokens -- accumulate deltas, finalize on stream_end
       if (message.type === 'stream_delta') {
-        if (!message.channel || message.channel === channel) {
-          appendStreamDelta(message);
+        if (!message.channel || message.channel === activeChannel) {
+          st.appendStreamDelta(message);
         }
-        removeThinkingAgent(message.channel || channel, message.from.id);
+        st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
         return;
       }
       if (message.type === 'stream_end') {
-        finalizeStream(message.id);
+        st.finalizeStream(message.id);
         return;
       }
 
@@ -404,7 +437,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       if (collabData?.id) {
         startTransition(() => {
           const collabChannel = collabData.channel || message.channel;
-          const isActiveChannelCollab = !collabChannel || collabChannel === channel;
+          const isActiveChannelCollab = !collabChannel || collabChannel === activeChannel;
           const previousSnapshot = collaborationsByIDRef.current[collabData.id];
           if (
             previousSnapshot &&
@@ -445,16 +478,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       if (message.is_thread_reply && message.thread_id) {
         void api
           .fetchThreadMetadata(message.thread_id)
-          .then(metadata => updateThreadMetadata(message.thread_id!, metadata))
+          .then(metadata => useChatStore.getState().updateThreadMetadata(message.thread_id!, metadata))
           .catch(error => console.error('Failed to fetch thread metadata:', error));
-      } else if (message.channel && message.channel !== channel) {
+      } else if (message.channel && message.channel !== activeChannel) {
         // Message belongs to a different channel -- cache it and mark unread
-        addMessageToCache(message.channel, message);
-        markChannelUnread(message.channel);
+        st.addMessageToCache(message.channel, message);
+        st.markChannelUnread(message.channel);
+        if (isCollaborationMessage(message) || getCollaborationId(message)) {
+          addToast({
+            type: 'info',
+            title: 'Collaboration update',
+            message: `Activity in #${message.channel} — switch there to see messages.`,
+          });
+        }
       } else {
         // Message belongs to the active channel (never wrap addMessage in startTransition —
         // high-frequency agent_status updates can starve transitions and leave the chat empty).
-        addMessage(message);
+        st.addMessage(message);
 
         if (message.metadata?.suggested_commands) {
           const suggestions = message.metadata.suggested_commands as any[];
@@ -474,7 +514,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       
       // Clear thinking indicator when agent sends actual message
       if (message.type === 'chat' || message.type === 'answer') {
-        removeThinkingAgent(message.channel || channel, message.from.id);
+        st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
       }
       
       // Auto-refresh agents and channels for join/leave events
@@ -488,24 +528,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     },
     onConnect: () => {
       console.log('Connected to chat');
-      setConnectionStatus('connected');
+      useChatStore.getState().setConnectionStatus('connected');
       loadInitialData();
     },
     onDisconnect: () => {
       console.log('Disconnected from chat');
-      setConnectionStatus('disconnected');
+      useChatStore.getState().setConnectionStatus('disconnected');
     },
     onError: (error) => {
       console.error('WebSocket error:', error);
-      setConnectionStatus('error');
+      useChatStore.getState().setConnectionStatus('error');
     },
   });
 
   // Load initial data when connected (parallelize; never skip channels because another request failed)
   const loadInitialData = async () => {
+    const activeCh = useChatStore.getState().channel;
     const results = await Promise.allSettled([
-      api.fetchMessages(channel, 50).then(msgs => setMessages(msgs)),
-      loadCollaborations(channel),
+      api.fetchMessages(activeCh, 50).then((msgs) => useChatStore.getState().setMessages(msgs)),
+      loadCollaborations(activeCh),
       loadAgents(),
       loadCounts(),
       loadChannels(),
@@ -529,10 +570,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       hasJoinedRef.current = true;
       setTimeout(async () => {
         try {
+          const { channel: joinCh, username: joinUser } = useChatStore.getState();
           await api.sendMessage(
-            channel,
-            `${username} has joined the chat`,
-            { name: username, type: 'human' },
+            joinCh,
+            `${joinUser} has joined the chat`,
+            { name: joinUser, type: 'human' },
             'system_info'
           );
         } catch (e) {
@@ -542,34 +584,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   };
 
+  const buildThreadOutboundMetadata = useCallback(
+    (composerMeta?: Record<string, unknown>) =>
+      buildHumanOutboundMetadata({
+        shareWorkspace,
+        composerMetadata: composerMeta,
+      }),
+    [shareWorkspace]
+  );
+
   const handleSendMessage = async (content: string, metadata?: Record<string, any>) => {
-    setIsTyping(true);
+    useChatStore.getState().setIsTyping(true);
 
-    // Assemble workspace context if sharing is enabled
-    let mergedMetadata = metadata;
-    if (shareWorkspace) {
-      const editorTabs = useEditorStore.getState().tabs;
-      const activeTabId = useEditorStore.getState().activeTabId;
-      const { workspaces, activeWorkspaceId, fileTree } = useFileExplorerStore.getState();
-      const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId) ?? workspaces[0];
-
-      // Build file tree from the active workspace's loaded nodes
-      const nodes = activeWorkspace ? (fileTree[activeWorkspace.id] ?? []) : [];
-
-      const workspaceContext: WorkspaceContext = {
-        workspace_name: activeWorkspace?.name ?? '',
-        workspace_path: activeWorkspace?.path ?? '',
-        file_tree: buildFileTreeString(nodes, 3),
-        open_files: editorTabs.map(tab => ({
-          path: tab.path,
-          language: tab.language ?? 'text',
-          content: tab.content.substring(0, 10000),
-          is_active: tab.id === activeTabId,
-        })),
-      };
-
-      mergedMetadata = { ...metadata, workspace_context: workspaceContext };
-    }
+    const mergedMetadata = buildHumanOutboundMetadata({
+      shareWorkspace,
+      composerMetadata: metadata,
+    });
 
     try {
       await api.sendMessage(
@@ -579,6 +609,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         'question',
         mergedMetadata
       );
+      // Slash commands fan out multiple hub messages; WS can lag behind HTTP.
+      // Pull latest timeline so the user always sees kickoff + system lines.
+      if (content.trimStart().startsWith('/')) {
+        try {
+          const msgs = await api.fetchMessages(channel, 50);
+          useChatStore.getState().setMessages(msgs);
+          await loadCollaborations(channel);
+        } catch (e) {
+          console.error('[handleSendMessage] post-command refresh failed:', e);
+        }
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       // TODO: Show error to user
@@ -624,7 +665,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       await clearCredentials();
       
       // Reset chat store state
-      logout();
+      useChatStore.getState().logout();
       
       // Notify parent to switch to login view
       if (onLogout) {
@@ -635,7 +676,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   };
 
-  // Connection status indicator
+  const closeThread = useChatStore((s) => s.closeThread);
+
   const getStatusColor = () => {
     switch (status) {
       case 'connected':
@@ -662,8 +704,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   };
 
-  // Find parent message for open thread
-  const parentMessage = openThreadId ? messages.find(m => m.id === openThreadId) : null;
   const trackedCollaborations = useMemo(
     () => Object.values(collaborationsByID).sort((a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')),
     [collaborationsByID]
@@ -904,6 +944,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             onSwitchChannel={handleSwitchChannel}
             onCreateChannel={() => setCreateChannelOpen(true)}
             onCreateDM={handleCreateDM}
+            onOpenNewDM={() => setCreateNewDmOpen(true)}
           />
         )}
 
@@ -933,14 +974,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         >
 
         {/* Messages */}
-        <MessageList
-          key={channel}
-          messages={messages}
-          threadMetadata={threadMetadata}
-          onOpenThread={openThread}
-          streamingMessages={streamingMessages}
-          searchQuery={messageSearchQuery}
-        />
+        <MessageList key={channel} searchQuery={messageSearchQuery} />
 
         {/* Input */}
         <RichTextInput
@@ -963,6 +997,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             threadId={openThreadId}
             parentMessage={parentMessage}
             onClose={closeThread}
+            buildOutboundMetadata={buildThreadOutboundMetadata}
           />
         )}
 
@@ -1108,6 +1143,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         isOpen={createChannelOpen}
         onClose={() => setCreateChannelOpen(false)}
         onCreate={handleCreateChannel}
+      />
+
+      <CreateNewDMModal
+        api={api}
+        username={username}
+        isOpen={createNewDmOpen}
+        onClose={() => setCreateNewDmOpen(false)}
+        onCreated={handleNewDmCreated}
       />
 
       {/* Toast Notifications */}

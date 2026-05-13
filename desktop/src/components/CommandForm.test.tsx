@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandForm } from './CommandForm';
 import type { AgentInfo, CommandDefinition } from '../types/protocol';
 
@@ -47,6 +47,10 @@ const agents: AgentInfo[] = [
   },
 ];
 
+afterEach(() => {
+  cleanup();
+});
+
 describe('CommandForm /collaborate quick select', () => {
   it('builds collaborate command from selected agents and prompt', () => {
     const onSubmit = vi.fn();
@@ -60,7 +64,7 @@ describe('CommandForm /collaborate quick select', () => {
       />
     );
 
-    fireEvent.change(screen.getByPlaceholderText('Describe what you want the agents to collaborate on...'), {
+    fireEvent.change(screen.getByLabelText(/prompt/i), {
       target: { value: 'Build and deploy collaboration UI updates' },
     });
     fireEvent.click(screen.getByText('RustExpert'));
@@ -69,6 +73,32 @@ describe('CommandForm /collaborate quick select', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(
       '/collaborate @RustExpert @ReactExpert Build and deploy collaboration UI updates'
+    );
+  });
+
+  it('includes optional --rounds and --messages when set', () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <CommandForm
+        command={collaborateCommand}
+        agents={agents}
+        onSubmit={onSubmit}
+        onBack={() => {}}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/prompt/i), {
+      target: { value: 'Ship the feature' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('3'), { target: { value: '6' } });
+    fireEvent.change(screen.getByPlaceholderText('20'), { target: { value: '35' } });
+    fireEvent.click(screen.getByText('RustExpert'));
+    fireEvent.click(screen.getByText('ReactExpert'));
+    fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      '/collaborate --rounds 6 --messages 35 @RustExpert @ReactExpert Ship the feature'
     );
   });
 });

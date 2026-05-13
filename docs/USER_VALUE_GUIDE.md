@@ -46,7 +46,7 @@ Neural Junkie fixes that by giving you:
 
 ## 5-Minute First Win
 
-1. Start the app (`make start-all`).
+1. Start the stack (`make start-all` — hub with in-process specialists + desktop).
 2. Open `Settings > AI Providers` and confirm local and/or cloud providers.
 3. Create a repo expert:
    - `/create-repo-agent /path/to/repo MyRepoExpert`

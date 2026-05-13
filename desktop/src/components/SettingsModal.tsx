@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useSettingsStore, type FontSizeScope } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
@@ -20,6 +21,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     updateFontSize, 
     updateFontSizeScope, 
     loadSettings,
+    updateSettings,
     loadIntegrations,
     loadLayoutSettings,
     updateLayoutSettings,
@@ -37,10 +39,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     fetchOllamaModels,
     fetchLMStudioModels
   } = useSettingsStore();
-  const { switchAllAgentProviders, serverAddr: chatServerAddr } = useChatStore();
+  const { switchAllAgentProviders, serverAddr: chatServerAddr, channels, agents } = useChatStore(
+    (s) => ({ switchAllAgentProviders: s.switchAllAgentProviders, serverAddr: s.serverAddr, channels: s.channels, agents: s.agents }),
+    shallow
+  );
   const hubHttp =
     chatServerAddr.startsWith('http') ? chatServerAddr : `http://${chatServerAddr}`;
-  const [activeTab, setActiveTab] = useState<'appearance' | 'layout' | 'integrations' | 'ai-providers' | 'developer' | 'about'>('appearance');
+  const [activeTab, setActiveTab] = useState<'appearance' | 'layout' | 'chat' | 'integrations' | 'ai-providers' | 'developer' | 'about'>('appearance');
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
   
   // Integration form states
@@ -398,6 +403,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             Layout
           </button>
           <button
+            onClick={() => setActiveTab('chat')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'chat'
+                ? 'text-slack-text border-b-2 border-slack-accent'
+                : 'text-slack-textMuted hover:text-slack-text'
+            }`}
+          >
+            Chat &amp; agents
+          </button>
+          <button
             onClick={() => setActiveTab('integrations')}
             className={`px-6 py-3 text-sm font-medium transition-colors ${
               activeTab === 'integrations'
@@ -622,6 +637,81 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   />
                   <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'chat' && (
+            <div className="space-y-8">
+              <div>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">User rules (markdown)</h3>
+                <p className="text-sm text-slack-textMuted mb-2">
+                  Included on every message you send (main chat and threads). Agents treat this as your standing instructions.
+                </p>
+                <textarea
+                  value={settings.userRulesMarkdown ?? ''}
+                  onChange={(e) => void updateSettings({ userRulesMarkdown: e.target.value })}
+                  rows={10}
+                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text font-mono focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                  placeholder={'- Prefer concise answers\n- Stack: Rust, TypeScript'}
+                />
+                <p className="text-xs text-slack-textMuted mt-1">{(settings.userRulesMarkdown ?? '').length} characters</p>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Hidden from sidebar</h3>
+                <p className="text-sm text-slack-textMuted mb-3">
+                  DM rows or agent shortcuts you hid. Unhide to show them in the sidebar again (channels are not deleted).
+                </p>
+                {(settings.hiddenDmChannelNames?.length ?? 0) === 0 &&
+                (settings.hiddenAgentIdsForSidebar?.length ?? 0) === 0 ? (
+                  <p className="text-sm text-slack-textMuted">None. Use the menu on a DM or agent shortcut in the sidebar.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(settings.hiddenDmChannelNames ?? []).map((name) => (
+                      <div
+                        key={`dm-${name}`}
+                        className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
+                      >
+                        <span className="text-sm text-slack-text truncate" title={name}>
+                          DM: {channels.find((c) => c.name === name)?.description || name}
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 text-xs text-slack-accent hover:underline"
+                          onClick={() =>
+                            void updateSettings({
+                              hiddenDmChannelNames: (settings.hiddenDmChannelNames ?? []).filter((n) => n !== name),
+                            })
+                          }
+                        >
+                          Unhide
+                        </button>
+                      </div>
+                    ))}
+                    {(settings.hiddenAgentIdsForSidebar ?? []).map((id) => (
+                      <div
+                        key={`ag-${id}`}
+                        className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
+                      >
+                        <span className="text-sm text-slack-text truncate">
+                          Agent shortcut: {agents.find((a) => a.id === id)?.name || id}
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 text-xs text-slack-accent hover:underline"
+                          onClick={() =>
+                            void updateSettings({
+                              hiddenAgentIdsForSidebar: (settings.hiddenAgentIdsForSidebar ?? []).filter((x) => x !== id),
+                            })
+                          }
+                        >
+                          Unhide
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

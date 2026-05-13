@@ -6,7 +6,7 @@ interface ProviderToggleProps {
 }
 
 export function ProviderToggle({ className = '' }: ProviderToggleProps) {
-  const { switchAllAgentProviders } = useChatStore();
+  const switchAllAgentProviders = useChatStore((s) => s.switchAllAgentProviders);
   const [isSwitching, setIsSwitching] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<'claude' | 'ollama'>('claude');
 

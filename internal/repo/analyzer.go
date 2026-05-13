@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -117,6 +118,8 @@ func (a *Analyzer) AnalyzeRepository(ctx context.Context, repoPath string) (*Rep
 
 	a.updateProgress(100, "Analysis complete!")
 
+	TrimRepositoryIndexFootprint(index)
+
 	return index, nil
 }
 
@@ -225,6 +228,7 @@ func (a *Analyzer) extractKeyFiles(ctx context.Context, repoPath string, index *
 func (a *Analyzer) indexSourceFiles(ctx context.Context, repoPath string, index *RepositoryIndex) error {
 	stats := &CompressionStats{}
 	sourceFileCount := 0
+	cappedLogged := false
 
 	// Walk the directory tree and collect source files
 	var walkSourceFiles func(*DirectoryNode, string) error
@@ -276,6 +280,13 @@ func (a *Analyzer) indexSourceFiles(ctx context.Context, repoPath string, index 
 				}
 
 				// Add to index
+				if len(index.SourceFiles) >= MaxIndexedSourceFilesInMemory {
+					if !cappedLogged {
+						log.Printf("[repo] Source file index capped at %d files (memory); skipping further file bodies", MaxIndexedSourceFilesInMemory)
+						cappedLogged = true
+					}
+					return nil
+				}
 				index.SourceFiles[node.Path] = sourceFile
 
 				// Update stats
@@ -900,6 +911,8 @@ func (a *Analyzer) IncrementalAnalyze(ctx context.Context, repoPath string, oldI
 	index.ArchitectureDoc = a.generateArchitectureDoc(index)
 
 	a.updateProgress(100, "Incremental analysis complete!")
+
+	TrimRepositoryIndexFootprint(index)
 
 	return index, nil
 }

@@ -28,7 +28,7 @@ type CommandHandler struct {
 	aiProvider       ai.AIProvider
 	repoAgents       map[string]*agent.RepoAgent        // Track repo agents for management
 	confluenceAgents map[string]*agent.ConfluenceAgent  // Track confluence agents for management
-	cliAgents        map[string]*agent.Agent            // Track CLI proxy agents
+	cliAgents        map[string]*agent.Agent            // CLI proxy agents keyed by agent ID (one runtime per instance)
 	runtimeAgents    map[string]*agent.Agent            // Track runtime specialist/moderator/assistant/CLI agents
 	assistantAgent   *agent.AssistantAgent              // Track assistant agent for meeting notes
 	exportStorage    *mcp_export.ExportStorage          // Export storage for MCP exports
@@ -198,6 +198,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/approve-plan":  ch.handleApprovePlan,
 		"/revise-plan":   ch.handleRevisePlan,
 		"/cancel-plan":   ch.handleCancelPlan,
+		"/collab-extend": ch.handleCollabExtend,
 		"/collab-status": ch.handleCollabStatus,
 	}
 }
@@ -409,6 +410,9 @@ func (ch *CommandHandler) handleDeleteAgent(ctx context.Context, msg *protocol.M
 	if err := ch.hub.UnregisterAgent(agentID); err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to delete agent: %v", err)), nil
 	}
+
+	delete(ch.runtimeAgents, agentID)
+	delete(ch.cliAgents, agentID)
 
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Agent '%s' has been deleted", agentName)), nil
 }
@@ -639,7 +643,7 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 		response.WriteString("No agents available.\n\n")
 		response.WriteString("**Create agents:**\n")
 		response.WriteString("• `/create-repo-agent <path>` - Repository expert\n")
-		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (rust, backend, frontend, ...)\n")
+		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (rust, backend, frontend, assistant, ...)\n")
 		response.WriteString("• `/create-confluence-agent <space>` - Confluence expert\n")
 	}
 
@@ -729,7 +733,8 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 				"• `frontend` - React, Vue, Angular, TypeScript, CSS, UI/UX\n"+
 				"• `devops` - Docker, Kubernetes, CI/CD, AWS/GCP/Azure, Terraform\n"+
 				"• `database` - PostgreSQL, MySQL, MongoDB, schema, query optimization\n"+
-				"• `security` - Authentication, authorization, encryption, OWASP\n\n"+
+				"• `security` - Authentication, authorization, encryption, OWASP\n"+
+				"• `assistant` - General productivity / personal-assistant style chat\n\n"+
 				"**Examples:**\n"+
 				"```\n"+
 				"/create-expert rust\n"+
@@ -740,24 +745,9 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 
 	expertType := strings.ToLower(parts[1])
 
-	validTypes := map[string]protocol.AgentType{
-		"rust":     protocol.AgentTypeRust,
-		"backend":  protocol.AgentTypeBackend,
-		"frontend": protocol.AgentTypeFrontend,
-		"devops":   protocol.AgentTypeDevOps,
-		"database": protocol.AgentTypeDatabase,
-		"security": protocol.AgentTypeSecurity,
-	}
-
-	agentType, ok := validTypes[expertType]
-	if !ok {
-		typeList := []string{}
-		for k := range validTypes {
-			typeList = append(typeList, k)
-		}
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Unknown expert type '%s'.\n\nValid types: %s",
-				expertType, strings.Join(typeList, ", "))), nil
+	agentType, err := ExpertSlugToAgentType(expertType)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
 	// Determine name
@@ -767,32 +757,19 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	}
 	if name == "" {
 		defaults := map[protocol.AgentType]string{
-			protocol.AgentTypeRust:     "RustExpert",
-			protocol.AgentTypeBackend:  "GoExpert",
-			protocol.AgentTypeFrontend: "ReactExpert",
-			protocol.AgentTypeDevOps:   "DevOpsPro",
-			protocol.AgentTypeDatabase: "SQLMaster",
-			protocol.AgentTypeSecurity: "SecurityExpert",
+			protocol.AgentTypeRust:       "RustExpert",
+			protocol.AgentTypeBackend:    "GoExpert",
+			protocol.AgentTypeFrontend:   "ReactExpert",
+			protocol.AgentTypeDevOps:     "DevOpsPro",
+			protocol.AgentTypeDatabase:   "SQLMaster",
+			protocol.AgentTypeSecurity:   "SecurityExpert",
+			protocol.AgentTypeAssistant:  "Assistant",
 		}
 		name = defaults[agentType]
 	}
 
-	name = protocol.NormalizeAgentName(name)
-
-	// Check for duplicate
-	existingAgents := ch.hub.ListAgents()
-	for _, existing := range existingAgents {
-		if strings.EqualFold(existing.Name, name) {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("❌ Agent '%s' already exists. Use a different name or `/delete-agent %s` first.", name, name)), nil
-		}
-	}
-
-	// Determine AI provider
-	var aiProvider ai.AIProvider
 	providerName := ""
 	modelOverride := ""
-
 	if len(parts) >= 4 {
 		providerName = strings.ToLower(parts[3])
 	}
@@ -800,64 +777,21 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		modelOverride = parts[4]
 	}
 
-	switch providerName {
-	case "claude":
-		claudeProvider, err := ai.NewClaudeProvider()
-		if err != nil {
-			return ch.systemResponse(msg.Channel,
-				fmt.Sprintf("❌ Failed to create Claude provider: %v", err)), nil
-		}
-		aiProvider = claudeProvider
-	case "lmstudio":
-		if modelOverride != "" {
-			aiProvider = ai.NewLMStudioProviderWithConfig("", modelOverride)
-		} else {
-			lmProvider, err := ai.NewLMStudioProvider()
-			if err != nil {
-				return ch.systemResponse(msg.Channel,
-					fmt.Sprintf("❌ Failed to create LM Studio provider: %v", err)), nil
-			}
-			aiProvider = lmProvider
-		}
-	case "ollama", "":
-		if modelOverride != "" {
-			aiProvider = ai.NewOllamaProviderWithConfig("", modelOverride)
-		} else {
-			ollamaProvider, err := ai.NewOllamaProvider()
-			if err != nil {
-				return ch.systemResponse(msg.Channel,
-					fmt.Sprintf("❌ Failed to create Ollama provider: %v", err)), nil
-			}
-			aiProvider = ollamaProvider
-		}
-	default:
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Unknown provider '%s'. Use: ollama, claude, lmstudio", providerName)), nil
-	}
-
-	// Create agent via factory
-	agentInstance, err := agent.AgentFactory(agentType, name, aiProvider, ch.hub)
+	agentInstance, err := ch.prepareExpertAgent(agentType, name, providerName, modelOverride)
 	if err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to create %s agent: %v", expertType, err)), nil
-	}
-	agentInstance.SetCollabClient(ch.hub.NewCollaborationClientAdapter())
-	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
-
-	// Register with hub
-	if err := ch.hub.RegisterAgent(&agentInstance.Info); err != nil {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to register agent: %v", err)), nil
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
-	// Join channel
 	if err := ch.hub.JoinChannel(agentInstance.Info.ID, msg.Channel); err != nil {
+		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
+		delete(ch.runtimeAgents, agentInstance.Info.ID)
 		return ch.systemResponse(msg.Channel,
 			fmt.Sprintf("❌ Failed to join channel: %v", err)), nil
 	}
 
-	// Start agent
 	if err := agentInstance.Start(ctx, msg.Channel); err != nil {
+		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
+		delete(ch.runtimeAgents, agentInstance.Info.ID)
 		return ch.systemResponse(msg.Channel,
 			fmt.Sprintf("❌ Failed to start agent: %v", err)), nil
 	}
@@ -868,10 +802,15 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 			fmt.Sprintf(" and %d more", len(agentInstance.Info.Expertise)-5)
 	}
 
-	providerDisplay := aiProvider.GetModel()
-	if providerName != "" {
-		providerDisplay = providerName + " / " + aiProvider.GetModel()
+	providerDisplay := agentInstance.Info.AIModel
+	if providerDisplay == "" {
+		providerDisplay = agentInstance.Info.Model
 	}
+	if providerName != "" {
+		providerDisplay = providerName + " / " + providerDisplay
+	}
+
+	name = agentInstance.Info.Name
 
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("🤖 Created **%s** expert agent: **%s**\n\n"+
@@ -891,7 +830,7 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/enable-watch <name>` - Enable automatic file watching and reindexing\n" +
 		"• `/disable-watch <name>` - Disable automatic file watching\n\n" +
 		"**Expert Agents:**\n" +
-		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (rust, backend, frontend, devops, database, security)\n\n" +
+		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (rust, backend, frontend, devops, database, security, assistant)\n\n" +
 		"**Agent Management:**\n" +
 		"• `/remove-agent <name>` - Remove agent from conversation (can recall later)\n" +
 		"• `/recall-agent <name>` - Recall a removed agent back to conversation\n" +
@@ -3134,7 +3073,7 @@ func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protoco
 		}
 	}()
 
-	ch.cliAgents[name] = agentInstance
+	ch.cliAgents[agentInstance.Info.ID] = agentInstance
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 
 	// Persist for My Agents panel
@@ -3187,8 +3126,11 @@ func (ch *CommandHandler) handleListCLIAgents(ctx context.Context, msg *protocol
 	// Show currently running CLI agents
 	if len(ch.cliAgents) > 0 {
 		lines = append(lines, "\n**Running CLI Agents:**\n")
-		for name, a := range ch.cliAgents {
-			lines = append(lines, fmt.Sprintf("- **%s** (%s)", name, a.Info.AIProvider))
+		for _, a := range ch.cliAgents {
+			if a == nil {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("- **%s** (%s)", a.Info.Name, a.Info.AIProvider))
 		}
 	}
 
@@ -3320,10 +3262,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Expert Agents ─────────────────────────────────────────────
 		{
 			Name:        "/create-expert",
-			Description: "Create a specialist agent (rust, backend, frontend, devops, database, security)",
+			Description: "Create a specialist agent (rust, backend, frontend, devops, database, security, assistant)",
 			Category:    "Expert Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "type", Description: "Expert type (rust, backend, frontend, devops, database, security)", Type: "string", Required: true, Options: []string{"rust", "backend", "frontend", "devops", "database", "security"}},
+				{Name: "type", Description: "Expert type (rust, backend, frontend, devops, database, security, assistant)", Type: "string", Required: true, Options: []string{"rust", "backend", "frontend", "devops", "database", "security", "assistant"}},
 				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},
@@ -3732,10 +3674,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Collaboration ─────────────────────────────────────────────
 		{
 			Name:        "/collaborate",
-			Description: "Start a multi-agent collaboration. Mention 2+ agents followed by a description.",
+			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` before mentions (defaults 3 / 20, server clamps to hard max).",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "description", Description: "@Agent1 @Agent2 ... description of what to build", Type: "string", Required: true},
+				{Name: "description", Description: "[--rounds N] [--messages M] @Agent1 @Agent2 ... description", Type: "string", Required: true},
 			},
 		},
 		{
@@ -3761,6 +3703,16 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
 				{Name: "collab-id", Description: "Collaboration ID", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/collab-extend",
+			Description: "Raise planning/review discussion limits after budget_exhausted (or bump caps while active)",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "rounds", Description: "Add this many to max rounds (optional)", Type: "string", Required: false},
+				{Name: "messages", Description: "Add this many to max agent messages (optional)", Type: "string", Required: false},
 			},
 		},
 		{
@@ -3817,10 +3769,14 @@ func (ch *CommandHandler) validateCommandDefinitions() {
 // ── Collaboration Command Handlers ──────────────────────────────────
 
 // handleCollaborate starts a multi-agent collaboration.
-// Usage: /collaborate @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
+// Usage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
 func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	if len(parts) < 3 {
-		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
+	discussionCfg, tail, flagErr := parseCollaborateLeadFlags(parts)
+	if flagErr != "" {
+		return ch.systemResponse(msg.Channel, flagErr), nil
+	}
+	if len(tail) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
 	}
 
 	cm := ch.hub.GetCollaborationManager()
@@ -3829,9 +3785,9 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 
 	// Parse agent mentions and description
-	mentionStrings := protocol.ParseMentions(strings.Join(parts[1:], " "))
+	mentionStrings := protocol.ParseMentions(strings.Join(tail, " "))
 	if len(mentionStrings) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate @Agent1 @Agent2 description"), nil
+		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 description"), nil
 	}
 
 	// Resolve mentions to agent IDs
@@ -3849,7 +3805,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 
 	// Extract description (everything after mentions)
-	description := strings.Join(parts[1:], " ")
+	description := strings.Join(tail, " ")
 	for _, m := range mentionStrings {
 		description = strings.Replace(description, "@"+m, "", 1)
 	}
@@ -3858,7 +3814,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		return ch.systemResponse(msg.Channel, "❌ A description is required after the agent mentions."), nil
 	}
 
-	collab, err := cm.CreateCollaboration(description, agentIDs, msg.Channel, msg.From.Name, collaboration.DiscussionConfig{})
+	collab, err := cm.CreateCollaboration(description, agentIDs, msg.Channel, msg.From.Name, discussionCfg)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create collaboration: %v", err)), nil
 	}
@@ -3885,8 +3841,10 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		protocol.MessageTypeCollabDiscussion,
 		msg.Channel,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		fmt.Sprintf("🤝 **Collaboration Started** (ID: `%s`)\n\n**Goal:** %s\n\n**Participants:** %s\n\n**Phase:** Planning (agents will discuss and propose a plan)\n\nAgents, please discuss and create a structured plan with tasks assigned to the agent best suited for each task. Use `- Task N: @AgentName - description` format for tasks.",
-			collab.ID[:8], description, agentListStr.String()),
+		fmt.Sprintf("🤝 **Collaboration Started** (ID: `%s`)\n\n**Goal:** %s\n\n**Participants:** %s\n\n**Discussion limits:** %d rounds, %d agent messages (server hard max: %d rounds, %d messages)\n\n**Phase:** Planning (agents will discuss and propose a plan)\n\nAgents, please discuss and create a structured plan with tasks assigned to the agent best suited for each task. Use `- Task N: @AgentName - description` format for tasks.",
+			collab.ID[:8], description, agentListStr.String(),
+			collab.Discussion.MaxRounds, collab.Discussion.MaxTotalMessages,
+			collaboration.HardMaxRounds, collaboration.HardMaxTotalMessages),
 	)
 	seedMsg.SetCollaborationID(collab.ID)
 	seedMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
@@ -4077,6 +4035,38 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 	}
 
 	out := ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8]))
+	out.SetCollaborationID(collabID)
+	return out, nil
+}
+
+func (ch *CommandHandler) handleCollabExtend(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	id, extraRounds, extraMessages, errMsg := parseCollabExtendArgs(parts)
+	if errMsg != "" {
+		return ch.systemResponse(msg.Channel, errMsg), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
+	}
+	collabID := ch.resolveCollabID(id)
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to list active IDs."), nil
+	}
+
+	collab, err := cm.ExtendDiscussionLimits(collabID, extraRounds, extraMessages)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+	if collab.Discussion == nil {
+		return ch.systemResponse(msg.Channel, "❌ Internal error: missing discussion after extend."), nil
+	}
+
+	d := collab.Discussion
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf(
+		"✅ **Discussion limits extended** (`%s`)\n\n**New caps:** %d rounds, %d agent messages (hard max %d / %d).\n**Status:** %s",
+		collabID[:8], d.MaxRounds, d.MaxTotalMessages, collaboration.HardMaxRounds, collaboration.HardMaxTotalMessages, d.Status,
+	))
 	out.SetCollaborationID(collabID)
 	return out, nil
 }

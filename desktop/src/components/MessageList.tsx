@@ -1,31 +1,61 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
-import type { Message as MessageType, ThreadMetadata } from '../types/protocol';
+import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef } from 'react';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import type { Message as MessageType } from '../types/protocol';
+import { channelTimelineAllowsEmptyContent } from '../types/protocol';
 import { Message } from './Message';
+import { useChatStore } from '../stores/chatStore';
+import { shallow } from 'zustand/shallow';
+
+type ListRow =
+  | { kind: 'message'; message: MessageType }
+  | { kind: 'stream'; message: MessageType };
+
+/** Stable Scroller so wheel handling does not remount Virtuoso every render */
+const VirtuosoScroller = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  function VirtuosoScroller(props, ref) {
+    const { onWheel, ...rest } = props;
+    return (
+      <div
+        {...rest}
+        ref={ref}
+        onWheel={(e) => {
+          onWheel?.(e);
+          if (e.deltaY < 0) {
+            window.dispatchEvent(new CustomEvent('nj-chat-scroll-up'));
+          }
+        }}
+      />
+    );
+  }
+);
 
 interface MessageListProps {
-  messages: MessageType[];
-  threadMetadata: Map<string, ThreadMetadata>;
-  onOpenThread: (threadId: string) => void;
-  streamingMessages?: Record<string, MessageType>;
   searchQuery?: string;
 }
 
-export function MessageList({ messages, threadMetadata, onOpenThread, streamingMessages, searchQuery = '' }: MessageListProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+export function MessageList({ searchQuery = '' }: MessageListProps) {
+  const { messages, threadMetadata, streamingMessages, openThread } = useChatStore(
+    (s) => ({
+      messages: s.messages,
+      threadMetadata: s.threadMetadata,
+      streamingMessages: s.streamingMessages,
+      openThread: s.openThread,
+    }),
+    shallow
+  );
+
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const lastRenderCountRef = useRef(0);
-  const lastScrollTopRef = useRef(0);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [pendingMessageCount, setPendingMessageCount] = useState(0);
   const [showJumpButton, setShowJumpButton] = useState(false);
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
-  // Filter out thread replies and empty messages - only show visible channel messages.
   const channelMessages = useMemo(() => {
-    return messages.filter(m => {
+    return messages.filter((m) => {
       if (m.is_thread_reply) return false;
-      if (!m.content?.trim() && m.type !== 'agent_join' && m.type !== 'agent_leave' && m.type !== 'system_info') return false;
+      if (!m.content?.trim() && !channelTimelineAllowsEmptyContent(m.type)) return false;
       if (!normalizedSearchQuery) return true;
       const content = m.content?.toLowerCase() || '';
       const authorName = m.from?.name?.toLowerCase() || '';
@@ -33,117 +63,146 @@ export function MessageList({ messages, threadMetadata, onOpenThread, streamingM
     });
   }, [messages, normalizedSearchQuery]);
 
-  const activeStreams = useMemo(() => {
-    if (!streamingMessages) return [];
-    return Object.values(streamingMessages);
-  }, [streamingMessages]);
+  const activeStreams = useMemo(() => Object.values(streamingMessages), [streamingMessages]);
 
-  const totalVisibleMessages = channelMessages.length + activeStreams.length;
+  /**
+   * Total length of all in-flight stream content. Used as a render-cheap
+   * dependency so we can re-pin the scroll to bottom while a streaming row
+   * grows in height — Virtuoso's followOutput only fires on data length
+   * changes, not on item resize.
+   */
+  const streamContentBytes = useMemo(() => {
+    let n = 0;
+    for (const s of activeStreams) n += s.content?.length ?? 0;
+    return n;
+  }, [activeStreams]);
 
-  const handleScroll = () => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const currentScrollTop = container.scrollTop;
-    const scrollingUp = currentScrollTop < lastScrollTopRef.current;
-    lastScrollTopRef.current = currentScrollTop;
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
-    const nearBottom = distanceFromBottom < 16;
-    if (scrollingUp && distanceFromBottom > 0) {
-      if (isNearBottom) setIsNearBottom(false);
-      if (!showJumpButton) setShowJumpButton(true);
-      return;
+  const rows: ListRow[] = useMemo(() => {
+    const out: ListRow[] = [];
+    for (const m of channelMessages) {
+      out.push({ kind: 'message', message: m });
     }
-    setIsNearBottom(nearBottom);
-    if (nearBottom) {
-      setShowJumpButton(false);
-      setPendingMessageCount(0);
+    for (const m of activeStreams) {
+      out.push({ kind: 'stream', message: m });
     }
-  };
+    return out;
+  }, [channelMessages, activeStreams]);
 
-  const jumpToCurrent = () => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-    setShowJumpButton(false);
-    setPendingMessageCount(0);
-  };
+  const totalVisible = rows.length;
 
-  // Auto-scroll only if user is already near bottom.
   useEffect(() => {
-    const newCount = totalVisibleMessages;
-    const prevCount = lastRenderCountRef.current;
-    const delta = Math.max(0, newCount - prevCount);
-    lastRenderCountRef.current = newCount;
+    const onScrollUp = () => {
+      setIsNearBottom((near) => (near ? false : near));
+      setShowJumpButton((show) => (show ? show : true));
+    };
+    window.addEventListener('nj-chat-scroll-up', onScrollUp);
+    return () => window.removeEventListener('nj-chat-scroll-up', onScrollUp);
+  }, []);
 
-    if (isNearBottom && bottomRef.current) {
-      // Streaming can update many times per second; avoid smooth-scroll jank.
-      bottomRef.current.scrollIntoView({ behavior: 'auto' });
+  useEffect(() => {
+    const prevCount = lastRenderCountRef.current;
+    const delta = Math.max(0, totalVisible - prevCount);
+    lastRenderCountRef.current = totalVisible;
+
+    if (isNearBottom && totalVisible > 0) {
+      virtuosoRef.current?.scrollToIndex({
+        index: totalVisible - 1,
+        align: 'end',
+        behavior: 'auto',
+      });
       if (showJumpButton) setShowJumpButton(false);
       if (pendingMessageCount !== 0) setPendingMessageCount(0);
       return;
     }
 
-    if (!isNearBottom && (delta > 0 || activeStreams.length > 0)) {
-      if (delta > 0) {
-        setPendingMessageCount((count) => count + delta);
-      }
+    if (!isNearBottom && delta > 0) {
+      setPendingMessageCount((count) => count + delta);
       if (!showJumpButton) setShowJumpButton(true);
     }
-  }, [channelMessages, activeStreams, isNearBottom, totalVisibleMessages, showJumpButton, pendingMessageCount]);
+  }, [totalVisible, isNearBottom, showJumpButton, pendingMessageCount]);
+
+  /**
+   * Keep the view pinned while a streaming row grows in height. We only nudge
+   * the scroll position when the user is near the bottom; otherwise we leave
+   * them where they are (the jump button handles re-engagement).
+   */
+  useEffect(() => {
+    if (!isNearBottom || totalVisible === 0 || streamContentBytes === 0) return;
+    virtuosoRef.current?.scrollToIndex({
+      index: totalVisible - 1,
+      align: 'end',
+      behavior: 'auto',
+    });
+  }, [streamContentBytes, isNearBottom, totalVisible]);
+
+  const jumpToCurrent = useCallback(() => {
+    if (rows.length === 0) return;
+    virtuosoRef.current?.scrollToIndex({
+      index: rows.length - 1,
+      align: 'end',
+      behavior: 'smooth',
+    });
+    setShowJumpButton(false);
+    setPendingMessageCount(0);
+  }, [rows.length]);
+
+  const itemContent = useCallback(
+    (_index: number, row: ListRow) => {
+      if (row.kind === 'message') {
+        return (
+          <Message
+            message={row.message}
+            threadMetadata={threadMetadata.get(row.message.id)}
+            onOpenThread={openThread}
+          />
+        );
+      }
+      return <Message message={row.message} onOpenThread={openThread} isStreaming />;
+    },
+    [threadMetadata, openThread]
+  );
+
+  if (rows.length === 0) {
+    return (
+      <div className="relative flex-1 min-h-0 bg-slack-bg">
+        <div className="h-full overflow-y-auto flex items-center justify-center text-slack-textMuted p-8">
+          <div className="text-center">
+            <p className="text-lg mb-2">{normalizedSearchQuery ? 'No matches in this chat' : 'No messages yet'}</p>
+            <p className="text-sm">
+              {normalizedSearchQuery ? 'Try a different search.' : 'Start the conversation!'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 min-h-0 bg-slack-bg">
-      <div
-        ref={scrollRef}
-        className="h-full overflow-y-auto"
+      <Virtuoso
+        ref={virtuosoRef}
+        className="h-full"
         style={{ scrollbarWidth: 'thin' }}
-        onScroll={handleScroll}
-        onWheel={(e) => {
-          if (e.deltaY < 0) {
-            // Immediately disengage sticky autoscroll when user scrolls up.
-            if (isNearBottom) setIsNearBottom(false);
-            if (!showJumpButton) setShowJumpButton(true);
+        data={rows}
+        computeItemKey={(_, row) => (row.kind === 'message' ? row.message.id : `stream-${row.message.id}`)}
+        components={{ Scroller: VirtuosoScroller }}
+        followOutput={isNearBottom ? 'auto' : false}
+        atBottomStateChange={(atBottom) => {
+          setIsNearBottom(atBottom);
+          if (atBottom) {
+            setShowJumpButton(false);
+            setPendingMessageCount(0);
           }
         }}
-      >
-        <div className="flex flex-col">
-          {channelMessages.length === 0 && activeStreams.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-slack-textMuted p-8">
-              <div className="text-center">
-                <p className="text-lg mb-2">{normalizedSearchQuery ? 'No matches in this chat' : 'No messages yet'}</p>
-                <p className="text-sm">
-                  {normalizedSearchQuery ? 'Try a different search.' : 'Start the conversation!'}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {channelMessages.map((message) => (
-                <Message
-                  key={message.id}
-                  message={message}
-                  threadMetadata={threadMetadata.get(message.id)}
-                  onOpenThread={onOpenThread}
-                />
-              ))}
-              {activeStreams.map((msg) => (
-                <Message
-                  key={`stream-${msg.id}`}
-                  message={msg}
-                  onOpenThread={onOpenThread}
-                  isStreaming
-                />
-              ))}
-              <div ref={bottomRef} />
-            </>
-          )}
-        </div>
-      </div>
+        increaseViewportBy={{ top: 200, bottom: 400 }}
+        itemContent={itemContent}
+      />
 
       {showJumpButton && (
         <button
+          type="button"
           onClick={jumpToCurrent}
-          className="absolute bottom-3 right-3 rounded-full bg-slack-accent hover:bg-slack-accentHover text-white text-xs px-3 py-1.5 shadow-lg"
+          className="absolute bottom-3 right-3 rounded-full bg-slack-accent hover:bg-slack-accentHover text-white text-xs px-3 py-1.5 shadow-lg z-10"
           title="Jump to current message"
         >
           {pendingMessageCount > 0 ? `Jump to current (${pendingMessageCount})` : 'Jump to current'}
@@ -152,4 +211,3 @@ export function MessageList({ messages, threadMetadata, onOpenThread, streamingM
     </div>
   );
 }
-

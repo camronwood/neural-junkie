@@ -1,19 +1,37 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
-import { getContentHash } from '../utils/markdownRenderer';
 import { mapHighlighterLanguage, normalizeAgentMessageMarkdown } from '../utils/markdownNormalize';
+import {
+  type ContentPart,
+  getCachedContentParts,
+  getCachedMarkdownElements,
+} from '../utils/messageContentCache';
+import { perfMarkEnd, perfMarkStart } from '../utils/perfMarks';
+
+export type { ContentPart } from '../utils/messageContentCache';
+
+const CODE_BLOCK_CUSTOM_STYLE: React.CSSProperties = {
+  margin: 0,
+  padding: '0.75rem 1rem',
+  background: '#1e1e1e',
+  fontSize: '0.8125rem',
+  lineHeight: 1.55,
+};
+
+const CODE_TAG_PROPS = {
+  style: {
+    whiteSpace: 'pre-wrap' as const,
+    wordBreak: 'break-word' as const,
+  },
+};
 
 interface MessageContentProps {
   content: string;
-}
-
-interface ContentPart {
-  type: 'text' | 'code' | 'mermaid';
-  content: string;
-  language?: string;
+  /** When true, skip Prism/Mermaid/markdown parsing (plain text only). */
+  isStreaming?: boolean;
 }
 
 // Parse markdown syntax and convert to React elements
@@ -21,16 +39,13 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
   let currentIndex = 0;
 
-  // Combined regex to find all markdown patterns
   const combinedRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
-  
+
   let match;
   const matches: Array<{ index: number; length: number; type: string; content: string; url?: string }> = [];
-  
-  // Find all matches
+
   while ((match = combinedRegex.exec(text)) !== null) {
     if (match[2]) {
-      // Bold **text**
       matches.push({
         index: match.index,
         length: match[0].length,
@@ -38,7 +53,6 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
         content: match[2],
       });
     } else if (match[3]) {
-      // Italic *text*
       matches.push({
         index: match.index,
         length: match[0].length,
@@ -46,7 +60,6 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
         content: match[3],
       });
     } else if (match[4]) {
-      // Inline code `text`
       matches.push({
         index: match.index,
         length: match[0].length,
@@ -54,7 +67,6 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
         content: match[4],
       });
     } else if (match[5] && match[6]) {
-      // Link [text](url)
       matches.push({
         index: match.index,
         length: match[0].length,
@@ -65,14 +77,11 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
     }
   }
 
-  // Build elements array
   matches.forEach((m, idx) => {
-    // Add text before this match
     if (m.index > currentIndex) {
       elements.push(text.substring(currentIndex, m.index));
     }
 
-    // Add the formatted element
     switch (m.type) {
       case 'strong':
         elements.push(
@@ -116,25 +125,21 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
     currentIndex = m.index + m.length;
   });
 
-  // Add any remaining text
   if (currentIndex < text.length) {
     elements.push(text.substring(currentIndex));
   }
 
-  // If no matches found, return the original text
   return elements.length > 0 ? elements : [text];
 }
 
 function parseContent(content: string): ContentPart[] {
   const normalized = normalizeAgentMessageMarkdown(content);
   const parts: ContentPart[] = [];
-  // Language optional; Unix/Windows newlines; non-greedy body until closing ```
   const codeBlockRegex = /```([\w-]*)?\s*\r?\n([\s\S]*?)```/g;
   let lastIndex = 0;
-  let match;
+  let match: RegExpExecArray | null;
 
   while ((match = codeBlockRegex.exec(normalized)) !== null) {
-    // Add text before code block
     if (match.index > lastIndex) {
       const textContent = normalized.substring(lastIndex, match.index);
       if (textContent.trim()) {
@@ -145,7 +150,6 @@ function parseContent(content: string): ContentPart[] {
     const language = match[1] || 'text';
     const code = match[2].trim();
 
-    // Check if it's a mermaid diagram
     if (language.toLowerCase() === 'mermaid') {
       parts.push({ type: 'mermaid', content: code });
     } else {
@@ -155,7 +159,6 @@ function parseContent(content: string): ContentPart[] {
     lastIndex = match.index + match[0].length;
   }
 
-  // Add remaining text
   if (lastIndex < normalized.length) {
     const textContent = normalized.substring(lastIndex);
     if (textContent.trim()) {
@@ -163,7 +166,6 @@ function parseContent(content: string): ContentPart[] {
     }
   }
 
-  // If no code blocks found, return the entire content as text
   if (parts.length === 0) {
     parts.push({ type: 'text', content: normalized });
   }
@@ -179,10 +181,10 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
 
   const renderDiagram = async () => {
     if (!containerRef.current) return;
-    
+
     setIsRendering(true);
     setRenderError(null);
-    
+
     try {
       containerRef.current.innerHTML = '';
       const svg = await renderMermaidSvg(content);
@@ -198,7 +200,7 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
   };
 
   const handleRetry = () => {
-    setRetryCount(prev => prev + 1);
+    setRetryCount((prev) => prev + 1);
     renderDiagram();
   };
 
@@ -213,7 +215,7 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
   };
 
   return (
-    <div className="mermaid-diagram">
+    <div className="mermaid-diagram relative">
       {renderError ? (
         <div className="my-3 p-4 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
           <strong>Mermaid Diagram Error:</strong>
@@ -236,7 +238,7 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
       {isRendering && (
         <div className="absolute inset-0 flex items-center justify-center bg-slack-bgHover/80 rounded">
           <div className="flex items-center gap-2 text-slack-text">
-            <div className="w-4 h-4 border-2 border-slack-accent border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-slack-accent border-t-transparent rounded-full animate-spin" />
             <span className="text-sm">Rendering diagram...</span>
           </div>
         </div>
@@ -245,8 +247,9 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
   );
 }
 
-function CodeBlock({ content, language }: { content: string; language: string }) {
+const CodeBlock = memo(function CodeBlockImpl({ content, language }: { content: string; language: string }) {
   const hl = mapHighlighterLanguage(language || 'text');
+  const showLineNumbers = useMemo(() => content.split('\n').length <= 40, [content]);
   return (
     <div className="my-3 overflow-hidden rounded-md border border-slack-border shadow-sm">
       <div className="border-b border-slack-border bg-slack-bgHover px-3 py-1.5 text-xs font-mono text-slack-textMuted">
@@ -255,76 +258,77 @@ function CodeBlock({ content, language }: { content: string; language: string })
       <SyntaxHighlighter
         language={hl}
         style={vscDarkPlus}
-        customStyle={{
-          margin: 0,
-          padding: '0.75rem 1rem',
-          background: '#1e1e1e',
-          fontSize: '0.8125rem',
-          lineHeight: 1.55,
-        }}
-        codeTagProps={{
-          style: {
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          },
-        }}
-        showLineNumbers={content.split('\n').length <= 40}
+        customStyle={CODE_BLOCK_CUSTOM_STYLE}
+        codeTagProps={CODE_TAG_PROPS}
+        showLineNumbers={showLineNumbers}
         wrapLongLines
       >
         {content}
       </SyntaxHighlighter>
     </div>
   );
-}
+});
 
-export function MessageContent({ content }: MessageContentProps) {
+export function MessageContent({ content, isStreaming }: MessageContentProps) {
   const [expandedDiagram, setExpandedDiagram] = useState<string | null>(null);
-  const parts = parseContent(content);
+
+  /**
+   * Hooks must run in a stable order — always call useMemo. When streaming,
+   * we skip the parse work by returning an empty array, then the render path
+   * below renders a plain <pre> instead of the parsed pipeline.
+   */
+  const parts = useMemo(() => {
+    if (isStreaming) return [];
+    perfMarkStart('messageContent.parse');
+    const p = getCachedContentParts(content, parseContent);
+    perfMarkEnd('messageContent.parse');
+    return p;
+  }, [content, isStreaming]);
 
   const handleDiagramClick = (diagramContent: string) => {
     setExpandedDiagram(diagramContent);
   };
 
+  if (isStreaming) {
+    return (
+      <>
+        <pre className="message-content leading-relaxed whitespace-pre-wrap font-sans text-slack-text text-sm m-0">
+          {content}
+        </pre>
+        <MermaidModal isOpen={expandedDiagram !== null} onClose={() => setExpandedDiagram(null)} content={expandedDiagram || ''} />
+      </>
+    );
+  }
+
   return (
     <>
-      {parts.map((part, index) => {
-        if (part.type === 'mermaid') {
+      {/* Plain markdown strings inherit color here; Message.tsx also sets text-slack-text. */}
+      <div className="text-slack-text">
+        {parts.map((part, index) => {
+          if (part.type === 'mermaid') {
+            return (
+              <MermaidDiagram
+                key={`mermaid-${index}`}
+                content={part.content}
+                onClick={() => handleDiagramClick(part.content)}
+              />
+            );
+          }
+          if (part.type === 'code') {
+            return (
+              <CodeBlock key={`code-${index}`} content={part.content} language={part.language || 'text'} />
+            );
+          }
+          const markdownElements = getCachedMarkdownElements(part.content, parseMarkdownToElements);
           return (
-            <MermaidDiagram 
-              key={`mermaid-${getContentHash(part.content)}-${index}`} 
-              content={part.content} 
-              onClick={() => handleDiagramClick(part.content)}
-            />
-          );
-        } else if (part.type === 'code') {
-          return (
-            <CodeBlock
-              key={`code-${getContentHash(part.content)}-${index}`}
-              content={part.content}
-              language={part.language || 'text'}
-            />
-          );
-        } else {
-          // Parse markdown in text content
-          const markdownElements = parseMarkdownToElements(part.content);
-          return (
-            <div
-              key={`text-${getContentHash(part.content)}-${index}`}
-              className="message-content leading-relaxed whitespace-pre-wrap"
-            >
+            <div key={`text-${index}`} className="message-content leading-relaxed whitespace-pre-wrap">
               {markdownElements}
             </div>
           );
-        }
-      })}
-      
-      {/* Mermaid Modal */}
-      <MermaidModal
-        isOpen={expandedDiagram !== null}
-        onClose={() => setExpandedDiagram(null)}
-        content={expandedDiagram || ''}
-      />
+        })}
+      </div>
+
+      <MermaidModal isOpen={expandedDiagram !== null} onClose={() => setExpandedDiagram(null)} content={expandedDiagram || ''} />
     </>
   );
 }
-

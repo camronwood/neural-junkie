@@ -7,6 +7,12 @@ export type FontSizeScope = 'messages' | 'input' | 'global';
 export interface Settings {
   fontSize: number;
   fontSizeScope: FontSizeScope;
+  /** Global user instructions (markdown), merged into outbound message metadata for agents. */
+  userRulesMarkdown?: string;
+  /** DM channel names hidden from the sidebar (Slack-style; does not delete channels). */
+  hiddenDmChannelNames?: string[];
+  /** Agent IDs hidden from the "agents without a DM" shortcut list. */
+  hiddenAgentIdsForSidebar?: string[];
 }
 
 export interface AnthropicSettings {
@@ -69,6 +75,7 @@ interface SettingsState {
   loadSettings: () => Promise<void>;
   updateFontSize: (size: number) => Promise<void>;
   updateFontSizeScope: (scope: FontSizeScope) => Promise<void>;
+  updateSettings: (partial: Partial<Settings>) => Promise<void>;
   resetSettings: () => Promise<void>;
   
   // Integration actions
@@ -209,6 +216,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         await store.save();
       } catch (error) {
         console.error('Failed to save font size scope:', error);
+      }
+    }
+  },
+
+  updateSettings: async (partial: Partial<Settings>) => {
+    const { store } = get();
+    const newSettings = { ...get().settings, ...partial };
+    set({ settings: newSettings });
+    if (store) {
+      try {
+        await store.set('settings', newSettings);
+        await store.save();
+      } catch (error) {
+        console.error('Failed to save settings:', error);
       }
     }
   },

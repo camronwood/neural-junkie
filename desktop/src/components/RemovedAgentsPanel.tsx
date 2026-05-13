@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import type { AgentInfo } from '../types/protocol';
@@ -8,13 +9,16 @@ interface RemovedAgentsPanelProps {
 }
 
 export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
-  const { 
-    serverAddr, 
-    channel, 
-    username, 
-    removedAgents, 
-    setRemovedAgents 
-  } = useChatStore();
+  const { serverAddr, channel, username, removedAgents, setRemovedAgents } = useChatStore(
+    (s) => ({
+      serverAddr: s.serverAddr,
+      channel: s.channel,
+      username: s.username,
+      removedAgents: s.removedAgents,
+      setRemovedAgents: s.setRemovedAgents,
+    }),
+    shallow
+  );
   
   const [loading, setLoading] = useState(true);
   const [recallingAgent, setRecallingAgent] = useState<string | null>(null);

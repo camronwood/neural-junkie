@@ -190,7 +190,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
           <DesignOutput message={message} />
         ) : (
           <>
-            <MessageContent content={message.content} />
+            <MessageContent content={message.content} isStreaming={isStreaming} />
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />
             )}

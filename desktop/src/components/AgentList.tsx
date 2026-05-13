@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { shallow } from 'zustand/shallow';
 import type { AgentInfo, AgentType } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
@@ -18,7 +19,10 @@ const DEFAULT_WIDTH = 320;
 const STORAGE_KEY = 'agent-list-width';
 
 export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onExportAgent }: AgentListProps) {
-  const { switchAgentProvider, loadingAgents } = useChatStore();
+  const { switchAgentProvider, loadingAgents } = useChatStore(
+    (s) => ({ switchAgentProvider: s.switchAgentProvider, loadingAgents: s.loadingAgents }),
+    shallow
+  );
   const { fetchOllamaModels, fetchLMStudioModels } = useSettingsStore();
   const [switchingProvider, setSwitchingProvider] = useState<string | null>(null);
   const [infoAgentId, setInfoAgentId] = useState<string | null>(null);
@@ -304,6 +308,7 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
           onExport={onExportAgent}
           onRemove={onRemoveAgent}
           onApprovalModeChange={handleApprovalModeChange}
+          onAfterRulesSaved={onRefresh}
           switchingProvider={switchingProvider}
           availableOllamaModels={availableOllamaModels}
           availableLMStudioModels={availableLMStudioModels}

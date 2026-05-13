@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -11,13 +12,15 @@ interface ThreadPanelProps {
   threadId: string;
   parentMessage: MessageType;
   onClose: () => void;
+  /** Merge user rules + workspace (same as main chat) for thread replies. */
+  buildOutboundMetadata?: (composerMetadata?: Record<string, unknown>) => Record<string, unknown> | undefined;
 }
 
 const MIN_WIDTH = 250; // Minimum usable width
 const DEFAULT_WIDTH = 400;
 const STORAGE_KEY = 'thread-panel-width';
 
-export function ThreadPanel({ threadId, parentMessage, onClose }: ThreadPanelProps) {
+export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMetadata }: ThreadPanelProps) {
   const {
     serverAddr,
     channel,
@@ -28,7 +31,20 @@ export function ThreadPanel({ threadId, parentMessage, onClose }: ThreadPanelPro
     setThreadMessages,
     updateThreadMetadata,
     addThreadMessage,
-  } = useChatStore();
+  } = useChatStore(
+    (s) => ({
+      serverAddr: s.serverAddr,
+      channel: s.channel,
+      username: s.username,
+      agents: s.agents,
+      threadMessages: s.threadMessages,
+      threadMetadata: s.threadMetadata,
+      setThreadMessages: s.setThreadMessages,
+      updateThreadMetadata: s.updateThreadMetadata,
+      addThreadMessage: s.addThreadMessage,
+    }),
+    shallow
+  );
 
   const [api] = useState(() => new ChatAPI(serverAddr));
   const [isLoading, setIsLoading] = useState(true);
@@ -155,13 +171,15 @@ export function ThreadPanel({ threadId, parentMessage, onClose }: ThreadPanelPro
     resizeStartWidth.current = currentWidthRef.current;
   };
 
-  const handleSendReply = async (content: string) => {
+  const handleSendReply = async (content: string, composerMeta?: Record<string, unknown>) => {
     try {
+      const metadata = buildOutboundMetadata?.(composerMeta);
       await api.sendThreadReply(
         threadId,
         channel,
         content,
-        { name: username, type: 'human' }
+        { name: username, type: 'human' },
+        metadata
       );
     } catch (error) {
       console.error('Failed to send thread reply:', error);

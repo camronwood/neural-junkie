@@ -20,6 +20,12 @@ This is different from lightweight `@mention` review flow: collaboration introdu
 /collaborate @RustExpert @SecurityExpert @Cursor build a CLI tool that encrypts files using AES-256
 ```
 
+Optional limits (must appear **before** the first `@mention`; omitted values use defaults **3** rounds and **20** agent messages, then the server clamps to hard caps):
+
+```text
+/collaborate --rounds 5 --messages 40 @RustExpert @SecurityExpert design the auth flow
+```
+
 Creates a collaboration in `planning` phase and starts a bounded discussion.
 
 ### Approve plan and execute

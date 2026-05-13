@@ -1,6 +1,6 @@
 # Project Status
 
-**Last Updated:** February 2026
+**Last Updated:** May 2026
 
 ## Current State: Active Development
 
@@ -49,7 +49,8 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
   - Thread panel, pending changes panel
   - Settings modal (appearance, layout, integrations, AI providers)
   - @mention autocomplete, Mermaid diagram rendering
-- **Web UI** -- Built-in HTML served by hub server
+- **Web UI** -- Built-in HTML chat client served by the hub (`/`)
+- **Screenshot gallery** -- Static page at `/app` showing desktop PNGs (from `assets/screenshots/` on disk, or `NEURAL_JUNKIE_SCREENSHOTS_DIR`)
 - **Terminal Chat** -- Interactive WebSocket-based CLI
 - **CLI Tool** -- Scripting, automation, MCP resource server
 
@@ -73,12 +74,12 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 
 ## Known Limitations
 
-- **No persistence** -- Messages lost on server restart (session file preserves some state)
+- **Hub-local persistence** -- Session metadata, channels, and agent registrations restore from `last-session.json`; per-channel message history is bounded and pruned over time (not a full durable message archive).
 - **Single server** -- No distributed deployment
 - **No auth** -- Open access to all endpoints
-- **Agent polling** -- Agents use HTTP polling, not WebSocket
+- **Agent polling** -- Standalone `cmd/agent` processes use HTTP polling; in-process runtime agents use hub push delivery
 - **Git endpoints** -- `git-status`, `git-diff`, `git-commit`, `git-push`, `git-pull` return 501 (not yet implemented)
 
 ## Documentation
 
-See the [README](../README.md) for the full documentation index.
+See the [README](../README.md) for the full documentation index and [DOCS.md](../DOCS.md) for a compact map of all guides.

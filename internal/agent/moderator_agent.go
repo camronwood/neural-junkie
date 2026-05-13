@@ -300,8 +300,11 @@ func (m *ModeratorAgent) buildModeratorPrompt(msg *protocol.Message) string {
 	system.WriteString("• Direct users to appropriate agent types for technical questions\n")
 	system.WriteString("• Be encouraging and patient\n")
 
+	AppendUserAndAgentRules(&system, msg, &m.Agent.Info)
+
 	// ── USER SECTION ──
 	user.WriteString(fmt.Sprintf("User question from %s:\n%s\n\n", msg.From.Name, msg.Content))
+	AppendPromptAttachments(&user, msg)
 	user.WriteString("Provide a helpful response:")
 
 	return system.String() + ai.SystemPromptSeparator + user.String()

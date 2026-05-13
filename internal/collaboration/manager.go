@@ -345,6 +345,53 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 	return c, nil
 }
 
+// ExtendDiscussionLimits raises planning/review discussion caps and re-opens
+// an exhausted or timed-out discussion (or bumps ceilings while still active).
+func (cm *CollaborationManager) ExtendDiscussionLimits(collabID string, extraRounds, extraMessages int) (*Collaboration, error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.Phase != PhasePlanning && c.Phase != PhaseReviewing {
+		return nil, fmt.Errorf("can only extend limits during planning or review (current phase: %s)", c.Phase)
+	}
+	if c.Discussion == nil {
+		return nil, fmt.Errorf("no discussion on collaboration %s", collabID)
+	}
+	if extraRounds <= 0 && extraMessages <= 0 {
+		return nil, fmt.Errorf("provide --rounds and/or --messages with positive values")
+	}
+
+	d := c.Discussion
+	switch d.Status {
+	case DiscussionActive, DiscussionBudgetExhausted, DiscussionTimedOut:
+		// ok
+	default:
+		return nil, fmt.Errorf("discussion status %q cannot be extended", d.Status)
+	}
+
+	if extraRounds > 0 {
+		d.MaxRounds += extraRounds
+		if d.MaxRounds > HardMaxRounds {
+			d.MaxRounds = HardMaxRounds
+		}
+	}
+	if extraMessages > 0 {
+		d.MaxTotalMessages += extraMessages
+		if d.MaxTotalMessages > HardMaxTotalMessages {
+			d.MaxTotalMessages = HardMaxTotalMessages
+		}
+	}
+	d.Status = DiscussionActive
+	c.UpdatedAt = time.Now()
+
+	log.Printf("[Discussion %s] Limits extended: max_rounds=%d max_messages=%d", collabID[:8], d.MaxRounds, d.MaxTotalMessages)
+	return c, nil
+}
+
 // RevisePlan sends user feedback back into the discussion.
 // If the discussion had ended, a new round is started.
 func (cm *CollaborationManager) RevisePlan(collabID string, feedback string) (*Collaboration, error) {
@@ -389,7 +436,7 @@ func (cm *CollaborationManager) CancelCollaboration(collabID string) (*Collabora
 	c.Phase = PhaseCancelled
 	c.UpdatedAt = time.Now()
 	if c.Discussion != nil {
-		c.Discussion.Status = DiscussionBudgetExhausted
+		c.Discussion.Status = DiscussionCancelled
 	}
 
 	log.Printf("[CollaborationManager] Collaboration %s cancelled", collabID[:8])
@@ -539,6 +586,13 @@ func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collab
 		}
 	}
 	return nil
+}
+
+// Len returns the number of collaborations in memory (including terminal).
+func (cm *CollaborationManager) Len() int {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return len(cm.collaborations)
 }
 
 // Snapshot returns a deep-copied snapshot of all collaborations.

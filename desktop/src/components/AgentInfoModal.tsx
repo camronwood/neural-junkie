@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { AgentInfo } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
+import { useChatStore } from '../stores/chatStore';
+import { ChatAPI } from '../api/chatAPI';
 
 interface AgentInfoModalProps {
   agent: AgentInfo | undefined;
@@ -10,6 +12,8 @@ interface AgentInfoModalProps {
   onExport?: (agentName: string) => void;
   onRemove?: (agentId: string, agentName: string) => void;
   onApprovalModeChange?: (agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo') => void;
+  /** Called after agent custom rules are saved successfully (refresh agent list). */
+  onAfterRulesSaved?: () => void;
   switchingProvider?: string | null;
   availableOllamaModels?: string[];
   availableLMStudioModels?: string[];
@@ -23,10 +27,23 @@ export function AgentInfoModal({
   onExport,
   onRemove,
   onApprovalModeChange,
+  onAfterRulesSaved,
   switchingProvider,
   availableOllamaModels = [],
   availableLMStudioModels = []
 }: AgentInfoModalProps) {
+  const serverAddr = useChatStore(s => s.serverAddr);
+  const [rulesDraft, setRulesDraft] = useState('');
+  const [savingRules, setSavingRules] = useState(false);
+  const [rulesError, setRulesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (agent && agent.type !== 'loading') {
+      setRulesDraft(agent.custom_rules_markdown ?? '');
+      setRulesError(null);
+    }
+  }, [agent]);
+
   // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -314,6 +331,43 @@ export function AgentInfoModal({
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {!isLoading && (
+              <div>
+                <h3 className="text-sm font-medium text-slack-textMuted mb-2">Agent rules (markdown)</h3>
+                <p className="text-xs text-slack-textMuted mb-2">
+                  Instructions scoped to this agent only. Stored on the hub server.
+                </p>
+                <textarea
+                  value={rulesDraft}
+                  onChange={(e) => setRulesDraft(e.target.value)}
+                  rows={6}
+                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text font-mono focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                  placeholder="Example: Always cite file paths from this workspace."
+                />
+                {rulesError && <p className="text-xs text-red-400 mt-1">{rulesError}</p>}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setRulesError(null);
+                    setSavingRules(true);
+                    try {
+                      const api = new ChatAPI(serverAddr);
+                      await api.setAgentCustomRulesMarkdown(agent.id, rulesDraft);
+                      onAfterRulesSaved?.();
+                    } catch (e) {
+                      setRulesError(e instanceof Error ? e.message : 'Save failed');
+                    } finally {
+                      setSavingRules(false);
+                    }
+                  }}
+                  disabled={savingRules}
+                  className="mt-2 px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:opacity-90 disabled:opacity-50"
+                >
+                  {savingRules ? 'Saving…' : 'Save agent rules'}
+                </button>
               </div>
             )}
 

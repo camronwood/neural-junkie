@@ -243,6 +243,18 @@ func (ca *ConfluenceAgent) sendStatusUpdate(message string) {
 
 // handleMessage processes incoming messages
 func (ca *ConfluenceAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
+	if msg.Type == protocol.MessageTypeAgentStatus && msg.Metadata != nil {
+		if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
+			if hist, err := ca.Hub.GetMessages(msg.Channel, 20); err == nil {
+				if ca.Context.History == nil {
+					ca.Context.History = make(map[string][]*protocol.Message)
+				}
+				ca.Context.History[msg.Channel] = hist
+			}
+			return
+		}
+	}
+
 	// Skip if paused
 	if ca.Info.IsPaused {
 		return
@@ -353,8 +365,11 @@ func (ca *ConfluenceAgent) generateResponse(ctx context.Context, msg *protocol.M
 
 	context := strings.Join(contextParts, "\n")
 
+	var prefix strings.Builder
+	PrependRulesAndAttachmentsForMonolithic(&prefix, msg, &ca.Info)
+
 	// Generate response using AI
-	prompt := fmt.Sprintf("%s\n\nUser Question: %s", context, msg.Content)
+	prompt := fmt.Sprintf("%s%s\n\nUser Question: %s", prefix.String(), context, msg.Content)
 
 	// Convert history from []*protocol.Message to []protocol.Message
 	history := ca.Context.History[msg.Channel]
