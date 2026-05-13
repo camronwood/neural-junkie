@@ -695,3 +695,89 @@ section h2 {
   border: none;
   padding: 0;
 }
+
+/* Release notes (landing teaser + release-notes.html anchors) */
+.release-landing-preview {
+  margin-top: 1.5rem;
+  padding: 1.5rem 1.65rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-width: 44rem;
+}
+
+.release-landing-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.release-landing-version {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  color: var(--text);
+}
+
+.release-landing-version time {
+  font-weight: 400;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.release-landing-summary {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.release-landing-actions {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.release-jump {
+  margin: 0 0 2.25rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  max-width: 44rem;
+}
+
+.release-jump-label {
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+
+.release-jump a {
+  font-weight: 600;
+}
+
+.feature-prose h2 .release-date {
+  font-weight: 400;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.feature-prose hr.release-sep {
+  margin: 2.75rem 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.feature-prose h2.release-version-heading {
+  scroll-margin-top: 5.5rem;
+}

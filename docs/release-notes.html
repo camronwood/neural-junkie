@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Release notes — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie version history: tagged desktop releases, collaboration milestones, packaging, and hub changes. Mirrors docs/CHANGELOG.md." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">Landing</a>
+        <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases">GitHub releases</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Release notes
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Release notes</h1>
+      <p class="feature-deep-lead">Notable changes by version. The canonical log in the repo is <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a> — keep this page in sync when you ship a new tag.</p>
+    </header>
+
+    <nav class="release-jump" aria-label="Jump to version">
+      <span class="release-jump-label">On this page</span>
+      <a href="#v0-1-1">0.1.1</a>
+      <span aria-hidden="true">·</span>
+      <a href="#v0-1-0">0.1.0</a>
+      <span aria-hidden="true">·</span>
+      <a href="#v2-0-0">2.0.0</a>
+      <span aria-hidden="true">·</span>
+      <a href="#v1-0-0">1.0.0</a>
+    </nav>
+
+    <article class="feature-prose">
+      <h2 id="v0-1-1" class="release-version-heading">0.1.1 <span class="release-date">— 2026-02-23</span></h2>
+
+      <h3>Added — Multi-agent collaboration</h3>
+      <ul>
+        <li><strong>Collaboration manager</strong> (<code>internal/collaboration</code>) for structured multi-agent orchestration</li>
+        <li><strong>Bounded discussion sessions</strong> with round limits, turn budgets, total message caps, and timeout enforcement</li>
+        <li><strong>Collaboration phases</strong>: planning → reviewing → approved → executing → completed/cancelled</li>
+        <li><strong>Shared plan artifacts</strong> with version history and edit tracking</li>
+        <li><strong>Task delegation model</strong> with per-agent assignment and status tracking</li>
+        <li><strong>Consensus detection</strong> (signal + heuristic) with disagreement escalation</li>
+        <li><strong>New slash commands</strong>: <code>/collaborate</code>, <code>/approve-plan</code>, <code>/revise-plan</code>, <code>/cancel-plan</code>, <code>/collab-status</code></li>
+        <li><strong>New message types</strong>: <code>collaboration_plan</code>, <code>collaboration_task</code>, <code>collaboration_status</code>, <code>collaboration_discussion</code></li>
+      </ul>
+
+      <h3>Added — Desktop collaboration UX</h3>
+      <ul>
+        <li><strong>CollaborationPanel</strong> for phase, participants, tasks, plan artifact, and control actions</li>
+        <li><strong>Collaboration message rendering</strong> in chat with collaboration-specific visual cues</li>
+        <li><strong>TypeScript protocol updates</strong> for collaboration entities and metadata helpers</li>
+      </ul>
+
+      <h3>Added — Test coverage</h3>
+      <ul>
+        <li><code>test/collaboration_test.go</code> covering lifecycle, bounded discussion logic, consensus, task tracking, artifact versioning, and extraction parsing</li>
+      </ul>
+
+      <hr class="release-sep" />
+
+      <h2 id="v0-1-0" class="release-version-heading">0.1.0 <span class="release-date">— 2026-02-20</span></h2>
+      <p>First packaged release — Neural Junkie ships as a single distributable desktop app.</p>
+
+      <h3>Added — Desktop packaging</h3>
+      <ul>
+        <li><strong>Tauri sidecar architecture</strong> — Go server bundled inside the Tauri app, launched and managed automatically</li>
+        <li><strong>First-run Setup Wizard</strong> — guided onboarding to choose AI backend (Ollama or cloud), configure providers, and enable agents</li>
+        <li><strong>Auto-update system</strong> — in-app update banner with download progress and one-click restart via Tauri updater</li>
+        <li><strong>Loading screen</strong> — server health polling with status feedback during startup</li>
+      </ul>
+
+      <h3>Added — AI provider registry</h3>
+      <ul>
+        <li><strong>Dynamic provider management</strong> — add, edit, remove, and test AI providers from Settings UI</li>
+        <li><strong>OpenAI-compatible provider</strong> — generic adapter for any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)</li>
+        <li><strong>Provider Manager UI</strong> — full CRUD interface with connection testing</li>
+        <li><strong>Multi-provider support</strong> — use multiple cloud and local providers simultaneously, assign per-agent</li>
+      </ul>
+
+      <h3>Added — Ollama lifecycle management</h3>
+      <ul>
+        <li><strong>Automatic detection</strong> — detect Ollama installation on macOS and Linux</li>
+        <li><strong>Install from app</strong> — install Ollama directly from the Setup Wizard or Settings</li>
+        <li><strong>Server management</strong> — start/stop Ollama server from the UI</li>
+        <li><strong>Model pulling</strong> — pull models with real-time progress streaming (SSE)</li>
+        <li><strong>Ollama Manager UI</strong> — dedicated panel in Settings for full Ollama control</li>
+      </ul>
+
+      <h3>Added — Configuration system</h3>
+      <ul>
+        <li><strong>JSON config file</strong> — persistent configuration at <code>~/.neural-junkie/config.json</code></li>
+        <li><strong>Environment variable migration</strong> — auto-migrates from <code>env.local</code> to config file on first load</li>
+        <li><strong>API key redaction</strong> — API keys masked in GET responses, preserved on PUT if masked</li>
+        <li><strong>Per-agent provider assignment</strong> — each agent type can use a different provider</li>
+      </ul>
+
+      <h3>Added — CI/CD &amp; release</h3>
+      <ul>
+        <li><strong>GitHub Actions release workflow</strong> — triggered on <code>v*</code> tags, builds macOS (arm64 + x86_64) and Linux (x86_64)</li>
+        <li><strong>Cross-compilation matrix</strong> — Go server compiled for each target, bundled as Tauri sidecar</li>
+        <li><strong>Update manifest generation</strong> — auto-generates platform-specific JSON manifests for Tauri auto-updater</li>
+        <li><strong><code>make release</code> target</strong> — bumps versions, commits, and tags in one command</li>
+      </ul>
+
+      <h3>Added — CLI agent infrastructure</h3>
+      <ul>
+        <li><strong>CLI agent registry</strong> — persistent storage for CLI agent configurations</li>
+        <li><strong>CLI agent storage</strong> — JSON-based persistence for registered CLI agents</li>
+      </ul>
+
+      <h3>Improved — UI</h3>
+      <ul>
+        <li><strong>Terminal panel</strong> — refactored with XTerminal component</li>
+        <li><strong>Markdown rendering</strong> — improved code block handling and mermaid diagram support</li>
+        <li><strong>Suggestion banner</strong> — contextual suggestions in the chat UI</li>
+        <li><strong>Chat window</strong> — enhanced layout and interaction patterns</li>
+      </ul>
+
+      <hr class="release-sep" />
+
+      <h2 id="v2-0-0" class="release-version-heading">2.0.0 <span class="release-date">— 2026-02</span></h2>
+
+      <h3>Renamed</h3>
+      <ul>
+        <li>Project renamed from &quot;AI Chat Room&quot; to <strong>Neural Junkie</strong></li>
+        <li>Go module: <code>github.com/camronwood/neural-junkie</code></li>
+        <li>Data directory: <code>~/.neural-junkie/</code></li>
+        <li>Tauri bundle: <code>com.camronwood.neuraljunkie</code></li>
+      </ul>
+
+      <h3>Added — Desktop app</h3>
+      <ul>
+        <li><strong>Tauri + React desktop app</strong> replacing the old Fyne GUI</li>
+        <li>Slack-inspired UI with dark theme and modern styling</li>
+        <li><strong>Command Palette</strong> — searchable slash-command UI with guided argument forms (<code>/</code> trigger or toolbar button)</li>
+        <li><strong>File Explorer Panel</strong> — browse and open workspace files</li>
+        <li><strong>Code Editor Panel</strong> — view and edit code from the app</li>
+        <li><strong>Terminal Panel</strong> — embedded terminal output</li>
+        <li><strong>Thread Panel</strong> — threaded conversation view</li>
+        <li><strong>Pending Changes Panel</strong> — review file change proposals with diff preview</li>
+        <li><strong>Settings Modal</strong> — Appearance, Layout, Integrations (Anthropic, GitHub, Confluence), AI Providers (Ollama, LM Studio, Claude), Developer, About</li>
+        <li><strong>@Mention Autocomplete</strong> — agent picker with fuzzy matching</li>
+        <li><strong>Mermaid Diagram Rendering</strong> — inline diagram support in messages</li>
+        <li><strong>Layout Persistence</strong> — panel visibility saved across sessions</li>
+      </ul>
+
+      <h3>Added — Agents</h3>
+      <ul>
+        <li><strong>Moderator Agent</strong> — auto-starts with server, guides users through commands and features, 20s safety-net for unanswered questions</li>
+        <li><strong>Assistant Agent</strong> — reminders (one-time/recurring), tasks (priority, due dates), notes (tags, search), meeting summaries, scheduling; persistent storage</li>
+        <li><strong>Confluence Agent</strong> — index Confluence Cloud spaces, search documentation, answer knowledge-base questions</li>
+        <li><strong>Helper Agents</strong> — template-based custom experts (day-one onboarding, testing, docs)</li>
+        <li><strong>Cursor CLI Agent</strong> — Cursor CLI subprocess for code analysis and generation</li>
+        <li><strong>Agent Review</strong> — get second opinions by @mentioning another agent in a thread reply</li>
+      </ul>
+
+      <h3>Added — AI providers</h3>
+      <ul>
+        <li><strong>Ollama</strong> — local inference with model listing, connection testing, configurable endpoint</li>
+        <li><strong>LM Studio</strong> — local OpenAI-compatible server with model listing and connection testing</li>
+        <li><strong>Per-agent provider switching</strong> — change provider/model for individual agents at runtime</li>
+        <li><strong>Global provider switching</strong> — switch all agents to a provider with one command</li>
+        <li>Two-tier model config: code tier (<code>qwen2.5-coder:14b</code>) and utility tier (<code>qwen2.5:7b</code>)</li>
+      </ul>
+
+      <h3>Added — Features</h3>
+      <ul>
+        <li><strong>50+ slash commands</strong> with metadata for command palette</li>
+        <li><strong>File Change System</strong> — agents propose file edits, users approve/reject with diff preview and backup</li>
+        <li><strong>MCP Export/Import</strong> — export agent knowledge to MCP format, import from MCP, MCP resource server</li>
+        <li><strong>Workspace management</strong> — add, list, remove workspaces</li>
+        <li><strong>Thread support</strong> — create threads, reply in threads, thread metadata and subscriptions</li>
+        <li><strong>Session persistence</strong> — periodic save and recovery</li>
+        <li><strong>Connection testing</strong> — test Anthropic, Ollama, LM Studio, GitHub, Confluence connections from UI</li>
+        <li><strong>Design analysis</strong> — <code>/analyze-design</code> command for UI review</li>
+      </ul>
+
+      <h3>Improved</h3>
+      <ul>
+        <li>Three-layer message deduplication (polling, handler, agent-type filtering)</li>
+        <li>Repository agent caching with staleness detection and incremental reindex</li>
+        <li>File watching for auto-reindex on codebase changes</li>
+        <li>Agent pause/unpause and remove/recall lifecycle management</li>
+      </ul>
+
+      <hr class="release-sep" />
+
+      <h2 id="v1-0-0" class="release-version-heading">1.0.0 <span class="release-date">— 2025-10-14</span></h2>
+
+      <h3>Added</h3>
+      <ul>
+        <li>Core hub server with WebSocket real-time communication</li>
+        <li>Multi-channel conversation support</li>
+        <li>5 specialized agent types: Frontend, Backend, DevOps, Database, Security</li>
+        <li>Repository Expert Agents with codebase indexing and search</li>
+        <li>Claude AI integration (Anthropic API and AI Hub)</li>
+        <li>Mock AI provider for testing</li>
+        <li>Fyne-based desktop GUI (since replaced by Tauri + React)</li>
+        <li>Interactive terminal chat client</li>
+        <li>Built-in web UI</li>
+        <li>CLI tool for automation</li>
+        <li>@mention system for targeting agents</li>
+        <li>Message history and context</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li>Message deduplication (agents responding multiple times)</li>
+        <li>GUI threading issues (Fyne thread safety)</li>
+        <li>Username display (was showing &quot;Human User&quot;)</li>
+      </ul>
+
+      <aside class="repo-links">
+        <h2>Current status</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STATUS.md">STATUS.md</a> — living project status in the repo.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="more-site">
+      <h2 id="more-site">More on this site</h2>
+      <div class="feature-nav-grid">
+        <a href="index.html">Landing <span>Overview &amp; screenshots</span></a>
+        <a href="features/index.html">Feature guides <span>Deep dives</span></a>
+        <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md <span>Source markdown</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>
