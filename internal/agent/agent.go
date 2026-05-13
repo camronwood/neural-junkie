@@ -747,6 +747,26 @@ func (a *Agent) effectiveChannelType(channel string) protocol.ChannelType {
 	return t
 }
 
+// taskAssigneeFromMetadata reads task_assigned_to from collaboration_task metadata.
+// JSON decoding can surface non-string types; normalize so assignee routing matches.
+func taskAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
+	if meta == nil {
+		return "", false
+	}
+	v, ok := meta["task_assigned_to"]
+	if !ok || v == nil {
+		return "", false
+	}
+	switch x := v.(type) {
+	case string:
+		s := strings.TrimSpace(x)
+		return s, s != ""
+	default:
+		s := strings.TrimSpace(fmt.Sprint(x))
+		return s, s != ""
+	}
+}
+
 // shouldRespond determines if the agent should respond to a message
 func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// Never respond to commands - let the command handler process them
@@ -767,6 +787,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// System — evaluate before the generic "ignore System" rule below.
 	if collabID := msg.GetCollaborationID(); collabID != "" && a.Collab != nil {
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
+			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
+				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
+					log.Printf("[%s] ✅ COLLABORATION TASK (assignee metadata) - will respond (collab %s)", a.Info.Name, collabID[:8])
+					return true
+				}
+			}
 			if a.Collab.IsAgentTurn(collabID, a.Info.ID) {
 				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true

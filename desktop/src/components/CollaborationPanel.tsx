@@ -8,9 +8,12 @@ import type {
   CollaborationTask,
   CollaborationPhase,
 } from '../types/protocol';
+import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
+  /** If set and different from `collaboration`, approving will replace that running execution (after user confirms). */
+  executingCollaboration?: Collaboration | null;
   onClose: () => void;
   /** Refetch collaboration snapshots after approve/revise/cancel (keeps UI in sync). */
   onAfterCollaborationCommand?: () => Promise<void>;
@@ -45,6 +48,7 @@ function taskIcon(status: string): string {
 
 export function CollaborationPanel({
   collaboration,
+  executingCollaboration,
   onClose,
   onAfterCollaborationCommand,
 }: CollaborationPanelProps) {
@@ -63,10 +67,15 @@ export function CollaborationPanel({
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isTerminal = c.phase === 'completed' || c.phase === 'cancelled';
 
-  const handleApprove = async () => {
+  const handleResume = async () => {
+    if (c.phase === 'reviewing' || c.phase === 'approved') {
+      if (!confirmReplaceCollaborationExecution(executingCollaboration ?? null, c)) {
+        return;
+      }
+    }
     setIsSubmitting(true);
     try {
-      await api.sendMessage(channel, `/approve-plan ${c.id.slice(0, 8)}`, from);
+      await api.sendMessage(channel, `/resume-plan ${c.id.slice(0, 8)}`, from);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -273,20 +282,39 @@ export function CollaborationPanel({
           borderTop: '1px solid var(--border-color, #333)',
           display: 'flex', flexDirection: 'column', gap: 8,
         }}>
+          {(c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing') && (
+            <button
+              type="button"
+              onClick={() => void handleResume()}
+              disabled={isSubmitting}
+              title={
+                c.phase === 'executing'
+                  ? 'Re-send task prompts for open work (pending, in progress, or blocked)'
+                  : undefined
+              }
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: 'none',
+                backgroundColor: c.phase === 'executing' ? '#8b5cf6' : '#10b981',
+                color: '#fff',
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontSize: 13,
+                opacity: isSubmitting ? 0.6 : 1,
+              }}
+            >
+              {c.phase === 'executing'
+                ? 'Resume plan'
+                : executingCollaboration &&
+                    executingCollaboration.phase === 'executing' &&
+                    executingCollaboration.id !== c.id
+                  ? 'Resume plan (stop other run)'
+                  : 'Resume plan'}
+            </button>
+          )}
           {c.phase === 'reviewing' && (
             <>
-              <button
-                onClick={handleApprove}
-                disabled={isSubmitting}
-                style={{
-                  padding: '8px 16px', borderRadius: 6, border: 'none',
-                  backgroundColor: '#10b981', color: '#fff',
-                  fontWeight: 500, cursor: 'pointer', fontSize: 13,
-                  opacity: isSubmitting ? 0.6 : 1,
-                }}
-              >
-                Approve Plan
-              </button>
               <textarea
                 value={feedback}
                 onChange={e => setFeedback(e.target.value)}
@@ -331,7 +359,8 @@ export function CollaborationPanel({
             </>
           )}
           <button
-            onClick={handleCancel}
+            type="button"
+            onClick={() => void handleCancel()}
             disabled={isSubmitting}
             style={{
               padding: '6px 16px', borderRadius: 6,

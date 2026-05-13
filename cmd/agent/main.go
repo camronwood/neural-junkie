@@ -91,16 +91,13 @@ func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, e
 
 			// Send only new messages that we haven't seen before
 			for _, msg := range messages {
-				// Check seen FIRST before doing anything else
 				if seenMessages[msg.ID] {
-					continue // Skip already seen messages immediately
+					continue
 				}
-
-				// Mark as seen BEFORE checking timestamp or sending
-				seenMessages[msg.ID] = true
-
-				// Only send if it's after our last check
+				// Only mark seen when we actually deliver; otherwise a message that
+				// fails the timestamp gate would be dropped forever on the next poll.
 				if msg.Timestamp.After(lastCheck) {
+					seenMessages[msg.ID] = true
 					ch <- msg
 				}
 

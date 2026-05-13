@@ -203,6 +203,225 @@ func TestConsensusConvergenceMovesPlanningToReviewing(t *testing.T) {
 	}
 }
 
+func TestTransitionToExecutingAutoCancelsOtherExecutingInSameChannel(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+
+	first, err := cm.CreateCollaboration("first", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration first: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(first.ID); err != nil {
+		t.Fatalf("TransitionToReviewing first: %v", err)
+	}
+	if _, err := cm.ApprovePlan(first.ID); err != nil {
+		t.Fatalf("ApprovePlan first: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(first.ID); err != nil {
+		t.Fatalf("TransitionToExecuting first: %v", err)
+	}
+
+	second, err := cm.CreateCollaboration("second", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration second: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(second.ID); err != nil {
+		t.Fatalf("TransitionToReviewing second: %v", err)
+	}
+	if _, err := cm.ApprovePlan(second.ID); err != nil {
+		t.Fatalf("ApprovePlan second: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(second.ID); err != nil {
+		t.Fatalf("TransitionToExecuting second: %v", err)
+	}
+
+	gotFirst, err := cm.GetCollaboration(first.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration first: %v", err)
+	}
+	if gotFirst.Phase != collaboration.PhaseCancelled {
+		t.Fatalf("expected first collaboration cancelled, got phase %s", gotFirst.Phase)
+	}
+	if gotFirst.Discussion == nil || gotFirst.Discussion.Status != collaboration.DiscussionCancelled {
+		t.Fatalf("expected first discussion cancelled, got %+v", gotFirst.Discussion)
+	}
+
+	gotSecond, err := cm.GetCollaboration(second.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration second: %v", err)
+	}
+	if gotSecond.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("expected second collaboration executing, got %s", gotSecond.Phase)
+	}
+}
+
+func TestApprovePlanIdempotentWhenAlreadyApproved(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("x", []string{"a1", "a2"}, "general", "u", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("first ApprovePlan: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("second ApprovePlan (idempotent): %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("TransitionToExecuting: %v", err)
+	}
+	got, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration: %v", err)
+	}
+	if got.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("expected executing, got %s", got.Phase)
+	}
+}
+
+func TestEnsureExecutionTasksCreatesDefaultTasks(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("ApprovePlan: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("TransitionToExecuting: %v", err)
+	}
+	if _, err := cm.EnsureExecutionTasks(collab.ID); err != nil {
+		t.Fatalf("EnsureExecutionTasks: %v", err)
+	}
+	got, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration: %v", err)
+	}
+	if len(got.Tasks) != 2 {
+		t.Fatalf("expected 2 default tasks, got %d", len(got.Tasks))
+	}
+	for _, tsk := range got.Tasks {
+		if tsk.AssignedTo == "" {
+			t.Fatal("default task should have AssignedTo set")
+		}
+	}
+}
+
+func TestEnsureExecutionTasksAssignsUnassignedExtractedTasks(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("ApprovePlan: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("TransitionToExecuting: %v", err)
+	}
+
+	// Simulate tasks parsed from a plan without @mentions (all assignees empty).
+	raw := []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Task 1", Description: "Build contract", Status: collaboration.TaskPending},
+		{ID: "t2", Title: "Task 2", Description: "Shortlist", Status: collaboration.TaskPending},
+		{ID: "t3", Title: "Task 3", Description: "Runbook", Status: collaboration.TaskPending},
+	}
+	if err := cm.SetTasks(collab.ID, raw); err != nil {
+		t.Fatalf("SetTasks: %v", err)
+	}
+	if _, err := cm.EnsureExecutionTasks(collab.ID); err != nil {
+		t.Fatalf("EnsureExecutionTasks: %v", err)
+	}
+	got, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration: %v", err)
+	}
+	if len(got.Tasks) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(got.Tasks))
+	}
+	for i, tsk := range got.Tasks {
+		if tsk.AssignedTo == "" {
+			t.Fatalf("task %d should have AssignedTo after EnsureExecutionTasks", i)
+		}
+		if tsk.AssignedName == "" {
+			t.Fatalf("task %d should have AssignedName after EnsureExecutionTasks", i)
+		}
+	}
+	// Round-robin on unassigned-only order: a1, a2, a1
+	if got.Tasks[0].AssignedTo != "a1" || got.Tasks[1].AssignedTo != "a2" || got.Tasks[2].AssignedTo != "a1" {
+		t.Fatalf("unexpected round-robin assignees: %#v, %#v, %#v", got.Tasks[0].AssignedTo, got.Tasks[1].AssignedTo, got.Tasks[2].AssignedTo)
+	}
+}
+
+func TestTransitionToExecutingDoesNotCancelExecutingInOtherChannel(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+
+	gen, err := cm.CreateCollaboration("gen", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration general: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(gen.ID); err != nil {
+		t.Fatalf("TransitionToReviewing general: %v", err)
+	}
+	if _, err := cm.ApprovePlan(gen.ID); err != nil {
+		t.Fatalf("ApprovePlan general: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(gen.ID); err != nil {
+		t.Fatalf("TransitionToExecuting general: %v", err)
+	}
+
+	other, err := cm.CreateCollaboration("other", []string{"a1", "a2"}, "project-alpha", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration other channel: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(other.ID); err != nil {
+		t.Fatalf("TransitionToReviewing other: %v", err)
+	}
+	if _, err := cm.ApprovePlan(other.ID); err != nil {
+		t.Fatalf("ApprovePlan other: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(other.ID); err != nil {
+		t.Fatalf("TransitionToExecuting other: %v", err)
+	}
+
+	gotGen, err := cm.GetCollaboration(gen.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration general: %v", err)
+	}
+	if gotGen.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("expected general collab still executing, got %s", gotGen.Phase)
+	}
+}
+
 func TestCollaborationPhaseTransitions(t *testing.T) {
 	hub := newMockCollabHub()
 	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)

@@ -9,6 +9,7 @@ import { clearCredentials } from '../utils/secureStorage';
 import { buildHumanOutboundMetadata } from '../utils/outboundChatMetadata';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageList } from './MessageList';
+import { TypingIndicator } from './TypingIndicator';
 import { RichTextInput } from './RichTextInput';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
@@ -32,9 +33,13 @@ import type {
   Collaboration,
   CommandDefinition,
   Message,
+  ThinkingAgent,
   ThinkingStatusMetadata,
 } from '../types/protocol';
+
+const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
+import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 
 interface ChatWindowProps {
   onOpenSettings?: () => void;
@@ -58,6 +63,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       openThreadId: s.openThreadId,
       parentMessage: s.openThreadId ? s.messages.find((m) => m.id === s.openThreadId) ?? null : null,
     }),
+    shallow
+  );
+
+  const thinkingAgentsForChannel = useChatStore(
+    (s) => {
+      const inner = s.channelThinkingAgents.get(s.channel);
+      if (!inner || inner.size === 0) return EMPTY_THINKING_AGENTS;
+      return Array.from(inner.values());
+    },
     shallow
   );
 
@@ -276,6 +290,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to load collaborations:', error);
     }
   }, [api]);
+
+  const trackedCollaborations = useMemo(
+    () =>
+      Object.values(collaborationsByID).sort(
+        (a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')
+      ),
+    [collaborationsByID]
+  );
+
+  const executingCollaborationForChannel = useMemo(
+    () =>
+      trackedCollaborations.find(c => c.channel === channel && c.phase === 'executing') ?? null,
+    [trackedCollaborations, channel]
+  );
 
   // Handle switching channel: switch store state, then load fresh messages
   const handleSwitchChannel = useCallback(
@@ -602,6 +630,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     });
 
     try {
+      const trimmed = content.trimStart();
+      if (trimmed.startsWith('/collaborate')) {
+        if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
+          useChatStore.getState().setIsTyping(false);
+          return;
+        }
+      }
       await api.sendMessage(
         channel,
         content,
@@ -703,11 +738,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         return 'Disconnected';
     }
   };
-
-  const trackedCollaborations = useMemo(
-    () => Object.values(collaborationsByID).sort((a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')),
-    [collaborationsByID]
-  );
 
   const loadAssistantState = useCallback(async () => {
     try {
@@ -976,6 +1006,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {/* Messages */}
         <MessageList key={channel} searchQuery={messageSearchQuery} />
 
+        <div className="flex-shrink-0">
+          <TypingIndicator agents={thinkingAgentsForChannel} />
+        </div>
+
         {/* Input */}
         <RichTextInput
           onSend={handleSendMessage}
@@ -1005,6 +1039,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {activeCollab && (
           <CollaborationPanel
             collaboration={activeCollab}
+            executingCollaboration={executingCollaborationForChannel}
             onClose={() => setActiveCollab(null)}
             onAfterCollaborationCommand={async () => {
               await loadCollaborations(channel);
@@ -1074,7 +1109,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               const shortID = collaborationID.slice(0, 8);
               let content = '';
               if (command === 'approve') {
-                content = `/approve-plan ${shortID}`;
+                content = `/resume-plan ${shortID}`;
               } else if (command === 'revise') {
                 const trimmed = (feedbackText || '').trim();
                 if (!trimmed) {

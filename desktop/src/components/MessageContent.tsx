@@ -30,8 +30,52 @@ const CODE_TAG_PROPS = {
 
 interface MessageContentProps {
   content: string;
-  /** When true, skip Prism/Mermaid/markdown parsing (plain text only). */
+  /**
+   * When true, skip full Prism/Mermaid/code-block parsing; render inline markdown
+   * (bold, italic, links, inline code) and fenced regions as monospace until the
+   * closing fence arrives.
+   */
   isStreaming?: boolean;
+}
+
+type StreamSegment =
+  | { kind: 'inline'; text: string }
+  | { kind: 'fence'; complete: true; lang: string; body: string }
+  | { kind: 'fence'; complete: false; raw: string };
+
+/** Split normalized markdown for streaming: complete ``` ``` pairs vs trailing incomplete fence. */
+function splitStreamingMarkdownSegments(normalized: string): StreamSegment[] {
+  const out: StreamSegment[] = [];
+  let i = 0;
+  const n = normalized.length;
+  while (i < n) {
+    const open = normalized.indexOf('```', i);
+    if (open === -1) {
+      if (i < n) out.push({ kind: 'inline', text: normalized.slice(i) });
+      break;
+    }
+    if (open > i) {
+      out.push({ kind: 'inline', text: normalized.slice(i, open) });
+    }
+    const afterTicks = open + 3;
+    const lineEnd = normalized.indexOf('\n', afterTicks);
+    if (lineEnd === -1) {
+      out.push({ kind: 'fence', complete: false, raw: normalized.slice(open) });
+      break;
+    }
+    const infoLine = normalized.slice(afterTicks, lineEnd);
+    const lang = /^[\w-]+$/.test(infoLine) ? infoLine : '';
+    const bodyStart = lineEnd + 1;
+    const close = normalized.indexOf('```', bodyStart);
+    if (close === -1) {
+      out.push({ kind: 'fence', complete: false, raw: normalized.slice(open) });
+      break;
+    }
+    const body = normalized.slice(bodyStart, close);
+    out.push({ kind: 'fence', complete: true, lang, body });
+    i = close + 3;
+  }
+  return out;
 }
 
 // Parse markdown syntax and convert to React elements
@@ -274,8 +318,7 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
 
   /**
    * Hooks must run in a stable order — always call useMemo. When streaming,
-   * we skip the parse work by returning an empty array, then the render path
-   * below renders a plain <pre> instead of the parsed pipeline.
+   * we skip the heavy parse pipeline and use splitStreamingMarkdownSegments instead.
    */
   const parts = useMemo(() => {
     if (isStreaming) return [];
@@ -285,16 +328,58 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
     return p;
   }, [content, isStreaming]);
 
+  const streamingSegments = useMemo(() => {
+    if (!isStreaming) return null;
+    perfMarkStart('messageContent.streamSegments');
+    const normalized = normalizeAgentMessageMarkdown(content);
+    const segs = splitStreamingMarkdownSegments(normalized);
+    perfMarkEnd('messageContent.streamSegments');
+    return segs;
+  }, [content, isStreaming]);
+
   const handleDiagramClick = (diagramContent: string) => {
     setExpandedDiagram(diagramContent);
   };
 
-  if (isStreaming) {
+  if (isStreaming && streamingSegments) {
     return (
       <>
-        <pre className="message-content leading-relaxed whitespace-pre-wrap font-sans text-slack-text text-sm m-0">
-          {content}
-        </pre>
+        <div className="text-slack-text text-sm">
+          {streamingSegments.map((seg, idx) => {
+            if (seg.kind === 'inline') {
+              if (!seg.text) return null;
+              const markdownElements = getCachedMarkdownElements(seg.text, parseMarkdownToElements);
+              return (
+                <div key={`stream-inline-${idx}`} className="message-content leading-relaxed whitespace-pre-wrap">
+                  {markdownElements}
+                </div>
+              );
+            }
+            if (seg.complete) {
+              return (
+                <div
+                  key={`stream-fence-${idx}`}
+                  className="my-2 overflow-hidden rounded-md border border-slack-border bg-black/20"
+                >
+                  <div className="border-b border-slack-border bg-slack-bgHover px-3 py-1.5 text-xs font-mono text-slack-textMuted">
+                    {seg.lang || 'text'}
+                  </div>
+                  <pre className="m-0 px-4 py-3 text-xs font-mono text-slack-text whitespace-pre-wrap overflow-x-auto leading-relaxed">
+                    {seg.body}
+                  </pre>
+                </div>
+              );
+            }
+            return (
+              <pre
+                key={`stream-fence-${idx}`}
+                className="my-2 message-content leading-relaxed whitespace-pre-wrap font-mono text-slack-text text-xs m-0 px-3 py-2 rounded-md border border-slack-border border-dashed bg-slack-bgHover/50 overflow-x-auto"
+              >
+                {seg.raw}
+              </pre>
+            );
+          })}
+        </div>
         <MermaidModal isOpen={expandedDiagram !== null} onClose={() => setExpandedDiagram(null)} content={expandedDiagram || ''} />
       </>
     );

@@ -713,6 +713,13 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 }
 
 func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
+	// Task-assignment prompts carry task_id/task_status for routing; they are not
+	// assignee status reports. Treating them here spuriously "updates" tasks to
+	// pending and broadcasts duplicate collab_status noise.
+	if msg.Type == protocol.MessageTypeCollabTask {
+		return
+	}
+
 	taskID := msg.GetTaskID()
 	if taskID == "" {
 		return
@@ -866,9 +873,16 @@ func (h *Hub) attachCollaborationData(msg *protocol.Message) {
 	if collabID == "" {
 		return
 	}
+	filled, err := h.collabManager.EnsureExecutionTasks(collabID)
+	if err != nil {
+		return
+	}
 	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
 	if err != nil || snapshot == nil {
 		return
+	}
+	if filled && snapshot.Phase == collaboration.PhaseExecuting && len(snapshot.Tasks) > 0 {
+		h.dispatchCollabTaskMessages(snapshot, msg)
 	}
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
@@ -1580,7 +1594,65 @@ func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) [
 	if h.collabManager == nil {
 		return []*collaboration.Collaboration{}
 	}
-	return h.collabManager.ListSnapshots(channel, includeTerminal)
+	snaps, healFlags := h.collabManager.ListSnapshots(channel, includeTerminal)
+	for i, snap := range snaps {
+		if snap == nil {
+			continue
+		}
+		if i < len(healFlags) && healFlags[i] &&
+			snap.Phase == collaboration.PhaseExecuting && len(snap.Tasks) > 0 {
+			h.dispatchCollabTaskMessages(snap, nil)
+		}
+	}
+	return snaps
+}
+
+// dispatchCollabTaskMessages sends collaboration_task messages so assignees
+// receive task_assigned_to metadata (mirrors /approve-plan). Used after the
+// manager heals missing assignees on executing collaborations.
+func (h *Hub) dispatchCollabTaskMessages(snap *collaboration.Collaboration, inheritFrom *protocol.Message) {
+	h.dispatchCollabTaskMessagesFilter(snap, inheritFrom, nil)
+}
+
+// dispatchCollabTaskMessagesFilter sends collaboration_task messages for tasks
+// where include returns true. A nil include sends every task.
+func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration, inheritFrom *protocol.Message, include func(collaboration.CollaborationTask) bool) {
+	if snap == nil || snap.Phase != collaboration.PhaseExecuting || len(snap.Tasks) == 0 {
+		return
+	}
+	ch := snap.Channel
+	collabID := snap.ID
+	for _, task := range snap.Tasks {
+		if include != nil && !include(task) {
+			continue
+		}
+		mentionName := task.AssignedName
+		if mentionName == "" {
+			mentionName = "team"
+		}
+		taskMsg := protocol.NewMessage(
+			protocol.MessageTypeCollabTask,
+			ch,
+			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+			fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
+				mentionName, task.Title, task.Description),
+		)
+		taskMsg.SetCollaborationID(collabID)
+		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
+		taskMsg.SetTaskID(task.ID)
+		taskMsg.SetTaskStatus(string(task.Status))
+		inheritWorkspaceContextMetadata(inheritFrom, taskMsg)
+		if task.AssignedTo != "" {
+			taskMsg.Mentions = []string{task.AssignedTo}
+			if taskMsg.Metadata == nil {
+				taskMsg.Metadata = map[string]interface{}{}
+			}
+			taskMsg.Metadata["task_assigned_to"] = task.AssignedTo
+		}
+		if err := h.SendMessage(taskMsg); err != nil {
+			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
+		}
+	}
 }
 
 // NewCollaborationClientAdapter creates an adapter that implements

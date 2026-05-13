@@ -19,7 +19,14 @@ export function useEditorShortcuts() {
     
     // Don't trigger shortcuts if user is typing in an input/textarea
     const target = event.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+    const inMonaco = Boolean(target.closest?.('.monaco-editor'));
+
+    if (
+      !inMonaco &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true')
+    ) {
       return;
     }
 
@@ -73,9 +80,8 @@ export function useEditorShortcuts() {
       return;
     }
 
-    // Cmd+F / Ctrl+F - Find in file (Monaco handles this)
+    // Cmd+F / Ctrl+F - Find in file (Monaco handles when editor focused)
     if (cmdKey && event.key === 'f' && !event.shiftKey) {
-      // Let Monaco handle this
       return;
     }
 

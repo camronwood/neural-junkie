@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -180,7 +181,10 @@ func (cm *CollaborationManager) ListActive() []*Collaboration {
 // ListSnapshots returns deep-copied collaboration snapshots optionally filtered
 // by channel and terminal-state inclusion. Results are sorted by most recently
 // updated collaboration first.
-func (cm *CollaborationManager) ListSnapshots(channel string, includeTerminal bool) []*Collaboration {
+// For each collaboration, EnsureExecutionTasks runs first so list payloads match
+// execution routing; assigneesUpdated[i] is true when that call created or
+// reassigned tasks so the hub can redispatch collaboration_task messages.
+func (cm *CollaborationManager) ListSnapshots(channel string, includeTerminal bool) ([]*Collaboration, []bool) {
 	cm.mu.RLock()
 	candidates := make([]*Collaboration, 0, len(cm.collaborations))
 	for _, c := range cm.collaborations {
@@ -197,20 +201,35 @@ func (cm *CollaborationManager) ListSnapshots(channel string, includeTerminal bo
 	}
 	cm.mu.RUnlock()
 
-	snapshots := make([]*Collaboration, 0, len(candidates))
+	type row struct {
+		snap             *Collaboration
+		assigneesUpdated bool
+	}
+	rows := make([]row, 0, len(candidates))
 	for _, c := range candidates {
+		assigneesUpdated, err := cm.EnsureExecutionTasks(c.ID)
+		if err != nil {
+			log.Printf("[CollaborationManager] ListSnapshots EnsureExecutionTasks for %s: %v", shortCollabID(c.ID), err)
+			continue
+		}
 		cloned, err := cloneCollaboration(c)
 		if err != nil {
 			log.Printf("[CollaborationManager] Failed to clone collaboration %s for list: %v", shortCollabID(c.ID), err)
 			continue
 		}
-		snapshots = append(snapshots, cloned)
+		rows = append(rows, row{snap: cloned, assigneesUpdated: assigneesUpdated})
 	}
 
-	sort.SliceStable(snapshots, func(i, j int) bool {
-		return snapshots[i].UpdatedAt.After(snapshots[j].UpdatedAt)
+	sort.SliceStable(rows, func(i, j int) bool {
+		return rows[i].snap.UpdatedAt.After(rows[j].snap.UpdatedAt)
 	})
-	return snapshots
+	snapshots := make([]*Collaboration, len(rows))
+	flags := make([]bool, len(rows))
+	for i := range rows {
+		snapshots[i] = rows[i].snap
+		flags[i] = rows[i].assigneesUpdated
+	}
+	return snapshots, flags
 }
 
 // AddParticipants adds one or more agents to an active planning/reviewing
@@ -277,8 +296,9 @@ func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []stri
 	return added, nil
 }
 
-// ApprovePlan transitions a collaboration from reviewing -> executing
-// and distributes tasks to agents.
+// ApprovePlan transitions a collaboration from reviewing -> approved.
+// If the collaboration is already approved (e.g. a prior TransitionToExecuting failed),
+// this call is a no-op so the hub can retry execution without getting stuck.
 func (cm *CollaborationManager) ApprovePlan(collabID string) (*Collaboration, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -287,18 +307,26 @@ func (cm *CollaborationManager) ApprovePlan(collabID string) (*Collaboration, er
 	if !ok {
 		return nil, fmt.Errorf("collaboration %s not found", collabID)
 	}
-	if c.Phase != PhaseReviewing {
+
+	switch c.Phase {
+	case PhaseCompleted, PhaseCancelled:
+		return nil, fmt.Errorf("collaboration is in %s phase, cannot approve plan", c.Phase)
+	case PhaseExecuting:
+		return nil, fmt.Errorf("collaboration is already executing")
+	case PhaseApproved:
+		log.Printf("[CollaborationManager] ApprovePlan: collaboration %s already approved (retry execution)", collabID[:8])
+		return c, nil
+	case PhaseReviewing:
+		c.Phase = PhaseApproved
+		if c.Plan != nil {
+			c.Plan.Status = ArtifactApproved
+		}
+		c.UpdatedAt = time.Now()
+		log.Printf("[CollaborationManager] Plan approved for collaboration %s", collabID[:8])
+		return c, nil
+	default:
 		return nil, fmt.Errorf("collaboration is in %s phase, expected reviewing", c.Phase)
 	}
-
-	c.Phase = PhaseApproved
-	if c.Plan != nil {
-		c.Plan.Status = ArtifactApproved
-	}
-	c.UpdatedAt = time.Now()
-
-	log.Printf("[CollaborationManager] Plan approved for collaboration %s", collabID[:8])
-	return c, nil
 }
 
 // TransitionToExecuting moves an approved collaboration into execution
@@ -315,8 +343,23 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 		return nil, fmt.Errorf("collaboration is in %s phase, expected approved", c.Phase)
 	}
 
-	c.Phase = PhaseExecuting
+	ch := c.Channel
 	now := time.Now()
+	for id, other := range cm.collaborations {
+		if other == nil || other.ID == collabID || other.Channel != ch {
+			continue
+		}
+		if other.Phase == PhaseExecuting {
+			other.Phase = PhaseCancelled
+			other.UpdatedAt = now
+			if other.Discussion != nil {
+				other.Discussion.Status = DiscussionCancelled
+			}
+			log.Printf("[CollaborationManager] Auto-cancelled executing collaboration %s (channel %q) so %s can execute", id[:8], ch, collabID[:8])
+		}
+	}
+
+	c.Phase = PhaseExecuting
 	c.UpdatedAt = now
 
 	participantIDs := make([]string, 0, len(c.Agents))
@@ -498,6 +541,95 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	c.Tasks = tasks
 	c.UpdatedAt = time.Now()
 	return nil
+}
+
+// assignRoundRobinToUnassignedTasks fills AssignedTo / AssignedName on tasks that
+// were parsed from a plan without @participant mentions. Without assignees,
+// execution task messages omit task_assigned_to and no agent responds.
+func assignRoundRobinToUnassignedTasks(tasks []CollaborationTask, agents []CollaborationAgent) bool {
+	if len(agents) == 0 || len(tasks) == 0 {
+		return false
+	}
+	now := time.Now()
+	changed := false
+	ri := 0
+	for i := range tasks {
+		if strings.TrimSpace(tasks[i].AssignedTo) != "" {
+			continue
+		}
+		ag := agents[ri%len(agents)]
+		ri++
+		tasks[i].AssignedTo = ag.AgentID
+		tasks[i].AssignedName = ag.AgentName
+		tasks[i].UpdatedAt = now
+		changed = true
+	}
+	return changed
+}
+
+// EnsureExecutionTasks creates one pending task per collaboration participant when
+// no tasks were parsed from the plan, so execution still notifies assignees.
+// When tasks exist but lack assignees (common when the plan omits @mentions),
+// it round-robins participants onto those tasks so agents receive task_assigned_to.
+// The returned bool is true when this call created default tasks or filled missing
+// assignees (so the hub can (re)send collaboration_task messages).
+func (cm *CollaborationManager) EnsureExecutionTasks(collabID string) (assigneesUpdated bool, err error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return false, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.Phase != PhaseExecuting {
+		return false, nil
+	}
+	if len(c.Agents) == 0 {
+		return false, nil
+	}
+
+	if len(c.Tasks) == 0 {
+		hint := strings.TrimSpace(c.Description)
+		if c.Plan != nil && strings.TrimSpace(c.Plan.Content) != "" {
+			pc := strings.TrimSpace(c.Plan.Content)
+			if len(pc) > 400 {
+				pc = pc[:400] + "…"
+			}
+			if hint != "" {
+				hint = hint + "\n\n"
+			}
+			hint += "Approved plan excerpt:\n" + pc
+		}
+		if hint == "" {
+			hint = "Complete your responsibilities under the approved collaboration plan."
+		}
+
+		now := time.Now()
+		tasks := make([]CollaborationTask, 0, len(c.Agents))
+		for i, ag := range c.Agents {
+			tasks = append(tasks, CollaborationTask{
+				ID:           uuid.New().String(),
+				Title:        fmt.Sprintf("Collaboration workstream %d", i+1),
+				Description:  fmt.Sprintf("%s\n\nFocus on your specialty (%s) and coordinate with other participants as needed.", hint, ag.Role),
+				AssignedTo:   ag.AgentID,
+				AssignedName: ag.AgentName,
+				Status:       TaskPending,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			})
+		}
+		c.Tasks = tasks
+		c.UpdatedAt = now
+		log.Printf("[CollaborationManager] EnsureExecutionTasks: created %d default task(s) for %s", len(tasks), collabID[:8])
+		return true, nil
+	}
+
+	if assignRoundRobinToUnassignedTasks(c.Tasks, c.Agents) {
+		c.UpdatedAt = time.Now()
+		log.Printf("[CollaborationManager] EnsureExecutionTasks: assigned participants to unassigned task(s) in %s", collabID[:8])
+		return true, nil
+	}
+	return false, nil
 }
 
 // UpdateTaskStatus updates the status of a specific task.

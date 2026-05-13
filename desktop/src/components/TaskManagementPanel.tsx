@@ -6,6 +6,7 @@ import type {
   CollaborationTask,
   CollaborationTaskStatus,
 } from '../types/protocol';
+import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
 
 type TaskViewMode = 'by_agent' | 'by_collaboration';
 type StatusFilter = 'all' | CollaborationTaskStatus;
@@ -165,9 +166,20 @@ export function TaskManagementPanel({
   );
   const hasAssistantData = assistantTasks.length > 0 || activeReminders.length > 0;
 
+  const executingCollaboration = useMemo(
+    () => collaborations.find(c => c.phase === 'executing') ?? null,
+    [collaborations]
+  );
+
   const runCollabCommand = async (command: 'approve' | 'revise' | 'cancel', collab: Collaboration) => {
     const collabID = collab.id;
     if (!collabID) return;
+    if (
+      command === 'approve' &&
+      !confirmReplaceCollaborationExecution(executingCollaboration, collab)
+    ) {
+      return;
+    }
     setSubmittingByCollab(prev => ({ ...prev, [collabID]: true }));
     try {
       if (command === 'revise') {
@@ -323,6 +335,7 @@ export function TaskManagementPanel({
                   <CollaborationRow
                     key={collab.id}
                     collaboration={collab}
+                    executingCollaboration={executingCollaboration}
                     onOpenCollaboration={onOpenCollaboration}
                     feedback={revisionFeedback[collab.id] || ''}
                     setFeedback={(value) =>
@@ -489,6 +502,7 @@ export function TaskManagementPanel({
 
 function CollaborationRow({
   collaboration,
+  executingCollaboration,
   onOpenCollaboration,
   feedback,
   setFeedback,
@@ -496,6 +510,7 @@ function CollaborationRow({
   onRunCommand,
 }: {
   collaboration: Collaboration;
+  executingCollaboration: Collaboration | null;
   onOpenCollaboration: (collaboration: Collaboration) => void;
   feedback: string;
   setFeedback: (value: string) => void;
@@ -503,6 +518,14 @@ function CollaborationRow({
   onRunCommand: (command: 'approve' | 'revise' | 'cancel') => void;
 }) {
   const isTerminal = collaboration.phase === 'completed' || collaboration.phase === 'cancelled';
+  const resumeLabel =
+    collaboration.phase === 'executing'
+      ? 'Resume plan'
+      : executingCollaboration &&
+          executingCollaboration.phase === 'executing' &&
+          executingCollaboration.id !== collaboration.id
+        ? 'Resume plan (stop other)'
+        : 'Resume plan';
   return (
     <div
       style={{
@@ -539,24 +562,35 @@ function CollaborationRow({
         >
           Open
         </button>
+        {(collaboration.phase === 'approved' ||
+          collaboration.phase === 'reviewing' ||
+          collaboration.phase === 'executing') && (
+          <button
+            type="button"
+            title={
+              collaboration.phase === 'executing'
+                ? 'Re-send task prompts for open work'
+                : undefined
+            }
+            disabled={isSubmitting}
+            onClick={() => onRunCommand('approve')}
+            style={{
+              border:
+                collaboration.phase === 'executing' ? '1px solid #8b5cf6' : '1px solid #10b981',
+              borderRadius: 6,
+              backgroundColor: 'transparent',
+              color: collaboration.phase === 'executing' ? '#c4b5fd' : '#10b981',
+              fontSize: 11,
+              padding: '2px 8px',
+              cursor: 'pointer',
+              opacity: isSubmitting ? 0.6 : 1,
+            }}
+          >
+            {resumeLabel}
+          </button>
+        )}
         {collaboration.phase === 'reviewing' && (
           <>
-            <button
-              disabled={isSubmitting}
-              onClick={() => onRunCommand('approve')}
-              style={{
-                border: '1px solid #10b981',
-                borderRadius: 6,
-                backgroundColor: 'transparent',
-                color: '#10b981',
-                fontSize: 11,
-                padding: '2px 8px',
-                cursor: 'pointer',
-                opacity: isSubmitting ? 0.6 : 1,
-              }}
-            >
-              Approve
-            </button>
             <div style={{ width: '100%', flexBasis: '100%' }}>
               <textarea
                 value={feedback}

@@ -10,6 +10,8 @@ export interface EditorTab {
   path: string;
   content: string;
   isDirty: boolean;
+  /** Bumped on disk refresh so the editor can sync without tying effects to every keystroke. */
+  contentSyncKey?: number;
   cursorPosition?: { line: number; column: number };
   language?: string;
 }
@@ -69,6 +71,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       path,
       content,
       isDirty: false,
+      contentSyncKey: 0,
       language,
     };
     
@@ -110,12 +113,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   
   updateTabContent: (tabId, content) => {
-    set(state => ({
-      tabs: state.tabs.map(tab =>
-        tab.id === tabId
-          ? { ...tab, content, isDirty: true }
-          : tab
-      ),
+    set((state) => ({
+      tabs: state.tabs.map((tab) => {
+        if (tab.id !== tabId) return tab;
+        if (tab.content === content) return tab;
+        return { ...tab, content, isDirty: true };
+      }),
     }));
   },
   
@@ -211,7 +214,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set(current => ({
         tabs: current.tabs.map(t =>
           t.id === tab.id
-            ? { ...t, content: latestContent, isDirty: false }
+            ? {
+                ...t,
+                content: latestContent,
+                isDirty: false,
+                contentSyncKey: (t.contentSyncKey ?? 0) + 1,
+              }
             : t
         ),
       }));

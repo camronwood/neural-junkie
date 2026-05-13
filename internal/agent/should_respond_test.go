@@ -140,3 +140,43 @@ func TestShouldRespond_DMWithUnknownCollaborationID(t *testing.T) {
 		t.Fatal("expected DM to respond to human despite unknown collaboration_id in metadata")
 	}
 }
+
+type collabTaskAssigneeStub struct{ agentID string }
+
+func (s collabTaskAssigneeStub) IsParticipant(_collabID, agentID string) bool { return agentID == s.agentID }
+func (collabTaskAssigneeStub) IsAgentTurn(_collabID, _agentID string) bool    { return false }
+func (collabTaskAssigneeStub) IsActive(_collabID string) bool                 { return true }
+func (collabTaskAssigneeStub) GetCurrentTurnAgent(string) (string, error)     { return "", nil }
+func (collabTaskAssigneeStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{}
+}
+func (collabTaskAssigneeStub) RecordMessage(string, *protocol.Message) error { return nil }
+func (collabTaskAssigneeStub) AnalyzeConsensus(string, *protocol.Message) string {
+	return ""
+}
+
+func TestShouldRespond_CollabTaskViaAssigneeMetadata(t *testing.T) {
+	const agentID = "agent-xyz"
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendExpert", []string{"api"}, mockAI, hubStub)
+	ag.Info.ID = agentID
+	ag.SetCollabClient(collabTaskAssigneeStub{agentID: agentID})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabTask,
+		"general",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"@BackendExpert -- Your assigned task:\n\ndo thing",
+	)
+	msg.Metadata = map[string]interface{}{
+		"collaboration_id": "550e8400-e29b-41d4-a716-446655440000",
+		"task_id":          "task-1",
+		"task_status":      "pending",
+		"task_assigned_to": agentID,
+	}
+
+	if !ag.shouldRespond(msg) {
+		t.Fatal("expected assignee to respond to collaboration_task via task_assigned_to metadata")
+	}
+}

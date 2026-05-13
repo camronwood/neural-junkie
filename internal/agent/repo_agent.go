@@ -421,6 +421,11 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 	// be actionable, so evaluate this before generic system-message rejection.
 	if collabID := msg.GetCollaborationID(); collabID != "" && ra.Collab != nil {
 		if ra.Collab.IsParticipant(collabID, ra.Info.ID) && ra.Collab.IsActive(collabID) {
+			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
+				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == ra.Info.ID {
+					return true
+				}
+			}
 			if ra.Collab.IsAgentTurn(collabID, ra.Info.ID) || msg.IsMentioned(ra.Info.ID) {
 				return true
 			}

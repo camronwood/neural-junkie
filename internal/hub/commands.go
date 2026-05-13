@@ -100,9 +100,9 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 
 func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 	return map[string]commandExecutor{
-		"/create-repo-agent":       ch.handleCreateRepoAgent,
-		"/create-confluence-agent": ch.handleCreateConfluenceAgent,
-		"/create-expert":           ch.handleCreateExpert,
+		"/create-repo-agent":        ch.handleCreateRepoAgent,
+		"/create-confluence-agent":  ch.handleCreateConfluenceAgent,
+		"/create-expert":            ch.handleCreateExpert,
 		"/delete-agent":             ch.handleDeleteAgent,
 		"/reindex-agent":            ch.handleReindexAgent,
 		"/reindex-confluence-agent": ch.handleReindexConfluenceAgent,
@@ -196,6 +196,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		},
 		"/collaborate":   ch.handleCollaborate,
 		"/approve-plan":  ch.handleApprovePlan,
+		"/resume-plan":   ch.handleResumePlan,
 		"/revise-plan":   ch.handleRevisePlan,
 		"/cancel-plan":   ch.handleCancelPlan,
 		"/collab-extend": ch.handleCollabExtend,
@@ -757,13 +758,13 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	}
 	if name == "" {
 		defaults := map[protocol.AgentType]string{
-			protocol.AgentTypeRust:       "RustExpert",
-			protocol.AgentTypeBackend:    "GoExpert",
-			protocol.AgentTypeFrontend:   "ReactExpert",
-			protocol.AgentTypeDevOps:     "DevOpsPro",
-			protocol.AgentTypeDatabase:   "SQLMaster",
-			protocol.AgentTypeSecurity:   "SecurityExpert",
-			protocol.AgentTypeAssistant:  "Assistant",
+			protocol.AgentTypeRust:      "RustExpert",
+			protocol.AgentTypeBackend:   "GoExpert",
+			protocol.AgentTypeFrontend:  "ReactExpert",
+			protocol.AgentTypeDevOps:    "DevOpsPro",
+			protocol.AgentTypeDatabase:  "SQLMaster",
+			protocol.AgentTypeSecurity:  "SecurityExpert",
+			protocol.AgentTypeAssistant: "Assistant",
 		}
 		name = defaults[agentType]
 	}
@@ -3689,6 +3690,14 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			},
 		},
 		{
+			Name:        "/resume-plan",
+			Description: "Resume a collaboration: approve/retry execution when reviewing or approved, or re-send open task prompts when executing",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "string", Required: true},
+			},
+		},
+		{
 			Name:        "/revise-plan",
 			Description: "Send feedback to revise a collaboration plan",
 			Category:    "Collaboration",
@@ -3934,9 +3943,18 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 
 	// Transition to executing
-	collab, err = cm.TransitionToExecuting(collabID)
+	_, err = cm.TransitionToExecuting(collabID)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to start execution: %v", err)), nil
+	}
+
+	if _, err := cm.EnsureExecutionTasks(collabID); err != nil {
+		log.Printf("[Collaboration] EnsureExecutionTasks for %s: %v", collabID[:8], err)
+	}
+
+	collabSnap, err := cm.GetCollaborationSnapshot(collabID)
+	if err != nil || collabSnap == nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not load collaboration %s after execution start", collabID[:8])), nil
 	}
 
 	// Notify agents about their assigned tasks
@@ -3944,36 +3962,78 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	taskSummary.WriteString(fmt.Sprintf("✅ **Plan Approved** (Collaboration `%s`)\n\n", collabID[:8]))
 	taskSummary.WriteString("**Assigned Tasks:**\n\n")
 
-	for i, task := range collab.Tasks {
-		status := "⬜"
-		taskSummary.WriteString(fmt.Sprintf("%s **Task %d:** %s\n   Assigned to: **@%s**\n\n", status, i+1, task.Description, task.AssignedName))
-
-		// Send individual task messages to each assigned agent
-		taskMsg := protocol.NewMessage(
-			protocol.MessageTypeCollabTask,
-			msg.Channel,
-			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-			fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
-				task.AssignedName, task.Title, task.Description),
-		)
-		taskMsg.SetCollaborationID(collabID)
-		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
-		taskMsg.SetTaskID(task.ID)
-		taskMsg.SetTaskStatus(string(collaboration.TaskPending))
-		inheritWorkspaceContextMetadata(msg, taskMsg)
-
-		if task.AssignedTo != "" {
-			taskMsg.Mentions = []string{task.AssignedTo}
-		}
-
-		if err := ch.hub.SendMessage(taskMsg); err != nil {
-			log.Printf("[Collaboration] Failed to send task message: %v", err)
-		}
+	if len(collabSnap.Tasks) == 0 {
+		taskSummary.WriteString("_No tasks to assign (no participants)._\n\n")
 	}
+
+	for i, task := range collabSnap.Tasks {
+		status := "⬜"
+		assigneeLabel := task.AssignedName
+		if assigneeLabel == "" {
+			assigneeLabel = "unassigned"
+		}
+		taskSummary.WriteString(fmt.Sprintf("%s **Task %d:** %s\n   Assigned to: **@%s**\n\n", status, i+1, task.Description, assigneeLabel))
+	}
+
+	ch.hub.dispatchCollabTaskMessages(collabSnap, msg)
 
 	out := ch.systemResponse(msg.Channel, taskSummary.String())
 	out.SetCollaborationID(collabID)
 	return out, nil
+}
+
+func (ch *CommandHandler) handleResumePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /resume-plan <collab-id>"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	snap, err := cm.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found."), nil
+	}
+
+	switch snap.Phase {
+	case collaboration.PhaseReviewing, collaboration.PhaseApproved:
+		return ch.handleApprovePlan(ctx, msg, []string{"/approve-plan", parts[1]})
+	case collaboration.PhaseExecuting:
+		if _, err := cm.EnsureExecutionTasks(collabID); err != nil {
+			log.Printf("[Collaboration] resume-plan EnsureExecutionTasks for %s: %v", collabID[:8], err)
+		}
+		snap, err = cm.GetCollaborationSnapshot(collabID)
+		if err != nil || snap == nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not load collaboration %s after resume", collabID[:8])), nil
+		}
+		open := func(t collaboration.CollaborationTask) bool {
+			return t.Status == collaboration.TaskPending ||
+				t.Status == collaboration.TaskInProgress ||
+				t.Status == collaboration.TaskBlocked
+		}
+		n := 0
+		for _, t := range snap.Tasks {
+			if open(t) {
+				n++
+			}
+		}
+		if n == 0 {
+			out := ch.systemResponse(msg.Channel, fmt.Sprintf("↻ **Resume** (`%s`) — all tasks are already finished. Nothing to re-send.", collabID[:8]))
+			out.SetCollaborationID(collabID)
+			return out, nil
+		}
+		ch.hub.dispatchCollabTaskMessagesFilter(snap, msg, open)
+		out := ch.systemResponse(msg.Channel, fmt.Sprintf("↻ **Resumed** (`%s`) — re-sent **%d** open task prompt(s) to assignees.", collabID[:8], n))
+		out.SetCollaborationID(collabID)
+		return out, nil
+	case collaboration.PhasePlanning:
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("⏳ **Still planning** (`%s`) — wait until the session reaches **Reviewing**, then use **Resume plan** (or `/approve-plan`) to approve and execute.", collabID[:8])), nil
+	default:
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration is **%s** — start a new session with `/collaborate`.", snap.Phase)), nil
+	}
 }
 
 func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {

@@ -71,12 +71,27 @@ Shows active collaborations or details for one collaboration.
    - Plan is presented to the user.
    - User approves, revises, or cancels.
 3. **approved**
-   - Transitional state after `/approve-plan`.
+   - Transitional state after `/approve-plan` (before execution starts).
+   - If execution fails to start, the collaboration can remain here; use **Start execution** in the UI or run `/approve-plan <id>` again (the server treats a second approve as a no-op and retries the transition to `executing`).
 4. **executing**
-   - Agents receive their assigned tasks.
+   - Agents receive their assigned tasks (`collaboration_task` messages). Each message carries `task_assigned_to` so the assignee responds even when execution-phase discussion turn order would not otherwise select them.
+   - Tasks are parsed from the plan markdown when possible (structured list lines or task headings with `@Agent` mentions). If **no** tasks are found when execution starts, the hub creates **one default pending task per participant** (goal + plan excerpt) so work still fans out to every agent.
    - Progress is tracked per task.
    - Bounded cross-agent Q&A remains available.
 5. **completed** or **cancelled**
+
+## One executing collaboration per channel
+
+The server enforces **at most one collaboration in `executing` phase per chat channel**. Other phases (`planning`, `reviewing`, `approved`, etc.) can overlap across collaborations; the constraint applies when work actually moves into execution.
+
+When a collaboration transitions into `executing` (after `/approve-plan` and the hub’s transition to execution), `CollaborationManager.TransitionToExecuting` **automatically cancels** any other collaboration on the **same channel** that was already `executing`. That collaboration’s execution discussion is set to cancelled so only the new run remains active.
+
+The desktop app warns before the user would implicitly stop a run:
+
+- **Approve / resume from UI** (`CollaborationPanel` or task management): if another collaboration in the current channel is already executing, a **confirm** dialog names both collaborations and explains that continuing **stops the current run** and proceeds with the selected plan.
+- **`/collaborate` in the composer**: if something is already executing in the channel, a **confirm** explains that you can still start a new plan, and that **when you approve the new plan**, the current execution will be stopped so only one collaboration runs at a time.
+
+Other channels are unaffected: two collaborations can execute **in parallel** on different channels.
 
 ## Bounded Discussion Safeguards
 
@@ -160,12 +175,14 @@ Desktop updates include:
   - task status/progress
   - plan artifact
   - approve/revise/cancel controls
+- confirmation when approving or resuming would replace another collaboration already executing in the channel; same idea when sending `/collaborate` while one is executing
 
 ## Testing
 
 Coverage includes:
 
 - lifecycle transitions
+- transition to executing cancels a prior executing collaboration on the same channel (and does not cancel across channels)
 - discussion turn-taking and budgets
 - timeout handling
 - mention-based out-of-turn responses
