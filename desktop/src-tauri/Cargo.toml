@@ -1,6 +1,6 @@
 [package]
 name = "neural-junkie"
-version = "0.1.1"
+version = "0.1.2"
 description = "High-octane agent orchestration for developers who hate waiting"
 authors = ["Camron Wood"]
 license = ""

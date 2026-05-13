@@ -2,6 +2,31 @@
 
 All notable changes to Neural Junkie.
 
+## [0.1.2] - 2026-05-13
+
+### Added
+- **Marketing site** — GitHub Pages content under `docs/`: expanded landing, feature deep-dives, release notes page, early-access banner.
+- **Per-channel typing indicators** in the desktop channel sidebar.
+
+### Changed
+- **Default hub port** is **18765** (previously 8080); `make start-all` health checks and process management align with `SERVER_PORT`.
+- **Slash commands** — real execution with parity enforcement against the hub; command palette metadata refreshes on demand.
+- **Collaboration** — workflow hardening across server, desktop UI, and tests; runtime reliability updates; collaboration round counter clamps at configured maximum.
+
+### Fixed
+- Drop empty messages from ingestion paths including history reload.
+- Hub channel ordering stability; Ollama version surface; auto-register CLI providers when applicable.
+- CLI and agent chat rendering when markdown code fences are malformed.
+- **Desktop** — migrate saved hub URLs from legacy `localhost:8080` to **18765**.
+
+### Improved
+- Hub HTTP/WebSocket surface: security and robustness hardening.
+- Desktop UX — dark-theme toasts, accessible toolbar controls, loading and login polish.
+- Developer settings — remove non-functional test mode control.
+
+### Removed
+- In-hub `/app` screenshot gallery and live-gallery docs (replaced by the static `docs/` site and README assets).
+
 ## [0.1.1] - 2026-02-23
 
 ### Added -- Multi-Agent Collaboration
