@@ -116,7 +116,6 @@ go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
 | **Desktop App** | `make gui` | Full experience -- command palette, file explorer, code editor, threads |
 | **Terminal Chat** | `make chat` | Terminal users, SSH sessions |
 | **Web UI** | `http://localhost:18765` | Browser chat client against the hub |
-| **Screenshot gallery** | `http://localhost:18765/app` | Still images of the **desktop** UI (PNG files under `assets/screenshots/`, or `NEURAL_JUNKIE_SCREENSHOTS_DIR`) |
 | **CLI** | `go run cmd/cli/main.go` | Scripting, automation, MCP server |
 
 ## Using the Desktop App
@@ -244,7 +243,6 @@ All make targets automatically load from `env.local`. Key variables:
 | `CONFLUENCE_API_TOKEN` | Confluence API token | -- |
 | `CURSOR_API_KEY` | Cursor CLI API key (optional) | -- |
 | `MCP_EXPORTS_DIR` | MCP export storage | `~/.neural-junkie/exports` |
-| `NEURAL_JUNKIE_SCREENSHOTS_DIR` | Absolute path to PNGs for hub `/app` gallery (optional) | (auto-discover `assets/screenshots` from cwd) |
 
 See `env.example` for the full list with descriptions.
 

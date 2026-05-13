@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -47,11 +46,6 @@ var (
 	serverStartTime  time.Time
 	ollamaMgr        *ollamaManager.Manager
 )
-
-var screenshotsServeDir string
-
-//go:embed showcase.html
-var showcaseHTML string
 
 // CORS middleware to allow requests from Tauri dev server
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -184,13 +178,6 @@ func main() {
 		log.Printf("♻️  Previous session restored (if available)")
 	}
 
-	screenshotsServeDir = resolveScreenshotsDir()
-	if screenshotsServeDir != "" {
-		log.Printf("📷 Screenshots: serving %s at /assets/screenshots/", screenshotsServeDir)
-	} else {
-		log.Printf("⚠️  Screenshots directory not found; /assets/screenshots/ will 404 (run hub from repo root or set NEURAL_JUNKIE_SCREENSHOTS_DIR)")
-	}
-
 	// HTTP routes with CORS middleware
 	http.HandleFunc("/ws", handleWebSocket) // WebSocket already handles origin
 	http.HandleFunc("/api/channels", corsMiddleware(handleChannels))
@@ -282,30 +269,12 @@ func main() {
 		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: hub memory JSON at GET /api/debug/hub-memory")
 	}
 
-	// Desktop app screenshots (PNG files on disk) and showcase page
-	if screenshotsServeDir != "" {
-		shotHandler := http.StripPrefix("/assets/screenshots/", http.FileServer(http.Dir(screenshotsServeDir)))
-		http.Handle("/assets/screenshots/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != http.MethodGet && r.Method != http.MethodHead {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-			shotHandler.ServeHTTP(w, r)
-		}))
-	} else {
-		http.HandleFunc("/assets/screenshots/", corsMiddleware(func(w http.ResponseWriter, r *http.Request) {
-			http.NotFound(w, r)
-		}))
-	}
-	http.HandleFunc("/app", corsMiddleware(handleAppShowcase))
-
 	// Home page handler (must be last to avoid catching API routes)
 	http.HandleFunc("/", corsMiddleware(handleHome))
 
 	log.Printf("Chat Hub Server starting on %s", *addr)
 	log.Printf("WebSocket endpoint: ws://localhost%s/ws", *addr)
 	log.Printf("Web UI: http://localhost%s", *addr)
-	log.Printf("Desktop app screenshots: http://localhost%s/app", *addr)
 	log.Printf("CORS enabled for all origins")
 
 	// Periodic session save (every 2 minutes), cancellable for clean shutdown.
@@ -633,47 +602,6 @@ func handleAssistantReminderDismiss(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// resolveScreenshotsDir returns the absolute path to assets/screenshots for the desktop-app gallery.
-// Set NEURAL_JUNKIE_SCREENSHOTS_DIR to override (must be the directory containing the PNG files).
-func resolveScreenshotsDir() string {
-	if d := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SCREENSHOTS_DIR")); d != "" {
-		if abs, err := filepath.Abs(d); err == nil {
-			if st, err := os.Stat(abs); err == nil && st.IsDir() {
-				return abs
-			}
-		}
-		log.Printf("⚠️  NEURAL_JUNKIE_SCREENSHOTS_DIR is set but not a directory: %q", d)
-	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	cur := wd
-	for i := 0; i < 10; i++ {
-		try := filepath.Join(cur, "assets", "screenshots")
-		if st, err := os.Stat(try); err == nil && st.IsDir() {
-			if abs, err := filepath.Abs(try); err == nil {
-				return abs
-			}
-		}
-		parent := filepath.Dir(cur)
-		if parent == cur {
-			break
-		}
-		cur = parent
-	}
-	return ""
-}
-
-func handleAppShowcase(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(showcaseHTML))
-}
-
 func handleHome(w http.ResponseWriter, r *http.Request) {
 	// This handler is registered as "/" and receives any path not matched by a more
 	// specific route. Never return HTML for API paths — clients may parse bodies as JSON.
@@ -890,7 +818,7 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
         <div class="main-chat">
             <div class="chat-header">
                 <h1 id="channel-name"># general</h1>
-                <p style="color: #7f8c8d; margin-top: 5px;">Multi-agent collaboration chat room · <a href="/app" style="color:#3498db;font-weight:600;">Desktop app screenshots</a></p>
+                <p style="color: #7f8c8d; margin-top: 5px;">Multi-agent collaboration chat room</p>
             </div>
             
             <div class="messages" id="messages">

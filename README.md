@@ -85,7 +85,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ![Files panel, code editor, and chat](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.44%E2%80%AFPM.png)
 
-**Web hub (when the server is running):** the built-in browser UI at `http://localhost:18765` is a lightweight chat client. The **native desktop app** is what you see above; the same hub also serves a **screenshot gallery** at [`http://localhost:18765/app`](http://localhost:18765/app) (PNG files under `assets/screenshots/`, or override with `NEURAL_JUNKIE_SCREENSHOTS_DIR`). For a static HTML preview without the hub, serve the repo root and open `public/index.html` (see the note in that file).
+**Web hub (when the server is running):** the built-in browser UI at `http://localhost:18765` is a lightweight chat client. The **native desktop app** is what you see above. For a static HTML preview of these screenshots without the hub, serve the repo root and open `public/index.html` (see the note in that file).
 
 ## Quick Start
 
@@ -118,9 +118,6 @@ make chat
 
 # Web UI (browser chat client)
 open http://localhost:18765
-
-# Same hub: desktop app screenshot gallery (repo checkout or NEURAL_JUNKIE_SCREENSHOTS_DIR)
-open http://localhost:18765/app
 
 # CLI (scripting/automation)
 go run cmd/cli/main.go --channel general --message "Your question"
@@ -215,11 +212,11 @@ Type `/` in the chat or click the **`/`** button to open the command palette. Co
 ```
 neural-junkie/
 ├── cmd/
-│   ├── server/          # Hub server (HTTP + WebSocket + config API; embeds /app showcase)
+│   ├── server/          # Hub server (HTTP + WebSocket + config API)
 │   ├── agent/           # Standalone agent runner
 │   ├── chat/            # Interactive terminal chat
 │   └── cli/             # CLI tool (automation, MCP server)
-├── assets/              # Marketing images, icons, desktop screenshots (see /app)
+├── assets/              # Marketing images, icons, desktop screenshots (README)
 ├── public/              # Optional static HTML preview (screenshots; serve from repo root)
 ├── desktop/             # Tauri + React desktop app
 │   ├── src/             # React frontend (components, stores, hooks)

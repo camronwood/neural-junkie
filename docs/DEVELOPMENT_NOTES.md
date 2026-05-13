@@ -11,7 +11,7 @@ neural-junkie/
 │   ├── agent/                 # Standalone agent runner
 │   ├── chat/                  # Interactive terminal chat
 │   └── cli/                   # CLI tool + MCP resource server
-├── assets/                    # Icons, marketing art, desktop screenshots (hub /app)
+├── assets/                    # Icons, marketing art, desktop screenshots (README)
 ├── desktop/                   # Tauri + React desktop app
 │   ├── src/                   # React components, stores, hooks, utils
 │   │   ├── components/        # 33 React components
@@ -39,10 +39,7 @@ neural-junkie/
 
 ## Hub Web Surfaces
 
-The Go hub (`cmd/server`) serves:
-
-- **`/`** — Browser chat client (WebSocket to the hub).
-- **`/app`** — Static gallery of **desktop** screenshots (PNG files under `assets/screenshots/`, or `NEURAL_JUNKIE_SCREENSHOTS_DIR`). Markup is embedded at build time from `cmd/server/showcase.html`.
+The Go hub (`cmd/server`) serves the browser **chat** UI at **`/`** (WebSocket to the hub).
 
 Marketing / early-access copy for hosting lives under `docs/index.html` + `docs/css/landing.css`.
 

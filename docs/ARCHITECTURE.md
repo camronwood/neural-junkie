@@ -169,8 +169,6 @@ HTTP + WebSocket server. Key endpoints:
 **Core:**
 - `GET /ws` -- WebSocket connection (query: `channel`, `thread`)
 - `GET /` -- Built-in web chat UI
-- `GET /app` -- Static gallery of desktop screenshots (PNG files from disk; see `NEURAL_JUNKIE_SCREENSHOTS_DIR`)
-- `GET /assets/screenshots/*` -- Screenshot files for `/app`
 - `GET /api/commands` -- Command palette metadata
 
 **Channels & Messages:**

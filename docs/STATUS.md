@@ -50,7 +50,6 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
   - Settings modal (appearance, layout, integrations, AI providers)
   - @mention autocomplete, Mermaid diagram rendering
 - **Web UI** -- Built-in HTML chat client served by the hub (`/`)
-- **Screenshot gallery** -- Static page at `/app` showing desktop PNGs (from `assets/screenshots/` on disk, or `NEURAL_JUNKIE_SCREENSHOTS_DIR`)
 - **Terminal Chat** -- Interactive WebSocket-based CLI
 - **CLI Tool** -- Scripting, automation, MCP resource server
 

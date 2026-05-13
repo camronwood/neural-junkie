@@ -26,7 +26,7 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 ## Static site
 
 - **Marketing / landing (GitHub Pages style):** [docs/index.html](docs/index.html) + [docs/css/landing.css](docs/css/landing.css)
-- **Hub-only pages** (when `make server` is running): Web chat at `/`, desktop screenshot gallery at `/app` (see README *Web hub*).
+- **Hub** (when `make server` is running): Web chat at `/`.
 - **Optional static preview** of `public/index.html`: serve the **repository root** with a simple HTTP server so `../assets/screenshots/` resolves (footer in that file explains the URL pattern).
 
 ## Examples
