@@ -2,6 +2,8 @@
 
 All notable changes to Neural Junkie.
 
+**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v0.1.0`, `v0.1.1`, `v0.1.2`, …). Older sections below include **historical milestones** that were never shipped as those tags (for example a one-time internal label `2.0.0` for the rebrand era, which is **not** “newer than” current `0.1.x`).
+
 ## [0.1.2] - 2026-05-13
 
 ### Added
@@ -94,7 +96,9 @@ First packaged release -- Neural Junkie ships as a single distributable desktop 
 
 ---
 
-## [2.0.0] - 2026-02
+## Pre-0.1 development — February 2026
+
+> **Not a GitHub semver tag.** This block records the **Neural Junkie** rename and Tauri + React workspace before the first packaged release (**v0.1.0**). It was previously titled `[2.0.0]` as an informal “second generation” note; **do not** read that as a release line above **0.1.x**.
 
 ### Renamed
 - Project renamed from "AI Chat Room" to **Neural Junkie**
@@ -147,7 +151,7 @@ First packaged release -- Neural Junkie ships as a single distributable desktop 
 - File watching for auto-reindex on codebase changes
 - Agent pause/unpause and remove/recall lifecycle management
 
-## [1.0.0] - 2025-10-14
+## [1.0.0] - 2025-10-14 — AI Chat Room (legacy name)
 
 ### Added
 - Core hub server with WebSocket real-time communication
