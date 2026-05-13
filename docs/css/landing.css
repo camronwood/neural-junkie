@@ -372,6 +372,114 @@ section h2 {
   font-weight: 600;
 }
 
+/* Latest feature spotlight (landing) */
+.latest-feature {
+  scroll-margin-top: 5rem;
+  padding: clamp(2.25rem, 5vw, 3.25rem) 0;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(ellipse 70% 80% at 0% 50%, rgba(233, 69, 96, 0.08), transparent 55%),
+    var(--bg-deep);
+}
+
+.latest-feature-inner {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .latest-feature-inner {
+    grid-template-columns: 1fr minmax(240px, 300px);
+    gap: 2.5rem;
+    align-items: stretch;
+  }
+}
+
+.latest-feature-kicker {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.latest-feature-kicker time {
+  font-variant-numeric: tabular-nums;
+}
+
+.latest-feature-copy h2 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.45rem, 3.2vw, 1.95rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.latest-feature-lead {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  max-width: 38rem;
+}
+
+.latest-feature-list {
+  margin: 0 0 1.5rem;
+}
+
+.latest-feature-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.latest-feature-aside {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.4rem;
+  border-left: 4px solid var(--accent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.latest-feature-aside-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.latest-feature-aside-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.latest-feature-aside-text {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.latest-feature-aside-text code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-deep);
+  padding: 0.12em 0.35em;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.latest-feature-aside .btn-sm {
+  margin: 0;
+}
+
 /* CTA band */
 .cta-band {
   text-align: center;
