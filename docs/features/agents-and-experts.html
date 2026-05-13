@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agents &amp; experts — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie agents: specialists, Moderator, Assistant, repo and Confluence experts, on-demand experts, and CLI-backed agents." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/README.md">Docs</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Agents &amp; experts
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Specialists, dynamic experts, and always-on helpers</h1>
+      <p class="feature-deep-lead">The hub runs a mix of auto-started helpers, configured specialists, and agents you create per repo or Confluence space — all addressable from the same chat.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Specialist agents</h2>
+      <p>Out of the box the hub can run in-process specialists (Go, React, DevOps, database, security, Rust personas) driven by <code>~/.neural-junkie/config.json</code>. Each binds to its own provider and model so you can keep heavy coding on Ollama while routing review work to Claude, for example.</p>
+
+      <h2>Moderator and Assistant</h2>
+      <p><strong>Moderator</strong> focuses on product guidance, slash-command help, and a timer-based safety net when human questions go unanswered. <strong>Assistant</strong> owns reminders, tasks, notes, and meeting-oriented flows with persistent storage — the “ops brain” next to your specialists.</p>
+
+      <h2>Repository expert agents</h2>
+      <p><code>/create-repo-agent</code> indexes a path you choose, watches for file changes when enabled, and answers with project-local context. Reindex, watch toggles, and lifecycle commands live in the same slash-command surface as everything else.</p>
+
+      <h2>Confluence documentation agents</h2>
+      <p><code>/create-confluence-agent</code> attaches a space key so answers cite your wiki. Credentials live in environment configuration; see the Confluence agents guide for indexing and search semantics.</p>
+
+      <h2>Experts and CLI agents</h2>
+      <p><code>/create-expert</code> spins additional typed experts on demand. Optional <strong>Cursor</strong> and <strong>Gemini CLI</strong> integrations treat external CLIs as first-class providers when binaries and keys are available — useful when you want vendor tooling inside the same channel fabric.</p>
+
+      <h2>Optional standalone processes</h2>
+      <p><code>make agents</code> still launches the classic multi-process layout for people who prefer separate OS processes. If you run both in-process and standalone agents with the same names, you can get duplicate registrations — pick one model per environment.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/README.md#agents">README → Agents</a> — tables of auto-started, specialist, and dynamic agents.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REPO_AGENTS.md">Repo Agents</a> — indexing, watch mode, commands.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONFLUENCE_AGENTS.md">Confluence Agents</a> — spaces, auth, search.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CLI_AGENTS.md">CLI Agents</a> — Cursor and Gemini setup.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html" aria-current="page">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
+        <a href="slash-commands.html">Slash commands <span>50+ commands</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; handoffs</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Models &amp; export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -41,7 +41,7 @@ neural-junkie/
 
 The Go hub (`cmd/server`) serves the browser **chat** UI at **`/`** (WebSocket to the hub).
 
-Marketing / early-access copy for hosting lives under `docs/index.html` + `docs/css/landing.css`.
+Marketing / early-access copy for hosting lives under `docs/index.html` + `docs/css/landing.css`. **Feature guides** for the public site live under `docs/features/*.html` (deep dives linked from the landing page).
 
 ## Key Design Decisions
 

@@ -25,7 +25,8 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 
 ## Static site
 
-- **Marketing / landing (GitHub Pages style):** [docs/index.html](docs/index.html) + [docs/css/landing.css](docs/css/landing.css)
+- **Marketing / landing:** [docs/index.html](docs/index.html) + [docs/css/landing.css](docs/css/landing.css)
+- **Feature deep dives (static HTML):** [docs/features/](docs/features/) — six capability pages + [index](docs/features/index.html), linked from the landing “What you get” cards.
 - **Hub** (when `make server` is running): Web chat at `/`.
 - **Optional static preview** of `public/index.html`: serve the **repository root** with a simple HTTP server so `../assets/screenshots/` resolves (footer in that file explains the URL pattern).
 

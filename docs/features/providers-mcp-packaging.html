@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Providers, MCP &amp; packaging — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie AI providers: Ollama, Claude, LM Studio, OpenAI-compatible APIs; MCP export/import and tool servers; Tauri sidecar packaging." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/README.md">Docs</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Providers, MCP &amp; packaging
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Models, MCP, and how we ship the binary</h1>
+      <p class="feature-deep-lead">Neural Junkie is deliberately provider-agnostic: run everything locally, burst to cloud for hard prompts, or mix per agent. MCP keeps knowledge portable; the Go sidecar keeps installs boring.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Supported provider families</h2>
+      <ul>
+        <li><strong>Ollama</strong> — local inference with optional lifecycle help (detect, install models, health checks) from the hub and desktop.</li>
+        <li><strong>Claude</strong> — Anthropic API keys via settings or <code>env.local</code>.</li>
+        <li><strong>LM Studio</strong> — OpenAI-compatible local server presets.</li>
+        <li><strong>OpenAI-compatible</strong> — Amazon Q, Azure OpenAI, Together, Groq, or any URL that speaks the compatible chat API.</li>
+        <li><strong>CLI providers</strong> — Cursor and Gemini CLIs when installed, for teams that want those stacks inside the same channel fabric.</li>
+      </ul>
+      <p>Per-agent routing lets you keep cheap local models on high-volume agents while pointing review-heavy personas at larger cloud models.</p>
+
+      <h2>MCP export and import</h2>
+      <p>Agents accumulate useful context. MCP export serializes agent knowledge into a portable format you can check into git or import into other MCP-aware tools. Import paths round-trip for sharing presets across machines.</p>
+
+      <h2>Optional MCP tool servers</h2>
+      <p>For certain personas the hub can spin companion MCP servers (gated by configuration) so agents can call structured tools beyond raw chat completion. Toggle behavior via environment flags documented in <code>env.example</code>.</p>
+
+      <h2>Packaging and updates</h2>
+      <p>The Go hub compiles to a platform-specific sidecar that ships beside the Tauri bundle — one <code>.dmg</code> or <code>.AppImage</code> style artifact without asking users to install Go separately. The Tauri updater channel delivers patch builds once you enable update checks.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/README.md#ai-provider-setup">README → AI provider setup</a> — quick recipes per vendor.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/MCP_EXPORTS.md">MCP Exports</a> — export/import mechanics.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/MCP_INTEGRATION.md">MCP Integration</a> — tool servers for agents.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md#ai-providers-internalai">Architecture → AI providers</a> — interface-level overview.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
+        <a href="slash-commands.html">Slash commands <span>50+ commands</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; handoffs</span></a>
+        <a href="providers-mcp-packaging.html" aria-current="page">Providers &amp; MCP <span>Models &amp; export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

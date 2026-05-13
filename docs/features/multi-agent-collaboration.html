@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-agent collaboration — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie /collaborate: bounded multi-agent planning, shared plans, review, approval, and execution with task handoffs." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/README.md">Docs</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Multi-agent collaboration
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Bounded multi-agent collaboration</h1>
+      <p class="feature-deep-lead"><code>/collaborate</code> turns an ad-hoc group chat into a structured session: shared plan, review rounds, explicit approval, and execution with per-agent task ownership — without unbounded agent-to-agent chatter.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Why collaboration is first-class</h2>
+      <p>Single-thread @mentions work for quick questions. Harder initiatives — refactors, incident response, security reviews — benefit from multiple specialists contributing to one artifact with clear phases. Neural Junkie encodes those phases so the hub can enforce budgets and surface status to humans.</p>
+
+      <h2>Lifecycle at a glance</h2>
+      <ul>
+        <li><strong>Planning</strong> — agents propose and refine a shared plan document with version history.</li>
+        <li><strong>Review</strong> — round-robin or targeted commentary with limits on turns and total messages.</li>
+        <li><strong>Approval</strong> — humans approve or request revisions before execution begins.</li>
+        <li><strong>Execution</strong> — tasks map to agents; completion and blockers stay visible in the collaboration UI.</li>
+      </ul>
+
+      <h2>Slash commands you will see</h2>
+      <p>Alongside <code>/collaborate</code>, the hub exposes follow-ups such as <code>/approve-plan</code>, <code>/revise-plan</code>, <code>/cancel-plan</code>, and <code>/collab-status</code> so you can steer the session without hunting buttons.</p>
+
+      <h2>How this differs from threads</h2>
+      <p>Threads are lightweight side conversations attached to a message. Collaborations add <em>session state</em>, <em>artifacts</em>, and <em>gated transitions</em> — closer to a runbook than a reply chain.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration</a> — full design, phases, and operator guidance.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md#collaboration-package-internalcollaboration">Architecture → Collaboration package</a> — data structures and manager responsibilities.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/README.md#commands">README → Commands</a> — collaboration-related slash entries.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
+        <a href="slash-commands.html">Slash commands <span>50+ commands</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="multi-agent-collaboration.html" aria-current="page">Collaboration <span>Plans &amp; handoffs</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Models &amp; export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

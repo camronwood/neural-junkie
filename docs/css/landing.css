@@ -323,6 +323,22 @@ section h2 {
   color: var(--text-muted);
 }
 
+.card-cta {
+  margin: 1rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.card-link {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.card-link:hover {
+  text-decoration: underline;
+}
+
 .card-icon {
   font-size: 1.5rem;
   margin-bottom: 0.75rem;
@@ -517,4 +533,165 @@ section h2 {
   padding: 0.4rem 0.85rem;
   font-size: 0.8rem;
   border-radius: 999px;
+}
+
+/* ── Feature deep-dive pages (docs/features/*.html) ───────────────── */
+.feature-deep {
+  padding: 0 0 4rem;
+}
+
+.breadcrumb {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0 0 1.25rem;
+}
+
+.breadcrumb a {
+  color: var(--text-muted);
+}
+
+.breadcrumb a:hover {
+  color: var(--accent);
+}
+
+.feature-deep-hero {
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.feature-deep-hero h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.65rem, 4vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.feature-deep-lead {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  max-width: 40rem;
+}
+
+.feature-prose {
+  max-width: 44rem;
+}
+
+.feature-prose h2 {
+  margin: 2.25rem 0 0.65rem;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.feature-prose h2:first-of-type {
+  margin-top: 0;
+}
+
+.feature-prose h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.feature-prose p,
+.feature-prose li {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.feature-prose ul {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.feature-prose li {
+  margin-bottom: 0.35rem;
+}
+
+.feature-prose a {
+  font-weight: 600;
+}
+
+.feature-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-card);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.feature-prose .repo-links {
+  margin-top: 2.5rem;
+  padding: 1.25rem 1.35rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.feature-prose .repo-links h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+.feature-prose .repo-links ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.feature-prose .repo-links li {
+  margin-bottom: 0.5rem;
+}
+
+.feature-nav {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+
+.feature-nav h2 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.feature-nav-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.feature-nav-grid a {
+  display: block;
+  padding: 0.65rem 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.feature-nav-grid a:hover {
+  border-color: rgba(233, 69, 96, 0.35);
+  text-decoration: none;
+}
+
+.feature-nav-grid a[aria-current="page"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(233, 69, 96, 0.25);
+}
+
+.feature-nav-grid a code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  padding: 0;
 }

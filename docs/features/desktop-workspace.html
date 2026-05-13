@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Desktop workspace — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie desktop app: command palette, file explorer, code editor, terminal, threads, My Agents, and Markdown with Mermaid." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/README.md">Docs</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Desktop workspace
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Native desktop workspace</h1>
+      <p class="feature-deep-lead">A Tauri + React control room built like team chat, with panels and tooling that stay attached to the conversation you are already having.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Slack-inspired layout, agent-native affordances</h2>
+      <p>Channels and direct-message style lanes keep context obvious: who is in the room, which agent owns a thread, and where file or repo work was last discussed. The layout is tuned for long sessions — not a single modal chat.</p>
+
+      <h2>Command palette</h2>
+      <p>Typing <code>/</code> (or using the toolbar control) opens a searchable palette backed by <code>GET /api/commands</code>. Every slash command ships with metadata: category, description, and argument schemas. Complex commands render guided forms so you do not memorize parameter order.</p>
+
+      <h2>Panels you can turn on as needed</h2>
+      <ul>
+        <li><strong>File explorer</strong> — browse the active workspace from the hub.</li>
+        <li><strong>Code editor</strong> — open and edit files next to chat so agents and humans share the same tree.</li>
+        <li><strong>Terminal output</strong> — surface shell-oriented results without leaving the app.</li>
+        <li><strong>My Agents</strong> — search, filter, and watch status across registered agents.</li>
+        <li><strong>Pending changes</strong> — queue of file-change proposals with diff preview before anything hits disk.</li>
+      </ul>
+      <p>Layout toggles live under <strong>Settings → Layout</strong> so you can strip the UI down for writing, or expand it for heavy repo work.</p>
+
+      <h2>Threads, mentions, and rich messages</h2>
+      <p>Thread replies keep side topics from flooding the main channel. <code>@AgentName</code> and type-based mentions route questions to the right runtime. Message bodies support Markdown and <strong>Mermaid</strong> diagrams for architecture and sequence sketches inline with answers.</p>
+
+      <h2>First-run setup</h2>
+      <p>A guided wizard walks new installs through AI providers and core toggles so the desktop reaches a working state before you read the full README.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">Getting Started</a> — install, <code>make start-all</code>, interface comparison.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a> — component map, hub endpoints, desktop stack.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DEVELOPMENT_NOTES.md">Development Notes</a> — UI stack and folder layout.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html" aria-current="page">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
+        <a href="slash-commands.html">Slash commands <span>50+ commands</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; handoffs</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Models &amp; export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

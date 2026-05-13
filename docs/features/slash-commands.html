@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slash commands — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie slash commands: 50+ operations, categories, command palette with forms, and hub API metadata." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/README.md">Docs</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Slash commands
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>50+ slash commands, one palette</h1>
+      <p class="feature-deep-lead">Slash commands are the contract between humans and the hub: agent CRUD, repo and Confluence operations, provider switches, file-change workflows, meetings, collaboration, and diagnostics.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Two surfaces, same definitions</h2>
+      <p>Commands work from chat (type <code>/</code> plus the name) and from the desktop palette. Both paths hit the same handler stack in the Go hub, so behavior never diverges between “keyboard native” and “click native” users.</p>
+
+      <h2>What the palette adds</h2>
+      <p>The palette calls <code>GET /api/commands</code> for structured metadata: categories, descriptions, argument names, types, and defaults. Long-running or parameterized commands open inline forms instead of forcing you to memorize positional arguments.</p>
+
+      <h2>Major categories (high level)</h2>
+      <ul>
+        <li><strong>Repo agents</strong> — create, reindex, watch toggles, listing.</li>
+        <li><strong>Confluence</strong> — create and reindex doc agents, list configured spaces.</li>
+        <li><strong>Agent management</strong> — list, pause, delete, recall removed agents.</li>
+        <li><strong>Providers</strong> — per-agent switches and global “switch everyone” shortcuts.</li>
+        <li><strong>Files &amp; workspace</strong> — open paths, list pending file-change proposals, approve or reject.</li>
+        <li><strong>MCP export</strong> — export single agents, bulk export, import paths.</li>
+        <li><strong>Assistant &amp; meetings</strong> — reminders, tasks, notes, meeting ingest and search.</li>
+        <li><strong>Collaboration</strong> — plan lifecycle for multi-agent sessions.</li>
+        <li><strong>Connections</strong> — smoke-test Anthropic, GitHub, Confluence integrations.</li>
+      </ul>
+      <p>The authoritative list lives in the README command table and in the hub source (<code>internal/hub/commands.go</code>) as the palette evolves.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/README.md#commands">README → Commands</a> — category table with representative entries.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a> — command handler and API surface.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md#command-palette">Getting Started → Command palette</a> — day-one usage tips.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
+        <a href="slash-commands.html" aria-current="page">Slash commands <span>50+ commands</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; handoffs</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Models &amp; export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

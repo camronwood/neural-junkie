@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>File changes &amp; workspaces — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie file change workflow: agent proposals, diff preview, approve or reject, and workspace-scoped file APIs." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/README.md">Docs</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · File changes &amp; workspaces
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Repo-aware file workflow</h1>
+      <p class="feature-deep-lead">Agents propose edits; humans stay in control. Workspaces anchor the hub to real trees on disk so proposals always resolve to something you can open in the editor.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Proposal → review → apply</h2>
+      <p>When an agent attaches a file change to a message, the hub registers a structured proposal. The desktop <strong>Pending changes</strong> panel shows each item with a diff preview. Approve applies the patch to the workspace; reject discards it and records the decision for the thread.</p>
+
+      <h2>Slash commands in the loop</h2>
+      <p>Commands such as <code>/list-file-changes</code>, <code>/approve-file</code>, and <code>/reject-file</code> mirror the UI for keyboard-first workflows or remote automation. They share the same backend state as the palette actions.</p>
+
+      <h2>Workspaces</h2>
+      <p>Workspaces are first-class objects in the hub: add paths, list roots, and route file APIs relative to a chosen workspace. That keeps multi-repo or monorepo layouts explicit instead of silently assuming a single cwd.</p>
+
+      <h2>Safety properties</h2>
+      <p>Paths are checked for containment within the configured workspace root before reads or writes. Combined with human approval, this is the guardrail between “agent suggested” and “agent mutated production.”</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a> — file change manager and workspace manager sections.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/README.md#commands">README → Commands</a> — file-related slash entries.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md#panels">Getting Started → Panels</a> — pending changes panel overview.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
+        <a href="slash-commands.html">Slash commands <span>50+ commands</span></a>
+        <a href="file-changes-workspaces.html" aria-current="page">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; handoffs</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Models &amp; export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>
