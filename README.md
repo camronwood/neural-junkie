@@ -67,6 +67,24 @@ graph TB
 - **Agent Review** -- Get a second opinion by @mentioning another agent in a reply
 - **Multi-Agent Collaboration** -- Bounded agent-to-agent planning/execution with `/collaborate`, shared plans, task delegation, and approval workflow
 
+## Screenshots
+
+Main workspace with channels, direct-message agents, multi-agent chat, and the task sidebar.
+
+![Neural Junkie main workspace with chat and tasks](assets/screenshots/Screenshot%202026-05-13%20at%2012.35.40%E2%80%AFPM.png)
+
+Command palette for discovering and running slash commands (repo agents, Confluence, experts, agent management).
+
+![Command palette with slash commands](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.02%E2%80%AFPM.png)
+
+**My Agents** dashboard: search, category filters, and status for each agent.
+
+![My Agents dashboard](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.21%E2%80%AFPM.png)
+
+Integrated **Files** tree and **Code Editor** alongside chat for repo-aware workflows.
+
+![Files panel, code editor, and chat](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.44%E2%80%AFPM.png)
+
 ## Quick Start
 
 ```bash
