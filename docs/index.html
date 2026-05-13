@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Neural Junkie — Multi-agent AI for developers</title>
-  <meta name="description" content="Neural Junkie is in active development — multi-agent orchestration with a Tauri desktop and Go hub. Full release coming soon; clone, try the code, and contribute PRs." />
+  <meta name="description" content="Neural Junkie — native desktop + Go hub for multi-agent AI: repo &amp; Confluence experts, 50+ slash commands, file-change approvals, bounded collaboration, Ollama/Claude/OpenAI-compatible providers, MCP export, and a Slack-style workspace with palette, editor, and threads." />
   <meta property="og:title" content="Neural Junkie — Multi-agent AI for developers" />
-  <meta property="og:description" content="In development: desktop control room for AI agents. Full version coming soon — download the source, run locally, send pull requests." />
+  <meta property="og:description" content="Orchestrate specialists, repo agents, and docs-aware agents from one Tauri app. Command palette, threaded chat, approve file edits, run /collaborate plans, and wire your own models — open source, early access." />
   <meta property="og:type" content="website" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -58,9 +58,48 @@
         <span aria-hidden="true">·</span>
         <span><strong>Hub</strong> channels, persistence, 50+ commands</span>
         <span aria-hidden="true">·</span>
-        <span><strong>Agents</strong> repo, Confluence, helpers, collaborate</span>
+        <span><strong>Agents</strong> repo, Confluence, specialists, collaborate</span>
       </div>
     </div>
+
+    <section class="section-alt" aria-labelledby="capabilities-heading">
+      <div class="wrap">
+        <h2 id="capabilities-heading">What you get</h2>
+        <p class="section-intro">One control room for agents that know your stack, your repo, and your wiki — not a single generic chat window.</p>
+        <div class="grid-3 highlights-grid">
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">🖥️</div>
+            <h3>Native desktop workspace</h3>
+            <p>Tauri + React app with channels, DMs, threads, and a searchable <strong>command palette</strong>. Toggle a file tree, code editor, terminal output, pending changes, and <strong>My Agents</strong> without leaving the thread.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">🎯</div>
+            <h3>Specialists + dynamic experts</h3>
+            <p>Frontend, backend, DevOps, database, security, and Rust experts run with the hub. Spin up <strong>repo agents</strong> and <strong>Confluence agents</strong> on demand, or add <strong>Expert</strong> and <strong>CLI</strong>-backed agents when you need more muscle.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">⌨️</div>
+            <h3>50+ slash commands</h3>
+            <p>Everything from agent lifecycle and provider switches to reindexing, file-change flows, meetings, and collaboration — exposed in chat and in the palette with <strong>guided forms</strong> for complex arguments.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">✏️</div>
+            <h3>Repo-aware file workflow</h3>
+            <p>Agents can <strong>propose edits</strong>; you approve or reject with <strong>diff preview</strong>. Workspaces keep the hub tied to the tree you are actually shipping.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">🤝</div>
+            <h3>Bounded multi-agent collaboration</h3>
+            <p><code>/collaborate</code> drives structured planning, review, and execution with shared plans, task handoffs, and approval gates — so several agents advance one initiative without derailing.</p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">🔌</div>
+            <h3>MCP, models, and distribution</h3>
+            <p><strong>MCP export/import</strong> for agent knowledge, <strong>per-agent providers</strong> (Ollama with lifecycle help, Claude, LM Studio, OpenAI-compatible APIs), optional <strong>MCP tool servers</strong>, and a Go hub <strong>sidecar</strong> for single-artifact desktop builds.</p>
+          </article>
+        </div>
+      </div>
+    </section>
 
     <section class="screenshot-showcase" aria-labelledby="screenshots-heading">
       <div class="wrap">
@@ -81,26 +120,29 @@
       </div>
     </section>
 
-    <section aria-labelledby="features-heading">
+    <section class="section-alt" aria-labelledby="workflow-heading">
       <div class="wrap">
-        <h2 id="features-heading">Built for how engineers work</h2>
-        <p class="section-intro">One installer brings the hub, auto-started moderator and assistant, specialist agents, and the desktop shell — so you spend time on problems, not wiring.</p>
-        <div class="grid-3">
-          <article class="card">
-            <div class="card-icon" aria-hidden="true">🧠</div>
-            <h3>Orchestration, not a single chat</h3>
-            <p>Route work to the right agent with @mentions, threads, agent review, and bounded multi-agent collaboration.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon" aria-hidden="true">📂</div>
-            <h3>Repo &amp; docs in the loop</h3>
-            <p>Repository agents index your codebase; Confluence agents bring your wiki. Propose file changes with approval and diffs.</p>
-          </article>
-          <article class="card">
-            <div class="card-icon" aria-hidden="true">⚡</div>
-            <h3>Your keys, your models</h3>
-            <p>Ollama, Claude, LM Studio, and OpenAI-compatible endpoints. Setup wizard on first run; switch providers without losing the thread.</p>
-          </article>
+        <h2 id="workflow-heading">How you actually work in it</h2>
+        <p class="section-intro">Same habits as team chat — with agent-native superpowers wired in.</p>
+        <div class="grid-2">
+          <div class="workflow-block">
+            <h3 class="workflow-title">Routing &amp; context</h3>
+            <ul class="feature-list feature-list--tight">
+              <li><strong>@mentions</strong> by agent name or type so the right specialist answers.</li>
+              <li><strong>Threads</strong> for side discussions without spamming the channel.</li>
+              <li><strong>Agent review</strong> — pull a second opinion by @mentioning another agent in a thread reply.</li>
+              <li><strong>Meeting &amp; assistant flows</strong> — reminders, tasks, notes, and ingest/search helpers for long-running work.</li>
+            </ul>
+          </div>
+          <div class="workflow-block">
+            <h3 class="workflow-title">Always-on helpers</h3>
+            <ul class="feature-list feature-list--tight">
+              <li><strong>Moderator</strong> — command help, product guidance, and a safety net when questions sit unanswered.</li>
+              <li><strong>Assistant</strong> — tasks, reminders, notes, and meeting-oriented commands.</li>
+              <li><strong>First-run setup wizard</strong> — get providers and agents configured without reading a novel first.</li>
+              <li><strong>Tool approvals</strong> — gate risky agent tool use where your stack requires it.</li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -109,12 +151,22 @@
       <div class="wrap">
         <h2 id="ship-heading">Ship with confidence</h2>
         <p class="section-intro">Opinionated defaults for teams that want speed <em>and</em> guardrails.</p>
-        <ul class="feature-list">
-          <li>Single-binary sidecar packaging — distribute a .dmg or AppImage without a fragile stack of services.</li>
-          <li>MCP export/import — move agent knowledge across tools in a standard format.</li>
-          <li>Auto-updates via Tauri updater — stay current without hunting releases.</li>
-          <li>Moderator + Assistant always on — chat guidance, tasks, reminders, and safety net.</li>
+        <ul class="feature-list feature-list--wide">
+          <li>Single-binary <strong>sidecar</strong> packaging — ship a .dmg or AppImage without a fragile pile of services.</li>
+          <li><strong>MCP export/import</strong> — move agent knowledge across tools in a standard format.</li>
+          <li><strong>Auto-updates</strong> via the Tauri updater — stay current without chasing tarballs.</li>
+          <li><strong>Session persistence</strong> on the hub — channels and state come back after restarts (with sensible pruning).</li>
+          <li><strong>Markdown &amp; Mermaid</strong> in the desktop — diagrams and formatted answers where they help.</li>
+          <li><strong>Web + terminal + CLI</strong> — same hub speaks to the desktop, browser chat, <code>make chat</code>, and automation via the Go CLI.</li>
         </ul>
+        <p class="doc-strip">
+          <span class="doc-strip-label">Learn more in the repo:</span>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">Getting started</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/REPO_AGENTS.md">Repo agents</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/USER_VALUE_GUIDE.md">User value guide</a>
+        </p>
       </div>
     </section>
 

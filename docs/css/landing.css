@@ -255,6 +255,44 @@ section h2 {
   max-width: 42rem;
 }
 
+.section-alt {
+  background: var(--bg-elevated);
+  border-block: 1px solid var(--border);
+}
+
+.highlights-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.grid-2 {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.workflow-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.5rem;
+}
+
+.workflow-title {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.card code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--bg-deep);
+  padding: 0.12em 0.4em;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
 .grid-3 {
   display: grid;
   gap: 1.25rem;
@@ -429,4 +467,54 @@ section h2 {
   height: 6px;
   border-radius: 50%;
   background: var(--accent);
+}
+
+.feature-list--tight {
+  gap: 0.5rem;
+}
+
+.feature-list--tight li {
+  font-size: 0.92rem;
+}
+
+.feature-list--wide {
+  max-width: none;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  display: grid;
+}
+
+.feature-list--wide li {
+  padding-left: 1.35rem;
+}
+
+.doc-strip {
+  margin: 2rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.65rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.doc-strip-label {
+  width: 100%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+@media (min-width: 640px) {
+  .doc-strip-label {
+    width: auto;
+    margin-right: 0.35rem;
+  }
+}
+
+.btn-sm {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  border-radius: 999px;
 }
