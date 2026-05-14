@@ -2,7 +2,20 @@
 
 All notable changes to Neural Junkie.
 
-**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, …). Older sections below include **historical milestones** that were never shipped as those tags (for example a one-time internal label `2.0.0` for the rebrand era, which is **not** “newer than” current `0.1.x`).
+**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, `v0.1.4`, …). Older sections below include **historical milestones** that were never shipped as those tags (for example a one-time internal label `2.0.0` for the rebrand era, which is **not** “newer than” current `0.1.x`).
+
+## [0.1.4] - 2026-05-14
+
+### Added
+- **Ollama model library** — curated catalog (`GET /api/ollama/catalog`, embedded with the hub), browse/search in **Settings → AI Providers**, install with streaming progress, remove installed models (`POST /api/ollama/delete`), and **Use for agents** to set the Ollama provider model plus agent wiring from the desktop.
+- **Collaboration smart routing** (optional) — `collaboration.smart_routing_enabled` in config; when on, **collaboration execution tasks** (`collaboration_task` with task metadata) can be answered using a **different configured provider** than the agent’s default, chosen by a **static capability/cost heuristic** (for example vision requirements, simple local-friendly prompts, security-like keywords). Normal channel chat still uses each agent’s configured provider. Applies to **in-process hub agents** only (not standalone `cmd/agent` subprocess specialists unless extended later).
+- **Shared AI provider construction and cache** — provider instances built from config are reused and invalidated when providers or the AI block in settings change.
+
+### Changed
+- **Hub build and dev commands** — `Makefile` targets run `go build` / `go run` on the `./cmd/server` package so additional server source files (not only `main.go`) compile together.
+
+### Documentation
+- **Collaboration and user value guides** — document smart routing behavior and the model library in-repo (`docs/COLLABORATION.md`, `docs/USER_VALUE_GUIDE.md`).
 
 ## [0.1.3] - 2026-05-14
 

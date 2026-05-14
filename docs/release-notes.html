@@ -38,6 +38,8 @@
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v0-1-4">0.1.4</a>
+      <span aria-hidden="true">·</span>
       <a href="#v0-1-3">0.1.3</a>
       <span aria-hidden="true">·</span>
       <a href="#v0-1-2">0.1.2</a>
@@ -52,6 +54,27 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v0-1-4" class="release-version-heading">0.1.4 <span class="release-date">— 2026-05-14</span></h2>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Ollama model library</strong> — curated catalog embedded in the hub (<code>GET /api/ollama/catalog</code>); desktop <strong>Settings → AI Providers</strong> UI to browse, search, install with SSE progress, delete installed models (<code>POST /api/ollama/delete</code>), and <strong>Use for agents</strong> to set the Ollama provider model and agent assignments.</li>
+        <li><strong>Collaboration smart routing</strong> (optional) — <code>collaboration.smart_routing_enabled</code> in <code>config.json</code> / settings API; when enabled, <strong>collaboration execution tasks</strong> can be generated using a routed provider from your configured pool (static heuristic: vision, keyword tiers, fallback). Regular channel messages still use each agent’s configured provider. <strong>In-process hub agents only</strong> in this release.</li>
+        <li><strong>AI provider cache</strong> — shared construction of <code>AIProvider</code> instances from config with invalidation on provider CRUD and AI settings changes.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Developer builds</strong> — <code>Makefile</code> runs <code>go build</code> / <code>go run</code> on the <code>./cmd/server</code> package (not only <code>main.go</code>) so additional server sources compile.</li>
+      </ul>
+
+      <h3>Documentation</h3>
+      <ul>
+        <li><code>docs/COLLABORATION.md</code> and <code>docs/USER_VALUE_GUIDE.md</code> — model library and smart routing behavior.</li>
+      </ul>
+
+      <hr class="release-sep" />
+
       <h2 id="v0-1-3" class="release-version-heading">0.1.3 <span class="release-date">— 2026-05-14</span></h2>
 
       <h3>Added</h3>

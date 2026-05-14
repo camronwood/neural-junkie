@@ -536,7 +536,11 @@ func (ra *RepoAgent) generateRepoResponse(ctx context.Context, msg *protocol.Mes
 		history = history[len(history)-10:]
 	}
 
-	response, err := ra.AI.GenerateResponse(ctx, prompt, historyToMessages(history))
+	eff := ra.EffectiveAIProvider(ctx, msg)
+	if eff == nil {
+		eff = ra.GetAIProvider()
+	}
+	response, err := eff.GenerateResponse(ctx, prompt, historyToMessages(history))
 	if err != nil {
 		return "", err
 	}

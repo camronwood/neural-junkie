@@ -6,6 +6,7 @@ import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
 import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings } from '../types/protocol';
 import { ProviderManager } from './ProviderManager';
 import { OllamaManager } from './OllamaManager';
+import { OllamaModelLibrary } from './OllamaModelLibrary';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 
 interface SettingsModalProps {
@@ -57,6 +58,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [isSwitching, setIsSwitching] = useState(false);
+  const [collabSmartRouting, setCollabSmartRouting] = useState(false);
+  const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
+  const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
 
   // Load settings when modal opens
   useEffect(() => {
@@ -76,6 +80,31 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setOllamaForm(integrations.ollama);
     setLMStudioForm(integrations.lmstudio);
   }, [integrations]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'ai-providers') return;
+    let cancelled = false;
+    setCollabRoutingErr(null);
+    (async () => {
+      try {
+        const r = await fetch(`${hubHttp}/api/settings`);
+        if (!r.ok) {
+          throw new Error(await r.text());
+        }
+        const cfg = await r.json();
+        if (!cancelled) {
+          setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, activeTab, hubHttp]);
 
   // Auto-fetch available models when AI Providers tab is selected
   useEffect(() => {
@@ -120,6 +149,38 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleScopeChange = (scope: FontSizeScope) => {
     updateFontSizeScope(scope);
+  };
+
+  const handleCollabSmartRoutingToggle = async (enabled: boolean) => {
+    setCollabRoutingSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      const r = await fetch(`${hubHttp}/api/settings`);
+      if (!r.ok) {
+        throw new Error(await r.text());
+      }
+      const cfg = await r.json();
+      const next = {
+        ...cfg,
+        collaboration: {
+          ...(cfg.collaboration ?? {}),
+          smart_routing_enabled: enabled,
+        },
+      };
+      const put = await fetch(`${hubHttp}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!put.ok) {
+        throw new Error(await put.text());
+      }
+      setCollabSmartRouting(enabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollabRoutingSaving(false);
+    }
   };
 
   const openLink = (url: string) => {
@@ -1005,6 +1066,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === 'ai-providers' && (
             <div className="space-y-8">
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Collaboration smart routing</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  When enabled, the hub picks a configured AI provider for each <strong>collaboration execution task</strong>{' '}
+                  (assigned task messages after the plan is approved). Normal chat and DMs still use each agent's configured provider.
+                </p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={collabSmartRouting}
+                    disabled={collabRoutingSaving}
+                    onChange={(e) => void handleCollabSmartRoutingToggle(e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-slack-text">Enable smart routing for collaboration tasks</span>
+                </label>
+                {collabRoutingErr && (
+                  <p className="text-sm text-red-600 mt-2">{collabRoutingErr}</p>
+                )}
+              </div>
+
               {/* Dynamic Provider Registry */}
               <div className="border border-slack-border rounded-lg p-6">
                 <ProviderManager serverAddr={hubHttp} />
@@ -1013,6 +1095,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {/* Ollama Lifecycle Management */}
               <div className="border border-slack-border rounded-lg p-6">
                 <OllamaManager serverAddr={hubHttp} />
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <p className="text-xs text-slack-textMuted mb-3">
+                  Quick access: chat toolbar (amber model icon), <kbd className="font-mono text-slack-text">⇧⌘M</kbd> /{' '}
+                  <kbd className="font-mono text-slack-text">Ctrl+Shift+M</kbd>, or command{' '}
+                  <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">/nj-open-model-library</code>.
+                </p>
+                <OllamaModelLibrary
+                  serverAddr={hubHttp}
+                  switchAllAgentProviders={switchAllAgentProviders}
+                  onAfterModelChange={async () => {
+                    try {
+                      const models = await fetchOllamaModels();
+                      setOllamaForm((prev) => ({ ...prev, availableModels: models }));
+                    } catch (e) {
+                      console.error('Failed to refresh Ollama model list:', e);
+                    }
+                  }}
+                />
               </div>
 
               {/* Ollama Settings (legacy) */}

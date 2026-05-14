@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Providers, MCP &amp; packaging — Neural Junkie</title>
-  <meta name="description" content="Neural Junkie AI providers: Ollama, Claude, LM Studio, OpenAI-compatible APIs; MCP export/import and tool servers; Tauri sidecar packaging." />
+  <meta name="description" content="Neural Junkie AI providers: Ollama with in-app model library, Claude, LM Studio, OpenAI-compatible APIs; MCP export/import and tool servers; Tauri sidecar packaging." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -36,9 +36,12 @@
     </header>
 
     <article class="feature-prose">
+      <h2>Ollama model library</h2>
+      <p>Under <strong>Settings → AI Providers</strong>, the desktop loads a <strong>curated catalog</strong> from the hub (<code>GET /api/ollama/catalog</code>) so you can discover models without hunting tags on the web. Install streams progress over the same pull pipeline as manual pulls; remove frees disk via <code>POST /api/ollama/delete</code>. <strong>Use for agents</strong> updates the Ollama provider row and aligns agent wiring in one step.</p>
+
       <h2>Supported provider families</h2>
       <ul>
-        <li><strong>Ollama</strong> — local inference with optional lifecycle help (detect, install models, health checks) from the hub and desktop.</li>
+        <li><strong>Ollama</strong> — local inference with optional lifecycle help (detect, start/stop, health checks), the model library above, and classic pull/list flows from the hub and desktop.</li>
         <li><strong>Claude</strong> — Anthropic API keys via settings or <code>env.local</code>.</li>
         <li><strong>LM Studio</strong> — OpenAI-compatible local server presets.</li>
         <li><strong>OpenAI-compatible</strong> — Amazon Q, Azure OpenAI, Together, Groq, or any URL that speaks the compatible chat API.</li>

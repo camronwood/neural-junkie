@@ -478,12 +478,16 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	var streamMsgID string
 	var err error
 
-	if sp, ok := a.AI.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+	eff := a.EffectiveAIProvider(ctx, msg)
+	if eff == nil {
+		eff = a.GetAIProvider()
+	}
+	if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
-		response, streamMsgID, err = a.generateResponseStreaming(ctx, msg, sp)
+		response, streamMsgID, err = a.generateResponseStreaming(ctx, msg, eff)
 	} else {
 		log.Printf("[%s] 📝 Generating response (batch)...", a.Info.Name)
-		response, err = a.generateResponse(ctx, msg)
+		response, err = a.generateResponse(ctx, msg, eff)
 	}
 
 	if err != nil {
@@ -1248,10 +1252,13 @@ func isAgentType(t protocol.AgentType) bool {
 }
 
 // generateResponse generates an AI response based on the message and context
-func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (string, error) {
+func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, error) {
 	// Check if this is a design analysis request
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
 		return a.generateDesignAnalysisResponse(ctx, msg)
+	}
+	if eff == nil {
+		eff = a.GetAIProvider()
 	}
 
 	prompt := a.buildPrompt(msg)
@@ -1308,17 +1315,17 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
 		approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
-		if mp, ok := a.AI.(ai.MultimodalProvider); ok {
+		if mp, ok := eff.(ai.MultimodalProvider); ok {
 			return mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
 		}
 		if len(imgs) == 1 {
-			return a.AI.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
+			return eff.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
 		}
 		return "", fmt.Errorf("multiple images require a multimodal-capable provider")
 	}
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
-	response, err := a.AI.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
+	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
 		return "", err
 	}
@@ -1332,10 +1339,13 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 // and the stable stream message ID so the caller can reuse it for the
 // final chat message (allowing the frontend to correlate streaming with
 // the persisted message).
-func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, sp ai.StreamingProvider) (string, string, error) {
+func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, string, error) {
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
 		resp, err := a.generateDesignAnalysisResponse(ctx, msg)
 		return resp, "", err
+	}
+	if eff == nil {
+		eff = a.GetAIProvider()
 	}
 
 	prompt := a.buildPrompt(msg)
@@ -1390,7 +1400,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
-		if mp, ok := a.AI.(ai.MultimodalProvider); ok {
+		if mp, ok := eff.(ai.MultimodalProvider); ok {
 			tokenCh, err := mp.GenerateMultimodalStream(approvalCtx, prompt, imgs, historyToMessages(history))
 			if err == nil {
 				return a.collectStreamTokens(msg, streamMsgID, tokenCh)
@@ -1400,12 +1410,16 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			return text, "", err
 		}
 		if len(imgs) == 1 {
-			text, err := a.AI.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
+			text, err := eff.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
 			return text, "", err
 		}
 		return "", "", fmt.Errorf("multiple images require a multimodal-capable provider")
 	}
 
+	sp, ok := eff.(ai.StreamingProvider)
+	if !ok || !sp.SupportsStreaming() {
+		return "", "", fmt.Errorf("internal: expected streaming-capable provider")
+	}
 	tokenCh, err := sp.GenerateResponseStream(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
 		return "", "", err
@@ -1970,7 +1984,11 @@ func (a *Agent) ShouldRespond(msg *protocol.Message) bool {
 
 // GenerateResponse is a public method to generate a response to a message
 func (a *Agent) GenerateResponse(ctx context.Context, msg *protocol.Message) (string, error) {
-	return a.generateResponse(ctx, msg)
+	eff := a.EffectiveAIProvider(ctx, msg)
+	if eff == nil {
+		eff = a.GetAIProvider()
+	}
+	return a.generateResponse(ctx, msg, eff)
 }
 
 // generateDesignAnalysisResponse handles design analysis with vision API

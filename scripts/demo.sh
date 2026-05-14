@@ -63,7 +63,7 @@ if ! curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo -e "${BLUE}  make server${NC}"
     echo ""
     echo "Or in a separate terminal:"
-    echo -e "${BLUE}  go run cmd/server/main.go${NC}"
+    echo -e "${BLUE}  go run ./cmd/server${NC}"
     exit 1
 fi
 

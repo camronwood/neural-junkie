@@ -27,7 +27,19 @@ import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
-import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, TaskManagementIcon } from './Icons';
+import { OllamaModelLibraryModal } from './OllamaModelLibraryModal';
+import {
+  PendingChangesIcon,
+  MyAgentsIcon,
+  FilesIcon,
+  EditorIcon,
+  TerminalIcon,
+  ModelLibraryIcon,
+  SettingsIcon,
+  LogoutIcon,
+  LeftSidebarIcon,
+  TaskManagementIcon,
+} from './Icons';
 import type {
   AssistantReminder,
   AssistantTask,
@@ -38,11 +50,25 @@ import type {
   ThinkingAgent,
   ThinkingStatusMetadata,
 } from '../types/protocol';
-
-const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
+
+const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
+  {
+    name: '/nj-open-model-library',
+    description: 'Open Ollama model library (download models, set defaults for agents)',
+    category: 'Neural Junkie',
+    arguments: [],
+  },
+];
+
+function withClientPaletteCommands(defs: CommandDefinition[]): CommandDefinition[] {
+  const names = new Set(CLIENT_PALETTE_COMMANDS.map((c) => c.name));
+  return [...CLIENT_PALETTE_COMMANDS, ...defs.filter((d) => !names.has(d.name))];
+}
+
+const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 
 interface ChatWindowProps {
   onOpenSettings?: () => void;
@@ -50,13 +76,14 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
-  const { serverAddr, channel, username, agents, channels } = useChatStore(
+  const { serverAddr, channel, username, agents, channels, switchAllAgentProviders } = useChatStore(
     (s) => ({
       serverAddr: s.serverAddr,
       channel: s.channel,
       username: s.username,
       agents: s.agents,
       channels: s.channels,
+      switchAllAgentProviders: s.switchAllAgentProviders,
     }),
     shallow
   );
@@ -109,6 +136,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandPaletteFilter, setCommandPaletteFilter] = useState('');
   const [commandDefs, setCommandDefs] = useState<CommandDefinition[]>([]);
+  const [modelLibraryOpen, setModelLibraryOpen] = useState(false);
 
   // State for active collaboration panel
   const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
@@ -179,6 +207,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   }, []);
   
   const api = useMemo(() => new ChatAPI(serverAddr), [serverAddr]);
+  const hubHttp = useMemo(
+    () => (serverAddr.startsWith('http') ? serverAddr : `http://${serverAddr}`),
+    [serverAddr]
+  );
   const wsURL = useMemo(() => api.getWebSocketURL(channel), [api, channel]);
   
   // Debounce timeout ref for agent list refresh
@@ -684,9 +716,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
     try {
       const defs = await api.fetchCommands();
-      setCommandDefs(defs);
+      setCommandDefs(withClientPaletteCommands(defs));
     } catch (err) {
       console.error('Failed to load command definitions:', err);
+      setCommandDefs(withClientPaletteCommands([]));
     }
 
     if (!hasJoinedRef.current) {
@@ -718,6 +751,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const handleSendMessage = async (content: string, metadata?: Record<string, any>) => {
     useChatStore.getState().setIsTyping(true);
+
+    if (content.trim() === '/nj-open-model-library') {
+      useChatStore.getState().setIsTyping(false);
+      setModelLibraryOpen(true);
+      return;
+    }
 
     const mergedMetadata = buildHumanOutboundMetadata({
       shareWorkspace,
@@ -767,9 +806,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     if (!forceRefresh && commandDefs.length > 0) return;
     try {
       const defs = await api.fetchCommands(forceRefresh);
-      setCommandDefs(defs);
+      setCommandDefs(withClientPaletteCommands(defs));
     } catch (err) {
       console.error('Failed to load command definitions:', err);
+      setCommandDefs(withClientPaletteCommands([]));
     }
   };
 
@@ -777,6 +817,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const handleCommandExecute = async (commandString: string) => {
     if (inputRef.current && (inputRef.current as any).clearInput) {
       (inputRef.current as any).clearInput();
+    }
+    const trimmed = commandString.trim();
+    if (trimmed === '/nj-open-model-library') {
+      setModelLibraryOpen(true);
+      return;
     }
     await handleSendMessage(commandString);
   };
@@ -813,6 +858,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   };
 
   const closeThread = useChatStore((s) => s.closeThread);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+      if (e.key.toLowerCase() !== 'm') return;
+      e.preventDefault();
+      setModelLibraryOpen(true);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   const getStatusColor = () => {
     switch (status) {
@@ -1036,7 +1092,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </button>
           
           <div className="w-px h-5 bg-slack-border mx-0.5" />
-          
+
+          <button
+            type="button"
+            onClick={() => setModelLibraryOpen(true)}
+            className="w-7 h-7 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+            title="Ollama model library (Ctrl+Shift+M or ⌘⇧M)"
+            aria-label="Open Ollama model library"
+          >
+            <ModelLibraryIcon className="w-3.5 h-3.5" />
+          </button>
+
           {onOpenSettings && (
             <button
               type="button"
@@ -1310,6 +1376,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         isOpen={createNewDmOpen}
         onClose={() => setCreateNewDmOpen(false)}
         onCreated={handleNewDmCreated}
+      />
+
+      <OllamaModelLibraryModal
+        isOpen={modelLibraryOpen}
+        onClose={() => setModelLibraryOpen(false)}
+        serverAddr={hubHttp}
+        switchAllAgentProviders={switchAllAgentProviders}
       />
 
       {/* Toast Notifications */}

@@ -40,11 +40,12 @@ var (
 	upgrader = websocket.Upgrader{
 		CheckOrigin: checkWebSocketOrigin,
 	}
-	chatHub          *hub.Hub
-	workspaceManager *hub.WorkspaceManager
-	appConfig        *config.Config
-	serverStartTime  time.Time
-	ollamaMgr        *ollamaManager.Manager
+	chatHub             *hub.Hub
+	workspaceManager    *hub.WorkspaceManager
+	appConfig           *config.Config
+	serverStartTime     time.Time
+	ollamaMgr           *ollamaManager.Manager
+	globalProviderCache *ai.ProviderCache
 )
 
 // CORS middleware to allow requests from Tauri dev server
@@ -124,6 +125,8 @@ func main() {
 	}
 
 	chatHub = hub.NewHub()
+	globalProviderCache = ai.NewProviderCache()
+	agent.SetGlobalCollabRouting(collabRoutingRuntime{})
 
 	sessionPath := hub.DefaultSessionPath()
 	log.Printf("💾 Session will be saved to: %s", sessionPath)
@@ -251,6 +254,8 @@ func main() {
 	http.HandleFunc("/api/ollama/start", corsMiddleware(handleOllamaStart))
 	http.HandleFunc("/api/ollama/stop", corsMiddleware(handleOllamaStop))
 	http.HandleFunc("/api/ollama/pull", corsMiddleware(handleOllamaPull))
+	http.HandleFunc("/api/ollama/catalog", corsMiddleware(handleOllamaCatalog))
+	http.HandleFunc("/api/ollama/delete", corsMiddleware(handleOllamaDelete))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -2188,7 +2193,11 @@ func handleOllamaPull(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	})
 	if err != nil {
-		fmt.Fprintf(w, "data: {\"status\":\"error\",\"error\":\"%s\"}\n\n", err.Error())
+		line, mErr := json.Marshal(map[string]string{"status": "error", "error": err.Error()})
+		if mErr != nil {
+			line = []byte(`{"status":"error","error":"pull failed"}`)
+		}
+		fmt.Fprintf(w, "data: %s\n\n", string(line))
 		flusher.Flush()
 		return
 	}
@@ -2196,67 +2205,42 @@ func handleOllamaPull(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 }
 
-// buildProviderFromConfig creates an ai.AIProvider from a config.ProviderConfig.
-func buildProviderFromConfig(pcfg *config.ProviderConfig) (ai.AIProvider, error) {
-	switch pcfg.Type {
-	case "ollama":
-		endpoint := pcfg.Endpoint
-		if endpoint == "" {
-			endpoint = "http://localhost:11434"
-		}
-		model := pcfg.Model
-		if model == "" {
-			model = "llama3.1"
-		}
-		return ai.NewOllamaProviderWithConfig(endpoint, model), nil
-
-	case "anthropic":
-		if pcfg.APIKey == "" {
-			return nil, fmt.Errorf("anthropic provider %q has no API key", pcfg.ID)
-		}
-		return ai.NewClaudeProviderWithConfig(pcfg.APIKey, false, "", pcfg.Model), nil
-
-	case "openai-compatible":
-		endpoint := pcfg.Endpoint
-		if endpoint == "" {
-			return nil, fmt.Errorf("openai-compatible provider %q has no endpoint", pcfg.ID)
-		}
-		model := pcfg.Model
-		return ai.NewOpenAICompatProvider(endpoint, pcfg.APIKey, model, pcfg.Headers), nil
-
-	case "cursor-cli":
-		workDir := pcfg.WorkDir
-		if workDir == "" {
-			workDir, _ = os.Getwd()
-		}
-		var opts []ai.CLIAgentOption
-		if pcfg.TimeoutSeconds > 0 {
-			opts = append(opts, ai.WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
-		}
-		return ai.NewCursorCLIProvider(workDir, pcfg.APIKey, opts...), nil
-
-	case "gemini-cli":
-		workDir := pcfg.WorkDir
-		if workDir == "" {
-			workDir, _ = os.Getwd()
-		}
-		var opts []ai.CLIAgentOption
-		if pcfg.TimeoutSeconds > 0 {
-			opts = append(opts, ai.WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
-		}
-		model := strings.TrimSpace(pcfg.Model)
-		if model == "" {
-			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
-		}
-		if model == "" {
-			model = "gemini-2.5-flash"
-		}
-		opts = append(opts, ai.WithEnv("GEMINI_MODEL", model), ai.WithModel(model))
-		return ai.NewGeminiCLIProvider(workDir, opts...), nil
-
-	default:
-		return nil, fmt.Errorf("unknown provider type %q", pcfg.Type)
+func handleOllamaCatalog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
+	models, err := ollamaManager.Library()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(models); err != nil {
+		log.Printf("ollama catalog encode: %v", err)
+	}
+}
+
+func handleOllamaDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Model) == "" {
+		http.Error(w, "model is required", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	if err := ollamaMgr.DeleteModel(ctx, req.Model); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "model": req.Model})
 }
 
 // initializeConfiguredAgents starts specialist agents defined in the config
@@ -2283,7 +2267,7 @@ func initializeConfiguredAgents() {
 			continue
 		}
 
-		aiProvider, err := buildProviderFromConfig(pcfg)
+		aiProvider, err := globalProviderCache.Get(appConfig, pcfg.ID)
 		if err != nil {
 			log.Printf("⚠️  Failed to build provider for agent %s: %v — skipping", acfg.Name, err)
 			continue
@@ -2392,6 +2376,9 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Agents = incoming.Agents
 		appConfig.Ollama = incoming.Ollama
 		appConfig.Updates = incoming.Updates
+		appConfig.Collaboration = incoming.Collaboration
+
+		globalProviderCache.Clear()
 
 		if err := appConfig.Save(); err != nil {
 			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
@@ -2481,7 +2468,7 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Provider not found", http.StatusNotFound)
 			return
 		}
-		provider, err := buildProviderFromConfig(pcfg)
+		provider, err := ai.ProviderFromConfig(pcfg)
 		if err != nil {
 			http.Error(w, "Failed to build provider: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -2521,6 +2508,7 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		appConfig.Save()
+		globalProviderCache.Evict(id)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 
@@ -2530,6 +2518,7 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		appConfig.Save()
+		globalProviderCache.Evict(id)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 
@@ -3790,17 +3779,23 @@ func handleOllamaModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create Ollama provider to get models
-	ollamaProvider := ai.NewOllamaProviderWithConfig("http://localhost:11434", "llama3.1")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	models, err := ollamaProvider.GetAvailableModels(ctx)
+	endpoint := strings.TrimSpace(r.URL.Query().Get("endpoint"))
+	if endpoint == "" && appConfig != nil {
+		endpoint = appConfig.FirstOllamaEndpoint()
+	}
+	if endpoint == "" {
+		endpoint = "http://localhost:11434"
+	}
+
+	mgr := ollamaManager.NewManager(endpoint)
+	models, err := mgr.ListModels(ctx)
 
 	response := map[string]interface{}{
 		"models":   models,
-		"endpoint": "http://localhost:11434",
+		"endpoint": endpoint,
 	}
 
 	if err != nil {

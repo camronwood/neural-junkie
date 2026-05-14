@@ -20,6 +20,7 @@ Neural Junkie fixes that by giving you:
 - **Role-based specialists** for higher-quality answers and reviews.
 - **Local-first options** (Ollama, LM Studio, CLI agents) to reduce cloud token spend.
 - **Human approval workflow** for risky actions like file edits and tool calls.
+- **Optional collaboration smart routing** (Settings → AI Providers): route each **execution task** across your configured providers using simple cost/capability heuristics while normal chat keeps each agent's provider.
 
 ## Who It Is For
 

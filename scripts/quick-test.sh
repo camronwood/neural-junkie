@@ -30,7 +30,7 @@ trap cleanup EXIT INT TERM
 
 # Step 1: Start Server
 echo -e "${BLUE}Step 1: Starting Chat Hub Server...${NC}"
-go run cmd/server/main.go > /tmp/ai-chat-server.log 2>&1 &
+go run ./cmd/server > /tmp/ai-chat-server.log 2>&1 &
 SERVER_PID=$!
 echo -e "  ${GREEN}✓${NC} Server started (PID: $SERVER_PID)"
 sleep 2

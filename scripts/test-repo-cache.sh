@@ -54,7 +54,7 @@ echo -e "${BLUE}📡 Checking server...${NC}"
 if curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo "✅ Server is running"
 else
-    echo "❌ Server not running. Start it with: go run cmd/server/main.go"
+    echo "❌ Server not running. Start it with: go run ./cmd/server"
     exit 1
 fi
 

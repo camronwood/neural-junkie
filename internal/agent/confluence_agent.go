@@ -378,7 +378,11 @@ func (ca *ConfluenceAgent) generateResponse(ctx context.Context, msg *protocol.M
 		historyMsgs[i] = *h
 	}
 
-	response, err := ca.AI.GenerateResponse(ctx, prompt, historyMsgs)
+	eff := ca.EffectiveAIProvider(ctx, msg)
+	if eff == nil {
+		eff = ca.GetAIProvider()
+	}
+	response, err := eff.GenerateResponse(ctx, prompt, historyMsgs)
 	if err != nil {
 		log.Printf("[ConfluenceAgent:%s] Failed to generate response: %v", ca.Info.Name, err)
 		ca.sendThinkingStatus(msg, protocol.ThinkingStatusError)

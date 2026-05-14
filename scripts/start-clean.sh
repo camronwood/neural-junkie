@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 source load-env.sh
 
 echo "🚀 Starting server..."
-go run cmd/server/main.go &
+go run ./cmd/server &
 SERVER_PID=$!
 sleep 3
 

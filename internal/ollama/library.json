@@ -1,0 +1,142 @@
+[
+  {
+    "name": "qwen2.5-coder:14b",
+    "title": "Qwen 2.5 Coder 14B",
+    "description": "Strong coding and tool use; default for Neural Junkie specialists.",
+    "tags": ["code", "recommended"],
+    "size_hint": "~9 GB"
+  },
+  {
+    "name": "qwen2.5:7b",
+    "title": "Qwen 2.5 7B",
+    "description": "Faster general assistant; good for lighter hardware.",
+    "tags": ["general", "recommended"],
+    "size_hint": "~4.5 GB"
+  },
+  {
+    "name": "qwen2.5-coder:7b",
+    "title": "Qwen 2.5 Coder 7B",
+    "description": "Smaller coding model with lower VRAM/RAM needs.",
+    "tags": ["code"],
+    "size_hint": "~4.7 GB"
+  },
+  {
+    "name": "llama3.1:8b",
+    "title": "Llama 3.1 8B",
+    "description": "Meta general-purpose instruct model.",
+    "tags": ["general"],
+    "size_hint": "~4.7 GB"
+  },
+  {
+    "name": "llama3.1:70b",
+    "title": "Llama 3.1 70B",
+    "description": "High-quality reasoning when you have the RAM/VRAM.",
+    "tags": ["general", "large"],
+    "size_hint": "~40 GB"
+  },
+  {
+    "name": "llama3.2:3b",
+    "title": "Llama 3.2 3B",
+    "description": "Tiny and fast for quick replies and classification.",
+    "tags": ["general", "small"],
+    "size_hint": "~2 GB"
+  },
+  {
+    "name": "mistral:7b",
+    "title": "Mistral 7B",
+    "description": "Popular efficient instruct baseline.",
+    "tags": ["general"],
+    "size_hint": "~4.1 GB"
+  },
+  {
+    "name": "codellama:13b",
+    "title": "Code Llama 13B",
+    "description": "Code-focused Llama derivative.",
+    "tags": ["code"],
+    "size_hint": "~7.4 GB"
+  },
+  {
+    "name": "deepseek-coder:6.7b",
+    "title": "DeepSeek Coder 6.7B",
+    "description": "Strong code completion and explanation at modest size.",
+    "tags": ["code"],
+    "size_hint": "~3.8 GB"
+  },
+  {
+    "name": "deepseek-r1:8b",
+    "title": "DeepSeek R1 8B",
+    "description": "Reasoning-oriented model (chain-of-thought style).",
+    "tags": ["reasoning"],
+    "size_hint": "~4.9 GB"
+  },
+  {
+    "name": "phi3:medium",
+    "title": "Phi-3 Medium",
+    "description": "Microsoft compact instruct model.",
+    "tags": ["general"],
+    "size_hint": "~7.9 GB"
+  },
+  {
+    "name": "gemma2:9b",
+    "title": "Gemma 2 9B",
+    "description": "Google Gemma 2 mid-size instruct.",
+    "tags": ["general"],
+    "size_hint": "~5.4 GB"
+  },
+  {
+    "name": "llava:7b",
+    "title": "LLaVA 7B",
+    "description": "Vision + language for image understanding in chat.",
+    "tags": ["vision"],
+    "size_hint": "~4.5 GB"
+  },
+  {
+    "name": "llava:13b",
+    "title": "LLaVA 13B",
+    "description": "Higher-capacity vision-language model.",
+    "tags": ["vision", "large"],
+    "size_hint": "~8 GB"
+  },
+  {
+    "name": "moondream:1.8b",
+    "title": "Moondream 1.8B",
+    "description": "Very small vision model for quick image Q&A.",
+    "tags": ["vision", "small"],
+    "size_hint": "~1.7 GB"
+  },
+  {
+    "name": "nomic-embed-text",
+    "title": "Nomic Embed Text",
+    "description": "Embedding model for RAG and similarity (not for chat).",
+    "tags": ["embedding"],
+    "size_hint": "~274 MB"
+  },
+  {
+    "name": "mxbai-embed-large",
+    "title": "Mixedbread Embed Large",
+    "description": "Higher-quality embeddings when disk allows.",
+    "tags": ["embedding"],
+    "size_hint": "~670 MB"
+  },
+  {
+    "name": "starcoder2:7b",
+    "title": "StarCoder2 7B",
+    "description": "Code generation from BigCode stack.",
+    "tags": ["code"],
+    "size_hint": "~4 GB"
+  },
+  {
+    "name": "qwen2.5:14b",
+    "title": "Qwen 2.5 14B",
+    "description": "General instruct at 14B scale.",
+    "tags": ["general"],
+    "size_hint": "~9 GB"
+  },
+  {
+    "name": "granite-code:8b",
+    "title": "IBM Granite Code 8B",
+    "description": "Enterprise-oriented code model.",
+    "tags": ["code"],
+    "size_hint": "~4.6 GB"
+  }
+]

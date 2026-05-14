@@ -12,6 +12,12 @@ This is different from lightweight `@mention` review flow: collaboration introdu
 - Delegate tasks by agent strengths (type + expertise)
 - Prevent runaway conversations with hard limits
 
+## Smart routing (execution tasks)
+
+When **Collaboration smart routing** is enabled (Desktop **Settings → AI Providers**), the hub may choose a different **configured** provider for each `collaboration_task` message (after workspace ack) using a static heuristic (for example cheaper local models for short wording-style tasks, higher-tier models for security-related text, and the lowest-cost configured tier when the task includes user images and the assignee supports vision). Normal chat and per-agent defaults are unchanged.
+
+**In-process specialists only:** separate specialist processes (`make agents` / `cmd/agent`) do not load hub multi-provider routing in v1.
+
 ## Commands
 
 ### Start a collaboration

@@ -53,13 +53,13 @@ if curl -s http://localhost:18765/api/channels > /dev/null 2>&1; then
     echo "✅ Server is running"
 else
     echo "❌ Server is not running"
-    echo "   Start it with: go run cmd/server/main.go"
+    echo "   Start it with: go run ./cmd/server"
     echo ""
     read -p "Start server now? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "🚀 Starting server in background..."
-        go run cmd/server/main.go > /tmp/ai-chat-server.log 2>&1 &
+        go run ./cmd/server > /tmp/ai-chat-server.log 2>&1 &
         SERVER_PID=$!
         echo "   Server PID: $SERVER_PID"
         echo "   Waiting for server to be ready..."

@@ -14,7 +14,7 @@ docs: ## Show documentation guide
 
 build: ## Build all binaries
 	@echo "🔨 Building server..."
-	@go build -o bin/server cmd/server/main.go
+	@go build -o bin/server ./cmd/server
 	@echo "🔨 Building agent runner..."
 	@go build -o bin/agent cmd/agent/main.go
 	@echo "🔨 Building CLI..."
@@ -27,11 +27,11 @@ build: ## Build all binaries
 
 run-server: ## Start the chat hub server
 	@echo "🚀 Starting chat hub server on http://localhost:18765"
-	@go run cmd/server/main.go
+	@go run ./cmd/server
 
 server: setup-env ## Start server with environment loaded
 	@echo "🚀 Starting chat hub server with environment from env.local..."
-	@bash -c 'source load-env.sh && go run cmd/server/main.go'
+	@bash -c 'source load-env.sh && go run ./cmd/server'
 
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
@@ -151,7 +151,7 @@ stop: ## Stop all running processes (server, agents, GUI)
 		lsof -ti :$$HUB_PORT 2>/dev/null | xargs kill -9 2>/dev/null || true; \
 		lsof -ti :18765 2>/dev/null | xargs kill -9 2>/dev/null || true'
 	@lsof -ti :1420 2>/dev/null | xargs kill -9 2>/dev/null || true
-	@pkill -f "cmd/server/main.go" 2>/dev/null || true
+	@pkill -f "go run ./cmd/server" 2>/dev/null || pkill -f "cmd/server/main.go" 2>/dev/null || true
 	@pkill -f "cmd/agent/main.go" 2>/dev/null || true
 	@pkill -f "tauri dev" 2>/dev/null || true
 	@pkill -f "Neural Junkie" 2>/dev/null || true
@@ -166,7 +166,7 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo ""
 	@echo "🚀 Starting server with fresh state..."
 	@echo "   (Specialist agents are started in-process by the server via config)"
-	@bash -c 'source load-env.sh && go run cmd/server/main.go > /tmp/chat-server.log 2>&1 &'
+	@bash -c 'source load-env.sh && go run ./cmd/server > /tmp/chat-server.log 2>&1 &'
 	@sleep 3
 	@echo ""
 	@echo "✅ System refreshed! All processes restarted with clean state."
@@ -181,7 +181,7 @@ start-all: setup-env ## Start server and all agents with environment loaded
 		PORT="$${SERVER_PORT:-18765}"; \
 		echo "🚀 Starting complete Neural Junkie system..."; \
 		echo "   (Specialist agents are started in-process by the server via config)"; \
-		go run cmd/server/main.go & \
+		go run ./cmd/server & \
 		echo "⏳ Waiting for hub at http://localhost:$${PORT}/api/health ..."; \
 		ok=0; for i in $$(seq 1 60); do \
 			if curl -sf "http://localhost:$${PORT}/api/health" | grep -q "\"status\":\"ok\""; then ok=1; break; fi; \
@@ -275,22 +275,22 @@ SIDECAR_DIR := desktop/src-tauri/binaries
 build-server-mac-arm: ## Cross-compile server for macOS Apple Silicon
 	@echo "🔨 Building server for macOS arm64..."
 	@mkdir -p $(SIDECAR_DIR)
-	@GOOS=darwin GOARCH=arm64 go build -o $(SIDECAR_DIR)/nj-server-aarch64-apple-darwin cmd/server/main.go
+	@GOOS=darwin GOARCH=arm64 go build -o $(SIDECAR_DIR)/nj-server-aarch64-apple-darwin ./cmd/server
 
 build-server-mac-intel: ## Cross-compile server for macOS Intel
 	@echo "🔨 Building server for macOS amd64..."
 	@mkdir -p $(SIDECAR_DIR)
-	@GOOS=darwin GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-apple-darwin cmd/server/main.go
+	@GOOS=darwin GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-apple-darwin ./cmd/server
 
 build-server-linux: ## Cross-compile server for Linux x86_64
 	@echo "🔨 Building server for Linux amd64..."
 	@mkdir -p $(SIDECAR_DIR)
-	@GOOS=linux GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-unknown-linux-gnu cmd/server/main.go
+	@GOOS=linux GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-unknown-linux-gnu ./cmd/server
 
 build-sidecar: ## Build server sidecar for current platform
 	@echo "🔨 Building server sidecar for current platform..."
 	@mkdir -p $(SIDECAR_DIR)
-	@go build -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) cmd/server/main.go
+	@go build -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) ./cmd/server
 
 bundle-mac: build-server-mac-arm ## Build production desktop app for macOS
 	@echo "📦 Building macOS bundle..."

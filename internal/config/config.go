@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -48,12 +49,20 @@ type UpdateConfig struct {
 	AutoCheck bool `json:"auto_check"`
 }
 
+// CollaborationConfig controls multi-agent collaboration behavior.
+type CollaborationConfig struct {
+	// SmartRoutingEnabled selects a configured AI provider per collaboration
+	// execution task (MessageTypeCollabTask with task_id) using a static heuristic.
+	SmartRoutingEnabled bool `json:"smart_routing_enabled"`
+}
+
 type Config struct {
-	Server  ServerConfig  `json:"server"`
-	AI      AIConfig      `json:"ai"`
-	Agents  []AgentConfig `json:"agents"`
-	Ollama  OllamaConfig  `json:"ollama"`
-	Updates UpdateConfig  `json:"updates"`
+	Server         ServerConfig         `json:"server"`
+	AI             AIConfig             `json:"ai"`
+	Agents         []AgentConfig        `json:"agents"`
+	Ollama         OllamaConfig         `json:"ollama"`
+	Updates        UpdateConfig         `json:"updates"`
+	Collaboration  CollaborationConfig  `json:"collaboration"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -91,6 +100,9 @@ func DefaultConfig() *Config {
 		},
 		Updates: UpdateConfig{
 			AutoCheck: true,
+		},
+		Collaboration: CollaborationConfig{
+			SmartRoutingEnabled: false,
 		},
 	}
 }
@@ -202,6 +214,21 @@ func (c *Config) GetDefaultProvider() *ProviderConfig {
 	return c.GetProvider(c.AI.DefaultProviderID)
 }
 
+// FirstOllamaEndpoint returns the endpoint of the first Ollama-type provider, or "" if none.
+func (c *Config) FirstOllamaEndpoint() string {
+	if c == nil {
+		return ""
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, p := range c.AI.Providers {
+		if p.Type == "ollama" {
+			return strings.TrimSpace(p.Endpoint)
+		}
+	}
+	return ""
+}
+
 func (c *Config) AddProvider(p ProviderConfig) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -304,6 +331,18 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 	return c.GetProvider(pid)
 }
 
+// ListProvidersSnapshot returns a copy of configured providers (thread-safe).
+func (c *Config) ListProvidersSnapshot() []ProviderConfig {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]ProviderConfig, len(c.AI.Providers))
+	copy(out, c.AI.Providers)
+	return out
+}
+
 // Redacted returns a copy with API keys masked for safe API exposure.
 func (c *Config) Redacted() *Config {
 	c.mu.RLock()
@@ -313,6 +352,7 @@ func (c *Config) Redacted() *Config {
 	agents := append([]AgentConfig(nil), c.Agents...)
 	ollama := c.Ollama
 	updates := c.Updates
+	collab := c.Collaboration
 	filePath := c.filePath
 	c.mu.RUnlock()
 
@@ -328,12 +368,13 @@ func (c *Config) Redacted() *Config {
 		}
 	}
 	return &Config{
-		Server:   server,
-		AI:       AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
-		Agents:   agents,
-		Ollama:   ollama,
-		Updates:  updates,
-		filePath: filePath,
+		Server:        server,
+		AI:            AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
+		Agents:        agents,
+		Ollama:        ollama,
+		Updates:       updates,
+		Collaboration: collab,
+		filePath:      filePath,
 	}
 }
 

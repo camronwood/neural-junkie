@@ -21,17 +21,17 @@ jobs:
         include:
           - platform: macos-latest
             go_targets: |
-              GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin cmd/server/main.go
-              GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin cmd/server/main.go
+              GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
+              GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
             tauri_args: '--target aarch64-apple-darwin'
           - platform: macos-latest
             go_targets: |
-              GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin cmd/server/main.go
-              GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin cmd/server/main.go
+              GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
+              GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
             tauri_args: '--target x86_64-apple-darwin'
           - platform: ubuntu-22.04
             go_targets: |
-              GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu cmd/server/main.go
+              GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
             tauri_args: ''
 
     runs-on: ${{ matrix.platform }}

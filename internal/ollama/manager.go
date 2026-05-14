@@ -2,6 +2,7 @@ package ollama
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -33,6 +34,7 @@ type PullProgress struct {
 type Manager struct {
 	endpoint   string
 	mu         sync.Mutex
+	pullMu     sync.Mutex
 	serverCmd  *exec.Cmd
 	httpClient *http.Client
 }
@@ -185,10 +187,17 @@ func (m *Manager) ListModels(ctx context.Context) ([]string, error) {
 
 // PullModel pulls a model and streams progress to the provided callback.
 // The callback is called for each progress line from Ollama's streaming API.
+// Concurrent pulls are serialized so SSE clients do not interleave the same daemon state.
 func (m *Manager) PullModel(ctx context.Context, model string, onProgress func(PullProgress)) error {
-	body := fmt.Sprintf(`{"name":"%s","stream":true}`, model)
+	m.pullMu.Lock()
+	defer m.pullMu.Unlock()
+
+	bodyBytes, err := json.Marshal(map[string]any{"name": model, "stream": true})
+	if err != nil {
+		return err
+	}
 	req, err := http.NewRequestWithContext(ctx, "POST", m.endpoint+"/api/pull",
-		strings.NewReader(body))
+		bytes.NewReader(bodyBytes))
 	if err != nil {
 		return err
 	}
@@ -223,6 +232,35 @@ func (m *Manager) PullModel(ctx context.Context, model string, onProgress func(P
 		}
 	}
 	return scanner.Err()
+}
+
+// DeleteModel removes a model from the local Ollama store (POST /api/delete).
+func (m *Manager) DeleteModel(ctx context.Context, model string) error {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return fmt.Errorf("model name is required")
+	}
+	payload, err := json.Marshal(map[string]string{"name": model})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", m.endpoint+"/api/delete", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("delete failed with status %d: %s", resp.StatusCode, string(data))
+	}
+	return nil
 }
 
 // InstallOllama downloads and installs Ollama. On macOS it downloads the

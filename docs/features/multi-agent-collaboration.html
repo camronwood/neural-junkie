@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Multi-agent collaboration — Neural Junkie</title>
-  <meta name="description" content="Neural Junkie /collaborate: bounded multi-agent planning, shared plans, review, approval, and execution with task handoffs." />
+  <meta name="description" content="Neural Junkie /collaborate: bounded multi-agent planning, shared plans, review, approval, execution with task handoffs, workspace ack, optional smart routing for execution tasks." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -53,6 +53,9 @@
 
       <h2>Slash commands you will see</h2>
       <p>Alongside <code>/collaborate</code>, the hub exposes follow-ups such as <code>/approve-plan</code>, <code>/ack-collab-workspace</code>, <code>/revise-plan</code>, <code>/cancel-plan</code>, <code>/collab-status</code>, and <code>/resume-plan</code> so you can steer the session without hunting buttons.</p>
+
+      <h2>Optional smart routing (execution tasks)</h2>
+      <p>When <strong>Collaboration smart routing</strong> is enabled in Settings, the hub may pick a <strong>different configured AI provider</strong> than an assignee’s default <em>only for collaboration execution tasks</em> — messages that carry task execution metadata after planning is approved and the workspace is acknowledged. The policy is a <strong>static heuristic</strong> (for example vision-capable providers, short local-friendly prompts, security-flavored keywords); it is not live dollar pricing. Planning turns, normal channel chat, and agents running out-of-process via <code>cmd/agent</code> are out of scope for this routing mode today.</p>
 
       <h2>How this differs from threads</h2>
       <p>Threads are lightweight side conversations attached to a message. Collaborations add <em>session state</em>, <em>artifacts</em>, and <em>gated transitions</em> — closer to a runbook than a reply chain.</p>
