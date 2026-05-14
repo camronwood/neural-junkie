@@ -36,7 +36,15 @@ Creates a collaboration in `planning` phase and starts a bounded discussion.
 /approve-plan <collab-id>
 ```
 
-Moves collaboration from `reviewing` -> `approved` -> `executing` and emits task messages to assigned agents.
+Moves collaboration from `reviewing` -> `approved` -> `executing`, creates the on-disk collaboration sandbox, and lists assigned tasks in chat. **Task prompts are not sent to agents until you confirm the workspace** (desktop **Continue** on that channel, or `/ack-collab-workspace <collab-id>`). This keeps execution from racing ahead of the app registering the sandbox as a workspace.
+
+### Confirm collaboration workspace (after approve)
+
+```text
+/ack-collab-workspace <collab-id>
+```
+
+Marks the execution sandbox as ready and delivers `collaboration_task` messages to assignees. The desktop app calls the same step via HTTP when you click **Continue** in the gate dialog.
 
 ### Revise plan
 
@@ -81,6 +89,15 @@ Shows active collaborations or details for one collaboration.
    - Progress is tracked per task.
    - Bounded cross-agent Q&A remains available.
 5. **completed** or **cancelled**
+
+## Files, workspace, and approvals during execution
+
+Agents create or edit files by emitting **`[FILE_CHANGE]`** blocks in their replies (the same machine-readable format as normal channels). **Plain discussion or markdown code fences alone do not write to disk** until a proposal is emitted and you approve it in the desktop **Pending changes** flow.
+
+- **Workspace sharing:** The hub resolves file proposals against the **workspace path** carried in message metadata. Collaboration traffic usually happens in `collab-…` channels, while your IDE workspace is often attached to messages on `#general` or your project channel. The app now **falls back** to the most recent `workspace_context` from other channels the agent has seen, so proposals still register when you had sharing enabled from the project window.
+- **Paths must stay under the shared root:** Requests like “write under `~/development/test-site-001`” only work if that directory is the shared workspace (or added as a workspace) and sharing is on. Otherwise agents should explain the limitation and ask you to add that folder or use paths **relative** to the current workspace root.
+- **Collaboration sandbox:** When a plan is approved and execution starts, the hub creates `~/.neural-junkie/collaborations/<collaboration-id>/`, attaches it as `workspace_context` on `collaboration_task` messages **after you confirm**, and snapshots expose `working_directory` plus `workspace_acknowledged`. **Agents do not receive task prompts until you confirm:** use the desktop **Continue** dialog on the collaboration channel, or run `/ack-collab-workspace <id>`.
+- **Shell commands:** During execution, agents should put runnable commands in fenced **bash** code blocks; the desktop surfaces **Run** and passes the collaboration sandbox as the working directory when executing suggestions.
 
 ## One executing collaboration per channel
 

@@ -228,13 +228,14 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/list-file-changes": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
 			return ch.handleListFileChanges(ctx, msg)
 		},
-		"/collaborate":   ch.handleCollaborate,
-		"/approve-plan":  ch.handleApprovePlan,
-		"/resume-plan":   ch.handleResumePlan,
-		"/revise-plan":   ch.handleRevisePlan,
-		"/cancel-plan":   ch.handleCancelPlan,
-		"/collab-extend": ch.handleCollabExtend,
-		"/collab-status": ch.handleCollabStatus,
+		"/collaborate":          ch.handleCollaborate,
+		"/approve-plan":         ch.handleApprovePlan,
+		"/ack-collab-workspace": ch.handleAckCollabWorkspace,
+		"/resume-plan":          ch.handleResumePlan,
+		"/revise-plan":          ch.handleRevisePlan,
+		"/cancel-plan":          ch.handleCancelPlan,
+		"/collab-extend":        ch.handleCollabExtend,
+		"/collab-status":        ch.handleCollabStatus,
 	}
 }
 
@@ -2381,7 +2382,7 @@ func (ch *CommandHandler) handleAnalyzeDesign(ctx context.Context, msg *protocol
 			Content:   fmt.Sprintf("@%s %s", agent.Name, bodyWithoutMentions),
 			Timestamp: msg.Timestamp,
 			Metadata: map[string]interface{}{
-				"design_analysis":             true,
+				"design_analysis":           true,
 				protocol.MetadataUserImages: userImgMeta,
 			},
 		}
@@ -3785,6 +3786,14 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			},
 		},
 		{
+			Name:        "/ack-collab-workspace",
+			Description: "Confirm the collaboration sandbox so agents receive task prompts (after /approve-plan)",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+			},
+		},
+		{
 			Name:        "/resume-plan",
 			Description: "Resume a collaboration: approve/retry execution when reviewing or approved, or re-send open task prompts when executing",
 			Category:    "Collaboration",
@@ -4086,9 +4095,29 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 		taskSummary.WriteString(fmt.Sprintf("%s **Task %d:** %s\n   Assigned to: **@%s**\n\n", status, i+1, task.Description, assigneeLabel))
 	}
 
-	ch.hub.dispatchCollabTaskMessages(collabSnap, msg)
+	if ch.hub.CollaborationCanDispatchTasks(collabSnap) {
+		ch.hub.dispatchCollabTaskMessages(collabSnap, msg)
+	} else if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
+		taskSummary.WriteString(fmt.Sprintf("\n⏸ **Waiting for workspace confirmation** — agents will receive their task prompts after you click **Continue** in the Neural Junkie desktop app, or run `/ack-collab-workspace %s` here.\n", collabID[:8]))
+	}
 
 	out := ch.systemResponse(msg.Channel, taskSummary.String())
+	out.SetCollaborationID(collabID)
+	return out, nil
+}
+
+func (ch *CommandHandler) handleAckCollabWorkspace(_ context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /ack-collab-workspace <collab-id>"), nil
+	}
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+	if err := ch.hub.AcknowledgeCollaborationWorkspace(collabID); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ **Workspace confirmed** (`%s`). Task prompts are with the agents.", collabID[:8]))
 	out.SetCollaborationID(collabID)
 	return out, nil
 }
@@ -4133,6 +4162,11 @@ func (ch *CommandHandler) handleResumePlan(ctx context.Context, msg *protocol.Me
 		}
 		if n == 0 {
 			out := ch.systemResponse(msg.Channel, fmt.Sprintf("↻ **Resume** (`%s`) — all tasks are already finished. Nothing to re-send.", collabID[:8]))
+			out.SetCollaborationID(collabID)
+			return out, nil
+		}
+		if !ch.hub.CollaborationCanDispatchTasks(snap) {
+			out := ch.systemResponse(msg.Channel, fmt.Sprintf("⏸ **Workspace not confirmed yet** (`%s`) — use the desktop **Continue** prompt or `/ack-collab-workspace %s` before re-sending task prompts.", collabID[:8], collabID[:8]))
 			out.SetCollaborationID(collabID)
 			return out, nil
 		}

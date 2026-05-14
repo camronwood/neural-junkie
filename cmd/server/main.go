@@ -197,6 +197,7 @@ func main() {
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
 	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
+	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(handleCollaborationWorkspaceAck))
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
 	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
 	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
@@ -1399,6 +1400,30 @@ func handleCollaborations(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(collaborations)
+}
+
+func handleCollaborationWorkspaceAck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		CollaborationID string `json:"collaboration_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	id := strings.TrimSpace(req.CollaborationID)
+	if id == "" {
+		http.Error(w, "collaboration_id required", http.StatusBadRequest)
+		return
+	}
+	if err := chatHub.AcknowledgeCollaborationWorkspace(id); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleBroadcastDirect accepts a message and broadcasts it to channel

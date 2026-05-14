@@ -17,7 +17,7 @@ export function CommandSuggestionCard({ suggestion }: CommandSuggestionCardProps
     try {
       await terminalAPI.writePtySession(activeTabId, suggestion.command + '\n');
     } catch {
-      await terminalAPI.executeCommand(suggestion.command);
+      await terminalAPI.executeCommand(suggestion.command, suggestion.cwd);
     } finally {
       setIsExecuting(false);
       removeSuggestedCommand(suggestion.id);

@@ -103,26 +103,26 @@ func (m *Message) IsFromSystem() bool {
 
 // AgentInfo contains information about an agent
 type AgentInfo struct {
-	ID                  string    `json:"id"`
-	Name                string    `json:"name"`
-	Type                AgentType `json:"type"`
-	Expertise           []string  `json:"expertise"`               // Specific skills/technologies
-	Status              string    `json:"status"`                  // "active", "busy", "idle", "paused", "removed"
-	Model               string    `json:"model"`                   // AI model being used
-	AIProvider          string    `json:"ai_provider"`             // AI provider being used ("claude", "ollama")
-	AIModel             string    `json:"ai_model"`                // Specific model name (e.g., "claude-sonnet", "llama3.1")
-	IsPaused            bool      `json:"is_paused"`               // Whether the agent is paused
-	SupportsVision            bool      `json:"supports_vision"`             // Whether the agent can process images
-	SupportsImageGeneration   bool      `json:"supports_image_generation"`   // Whether the agent can generate images (provider-dependent)
-	IndexingStatus      string    `json:"indexing_status"`         // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
-	IndexProgress       int       `json:"index_progress"`          // 0-100 percentage (for repo/confluence agents)
-	RepositoryPath      string    `json:"repository_path"`         // Path to repository (for repo agents)
-	KnowledgePath       string    `json:"knowledge_path"`          // Path to knowledge base (for helper agents)
-	ConfluenceSpaceKey  string    `json:"confluence_space_key"`    // Confluence space key (for confluence agents)
-	LastActiveTime      time.Time `json:"last_active_time"`        // When agent was last in a channel
-	RemovedFrom         []string  `json:"removed_from"`            // List of channels agent was removed from
-	ApprovalMode        string    `json:"approval_mode,omitempty"` // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
-	CustomRulesMarkdown string    `json:"custom_rules_markdown,omitempty"`
+	ID                      string    `json:"id"`
+	Name                    string    `json:"name"`
+	Type                    AgentType `json:"type"`
+	Expertise               []string  `json:"expertise"`                 // Specific skills/technologies
+	Status                  string    `json:"status"`                    // "active", "busy", "idle", "paused", "removed"
+	Model                   string    `json:"model"`                     // AI model being used
+	AIProvider              string    `json:"ai_provider"`               // AI provider being used ("claude", "ollama")
+	AIModel                 string    `json:"ai_model"`                  // Specific model name (e.g., "claude-sonnet", "llama3.1")
+	IsPaused                bool      `json:"is_paused"`                 // Whether the agent is paused
+	SupportsVision          bool      `json:"supports_vision"`           // Whether the agent can process images
+	SupportsImageGeneration bool      `json:"supports_image_generation"` // Whether the agent can generate images (provider-dependent)
+	IndexingStatus          string    `json:"indexing_status"`           // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
+	IndexProgress           int       `json:"index_progress"`            // 0-100 percentage (for repo/confluence agents)
+	RepositoryPath          string    `json:"repository_path"`           // Path to repository (for repo agents)
+	KnowledgePath           string    `json:"knowledge_path"`            // Path to knowledge base (for helper agents)
+	ConfluenceSpaceKey      string    `json:"confluence_space_key"`      // Confluence space key (for confluence agents)
+	LastActiveTime          time.Time `json:"last_active_time"`          // When agent was last in a channel
+	RemovedFrom             []string  `json:"removed_from"`              // List of channels agent was removed from
+	ApprovalMode            string    `json:"approval_mode,omitempty"`   // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
+	CustomRulesMarkdown     string    `json:"custom_rules_markdown,omitempty"`
 }
 
 // ChannelType classifies the purpose of a channel
@@ -463,6 +463,8 @@ type CommandSuggestion struct {
 	AgentName   string    `json:"agent_name"`  // Name of agent who suggested it
 	MessageID   string    `json:"message_id"`  // ID of the message containing this suggestion
 	CreatedAt   time.Time `json:"created_at"`
+	// Cwd is an optional absolute working directory (e.g. collaboration sandbox).
+	Cwd string `json:"cwd,omitempty"`
 }
 
 // TerminalCommand represents a command being executed in the terminal

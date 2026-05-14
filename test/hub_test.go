@@ -968,6 +968,9 @@ func TestSessionRestoreRedispatchesOpenCollabTasks(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SetTasks: %v", err)
 	}
+	if _, _, err := cm.AcknowledgeWorkspace(collab.ID); err != nil {
+		t.Fatalf("AcknowledgeWorkspace: %v", err)
+	}
 
 	path := filepath.Join(t.TempDir(), "session-collab-restore.json")
 	if err := h.SaveSessionToFile(path); err != nil {

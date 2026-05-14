@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -379,6 +381,24 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 	c.Phase = PhaseExecuting
 	c.UpdatedAt = now
 
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("collaboration working directory: home dir: %w", err)
+	}
+	baseDir := filepath.Join(home, ".neural-junkie", "collaborations")
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		return nil, fmt.Errorf("collaboration working directory: mkdir base: %w", err)
+	}
+	workDir := filepath.Join(baseDir, c.ID)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return nil, fmt.Errorf("collaboration working directory: mkdir: %w", err)
+	}
+	absWork, err := filepath.Abs(workDir)
+	if err != nil {
+		return nil, fmt.Errorf("collaboration working directory: abs: %w", err)
+	}
+	c.WorkingDirectory = absWork
+
 	participantIDs := make([]string, 0, len(c.Agents))
 	for _, a := range c.Agents {
 		participantIDs = append(participantIDs, a.AgentID)
@@ -403,6 +423,28 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 
 	log.Printf("[CollaborationManager] Collaboration %s transitioned to executing with %d tasks", collabID[:8], len(c.Tasks))
 	return c, nil
+}
+
+// AcknowledgeWorkspace records that the user (desktop or /ack-collab-workspace)
+// is ready for task delivery. Idempotent: returns alreadyAck=true if it was
+// already acknowledged.
+func (cm *CollaborationManager) AcknowledgeWorkspace(collabID string) (alreadyAck bool, _ *Collaboration, err error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return false, nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.Phase != PhaseExecuting {
+		return false, nil, fmt.Errorf("collaboration is in %s phase, expected executing", c.Phase)
+	}
+	if c.WorkspaceAcknowledged {
+		return true, c, nil
+	}
+	c.WorkspaceAcknowledged = true
+	c.UpdatedAt = time.Now()
+	return false, c, nil
 }
 
 // ExtendDiscussionLimits raises planning/review discussion caps and re-opens

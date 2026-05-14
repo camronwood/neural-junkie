@@ -20,6 +20,68 @@ import (
 	"github.com/google/uuid"
 )
 
+func collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) map[string]interface{} {
+	if snap == nil || strings.TrimSpace(snap.WorkingDirectory) == "" {
+		return nil
+	}
+	name := strings.TrimSpace(snap.Title)
+	if name == "" {
+		name = "Collaboration"
+	}
+	return map[string]interface{}{
+		"workspace_name": fmt.Sprintf("Collaboration: %s", name),
+		"workspace_path": snap.WorkingDirectory,
+		"file_tree":      ".  (sandbox — empty until agents create files)\n",
+		"open_files":     []interface{}{},
+	}
+}
+
+// CollaborationCanDispatchTasks is true when collaboration_task messages may be sent.
+func (h *Hub) CollaborationCanDispatchTasks(snap *collaboration.Collaboration) bool {
+	if snap == nil || snap.Phase != collaboration.PhaseExecuting {
+		return false
+	}
+	if strings.TrimSpace(snap.WorkingDirectory) == "" {
+		return true
+	}
+	return snap.WorkspaceAcknowledged
+}
+
+// AcknowledgeCollaborationWorkspace marks the execution sandbox as user-confirmed,
+// dispatches task prompts once, and broadcasts a collaboration_status update.
+func (h *Hub) AcknowledgeCollaborationWorkspace(collabID string) error {
+	if h.collabManager == nil {
+		return fmt.Errorf("collaboration manager unavailable")
+	}
+	already, _, err := h.collabManager.AcknowledgeWorkspace(collabID)
+	if err != nil {
+		return err
+	}
+	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil {
+		return fmt.Errorf("collaboration snapshot: %w", err)
+	}
+	if snap == nil {
+		return fmt.Errorf("collaboration snapshot: not found")
+	}
+	if !already && len(snap.Tasks) > 0 {
+		h.dispatchCollabTaskMessages(snap, nil)
+	}
+	statusMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabStatus,
+		snap.Channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("✅ **Collaboration workspace ready** (`%s`).", collabID[:8]),
+	)
+	statusMsg.SetCollaborationID(collabID)
+	statusMsg.SetCollaborationPhase(string(snap.Phase))
+	if statusMsg.Metadata == nil {
+		statusMsg.Metadata = map[string]interface{}{}
+	}
+	statusMsg.Metadata["collab_skip_attach_dispatch"] = true
+	return h.SendMessage(statusMsg)
+}
+
 // Hub manages the chat room, message routing, and agent connections
 type Hub struct {
 	channels map[string]*protocol.Channel
@@ -884,7 +946,15 @@ func (h *Hub) attachCollaborationData(msg *protocol.Message) {
 		return
 	}
 	if filled && snapshot.Phase == collaboration.PhaseExecuting && len(snapshot.Tasks) > 0 {
-		h.dispatchCollabTaskMessages(snapshot, msg)
+		skipAttach := false
+		if msg.Metadata != nil {
+			if _, ok := msg.Metadata["collab_skip_attach_dispatch"]; ok {
+				skipAttach = true
+			}
+		}
+		if !skipAttach && h.CollaborationCanDispatchTasks(snapshot) {
+			h.dispatchCollabTaskMessages(snapshot, msg)
+		}
 	}
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
@@ -1635,7 +1705,8 @@ func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) [
 			continue
 		}
 		if i < len(healFlags) && healFlags[i] &&
-			snap.Phase == collaboration.PhaseExecuting && len(snap.Tasks) > 0 {
+			snap.Phase == collaboration.PhaseExecuting && len(snap.Tasks) > 0 &&
+			h.CollaborationCanDispatchTasks(snap) {
 			h.dispatchCollabTaskMessages(snap, nil)
 		}
 	}
@@ -1696,6 +1767,9 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 	if snap == nil || snap.Phase != collaboration.PhaseExecuting || len(snap.Tasks) == 0 {
 		return
 	}
+	if !h.CollaborationCanDispatchTasks(snap) {
+		return
+	}
 	ch := snap.Channel
 	collabID := snap.ID
 	for _, task := range snap.Tasks {
@@ -1718,6 +1792,12 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		taskMsg.SetTaskID(task.ID)
 		taskMsg.SetTaskStatus(string(task.Status))
 		inheritWorkspaceContextMetadata(inheritFrom, taskMsg)
+		if ws := collaborationWorkspaceContextSnapshot(snap); ws != nil {
+			if taskMsg.Metadata == nil {
+				taskMsg.Metadata = map[string]interface{}{}
+			}
+			taskMsg.Metadata["workspace_context"] = ws
+		}
 		if task.AssignedTo != "" {
 			taskMsg.Mentions = []string{task.AssignedTo}
 			if taskMsg.Metadata == nil {
@@ -1791,15 +1871,27 @@ func (a *collabClientAdapter) GetCollaborationForAgent(agentID string) agent.Col
 	}
 
 	return agent.CollaborationInfo{
-		ID:          c.ID,
-		Description: c.Description,
-		Phase:       string(c.Phase),
-		PlanContent: planContent,
-		PlanVersion: planVersion,
-		AgentRole:   agentRole,
-		Agents:      agents,
-		Channel:     c.Channel,
+		ID:               c.ID,
+		Description:      c.Description,
+		Phase:            string(c.Phase),
+		PlanContent:      planContent,
+		PlanVersion:      planVersion,
+		AgentRole:        agentRole,
+		Agents:           agents,
+		Channel:          c.Channel,
+		WorkingDirectory: c.WorkingDirectory,
 	}
+}
+
+func (a *collabClientAdapter) GetCollaborationWorkingDirectory(collabID string) string {
+	if collabID == "" {
+		return ""
+	}
+	c, err := a.cm.GetCollaboration(collabID)
+	if err != nil || c == nil {
+		return ""
+	}
+	return c.WorkingDirectory
 }
 
 func (a *collabClientAdapter) RecordMessage(collabID string, msg *protocol.Message) error {

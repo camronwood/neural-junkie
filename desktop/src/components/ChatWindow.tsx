@@ -25,6 +25,7 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
+import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
 import { PendingChangesIcon, MyAgentsIcon, FilesIcon, EditorIcon, TerminalIcon, SettingsIcon, LogoutIcon, LeftSidebarIcon, TaskManagementIcon } from './Icons';
 import type {
@@ -41,6 +42,7 @@ import type {
 const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
+import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 
 interface ChatWindowProps {
   onOpenSettings?: () => void;
@@ -133,6 +135,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [shareWorkspace, setShareWorkspace] = useState<boolean>(() => {
     return localStorage.getItem('share-workspace') === 'true';
   });
+
+  const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
+  const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
+  const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const activeCh = useChatStore.getState().channel;
+    let next: Collaboration | null = null;
+    for (const c of Object.values(collaborationsByID)) {
+      if (c.phase !== 'executing' || !c.working_directory?.trim()) continue;
+      if (c.workspace_acknowledged) continue;
+      if (c.channel !== activeCh) continue;
+      if (dismissedWorkspaceGateIdRef.current === c.id) continue;
+      next = c;
+      break;
+    }
+    setWorkspaceGateCollab(next);
+  }, [collaborationsByID, channel]);
 
   // Clear stale chat width from localStorage (no longer used - chat area always flex-grows)
   useEffect(() => {
@@ -244,7 +264,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       if (!existing) {
         return { ...prev, [snapshot.id]: snapshot };
       }
-      if (existing.updated_at === snapshot.updated_at && existing.phase === snapshot.phase) {
+      if (
+        existing.updated_at === snapshot.updated_at &&
+        existing.phase === snapshot.phase &&
+        existing.workspace_acknowledged === snapshot.workspace_acknowledged
+      ) {
         return prev;
       }
       const nextTime = Date.parse(snapshot.updated_at || '');
@@ -292,6 +316,33 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to load collaborations:', error);
     }
   }, [api]);
+
+  const handleWorkspaceGateContinue = useCallback(async () => {
+    const c = workspaceGateCollab;
+    if (!c) return;
+    setWorkspaceGateBusy(true);
+    try {
+      await ensureCollaborationExecutionWorkspace(c);
+      await api.acknowledgeCollaborationWorkspace(c.id);
+      dismissedWorkspaceGateIdRef.current = null;
+      if (useChatStore.getState().channel === c.channel) {
+        setShareWorkspace(true);
+      }
+      await loadCollaborations(channel);
+      setWorkspaceGateCollab(null);
+    } catch (e) {
+      console.error('[workspace gate]', e);
+    } finally {
+      setWorkspaceGateBusy(false);
+    }
+  }, [workspaceGateCollab, api, channel, loadCollaborations]);
+
+  const handleWorkspaceGateDismiss = useCallback(() => {
+    if (workspaceGateCollab) {
+      dismissedWorkspaceGateIdRef.current = workspaceGateCollab.id;
+    }
+    setWorkspaceGateCollab(null);
+  }, [workspaceGateCollab]);
 
   const trackedCollaborations = useMemo(
     () =>
@@ -810,6 +861,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-screen bg-slack-bg">
+      <CollaborationWorkspaceGate
+        collaboration={workspaceGateCollab}
+        busy={workspaceGateBusy}
+        onContinue={handleWorkspaceGateContinue}
+        onNotNow={handleWorkspaceGateDismiss}
+      />
       {/* Top Toolbar - always visible, spans full width */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-slack-border bg-slack-bgHover flex-shrink-0">
         <div className="flex items-center gap-2">

@@ -52,6 +52,19 @@ export class ChatAPI {
     return response.json();
   }
 
+  /** Confirm collaboration sandbox so the hub sends task prompts to agents (after /approve-plan). */
+  async acknowledgeCollaborationWorkspace(collaborationId: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/collaboration-workspace-ack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collaboration_id: collaborationId }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t || response.statusText);
+    }
+  }
+
   // Send a message to the server
   async sendMessage(
     channel: string,

@@ -9,6 +9,8 @@ export interface CommandSuggestion {
   agent_name: string;
   message_id: string;
   created_at: string;
+  /** Optional absolute cwd for execute_command (e.g. collaboration sandbox). */
+  cwd?: string;
 }
 
 export interface TerminalTab {

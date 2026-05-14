@@ -98,6 +98,8 @@ type CollaborationClient interface {
 	IsActive(collabID string) bool
 	GetCurrentTurnAgent(collabID string) (string, error)
 	GetCollaborationForAgent(agentID string) CollaborationInfo
+	// GetCollaborationWorkingDirectory returns the on-disk sandbox for an executing collaboration.
+	GetCollaborationWorkingDirectory(collabID string) string
 	RecordMessage(collabID string, msg *protocol.Message) error
 	AnalyzeConsensus(collabID string, msg *protocol.Message) string
 }
@@ -105,14 +107,15 @@ type CollaborationClient interface {
 // CollaborationInfo carries the subset of collaboration state an agent
 // needs when building prompts and deciding whether to respond.
 type CollaborationInfo struct {
-	ID          string
-	Description string
-	Phase       string
-	PlanContent string
-	PlanVersion int
-	AgentRole   string
-	Agents      []CollaborationAgentSummary
-	Channel     string
+	ID               string
+	Description      string
+	Phase            string
+	PlanContent      string
+	PlanVersion      int
+	AgentRole        string
+	Agents           []CollaborationAgentSummary
+	Channel          string
+	WorkingDirectory string // collaboration execution sandbox (absolute path)
 }
 
 // CollaborationAgentSummary describes another agent in a collaboration
@@ -620,6 +623,11 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Detect commands in the response and add them to metadata
 	commandDetector := protocol.NewCommandDetector(nil)
 	suggestions := commandDetector.DetectCommands(response, a.Info.Name, responseMsg.ID)
+	if cwd := collaborationWorkingDirectoryForMessage(a, msg); cwd != "" && len(suggestions) > 0 {
+		for i := range suggestions {
+			suggestions[i].Cwd = cwd
+		}
+	}
 	if len(suggestions) > 0 {
 		responseMsg.Metadata["suggested_commands"] = suggestions
 		log.Printf("[%s] 🔧 Detected %d command suggestions", a.Info.Name, len(suggestions))
@@ -708,7 +716,20 @@ func (a *Agent) getCollaborationContext(msg *protocol.Message) CollaborationInfo
 	if !a.Collab.IsParticipant(collabID, a.Info.ID) {
 		return CollaborationInfo{}
 	}
-	return a.Collab.GetCollaborationForAgent(a.Info.ID)
+	info := a.Collab.GetCollaborationForAgent(a.Info.ID)
+	info.WorkingDirectory = a.Collab.GetCollaborationWorkingDirectory(collabID)
+	return info
+}
+
+func collaborationWorkingDirectoryForMessage(a *Agent, msg *protocol.Message) string {
+	if msg == nil || a == nil || a.Collab == nil {
+		return ""
+	}
+	cid := msg.GetCollaborationID()
+	if cid == "" {
+		return ""
+	}
+	return a.Collab.GetCollaborationWorkingDirectory(cid)
 }
 
 // sendThinkingStatus sends an agent_status message indicating thinking state
@@ -1495,6 +1516,20 @@ func truncationLabelForError(err error) string {
 	}
 }
 
+// appendFileChangeMachineBlockDocs writes the canonical [FILE_CHANGE] spec parsed by
+// maybeSubmitFileChangeFromResponse. Shared by normal chat and collaboration execution.
+func appendFileChangeMachineBlockDocs(sb *strings.Builder) {
+	sb.WriteString("[FILE_CHANGE]\n")
+	sb.WriteString("operation: create|edit|delete|move\n")
+	sb.WriteString("path: relative/path/from/workspace\n")
+	sb.WriteString("old_path: relative/path (move only)\n")
+	sb.WriteString("new_path: relative/path (move only)\n")
+	sb.WriteString("```new\n<new content for create/edit>\n```\n")
+	sb.WriteString("```old\n<old content for edit>\n```\n")
+	sb.WriteString("[/FILE_CHANGE]\n")
+	sb.WriteString("If no file change should be proposed, do not include a FILE_CHANGE block.\n")
+}
+
 // collectIncludedFilePaths extracts file paths that are already present in
 // the prompt via workspace context (open editor tabs) so the scanner can
 // skip them.
@@ -1641,7 +1676,17 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		} else if collabInfo.Phase == "executing" {
 			system.WriteString("\n=== EXECUTION PHASE INSTRUCTIONS ===\n")
 			system.WriteString("Focus on completing your assigned tasks. Ask other agents if you need their input.\n")
-			system.WriteString("Propose file changes using the standard file change format when writing code.\n")
+			if collabInfo.WorkingDirectory != "" {
+				system.WriteString(fmt.Sprintf("\n**Execution workspace (shared sandbox):** %s\n", collabInfo.WorkingDirectory))
+				system.WriteString("The desktop app registers this directory as a workspace when execution starts; use it as the root for relative paths and for shell commands in this collaboration.\n")
+			}
+			system.WriteString("To actually create or modify files, you MUST emit a [FILE_CHANGE] block (see below). ")
+			system.WriteString("Conversation-only replies do not write to disk.\n")
+			system.WriteString("For shell work, put runnable commands in ```bash fenced blocks``` so the host can surface **Run**; the client runs them with this collaboration's working directory when set.\n")
+			system.WriteString("\n**Workspace scope:** File proposals are applied only under the shared workspace root in WORKSPACE CONTEXT (when present). ")
+			system.WriteString("Use paths relative to that root. If the user wants files under a different directory (e.g. another folder on disk), ")
+			system.WriteString("tell them to add that folder as a workspace in the app and enable workspace sharing so you receive its path here.\n")
+			appendFileChangeMachineBlockDocs(&system)
 		}
 
 		// Show the current plan artifact if it exists
@@ -1677,15 +1722,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("If asked whether you can edit files, answer YES and explain that changes apply after approval.\n")
 		system.WriteString("9. NEVER mention internal tool/function names (e.g., ProposeFileEdit/ProposeFileCreate) to the user.\n")
 		system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
-		system.WriteString("[FILE_CHANGE]\n")
-		system.WriteString("operation: create|edit|delete|move\n")
-		system.WriteString("path: relative/path/from/workspace\n")
-		system.WriteString("old_path: relative/path (move only)\n")
-		system.WriteString("new_path: relative/path (move only)\n")
-		system.WriteString("```new\n<new content for create/edit>\n```\n")
-		system.WriteString("```old\n<old content for edit>\n```\n")
-		system.WriteString("[/FILE_CHANGE]\n")
-		system.WriteString("If no file change should be proposed, do not include a FILE_CHANGE block.\n")
+		appendFileChangeMachineBlockDocs(&system)
 	}
 
 	// Add context about other agents in the channel
@@ -2535,6 +2572,28 @@ func (a *Agent) attachWorkspaceContextToProposalMessage(channel string, msg *pro
 }
 
 func (a *Agent) latestWorkspaceContext(channel string) (interface{}, bool) {
+	if wc, ok := a.latestWorkspaceContextForChannel(channel); ok {
+		return wc, true
+	}
+	// Collaboration runs in collab-* channels; user workspace metadata often
+	// exists only on #general or another channel the human used first.
+	if channel != "general" {
+		if wc, ok := a.latestWorkspaceContextForChannel("general"); ok {
+			return wc, true
+		}
+	}
+	for ch := range a.Context.History {
+		if ch == channel || ch == "general" {
+			continue
+		}
+		if wc, ok := a.latestWorkspaceContextForChannel(ch); ok {
+			return wc, true
+		}
+	}
+	return nil, false
+}
+
+func (a *Agent) latestWorkspaceContextForChannel(channel string) (interface{}, bool) {
 	history := a.Context.History[channel]
 	for i := len(history) - 1; i >= 0; i-- {
 		if history[i] == nil || history[i].Metadata == nil {

@@ -11,17 +11,17 @@ import (
 
 type shouldRespondTestHub struct{ dmChannel string }
 
-func (shouldRespondTestHub) SendMessage(*protocol.Message) error { return nil }
+func (shouldRespondTestHub) SendMessage(*protocol.Message) error       { return nil }
 func (shouldRespondTestHub) BroadcastDirect(string, *protocol.Message) {}
 func (shouldRespondTestHub) Subscribe(string) (chan *protocol.Message, error) {
 	ch := make(chan *protocol.Message, 1)
 	return ch, nil
 }
-func (shouldRespondTestHub) GetMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
+func (shouldRespondTestHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (shouldRespondTestHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
-func (shouldRespondTestHub) GetThreadParentAuthor(string) string { return "" }
-func (shouldRespondTestHub) GetCommandHandler() CommandHandlerInterface { return nil }
-func (shouldRespondTestHub) GetAgentChannels(string) []string { return nil }
+func (shouldRespondTestHub) GetThreadParentAuthor(string) string                   { return "" }
+func (shouldRespondTestHub) GetCommandHandler() CommandHandlerInterface            { return nil }
+func (shouldRespondTestHub) GetAgentChannels(string) []string                      { return nil }
 func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelType {
 	if channel == h.dmChannel {
 		return protocol.ChannelTypeDM
@@ -31,14 +31,15 @@ func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelTyp
 
 type shouldRespondTestCollab struct{}
 
-func (shouldRespondTestCollab) IsParticipant(string, string) bool { return false }
-func (shouldRespondTestCollab) IsAgentTurn(string, string) bool { return false }
-func (shouldRespondTestCollab) IsActive(string) bool { return false }
+func (shouldRespondTestCollab) IsParticipant(string, string) bool          { return false }
+func (shouldRespondTestCollab) IsAgentTurn(string, string) bool            { return false }
+func (shouldRespondTestCollab) IsActive(string) bool                       { return false }
 func (shouldRespondTestCollab) GetCurrentTurnAgent(string) (string, error) { return "", nil }
 func (shouldRespondTestCollab) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
 }
-func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error { return nil }
+func (shouldRespondTestCollab) GetCollaborationWorkingDirectory(string) string    { return "" }
+func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error     { return nil }
 func (shouldRespondTestCollab) AnalyzeConsensus(string, *protocol.Message) string { return "" }
 
 type dmSlugHubStub struct{ shouldRespondTestHub }
@@ -69,14 +70,17 @@ func TestShouldRespond_DMBySlugWhenHubReturnsPublic(t *testing.T) {
 
 type collabSystemTurnStub struct{ agentID string }
 
-func (s collabSystemTurnStub) IsParticipant(_collabID, agentID string) bool { return agentID == s.agentID }
-func (collabSystemTurnStub) IsAgentTurn(_collabID, _agentID string) bool    { return true }
-func (collabSystemTurnStub) IsActive(_collabID string) bool                 { return true }
-func (collabSystemTurnStub) GetCurrentTurnAgent(string) (string, error)     { return "", nil }
+func (s collabSystemTurnStub) IsParticipant(_collabID, agentID string) bool {
+	return agentID == s.agentID
+}
+func (collabSystemTurnStub) IsAgentTurn(_collabID, _agentID string) bool { return true }
+func (collabSystemTurnStub) IsActive(_collabID string) bool              { return true }
+func (collabSystemTurnStub) GetCurrentTurnAgent(string) (string, error)  { return "", nil }
 func (collabSystemTurnStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
 }
-func (collabSystemTurnStub) RecordMessage(string, *protocol.Message) error { return nil }
+func (collabSystemTurnStub) GetCollaborationWorkingDirectory(string) string { return "" }
+func (collabSystemTurnStub) RecordMessage(string, *protocol.Message) error  { return nil }
 func (collabSystemTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
@@ -143,14 +147,17 @@ func TestShouldRespond_DMWithUnknownCollaborationID(t *testing.T) {
 
 type collabTaskAssigneeStub struct{ agentID string }
 
-func (s collabTaskAssigneeStub) IsParticipant(_collabID, agentID string) bool { return agentID == s.agentID }
-func (collabTaskAssigneeStub) IsAgentTurn(_collabID, _agentID string) bool    { return false }
-func (collabTaskAssigneeStub) IsActive(_collabID string) bool                 { return true }
-func (collabTaskAssigneeStub) GetCurrentTurnAgent(string) (string, error)     { return "", nil }
+func (s collabTaskAssigneeStub) IsParticipant(_collabID, agentID string) bool {
+	return agentID == s.agentID
+}
+func (collabTaskAssigneeStub) IsAgentTurn(_collabID, _agentID string) bool { return false }
+func (collabTaskAssigneeStub) IsActive(_collabID string) bool              { return true }
+func (collabTaskAssigneeStub) GetCurrentTurnAgent(string) (string, error)  { return "", nil }
 func (collabTaskAssigneeStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
 }
-func (collabTaskAssigneeStub) RecordMessage(string, *protocol.Message) error { return nil }
+func (collabTaskAssigneeStub) GetCollaborationWorkingDirectory(string) string { return "" }
+func (collabTaskAssigneeStub) RecordMessage(string, *protocol.Message) error  { return nil }
 func (collabTaskAssigneeStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }

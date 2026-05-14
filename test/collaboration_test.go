@@ -1,6 +1,8 @@
 package test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -581,6 +583,44 @@ func TestCollaborationPhaseTransitions(t *testing.T) {
 	c, _ = cm.GetCollaboration(collab.ID)
 	if c.Phase != collaboration.PhaseCompleted {
 		t.Errorf("expected completed, got %s", c.Phase)
+	}
+}
+
+func TestTransitionToExecutingCreatesWorkingDirectory(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("wd test", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	c, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.WorkingDirectory == "" {
+		t.Fatal("expected WorkingDirectory to be set")
+	}
+	wantDir := filepath.Join(tmpHome, ".neural-junkie", "collaborations", c.ID)
+	if filepath.Clean(c.WorkingDirectory) != filepath.Clean(wantDir) {
+		t.Fatalf("WorkingDirectory = %q want %q", c.WorkingDirectory, wantDir)
+	}
+	st, err := os.Stat(c.WorkingDirectory)
+	if err != nil || !st.IsDir() {
+		t.Fatalf("working directory missing or not a dir: %v", err)
 	}
 }
 

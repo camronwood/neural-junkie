@@ -433,6 +433,10 @@ export interface Collaboration {
   created_by: string;
   created_at: string;
   updated_at: string;
+  /** Absolute sandbox directory created when execution starts (server). */
+  working_directory?: string;
+  /** True after user confirms workspace setup; until then task prompts are not sent to agents. */
+  workspace_acknowledged?: boolean;
 }
 
 export function isCollaborationMessage(message: Message): boolean {

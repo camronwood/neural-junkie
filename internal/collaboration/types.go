@@ -61,10 +61,10 @@ const (
 // DiscussionConfig holds configurable limits for a discussion session.
 // All zero-value fields fall back to package-level defaults.
 type DiscussionConfig struct {
-	MaxRounds          int           `json:"max_rounds"`
-	TurnBudget         int           `json:"turn_budget"`
-	MaxTotalMessages   int           `json:"max_total_messages"`
-	Timeout            time.Duration `json:"timeout"`
+	MaxRounds        int           `json:"max_rounds"`
+	TurnBudget       int           `json:"turn_budget"`
+	MaxTotalMessages int           `json:"max_total_messages"`
+	Timeout          time.Duration `json:"timeout"`
 }
 
 const (
@@ -122,20 +122,27 @@ type CollaborationAgent struct {
 // Collaboration is the top-level orchestration unit that tracks a
 // multi-agent work session from planning through execution.
 type Collaboration struct {
-	ID          string             `json:"id"`
-	Title       string             `json:"title"`
-	Description string             `json:"description"`
-	Phase       CollaborationPhase `json:"phase"`
+	ID          string               `json:"id"`
+	Title       string               `json:"title"`
+	Description string               `json:"description"`
+	Phase       CollaborationPhase   `json:"phase"`
 	Agents      []CollaborationAgent `json:"agents"`
-	Plan        *SharedArtifact    `json:"plan,omitempty"`
-	Tasks       []CollaborationTask `json:"tasks,omitempty"`
-	Discussion  *DiscussionSession `json:"discussion,omitempty"`
-	Channel     string             `json:"channel"`
-	ThreadID    string             `json:"thread_id"`
-	CreatedBy   string             `json:"created_by"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
-	Config      DiscussionConfig   `json:"config"`
+	Plan        *SharedArtifact      `json:"plan,omitempty"`
+	Tasks       []CollaborationTask  `json:"tasks,omitempty"`
+	Discussion  *DiscussionSession   `json:"discussion,omitempty"`
+	Channel     string               `json:"channel"`
+	ThreadID    string               `json:"thread_id"`
+	CreatedBy   string               `json:"created_by"`
+	CreatedAt   time.Time            `json:"created_at"`
+	UpdatedAt   time.Time            `json:"updated_at"`
+	Config      DiscussionConfig     `json:"config"`
+	// WorkingDirectory is an absolute path created when execution starts; agents
+	// and the desktop app use it as the collaboration sandbox workspace root.
+	WorkingDirectory string `json:"working_directory,omitempty"`
+	// WorkspaceAcknowledged is set after the user confirms the sandbox in the
+	// desktop app (or via /ack-collab-workspace). Until then, task messages are
+	// not sent to agents so file/command steps do not race ahead of setup.
+	WorkspaceAcknowledged bool `json:"workspace_acknowledged,omitempty"`
 }
 
 // DiscussionBudgetEnforced is true while the plan is still being negotiated

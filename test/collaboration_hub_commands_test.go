@@ -115,6 +115,75 @@ func TestSlashApprovePlanStartsExecution(t *testing.T) {
 	}
 }
 
+func TestSlashApprovePlan_NoTaskMessagesUntilWorkspaceAck(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+
+	if err := h.SendMessage(protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		humanTester(),
+		"/collaborate @RustExpert @SecurityExpert build a secure CLI",
+	)); err != nil {
+		t.Fatalf("collaborate: %v", err)
+	}
+
+	cm := h.GetCollaborationManager()
+	active := cm.ListActive()
+	if len(active) != 1 {
+		t.Fatalf("expected 1 collaboration, got %d", len(active))
+	}
+	id, ch := active[0].ID, active[0].Channel
+	if _, err := cm.TransitionToReviewing(id); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+
+	approve := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		ch,
+		humanTester(),
+		"/approve-plan "+id[:8],
+	)
+	if err := h.SendMessage(approve); err != nil {
+		t.Fatalf("approve-plan: %v", err)
+	}
+
+	msgs, err := h.GetMessages(ch, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgs {
+		if m != nil && m.Type == protocol.MessageTypeCollabTask {
+			t.Fatalf("did not expect collaboration_task before workspace ack, got one id=%s", m.ID[:8])
+		}
+	}
+
+	ack := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		ch,
+		humanTester(),
+		"/ack-collab-workspace "+id[:8],
+	)
+	if err := h.SendMessage(ack); err != nil {
+		t.Fatalf("ack-collab-workspace: %v", err)
+	}
+
+	msgs2, err := h.GetMessages(ch, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundTask := false
+	for _, m := range msgs2 {
+		if m != nil && m.Type == protocol.MessageTypeCollabTask {
+			foundTask = true
+			break
+		}
+	}
+	if !foundTask {
+		t.Fatal("expected at least one collaboration_task after workspace ack")
+	}
+}
+
 func TestSlashRevisePlanReturnsToPlanning(t *testing.T) {
 	h := hub.NewHub()
 	registerTwoCollabAgents(t, h)
