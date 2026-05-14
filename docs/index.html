@@ -71,17 +71,17 @@
     <section class="latest-feature" id="latest-feature" aria-labelledby="latest-feature-heading">
       <div class="wrap latest-feature-inner">
         <div class="latest-feature-copy">
-          <p class="latest-feature-kicker">Latest in the desktop · <time datetime="2026-05-13">v0.1.2</time></p>
-          <h2 id="latest-feature-heading">Typing indicators in every channel</h2>
-          <p class="latest-feature-lead">The channel sidebar shows who is composing in <strong>each</strong> channel — so you can see where activity is building before the next message drops, not just a single global spinner.</p>
+          <p class="latest-feature-kicker">Latest in the desktop · <time datetime="2026-05-14">v0.1.3</time></p>
+          <h2 id="latest-feature-heading">Collaboration execution waits for you</h2>
+          <p class="latest-feature-lead">After you <strong>approve a plan</strong>, the hub creates a dedicated <strong>collaboration sandbox</strong> on disk — but <strong>agents do not get task prompts</strong> until you confirm in the app or chat. That keeps file changes, workspace context, and shell <strong>Run</strong> aligned with the folder you actually registered.</p>
           <ul class="feature-list feature-list--tight latest-feature-list">
-            <li>Per-channel typing state alongside your channels and DMs.</li>
-            <li>Ships with <strong>real slash-command execution</strong> on the hub and on-demand palette metadata refresh.</li>
-            <li>Collaboration sessions get tighter round limits and reliability fixes in the same train of work.</li>
+            <li>Desktop <strong>Continue</strong> gate on the collaboration channel, <code>POST /api/collaboration-workspace-ack</code>, or <code>/ack-collab-workspace</code>.</li>
+            <li>Task messages carry <code>workspace_context</code> for the sandbox; suggested bash commands can use it as <strong>cwd</strong>.</li>
+            <li>Executing agents receive the same <code>[FILE_CHANGE]</code> contract as normal channels so proposals register.</li>
           </ul>
           <div class="latest-feature-actions">
-            <a class="btn btn-primary" href="release-notes.html#v0-1-2">Everything in v0.1.2</a>
-            <a class="btn btn-ghost" href="features/desktop-workspace.html">Desktop workspace guide</a>
+            <a class="btn btn-primary" href="release-notes.html#v0-1-3">What’s in v0.1.3</a>
+            <a class="btn btn-ghost" href="features/multi-agent-collaboration.html">Collaboration guide</a>
           </div>
         </div>
         <aside class="latest-feature-aside" aria-label="Related capability">
@@ -125,7 +125,7 @@
           <article class="card">
             <div class="card-icon" aria-hidden="true">🤝</div>
             <h3>Bounded multi-agent collaboration</h3>
-            <p><code>/collaborate</code> drives structured planning, review, and execution with shared plans, task handoffs, and approval gates — so several agents advance one initiative without derailing.</p>
+            <p><code>/collaborate</code> drives structured planning, review, and execution with shared plans, task handoffs, and approval gates — plus an <strong>on-disk sandbox</strong> and <strong>explicit workspace confirmation</strong> before agents receive execution tasks.</p>
             <p class="card-cta"><a class="card-link" href="features/multi-agent-collaboration.html">Deep dive →</a></p>
           </article>
           <article class="card">
@@ -215,10 +215,10 @@
         <p class="section-intro">Tagged desktop builds and major hub milestones. Install artifacts and checksums are attached to each <a href="https://github.com/camronwood/neural-junkie/releases">GitHub release</a>.</p>
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest</p>
-          <p class="release-landing-version"><strong>v0.1.2</strong> <time datetime="2026-05-13">May 13, 2026</time></p>
-          <p class="release-landing-summary">Hub default port <strong>18765</strong>, marketing site in <code>docs/</code> (landing, feature guides, release notes), slash-command execution and palette refresh, collaboration hardening, per-channel typing indicators, hub robustness, desktop URL migration and UX polish.</p>
+          <p class="release-landing-version"><strong>v0.1.3</strong> <time datetime="2026-05-14">May 14, 2026</time></p>
+          <p class="release-landing-summary"><strong>Collaboration execution sandbox</strong> under <code>~/.neural-junkie/collaborations/</code>, <strong>user-confirmed workspace gate</strong> before task delivery (desktop Continue, HTTP ack, <code>/ack-collab-workspace</code>), command <strong>Run</strong> with sandbox <strong>cwd</strong>, and clearer <code>[FILE_CHANGE]</code> / dispatch behavior for executing agents.</p>
           <p class="release-landing-actions">
-            <a class="btn btn-primary" href="release-notes.html">Full release history</a>
+            <a class="btn btn-primary" href="release-notes.html#v0-1-3">Release notes (v0.1.3)</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
           </p>
         </div>

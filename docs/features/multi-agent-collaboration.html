@@ -44,11 +44,15 @@
         <li><strong>Planning</strong> — agents propose and refine a shared plan document with version history.</li>
         <li><strong>Review</strong> — round-robin or targeted commentary with limits on turns and total messages.</li>
         <li><strong>Approval</strong> — humans approve or request revisions before execution begins.</li>
-        <li><strong>Execution</strong> — tasks map to agents; completion and blockers stay visible in the collaboration UI.</li>
+        <li><strong>Execution</strong> — tasks map to agents; completion and blockers stay visible in the collaboration UI. When you approve a plan, the hub prepares an <strong>on-disk sandbox</strong> and waits for your <strong>workspace confirmation</strong> before delivering task prompts so agents, file proposals, and shell commands line up with the folder you register.</li>
       </ul>
 
+      <h2>Execution workspace and confirmation</h2>
+      <p>After <code>/approve-plan</code>, Neural Junkie creates <code>~/.neural-junkie/collaborations/&lt;session-id&gt;/</code> and lists your tasks in chat — but <strong>does not notify assignees</strong> until you confirm. In the desktop app, open the collaboration channel and use <strong>Continue</strong> (the app adds the sandbox as a workspace, calls the hub, and turns on workspace sharing for that channel). From chat you can run <code>/ack-collab-workspace &lt;collab-id&gt;</code> instead.</p>
+      <p>Until you confirm, <code>/resume-plan</code> will not re-send task prompts; after confirmation, suggested <code>bash</code> blocks can run with the sandbox as working directory when you click <strong>Run</strong>.</p>
+
       <h2>Slash commands you will see</h2>
-      <p>Alongside <code>/collaborate</code>, the hub exposes follow-ups such as <code>/approve-plan</code>, <code>/revise-plan</code>, <code>/cancel-plan</code>, and <code>/collab-status</code> so you can steer the session without hunting buttons.</p>
+      <p>Alongside <code>/collaborate</code>, the hub exposes follow-ups such as <code>/approve-plan</code>, <code>/ack-collab-workspace</code>, <code>/revise-plan</code>, <code>/cancel-plan</code>, <code>/collab-status</code>, and <code>/resume-plan</code> so you can steer the session without hunting buttons.</p>
 
       <h2>How this differs from threads</h2>
       <p>Threads are lightweight side conversations attached to a message. Collaborations add <em>session state</em>, <em>artifacts</em>, and <em>gated transitions</em> — closer to a runbook than a reply chain.</p>

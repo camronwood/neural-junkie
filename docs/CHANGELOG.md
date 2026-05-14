@@ -2,7 +2,21 @@
 
 All notable changes to Neural Junkie.
 
-**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v0.1.0`, `v0.1.1`, `v0.1.2`, …). Older sections below include **historical milestones** that were never shipped as those tags (for example a one-time internal label `2.0.0` for the rebrand era, which is **not** “newer than” current `0.1.x`).
+**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, …). Older sections below include **historical milestones** that were never shipped as those tags (for example a one-time internal label `2.0.0` for the rebrand era, which is **not** “newer than” current `0.1.x`).
+
+## [0.1.3] - 2026-05-14
+
+### Added
+- **Collaboration execution sandbox** — on `/approve-plan`, the hub creates `~/.neural-junkie/collaborations/<id>/` and exposes `working_directory` on collaboration snapshots.
+- **Workspace confirmation gate** — `WorkspaceAcknowledged` must be set before `collaboration_task` messages are sent: desktop **Continue** dialog on the collaboration channel, **`POST /api/collaboration-workspace-ack`**, or **`/ack-collab-workspace`**.
+- **Command suggestion `cwd`** — detected bash blocks can run with the collaboration sandbox as working directory when executing from the desktop.
+
+### Changed
+- **Collaboration execution** — task prompts, workspace context on tasks, and `resume-plan` redispatch respect the workspace gate; `attachCollaborationData` and snapshot heal paths avoid racing task delivery ahead of user confirmation.
+- **Agent prompts** — execution phase documents `[FILE_CHANGE]`, workspace fallback, collaboration sandbox path, and shell blocks for **Run**; `CollaborationClient` gains `GetCollaborationWorkingDirectory`.
+
+### Fixed
+- Collaboration agents could reply without machine-readable file proposals; executing-phase guidance shares the canonical `[FILE_CHANGE]` block with normal chat.
 
 ## [0.1.2] - 2026-05-13
 
