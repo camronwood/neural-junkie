@@ -102,6 +102,9 @@ type CollaborationClient interface {
 	GetCollaborationWorkingDirectory(collabID string) string
 	RecordMessage(collabID string, msg *protocol.Message) error
 	AnalyzeConsensus(collabID string, msg *protocol.Message) string
+	// AgentOutOfTurnMentionAllowed is false when planning/review discussion
+	// has stopped accepting turns (e.g. budget_exhausted).
+	AgentOutOfTurnMentionAllowed(collabID string) bool
 }
 
 // CollaborationInfo carries the subset of collaboration state an agent
@@ -835,7 +838,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}
-			if msg.IsMentioned(a.Info.ID) {
+			if msg.IsMentioned(a.Info.ID) && a.Collab.AgentOutOfTurnMentionAllowed(collabID) {
 				log.Printf("[%s] ✅ MENTIONED in collaboration - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}

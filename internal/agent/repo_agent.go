@@ -426,7 +426,10 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 					return true
 				}
 			}
-			if ra.Collab.IsAgentTurn(collabID, ra.Info.ID) || msg.IsMentioned(ra.Info.ID) {
+			if ra.Collab.IsAgentTurn(collabID, ra.Info.ID) {
+				return true
+			}
+			if msg.IsMentioned(ra.Info.ID) && ra.Collab.AgentOutOfTurnMentionAllowed(collabID) {
 				return true
 			}
 		}

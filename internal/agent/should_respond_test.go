@@ -41,6 +41,7 @@ func (shouldRespondTestCollab) GetCollaborationForAgent(string) CollaborationInf
 func (shouldRespondTestCollab) GetCollaborationWorkingDirectory(string) string    { return "" }
 func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error     { return nil }
 func (shouldRespondTestCollab) AnalyzeConsensus(string, *protocol.Message) string { return "" }
+func (shouldRespondTestCollab) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 
 type dmSlugHubStub struct{ shouldRespondTestHub }
 
@@ -84,6 +85,7 @@ func (collabSystemTurnStub) RecordMessage(string, *protocol.Message) error  { re
 func (collabSystemTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
+func (collabSystemTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 
 func TestShouldRespond_SystemCollabTurnPrompt(t *testing.T) {
 	const agentID = "cursor-cli-id"
@@ -161,6 +163,7 @@ func (collabTaskAssigneeStub) RecordMessage(string, *protocol.Message) error  { 
 func (collabTaskAssigneeStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
+func (collabTaskAssigneeStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 
 func TestShouldRespond_CollabTaskViaAssigneeMetadata(t *testing.T) {
 	const agentID = "agent-xyz"
@@ -185,5 +188,47 @@ func TestShouldRespond_CollabTaskViaAssigneeMetadata(t *testing.T) {
 
 	if !ag.shouldRespond(msg) {
 		t.Fatal("expected assignee to respond to collaboration_task via task_assigned_to metadata")
+	}
+}
+
+type collabExhaustedMentionStub struct{ agentID string }
+
+func (s collabExhaustedMentionStub) IsParticipant(_collabID, agentID string) bool {
+	return agentID == s.agentID
+}
+func (collabExhaustedMentionStub) IsAgentTurn(string, string) bool { return false }
+func (collabExhaustedMentionStub) IsActive(string) bool             { return true }
+func (collabExhaustedMentionStub) GetCurrentTurnAgent(string) (string, error) {
+	return "", nil
+}
+func (collabExhaustedMentionStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{}
+}
+func (collabExhaustedMentionStub) GetCollaborationWorkingDirectory(string) string { return "" }
+func (collabExhaustedMentionStub) RecordMessage(string, *protocol.Message) error { return nil }
+func (collabExhaustedMentionStub) AnalyzeConsensus(string, *protocol.Message) string {
+	return ""
+}
+func (collabExhaustedMentionStub) AgentOutOfTurnMentionAllowed(string) bool { return false }
+
+func TestShouldRespond_CollaborationMentionIgnoredWhenDiscussionExhausted(t *testing.T) {
+	const agentID = "agent-xyz"
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendExpert", []string{"api"}, mockAI, hubStub)
+	ag.Info.ID = agentID
+	ag.SetCollabClient(collabExhaustedMentionStub{agentID: agentID})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"collab-test",
+		protocol.AgentInfo{ID: "human-user", Name: "alice", Type: "human"},
+		"@BackendExpert please say more about the plan",
+	)
+	msg.SetCollaborationID("550e8400-e29b-41d4-a716-446655440000")
+	msg.Mention(agentID)
+
+	if ag.shouldRespond(msg) {
+		t.Fatal("expected no agent reply when discussion is exhausted and only @mention would apply")
 	}
 }

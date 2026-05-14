@@ -760,6 +760,29 @@ func (cm *CollaborationManager) IsActive(collabID string) bool {
 	return c.Phase != PhaseCompleted && c.Phase != PhaseCancelled
 }
 
+// AgentOutOfTurnMentionAllowed is false during planning/review when the bounded
+// discussion session is no longer active (e.g. budget_exhausted, timed_out).
+// Otherwise @mentions could restart agent chatter after limits were hit.
+// Outside planning/reviewing (approved, executing), mentions stay allowed.
+func (cm *CollaborationManager) AgentOutOfTurnMentionAllowed(collabID string) bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil {
+		return false
+	}
+	switch c.Phase {
+	case PhasePlanning, PhaseReviewing:
+		if c.Discussion == nil {
+			return false
+		}
+		return c.Discussion.Status == DiscussionActive
+	default:
+		return true
+	}
+}
+
 // GetCollaborationForAgent returns the active collaboration a given agent
 // is participating in (if any). Returns nil if the agent has no active collab.
 func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collaboration {

@@ -1835,6 +1835,10 @@ func (a *collabClientAdapter) IsActive(collabID string) bool {
 	return a.cm.IsActive(collabID)
 }
 
+func (a *collabClientAdapter) AgentOutOfTurnMentionAllowed(collabID string) bool {
+	return a.cm.AgentOutOfTurnMentionAllowed(collabID)
+}
+
 func (a *collabClientAdapter) GetCurrentTurnAgent(collabID string) (string, error) {
 	return a.cm.GetCurrentTurnAgent(collabID)
 }

@@ -294,7 +294,26 @@ func (ca *ConfluenceAgent) handleMessage(ctx context.Context, msg *protocol.Mess
 
 // shouldRespond determines if the agent should respond to a message
 func (ca *ConfluenceAgent) shouldRespond(msg *protocol.Message) bool {
-	// Always respond if mentioned
+	// Collaboration: same gating as base agents so limits and phases are respected.
+	if collabID := msg.GetCollaborationID(); collabID != "" && ca.Collab != nil {
+		if ca.Collab.IsParticipant(collabID, ca.Info.ID) && ca.Collab.IsActive(collabID) {
+			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
+				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == ca.Info.ID {
+					return true
+				}
+			}
+			if ca.Collab.IsAgentTurn(collabID, ca.Info.ID) {
+				return true
+			}
+			if msg.IsMentioned(ca.Info.ID) && ca.Collab.AgentOutOfTurnMentionAllowed(collabID) {
+				return true
+			}
+			return false
+		}
+		return false
+	}
+
+	// Always respond if mentioned (non-collaboration-scoped messages)
 	if msg.IsMentioned(ca.Info.ID) {
 		return true
 	}
