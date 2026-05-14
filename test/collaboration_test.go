@@ -1,6 +1,7 @@
 package test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,27 @@ func (h *mockCollabHub) CreateChannelWithType(name, description, project string,
 	}
 }
 
+func (h *mockCollabHub) FindLiveAgentByDisplayName(name string, agentType protocol.AgentType) *protocol.AgentInfo {
+	want := strings.ToLower(strings.TrimSpace(name))
+	if want == "" {
+		return nil
+	}
+	for _, a := range h.agents {
+		if a == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(a.Name)) != want {
+			continue
+		}
+		if agentType != "" && a.Type != agentType {
+			continue
+		}
+		cp := *a
+		return &cp
+	}
+	return nil
+}
+
 func (h *mockCollabHub) addAgent(id, name string, agentType protocol.AgentType, expertise []string) {
 	h.agents[id] = &protocol.AgentInfo{
 		ID:        id,
@@ -93,6 +115,37 @@ func TestCreateCollaboration(t *testing.T) {
 	}
 	if collab.Discussion.MaxRounds != collaboration.DefaultMaxRounds {
 		t.Errorf("expected default max rounds %d, got %d", collaboration.DefaultMaxRounds, collab.Discussion.MaxRounds)
+	}
+}
+
+func TestBindCollaborationChannel(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "A", protocol.AgentTypeRust, nil)
+	hub.addAgent("a2", "B", protocol.AgentTypeSecurity, nil)
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("goal", []string{"a1", "a2"}, "general", "u", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if collab.Channel != "general" {
+		t.Fatalf("expected initial channel general, got %q", collab.Channel)
+	}
+	chName := "collab-" + collab.ID
+	if err := cm.BindCollaborationChannel(collab.ID, chName); err != nil {
+		t.Fatal(err)
+	}
+	again, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Channel != chName {
+		t.Fatalf("expected channel %q, got %q", chName, again.Channel)
+	}
+	if err := cm.BindCollaborationChannel("nonexistent", chName); err == nil {
+		t.Fatal("expected error for unknown collab id")
+	}
+	if err := cm.BindCollaborationChannel(collab.ID, ""); err == nil {
+		t.Fatal("expected error for empty channel name")
 	}
 }
 
@@ -286,6 +339,72 @@ func TestApprovePlanIdempotentWhenAlreadyApproved(t *testing.T) {
 	}
 	if got.Phase != collaboration.PhaseExecuting {
 		t.Fatalf("expected executing, got %s", got.Phase)
+	}
+}
+
+func TestReconcileRestoredAgentIDs(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("old-cursor", "Cursor", protocol.AgentTypeCLI, nil)
+	hub.addAgent("stable-go", "GoExpert", protocol.AgentTypeBackend, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("ship", []string{"old-cursor", "stable-go"}, "general", "u", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("ApprovePlan: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("TransitionToExecuting: %v", err)
+	}
+	if err := cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{
+			ID:           "t1",
+			Title:        "Build contract",
+			Description:  "Do it",
+			AssignedTo:   "old-cursor",
+			AssignedName: "Cursor",
+			Status:       collaboration.TaskPending,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}); err != nil {
+		t.Fatalf("SetTasks: %v", err)
+	}
+
+	// Simulate hub restart: Cursor gets a new registration id; GoExpert unchanged.
+	delete(hub.agents, "old-cursor")
+	hub.addAgent("new-cursor", "Cursor", protocol.AgentTypeCLI, nil)
+
+	cm.ReconcileRestoredAgentIDs()
+
+	got, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration: %v", err)
+	}
+	var cursorParticipant string
+	for _, a := range got.Agents {
+		if a.AgentName == "Cursor" {
+			cursorParticipant = a.AgentID
+			break
+		}
+	}
+	if cursorParticipant != "new-cursor" {
+		t.Fatalf("expected reconciled Cursor participant id new-cursor, got %q", cursorParticipant)
+	}
+	if len(got.Tasks) != 1 || got.Tasks[0].AssignedTo != "new-cursor" {
+		t.Fatalf("expected task assignee new-cursor, got %+v", got.Tasks)
+	}
+	if got.Discussion != nil {
+		for _, pid := range got.Discussion.Participants {
+			if pid == "old-cursor" {
+				t.Fatalf("discussion still references stale id old-cursor: %#v", got.Discussion.Participants)
+			}
+		}
 	}
 }
 

@@ -147,6 +147,7 @@ func SanitizeInboundMessageMetadata(msg *protocol.Message) {
 	if raw, ok := msg.Metadata[MetadataPromptAttachments]; ok {
 		msg.Metadata[MetadataPromptAttachments] = sanitizePromptAttachmentsValue(raw)
 	}
+	protocol.SanitizeUserImagesMetadata(msg)
 }
 
 func truncateStringBytes(s string, maxBytes int) string {

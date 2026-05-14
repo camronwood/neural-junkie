@@ -28,7 +28,33 @@ func (m *MockProvider) GenerateResponse(ctx context.Context, prompt string, conv
 
 // GenerateVisionResponse generates a mock vision response
 func (m *MockProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error) {
-	return "This is a mock vision response for design analysis. In a real implementation, this would analyze the uploaded image and generate CSS/HTML.", nil
+	return m.GenerateMultimodal(ctx, prompt, []protocol.UserImagePart{{MIME: imageType, Data: imageData}}, conversationHistory)
+}
+
+// GenerateMultimodal implements MultimodalProvider for tests.
+func (m *MockProvider) GenerateMultimodal(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (string, error) {
+	_, userMessage := SplitSystemPrompt(prompt)
+	_ = userMessage
+	if len(images) > 0 {
+		return "This is a mock vision response for design analysis. In a real implementation, this would analyze the uploaded image and generate CSS/HTML.", nil
+	}
+	return "This is a mock response for testing purposes.", nil
+}
+
+// GenerateMultimodalStream emits the multimodal mock response as a single chunk.
+func (m *MockProvider) GenerateMultimodalStream(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	ch := make(chan StreamToken, 2)
+	go func() {
+		defer close(ch)
+		text, err := m.GenerateMultimodal(ctx, prompt, images, conversationHistory)
+		if err != nil {
+			ch <- StreamToken{Error: err, Done: true}
+			return
+		}
+		ch <- StreamToken{Content: text}
+		ch <- StreamToken{Done: true}
+	}()
+	return ch, nil
 }
 
 // GetModel returns the model name

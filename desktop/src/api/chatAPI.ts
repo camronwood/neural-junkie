@@ -1,6 +1,13 @@
 import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration } from '../types/protocol';
 import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
 
+/** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
+export interface SendMessageResponse {
+  status?: string;
+  collaboration_channel?: string;
+  collaboration_id?: string;
+}
+
 export class ChatAPI {
   private baseURL: string;
   private commandsCache: CommandDefinition[] | null = null;
@@ -52,7 +59,7 @@ export class ChatAPI {
     from: { name: string; type: string },
     type: string = 'question',
     credentials?: Record<string, any>
-  ): Promise<void> {
+  ): Promise<SendMessageResponse> {
     const body: any = {
       channel,
       content,
@@ -75,6 +82,16 @@ export class ChatAPI {
 
     if (!response.ok) {
       throw new Error(`Failed to send message: ${response.statusText}`);
+    }
+
+    const text = await response.text();
+    if (!text.trim()) {
+      return { status: 'ok' };
+    }
+    try {
+      return JSON.parse(text) as SendMessageResponse;
+    } catch {
+      return { status: 'ok' };
     }
   }
 
@@ -409,7 +426,7 @@ export class ChatAPI {
 
   // Export an agent to MCP format
   async exportAgent(channel: string, agentName: string): Promise<void> {
-    return this.sendMessage(
+    await this.sendMessage(
       channel,
       `/export-agent-mcp ${agentName}`,
       { name: 'User', type: 'user' },
@@ -659,8 +676,8 @@ export class ChatAPI {
     content: string,
     from: { name: string; type: string },
     credentials?: Record<string, any>
-  ): Promise<void> {
-    await this.sendMessage(channel, content, from, 'question', credentials);
+  ): Promise<SendMessageResponse> {
+    return this.sendMessage(channel, content, from, 'question', credentials);
   }
 
   // Utility function to clear credentials from memory

@@ -73,6 +73,32 @@ export function mapHighlighterLanguage(lang: string): string {
   return map[l] ?? l;
 }
 
+const IMAGE_FILE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i;
+
+/**
+ * When a line is only an absolute path to an image file (common when an agent
+ * "saved" a file and pasted the path), rewrite to markdown image syntax so the
+ * chat can render a preview (see MessageContent + resolveChatImageSrc).
+ * Skips lines that look like inline code or already contain markdown images.
+ */
+export function promoteStandaloneImageFilePaths(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => {
+      const t = line.trim();
+      if (!t) return line;
+      if (t.includes('`')) return line;
+      if (/^!\[/.test(t)) return line;
+
+      const abs = t.startsWith('/') || /^[A-Za-z]:[\\/]/.test(t);
+      if (!abs || !IMAGE_FILE_EXT.test(t)) return line;
+      if (/\s/.test(t)) return line;
+
+      return `![](${t})`;
+    })
+    .join('\n');
+}
+
 export function normalizeAgentMessageMarkdown(raw: string): string {
   let s = raw.replace(/\r\n/g, '\n');
   s = normalizeMarkdownFences(s);

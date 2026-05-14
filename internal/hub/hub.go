@@ -84,24 +84,20 @@ func NewHub() *Hub {
 	// Initialize command handler
 	commandHandler, err := NewCommandHandler(hub)
 	if err != nil {
-		fmt.Printf("Warning: Failed to initialize command handler: %v\n", err)
-	} else {
-		fmt.Printf("DEBUG: Command handler initialized successfully\n")
+		log.Printf("Warning: failed to initialize command handler: %v", err)
 	}
 	hub.commandHandler = commandHandler
 
 	// Initialize file change manager
 	executor := filechange.NewFileChangeExecutor(".")
 	hub.fileChangeManager = filechange.NewFileChangeManager(executor)
-	fmt.Printf("DEBUG: File change manager initialized successfully\n")
 
 	// Initialize workspace manager
 	workspaceManager, err := NewWorkspaceManager()
 	if err != nil {
-		fmt.Printf("Warning: Failed to initialize workspace manager: %v\n", err)
+		log.Printf("Warning: failed to initialize workspace manager: %v", err)
 	} else {
 		hub.workspaceManager = workspaceManager
-		fmt.Printf("DEBUG: Workspace manager initialized successfully\n")
 	}
 
 	// Initialize tool approval manager
@@ -109,7 +105,6 @@ func NewHub() *Hub {
 
 	// Initialize collaboration manager
 	hub.collabManager = collaboration.NewCollaborationManager(hub)
-	fmt.Printf("DEBUG: Collaboration manager initialized successfully\n")
 
 	rulesStore, err := agent.NewAgentCustomRulesStorage()
 	if err != nil {
@@ -181,6 +176,9 @@ func inferChannelTypeForName(name string, t protocol.ChannelType) protocol.Chann
 	if strings.HasPrefix(n, "dm-") {
 		return protocol.ChannelTypeDM
 	}
+	if strings.HasPrefix(n, "collab-") {
+		return protocol.ChannelTypeCollaboration
+	}
 	if t == "" {
 		return protocol.ChannelTypePublic
 	}
@@ -199,7 +197,7 @@ func (h *Hub) repairChannelTypesLocked() {
 }
 
 // ListChannels returns all available channels in a stable order:
-// public first, then custom, then DM, alphabetical within each group.
+// public first, then custom, then collaboration, then DM, alphabetical within each group.
 func (h *Hub) ListChannels() []*protocol.Channel {
 	h.mu.Lock()
 	h.repairChannelTypesLocked()
@@ -210,9 +208,10 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 	h.mu.Unlock()
 
 	typeOrder := map[protocol.ChannelType]int{
-		protocol.ChannelTypePublic: 0,
-		protocol.ChannelTypeCustom: 1,
-		protocol.ChannelTypeDM:     2,
+		protocol.ChannelTypePublic:        0,
+		protocol.ChannelTypeCustom:        1,
+		protocol.ChannelTypeCollaboration: 2,
+		protocol.ChannelTypeDM:            3,
 	}
 	sort.Slice(channels, func(i, j int) bool {
 		oi, oj := typeOrder[channels[i].Type], typeOrder[channels[j].Type]
@@ -228,7 +227,6 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 // RegisterAgent registers a new agent
 func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 
 	// Remove ALL existing agents with the same name/type (handles restarts and duplicates)
 	// When an agent restarts, it gets a new ID, so we need to clean up old entries
@@ -253,7 +251,7 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 			channel.Agents = newAgents
 		}
 		delete(h.agents, id)
-		fmt.Printf("🧹 Removed duplicate agent: %s (ID: %s)\n", oldAgent.Name, id[:8])
+		log.Printf("Removed duplicate agent registration: %s (old id %s)", oldAgent.Name, id[:8])
 	}
 
 	// Register the new agent
@@ -262,6 +260,11 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 		if md, ok := h.agentRulesStore.Get(agent.ID); ok {
 			agent.CustomRulesMarkdown = md
 		}
+	}
+	h.mu.Unlock()
+
+	if h.collabManager != nil {
+		h.collabManager.ReconcileRestoredAgentIDs()
 	}
 	return nil
 }
@@ -439,7 +442,6 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 
 	// Check if it's a command - process commands from both chat and question types
 	if h.commandHandler != nil && len(msg.Content) > 0 && msg.Content[0] == '/' {
-		fmt.Printf("DEBUG: Command detected: %s\n", msg.Content)
 		// Process command (unlock mutex for command processing)
 		ctx := context.Background()
 		response, err := h.commandHandler.ProcessCommand(ctx, msg)
@@ -1057,6 +1059,31 @@ func (h *Hub) GetAgent(agentID string) (*protocol.AgentInfo, error) {
 	return agent, nil
 }
 
+// FindLiveAgentByDisplayName returns a copy of a registered agent matching
+// name (case-insensitive). When typ is non-empty, the agent type must match.
+func (h *Hub) FindLiveAgentByDisplayName(name string, typ protocol.AgentType) *protocol.AgentInfo {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	want := strings.ToLower(strings.TrimSpace(name))
+	if want == "" {
+		return nil
+	}
+	for _, a := range h.agents {
+		if a == nil {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(a.Name)) != want {
+			continue
+		}
+		if typ != "" && a.Type != typ {
+			continue
+		}
+		cp := *a
+		return &cp
+	}
+	return nil
+}
+
 // SetAgentCustomRulesMarkdown updates persisted per-agent instructions (markdown).
 func (h *Hub) SetAgentCustomRulesMarkdown(agentID, markdown string) error {
 	h.mu.Lock()
@@ -1392,7 +1419,8 @@ func (h *Hub) RemoveAgentFromChannel(agentID, channelName string) error {
 	return nil
 }
 
-// DeleteChannel removes a channel entirely (cannot delete "general")
+// DeleteChannel removes a channel entirely. The general channel, public rooms, and DM
+// channels cannot be deleted; custom and collaboration channels may be removed.
 func (h *Hub) DeleteChannel(channelName string) error {
 	if channelName == "general" {
 		return fmt.Errorf("cannot delete the general channel")
@@ -1401,8 +1429,15 @@ func (h *Hub) DeleteChannel(channelName string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if _, ok := h.channels[channelName]; !ok {
+	ch, ok := h.channels[channelName]
+	if !ok {
 		return fmt.Errorf("channel %s not found", channelName)
+	}
+
+	effectiveType := inferChannelTypeForName(ch.Name, ch.Type)
+	switch effectiveType {
+	case protocol.ChannelTypePublic, protocol.ChannelTypeDM:
+		return fmt.Errorf("cannot delete channel %q (type %s); only custom and collaboration channels can be deleted", channelName, effectiveType)
 	}
 
 	// Close all subscriber channels
@@ -1605,6 +1640,47 @@ func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) [
 		}
 	}
 	return snaps
+}
+
+// RedispatchOpenCollaborationTasksAfterSessionRestore re-sends collaboration_task
+// prompts for executing collaborations that still have open work. Session restore
+// reloads tasks and assignees intact, so EnsureExecutionTasks usually returns false
+// and ListCollaborationSnapshots does not redispatch; agent runtimes still need a
+// fresh task message to continue (same effect as /resume-plan while executing).
+func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {
+	if h.collabManager == nil {
+		return
+	}
+	h.collabManager.ReconcileRestoredAgentIDs()
+	open := func(t collaboration.CollaborationTask) bool {
+		return t.Status == collaboration.TaskPending ||
+			t.Status == collaboration.TaskInProgress ||
+			t.Status == collaboration.TaskBlocked
+	}
+	for _, c := range h.collabManager.ListActive() {
+		if c == nil || c.Phase != collaboration.PhaseExecuting {
+			continue
+		}
+		if _, err := h.collabManager.EnsureExecutionTasks(c.ID); err != nil {
+			log.Printf("[Collaboration] session-restore redispatch EnsureExecutionTasks for %s: %v", c.ID[:8], err)
+			continue
+		}
+		snap, err := h.collabManager.GetCollaborationSnapshot(c.ID)
+		if err != nil || snap == nil {
+			continue
+		}
+		n := 0
+		for _, t := range snap.Tasks {
+			if open(t) {
+				n++
+			}
+		}
+		if n == 0 {
+			continue
+		}
+		h.dispatchCollabTaskMessagesFilter(snap, nil, open)
+		log.Printf("[Collaboration] Session restore: re-sent %d open task prompt(s) for executing collaboration %s", n, c.ID[:8])
+	}
 }
 
 // dispatchCollabTaskMessages sends collaboration_task messages so assignees

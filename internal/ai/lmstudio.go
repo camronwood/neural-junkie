@@ -32,8 +32,8 @@ type OpenAICompatibleRequest struct {
 
 // OpenAICompatibleMessage represents a message in OpenAI API format
 type OpenAICompatibleMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"` // string or multimodal []part
 }
 
 // OpenAICompatibleResponse represents a response from OpenAI-compatible API
@@ -198,19 +198,57 @@ func (l *LMStudioProvider) GenerateResponse(ctx context.Context, prompt string, 
 		return "", fmt.Errorf("no choices in response")
 	}
 
-	if response.Choices[0].Message.Content == "" {
+	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
+	if text == "" {
 		return "", fmt.Errorf("no content in response")
 	}
 
-	return response.Choices[0].Message.Content, nil
+	return text, nil
 }
 
-// GenerateVisionResponse generates a response using LM Studio API with image input
-// Note: Most LM Studio models don't support vision, so this returns an error
+// GenerateVisionResponse uses OpenAI-compatible multimodal chat (vision models in LM Studio).
 func (l *LMStudioProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error) {
-	// For now, LM Studio doesn't support vision in most models
-	// This could be extended to support vision-capable models
-	return "", fmt.Errorf("vision not supported by LM Studio provider (model: %s)", l.Model)
+	if len(imageData) == 0 {
+		return "", fmt.Errorf("empty image")
+	}
+	return l.GenerateMultimodal(ctx, prompt, []protocol.UserImagePart{{MIME: imageType, Data: imageData}}, conversationHistory)
+}
+
+func (l *LMStudioProvider) openAICompatFor(model string) *OpenAICompatProvider {
+	return NewOpenAICompatProvider(l.Endpoint, "", model, nil)
+}
+
+func (l *LMStudioProvider) resolveChatModel(ctx context.Context) (string, error) {
+	if l.Model != "" {
+		return l.Model, nil
+	}
+	availableModels, err := l.GetAvailableModels(ctx)
+	if err == nil && len(availableModels) > 0 {
+		return availableModels[0], nil
+	}
+	return "", fmt.Errorf("no model specified and unable to fetch available models: %w", err)
+}
+
+// GenerateMultimodal implements MultimodalProvider for LM Studio's OpenAI-compatible API.
+func (l *LMStudioProvider) GenerateMultimodal(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (string, error) {
+	model, err := l.resolveChatModel(ctx)
+	if err != nil {
+		return "", err
+	}
+	tmp := l.openAICompatFor(model)
+	tmp.SetHTTPClient(l.httpClient)
+	return tmp.GenerateMultimodal(ctx, prompt, images, conversationHistory)
+}
+
+// GenerateMultimodalStream implements MultimodalProvider streaming for LM Studio.
+func (l *LMStudioProvider) GenerateMultimodalStream(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	model, err := l.resolveChatModel(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tmp := l.openAICompatFor(model)
+	tmp.SetHTTPClient(l.httpClient)
+	return tmp.GenerateMultimodalStream(ctx, prompt, images, conversationHistory)
 }
 
 // GetModel returns the model name

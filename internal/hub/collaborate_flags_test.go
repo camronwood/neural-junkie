@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
@@ -54,6 +55,22 @@ func TestParseCollaborateLeadFlags_MissingValue(t *testing.T) {
 	_, _, err := parseCollaborateLeadFlags(parts)
 	if err == "" {
 		t.Fatal("expected error")
+	}
+}
+
+func TestParseCollaborateLeadFlags_InvalidRoundsNumber(t *testing.T) {
+	parts := []string{"/collaborate", "--rounds", "nope", "@a", "@b", "desc"}
+	_, _, err := parseCollaborateLeadFlags(parts)
+	if err == "" || !strings.Contains(err, "Invalid") {
+		t.Fatalf("expected invalid rounds error, got %q", err)
+	}
+}
+
+func TestParseCollaborateLeadFlags_InvalidMessagesNumber(t *testing.T) {
+	parts := []string{"/collaborate", "--messages", "x", "@a", "@b", "desc"}
+	_, _, err := parseCollaborateLeadFlags(parts)
+	if err == "" || !strings.Contains(err, "Invalid") {
+		t.Fatalf("expected invalid messages error, got %q", err)
 	}
 }
 

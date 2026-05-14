@@ -239,9 +239,9 @@ async fn open_browser_window(
     let window_id = "browser-popout";
     
     // Check if window already exists
-    if app_handle.get_window(&window_id).is_some() {
+    if app_handle.get_window(window_id).is_some() {
         // Focus existing window
-        if let Some(window) = app_handle.get_window(&window_id) {
+        if let Some(window) = app_handle.get_window(window_id) {
             let _ = window.set_focus();
         }
         return Ok(());
@@ -250,7 +250,7 @@ async fn open_browser_window(
     // Create new browser window with webview
     let window = tauri::WindowBuilder::new(
         &app_handle,
-        &*window_id,
+        window_id,
         tauri::WindowUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
     )
     .title("Neural Junkie - Browser")
@@ -357,7 +357,7 @@ async fn create_embedded_browser(
     }
     
     // Create new browser window positioned over the panel
-    let window = tauri::WindowBuilder::new(
+    let _window = tauri::WindowBuilder::new(
         &app_handle,
         "embedded-browser",
         tauri::WindowUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?)
@@ -382,7 +382,7 @@ async fn create_embedded_browser(
         let windows = app_handle.windows();
         for (label, _) in windows {
             if label != "embedded-browser" {
-                if let Some(main_window) = app_handle.get_window(&label) {
+                if let Some(main_window) = app_handle.get_window(label.as_str()) {
                     let _ = main_window.set_focus();
                     break;
                 }
@@ -470,9 +470,9 @@ async fn open_markdown_preview(
         .unwrap_or("Markdown Preview");
     
     // Check if window already exists
-    if app_handle.get_window(&window_id).is_some() {
+    if app_handle.get_window(window_id.as_str()).is_some() {
         // Focus existing window
-        if let Some(window) = app_handle.get_window(&window_id) {
+        if let Some(window) = app_handle.get_window(window_id.as_str()) {
             let _ = window.set_focus();
         }
         return Ok(());
@@ -481,14 +481,14 @@ async fn open_markdown_preview(
     // Create new window
     let window = tauri::WindowBuilder::new(
         &app_handle,
-        &window_id,
+        window_id.as_str(),
         tauri::WindowUrl::App(format!(
             "?preview=true&workspace={}&path={}",
             urlencoding::encode(&workspace_id),
             urlencoding::encode(&file_path)
         ).into())
     )
-    .title(&format!("{} - Markdown Preview", filename))
+    .title(format!("{} - Markdown Preview", filename))
     .inner_size(800.0, 600.0)
     .min_inner_size(400.0, 300.0)
     .resizable(true)

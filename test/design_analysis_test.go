@@ -64,6 +64,7 @@ func TestDesignAnalysis(t *testing.T) {
 			Type: protocol.AgentTypeGeneral,
 		},
 		Content: "Please analyze this design mockup and generate a CSS style guide with HTML demo.",
+		Mentions: []string{agent.Info.ID},
 		Metadata: map[string]interface{}{
 			"design_analysis": true,
 			"image_data":      []byte("fake-base64-image-data"),
@@ -102,6 +103,10 @@ func TestImageValidation(t *testing.T) {
 	// Test image size validation
 	largeImageData := make([]byte, 6*1024*1024) // 6MB, exceeds limit
 
+	aiProvider := ai.NewMockProvider()
+	hubClient := &MockHubClient{}
+	agent := agent.NewFrontendAgent("FrontendExpert", aiProvider, hubClient)
+
 	msg := &protocol.Message{
 		ID:      "test-msg-2",
 		Type:    protocol.MessageTypeChat,
@@ -111,7 +116,8 @@ func TestImageValidation(t *testing.T) {
 			Name: "TestUser",
 			Type: protocol.AgentTypeGeneral,
 		},
-		Content: "Analyze this large image",
+		Content:  "Analyze this large image",
+		Mentions: []string{agent.Info.ID},
 		Metadata: map[string]interface{}{
 			"design_analysis": true,
 			"image_data":      largeImageData,
@@ -121,10 +127,6 @@ func TestImageValidation(t *testing.T) {
 
 	// The agent should still respond, but the command handler should validate size
 	// This test just ensures the agent can handle large image metadata
-	aiProvider := ai.NewMockProvider()
-	hubClient := &MockHubClient{}
-	agent := agent.NewFrontendAgent("FrontendExpert", aiProvider, hubClient)
-
 	if !agent.ShouldRespond(msg) {
 		t.Error("Agent should respond to design analysis requests regardless of image size")
 	}

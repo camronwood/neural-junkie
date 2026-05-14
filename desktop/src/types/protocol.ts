@@ -58,6 +58,7 @@ export interface AgentInfo {
   ai_model?: string; // Specific model name (e.g., "claude-sonnet", "llama3.1")
   is_paused: boolean;
   supports_vision?: boolean; // Whether the agent can process images
+  supports_image_generation?: boolean;
   indexing_status?: string;
   index_progress?: number;
   repository_path?: string;
@@ -90,7 +91,7 @@ export interface MessageErrorMetadata {
   retryable?: boolean;
 }
 
-export type ChannelType = 'public' | 'dm' | 'custom';
+export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration';
 
 export interface Channel {
   id: string;

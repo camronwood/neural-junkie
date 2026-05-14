@@ -175,6 +175,9 @@ func main() {
 	initializeConfiguredAgents()
 	if sessionRestored {
 		rebindRuntimeAgentsToRestoredDMs()
+		// Restored collabs keep tasks/assignees; ListCollaborationSnapshots only
+		// redispatches when EnsureExecutionTasks heals data — re-prompt assignees.
+		chatHub.RedispatchOpenCollaborationTasksAfterSessionRestore()
 		log.Printf("♻️  Previous session restored (if available)")
 	}
 
@@ -1365,7 +1368,23 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(messages)
+	secret := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET"))
+	allowFull := secret != "" && strings.TrimSpace(r.Header.Get("X-NJ-Full-Metadata")) == secret
+
+	out := make([]*protocol.Message, 0, len(messages))
+	for _, m := range messages {
+		cp, cerr := protocol.CloneMessage(m)
+		if cerr != nil || cp == nil {
+			continue
+		}
+		if !allowFull {
+			protocol.RedactImageBinaryMetadata(cp)
+		}
+		out = append(out, cp)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
 }
 
 func handleCollaborations(w http.ResponseWriter, r *http.Request) {
@@ -1402,6 +1421,20 @@ func handleBroadcastDirect(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func writeSendMessageOKResponse(w http.ResponseWriter) {
+	resp := map[string]string{"status": "ok"}
+	if h := chatHub.GetCommandHandler(); h != nil {
+		if ch, ok := h.(*hub.CommandHandler); ok {
+			if collabCh, collabID, ok2 := ch.TakeCollaborateRedirect(); ok2 {
+				resp["collaboration_channel"] = collabCh
+				resp["collaboration_id"] = collabID
+			}
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
 func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	// Try to decode as full message first (for agents)
 	var fullMsg protocol.Message
@@ -1418,7 +1451,7 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeSendMessageOKResponse(w)
 		return
 	}
 
@@ -1516,7 +1549,7 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	writeSendMessageOKResponse(w)
 }
 
 func handleThreads(w http.ResponseWriter, r *http.Request) {

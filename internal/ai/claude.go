@@ -220,94 +220,10 @@ func (c *ClaudeProvider) GenerateResponse(ctx context.Context, prompt string, co
 
 // GenerateVisionResponse generates a response using Claude API with image input
 func (c *ClaudeProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error) {
-	// Build messages array
-	messages := []ClaudeMessage{}
-
-	// Add conversation history
-	for _, msg := range conversationHistory {
-		if len(messages) >= 10 { // Limit history
-			break
-		}
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, ClaudeMessage{
-			Role:    role,
-			Content: msg.Content,
-		})
+	if len(imageData) == 0 {
+		return "", fmt.Errorf("empty image")
 	}
-
-	// Create content blocks for current message with image
-	contentBlocks := []ClaudeContentBlock{
-		{
-			Type: "text",
-			Text: prompt,
-		},
-		{
-			Type: "image",
-			Source: &ClaudeImageSource{
-				Type:      "base64",
-				MediaType: imageType,
-				Data:      string(imageData),
-			},
-		},
-	}
-
-	// Add current prompt with image as user message
-	messages = append(messages, ClaudeMessage{
-		Role:    "user",
-		Content: contentBlocks,
-	})
-
-	request := ClaudeRequest{
-		Model:     c.Model,
-		MaxTokens: 2000, // Increased for design analysis
-		Messages:  messages,
-	}
-
-	jsonData, err := json.Marshal(request)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/messages", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	if c.UseAIHub {
-		// AI Hub authentication
-		req.Header.Set("Authorization", "Bearer "+c.APIKey)
-	} else {
-		// Direct Anthropic API authentication
-		req.Header.Set("x-api-key", c.APIKey)
-		req.Header.Set("anthropic-version", "2023-06-01")
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var response ClaudeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return "", fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if len(response.Content) == 0 {
-		return "", fmt.Errorf("no content in response")
-	}
-
-	return response.Content[0].Text, nil
+	return c.GenerateMultimodal(ctx, prompt, []protocol.UserImagePart{{MIME: imageType, Data: imageData}}, conversationHistory)
 }
 
 // GetModel returns the model name

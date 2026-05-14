@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -122,7 +123,14 @@ func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, e
 }
 
 func (h *httpHubClient) GetMessages(channelName string, limit int) ([]*protocol.Message, error) {
-	resp, err := h.client.Get(fmt.Sprintf("%s/api/messages?channel=%s&limit=%d", h.baseURL, channelName, limit))
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/messages?channel=%s&limit=%d", h.baseURL, channelName, limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	if s := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET")); s != "" {
+		req.Header.Set("X-NJ-Full-Metadata", s)
+	}
+	resp, err := h.client.Do(req)
 	if err != nil {
 		return nil, err
 	}

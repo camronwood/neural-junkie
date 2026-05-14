@@ -307,21 +307,34 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 // Redacted returns a copy with API keys masked for safe API exposure.
 func (c *Config) Redacted() *Config {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
+	server := c.Server
+	defaultPID := c.AI.DefaultProviderID
+	srcProviders := c.AI.Providers
+	agents := append([]AgentConfig(nil), c.Agents...)
+	ollama := c.Ollama
+	updates := c.Updates
+	filePath := c.filePath
+	c.mu.RUnlock()
 
-	cp := *c
-	cp.AI.Providers = make([]ProviderConfig, len(c.AI.Providers))
-	for i, p := range c.AI.Providers {
-		cp.AI.Providers[i] = p
+	redactedProviders := make([]ProviderConfig, len(srcProviders))
+	for i, p := range srcProviders {
+		redactedProviders[i] = p
 		if p.APIKey != "" {
 			if len(p.APIKey) > 8 {
-				cp.AI.Providers[i].APIKey = p.APIKey[:4] + "..." + p.APIKey[len(p.APIKey)-4:]
+				redactedProviders[i].APIKey = p.APIKey[:4] + "..." + p.APIKey[len(p.APIKey)-4:]
 			} else {
-				cp.AI.Providers[i].APIKey = "***"
+				redactedProviders[i].APIKey = "***"
 			}
 		}
 	}
-	return &cp
+	return &Config{
+		Server:   server,
+		AI:       AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
+		Agents:   agents,
+		Ollama:   ollama,
+		Updates:  updates,
+		filePath: filePath,
+	}
 }
 
 // mergeEnvVars overlays environment variables onto the config. Env vars take

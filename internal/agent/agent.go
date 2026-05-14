@@ -744,6 +744,12 @@ func (a *Agent) effectiveChannelType(channel string) protocol.ChannelType {
 	if strings.HasPrefix(strings.ToLower(channel), "dm-") {
 		return protocol.ChannelTypeDM
 	}
+	if t == protocol.ChannelTypeCollaboration {
+		return protocol.ChannelTypeCollaboration
+	}
+	if strings.HasPrefix(strings.ToLower(channel), "collab-") {
+		return protocol.ChannelTypeCollaboration
+	}
 	return t
 }
 
@@ -774,13 +780,20 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 
+	if len(protocol.ExtractUserImages(msg)) > 0 && !a.Info.SupportsVision {
+		return false
+	}
+
 	// Special handling for design analysis requests
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
-		// Only frontend agents should respond to design analysis
-		if a.Info.Type == protocol.AgentTypeFrontend {
+		if !a.Info.SupportsVision {
+			return false
+		}
+		if msg.HasMentions() && msg.IsMentioned(a.Info.ID) {
 			log.Printf("[%s] 🎨 DESIGN ANALYSIS request detected - will respond", a.Info.Name)
 			return true
 		}
+		return false
 	}
 
 	// COLLABORATION: orchestration messages (turn prompts, tasks) are sent from
@@ -952,7 +965,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// relevant specialists can auto-respond without explicit @mentions.
 	isQuestion := msg.Type == protocol.MessageTypeQuestion ||
 		strings.Contains(content, "?")
-	if !isQuestion && channelType == protocol.ChannelTypeCustom {
+	if !isQuestion && (channelType == protocol.ChannelTypeCustom || channelType == protocol.ChannelTypeCollaboration) {
 		isQuestion = looksLikeUserRequest(content)
 	}
 
@@ -1007,9 +1020,9 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 	}
 
-	// Custom-channel behavior: prefer expertise-relevant replies, and only fall
+	// Custom- and collaboration-channel behavior: prefer expertise-relevant replies, and only fall
 	// back to broad prompts with a responder cap to reduce noise.
-	if channelType == protocol.ChannelTypeCustom && msg.From.Type == "human" && !msg.HasMentions() {
+	if (channelType == protocol.ChannelTypeCustom || channelType == protocol.ChannelTypeCollaboration) && msg.From.Type == "human" && !msg.HasMentions() {
 		if relevanceScore >= customChannelRelevanceMinScore {
 			return true
 		}
@@ -1271,6 +1284,18 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message) (st
 		history = history[len(history)-10:]
 	}
 
+	imgs := protocol.ExtractUserImages(msg)
+	if len(imgs) > 0 && a.Info.SupportsVision {
+		approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+		if mp, ok := a.AI.(ai.MultimodalProvider); ok {
+			return mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
+		}
+		if len(imgs) == 1 {
+			return a.AI.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
+		}
+		return "", fmt.Errorf("multiple images require a multimodal-capable provider")
+	}
+
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	response, err := a.AI.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
@@ -1341,11 +1366,34 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	streamMsgID := uuid.New().String()
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+
+	imgs := protocol.ExtractUserImages(msg)
+	if len(imgs) > 0 && a.Info.SupportsVision {
+		if mp, ok := a.AI.(ai.MultimodalProvider); ok {
+			tokenCh, err := mp.GenerateMultimodalStream(approvalCtx, prompt, imgs, historyToMessages(history))
+			if err == nil {
+				return a.collectStreamTokens(msg, streamMsgID, tokenCh)
+			}
+			log.Printf("[%s] Multimodal stream failed (%v), falling back to batch multimodal", a.Info.Name, err)
+			text, err := mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
+			return text, "", err
+		}
+		if len(imgs) == 1 {
+			text, err := a.AI.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
+			return text, "", err
+		}
+		return "", "", fmt.Errorf("multiple images require a multimodal-capable provider")
+	}
+
 	tokenCh, err := sp.GenerateResponseStream(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
 		return "", "", err
 	}
+	return a.collectStreamTokens(msg, streamMsgID, tokenCh)
+}
 
+// collectStreamTokens drains a stream channel, broadcasts deltas, emits stream_end, and returns full text.
+func (a *Agent) collectStreamTokens(msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken) (string, string, error) {
 	var fullResponse strings.Builder
 	var streamErr error
 	for token := range tokenCh {
@@ -1385,7 +1433,6 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		fullResponse.WriteString("]")
 	}
 
-	// Send stream_end so the frontend knows this stream is complete
 	endMsg := protocol.NewMessage(
 		protocol.MessageTypeStreamEnd,
 		msg.Channel,
@@ -1891,11 +1938,8 @@ func (a *Agent) GenerateResponse(ctx context.Context, msg *protocol.Message) (st
 
 // generateDesignAnalysisResponse handles design analysis with vision API
 func (a *Agent) generateDesignAnalysisResponse(ctx context.Context, msg *protocol.Message) (string, error) {
-	// Extract image data from metadata
-	imageData, hasImage := msg.Metadata["image_data"].([]byte)
-	imageType, hasImageType := msg.Metadata["image_type"].(string)
-
-	if !hasImage || !hasImageType {
+	imgs := protocol.ExtractUserImages(msg)
+	if len(imgs) == 0 {
 		return "", fmt.Errorf("no image data found in design analysis request")
 	}
 
@@ -1931,8 +1975,16 @@ Provide the output in a structured format with clear sections for CSS, HTML, and
 		history = history[len(history)-10:]
 	}
 
-	// Use vision API for design analysis
-	response, err := a.AI.GenerateVisionResponse(ctx, prompt, imageData, imageType, historyToMessages(history))
+	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+	var response string
+	var err error
+	if mp, ok := a.AI.(ai.MultimodalProvider); ok {
+		response, err = mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
+	} else if len(imgs) == 1 {
+		response, err = a.AI.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
+	} else {
+		return "", fmt.Errorf("design analysis with multiple images requires a multimodal provider")
+	}
 	if err != nil {
 		return "", fmt.Errorf("design analysis failed: %w", err)
 	}

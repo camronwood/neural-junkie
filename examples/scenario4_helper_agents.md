@@ -126,8 +126,9 @@ Day One Expert: Great questions! Here's our development workflow:
 
 **Running Tests:**
 ```bash
-make test          # Run all tests
-make test-all      # Run comprehensive tests
+make test-go       # Go unit tests only
+make test-all      # go vet + Go tests + desktop tsc + Vitest (full pass)
+make test          # Alias for test-go
 ```
 
 **Making Changes Workflow:**

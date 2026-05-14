@@ -154,6 +154,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
     ai_model: '',
     is_paused: false,
     supports_vision: false,
+    supports_image_generation: false,
     indexing_status: 'loading',
     index_progress: 0,
     repository_path: '',

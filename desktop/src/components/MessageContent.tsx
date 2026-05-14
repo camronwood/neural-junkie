@@ -3,7 +3,12 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
-import { mapHighlighterLanguage, normalizeAgentMessageMarkdown } from '../utils/markdownNormalize';
+import {
+  mapHighlighterLanguage,
+  normalizeAgentMessageMarkdown,
+  promoteStandaloneImageFilePaths,
+} from '../utils/markdownNormalize';
+import { resolveChatImageSrc } from '../utils/chatImageSrc';
 import {
   type ContentPart,
   getCachedContentParts,
@@ -78,45 +83,61 @@ function splitStreamingMarkdownSegments(normalized: string): StreamSegment[] {
   return out;
 }
 
+type MdMatch =
+  | { index: number; length: number; type: 'image'; alt: string; url: string }
+  | { index: number; length: number; type: 'strong'; content: string }
+  | { index: number; length: number; type: 'em'; content: string }
+  | { index: number; length: number; type: 'code'; content: string }
+  | { index: number; length: number; type: 'link'; content: string; url: string };
+
 // Parse markdown syntax and convert to React elements
 function parseMarkdownToElements(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
   let currentIndex = 0;
 
-  const combinedRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  const combinedRegex =
+    /(!\[([^\]]*)\]\(([^)]+)\))|(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`([^`]+)`)|(\[([^\]]+)\]\(([^)]+)\))/g;
 
   let match;
-  const matches: Array<{ index: number; length: number; type: string; content: string; url?: string }> = [];
+  const matches: MdMatch[] = [];
 
   while ((match = combinedRegex.exec(text)) !== null) {
-    if (match[2]) {
+    if (match[1]) {
       matches.push({
         index: match.index,
         length: match[0].length,
-        type: 'strong',
-        content: match[2],
-      });
-    } else if (match[3]) {
-      matches.push({
-        index: match.index,
-        length: match[0].length,
-        type: 'em',
-        content: match[3],
+        type: 'image',
+        alt: match[2] ?? '',
+        url: match[3] ?? '',
       });
     } else if (match[4]) {
       matches.push({
         index: match.index,
         length: match[0].length,
-        type: 'code',
-        content: match[4],
+        type: 'strong',
+        content: match[5] ?? '',
       });
-    } else if (match[5] && match[6]) {
+    } else if (match[6]) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        type: 'em',
+        content: match[7] ?? '',
+      });
+    } else if (match[8]) {
+      matches.push({
+        index: match.index,
+        length: match[0].length,
+        type: 'code',
+        content: match[9] ?? '',
+      });
+    } else if (match[10] && match[11] != null && match[12] != null) {
       matches.push({
         index: match.index,
         length: match[0].length,
         type: 'link',
-        content: match[5],
-        url: match[6],
+        content: match[11],
+        url: match[12],
       });
     }
   }
@@ -127,6 +148,20 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
     }
 
     switch (m.type) {
+      case 'image': {
+        const src = resolveChatImageSrc(m.url);
+        elements.push(
+          <span key={`img-wrap-${idx}`} className="my-2 block">
+            <img
+              src={src}
+              alt={m.alt || 'Image'}
+              className="max-h-64 max-w-full rounded border border-slack-border object-contain bg-slack-bgHover"
+              loading="lazy"
+            />
+          </span>
+        );
+        break;
+      }
       case 'strong':
         elements.push(
           <strong key={`strong-${idx}`} className="font-bold text-slack-text">
@@ -187,7 +222,7 @@ function parseContent(content: string): ContentPart[] {
     if (match.index > lastIndex) {
       const textContent = normalized.substring(lastIndex, match.index);
       if (textContent.trim()) {
-        parts.push({ type: 'text', content: textContent });
+        parts.push({ type: 'text', content: promoteStandaloneImageFilePaths(textContent) });
       }
     }
 
@@ -206,7 +241,7 @@ function parseContent(content: string): ContentPart[] {
   if (lastIndex < normalized.length) {
     const textContent = normalized.substring(lastIndex);
     if (textContent.trim()) {
-      parts.push({ type: 'text', content: textContent });
+      parts.push({ type: 'text', content: promoteStandaloneImageFilePaths(textContent) });
     }
   }
 
@@ -348,7 +383,8 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
           {streamingSegments.map((seg, idx) => {
             if (seg.kind === 'inline') {
               if (!seg.text) return null;
-              const markdownElements = getCachedMarkdownElements(seg.text, parseMarkdownToElements);
+              const inlineText = promoteStandaloneImageFilePaths(seg.text);
+              const markdownElements = getCachedMarkdownElements(inlineText, parseMarkdownToElements);
               return (
                 <div key={`stream-inline-${idx}`} className="message-content leading-relaxed whitespace-pre-wrap">
                   {markdownElements}

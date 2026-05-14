@@ -11,6 +11,66 @@ import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
 import { useToastStore } from '../stores/toastStore';
 import { useChatStore } from '../stores/chatStore';
+import { USER_IMAGES_METADATA_KEY } from '../constants/promptMetadata';
+
+function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
+  const raw = metadata?.[USER_IMAGES_METADATA_KEY];
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mb-2">
+      {raw.map((item, i) => {
+        const obj = item as Record<string, unknown>;
+        if (obj.redacted === true) {
+          return (
+            <span
+              key={i}
+              className="text-xs px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-slack-textMuted"
+              title="Image redacted in history fetch"
+            >
+              Image ({String(obj.mime || 'unknown')})
+              {typeof obj.approx_bytes === 'number' ? ` ~${obj.approx_bytes}B` : ''}
+            </span>
+          );
+        }
+        const mime = String(obj.mime || 'image/png');
+        const data = String(obj.data || '');
+        if (!data) return null;
+        return (
+          <img
+            key={i}
+            src={`data:${mime};base64,${data}`}
+            className="max-h-36 rounded border border-slack-border object-contain bg-slack-bgHover"
+            alt=""
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function MessageGeneratedImage({ metadata }: { metadata?: Record<string, unknown> }) {
+  const g = metadata?.generated_image as Record<string, unknown> | undefined;
+  if (!g) return null;
+  if (g.data_redacted === true) {
+    return (
+      <span className="text-xs px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-slack-textMuted mb-2 inline-block">
+        Generated image (redacted in history)
+      </span>
+    );
+  }
+  const mime = String(g.mime || 'image/png');
+  const data = String(g.data || '');
+  if (!data) return null;
+  return (
+    <div className="mb-2">
+      <img
+        src={`data:${mime};base64,${data}`}
+        className="max-h-48 rounded border border-slack-border object-contain bg-slack-bgHover"
+        alt="Generated"
+      />
+    </div>
+  );
+}
 
 interface MessageProps {
   message: MessageType;
@@ -190,6 +250,8 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
           <DesignOutput message={message} />
         ) : (
           <>
+            <MessageUserImages metadata={message.metadata as Record<string, unknown> | undefined} />
+            <MessageGeneratedImage metadata={message.metadata as Record<string, unknown> | undefined} />
             <MessageContent content={message.content} isStreaming={isStreaming} />
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />

@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -34,6 +35,10 @@ type CommandHandler struct {
 	exportStorage    *mcp_export.ExportStorage          // Export storage for MCP exports
 	pendingReviews   map[string]*protocol.PendingReview // Track pending reviews by repo path
 	pendingMutex     sync.Mutex                         // Protects pending reviews map
+	// collaborateRedirect is set when /collaborate succeeds so /api/send can tell the client to switch rooms.
+	collabRedirectMu      sync.Mutex
+	collabRedirectChannel string
+	collabRedirectID      string
 }
 
 type commandExecutor func(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error)
@@ -44,13 +49,11 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 	var aiProvider ai.AIProvider
 	ollamaProvider, err := ai.NewOllamaProvider()
 	if err != nil {
-		// Log the error and fall back to mock provider
-		fmt.Printf("⚠️  Warning: Failed to initialize Ollama provider: %v\n", err)
-		fmt.Printf("⚠️  Using mock AI provider for repo agents. Make sure Ollama is running on localhost:11434\n")
+		log.Printf("Warning: failed to initialize Ollama provider for repo agents: %v (using mock provider)", err)
 		aiProvider = ai.NewMockProvider()
 	} else {
 		aiProvider = ollamaProvider
-		fmt.Printf("✅ Ollama provider initialized for repo agents (model: %s)\n", ollamaProvider.GetModel())
+		log.Printf("Ollama provider initialized for repo agents (model: %s)", ollamaProvider.GetModel())
 	}
 
 	// Initialize export storage
@@ -73,12 +76,42 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 	return ch, nil
 }
 
+func (ch *CommandHandler) clearCollaborateRedirect() {
+	if ch == nil {
+		return
+	}
+	ch.collabRedirectMu.Lock()
+	defer ch.collabRedirectMu.Unlock()
+	ch.collabRedirectChannel = ""
+	ch.collabRedirectID = ""
+}
+
+func (ch *CommandHandler) setCollaborateRedirect(channelName, collabID string) {
+	ch.collabRedirectMu.Lock()
+	defer ch.collabRedirectMu.Unlock()
+	ch.collabRedirectChannel = channelName
+	ch.collabRedirectID = collabID
+}
+
+// TakeCollaborateRedirect returns redirect metadata from the last successful /collaborate and clears it.
+func (ch *CommandHandler) TakeCollaborateRedirect() (channelName, collabID string, ok bool) {
+	if ch == nil {
+		return "", "", false
+	}
+	ch.collabRedirectMu.Lock()
+	defer ch.collabRedirectMu.Unlock()
+	if ch.collabRedirectChannel == "" {
+		return "", "", false
+	}
+	channelName, collabID = ch.collabRedirectChannel, ch.collabRedirectID
+	ch.collabRedirectChannel = ""
+	ch.collabRedirectID = ""
+	return channelName, collabID, true
+}
+
 // ProcessCommand processes a command from a message
 func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
 	content := strings.TrimSpace(msg.Content)
-
-	// Debug logging
-	fmt.Printf("DEBUG: Processing command: %s\n", content)
 
 	// Check if it's a command (starts with /)
 	if !strings.HasPrefix(content, "/") {
@@ -188,6 +221,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 			return ch.handleAssistantHelp(ctx, msg)
 		},
 		"/analyze-design": ch.handleAnalyzeDesign,
+		"/generate-image": ch.handleGenerateImage,
 		"/approve-file":   ch.handleApproveFile,
 		"/reject-file":    ch.handleRejectFile,
 		"/approve-delete": ch.handleApproveDelete,
@@ -312,10 +346,9 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 		workspaceName := agentName // Use agent name as workspace name
 		_, err := ch.hub.GetWorkspaceManager().AddWorkspace(workspaceName, absPath)
 		if err != nil {
-			// Log error but don't fail agent creation
-			fmt.Printf("Warning: Failed to auto-create workspace for repo agent: %v\n", err)
+			log.Printf("Warning: failed to auto-create workspace for repo agent: %v", err)
 		} else {
-			fmt.Printf("DEBUG: Auto-created workspace '%s' for repo agent at %s\n", workspaceName, absPath)
+			log.Printf("Auto-created workspace %q for repo agent at %s", workspaceName, absPath)
 		}
 	}
 
@@ -2217,13 +2250,53 @@ func shortID(id string) string {
 	return id
 }
 
+func (ch *CommandHandler) openAIImageGenFromEnv() ai.ImageGenerator {
+	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+	if key == "" {
+		return nil
+	}
+	endpoint := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+	if endpoint == "" {
+		endpoint = "https://api.openai.com/v1"
+	}
+	model := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_IMAGE_MODEL"))
+	if model == "" {
+		model = "dall-e-3"
+	}
+	p := ai.NewOpenAICompatProvider(strings.TrimRight(endpoint, "/"), key, model, nil)
+	return p
+}
+
+func (ch *CommandHandler) handleGenerateImage(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel,
+			"❌ Usage: `/generate-image <prompt>`\n\nExample: `/generate-image a minimal app icon for a biotech lab`\n\nRequires `OPENAI_API_KEY` on the hub server (optional `OPENAI_BASE_URL`, `NEURAL_JUNKIE_IMAGE_MODEL`)."), nil
+	}
+	prompt := strings.TrimSpace(strings.Join(parts[1:], " "))
+	gen := ch.openAIImageGenFromEnv()
+	if gen == nil {
+		return ch.systemResponse(msg.Channel,
+			"❌ Image generation is not configured. Set `OPENAI_API_KEY` on the hub server."), nil
+	}
+	mime, b64, err := gen.GenerateImage(ctx, prompt, "")
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Image generation failed: %v", err)), nil
+	}
+	out := protocol.NewMessage(protocol.MessageTypeChat, msg.Channel, msg.From, "🖼️ Generated image.")
+	out.Metadata["generated_image"] = map[string]interface{}{
+		"mime": mime,
+		"data": b64,
+	}
+	if err := ch.hub.SendMessage(out); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to post generated image: %v", err)), nil
+	}
+	return ch.systemResponse(msg.Channel, "✅ Image generated and posted to the channel."), nil
+}
+
 // handleAnalyzeDesign handles design analysis requests
 func (ch *CommandHandler) handleAnalyzeDesign(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	// Check if there's an image in the message metadata
-	imageData, hasImage := msg.Metadata["image_data"].([]byte)
-	imageType, hasImageType := msg.Metadata["image_type"].(string)
-
-	if !hasImage || !hasImageType {
+	imgs := protocol.ExtractUserImages(msg)
+	if len(imgs) == 0 {
 		return ch.systemResponse(msg.Channel,
 			"❌ No image found for design analysis.\n\n"+
 				"**Usage:**\n"+
@@ -2231,13 +2304,15 @@ func (ch *CommandHandler) handleAnalyzeDesign(ctx context.Context, msg *protocol
 				"2. Type your message with @mentions to target specific agents\n"+
 				"3. Send `/analyze-design` command\n\n"+
 				"**Supported formats:** PNG, JPEG, WebP, GIF\n"+
-				"**Max size:** 5MB"), nil
+				"**Max size:** 5MB per image"), nil
 	}
-
-	// Validate image size (5MB limit)
-	if len(imageData) > 5*1024*1024 {
+	total := 0
+	for _, p := range imgs {
+		total += len(p.Data)
+	}
+	if total > 5*1024*1024 {
 		return ch.systemResponse(msg.Channel,
-			"❌ Image too large. Maximum size is 5MB. Please compress the image and try again."), nil
+			"❌ Image payload too large. Maximum total size is 5MB. Please compress images and try again."), nil
 	}
 
 	// Get channel agents
@@ -2278,27 +2353,39 @@ func (ch *CommandHandler) handleAnalyzeDesign(ctx context.Context, msg *protocol
 				ch.getVisionCapableAgentsList(channelAgents)), nil
 	}
 
-	// Create analysis message for each target agent
+	userImgMeta := make([]interface{}, 0, len(imgs))
+	for _, p := range imgs {
+		userImgMeta = append(userImgMeta, map[string]interface{}{
+			"mime": p.MIME,
+			"data": base64.StdEncoding.EncodeToString(p.Data),
+		})
+	}
+
+	bodyContent := strings.TrimSpace(strings.Join(parts[1:], " "))
+	if bodyContent == "" {
+		bodyContent = strings.TrimSpace(msg.Content)
+	}
+	mentionStrip := regexp.MustCompile(`@\w+`)
+	bodyWithoutMentions := strings.TrimSpace(mentionStrip.ReplaceAllString(bodyContent, ""))
+
+	// Create analysis message for each target agent (single-agent mentions avoid duplicate fan-out)
 	var agentNames []string
 	for _, agent := range targetAgents {
 		agentNames = append(agentNames, agent.Name)
 
-		// Create a special message for the agent with design analysis flag
 		designMsg := &protocol.Message{
 			ID:        protocol.NewMessage(protocol.MessageTypeChat, msg.Channel, msg.From, "").ID,
 			Type:      protocol.MessageTypeChat,
 			Channel:   msg.Channel,
 			From:      msg.From,
-			Content:   msg.Content, // Use the original message content with mentions
+			Content:   fmt.Sprintf("@%s %s", agent.Name, bodyWithoutMentions),
 			Timestamp: msg.Timestamp,
 			Metadata: map[string]interface{}{
-				"design_analysis": true,
-				"image_data":      imageData,
-				"image_type":      imageType,
+				"design_analysis":             true,
+				protocol.MetadataUserImages: userImgMeta,
 			},
 		}
 
-		// Send the message to trigger agent analysis
 		if err := ch.hub.SendMessage(designMsg); err != nil {
 			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to send design analysis request to %s: %v", agent.Name, err)), nil
 		}
@@ -3578,6 +3665,14 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 				{Name: "image-url", Description: "URL or path to the design image", Type: "string", Required: true},
 			},
 		},
+		{
+			Name:        "/generate-image",
+			Description: "Generate an image via OpenAI Images API (requires OPENAI_API_KEY on server)",
+			Category:    "Design",
+			Arguments: []protocol.CommandArgument{
+				{Name: "prompt", Description: "What to generate", Type: "string", Required: true},
+			},
+		},
 
 		// ── Channels ───────────────────────────────────────────────────
 		{
@@ -3823,16 +3918,30 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		return ch.systemResponse(msg.Channel, "❌ A description is required after the agent mentions."), nil
 	}
 
+	ch.clearCollaborateRedirect()
+
 	collab, err := cm.CreateCollaboration(description, agentIDs, msg.Channel, msg.From.Name, discussionCfg)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create collaboration: %v", err)), nil
 	}
 
-	// Ensure all collaboration participants are actually joined to the channel
-	// where the collaboration is happening so they can subscribe/respond.
+	collabChannelName := "collab-" + collab.ID
+	ch.hub.CreateChannelWithType(
+		collabChannelName,
+		collab.Title,
+		msg.Channel,
+		protocol.ChannelTypeCollaboration,
+		msg.From.Name,
+	)
+	if err := cm.BindCollaborationChannel(collab.ID, collabChannelName); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to bind collaboration channel: %v", err)), nil
+	}
+
+	// Ensure all collaboration participants are joined to the dedicated channel
+	// so they can subscribe/respond.
 	for _, participantID := range agentIDs {
-		if err := ch.hub.AddAgentToChannel(participantID, msg.Channel); err != nil {
-			log.Printf("[Collaboration] Warning: failed to add participant %s to channel %s: %v", participantID, msg.Channel, err)
+		if err := ch.hub.AddAgentToChannel(participantID, collabChannelName); err != nil {
+			log.Printf("[Collaboration] Warning: failed to add participant %s to channel %s: %v", participantID, collabChannelName, err)
 		}
 	}
 
@@ -3848,7 +3957,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	// Send the seed message to kick off the planning discussion
 	seedMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
-		msg.Channel,
+		collabChannelName,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
 		fmt.Sprintf("🤝 **Collaboration Started** (ID: `%s`)\n\n**Goal:** %s\n\n**Participants:** %s\n\n**Discussion limits:** %d rounds, %d agent messages (server hard max: %d rounds, %d messages)\n\n**Phase:** Planning (agents will discuss and propose a plan)\n\nAgents, please discuss and create a structured plan with tasks assigned to the agent best suited for each task. Use `- Task N: @AgentName - description` format for tasks.",
 			collab.ID[:8], description, agentListStr.String(),
@@ -3873,7 +3982,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	firstAgent := collab.Agents[0]
 	turnMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
-		msg.Channel,
+		collabChannelName,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
 		fmt.Sprintf("@%s -- You're up first. Please share your initial thoughts on how to approach: %s\n\nConsider the strengths of each participant and propose initial task assignments.",
 			firstAgent.AgentName, description),
@@ -3886,6 +3995,8 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	if err := ch.hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send first turn message: %v", err)
 	}
+
+	ch.setCollaborateRedirect(collabChannelName, collab.ID)
 
 	return nil, nil
 }

@@ -10,7 +10,7 @@ import { USER_RULES_METADATA_KEY } from '../constants/promptMetadata';
  */
 export function buildHumanOutboundMetadata(options: {
   shareWorkspace: boolean;
-  /** Extra metadata from the composer (e.g. prompt_attachments, image_data). */
+  /** Extra metadata from the composer (e.g. prompt_attachments, user_images). */
   composerMetadata?: Record<string, unknown>;
 }): Record<string, unknown> | undefined {
   const { shareWorkspace, composerMetadata } = options;

@@ -103,34 +103,36 @@ func (m *Message) IsFromSystem() bool {
 
 // AgentInfo contains information about an agent
 type AgentInfo struct {
-	ID                 string    `json:"id"`
-	Name               string    `json:"name"`
-	Type               AgentType `json:"type"`
-	Expertise          []string  `json:"expertise"`               // Specific skills/technologies
-	Status             string    `json:"status"`                  // "active", "busy", "idle", "paused", "removed"
-	Model              string    `json:"model"`                   // AI model being used
-	AIProvider         string    `json:"ai_provider"`             // AI provider being used ("claude", "ollama")
-	AIModel            string    `json:"ai_model"`                // Specific model name (e.g., "claude-sonnet", "llama3.1")
-	IsPaused           bool      `json:"is_paused"`               // Whether the agent is paused
-	SupportsVision     bool      `json:"supports_vision"`         // Whether the agent can process images
-	IndexingStatus     string    `json:"indexing_status"`         // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
-	IndexProgress      int       `json:"index_progress"`          // 0-100 percentage (for repo/confluence agents)
-	RepositoryPath     string    `json:"repository_path"`         // Path to repository (for repo agents)
-	KnowledgePath      string    `json:"knowledge_path"`          // Path to knowledge base (for helper agents)
-	ConfluenceSpaceKey string    `json:"confluence_space_key"`    // Confluence space key (for confluence agents)
-	LastActiveTime     time.Time `json:"last_active_time"`        // When agent was last in a channel
-	RemovedFrom          []string  `json:"removed_from"`            // List of channels agent was removed from
-	ApprovalMode         string    `json:"approval_mode,omitempty"` // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
-	CustomRulesMarkdown  string    `json:"custom_rules_markdown,omitempty"`
+	ID                  string    `json:"id"`
+	Name                string    `json:"name"`
+	Type                AgentType `json:"type"`
+	Expertise           []string  `json:"expertise"`               // Specific skills/technologies
+	Status              string    `json:"status"`                  // "active", "busy", "idle", "paused", "removed"
+	Model               string    `json:"model"`                   // AI model being used
+	AIProvider          string    `json:"ai_provider"`             // AI provider being used ("claude", "ollama")
+	AIModel             string    `json:"ai_model"`                // Specific model name (e.g., "claude-sonnet", "llama3.1")
+	IsPaused            bool      `json:"is_paused"`               // Whether the agent is paused
+	SupportsVision            bool      `json:"supports_vision"`             // Whether the agent can process images
+	SupportsImageGeneration   bool      `json:"supports_image_generation"`   // Whether the agent can generate images (provider-dependent)
+	IndexingStatus      string    `json:"indexing_status"`         // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
+	IndexProgress       int       `json:"index_progress"`          // 0-100 percentage (for repo/confluence agents)
+	RepositoryPath      string    `json:"repository_path"`         // Path to repository (for repo agents)
+	KnowledgePath       string    `json:"knowledge_path"`          // Path to knowledge base (for helper agents)
+	ConfluenceSpaceKey  string    `json:"confluence_space_key"`    // Confluence space key (for confluence agents)
+	LastActiveTime      time.Time `json:"last_active_time"`        // When agent was last in a channel
+	RemovedFrom         []string  `json:"removed_from"`            // List of channels agent was removed from
+	ApprovalMode        string    `json:"approval_mode,omitempty"` // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
+	CustomRulesMarkdown string    `json:"custom_rules_markdown,omitempty"`
 }
 
 // ChannelType classifies the purpose of a channel
 type ChannelType string
 
 const (
-	ChannelTypePublic ChannelType = "public" // Visible to all (e.g. #general)
-	ChannelTypeDM     ChannelType = "dm"     // 1:1 user-to-agent direct message
-	ChannelTypeCustom ChannelType = "custom" // User-created channel with curated agents
+	ChannelTypePublic        ChannelType = "public"        // Visible to all (e.g. #general)
+	ChannelTypeDM            ChannelType = "dm"            // 1:1 user-to-agent direct message
+	ChannelTypeCustom        ChannelType = "custom"        // User-created channel with curated agents
+	ChannelTypeCollaboration ChannelType = "collaboration" // Auto-created room for one /collaborate session
 )
 
 // Channel represents a chat channel/room

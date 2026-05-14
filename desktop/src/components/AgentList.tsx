@@ -149,6 +149,7 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
     ai_model: '',
     is_paused: false,
     supports_vision: false,
+    supports_image_generation: false,
     indexing_status: 'loading',
     index_progress: 0,
     repository_path: '',
@@ -160,20 +161,6 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
   
   // Combine active agents with loading agents
   const allAgents = [...activeAgents, ...loadingAgentsList];
-  
-  // Debug: Log the props
-  console.log('AgentList props:', { onExportAgent: !!onExportAgent, agentsCount: agents.length });
-  console.log('Active agents:', activeAgents.map(a => ({ name: a.name, status: a.status })));
-  console.log('All agents:', allAgents.map(a => ({ name: a.name, status: a.status })));
-  
-  // Debug: Log raw agent data to check for missing names
-  console.log('Raw agents data:', agents.map(a => ({ 
-    id: a.id, 
-    name: a.name, 
-    type: a.type, 
-    hasName: !!a.name,
-    nameLength: a.name ? a.name.length : 0
-  })));
 
   const handleProviderSwitch = async (agentId: string, provider: string, model: string) => {
     setSwitchingProvider(agentId);

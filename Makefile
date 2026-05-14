@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages
 
 help: ## Show this help
 	@echo "Neural Junkie - Multi-Agent Collaboration System"
@@ -68,11 +68,25 @@ desktop-build: gui-build ## Alias for 'make gui-build'
 test-messages: ## Test message sending functionality
 	@./scripts/test-message-sending.sh
 
-test-all: ## Run all tests
+test-go: ## Run Go unit tests only (repeatable: -count=1)
 	@echo "🧪 Running Go unit tests..."
-	@go test ./...
+	@go test ./... -count=1
+	@echo "✅ Go tests complete."
+
+test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
+	@echo "🔍 go vet..."
+	@go vet ./...
 	@echo ""
-	@echo "✅ All tests complete!"
+	@echo "🧪 Go tests..."
+	@go test ./... -count=1
+	@echo ""
+	@echo "🧪 Desktop typecheck (tsc)..."
+	@cd desktop && npx tsc --noEmit
+	@echo ""
+	@echo "🧪 Desktop unit tests (Vitest)..."
+	@cd desktop && npm test
+	@echo ""
+	@echo "✅ Full test pass complete (vet + Go + desktop tsc + Vitest)."
 
 demo-messages: ## Send demo messages to test the system
 	@./scripts/demo-messages.sh
@@ -193,9 +207,7 @@ clean: ## Clean build artifacts
 	@rm -rf *.app
 	@echo "✅ Clean complete!"
 
-test: ## Run tests
-	@echo "🧪 Running tests..."
-	@go test ./...
+test: test-go ## Run Go unit tests (alias for test-go)
 
 deps: ## Download dependencies
 	@echo "📦 Downloading dependencies..."

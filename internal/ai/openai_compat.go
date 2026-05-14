@@ -46,26 +46,16 @@ func NewOpenAICompatProvider(endpoint, apiKey, model string, headers map[string]
 	}
 }
 
+// SetHTTPClient overrides the default HTTP client (e.g. LM Studio reuse).
+func (p *OpenAICompatProvider) SetHTTPClient(c *http.Client) {
+	if c != nil {
+		p.httpClient = c
+	}
+}
+
 func (p *OpenAICompatProvider) GenerateResponse(ctx context.Context, prompt string, conversationHistory []protocol.Message) (string, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-
-	messages := []OpenAICompatibleMessage{}
-	if systemPrompt != "" {
-		messages = append(messages, OpenAICompatibleMessage{Role: "system", Content: systemPrompt})
-	}
-
-	historyLimit := 10
-	if len(conversationHistory) > historyLimit {
-		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
-	}
-	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, OpenAICompatibleMessage{Role: role, Content: msg.Content})
-	}
-	messages = append(messages, OpenAICompatibleMessage{Role: "user", Content: userMessage})
+	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, nil)
 
 	reqBody := OpenAICompatibleRequest{
 		Model:    p.Model,
@@ -108,37 +98,75 @@ func (p *OpenAICompatProvider) GenerateResponse(ctx context.Context, prompt stri
 	if len(response.Choices) == 0 {
 		return "", fmt.Errorf("no choices in response")
 	}
-	return response.Choices[0].Message.Content, nil
+	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
+	if text == "" {
+		return "", fmt.Errorf("no content in response")
+	}
+	return text, nil
 }
 
 func (p *OpenAICompatProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error) {
-	return "", fmt.Errorf("vision not supported by OpenAI-compatible provider (model: %s)", p.Model)
+	if len(imageData) == 0 {
+		return "", fmt.Errorf("empty image")
+	}
+	return p.GenerateMultimodal(ctx, prompt, []protocol.UserImagePart{{MIME: imageType, Data: imageData}}, conversationHistory)
 }
 
-func (p *OpenAICompatProvider) GetModel() string { return p.Model }
-
-func (p *OpenAICompatProvider) SupportsStreaming() bool { return true }
-
-func (p *OpenAICompatProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+func (p *OpenAICompatProvider) GenerateMultimodal(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (string, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, images)
 
-	messages := []OpenAICompatibleMessage{}
-	if systemPrompt != "" {
-		messages = append(messages, OpenAICompatibleMessage{Role: "system", Content: systemPrompt})
+	reqBody := OpenAICompatibleRequest{
+		Model:    p.Model,
+		Messages: messages,
+		Stream:   false,
 	}
 
-	historyLimit := 10
-	if len(conversationHistory) > historyLimit {
-		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
-	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, OpenAICompatibleMessage{Role: role, Content: msg.Content})
+
+	req, err := http.NewRequestWithContext(ctx, "POST", p.Endpoint+"/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-	messages = append(messages, OpenAICompatibleMessage{Role: "user", Content: userMessage})
+	req.Header.Set("Content-Type", "application/json")
+	if p.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	}
+	for k, v := range p.Headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response OpenAICompatibleResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("no choices in response")
+	}
+	text := strings.TrimSpace(openAIMessageTextContent(response.Choices[0].Message.Content))
+	if text == "" {
+		return "", fmt.Errorf("no content in response")
+	}
+	return text, nil
+}
+
+func (p *OpenAICompatProvider) GenerateMultimodalStream(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+	messages := buildOpenAIChatMessages(systemPrompt, userMessage, conversationHistory, images)
 
 	reqBody := OpenAICompatibleRequest{
 		Model:    p.Model,
@@ -209,10 +237,20 @@ func (p *OpenAICompatProvider) GenerateResponseStream(ctx context.Context, promp
 		}
 		if err := scanner.Err(); err != nil {
 			ch <- StreamToken{Error: fmt.Errorf("scanner error: %w", err), Done: true}
+			return
 		}
+		ch <- StreamToken{Done: true}
 	}()
 
 	return ch, nil
+}
+
+func (p *OpenAICompatProvider) GetModel() string { return p.Model }
+
+func (p *OpenAICompatProvider) SupportsStreaming() bool { return true }
+
+func (p *OpenAICompatProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	return p.GenerateMultimodalStream(ctx, prompt, nil, conversationHistory)
 }
 
 func (p *OpenAICompatProvider) GetEndpoint() string  { return p.Endpoint }

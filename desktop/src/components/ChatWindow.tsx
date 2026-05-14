@@ -22,6 +22,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { CommandPalette } from './CommandPalette';
 import { ChannelSidebar } from './ChannelSidebar';
 import { CreateChannelModal } from './CreateChannelModal';
+import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
 import { TaskManagementPanel } from './TaskManagementPanel';
@@ -100,6 +101,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // State for create channel modal
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [createNewDmOpen, setCreateNewDmOpen] = useState(false);
+  const [channelInfoModal, setChannelInfoModal] = useState<Channel | null>(null);
 
   // State for command palette
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -335,6 +337,48 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to create channel:', error);
     }
   }, [api, username, loadChannels, handleSwitchChannel]);
+
+  const handleDeleteChannel = useCallback(
+    async (name: string) => {
+      if (!window.confirm(`Delete channel #${name}? This cannot be undone.`)) return;
+      try {
+        await api.deleteChannel(name);
+        const wasActive = useChatStore.getState().channel === name;
+        await loadChannels();
+        if (wasActive) {
+          await handleSwitchChannel('general');
+        }
+        setChannelInfoModal((cur) => (cur?.name === name ? null : cur));
+        addToast({
+          type: 'success',
+          title: 'Channel deleted',
+          message: `#${name} was removed.`,
+        });
+      } catch (error) {
+        console.error('Failed to delete channel:', error);
+        addToast({
+          type: 'error',
+          title: 'Could not delete channel',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    },
+    [api, loadChannels, handleSwitchChannel, addToast]
+  );
+
+  const handleOpenChannelInfo = useCallback(
+    async (ch: Channel) => {
+      try {
+        await loadChannels();
+        const list = useChatStore.getState().channels;
+        const fresh = list.find((c) => c.name === ch.name) ?? ch;
+        setChannelInfoModal(fresh);
+      } catch {
+        setChannelInfoModal(ch);
+      }
+    },
+    [loadChannels]
+  );
 
   // Create a DM channel with an agent
   const handleCreateDM = useCallback(async (agentId: string) => {
@@ -637,20 +681,26 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           return;
         }
       }
-      await api.sendMessage(
+      const sendResult = await api.sendMessage(
         channel,
         content,
         { name: username, type: 'human' },
         'question',
         mergedMetadata
       );
+      let timelineChannel = channel;
+      if (sendResult.collaboration_channel) {
+        await loadChannels();
+        await handleSwitchChannel(sendResult.collaboration_channel);
+        timelineChannel = sendResult.collaboration_channel;
+      }
       // Slash commands fan out multiple hub messages; WS can lag behind HTTP.
       // Pull latest timeline so the user always sees kickoff + system lines.
       if (content.trimStart().startsWith('/')) {
         try {
-          const msgs = await api.fetchMessages(channel, 50);
+          const msgs = await api.fetchMessages(timelineChannel, 50);
           useChatStore.getState().setMessages(msgs);
-          await loadCollaborations(channel);
+          await loadCollaborations(timelineChannel);
         } catch (e) {
           console.error('[handleSendMessage] post-command refresh failed:', e);
         }
@@ -975,6 +1025,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             onCreateChannel={() => setCreateChannelOpen(true)}
             onCreateDM={handleCreateDM}
             onOpenNewDM={() => setCreateNewDmOpen(true)}
+            onDeleteChannel={handleDeleteChannel}
+            onOpenChannelInfo={handleOpenChannelInfo}
           />
         )}
 
@@ -1054,7 +1106,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             assistantTasks={assistantTasks}
             assistantReminders={assistantReminders}
             onClose={() => setTaskManagementOpen(false)}
-            onOpenCollaboration={(collab) => {
+            onOpenCollaboration={async (collab) => {
+              if (collab.channel && collab.channel !== channel) {
+                try {
+                  await handleSwitchChannel(collab.channel);
+                } catch (e) {
+                  console.error('[TaskPanel] failed to switch to collaboration channel:', e);
+                }
+              }
               setActiveCollab(collab);
               setTaskManagementOpen(false);
             }}
@@ -1179,6 +1238,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         onClose={() => setCreateChannelOpen(false)}
         onCreate={handleCreateChannel}
       />
+
+      {channelInfoModal && (
+        <ChannelInfoModal
+          channel={channelInfoModal}
+          agents={agents}
+          onClose={() => setChannelInfoModal(null)}
+        />
+      )}
 
       <CreateNewDMModal
         api={api}

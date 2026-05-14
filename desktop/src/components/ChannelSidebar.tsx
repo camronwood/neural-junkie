@@ -12,17 +12,25 @@ interface ChannelSidebarProps {
   onCreateChannel: () => void;
   onCreateDM: (agentId: string) => void;
   onOpenNewDM: () => void;
+  onDeleteChannel?: (channelName: string) => void;
+  onOpenChannelInfo?: (ch: Channel) => void;
 }
 
 const MIN_WIDTH = 180;
 const DEFAULT_WIDTH = 220;
 const STORAGE_KEY = 'channel-sidebar-width';
 
-/** DM rooms use the `dm-` slug; coerce type when the hub omits or mis-stores `type` so rows appear under Direct Messages, not Channels. */
+/** DM rooms use the `dm-` slug; collaboration rooms use `collab-`. Coerce type when the hub omits or mis-stores `type` so rows appear under the right sidebar group. */
 function normalizeChannelRow(ch: Channel): Channel {
   const name = (ch.name ?? '').trim();
   if (name.startsWith('dm-') && (ch.type === 'public' || !ch.type)) {
     return { ...ch, type: 'dm' as ChannelType };
+  }
+  if (
+    name.startsWith('collab-') &&
+    (ch.type === 'public' || !ch.type || ch.type === 'custom')
+  ) {
+    return { ...ch, type: 'collaboration' as ChannelType };
   }
   return ch;
 }
@@ -34,6 +42,8 @@ export function ChannelSidebar({
   onCreateChannel,
   onCreateDM,
   onOpenNewDM,
+  onDeleteChannel,
+  onOpenChannelInfo,
 }: ChannelSidebarProps) {
   const channelsNorm = channels.map(normalizeChannelRow);
   const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore(
@@ -90,6 +100,9 @@ export function ChannelSidebar({
   const customChannels = channelsNorm
     .filter(c => c.type === 'custom')
     .sort((a, b) => a.name.localeCompare(b.name));
+  const collaborationChannels = channelsNorm
+    .filter(c => c.type === 'collaboration')
+    .sort((a, b) => a.name.localeCompare(b.name));
   const dmChannels = channelsNorm
     .filter(c => c.type === 'dm')
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -102,6 +115,13 @@ export function ChannelSidebar({
     );
   });
   const filteredCustomChannels = customChannels.filter((c) => {
+    if (!normalizedQuery) return true;
+    return (
+      c.name.toLowerCase().includes(normalizedQuery) ||
+      (c.description || '').toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const filteredCollaborationChannels = collaborationChannels.filter((c) => {
     if (!normalizedQuery) return true;
     return (
       c.name.toLowerCase().includes(normalizedQuery) ||
@@ -143,6 +163,7 @@ export function ChannelSidebar({
   const hasSearchResults =
     filteredPublicChannels.length > 0 ||
     filteredCustomChannels.length > 0 ||
+    filteredCollaborationChannels.length > 0 ||
     filteredDMChannels.length > 0 ||
     (sidebarAgentsVisible && filteredAgentsWithoutDM.length > 0);
 
@@ -180,25 +201,59 @@ export function ChannelSidebar({
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
     const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
+    const rowClass = `flex-1 min-w-0 text-left px-2 py-1 rounded text-sm flex items-center transition-colors ${
+      isActive
+        ? 'bg-slack-accent text-white font-semibold'
+        : isUnread
+          ? 'text-white font-semibold hover:bg-white/10'
+          : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
+    }`;
+    const showDelete = ch.type === 'custom' && onDeleteChannel;
+
     return (
-      <button
-        onClick={() => onSwitchChannel(ch.name)}
-        className={`w-full text-left px-2 py-1 rounded text-sm flex items-center transition-colors ${
-          isActive
-            ? 'bg-slack-accent text-white font-semibold'
-            : isUnread
-            ? 'text-white font-semibold hover:bg-white/10'
-            : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
-        }`}
-        title={ch.description || ch.name}
-      >
-        <span className="mr-1 opacity-60">#</span>
-        <span className="truncate">{ch.name}</span>
-        {isTyping && <TypingDots active={isActive} />}
-        {isUnread && !isActive && !isTyping && (
-          <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
+      <div className="group flex items-center gap-0.5 w-full min-w-0">
+        <button
+          type="button"
+          onClick={() => onSwitchChannel(ch.name)}
+          className={rowClass}
+          title={ch.description || ch.name}
+        >
+          <span className="mr-1 opacity-60">#</span>
+          <span className="truncate">{ch.name}</span>
+          {isTyping && <TypingDots active={isActive} />}
+          {isUnread && !isActive && !isTyping && (
+            <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
+          )}
+        </button>
+        {onOpenChannelInfo && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChannelInfo(ch);
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
+            title="Channel details"
+            aria-label={`Details for ${ch.name}`}
+          >
+            ⓘ
+          </button>
         )}
-      </button>
+        {showDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteChannel!(ch.name);
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-red-400 rounded hover:bg-white/10"
+            title="Delete channel"
+            aria-label={`Delete channel ${ch.name}`}
+          >
+            ×
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -250,6 +305,20 @@ export function ChannelSidebar({
             <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
           )}
         </button>
+        {onOpenChannelInfo && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChannelInfo(ch);
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
+            title="Channel details"
+            aria-label={`Details for DM ${displayName}`}
+          >
+            ⓘ
+          </button>
+        )}
         <button
           type="button"
           onClick={(e) => {
@@ -387,6 +456,16 @@ export function ChannelSidebar({
             {filteredCustomChannels.map(ch => (
               <ChannelItem key={ch.id} ch={ch} />
             ))}
+            {filteredCollaborationChannels.length > 0 && (
+              <>
+                <div className="px-1 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                  Collaborations
+                </div>
+                {filteredCollaborationChannels.map(ch => (
+                  <ChannelItem key={ch.id} ch={ch} />
+                ))}
+              </>
+            )}
           </div>
         </div>
 

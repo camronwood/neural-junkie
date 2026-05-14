@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,52 @@ func TestHubCreation(t *testing.T) {
 	h := hub.NewHub()
 	if h == nil {
 		t.Fatal("Expected hub to be created")
+	}
+}
+
+func TestCollaborateCommandCreatesDedicatedChannel(t *testing.T) {
+	h := hub.NewHub()
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "RustExpert", Type: protocol.AgentTypeRust, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "SecurityExpert", Type: protocol.AgentTypeSecurity, Status: "active"}
+	if err := h.RegisterAgent(a1); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.RegisterAgent(a2); err != nil {
+		t.Fatal(err)
+	}
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "u1", Name: "Tester", Type: "human"},
+		"/collaborate @RustExpert @SecurityExpert build a secure CLI",
+	)
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+
+	cm := h.GetCollaborationManager()
+	active := cm.ListActive()
+	if len(active) != 1 {
+		t.Fatalf("expected 1 active collaboration, got %d", len(active))
+	}
+	c := active[0]
+	if !strings.HasPrefix(c.Channel, "collab-") {
+		t.Fatalf("expected dedicated collab- channel, got %q", c.Channel)
+	}
+	ch, err := h.GetChannel(c.Channel)
+	if err != nil {
+		t.Fatalf("GetChannel: %v", err)
+	}
+	if ch.Type != protocol.ChannelTypeCollaboration {
+		t.Fatalf("expected channel type collaboration, got %q", ch.Type)
+	}
+	msgs, err := h.GetMessages(c.Channel, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) == 0 {
+		t.Fatal("expected seed messages on dedicated channel")
 	}
 }
 
@@ -880,6 +927,85 @@ func TestSessionSnapshotRestoresCollaborations(t *testing.T) {
 	}
 	if restoredCollab.Plan == nil || restoredCollab.Plan.Version == 0 {
 		t.Fatalf("expected restored plan artifact, got %+v", restoredCollab.Plan)
+	}
+}
+
+func TestSessionRestoreRedispatchesOpenCollabTasks(t *testing.T) {
+	h := hub.NewHub()
+	chName := "exec-restore-ch"
+	_ = h.CreateChannel(chName, "Exec restore", "test")
+
+	agentA := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	agentB := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(agentA)
+	_ = h.RegisterAgent(agentB)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("Ship feature", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("TransitionToReviewing: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("ApprovePlan: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("TransitionToExecuting: %v", err)
+	}
+	if err := cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{
+			ID:           "task-restore-1",
+			Title:        "Build API",
+			Description:  "Implement endpoints",
+			AssignedTo:   "a1",
+			AssignedName: "AgentA",
+			Status:       collaboration.TaskPending,
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		},
+	}); err != nil {
+		t.Fatalf("SetTasks: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "session-collab-restore.json")
+	if err := h.SaveSessionToFile(path); err != nil {
+		t.Fatalf("save session: %v", err)
+	}
+
+	restored := hub.NewHub()
+	if err := restored.LoadSessionFromFile(path); err != nil {
+		t.Fatalf("load session: %v", err)
+	}
+	_ = restored.RegisterAgent(agentA)
+	_ = restored.RegisterAgent(agentB)
+
+	countCollabTasks := func(msgs []*protocol.Message) int {
+		n := 0
+		for _, m := range msgs {
+			if m != nil && m.Type == protocol.MessageTypeCollabTask {
+				n++
+			}
+		}
+		return n
+	}
+	before, err := restored.GetMessages(chName, 500)
+	if err != nil {
+		t.Fatalf("get messages before: %v", err)
+	}
+	if countCollabTasks(before) != 0 {
+		t.Fatalf("expected no collaboration_task messages before redispatch, got %d", countCollabTasks(before))
+	}
+
+	restored.RedispatchOpenCollaborationTasksAfterSessionRestore()
+
+	after, err := restored.GetMessages(chName, 500)
+	if err != nil {
+		t.Fatalf("get messages after: %v", err)
+	}
+	if got := countCollabTasks(after); got != 1 {
+		t.Fatalf("expected 1 collaboration_task after session-restore redispatch, got %d", got)
 	}
 }
 

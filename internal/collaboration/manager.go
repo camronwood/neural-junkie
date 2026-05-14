@@ -18,6 +18,7 @@ import (
 type HubInterface interface {
 	SendMessage(msg *protocol.Message) error
 	GetAgent(agentID string) (*protocol.AgentInfo, error)
+	FindLiveAgentByDisplayName(name string, agentType protocol.AgentType) *protocol.AgentInfo
 	GetChannelAgents(channelName string) ([]protocol.AgentInfo, error)
 	CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel
 }
@@ -138,6 +139,22 @@ func (cm *CollaborationManager) CreateCollaboration(
 
 	log.Printf("[CollaborationManager] Created collaboration %s with %d agents", collabID[:8], len(agents))
 	return collab, nil
+}
+
+// BindCollaborationChannel sets the hub channel where collaboration messages are routed.
+func (cm *CollaborationManager) BindCollaborationChannel(collabID, channelName string) error {
+	if strings.TrimSpace(channelName) == "" {
+		return fmt.Errorf("channel name is required")
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.Channel = channelName
+	c.UpdatedAt = time.Now()
+	return nil
 }
 
 // GetCollaboration returns a collaboration by ID.
@@ -725,6 +742,124 @@ func (cm *CollaborationManager) Len() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return len(cm.collaborations)
+}
+
+func (cm *CollaborationManager) isAgentIDLive(agentID string) bool {
+	if strings.TrimSpace(agentID) == "" {
+		return false
+	}
+	info, err := cm.hub.GetAgent(agentID)
+	return err == nil && info != nil
+}
+
+// remapDiscussionAgentIDs replaces stale participant IDs in discussion maps.
+func (cm *CollaborationManager) remapDiscussionAgentIDs(d *DiscussionSession, idMap map[string]string) {
+	if d == nil || len(idMap) == 0 {
+		return
+	}
+	for i, pid := range d.Participants {
+		if nid, ok := idMap[pid]; ok {
+			d.Participants[i] = nid
+		}
+	}
+	if d.TurnsThisRound != nil {
+		next := make(map[string]int)
+		for k, v := range d.TurnsThisRound {
+			nk := k
+			if nid, ok := idMap[k]; ok {
+				nk = nid
+			}
+			next[nk] += v
+		}
+		d.TurnsThisRound = next
+	}
+	if d.Consensus != nil {
+		next := make(map[string]ConsensusState)
+		for k, v := range d.Consensus {
+			nk := k
+			if nid, ok := idMap[k]; ok {
+				nk = nid
+			}
+			next[nk] = v
+		}
+		d.Consensus = next
+	}
+}
+
+// ReconcileRestoredAgentIDs updates collaboration participant IDs, discussion
+// participant lists/maps, and task assignees when persisted UUIDs no longer
+// match registered hub agents (e.g. after hub restart). Matching uses display
+// name plus agent type so @Cursor and similar CLI agents resume correctly.
+func (cm *CollaborationManager) ReconcileRestoredAgentIDs() {
+	if cm.hub == nil {
+		return
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	for _, c := range cm.collaborations {
+		if c == nil {
+			continue
+		}
+		if c.Phase == PhaseCompleted || c.Phase == PhaseCancelled {
+			continue
+		}
+		idMap := make(map[string]string)
+		for i := range c.Agents {
+			ag := &c.Agents[i]
+			if cm.isAgentIDLive(ag.AgentID) {
+				continue
+			}
+			reg := cm.hub.FindLiveAgentByDisplayName(ag.AgentName, ag.AgentType)
+			if reg == nil {
+				log.Printf("[CollaborationManager] reconcile: no live hub agent for participant @%s (%s) in collab %s",
+					ag.AgentName, ag.AgentType, shortCollabID(c.ID))
+				continue
+			}
+			old := ag.AgentID
+			if old != "" {
+				idMap[old] = reg.ID
+			}
+			ag.AgentID = reg.ID
+			c.UpdatedAt = time.Now()
+			log.Printf("[CollaborationManager] reconcile participant @%s: %s -> %s in collab %s",
+				ag.AgentName, shortCollabID(old), shortCollabID(reg.ID), shortCollabID(c.ID))
+		}
+		if len(idMap) > 0 {
+			cm.remapDiscussionAgentIDs(c.Discussion, idMap)
+		}
+		for i := range c.Tasks {
+			t := &c.Tasks[i]
+			if t.AssignedTo == "" {
+				continue
+			}
+			if cm.isAgentIDLive(t.AssignedTo) {
+				continue
+			}
+			if nid, ok := idMap[t.AssignedTo]; ok {
+				t.AssignedTo = nid
+				t.UpdatedAt = time.Now()
+				continue
+			}
+			lookupName := strings.TrimSpace(t.AssignedName)
+			if lookupName == "" {
+				continue
+			}
+			var typ protocol.AgentType
+			for _, p := range c.Agents {
+				if strings.EqualFold(p.AgentName, lookupName) {
+					typ = p.AgentType
+					break
+				}
+			}
+			reg := cm.hub.FindLiveAgentByDisplayName(lookupName, typ)
+			if reg != nil {
+				t.AssignedTo = reg.ID
+				t.UpdatedAt = time.Now()
+				log.Printf("[CollaborationManager] reconcile task assignee @%s -> %s in collab %s",
+					lookupName, shortCollabID(reg.ID), shortCollabID(c.ID))
+			}
+		}
+	}
 }
 
 // Snapshot returns a deep-copied snapshot of all collaborations.

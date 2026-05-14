@@ -115,8 +115,10 @@ Agents can be in several states:
 
 Located in `test/` directory:
 ```bash
-make test          # Run all tests
-go test ./test/... # Run test directory only
+make test-go       # Go tests only (entire module; -count=1)
+make test-all      # go vet + Go tests + desktop tsc + Vitest
+make test          # Alias for test-go
+go test ./test/... # Run integration test package only
 ```
 
 Key test files: `hub_test.go`, `commands_test.go`, `assistant_test.go`, `moderator_test.go`, `repo_agent_test.go`, `helper_agent_test.go`, `deduplication_test.go`, `integration_test.go`, `agent_review_test.go`

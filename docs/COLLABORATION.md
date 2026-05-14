@@ -28,6 +28,8 @@ Optional limits (must appear **before** the first `@mention`; omitted values use
 
 Creates a collaboration in `planning` phase and starts a bounded discussion.
 
+**Dedicated channel:** On success the hub auto-creates a channel named `collab-<collaboration-uuid>` (type `collaboration`). Seeds, agent discussion, plan updates, and execution tasks for that session are isolated **there**. Your `/collaborate` line stays in the channel where you typed the command (for example `#general`). The desktop app switches to the new room after send and lists it under **Collaborations** in the sidebar; **Open collaboration** in the task panel also jumps to that channel.
+
 ### Approve plan and execute
 
 ```text
@@ -91,7 +93,7 @@ The desktop app warns before the user would implicitly stop a run:
 - **Approve / resume from UI** (`CollaborationPanel` or task management): if another collaboration in the current channel is already executing, a **confirm** dialog names both collaborations and explains that continuing **stops the current run** and proceeds with the selected plan.
 - **`/collaborate` in the composer**: if something is already executing in the channel, a **confirm** explains that you can still start a new plan, and that **when you approve the new plan**, the current execution will be stopped so only one collaboration runs at a time.
 
-Other channels are unaffected: two collaborations can execute **in parallel** on different channels.
+Other channels are unaffected: two collaborations can execute **in parallel** on different channels (including two different auto-created `collab-…` rooms).
 
 ## Bounded Discussion Safeguards
 

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,8 +31,9 @@ type OllamaRequest struct {
 
 // OllamaMessage represents a message in Ollama API format
 type OllamaMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	Images  []string `json:"images,omitempty"` // base64-encoded raw image bytes (vision models)
 }
 
 // OllamaResponse represents a response from Ollama API
@@ -165,12 +167,103 @@ func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, co
 	return response.Message.Content, nil
 }
 
-// GenerateVisionResponse generates a response using Ollama API with image input
-// Note: Most Ollama models don't support vision, so this returns an error
+// GenerateVisionResponse uses vision-capable Ollama models (e.g. llava).
 func (o *OllamaProvider) GenerateVisionResponse(ctx context.Context, prompt string, imageData []byte, imageType string, conversationHistory []protocol.Message) (string, error) {
-	// For now, Ollama doesn't support vision in most models
-	// This could be extended to support vision-capable models like llava
-	return "", fmt.Errorf("vision not supported by Ollama provider (model: %s)", o.Model)
+	if len(imageData) == 0 {
+		return "", fmt.Errorf("empty image")
+	}
+	return o.GenerateMultimodal(ctx, prompt, []protocol.UserImagePart{{MIME: imageType, Data: imageData}}, conversationHistory)
+}
+
+// GenerateMultimodal sends images on the final user turn (Ollama /api/chat).
+func (o *OllamaProvider) GenerateMultimodal(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (string, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+
+	messages := []OllamaMessage{}
+	if systemPrompt != "" {
+		messages = append(messages, OllamaMessage{Role: "system", Content: systemPrompt})
+	}
+	historyLimit := 10
+	if len(conversationHistory) > historyLimit {
+		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
+	}
+	for _, msg := range conversationHistory {
+		role := "user"
+		if msg.From.Type != protocol.AgentTypeGeneral {
+			role = "assistant"
+		}
+		messages = append(messages, OllamaMessage{Role: role, Content: msg.Content})
+	}
+	var imgB64 []string
+	for _, im := range images {
+		if len(im.Data) == 0 {
+			continue
+		}
+		imgB64 = append(imgB64, base64.StdEncoding.EncodeToString(im.Data))
+	}
+	last := OllamaMessage{Role: "user", Content: userMessage}
+	if len(imgB64) > 0 {
+		last.Images = imgB64
+	}
+	messages = append(messages, last)
+
+	request := OllamaRequest{
+		Model:    o.Model,
+		Messages: messages,
+		Stream:   false,
+	}
+
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", o.Endpoint+"/api/chat", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := o.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("Ollama API request failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response OllamaResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+	if response.Error != "" {
+		return "", fmt.Errorf("Ollama API error: %s", response.Error)
+	}
+	if response.Message.Content == "" {
+		return "", fmt.Errorf("no content in response")
+	}
+	return response.Message.Content, nil
+}
+
+// GenerateMultimodalStream runs a non-streaming multimodal request and emits the full reply as one chunk.
+func (o *OllamaProvider) GenerateMultimodalStream(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
+	ch := make(chan StreamToken, 2)
+	go func() {
+		defer close(ch)
+		text, err := o.GenerateMultimodal(ctx, prompt, images, conversationHistory)
+		if err != nil {
+			ch <- StreamToken{Error: err, Done: true}
+			return
+		}
+		if text != "" {
+			ch <- StreamToken{Content: text}
+		}
+		ch <- StreamToken{Done: true}
+	}()
+	return ch, nil
 }
 
 // GetModel returns the model name

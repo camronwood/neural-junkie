@@ -274,7 +274,9 @@ make chat             # Terminal chat client
 make stop             # Kill all processes
 make refresh          # Stop, clear logs, restart fresh
 make build            # Build all Go binaries
-make test             # Run Go tests
+make test-go          # Go tests only (-count=1)
+make test-all         # go vet + Go tests + desktop tsc + Vitest
+make test             # Alias for test-go
 make pull-models      # Pull Ollama models
 make repo-agent       # Create repo agent: make repo-agent PATH=/path NAME="Name"
 make clean            # Remove build artifacts

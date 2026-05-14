@@ -218,7 +218,9 @@ make repo-agent PATH=/path/to/repo NAME="Agent Name"
 
 # Build & test
 make build            # Build all Go binaries
-make test             # Run Go tests
+make test-go          # Run Go tests (-count=1)
+make test-all         # go vet + Go tests + desktop tsc + Vitest
+make test             # Alias for test-go
 make pull-models      # Pull Ollama models
 make deps             # Download Go dependencies
 make clean            # Remove build artifacts

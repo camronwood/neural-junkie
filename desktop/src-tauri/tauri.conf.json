@@ -31,6 +31,10 @@
       "path": {
         "all": true
       },
+      "protocol": {
+        "asset": true,
+        "assetScope": ["$HOME/**", "$TEMP/**", "/tmp/**", "/private/tmp/**"]
+      },
       "fs": {
         "scope": ["$APPDATA/*", "$APPLOCALDATA/*"]
       },
