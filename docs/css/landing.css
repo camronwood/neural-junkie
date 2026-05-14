@@ -527,6 +527,24 @@ section h2 {
   height: auto;
 }
 
+.demo-video-showcase {
+  padding: clamp(2rem, 5vw, 3.5rem) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.demo-video-showcase h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+}
+
+.demo-video-showcase .screenshot-frame video {
+  display: block;
+  width: 100%;
+  max-height: min(70vh, 720px);
+  height: auto;
+  background: #0f0f12;
+}
+
 .screenshot-caption {
   margin: 0;
   padding: 0.75rem 1rem;
