@@ -757,62 +757,52 @@ func (ch *CommandHandler) handleDisableWatch(ctx context.Context, msg *protocol.
 		fmt.Sprintf("🚫 Auto-watch disabled for '%s'", agentName)), nil
 }
 
-// handleCreateExpert creates a specialist agent from a known type (backend, frontend, etc.)
+// handleCreateExpert creates a specialist agent (preset or custom domain slug).
 func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
 		return ch.systemResponse(msg.Channel,
-			"Usage: `/create-expert <type> [name] [provider] [model]`\n\n"+
-				"**Available types:**\n"+
-				"• `rust` - Rust, ownership, lifetimes, async, traits, cargo, WASM\n"+
-				"• `backend` - Go, Node.js, Python, REST/GraphQL/gRPC, microservices\n"+
-				"• `frontend` - React, Vue, Angular, TypeScript, CSS, UI/UX\n"+
-				"• `devops` - Docker, Kubernetes, CI/CD, AWS/GCP/Azure, Terraform\n"+
-				"• `database` - PostgreSQL, MySQL, MongoDB, schema, query optimization\n"+
-				"• `security` - Authentication, authorization, encryption, OWASP\n"+
-				"• `assistant` - General productivity / personal-assistant style chat\n\n"+
+			"Usage: `/create-expert <type> [name ...] [provider] [model]`\n\n"+
+				"**Preset types** (curated engineering specialists):\n"+
+				"• `rust`, `backend`, `frontend`, `devops`, `database`, `security`, `assistant`\n\n"+
+				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`).\n\n"+
 				"**Examples:**\n"+
 				"```\n"+
 				"/create-expert rust\n"+
 				"/create-expert rust RustGuru\n"+
+				"/create-expert guitar GuitarCoach\n"+
 				"/create-expert backend GoExpert ollama qwen2.5-coder:14b\n"+
-				"```"), nil
+				"```\n\n"+
+				"Use **spaces** between arguments (not commas)."), nil
 	}
 
-	expertType := strings.ToLower(parts[1])
+	parts = parseCreateExpertParts(parts)
 
-	agentType, err := ExpertSlugToAgentType(expertType)
+	expertSlug, name, providerName, modelOverride := splitCreateExpertArgs(parts)
+
+	spec, err := ResolveExpert(expertSlug, "")
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
-	// Determine name
-	name := ""
-	if len(parts) >= 3 {
-		name = parts[2]
-	}
+	name = strings.TrimSpace(name)
 	if name == "" {
-		defaults := map[protocol.AgentType]string{
-			protocol.AgentTypeRust:      "RustExpert",
-			protocol.AgentTypeBackend:   "GoExpert",
-			protocol.AgentTypeFrontend:  "ReactExpert",
-			protocol.AgentTypeDevOps:    "DevOpsPro",
-			protocol.AgentTypeDatabase:  "SQLMaster",
-			protocol.AgentTypeSecurity:  "SecurityExpert",
-			protocol.AgentTypeAssistant: "Assistant",
+		if spec.IsPreset {
+			defaults := map[protocol.AgentType]string{
+				protocol.AgentTypeRust:      "RustExpert",
+				protocol.AgentTypeBackend:   "GoExpert",
+				protocol.AgentTypeFrontend:  "ReactExpert",
+				protocol.AgentTypeDevOps:    "DevOpsPro",
+				protocol.AgentTypeDatabase:  "SQLMaster",
+				protocol.AgentTypeSecurity:  "SecurityExpert",
+				protocol.AgentTypeAssistant: "Assistant",
+			}
+			name = defaults[spec.AgentType]
+		} else {
+			name = strings.ReplaceAll(spec.Label, " ", "") + "Expert"
 		}
-		name = defaults[agentType]
 	}
 
-	providerName := ""
-	modelOverride := ""
-	if len(parts) >= 4 {
-		providerName = strings.ToLower(parts[3])
-	}
-	if len(parts) >= 5 {
-		modelOverride = parts[4]
-	}
-
-	agentInstance, err := ch.prepareExpertAgent(agentType, name, providerName, modelOverride)
+	agentInstance, err := ch.prepareExpertAgent(spec, name, providerName, modelOverride)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
@@ -847,13 +837,18 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 
 	name = agentInstance.Info.Name
 
+	typeLabel := string(agentInstance.Info.Type)
+	if !spec.IsPreset {
+		typeLabel = "custom (" + spec.Label + ")"
+	}
+
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("🤖 Created **%s** expert agent: **%s**\n\n"+
 			"**Type:** %s\n"+
 			"**Provider:** %s\n"+
 			"**Expertise:** %s\n\n"+
 			"Mention with `@%s` to ask questions.",
-			expertType, name, agentType, providerDisplay, expertiseStr, name)), nil
+			spec.Label, name, typeLabel, providerDisplay, expertiseStr, name)), nil
 }
 
 // handleHelp shows available commands
@@ -865,7 +860,7 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/enable-watch <name>` - Enable automatic file watching and reindexing\n" +
 		"• `/disable-watch <name>` - Disable automatic file watching\n\n" +
 		"**Expert Agents:**\n" +
-		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (rust, backend, frontend, devops, database, security, assistant)\n\n" +
+		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (presets: rust, backend, … — or any custom slug)\n\n" +
 		"**Agent Management:**\n" +
 		"• `/remove-agent <name>` - Remove agent from conversation (can recall later)\n" +
 		"• `/recall-agent <name>` - Recall a removed agent back to conversation\n" +

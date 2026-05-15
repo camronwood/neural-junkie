@@ -546,6 +546,34 @@ section h2 {
   font-size: clamp(1.35rem, 3vw, 1.75rem);
 }
 
+.demo-video-grid {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 2.5rem);
+  margin-top: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .demo-video-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.demo-video-title {
+  margin: 0;
+  padding: 1rem 1rem 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.demo-video-blurb {
+  margin: 0;
+  padding: 0 1rem 0.75rem;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .demo-video-showcase .screenshot-frame video {
   display: block;
   width: 100%;

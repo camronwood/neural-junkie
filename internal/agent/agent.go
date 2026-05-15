@@ -1605,7 +1605,11 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	var user strings.Builder
 
 	// ── SYSTEM SECTION ──────────────────────────────────────────────────
-	system.WriteString(fmt.Sprintf("You are %s, a %s specialist agent in a multi-agent collaboration chat room.\n\n", a.Info.Name, a.Info.Type))
+	specialty := string(a.Info.Type)
+	if a.Info.Type == protocol.AgentTypeHelper && len(a.Info.Expertise) > 0 {
+		specialty = a.Info.Expertise[0]
+	}
+	system.WriteString(fmt.Sprintf("You are %s, a %s specialist agent in a multi-agent collaboration chat room.\n\n", a.Info.Name, specialty))
 	system.WriteString(fmt.Sprintf("Your expertise: %s\n\n", strings.Join(a.Info.Expertise, ", ")))
 
 	// Self-knowledge: tell the agent what model/provider it's actually running on
@@ -1884,6 +1888,11 @@ Provide concrete code examples for suggested improvements.`
 
 Reference specific queries, table names, and line numbers.
 Suggest optimized query alternatives with concrete SQL/code examples.`
+
+	case protocol.AgentTypeHelper:
+		return `You are a custom domain expert. Follow your persona and scoped rules above.
+Answer from the perspective of your stated expertise. Be practical and specific.
+If a question is outside your domain, say so briefly and offer what you can from adjacent knowledge.`
 
 	case protocol.AgentTypeDevOps:
 		return `When asked to review or analyze code, check:

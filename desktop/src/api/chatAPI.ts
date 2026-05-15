@@ -215,6 +215,8 @@ export class ChatAPI {
     mode: 'expert' | 'cli';
     display_name: string;
     expert_type?: string;
+    /** Optional extra instructions for custom (non-preset) experts. */
+    persona?: string;
     provider?: string;
     model?: string;
     cli_type?: string;
@@ -227,6 +229,7 @@ export class ChatAPI {
     };
     if (payload.mode === 'expert') {
       body.expert_type = payload.expert_type ?? '';
+      body.persona = payload.persona ?? '';
       body.provider = payload.provider ?? '';
       body.model = payload.model ?? '';
     } else {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Channel } from '../types/protocol';
 import { ChatAPI } from '../api/chatAPI';
 
-const EXPERT_TYPES: { value: string; label: string }[] = [
+const PRESET_EXPERT_TYPES: { value: string; label: string }[] = [
   { value: 'assistant', label: 'Assistant' },
   { value: 'rust', label: 'Rust' },
   { value: 'backend', label: 'Backend' },
@@ -11,6 +11,8 @@ const EXPERT_TYPES: { value: string; label: string }[] = [
   { value: 'database', label: 'Database' },
   { value: 'security', label: 'Security' },
 ];
+
+const CUSTOM_EXPERT_VALUE = '__custom__';
 
 /** Must stay in sync with `internal/agent/cli_registry.go` ListCLIAgentTypes (sorted). */
 const CLI_TYPES_FALLBACK: readonly string[] = ['claude', 'copilot', 'cursor', 'gemini'];
@@ -30,6 +32,8 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
   const [tab, setTab] = useState<RuntimeTab>('expert');
   const [displayName, setDisplayName] = useState('');
   const [expertType, setExpertType] = useState('assistant');
+  const [customDomain, setCustomDomain] = useState('');
+  const [customPersona, setCustomPersona] = useState('');
   const [provider, setProvider] = useState<'ollama' | 'lmstudio' | 'claude'>('ollama');
   const [model, setModel] = useState('');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
@@ -47,6 +51,8 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
     setTab('expert');
     setDisplayName('');
     setExpertType('assistant');
+    setCustomDomain('');
+    setCustomPersona('');
     setProvider('ollama');
     setModel('');
     setOllamaModels([]);
@@ -143,11 +149,19 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
     setFormError(null);
     try {
       if (tab === 'expert') {
+        const isCustom = expertType === CUSTOM_EXPERT_VALUE;
+        const domain = isCustom ? customDomain.trim() : expertType;
+        if (!domain) {
+          setFormError(isCustom ? 'Enter a domain for your custom expert (e.g. guitar).' : 'Select a persona.');
+          setSubmitting(false);
+          return;
+        }
         const ch = await api.createDMAgent({
           created_by: username.trim(),
           mode: 'expert',
           display_name: name,
-          expert_type: expertType,
+          expert_type: domain,
+          persona: isCustom ? customPersona.trim() : undefined,
           provider,
           model: model.trim(),
         });
@@ -240,13 +254,43 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
                     onChange={e => setExpertType(e.target.value)}
                     className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
                   >
-                    {EXPERT_TYPES.map(o => (
+                    {PRESET_EXPERT_TYPES.map(o => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>
                     ))}
+                    <option value={CUSTOM_EXPERT_VALUE}>Custom…</option>
                   </select>
                 </div>
+                {expertType === CUSTOM_EXPERT_VALUE && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-slack-textMuted mb-1">Domain</label>
+                      <input
+                        type="text"
+                        value={customDomain}
+                        onChange={e => setCustomDomain(e.target.value)}
+                        placeholder="e.g. guitar, legal-advice, cooking"
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                      />
+                      <p className="text-xs text-slack-textMuted mt-1">
+                        Any topic — not limited to engineering presets.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slack-textMuted mb-1">
+                        Extra instructions (optional)
+                      </label>
+                      <textarea
+                        value={customPersona}
+                        onChange={e => setCustomPersona(e.target.value)}
+                        placeholder="e.g. Focus on jazz chords and practice routines"
+                        rows={3}
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent resize-y"
+                      />
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-xs font-medium text-slack-textMuted mb-1">Provider</label>
                   <select

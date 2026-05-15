@@ -5,17 +5,111 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// Preset expert slugs for engineering specialists (used by /create-expert and DM spawn).
+var presetExpertTypes = map[string]protocol.AgentType{
+	"rust":      protocol.AgentTypeRust,
+	"backend":   protocol.AgentTypeBackend,
+	"frontend":  protocol.AgentTypeFrontend,
+	"devops":    protocol.AgentTypeDevOps,
+	"database":  protocol.AgentTypeDatabase,
+	"security":  protocol.AgentTypeSecurity,
+	"assistant": protocol.AgentTypeAssistant,
+}
+
+// ExpertResolveResult describes how to instantiate an expert from a user slug.
+type ExpertResolveResult struct {
+	AgentType       protocol.AgentType
+	IsPreset        bool
+	Label           string // human-readable domain label (for messages)
+	Expertise       []string
+	PersonaMarkdown string
+}
+
+var knownExpertProviders = map[string]struct{}{
+	"ollama":   {},
+	"claude":   {},
+	"lmstudio": {},
+}
+
+// normalizeCommandArg trims whitespace and leading/trailing punctuation from a slash-command token.
+func normalizeCommandArg(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, ",;:.")
+	return strings.TrimSpace(s)
+}
+
+// parseCreateExpertParts re-tokenizes /create-expert arguments: commas become spaces and
+// each token is normalized (fixes "guitar," and "guitar, Name" style input).
+func parseCreateExpertParts(parts []string) []string {
+	if len(parts) < 2 {
+		return parts
+	}
+	rest := strings.Join(parts[1:], " ")
+	rest = strings.ReplaceAll(rest, ",", " ")
+	tokens := strings.Fields(rest)
+	out := make([]string, 0, 1+len(tokens))
+	out = append(out, parts[0])
+	for _, t := range tokens {
+		if t = normalizeCommandArg(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func isKnownExpertProvider(providerName string) bool {
+	p := strings.ToLower(normalizeCommandArg(providerName))
+	if p == "" {
+		return true
+	}
+	_, ok := knownExpertProviders[p]
+	return ok
+}
+
+// splitCreateExpertArgs parses tokens after /create-expert.
+// Only ollama, claude, and lmstudio are treated as providers; every other token is
+// part of the display name (supports multi-word names like "Music Muisc").
+func splitCreateExpertArgs(parts []string) (expertSlug, displayName, provider, model string) {
+	if len(parts) < 2 {
+		return "", "", "", ""
+	}
+	expertSlug = parts[1]
+	if len(parts) < 3 {
+		return expertSlug, "", "", ""
+	}
+	rest := parts[2:]
+	providerIdx := -1
+	for i, tok := range rest {
+		if isKnownExpertProvider(tok) {
+			providerIdx = i
+			break
+		}
+	}
+	if providerIdx < 0 {
+		displayName = strings.Join(rest, " ")
+		return expertSlug, displayName, "", ""
+	}
+	if providerIdx > 0 {
+		displayName = strings.Join(rest[:providerIdx], " ")
+	}
+	provider = strings.ToLower(normalizeCommandArg(rest[providerIdx]))
+	if providerIdx+1 < len(rest) {
+		model = strings.Join(rest[providerIdx+1:], " ")
+	}
+	return expertSlug, displayName, provider, model
+}
+
 // buildExpertAIProvider matches /create-expert provider + model resolution.
 func buildExpertAIProvider(providerName, modelOverride string) (ai.AIProvider, error) {
-	p := strings.ToLower(strings.TrimSpace(providerName))
+	p := strings.ToLower(normalizeCommandArg(providerName))
 	switch p {
 	case "claude":
 		claudeProvider, err := ai.NewClaudeProvider()
@@ -46,28 +140,83 @@ func buildExpertAIProvider(providerName, modelOverride string) (ai.AIProvider, e
 	}
 }
 
-// ExpertSlugToAgentType maps /create-expert slugs (plus "assistant") to protocol types.
-func ExpertSlugToAgentType(expertType string) (protocol.AgentType, error) {
-	expertType = strings.ToLower(strings.TrimSpace(expertType))
-	validTypes := map[string]protocol.AgentType{
-		"rust":       protocol.AgentTypeRust,
-		"backend":    protocol.AgentTypeBackend,
-		"frontend":   protocol.AgentTypeFrontend,
-		"devops":     protocol.AgentTypeDevOps,
-		"database":   protocol.AgentTypeDatabase,
-		"security":   protocol.AgentTypeSecurity,
-		"assistant":  protocol.AgentTypeAssistant,
-	}
-	agentType, ok := validTypes[expertType]
-	if !ok {
-		keys := make([]string, 0, len(validTypes))
-		for k := range validTypes {
-			keys = append(keys, k)
+// normalizeExpertSlug trims whitespace, lowercases, and strips trailing punctuation
+// (e.g. "guitar," from "/create-expert guitar, Name").
+func normalizeExpertSlug(expertType string) string {
+	s := strings.ToLower(strings.TrimSpace(expertType))
+	s = strings.TrimRightFunc(s, func(r rune) bool {
+		return r == ',' || r == ';' || r == '.' || r == ':'
+	})
+	return strings.TrimSpace(s)
+}
+
+// humanizeExpertSlug turns "legal-advice" into "Legal Advice".
+func humanizeExpertSlug(slug string) string {
+	slug = strings.NewReplacer("-", " ", "_", " ").Replace(slug)
+	words := strings.Fields(slug)
+	for i, w := range words {
+		if w == "" {
+			continue
 		}
-		sort.Strings(keys)
-		return "", fmt.Errorf("unknown expert type %q; valid: %s", expertType, strings.Join(keys, ", "))
+		runes := []rune(w)
+		runes[0] = unicode.ToUpper(runes[0])
+		for j := 1; j < len(runes); j++ {
+			runes[j] = unicode.ToLower(runes[j])
+		}
+		words[i] = string(runes)
 	}
-	return agentType, nil
+	return strings.Join(words, " ")
+}
+
+func buildCustomPersonaMarkdown(label, extraPersona string) string {
+	var b strings.Builder
+	b.WriteString("## Persona\n\n")
+	b.WriteString("You are **")
+	b.WriteString(label)
+	b.WriteString("**, a knowledgeable expert in **")
+	b.WriteString(label)
+	b.WriteString("**.\n\n")
+	b.WriteString("Stay in character as this specialist. Give practical, accurate, and approachable advice in this domain.\n")
+	if extra := strings.TrimSpace(extraPersona); extra != "" {
+		b.WriteString("\n### Additional instructions\n\n")
+		b.WriteString(extra)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// ResolveExpert maps a slug to a preset specialist or a custom domain expert.
+// Any slug not in the preset list becomes AgentTypeHelper with persona rules.
+func ResolveExpert(expertSlug, persona string) (ExpertResolveResult, error) {
+	slug := normalizeExpertSlug(expertSlug)
+	if slug == "" {
+		return ExpertResolveResult{}, fmt.Errorf("expert type is required")
+	}
+	if agentType, ok := presetExpertTypes[slug]; ok {
+		return ExpertResolveResult{
+			AgentType: agentType,
+			IsPreset:  true,
+			Label:     slug,
+		}, nil
+	}
+	label := humanizeExpertSlug(slug)
+	return ExpertResolveResult{
+		AgentType:       protocol.AgentTypeHelper,
+		IsPreset:        false,
+		Label:           label,
+		Expertise:       []string{label},
+		PersonaMarkdown: buildCustomPersonaMarkdown(label, persona),
+	}, nil
+}
+
+// ExpertSlugToAgentType maps preset /create-expert slugs to protocol types.
+// Unknown slugs resolve to AgentTypeHelper (custom experts).
+func ExpertSlugToAgentType(expertType string) (protocol.AgentType, error) {
+	spec, err := ResolveExpert(expertType, "")
+	if err != nil {
+		return "", err
+	}
+	return spec.AgentType, nil
 }
 
 func (ch *CommandHandler) expertAgentNameTaken(name string) bool {
@@ -81,7 +230,7 @@ func (ch *CommandHandler) expertAgentNameTaken(name string) bool {
 }
 
 // prepareExpertAgent registers a new expert-style runtime agent (no channel join / start).
-func (ch *CommandHandler) prepareExpertAgent(agentType protocol.AgentType, name, providerName, modelOverride string) (*agent.Agent, error) {
+func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, providerName, modelOverride string) (*agent.Agent, error) {
 	name = protocol.NormalizeAgentName(name)
 	if name == "" {
 		return nil, fmt.Errorf("agent name is required")
@@ -95,9 +244,17 @@ func (ch *CommandHandler) prepareExpertAgent(agentType protocol.AgentType, name,
 		return nil, err
 	}
 
-	agentInstance, err := agent.AgentFactory(agentType, name, aiProvider, ch.hub)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create agent: %w", err)
+	var agentInstance *agent.Agent
+	if spec.IsPreset {
+		agentInstance, err = agent.AgentFactory(spec.AgentType, name, aiProvider, ch.hub)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create agent: %w", err)
+		}
+	} else {
+		agentInstance = agent.NewCustomExpertAgent(name, spec.Expertise, aiProvider, ch.hub)
+		if spec.PersonaMarkdown != "" {
+			agentInstance.Info.CustomRulesMarkdown = spec.PersonaMarkdown
+		}
 	}
 	agentInstance.SetCollabClient(ch.hub.NewCollaborationClientAdapter())
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
@@ -107,16 +264,22 @@ func (ch *CommandHandler) prepareExpertAgent(agentType protocol.AgentType, name,
 		return nil, fmt.Errorf("failed to register agent: %w", err)
 	}
 
+	if !spec.IsPreset && strings.TrimSpace(spec.PersonaMarkdown) != "" {
+		if err := ch.hub.SetAgentCustomRulesMarkdown(agentInstance.Info.ID, spec.PersonaMarkdown); err != nil {
+			log.Printf("Failed to persist custom expert persona for %s: %v", name, err)
+		}
+	}
+
 	return agentInstance, nil
 }
 
 // SpawnExpertAgentForDM creates an expert (or assistant) agent and a DM with createdBy; agent only joins the DM.
-func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerName, modelOverride string) (*protocol.Channel, error) {
+func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerName, modelOverride, persona string) (*protocol.Channel, error) {
 	createdBy = strings.TrimSpace(createdBy)
 	if createdBy == "" {
 		return nil, fmt.Errorf("created_by is required")
 	}
-	agentType, err := ExpertSlugToAgentType(expertSlug)
+	spec, err := ResolveExpert(expertSlug, persona)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +289,7 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 		return nil, fmt.Errorf("display_name is required")
 	}
 
-	agentInstance, err := ch.prepareExpertAgent(agentType, name, providerName, modelOverride)
+	agentInstance, err := ch.prepareExpertAgent(spec, name, providerName, modelOverride)
 	if err != nil {
 		return nil, err
 	}

@@ -156,6 +156,14 @@ func NewRustAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return NewAgent(protocol.AgentTypeRust, name, expertise, ai, hub)
 }
 
+// NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
+func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
+	if len(expertise) == 0 {
+		expertise = []string{"General"}
+	}
+	return NewAgent(protocol.AgentTypeHelper, name, expertise, aiProvider, hub)
+}
+
 // NewRepoAgentWrapper creates a repository expert agent wrapper
 // Note: The actual RepoAgent is created with NewRepoAgent which requires a repo path
 // This is just a placeholder for the factory pattern

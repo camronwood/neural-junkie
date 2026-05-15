@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
   <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
   <link rel="stylesheet" href="../css/landing.css" />
 </head>
@@ -51,7 +51,15 @@
       <p><code>/create-confluence-agent</code> attaches a space key so answers cite your wiki. Credentials live in environment configuration; see the Confluence agents guide for indexing and search semantics.</p>
 
       <h2>Experts and CLI agents</h2>
-      <p><code>/create-expert</code> spins additional typed experts on demand. Optional <strong>Cursor</strong> and <strong>Gemini CLI</strong> integrations treat external CLIs as first-class providers when binaries and keys are available — useful when you want vendor tooling inside the same channel fabric.</p>
+      <p><code>/create-expert</code> adds specialists on demand: curated presets (rust, backend, frontend, devops, database, security, assistant) <em>or any custom domain</em> — guitar teacher, legal advisor, whatever fits your work. Use a slash command or open a <strong>New DM</strong> from the desktop with a custom persona. Optional <strong>Cursor</strong> and <strong>Gemini CLI</strong> integrations treat external CLIs as first-class providers when binaries and keys are available.</p>
+      <figure class="screenshot-frame" style="margin: 1.5rem 0;">
+        <video controls playsinline preload="metadata" aria-label="Creating a custom guitar expert in Neural Junkie">
+          <source src="../media/general-experts-guitar.mp4" type="video/mp4" />
+        </video>
+        <figcaption class="screenshot-caption">
+          Custom expert demo — <a href="../media/general-experts-guitar.mp4">Download MP4</a>
+        </figcaption>
+      </figure>
 
       <h2>Optional standalone processes</h2>
       <p><code>make agents</code> still launches the classic multi-process layout for people who prefer separate OS processes. If you run both in-process and standalone agents with the same names, you can get duplicate registrations — pick one model per environment.</p>

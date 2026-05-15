@@ -1133,6 +1133,7 @@ func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 		Mode        string `json:"mode"` // "expert" | "cli"
 		DisplayName string `json:"display_name"`
 		ExpertType  string `json:"expert_type"`
+		Persona     string `json:"persona"` // optional extra instructions for custom experts
 		Provider    string `json:"provider"`
 		Model       string `json:"model"`
 		CLIType     string `json:"cli_type"`
@@ -1171,7 +1172,7 @@ func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "expert_type is required for mode expert", http.StatusBadRequest)
 			return
 		}
-		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.Provider, req.Model)
+		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.Provider, req.Model, req.Persona)
 	case "cli":
 		if strings.TrimSpace(req.CLIType) == "" {
 			http.Error(w, "cli_type is required for mode cli", http.StatusBadRequest)
