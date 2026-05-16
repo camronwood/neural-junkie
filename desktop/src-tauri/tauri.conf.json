@@ -8,7 +8,7 @@
   },
   "package": {
     "productName": "Neural Junkie",
-    "version": "1.0.0-beta.1"
+    "version": "1.0.0"
   },
   "tauri": {
     "allowlist": {

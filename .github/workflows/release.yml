@@ -16,12 +16,14 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub release
+      - name: Create GitHub release (draft)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Neural Junkie ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, 'beta') }}
+          draft: true
+          make_latest: false
           generate_release_notes: false
           body: |
             ## Install Neural Junkie
@@ -148,7 +150,7 @@ jobs:
 
   build-linux:
     needs: create-release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -157,7 +159,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
+            libwebkit2gtk-4.0-dev \
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
@@ -198,3 +200,22 @@ jobs:
             exit 1
           fi
           gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
+
+  publish-release:
+    needs:
+      - create-release
+      - build-macos
+      - build-windows
+      - build-linux
+    if: ${{ always() && needs.create-release.result == 'success' && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success' || needs.build-linux.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release (undraft)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          args=(--draft=false)
+          if [[ "${{ github.ref_name }}" == *beta* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" "${args[@]}"
