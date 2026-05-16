@@ -87,7 +87,28 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 **Web hub (when the server is running):** the built-in browser UI at `http://localhost:18765` is a lightweight chat client. The **native desktop app** is what you see above. For a static HTML preview of these screenshots without the hub, serve the repo root and open `public/index.html` (see the note in that file).
 
-## Quick Start
+## Install (download)
+
+**Beta:** [GitHub Releases — v1.0.0-beta.1](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.1) — pick the installer for your platform:
+
+| Platform | File |
+|----------|------|
+| **macOS (Apple Silicon)** | `.dmg` with `aarch64` in the name |
+| **macOS (Intel)** | `.dmg` with `x64` or `x86_64` in the name |
+| **Windows** | `.msi` installer (or `.exe` setup) |
+| **Linux** | `.AppImage` and/or `.deb` |
+
+The Go hub is bundled as a Tauri sidecar — you do **not** need Go installed to run the desktop app.
+
+**macOS:** Builds are unsigned; use **Right-click → Open** the first time if Gatekeeper warns.
+
+**Windows:** Install [Ollama](https://ollama.com) manually or use a cloud API key in the setup wizard (in-app Ollama install is macOS/Linux only).
+
+**Quick start after install:** [docs/DOWNLOAD.md](docs/DOWNLOAD.md)
+
+**Site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
+
+## Quick Start (from source)
 
 ```bash
 git clone https://github.com/camronwood/neural-junkie.git

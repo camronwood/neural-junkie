@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.23'
   NODE_VERSION: '20'
   RUST_VERSION: 'stable'
 
@@ -33,6 +33,10 @@ jobs:
             go_targets: |
               GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
             tauri_args: ''
+          - platform: windows-latest
+            go_targets: |
+              GOOS=windows GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
+            tauri_args: ''
 
     runs-on: ${{ matrix.platform }}
 
@@ -53,7 +57,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -62,6 +66,7 @@ jobs:
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Cross-compile Go server
+        shell: bash
         run: |
           mkdir -p desktop/src-tauri/binaries
           ${{ matrix.go_targets }}
@@ -80,14 +85,33 @@ jobs:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
           releaseName: 'Neural Junkie ${{ github.ref_name }}'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseBody: |
+            ## Install Neural Junkie
+
+            Pick the installer for your platform:
+
+            | Platform | File |
+            |----------|------|
+            | **macOS (Apple Silicon)** | `.dmg` with `aarch64` in the name |
+            | **macOS (Intel)** | `.dmg` with `x64` or `x86_64` in the name |
+            | **Windows** | `.msi` installer (or `.exe` setup) |
+            | **Linux** | `.AppImage` and/or `.deb` |
+
+            **macOS:** Unsigned build — if Gatekeeper blocks the app, right-click → **Open**, or allow in **System Settings → Privacy & Security**.
+
+            **Windows:** Install [Ollama](https://ollama.com) manually or use a cloud API key in the setup wizard (in-app Ollama install is macOS/Linux only).
+
+            **Quick start:** [docs/DOWNLOAD.md](https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md)
+
+            **From source:** [README Quick Start](https://github.com/camronwood/neural-junkie#quick-start)
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, 'beta') }}
           tauriScript: npx tauri
           args: ${{ matrix.tauri_args }}
 
   generate-manifests:
     needs: build
+    if: ${{ !contains(github.ref_name, 'beta') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -103,6 +127,7 @@ jobs:
       - name: Upload manifests to release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.ref_name }}
           files: |
             update-darwin-aarch64.json
             update-darwin-x86_64.json

@@ -35,11 +35,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Downloadable releases</strong> are GitHub tags <strong>v0.1.x</strong> only. Older sections document milestones that were never tagged that way (including a former internal heading <code>2.0.0</code>, which is <em>not</em> semver above 0.1.x). Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Download installers</strong> from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.1">GitHub Releases (v1.0.0-beta.1)</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones included in that beta tag. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-1">1.0.0-beta.1</a>
+      <span aria-hidden="true">·</span>
       <a href="#v0-1-4">0.1.4</a>
       <span aria-hidden="true">·</span>
       <a href="#v0-1-3">0.1.3</a>
@@ -56,6 +58,31 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-1" class="release-version-heading">1.0.0-beta.1 <span class="release-date">— 2026-05-16</span></h2>
+
+      <p><strong>First public beta download.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.1">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>.</p>
+
+      <h3>Install</h3>
+      <table class="release-install-table">
+        <thead><tr><th>Platform</th><th>Artifact</th></tr></thead>
+        <tbody>
+          <tr><td>macOS (Apple Silicon)</td><td><code>.dmg</code> with <code>aarch64</code> in the name</td></tr>
+          <tr><td>macOS (Intel)</td><td><code>.dmg</code> with <code>x64</code> or <code>x86_64</code> in the name</td></tr>
+          <tr><td>Windows</td><td><code>.msi</code> or setup <code>.exe</code></td></tr>
+          <tr><td>Linux</td><td><code>.AppImage</code> and/or <code>.deb</code></td></tr>
+        </tbody>
+      </table>
+      <p><strong>macOS:</strong> Unsigned — right-click the app → <strong>Open</strong> if Gatekeeper warns.<br />
+      <strong>Windows:</strong> Install <a href="https://ollama.com">Ollama</a> manually or use a cloud API key in the wizard (in-app Ollama install is macOS/Linux only).</p>
+
+      <h3>Highlights</h3>
+      <ul>
+        <li>Downloadable desktop app + bundled Go hub (no separate Go install).</li>
+        <li>Includes milestones <strong>0.1.2–0.1.4</strong>: Ollama model library, collaboration smart routing, collaboration sandbox, marketing site, port 18765, and desktop polish.</li>
+      </ul>
+
+      <hr class="release-sep" />
+
       <h2 id="v0-1-4" class="release-version-heading">0.1.4 <span class="release-date">— 2026-05-14</span></h2>
 
       <h3>Added</h3>

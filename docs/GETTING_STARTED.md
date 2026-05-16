@@ -2,7 +2,26 @@
 
 Get Neural Junkie running in under 5 minutes.
 
-## Prerequisites
+## Downloaded app (recommended)
+
+No Go, Node, or Rust required.
+
+1. Install from [GitHub Releases — v1.0.0-beta.1](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.1).
+2. Open the app and complete the **setup wizard** (Ollama local or cloud API key).
+3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and slash commands.
+
+The desktop app bundles the Go hub as a sidecar and starts it automatically.
+
+**Platform notes:**
+
+- **macOS / Linux:** wizard can install or start Ollama.
+- **Windows:** install [Ollama](https://ollama.com) manually or use a cloud key (in-app Ollama install is not supported on Windows).
+
+---
+
+## From source (developers)
+
+### Prerequisites
 
 - **Go 1.23+** -- [go.dev/dl](https://go.dev/dl)
 - **Node.js 18+** -- [nodejs.org](https://nodejs.org)

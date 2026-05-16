@@ -904,6 +904,27 @@ section h2 {
   gap: 0.65rem;
 }
 
+.release-install-table {
+  width: 100%;
+  max-width: 36rem;
+  margin: 1rem 0 1.25rem;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.release-install-table th,
+.release-install-table td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.release-install-table th {
+  background: var(--bg-deep);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 .release-jump {
   margin: 0 0 2.25rem;
   padding: 0.85rem 1rem;

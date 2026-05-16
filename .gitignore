@@ -38,6 +38,7 @@ desktop/dist/
 desktop/src-tauri/target/
 desktop/src-tauri/binaries/
 desktop/node_modules/
+.venv-icon/
 
 # Build binaries (explicit, root only)
 /agent

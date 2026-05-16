@@ -6,6 +6,7 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 
 | Topic | File |
 |--------|------|
+| Download and first run (beta) | [DOWNLOAD.md](docs/DOWNLOAD.md) |
 | Setup and first run | [GETTING_STARTED.md](docs/GETTING_STARTED.md) |
 | System design | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Repo indexing agents | [REPO_AGENTS.md](docs/REPO_AGENTS.md) |

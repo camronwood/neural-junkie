@@ -2,7 +2,24 @@
 
 All notable changes to Neural Junkie.
 
-**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, `v0.1.4`, …). Older sections below include **historical milestones** that were never shipped as those tags (for example a one-time internal label `2.0.0` for the rebrand era, which is **not** “newer than” current `0.1.x`).
+**Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v1.0.0-beta.1`, `v0.1.x`, …). Sections **0.1.2–0.1.4** below are development milestones bundled into **v1.0.0-beta.1** (first public downloadable beta). Older sections include milestones never tagged (for example internal `2.0.0`, which is **not** semver above `0.1.x`).
+
+## [1.0.0-beta.1] - 2026-05-16
+
+### Added
+- **First public beta installers** — downloadable desktop builds for **macOS** (Apple Silicon + Intel `.dmg`), **Windows** (`.msi`), and **Linux** (`.AppImage` / `.deb`) via GitHub Releases; Go hub ships as a Tauri sidecar (no separate Go install).
+- **Download quickstart** — [docs/DOWNLOAD.md](DOWNLOAD.md) for install → wizard → first chat in under five minutes.
+
+### Changed
+- **Release CI** — Windows matrix, Go 1.23, rich release notes, prerelease flag for `*-beta*` tags; updater manifest job skipped on beta tags.
+- **Marketing site** — landing and README prioritize **Download beta** over clone-only CTAs.
+
+### Includes (since v0.1.1)
+- Everything in **0.1.2**, **0.1.3**, and **0.1.4** below: marketing site, port **18765**, collaboration sandbox and smart routing, Ollama model library, slash-command parity, desktop UX polish, and more.
+
+### Notes
+- **macOS/Linux:** setup wizard can install/start Ollama. **Windows:** install [Ollama](https://ollama.com) manually or use a cloud API key (in-app Ollama install is not supported on Windows).
+- Builds are **unsigned**; macOS may require right-click → **Open** the first time.
 
 ## [0.1.4] - 2026-05-14
 
