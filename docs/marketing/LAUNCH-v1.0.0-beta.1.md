@@ -2,7 +2,7 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.2
+https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.3
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
@@ -14,11 +14,11 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.2
 
 ## X / Mastodon
 
-Neural Junkie v1.0.0-beta.2 is out — a downloadable desktop app (macOS / Windows / Linux), not just source.
+Neural Junkie v1.0.0-beta.3 is out — a downloadable desktop app (macOS / Windows / Linux), not just source.
 
 Multi-agent Slack for devs: repo experts, slash commands, approve file edits. Local Ollama or your API keys.
 
-Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.2
+Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.3
 
 OSS · feedback welcome
 
@@ -28,13 +28,13 @@ OSS · feedback welcome
 
 Open-sourcing wasn't enough — we shipped installers.
 
-**Neural Junkie v1.0.0-beta.2** is a Tauri desktop app + Go hub: specialized agents (backend, frontend, security, DevOps…), repo-aware context, collaboration with human approval on file changes.
+**Neural Junkie v1.0.0-beta.3** is a Tauri desktop app + Go hub: specialized agents (backend, frontend, security, DevOps…), repo-aware context, collaboration with human approval on file changes.
 
 Install from GitHub Releases (macOS .dmg, Windows .msi, Linux AppImage). Setup wizard walks you through Ollama (macOS/Linux) or cloud providers. On Windows, install Ollama manually or use an API key.
 
 Looking for early testers — especially "does install + first chat work on your machine?"
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.2
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.3
 
 Site: https://camronwood.github.io/neural-junkie/
 
@@ -44,7 +44,7 @@ Site: https://camronwood.github.io/neural-junkie/
 
 **Title:** Show HN: Neural Junkie – multi-agent desktop for devs (beta download, local Ollama)
 
-**URL:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.2
+**URL:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.3
 
 **First comment:**
 
@@ -70,7 +70,7 @@ Title: [Beta] Neural Junkie — multi-agent desktop with Ollama model library + 
 
 Body: Shipped v1.0.0-beta.1 installers (macOS/Win/Linux). Tauri app bundles a Go hub; you can browse/install Ollama models from Settings, run specialists in one Slack-style UI, and index local repos for context. Local-first or mix cloud providers per agent.
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.2
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.3
 
 Looking for feedback on install friction and local model workflows.
 
