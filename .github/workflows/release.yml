@@ -19,24 +19,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - id: macos
+            platform: macos-latest
             go_targets: |
               GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
               GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
             tauri_args: '--target aarch64-apple-darwin'
-          - platform: macos-latest
-            go_targets: |
-              GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
-              GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
-            tauri_args: '--target x86_64-apple-darwin'
-          - platform: ubuntu-22.04
+            extra_mac_intel: true
+          - id: linux
+            platform: ubuntu-22.04
             go_targets: |
               GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
             tauri_args: ''
-          - platform: windows-latest
+            extra_mac_intel: false
+          - id: windows
+            platform: windows-latest
             go_targets: |
               GOOS=windows GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
             tauri_args: ''
+            extra_mac_intel: false
 
     runs-on: ${{ matrix.platform }}
 
@@ -57,10 +58,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.id == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.id == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
@@ -75,12 +76,14 @@ jobs:
         working-directory: desktop
         run: npm ci
 
-      - name: Build Tauri
+      - name: Build frontend
+        working-directory: desktop
+        run: npm run build
+
+      - name: Build Tauri (primary target)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
           projectPath: desktop
           tagName: ${{ github.ref_name }}
@@ -108,6 +111,28 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'beta') }}
           tauriScript: npx tauri
           args: ${{ matrix.tauri_args }}
+
+      - name: Build Tauri (Intel macOS)
+        if: matrix.extra_mac_intel
+        working-directory: desktop
+        run: npx tauri build --target x86_64-apple-darwin
+
+      - name: Upload Intel macOS bundles
+        if: matrix.extra_mac_intel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          assets=(
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz
+          )
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No Intel macOS bundles found" >&2
+            exit 1
+          fi
+          gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
 
   generate-manifests:
     needs: build
