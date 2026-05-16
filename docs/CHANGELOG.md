@@ -4,6 +4,11 @@ All notable changes to Neural Junkie.
 
 **Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v1.0.0-beta.1`, `v0.1.x`, …). Sections **0.1.2–0.1.4** below are development milestones bundled into **v1.0.0-beta.1** (first public downloadable beta). Older sections include milestones never tagged (for example internal `2.0.0`, which is **not** semver above `0.1.x`).
 
+## [1.0.0-beta.4] - 2026-05-16
+
+### Fixed
+- **Release CI** — draft-then-publish workflow for immutable GitHub releases; per-platform `gh release upload`; app bundle version `1.0.0` for Windows MSI (tag remains `v1.0.0-beta.4`).
+
 ## [1.0.0-beta.1] - 2026-05-16
 
 ### Added
