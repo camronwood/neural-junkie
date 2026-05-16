@@ -8,87 +8,22 @@ on:
 env:
   GO_VERSION: '1.23'
   NODE_VERSION: '20'
-  RUST_VERSION: 'stable'
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - id: macos
-            platform: macos-latest
-            go_targets: |
-              GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
-              GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
-            tauri_args: '--target aarch64-apple-darwin'
-            extra_mac_intel: true
-          - id: linux
-            platform: ubuntu-22.04
-            go_targets: |
-              GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
-            tauri_args: ''
-            extra_mac_intel: false
-          - id: windows
-            platform: windows-latest
-            go_targets: |
-              GOOS=windows GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
-            tauri_args: ''
-            extra_mac_intel: false
-
-    runs-on: ${{ matrix.platform }}
-
+  create-release:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Go
-        uses: actions/setup-go@v5
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
         with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.id == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: Install Linux dependencies
-        if: matrix.id == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Cross-compile Go server
-        shell: bash
-        run: |
-          mkdir -p desktop/src-tauri/binaries
-          ${{ matrix.go_targets }}
-
-      - name: Install frontend dependencies
-        working-directory: desktop
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: desktop
-        run: npm run build
-
-      - name: Build Tauri (primary target)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: desktop
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Neural Junkie ${{ github.ref_name }}'
-          releaseBody: |
+          tag_name: ${{ github.ref_name }}
+          name: Neural Junkie ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, 'beta') }}
+          generate_release_notes: false
+          body: |
             ## Install Neural Junkie
 
             Pick the installer for your platform:
@@ -107,55 +42,159 @@ jobs:
             **Quick start:** [docs/DOWNLOAD.md](https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md)
 
             **From source:** [README Quick Start](https://github.com/camronwood/neural-junkie#quick-start)
-          releaseDraft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') }}
-          tauriScript: npx tauri
-          args: ${{ matrix.tauri_args }}
 
-      - name: Build Tauri (Intel macOS)
-        if: matrix.extra_mac_intel
+  build-macos:
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cross-compile Go server
+        run: |
+          mkdir -p desktop/src-tauri/binaries
+          GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
+          GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
+
+      - name: Build frontend
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Tauri (Apple Silicon)
+        working-directory: desktop
+        run: npx tauri build --target aarch64-apple-darwin
+
+      - name: Upload Apple Silicon assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          gh release upload "${{ github.ref_name }}" \
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg \
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.tar.gz \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Build Tauri (Intel)
         working-directory: desktop
         run: npx tauri build --target x86_64-apple-darwin
 
-      - name: Upload Intel macOS bundles
-        if: matrix.extra_mac_intel
+      - name: Upload Intel macOS assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          gh release upload "${{ github.ref_name }}" \
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg \
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz \
+            --repo "${{ github.repository }}" --clobber
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cross-compile Go server
+        shell: bash
+        run: |
+          mkdir -p desktop/src-tauri/binaries
+          GOOS=windows GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
+
+      - name: Build frontend and Tauri
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+          npx tauri build
+
+      - name: Upload Windows assets
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
           assets=(
-            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
-            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz
+            desktop/src-tauri/target/release/bundle/msi/*.msi
+            desktop/src-tauri/target/release/bundle/nsis/*.exe
           )
           if [ ${#assets[@]} -eq 0 ]; then
-            echo "No Intel macOS bundles found" >&2
+            echo "No Windows bundles found" >&2
             exit 1
           fi
           gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
 
-  generate-manifests:
-    needs: build
-    if: ${{ !contains(github.ref_name, 'beta') }}
-    runs-on: ubuntu-latest
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Generate update manifests
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Linux dependencies
         run: |
-          chmod +x scripts/generate-update-manifests.sh
-          scripts/generate-update-manifests.sh ${{ github.ref_name }}
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
-      - name: Upload manifests to release
-        uses: softprops/action-gh-release@v1
+      - uses: actions/setup-go@v5
         with:
-          tag_name: ${{ github.ref_name }}
-          files: |
-            update-darwin-aarch64.json
-            update-darwin-x86_64.json
-            update-linux-x86_64.json
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cross-compile Go server
+        run: |
+          mkdir -p desktop/src-tauri/binaries
+          GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
+
+      - name: Build frontend and Tauri
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+          npx tauri build
+
+      - name: Upload Linux assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          assets=(
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          )
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "No Linux bundles found" >&2
+            exit 1
+          fi
+          gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
