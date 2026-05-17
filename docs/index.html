@@ -22,8 +22,8 @@
 
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
-      <strong>v1.0.0-beta.4 available</strong>
-      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">Download installers</a> for macOS, Windows, and Linux — or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
+      <strong>v1.0.0-beta.5 available</strong>
+      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">Download installers</a> for macOS, Windows, and Linux — collaboration reliability, Ollama reasoning UI, thread streaming. Or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
     </div>
   </div>
 
@@ -37,7 +37,7 @@
         <a class="btn btn-ghost" href="#latest-feature">What’s new</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
-        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">Download</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">Download</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">Quick start</a>
         <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
       </nav>
@@ -47,13 +47,13 @@
   <main id="main">
     <section class="hero">
       <div class="wrap">
-        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.4</p>
+        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.5</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
           <strong>Neural Junkie</strong> is a native desktop app and Go hub for <strong>multi-agent orchestration</strong> — specialized agents for your stack, repo-aware context, slash commands, and workflows that actually ship. <strong>Open beta:</strong> install on macOS, Windows, or Linux — no clone required.
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">Download for macOS / Windows / Linux</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">Download for macOS / Windows / Linux</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">5-minute quick start</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie#quick-start-from-source">Build from source</a>
           <a class="btn btn-ghost" href="#latest-feature">What’s new</a>
@@ -77,25 +77,25 @@
     <section class="latest-feature" id="latest-feature" aria-labelledby="latest-feature-heading">
       <div class="wrap latest-feature-inner">
         <div class="latest-feature-copy">
-          <p class="latest-feature-kicker">Open beta · <time datetime="2026-05-16">v1.0.0-beta.4</time></p>
-          <h2 id="latest-feature-heading">Downloadable desktop app for macOS, Windows, and Linux</h2>
-          <p class="latest-feature-lead">Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">GitHub Releases</a> — the Go hub ships inside the Tauri bundle. Setup wizard, Ollama model library, collaboration smart routing, repo agents, and 50+ slash commands are included (milestones 0.1.2–0.1.4). Expect beta rough edges; <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">quick start guide</a>.</p>
+          <p class="latest-feature-kicker">Open beta · <time datetime="2026-05-17">v1.0.0-beta.5</time></p>
+          <h2 id="latest-feature-heading">Collaboration, reasoning models, and desktop reliability</h2>
+          <p class="latest-feature-lead"><strong>v1.0.0-beta.5</strong> fixes DM-spawned agents missing collab channels, cancel lockups, and thread streaming in the wrong pane. Ollama DeepSeek-style models get correct chat roles, <code>think</code> API support, and collapsible <strong>Reasoning</strong> blocks. Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">GitHub Releases</a> — bundled Go hub, setup wizard, model library, and 50+ slash commands. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">Quick start guide</a>.</p>
           <ul class="feature-list feature-list--tight latest-feature-list">
-            <li><strong>Model library</strong> — <code>GET /api/ollama/catalog</code>, pull/delete endpoints, desktop library under <strong>Settings → AI Providers</strong>.</li>
-            <li><strong>Smart routing</strong> — toggle <code>collaboration.smart_routing_enabled</code> in settings; applies to gated <code>collaboration_task</code> execution, not general channel messages.</li>
-            <li><strong>In-process agents</strong> — routing applies to hub-managed agents; standalone <code>cmd/agent</code> specialists keep a single configured provider until a future bridge.</li>
+            <li><strong>Collaboration</strong> — agents spawned from DMs now subscribe to the collab channel; failed joins and seeds surface as system messages instead of silent no-ops.</li>
+            <li><strong>Ollama / DeepSeek</strong> — history roles, thinking stream, and a desktop <strong>Reasoning</strong> section you can expand or collapse.</li>
+            <li><strong>Threads &amp; Mermaid</strong> — stream deltas stay in the thread panel; diagram zoom uses sharp SVG rendering on macOS.</li>
           </ul>
           <div class="latest-feature-actions">
-            <a class="btn btn-primary" href="release-notes.html#v1-0-0-beta-1">Beta release notes</a>
+            <a class="btn btn-primary" href="release-notes.html#v1-0-0-beta-5">Beta.5 release notes</a>
             <a class="btn btn-ghost" href="features/providers-mcp-packaging.html">Models &amp; providers</a>
             <a class="btn btn-ghost" href="features/multi-agent-collaboration.html">Collaboration guide</a>
           </div>
         </div>
         <aside class="latest-feature-aside" aria-label="Related capability">
-          <p class="latest-feature-aside-label">Shipped in v0.1.3</p>
-          <p class="latest-feature-aside-title">Collaboration execution waits for you</p>
-          <p class="latest-feature-aside-text">After <strong>approve plan</strong>, the hub creates a sandbox on disk and holds <code>collaboration_task</code> delivery until you <strong>Continue</strong> in the desktop, call the ack API, or run <code>/ack-collab-workspace</code> — so file proposals and shell <strong>Run</strong> use the workspace you confirmed.</p>
-          <a class="btn btn-ghost btn-sm" href="release-notes.html#v0-1-3">v0.1.3 notes →</a>
+          <p class="latest-feature-aside-label">Also in beta.1–beta.4</p>
+          <p class="latest-feature-aside-title">Model library &amp; smart routing</p>
+          <p class="latest-feature-aside-text">Browse and install Ollama models from <strong>Settings → AI Providers</strong>. Optional <code>collaboration.smart_routing_enabled</code> picks a provider per collaboration task from your configured pool.</p>
+          <a class="btn btn-ghost btn-sm" href="release-notes.html#v0-1-4">v0.1.4 notes →</a>
         </aside>
       </div>
     </section>
@@ -251,11 +251,11 @@
         <p class="section-intro">Tagged desktop builds and major hub milestones. Install artifacts and checksums are attached to each <a href="https://github.com/camronwood/neural-junkie/releases">GitHub release</a>.</p>
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
-          <p class="release-landing-version"><strong>v1.0.0-beta.4</strong> <time datetime="2026-05-16">May 16, 2026</time></p>
-          <p class="release-landing-summary">First public beta installers for <strong>macOS</strong>, <strong>Windows</strong>, and <strong>Linux</strong>. Bundled Go hub, setup wizard, Ollama model library, collaboration sandbox + smart routing, and desktop polish from 0.1.2–0.1.4.</p>
+          <p class="release-landing-version"><strong>v1.0.0-beta.5</strong> <time datetime="2026-05-17">May 17, 2026</time></p>
+          <p class="release-landing-summary">Collaboration subscribe fixes for DM-spawned agents, cancel/UI lockup fixes, thread streaming, Ollama <strong>Reasoning</strong> UI, and Mermaid zoom polish — plus everything from beta.1–beta.4.</p>
           <p class="release-landing-actions">
-            <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">Download v1.0.0-beta.4</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-1">Release notes</a>
+            <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">Download v1.0.0-beta.5</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-5">Release notes</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
           </p>
         </div>
@@ -266,8 +266,8 @@
       <div class="wrap">
         <div class="cta-band">
           <h2 id="cta-heading">Download the beta</h2>
-          <p>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
-          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4">Get v1.0.0-beta.4</a>
+          <p>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5">Get v1.0.0-beta.5</a>
         </div>
       </div>
     </section>
@@ -277,7 +277,7 @@
     <div class="wrap">
       <p>
         <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
-        — open source (MIT per README) · v1.0.0-beta.4 open beta
+        — open source (MIT per README) · v1.0.0-beta.5 open beta
       </p>
     </div>
   </footer>

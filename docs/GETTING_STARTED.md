@@ -6,7 +6,7 @@ Get Neural Junkie running in under 5 minutes.
 
 No Go, Node, or Rust required.
 
-1. Install from [GitHub Releases — v1.0.0-beta.4](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4).
+1. Install from [GitHub Releases — v1.0.0-beta.5](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5).
 2. Open the app and complete the **setup wizard** (Ollama local or cloud API key).
 3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and slash commands.
 
