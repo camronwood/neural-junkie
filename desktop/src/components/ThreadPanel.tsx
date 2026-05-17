@@ -12,19 +12,18 @@ interface ThreadPanelProps {
   threadId: string;
   parentMessage: MessageType;
   onClose: () => void;
-  /** Merge user rules + workspace (same as main chat) for thread replies. */
-  buildOutboundMetadata?: (composerMetadata?: Record<string, unknown>) => Record<string, unknown> | undefined;
+  /** Sends a thread reply (hub data consent + metadata handled by parent). */
+  onSendReply: (content: string, composerMetadata?: Record<string, unknown>) => Promise<void>;
 }
 
 const MIN_WIDTH = 250; // Minimum usable width
 const DEFAULT_WIDTH = 400;
 const STORAGE_KEY = 'thread-panel-width';
 
-export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMetadata }: ThreadPanelProps) {
+export function ThreadPanel({ threadId, parentMessage, onClose, onSendReply }: ThreadPanelProps) {
   const {
     serverAddr,
     channel,
-    username,
     agents,
     threadMessages,
     threadMetadata,
@@ -36,7 +35,6 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
     (s) => ({
       serverAddr: s.serverAddr,
       channel: s.channel,
-      username: s.username,
       agents: s.agents,
       threadMessages: s.threadMessages,
       threadMetadata: s.threadMetadata,
@@ -190,14 +188,7 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
 
   const handleSendReply = async (content: string, composerMeta?: Record<string, unknown>) => {
     try {
-      const metadata = buildOutboundMetadata?.(composerMeta);
-      await api.sendThreadReply(
-        threadId,
-        channel,
-        content,
-        { name: username, type: 'human' },
-        metadata
-      );
+      await onSendReply(content, composerMeta);
     } catch (error) {
       console.error('Failed to send thread reply:', error);
     }

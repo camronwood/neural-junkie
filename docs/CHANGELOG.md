@@ -4,6 +4,17 @@ All notable changes to Neural Junkie.
 
 **Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v1.0.0-beta.1`, `v0.1.x`, …). Sections **0.1.2–0.1.4** below are development milestones bundled into **v1.0.0-beta.1** (first public downloadable beta). Older sections include milestones never tagged (for example internal `2.0.0`, which is **not** semver above `0.1.x`).
 
+## [1.0.0-beta.6] - 2026-05-17
+
+### Fixed
+- **Collaboration task dispatch** — stop re-sending all `collaboration_task` prompts on every channel message during execution (`TasksDispatched` guard; removed dispatch from `attachCollaborationData`).
+- **Session bloat** — slim `collaboration_data` on WebSocket messages (no nested `discussion.messages`); strip metadata from `last-session.json`; stricter **disk** caps (500 channel / 200 thread messages vs 5000 in-memory); drop history on terminal collab channels; cap persisted collaborations.
+- **Session restore** — oversized or corrupt `last-session.json` files are **auto-archived** on startup (no manual cleanup); load limit 64MB.
+
+### Added
+- **Execution limits** — max 100 agent chat messages per collaboration during executing phase; 3s rate limit on `collaboration_task` replies for hub agents.
+- **`scripts/analyze-last-session.sh`** — streaming session file stats.
+
 ## [1.0.0-beta.5] - 2026-05-17
 
 ### Fixed

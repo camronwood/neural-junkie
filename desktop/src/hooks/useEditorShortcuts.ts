@@ -1,15 +1,20 @@
 import { useEffect, useCallback } from 'react';
+import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 
 export function useEditorShortcuts() {
-  const {
-    saveTab,
-    saveAllTabs,
-    closeTab,
-    getActiveTab,
-    hasUnsavedChanges,
-  } = useEditorStore();
+  const { saveTab, saveAllTabs, closeTab, activeTabId, tabs } = useEditorStore(
+    (s) => ({
+      saveTab: s.saveTab,
+      saveAllTabs: s.saveAllTabs,
+      closeTab: s.closeTab,
+      activeTabId: s.activeTabId,
+      tabs: s.tabs,
+    }),
+    shallow
+  );
+  const hasUnsavedChanges = tabs.some((t) => t.isDirty);
   
   const { setFileExplorerOpen } = useFileExplorerStore();
 
@@ -33,9 +38,8 @@ export function useEditorShortcuts() {
     // Cmd+S / Ctrl+S - Save active file
     if (cmdKey && event.key === 's' && !event.shiftKey) {
       event.preventDefault();
-      const activeTab = getActiveTab();
-      if (activeTab) {
-        await saveTab(activeTab.id);
+      if (activeTabId) {
+        await saveTab(activeTabId);
       }
       return;
     }
@@ -50,9 +54,8 @@ export function useEditorShortcuts() {
     // Cmd+W / Ctrl+W - Close active tab
     if (cmdKey && event.key === 'w' && !event.shiftKey) {
       event.preventDefault();
-      const activeTab = getActiveTab();
-      if (activeTab) {
-        closeTab(activeTab.id);
+      if (activeTabId) {
+        closeTab(activeTabId);
       }
       return;
     }
@@ -99,7 +102,7 @@ export function useEditorShortcuts() {
       console.log('Escape pressed - not implemented yet');
       return;
     }
-  }, [saveTab, saveAllTabs, closeTab, getActiveTab, setFileExplorerOpen]);
+  }, [saveTab, saveAllTabs, closeTab, activeTabId, setFileExplorerOpen]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
@@ -111,7 +114,7 @@ export function useEditorShortcuts() {
   // Warn user about unsaved changes when trying to leave
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges()) {
+      if (hasUnsavedChanges) {
         event.preventDefault();
         event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
         return 'You have unsaved changes. Are you sure you want to leave?';

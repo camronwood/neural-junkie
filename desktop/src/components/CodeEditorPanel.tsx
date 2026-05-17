@@ -1,10 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Editor } from '@monaco-editor/react';
+import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
+
+function tabLabel(tab: EditorTab): string {
+  const path = tab.path ?? '';
+  if (!path) return 'Untitled';
+  const parts = path.split('/');
+  return parts[parts.length - 1] || path;
+}
 
 interface CodeEditorPanelProps {
   onClose: () => void;
@@ -20,18 +28,31 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
     activeTabId,
     saving,
     error,
+    hasUnsavedChanges,
     setActiveTab,
     saveTab,
     saveAllTabs,
     closeTab,
-    getActiveTab,
-    hasUnsavedChanges,
-  } = useEditorStore();
+  } = useEditorStore(
+    (s) => ({
+      tabs: s.tabs,
+      activeTabId: s.activeTabId,
+      saving: s.saving,
+      error: s.error,
+      hasUnsavedChanges: s.tabs.some((t) => t.isDirty),
+      setActiveTab: s.setActiveTab,
+      saveTab: s.saveTab,
+      saveAllTabs: s.saveAllTabs,
+      closeTab: s.closeTab,
+    }),
+    shallow
+  );
 
-  const activeContentSyncKey = useEditorStore((s) => {
-    const t = s.tabs.find((x) => x.id === s.activeTabId);
-    return t?.contentSyncKey ?? 0;
-  });
+  const activeTab = useEditorStore((s) =>
+    s.tabs.find((tab) => tab.id === s.activeTabId) ?? null
+  );
+
+  const activeContentSyncKey = activeTab?.contentSyncKey ?? 0;
 
   const tabIdsKey = useEditorStore((s) =>
     [...s.tabs.map((t) => t.id)].sort().join(',')
@@ -68,7 +89,6 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   const editorRef = useRef(editor);
   editorRef.current = editor;
 
-  const activeTab = getActiveTab();
   const isImageTab = activeTab?.viewMode === 'image';
 
   useEffect(() => {
@@ -118,45 +138,42 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab) return;
+    if (!tab || tab.viewMode === 'image') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
 
-    let model = tabModelsRef.current.get(activeTabId);
-    if (!model || model.isDisposed()) {
-      const uri = monaco.Uri.parse(
-        `nj://${tab.workspaceId}/${encodeURIComponent(tab.path)}?tab=${encodeURIComponent(activeTabId)}`
-      );
-      model = monaco.editor.createModel(tab.content, tab.language || 'plaintext', uri);
-      tabModelsRef.current.set(activeTabId, model);
-    } else if (model.getValue() !== tab.content) {
-      model.setValue(tab.content);
+    try {
+      let model = tabModelsRef.current.get(activeTabId);
+      if (!model || model.isDisposed()) {
+        const safePath = tab.path || 'untitled';
+        const uri = monaco.Uri.parse(
+          `nj://${tab.workspaceId || 'ws'}/${encodeURIComponent(safePath)}?tab=${encodeURIComponent(activeTabId)}`
+        );
+        model = monaco.editor.createModel(tab.content ?? '', tab.language || 'plaintext', uri);
+        tabModelsRef.current.set(activeTabId, model);
+      } else if (model.getValue() !== tab.content) {
+        model.setValue(tab.content ?? '');
+      }
+
+      monaco.editor.setModelLanguage(model, tab.language || 'plaintext');
+
+      if (tabSwitched) {
+        const prev = lastAppliedRef.current.tabId;
+        if (prev && prev !== activeTabId) {
+          viewStatesRef.current.set(prev, editor.saveViewState());
+        }
+        editor.setModel(model);
+        const vs = viewStatesRef.current.get(activeTabId);
+        if (vs) {
+          editor.restoreViewState(vs);
+        }
+      }
+
+      lastAppliedRef.current = { tabId: activeTabId, syncKey };
+    } catch (err) {
+      console.error('[CodeEditorPanel] Monaco model sync failed:', err);
     }
-
-    monaco.editor.setModelLanguage(model, tab.language || 'plaintext');
-
-    if (tabSwitched) {
-      const prev = lastAppliedRef.current.tabId;
-      if (prev && prev !== activeTabId) {
-        viewStatesRef.current.set(prev, editor.saveViewState());
-      }
-      const previousModel = editor.getModel();
-      editor.setModel(model);
-      if (
-        previousModel &&
-        previousModel !== model &&
-        ![...tabModelsRef.current.values()].includes(previousModel)
-      ) {
-        previousModel.dispose();
-      }
-      const vs = viewStatesRef.current.get(activeTabId);
-      if (vs) {
-        editor.restoreViewState(vs);
-      }
-    }
-
-    lastAppliedRef.current = { tabId: activeTabId, syncKey };
   }, [editor, activeTabId, activeContentSyncKey]);
 
   useEffect(() => {
@@ -290,14 +307,9 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
     e.preventDefault();
   };
 
-  const getTabDisplayName = (tab: EditorTab) => {
-    const fileName = tab.path.split('/').pop() || tab.path;
-    return fileName;
-  };
-
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
-    const ext = tab.path.split('.').pop()?.toLowerCase();
+    const ext = (tab.path ?? '').split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
       jsx: '⚛️',
@@ -330,7 +342,6 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
     scrollBeyondLastLine: false,
     renderWhitespace: 'selection',
     cursorBlinking: 'blink',
-    cursorSmoothCaretAnimation: 'on',
     tabSize: 4,
     insertSpaces: true,
     detectIndentation: true,
@@ -361,7 +372,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
       <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between bg-slack-bgHover">
         <h2 className="font-bold text-slack-text">Code Editor</h2>
         <div className="flex items-center gap-2">
-          {hasUnsavedChanges() && (
+          {hasUnsavedChanges && (
             <span className="text-xs text-yellow-500">Unsaved changes</span>
           )}
           {saving && (
@@ -385,7 +396,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
           </button>
           <button
             onClick={handleSaveAll}
-            disabled={saving || !hasUnsavedChanges()}
+            disabled={saving || !hasUnsavedChanges}
             className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
             title="Save all files (Cmd+Shift+S)"
           >
@@ -417,7 +428,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
               onContextMenu={handleTabContextMenu}
             >
               <span className="text-sm">{getTabIcon(tab)}</span>
-              <span className="text-sm truncate max-w-32">{getTabDisplayName(tab)}</span>
+              <span className="text-sm truncate max-w-32">{tabLabel(tab)}</span>
               {tab.isDirty && <span className="text-xs text-yellow-500">●</span>}
               <button
                 onClick={(e) => handleTabClose(e, tab.id)}
@@ -435,14 +446,21 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
       <div className="flex-1 min-h-0">
         {activeTab ? (
-          activeTab.viewMode === 'image' && activeTab.imageSrc ? (
-            <EditorImagePreview
-              src={activeTab.imageSrc}
-              alt={getTabDisplayName(activeTab)}
-              reloadKey={activeTab.contentSyncKey ?? 0}
-            />
+          activeTab.viewMode === 'image' ? (
+            activeTab.imageSrc ? (
+              <EditorImagePreview
+                src={activeTab.imageSrc}
+                alt={tabLabel(activeTab)}
+                reloadKey={activeTab.contentSyncKey ?? 0}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slack-textMuted p-6">
+                <div className="text-center text-sm">Image preview unavailable</div>
+              </div>
+            )
           ) : (
             <Editor
+              key={activeTabId ?? 'none'}
               height="100%"
               language={activeTab.language || 'plaintext'}
               defaultValue=""

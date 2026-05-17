@@ -722,11 +722,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div>
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Hidden from sidebar</h3>
                 <p className="text-sm text-slack-textMuted mb-3">
-                  DM rows or agent shortcuts you hid. Unhide to show them in the sidebar again (channels are not deleted).
+                  DM rows, collaborations, or agent shortcuts you hid. Unhide to show them in the sidebar again (nothing is deleted or cancelled).
                 </p>
                 {(settings.hiddenDmChannelNames?.length ?? 0) === 0 &&
+                (settings.hiddenCollaborationChannelNames?.length ?? 0) === 0 &&
                 (settings.hiddenAgentIdsForSidebar?.length ?? 0) === 0 ? (
-                  <p className="text-sm text-slack-textMuted">None. Use the menu on a DM or agent shortcut in the sidebar.</p>
+                  <p className="text-sm text-slack-textMuted">None. Use × on a row in the sidebar.</p>
                 ) : (
                   <div className="space-y-2">
                     {(settings.hiddenDmChannelNames ?? []).map((name) => (
@@ -750,6 +751,36 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         </button>
                       </div>
                     ))}
+                    {(settings.hiddenCollaborationChannelNames ?? []).map((name) => {
+                      const ch = channels.find((c) => c.name === name);
+                      const label =
+                        ch?.description?.trim() && !ch.description.startsWith('collab-')
+                          ? ch.description
+                          : name.replace(/^collab-/, '').slice(0, 8) || name;
+                      return (
+                        <div
+                          key={`collab-${name}`}
+                          className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
+                        >
+                          <span className="text-sm text-slack-text truncate" title={name}>
+                            Collab: {label}
+                          </span>
+                          <button
+                            type="button"
+                            className="shrink-0 text-xs text-slack-accent hover:underline"
+                            onClick={() =>
+                              void updateSettings({
+                                hiddenCollaborationChannelNames: (
+                                  settings.hiddenCollaborationChannelNames ?? []
+                                ).filter((n) => n !== name),
+                              })
+                            }
+                          >
+                            Unhide
+                          </button>
+                        </div>
+                      );
+                    })}
                     {(settings.hiddenAgentIdsForSidebar ?? []).map((id) => (
                       <div
                         key={`ag-${id}`}

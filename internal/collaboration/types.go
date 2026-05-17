@@ -80,6 +80,8 @@ const (
 
 	MaxConcurrentCollaborations = 3
 	MaxTasksPerCollaboration    = 10
+	// MaxExecutionMessages caps agent chat posts during the executing phase.
+	MaxExecutionMessages = 100
 )
 
 // Normalized returns a copy with all zero-value fields replaced by defaults
@@ -143,6 +145,11 @@ type Collaboration struct {
 	// desktop app (or via /ack-collab-workspace). Until then, task messages are
 	// not sent to agents so file/command steps do not race ahead of setup.
 	WorkspaceAcknowledged bool `json:"workspace_acknowledged,omitempty"`
+	// TasksDispatched is set after initial collaboration_task prompts were sent.
+	// Prevents re-dispatch on every channel message during execution.
+	TasksDispatched bool `json:"tasks_dispatched,omitempty"`
+	// ExecutionMessageCount tracks agent chat posts during the executing phase.
+	ExecutionMessageCount int `json:"execution_message_count,omitempty"`
 }
 
 // DiscussionBudgetEnforced is true while the plan is still being negotiated

@@ -22,6 +22,7 @@ import (
 const (
 	customChannelBroadPromptResponderCap = 2
 	customChannelRelevanceMinScore       = 2
+	collabTaskMinReplyInterval           = 3 * time.Second
 )
 
 // Agent represents an AI agent that can participate in chat rooms
@@ -61,6 +62,10 @@ type Agent struct {
 
 	// Collaboration support (set by the hub after creation)
 	Collab CollaborationClient
+
+	// collabTaskReplyAt rate-limits responses to collaboration_task prompts.
+	collabTaskReplyMu sync.Mutex
+	collabTaskReplyAt map[string]time.Time
 
 	// Optional pre-processing hook for specialized agents. When set and it
 	// returns true, the message is considered fully handled and the base
@@ -810,6 +815,23 @@ func taskAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
 	}
 }
 
+func (a *Agent) collabTaskRateLimitOK(collabID, taskID string) bool {
+	key := collabID
+	if taskID != "" {
+		key = collabID + ":" + taskID
+	}
+	a.collabTaskReplyMu.Lock()
+	defer a.collabTaskReplyMu.Unlock()
+	if a.collabTaskReplyAt == nil {
+		a.collabTaskReplyAt = make(map[string]time.Time)
+	}
+	if last, ok := a.collabTaskReplyAt[key]; ok && time.Since(last) < collabTaskMinReplyInterval {
+		return false
+	}
+	a.collabTaskReplyAt[key] = time.Now()
+	return true
+}
+
 // shouldRespond determines if the agent should respond to a message
 func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// Never respond to commands - let the command handler process them
@@ -839,6 +861,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
 			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
 				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
+					if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID()) {
+						log.Printf("[%s] ⏳ COLLABORATION TASK rate-limited (collab %s)", a.Info.Name, collabID[:8])
+						return false
+					}
 					log.Printf("[%s] ✅ COLLABORATION TASK (assignee metadata) - will respond (collab %s)", a.Info.Name, collabID[:8])
 					return true
 				}
@@ -852,6 +878,30 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				return true
 			}
 			return false
+		}
+	}
+
+	// Collaboration channel without metadata: still block agent chatter after discussion limits.
+	if a.Collab != nil && a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeCollaboration {
+		if info := a.Collab.GetCollaborationForAgent(a.Info.ID); info.ID != "" && info.Channel == msg.Channel {
+			isFromAgent := msg.From.Type == protocol.AgentTypeFrontend ||
+				msg.From.Type == protocol.AgentTypeBackend ||
+				msg.From.Type == protocol.AgentTypeDatabase ||
+				msg.From.Type == protocol.AgentTypeSecurity ||
+				msg.From.Type == protocol.AgentTypeRust ||
+				msg.From.Type == protocol.AgentTypeDevOps ||
+				msg.From.Type == protocol.AgentTypeRepo ||
+				msg.From.Type == protocol.AgentTypeHelper ||
+				msg.From.Type == protocol.AgentTypeAssistant ||
+				msg.From.Type == protocol.AgentTypeModerator ||
+				msg.From.Type == protocol.AgentTypeCLI ||
+				msg.From.Type == protocol.AgentTypeConfluence
+			if isFromAgent && msg.From.ID != a.Info.ID {
+				if !a.Collab.IsAgentTurn(info.ID, a.Info.ID) && !a.Collab.AgentOutOfTurnMentionAllowed(info.ID) {
+					log.Printf("[%s] ⏸ collaboration discussion closed — ignoring (collab %s)", a.Info.Name, info.ID[:8])
+					return false
+				}
+			}
 		}
 	}
 
@@ -1273,11 +1323,11 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		eff = a.GetAIProvider()
 	}
 
-	prompt := a.buildPrompt(msg)
-
 	// Track files already included in the prompt so the workspace scanner
 	// doesn't duplicate them.
 	includedFiles := collectIncludedFilePaths(msg)
+
+	prompt := a.buildPrompt(msg)
 
 	// Auto-detect and load file paths referenced in the user's message.
 	wsPath := a.resolveWorkspacePath(msg)
@@ -1834,6 +1884,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContext(&user, msg)
+	AppendGrantedHubDataAccess(&user, msg)
 
 	// Adaptive response length based on intent
 	user.WriteString(getResponseLengthGuidance(msg.Content))

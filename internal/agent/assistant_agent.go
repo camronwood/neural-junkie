@@ -434,6 +434,7 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 	AppendWorkspaceContext(&prompt, msg)
 
 	AppendPromptAttachments(&prompt, msg)
+	AppendGrantedHubDataAccess(&prompt, msg)
 
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 
@@ -1652,6 +1653,7 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	prompt.WriteString("Be specific about attendees, decisions made, action items, and next steps.\n\n")
 
 	AppendPromptAttachments(&prompt, msg)
+	AppendGrantedHubDataAccess(&prompt, msg)
 
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 	prompt.WriteString("Provide a helpful response based on the meeting information:")

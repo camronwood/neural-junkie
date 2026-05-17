@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { isPngPath, workspaceAbsolutePath } from './editorFileKind';
+import { isImagePreviewPath, isPngPath, workspaceAbsolutePath } from './editorFileKind';
 
-describe('isPngPath', () => {
-  it('matches .png case-insensitively', () => {
-    expect(isPngPath('foo.png')).toBe(true);
-    expect(isPngPath('foo.PNG')).toBe(true);
-    expect(isPngPath('assets/out/foo.Png')).toBe(true);
+describe('isImagePreviewPath', () => {
+  it('matches common image extensions', () => {
+    expect(isImagePreviewPath('foo.png')).toBe(true);
+    expect(isImagePreviewPath('foo.PNG')).toBe(true);
+    expect(isImagePreviewPath('photo.jpeg')).toBe(true);
+    expect(isImagePreviewPath('icon.svg')).toBe(true);
   });
 
-  it('rejects non-png extensions', () => {
-    expect(isPngPath('foo.jpg')).toBe(false);
-    expect(isPngPath('foo.png.bak')).toBe(false);
-    expect(isPngPath('')).toBe(false);
+  it('rejects non-image extensions', () => {
+    expect(isImagePreviewPath('foo.rs')).toBe(false);
+    expect(isImagePreviewPath('foo.png.bak')).toBe(false);
+    expect(isImagePreviewPath('')).toBe(false);
+  });
+});
+
+describe('isPngPath', () => {
+  it('aliases isImagePreviewPath for png', () => {
+    expect(isPngPath('foo.png')).toBe(true);
+    expect(isPngPath('foo.jpg')).toBe(true);
   });
 });
 

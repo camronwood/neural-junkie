@@ -70,7 +70,21 @@ func parseCollabExtendArgs(parts []string) (id string, extraRounds, extraMessage
 	for i < len(parts) {
 		raw := parts[i]
 		if !strings.HasPrefix(raw, "-") {
-			return "", 0, 0, fmt.Sprintf("❌ Unexpected argument %q after collab id (flags only).", raw)
+			// Accept shorthand: `/collab-extend ec2cdef8 1` → one extra round,
+			// `/collab-extend ec2cdef8 1 4` → rounds then messages.
+			n, err := strconv.Atoi(raw)
+			if err != nil || n <= 0 {
+				return "", 0, 0, fmt.Sprintf("❌ Unexpected argument %q after collab id. Use flags: --rounds N --messages M (or bare numbers: id rounds [messages]).", raw)
+			}
+			if extraRounds == 0 {
+				extraRounds = n
+			} else if extraMessages == 0 {
+				extraMessages = n
+			} else {
+				return "", 0, 0, fmt.Sprintf("❌ Too many numeric arguments after collab id. Use --rounds and --messages flags.")
+			}
+			i++
+			continue
 		}
 		key := stripCollaborateFlagPrefix(strings.ToLower(raw))
 		switch key {

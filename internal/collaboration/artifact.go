@@ -69,10 +69,59 @@ func ExtractPlanFromResponse(content string) string {
 	if loc == nil {
 		loc = taskHeadingRe.FindStringIndex(content)
 	}
-	if loc == nil {
+	if loc != nil {
+		return strings.TrimSpace(content[loc[0]:])
+	}
+	return ExtractPlanFromTaskLists(content)
+}
+
+// ExtractPlanFromTaskLists returns a plan document when the text contains multiple
+// structured task list lines (common in agent discussion replies).
+func ExtractPlanFromTaskLists(content string) string {
+	lines := strings.Split(content, "\n")
+	var taskLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if isTaskListLine(trimmed) {
+			taskLines = append(taskLines, trimmed)
+		}
+	}
+	if len(taskLines) < 2 {
 		return ""
 	}
-	return strings.TrimSpace(content[loc[0]:])
+	return strings.TrimSpace("## Plan\n\n" + strings.Join(taskLines, "\n"))
+}
+
+// SynthesizePlanFromDiscussion builds plan content and tasks from discussion messages.
+func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks []CollaborationTask) {
+	if c == nil || c.Discussion == nil {
+		return "", nil
+	}
+	var b strings.Builder
+	for _, m := range c.Discussion.Messages {
+		if m == nil || m.From.Name == "System" {
+			continue
+		}
+		body := strings.TrimSpace(m.Content)
+		if body == "" {
+			continue
+		}
+		b.WriteString(body)
+		b.WriteString("\n\n")
+	}
+	combined := strings.TrimSpace(b.String())
+	if combined == "" {
+		return "", nil
+	}
+	planContent = ExtractPlanFromResponse(combined)
+	if planContent == "" {
+		planContent = combined
+		if len(planContent) > 16000 {
+			planContent = planContent[:16000] + "\n... (truncated)"
+		}
+	}
+	tasks = ExtractTasksFromPlan(planContent, c.Agents)
+	return planContent, tasks
 }
 
 // ExtractTasksFromPlan parses a plan document and extracts individual

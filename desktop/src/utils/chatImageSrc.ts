@@ -1,4 +1,30 @@
 import { convertFileSrc } from '@tauri-apps/api/tauri';
+import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
+
+function isTauriShell(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    Object.prototype.hasOwnProperty.call(window, '__TAURI__')
+  );
+}
+
+/**
+ * Image src for the code editor (workspace files).
+ * Tauri: asset protocol. Browser dev: hub base64 data URL.
+ */
+export async function resolveEditorImageSrc(options: {
+  workspaceId: string;
+  relativePath: string;
+  absolutePath: string;
+}): Promise<string> {
+  const { workspaceId, relativePath, absolutePath } = options;
+  if (isTauriShell()) {
+    return convertFileSrc(absolutePath);
+  }
+  const api = new ChatAPI(getHubBaseURL());
+  return api.fetchWorkspaceImageDataUrl(workspaceId, relativePath);
+}
 
 /**
  * Turn chat/markdown image URLs into something the WebView can load.
@@ -29,12 +55,7 @@ export function resolveChatImageSrc(raw: string): string {
     path.startsWith('/') ||
     /^[A-Za-z]:[\\/]/.test(path);
 
-  if (
-    isAbsoluteFs &&
-    typeof window !== 'undefined' &&
-    // Tauri injects this at runtime in the desktop shell
-    Object.prototype.hasOwnProperty.call(window, '__TAURI__')
-  ) {
+  if (isAbsoluteFs && isTauriShell()) {
     return convertFileSrc(path);
   }
 

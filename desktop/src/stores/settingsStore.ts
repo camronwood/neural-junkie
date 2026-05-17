@@ -11,6 +11,8 @@ export interface Settings {
   userRulesMarkdown?: string;
   /** DM channel names hidden from the sidebar (Slack-style; does not delete channels). */
   hiddenDmChannelNames?: string[];
+  /** Collaboration channel names hidden from the sidebar (does not cancel or delete the collab). */
+  hiddenCollaborationChannelNames?: string[];
   /** Agent IDs hidden from the "agents without a DM" shortcut list. */
   hiddenAgentIdsForSidebar?: string[];
 }

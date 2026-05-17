@@ -7,8 +7,9 @@ import { getHubBaseURL } from '../config/hubUrl';
 import type { FileNode } from '../stores/fileExplorerStore';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
-import { isPngPath, workspaceAbsolutePath } from '../utils/editorFileKind';
-import { resolveChatImageSrc } from '../utils/chatImageSrc';
+import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
+import { resolveEditorImageSrc } from '../utils/chatImageSrc';
+import { ViewportContextMenu } from './ViewportContextMenu';
 
 interface FileExplorerPanelProps {
   onClose: () => void;
@@ -228,9 +229,13 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
       if (activeWorkspace) {
         try {
           console.log('Opening file:', file.path, 'in workspace:', activeWorkspace.id);
-          if (isPngPath(file.path)) {
+          if (isImagePreviewPath(file.path)) {
             const absolutePath = workspaceAbsolutePath(activeWorkspace.path, file.path);
-            const imageSrc = resolveChatImageSrc(absolutePath);
+            const imageSrc = await resolveEditorImageSrc({
+              workspaceId: activeWorkspace.id,
+              relativePath: file.path,
+              absolutePath,
+            });
             openFile(activeWorkspace.id, file.path, '', undefined, {
               viewMode: 'image',
               imageSrc,
@@ -676,14 +681,12 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
         </div>
       )}
 
-      {/* Context Menu */}
+      {/* Context menu — portaled so panel transform/overflow does not clip it */}
       {contextMenu && (
-        <div
-          className="fixed z-50 bg-slack-bg border border-slack-border rounded shadow-lg py-1"
-          style={{
-            left: contextMenu.x,
-            top: contextMenu.y,
-          }}
+        <ViewportContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={closeContextMenu}
         >
           {/* Show Preview Markdown option for .md files */}
           {!contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.md') && (
@@ -737,15 +740,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           >
             Delete
           </button>
-        </div>
-      )}
-
-      {/* Click outside to close context menu */}
-      {contextMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={closeContextMenu}
-        />
+        </ViewportContextMenu>
       )}
 
       {/* Remove workspace confirmation */}

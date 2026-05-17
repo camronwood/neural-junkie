@@ -124,7 +124,7 @@ func (cm *CollaborationManager) CreateCollaboration(
 
 	collab := &Collaboration{
 		ID:          collabID,
-		Title:       truncate(description, 80),
+		Title:       DeriveCollaborationTitle(description),
 		Description: description,
 		Phase:       PhasePlanning,
 		Agents:      agents,
@@ -447,6 +447,34 @@ func (cm *CollaborationManager) AcknowledgeWorkspace(collabID string) (alreadyAc
 	return false, c, nil
 }
 
+// MarkTasksDispatched records that collaboration_task prompts were sent.
+func (cm *CollaborationManager) MarkTasksDispatched(collabID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.TasksDispatched = true
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+// IncrementExecutionMessageCount bumps the executing-phase chat counter.
+// Returns the new count and whether the cap is exceeded.
+func (cm *CollaborationManager) IncrementExecutionMessageCount(collabID string) (count int, overCap bool, err error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return 0, false, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.ExecutionMessageCount++
+	c.UpdatedAt = time.Now()
+	count = c.ExecutionMessageCount
+	return count, count > MaxExecutionMessages, nil
+}
+
 // ExtendDiscussionLimits raises planning/review discussion caps and re-opens
 // an exhausted or timed-out discussion (or bumps ceilings while still active).
 func (cm *CollaborationManager) ExtendDiscussionLimits(collabID string, extraRounds, extraMessages int) (*Collaboration, error) {
@@ -562,6 +590,52 @@ func (cm *CollaborationManager) CompleteCollaboration(collabID string) (*Collabo
 	return c, nil
 }
 
+// SetCollaborationTitle updates the display title (description is unchanged).
+func (cm *CollaborationManager) SetCollaborationTitle(collabID, title string) (*Collaboration, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, fmt.Errorf("title cannot be empty")
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.Phase == PhaseCompleted || c.Phase == PhaseCancelled {
+		return nil, fmt.Errorf("cannot rename collaboration in terminal phase %s", c.Phase)
+	}
+	c.Title = truncate(title, 120)
+	c.UpdatedAt = time.Now()
+	return c, nil
+}
+
+// synthesizePlanFromDiscussionLocked fills an empty plan artifact from discussion messages.
+// Caller must hold cm.mu.
+func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaboration) {
+	if c == nil || c.Plan == nil || strings.TrimSpace(c.Plan.Content) != "" {
+		return
+	}
+	planContent, tasks := SynthesizePlanFromDiscussion(c)
+	if strings.TrimSpace(planContent) == "" {
+		return
+	}
+	now := time.Now()
+	c.Plan.Content = planContent
+	c.Plan.Version++
+	c.Plan.UpdatedAt = now
+	c.Plan.Status = ArtifactProposed
+	if len(tasks) > 0 {
+		if len(tasks) > MaxTasksPerCollaboration {
+			tasks = tasks[:MaxTasksPerCollaboration]
+		}
+		c.Tasks = tasks
+	}
+	c.UpdatedAt = now
+	log.Printf("[CollaborationManager] Synthesized plan for %s (%d tasks)", c.ID[:8], len(c.Tasks))
+}
+
 // TransitionToReviewing moves a planning collaboration into user review.
 func (cm *CollaborationManager) TransitionToReviewing(collabID string) (*Collaboration, error) {
 	cm.mu.Lock()
@@ -575,9 +649,10 @@ func (cm *CollaborationManager) TransitionToReviewing(collabID string) (*Collabo
 		return nil, fmt.Errorf("collaboration is in %s phase, expected planning", c.Phase)
 	}
 
+	cm.synthesizePlanFromDiscussionLocked(c)
 	c.Phase = PhaseReviewing
 	c.UpdatedAt = time.Now()
-	if c.Plan != nil {
+	if c.Plan != nil && c.Plan.Status == ArtifactDraft {
 		c.Plan.Status = ArtifactProposed
 	}
 

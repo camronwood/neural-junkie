@@ -273,9 +273,8 @@ describe('CollaborationPanel', () => {
 
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
 
-    expect(screen.getByText(/Limits hit/)).toBeInTheDocument();
-    expect(screen.getByText(/\/collab-extend/)).toBeInTheDocument();
-    expect(screen.getByText(/\/cancel-plan/)).toBeInTheDocument();
+    expect(screen.getByText(/Discussion limits reached/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Extend discussion' })).toBeInTheDocument();
   });
 
   it('renders plan version and uses @unassigned for tasks without assignee name', () => {

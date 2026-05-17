@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -201,6 +203,7 @@ func main() {
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
 	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
 	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(handleCollaborationWorkspaceAck))
+	http.HandleFunc("/api/hub-data/read", corsMiddleware(handleHubDataRead))
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
 	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
 	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
@@ -2349,6 +2352,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 		"agent_count": len(agents),
 		"version":     "1.0.0",
 		"snapshot":    chatHub.GetSessionSaveHealth(),
+		"features":    []string{"hub_data_read"},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -2794,6 +2798,15 @@ func handleFiles(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(files)
 }
 
+func isWorkspaceImageFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".ico", ".svg":
+		return true
+	default:
+		return false
+	}
+}
+
 func handleFileContent(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -2821,6 +2834,19 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 		content, err := os.ReadFile(absPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if r.URL.Query().Get("binary") == "1" || isWorkspaceImageFile(path) {
+			mimeType := mime.TypeByExtension(filepath.Ext(path))
+			if mimeType == "" {
+				mimeType = "application/octet-stream"
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"mime":            mimeType,
+				"content_base64": base64.StdEncoding.EncodeToString(content),
+			})
 			return
 		}
 
@@ -3971,4 +3997,32 @@ func handleTestLMStudioConnection(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// handleHubDataRead returns bounded text from ~/.neural-junkie after the user grants access in the desktop app.
+func handleHubDataRead(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Targets []hub.HubDataReadTarget `json:"targets"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if len(req.Targets) == 0 {
+		http.Error(w, "at least one target is required", http.StatusBadRequest)
+		return
+	}
+	result, err := hub.ReadHubDataForAgent(req.Targets)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(result); err != nil {
+		log.Printf("hub-data/read encode error: %v", err)
+	}
 }

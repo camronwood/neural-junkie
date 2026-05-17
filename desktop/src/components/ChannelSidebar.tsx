@@ -57,6 +57,7 @@ export function ChannelSidebar({
   const sidebarAgentsVisible = useSettingsStore(s => s.layoutSettings.sidebarAgentsVisible);
   const updateLayoutSettings = useSettingsStore(s => s.updateLayoutSettings);
   const settings = useSettingsStore(s => s.settings);
+  const settingsLoaded = useSettingsStore(s => s.isLoaded);
   const updateSettings = useSettingsStore(s => s.updateSettings);
 
   const parseDMDisplayName = (dmChannel: Channel): string => {
@@ -91,6 +92,7 @@ export function ChannelSidebar({
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const hiddenDmSet = new Set(settings.hiddenDmChannelNames ?? []);
+  const hiddenCollabSet = new Set(settings.hiddenCollaborationChannelNames ?? []);
   const hiddenAgentSet = new Set(settings.hiddenAgentIdsForSidebar ?? []);
 
   // Separate channels by type, sorted alphabetically for stable ordering
@@ -107,6 +109,15 @@ export function ChannelSidebar({
     .filter(c => c.type === 'dm')
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  const collaborationChannelLabel = (ch: Channel): string => {
+    const desc = (ch.description || '').trim();
+    if (desc && !desc.startsWith('collab-')) {
+      return desc.length > 48 ? `${desc.slice(0, 45)}…` : desc;
+    }
+    const short = ch.name.replace(/^collab-/, '').slice(0, 8);
+    return short ? `collab ${short}` : ch.name;
+  };
+
   const filteredPublicChannels = publicChannels.filter((c) => {
     if (!normalizedQuery) return true;
     return (
@@ -122,14 +133,17 @@ export function ChannelSidebar({
     );
   });
   const filteredCollaborationChannels = collaborationChannels.filter((c) => {
+    const hidden = settingsLoaded && hiddenCollabSet.has(c.name);
+    if (hidden && !normalizedQuery) return false;
     if (!normalizedQuery) return true;
     return (
       c.name.toLowerCase().includes(normalizedQuery) ||
-      (c.description || '').toLowerCase().includes(normalizedQuery)
+      (c.description || '').toLowerCase().includes(normalizedQuery) ||
+      collaborationChannelLabel(c).toLowerCase().includes(normalizedQuery)
     );
   });
   const filteredDMChannels = dmChannels.filter((c) => {
-    const hidden = hiddenDmSet.has(c.name);
+    const hidden = settingsLoaded && hiddenDmSet.has(c.name);
     if (hidden && !normalizedQuery) return false;
     if (!normalizedQuery) return true;
     return parseDMDisplayName(c).toLowerCase().includes(normalizedQuery);
@@ -151,6 +165,7 @@ export function ChannelSidebar({
   const filteredAgentsWithoutDM = agents
     .filter(a => a.status === 'active' && !agentsWithDM.has(a.id))
     .filter(a => {
+      if (!settingsLoaded) return false;
       const hidden = hiddenAgentSet.has(a.id);
       if (hidden && !normalizedQuery) return false;
       if (!normalizedQuery) return true;
@@ -197,10 +212,32 @@ export function ChannelSidebar({
     </span>
   );
 
+  const hideDmFromSidebar = (channelName: string) => {
+    const cur = settings.hiddenDmChannelNames ?? [];
+    if (cur.includes(channelName)) return;
+    void updateSettings({ hiddenDmChannelNames: [...cur, channelName] });
+  };
+
+  const hideCollabFromSidebar = (channelName: string) => {
+    const cur = settings.hiddenCollaborationChannelNames ?? [];
+    if (cur.includes(channelName)) return;
+    void updateSettings({ hiddenCollaborationChannelNames: [...cur, channelName] });
+    if (channelName === activeChannel) {
+      onSwitchChannel('general');
+    }
+  };
+
+  const hideAgentShortcutFromSidebar = (agentId: string) => {
+    const cur = settings.hiddenAgentIdsForSidebar ?? [];
+    if (cur.includes(agentId)) return;
+    void updateSettings({ hiddenAgentIdsForSidebar: [...cur, agentId] });
+  };
+
   const ChannelItem = ({ ch }: { ch: Channel }) => {
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
     const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
+    const displayName = ch.type === 'collaboration' ? collaborationChannelLabel(ch) : ch.name;
     const rowClass = `flex-1 min-w-0 text-left px-2 py-1 rounded text-sm flex items-center transition-colors ${
       isActive
         ? 'bg-slack-accent text-white font-semibold'
@@ -209,6 +246,8 @@ export function ChannelSidebar({
           : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
     }`;
     const showDelete = ch.type === 'custom' && onDeleteChannel;
+    const isCollab = ch.type === 'collaboration';
+    const isHiddenCollabRow = isCollab && hiddenCollabSet.has(ch.name) && normalizedQuery.length > 0;
 
     return (
       <div className="group flex items-center gap-0.5 w-full min-w-0">
@@ -216,10 +255,13 @@ export function ChannelSidebar({
           type="button"
           onClick={() => onSwitchChannel(ch.name)}
           className={rowClass}
-          title={ch.description || ch.name}
+          title={isCollab ? `${displayName} (${ch.name})` : (ch.description || ch.name)}
         >
-          <span className="mr-1 opacity-60">#</span>
-          <span className="truncate">{ch.name}</span>
+          <span className="mr-1 opacity-60">{isCollab ? '🤝' : '#'}</span>
+          <span className="truncate">{displayName}</span>
+          {isHiddenCollabRow && (
+            <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
+          )}
           {isTyping && <TypingDots active={isActive} />}
           {isUnread && !isActive && !isTyping && (
             <span className="ml-auto inline-block w-2 h-2 rounded-full bg-slack-accent flex-shrink-0" />
@@ -239,6 +281,20 @@ export function ChannelSidebar({
             ⓘ
           </button>
         )}
+        {isCollab && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              hideCollabFromSidebar(ch.name);
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
+            title="Hide from sidebar"
+            aria-label={`Hide collaboration ${displayName} from sidebar`}
+          >
+            ×
+          </button>
+        )}
         {showDelete && (
           <button
             type="button"
@@ -255,18 +311,6 @@ export function ChannelSidebar({
         )}
       </div>
     );
-  };
-
-  const hideDmFromSidebar = (channelName: string) => {
-    const cur = settings.hiddenDmChannelNames ?? [];
-    if (cur.includes(channelName)) return;
-    void updateSettings({ hiddenDmChannelNames: [...cur, channelName] });
-  };
-
-  const hideAgentShortcutFromSidebar = (agentId: string) => {
-    const cur = settings.hiddenAgentIdsForSidebar ?? [];
-    if (cur.includes(agentId)) return;
-    void updateSettings({ hiddenAgentIdsForSidebar: [...cur, agentId] });
   };
 
   const DMItem = ({ ch }: { ch: Channel }) => {

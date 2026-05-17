@@ -93,6 +93,28 @@ func TestParseCollabExtendArgs_Both(t *testing.T) {
 	}
 }
 
+func TestParseCollabExtendArgs_PositionalRounds(t *testing.T) {
+	parts := []string{"/collab-extend", "ec2cdef8", "1"}
+	id, r, m, err := parseCollabExtendArgs(parts)
+	if err != "" {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	if id != "ec2cdef8" || r != 1 || m != 0 {
+		t.Fatalf("got id=%q rounds=%d msgs=%d", id, r, m)
+	}
+}
+
+func TestParseCollabExtendArgs_PositionalBoth(t *testing.T) {
+	parts := []string{"/collab-extend", "ec2cdef8", "2", "4"}
+	id, r, m, err := parseCollabExtendArgs(parts)
+	if err != "" {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	if id != "ec2cdef8" || r != 2 || m != 4 {
+		t.Fatalf("got id=%q rounds=%d msgs=%d", id, r, m)
+	}
+}
+
 func TestParseCollabExtendArgs_Errors(t *testing.T) {
 	if _, _, _, err := parseCollabExtendArgs([]string{"/collab-extend"}); err == "" {
 		t.Fatal("expected usage error")

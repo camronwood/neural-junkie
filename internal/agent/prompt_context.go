@@ -11,8 +11,9 @@ import (
 
 // Metadata keys for client-supplied prompt context (must match desktop).
 const (
-	MetadataUserRulesMarkdown   = "user_rules_markdown"
-	MetadataPromptAttachments = "prompt_attachments"
+	MetadataUserRulesMarkdown    = "user_rules_markdown"
+	MetadataPromptAttachments    = "prompt_attachments"
+	MetadataGrantedHubDataAccess = "granted_hub_data_access"
 )
 
 const (
@@ -195,4 +196,64 @@ func sanitizePromptAttachmentsValue(raw interface{}) interface{} {
 		out = append(out, entry)
 	}
 	return out
+}
+
+// AppendGrantedHubDataAccess injects user-approved ~/.neural-junkie file/directory reads.
+func AppendGrantedHubDataAccess(prompt *strings.Builder, msg *protocol.Message) int {
+	if msg == nil || msg.Metadata == nil {
+		return 0
+	}
+	raw, ok := msg.Metadata[MetadataGrantedHubDataAccess]
+	if !ok || raw == nil {
+		return 0
+	}
+	root, _ := raw.(map[string]interface{})
+	if root == nil {
+		return 0
+	}
+	entries, _ := root["entries"].([]interface{})
+	if len(entries) == 0 {
+		return 0
+	}
+	prompt.WriteString("\n=== GRANTED HUB DATA ACCESS ===\n")
+	prompt.WriteString("The user explicitly allowed you to read Neural Junkie local hub data for this reply only.\n")
+	prompt.WriteString("Treat this as authoritative for session/collab debugging; do not claim you lack access.\n")
+	prompt.WriteString("When they ask to review a file, analyze the file content below — not unrelated thread/channel chat history.\n\n")
+	if r, ok := root["root"].(string); ok && r != "" {
+		prompt.WriteString(fmt.Sprintf("Hub data root: %s\n\n", r))
+	}
+	loaded := 0
+	for _, item := range entries {
+		em, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		path, _ := em["path"].(string)
+		note, _ := em["note"].(string)
+		skipped, _ := em["skipped"].(bool)
+		content, _ := em["content"].(string)
+		truncated, _ := em["truncated"].(bool)
+		prompt.WriteString(fmt.Sprintf("### %s\n", path))
+		if note != "" {
+			prompt.WriteString(note + "\n")
+		}
+		if skipped {
+			prompt.WriteString("(content not loaded — see note)\n\n")
+			continue
+		}
+		if truncated {
+			prompt.WriteString("(truncated for context limits)\n")
+		}
+		if strings.TrimSpace(content) != "" {
+			prompt.WriteString("```json\n")
+			prompt.WriteString(content)
+			if !strings.HasSuffix(content, "\n") {
+				prompt.WriteString("\n")
+			}
+			prompt.WriteString("```\n\n")
+			loaded++
+		}
+	}
+	prompt.WriteString("=== END GRANTED HUB DATA ACCESS ===\n\n")
+	return loaded
 }

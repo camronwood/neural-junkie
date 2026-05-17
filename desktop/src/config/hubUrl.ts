@@ -25,11 +25,25 @@ export function normalizeLegacyHubServerAddr(addr: string): string {
   return t;
 }
 
+/** Canonical hub origin: scheme, no trailing slash, no `/api` suffix. */
+export function normalizeHubBaseURL(addr: string): string {
+  let base = normalizeLegacyHubServerAddr(addr.trim());
+  if (!base) return DEFAULT_HUB_HTTP;
+  if (!base.includes('://')) {
+    base = `http://${base}`;
+  }
+  base = base.replace(/\/+$/, '');
+  if (base.toLowerCase().endsWith('/api')) {
+    base = base.slice(0, -4);
+  }
+  return base;
+}
+
 /** Hub base URL (no trailing slash). Override with VITE_NJ_HUB_URL when 18765 is taken. */
 export function getHubBaseURL(): string {
   const raw = import.meta.env.VITE_NJ_HUB_URL as string | undefined;
   if (raw?.trim()) {
-    return normalizeLegacyHubServerAddr(raw.trim().replace(/\/$/, ''));
+    return normalizeHubBaseURL(raw);
   }
   return DEFAULT_HUB_HTTP;
 }

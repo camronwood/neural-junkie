@@ -305,6 +305,7 @@ func (m *ModeratorAgent) buildModeratorPrompt(msg *protocol.Message) string {
 	// ── USER SECTION ──
 	user.WriteString(fmt.Sprintf("User question from %s:\n%s\n\n", msg.From.Name, msg.Content))
 	AppendPromptAttachments(&user, msg)
+	AppendGrantedHubDataAccess(&user, msg)
 	user.WriteString("Provide a helpful response:")
 
 	return system.String() + ai.SystemPromptSeparator + user.String()

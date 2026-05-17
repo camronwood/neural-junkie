@@ -33,6 +33,30 @@ server: setup-env ## Start server with environment loaded
 	@echo "🚀 Starting chat hub server with environment from env.local..."
 	@bash -c 'source load-env.sh && go run ./cmd/server'
 
+server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hub-memory); logs to /tmp/nj-hub.log
+	@echo "🔧 Starting debug hub → /tmp/nj-hub.log  (pprof: http://127.0.0.1:6060/debug/pprof/)"
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+
+server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
+	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
+
+debug-session: ## Analyze ~/.neural-junkie/last-session.json (collabs, joins, channels)
+	@python3 scripts/debug-collab.py session
+
+debug-collab: ## Live collab state from hub (optional: CHANNEL=... COLAB=ec2cdef8)
+	@python3 scripts/debug-collab.py live \
+		$(if $(CHANNEL),--channel $(CHANNEL),) \
+		$(if $(COLAB),--collab $(COLAB),) \
+		--include-terminal
+
+debug-messages: ## Last messages for CHANNEL (session file; add LIVE=1 for hub)
+	@if [ -z "$(CHANNEL)" ]; then echo "Usage: make debug-messages CHANNEL=dm-camron-assistant [TAIL=20] [LIVE=1]"; exit 1; fi
+	@python3 scripts/debug-collab.py messages --channel "$(CHANNEL)" --tail $(if $(TAIL),$(TAIL),20) \
+		$(if $(LIVE),--live,)
+
+collab-smoke: ## Collab lifecycle smoke (API phases); LIVE=1 for running hub
+	@python3 scripts/collab-smoke.py $(if $(LIVE),--live,)
+
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go

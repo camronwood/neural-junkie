@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
@@ -12,6 +12,8 @@ import { confirmReplaceCollaborationExecution } from '../utils/collaborationConf
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
+  /** Active collaborations (planning/review) for extend dropdown. */
+  extendableCollaborations?: Collaboration[];
   /** If set and different from `collaboration`, approving will replace that running execution (after user confirms). */
   executingCollaboration?: Collaboration | null;
   onClose: () => void;
@@ -48,6 +50,7 @@ function taskIcon(status: string): string {
 
 export function CollaborationPanel({
   collaboration,
+  extendableCollaborations = [],
   executingCollaboration,
   onClose,
   onAfterCollaborationCommand,
@@ -59,14 +62,29 @@ export function CollaborationPanel({
   const [api] = useState(() => new ChatAPI(serverAddr));
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [extendTargetId, setExtendTargetId] = useState('');
+  const [extendRounds, setExtendRounds] = useState('1');
+  const [extendMessages, setExtendMessages] = useState('');
   const from = { name: username || 'User', type: 'human' };
 
   const c = collaboration;
+  const extendCandidates =
+    extendableCollaborations.length > 0
+      ? extendableCollaborations
+      : c.phase === 'planning' || c.phase === 'reviewing'
+        ? [c]
+        : [];
   const collabChannel = c.channel?.trim() || channel;
   const completedTasks = c.tasks?.filter(t => t.status === 'completed').length ?? 0;
   const totalTasks = c.tasks?.length ?? 0;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isTerminal = c.phase === 'completed' || c.phase === 'cancelled';
+
+  useEffect(() => {
+    setExtendTargetId(c.id);
+  }, [c.id]);
 
   const handleResume = async () => {
     if (c.phase === 'reviewing' || c.phase === 'approved') {
@@ -99,6 +117,44 @@ export function CollaborationPanel({
     setIsSubmitting(true);
     try {
       await api.sendMessage(collabChannel, `/cancel-plan ${c.id.slice(0, 8)}`, from);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRename = async () => {
+    const title = renameDraft.trim();
+    if (!title) return;
+    setIsSubmitting(true);
+    try {
+      await api.sendMessage(
+        collabChannel,
+        `/collab-rename ${c.id.slice(0, 8)} ${title}`,
+        from
+      );
+      setRenaming(false);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleExtend = async () => {
+    const target = (extendTargetId || c.id).trim();
+    if (!target) return;
+    const rounds = parseInt(extendRounds, 10);
+    const messages = extendMessages.trim() ? parseInt(extendMessages, 10) : 0;
+    if (!Number.isFinite(rounds) || rounds <= 0) return;
+    if (extendMessages.trim() && (!Number.isFinite(messages) || messages <= 0)) return;
+    const prefix = target.length > 8 ? target.slice(0, 8) : target;
+    let cmd = `/collab-extend ${prefix} --rounds ${rounds}`;
+    if (messages > 0) {
+      cmd += ` --messages ${messages}`;
+    }
+    setIsSubmitting(true);
+    try {
+      await api.sendMessage(collabChannel, cmd, from);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -150,12 +206,98 @@ export function CollaborationPanel({
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
         {/* Title and description */}
-        <h3 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--text-primary, #eee)' }}>
-          {c.title}
-        </h3>
-        <p style={{ margin: '0 0 16px 0', fontSize: 13, color: 'var(--text-secondary, #999)', lineHeight: 1.4 }}>
-          {c.description}
-        </p>
+        <div style={{ marginBottom: 16 }}>
+          {renaming ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input
+                type="text"
+                value={renameDraft}
+                onChange={(e) => setRenameDraft(e.target.value)}
+                placeholder="Collaboration title"
+                maxLength={120}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border-color, #444)',
+                  backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
+                  color: 'var(--text-primary, #eee)',
+                  fontSize: 13,
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleRename();
+                  if (e.key === 'Escape') setRenaming(false);
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => void handleRename()}
+                  disabled={isSubmitting || !renameDraft.trim()}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    backgroundColor: '#10b981',
+                    color: '#fff',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Save title
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRenaming(false)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border-color, #444)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary, #999)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-primary, #eee)', flex: 1 }}>
+                {c.title}
+              </h3>
+              {!isTerminal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenameDraft(c.title);
+                    setRenaming(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary, #888)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    flexShrink: 0,
+                  }}
+                >
+                  Rename
+                </button>
+              )}
+            </div>
+          )}
+          <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--text-secondary, #999)' }}>
+            <code style={{ fontSize: 11 }}>{c.id.slice(0, 8)}</code>
+          </p>
+          <p style={{ margin: '8px 0 0 0', fontSize: 13, color: 'var(--text-secondary, #999)', lineHeight: 1.4 }}>
+            {c.description}
+          </p>
+        </div>
 
         {/* Participants */}
         <div style={{ marginBottom: 16 }}>
@@ -257,10 +399,95 @@ export function CollaborationPanel({
                   <div>Messages: {c.discussion.total_message_count}/{c.discussion.max_total_messages}</div>
                   <div style={{ gridColumn: '1 / -1' }}>Status: {c.discussion.status}</div>
                   {(c.discussion.status === 'budget_exhausted' || c.discussion.status === 'timed_out') && (
-                    <div style={{ gridColumn: '1 / -1', color: '#fbbf24', lineHeight: 1.45 }}>
-                      Limits hit —{' '}
-                      <code style={{ fontSize: 11 }}>/collab-extend {c.id.slice(0, 8)} --rounds N --messages M</code>
-                      {' '}or <code style={{ fontSize: 11 }}>/cancel-plan {c.id.slice(0, 8)}</code> to stop.
+                    <div style={{ gridColumn: '1 / -1', marginTop: 8 }}>
+                      <div style={{ color: '#fbbf24', fontSize: 12, marginBottom: 8 }}>
+                        Discussion limits reached — extend or cancel.
+                      </div>
+                      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary, #888)', marginBottom: 4 }}>
+                        Collaboration
+                      </label>
+                      <select
+                        value={extendTargetId || c.id}
+                        onChange={(e) => setExtendTargetId(e.target.value)}
+                        style={{
+                          width: '100%',
+                          marginBottom: 8,
+                          padding: '6px 8px',
+                          borderRadius: 6,
+                          border: '1px solid var(--border-color, #444)',
+                          backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
+                          color: 'var(--text-primary, #eee)',
+                          fontSize: 12,
+                        }}
+                      >
+                        {extendCandidates.map((collab) => (
+                          <option key={collab.id} value={collab.id}>
+                            {(collab.title || 'Collaboration').slice(0, 48)} ({collab.id.slice(0, 8)})
+                          </option>
+                        ))}
+                      </select>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <label style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary, #888)' }}>
+                          + Rounds
+                          <input
+                            type="number"
+                            min={1}
+                            value={extendRounds}
+                            onChange={(e) => setExtendRounds(e.target.value)}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              marginTop: 4,
+                              padding: '6px 8px',
+                              borderRadius: 6,
+                              border: '1px solid var(--border-color, #444)',
+                              backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
+                              color: 'var(--text-primary, #eee)',
+                              fontSize: 12,
+                            }}
+                          />
+                        </label>
+                        <label style={{ flex: 1, fontSize: 11, color: 'var(--text-secondary, #888)' }}>
+                          + Messages (optional)
+                          <input
+                            type="number"
+                            min={1}
+                            placeholder="—"
+                            value={extendMessages}
+                            onChange={(e) => setExtendMessages(e.target.value)}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              marginTop: 4,
+                              padding: '6px 8px',
+                              borderRadius: 6,
+                              border: '1px solid var(--border-color, #444)',
+                              backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
+                              color: 'var(--text-primary, #eee)',
+                              fontSize: 12,
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleExtend()}
+                        disabled={isSubmitting}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          border: 'none',
+                          backgroundColor: '#f59e0b',
+                          color: '#111',
+                          fontWeight: 600,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          opacity: isSubmitting ? 0.6 : 1,
+                        }}
+                      >
+                        Extend discussion
+                      </button>
                     </div>
                   )}
                 </>

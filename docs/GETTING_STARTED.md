@@ -311,7 +311,7 @@ Neural Junkie stores data in `~/.neural-junkie/`:
 | `~/.neural-junkie/exports/` | MCP-format agent exports |
 | `~/.neural-junkie/backups/` | File change backups |
 | `~/.neural-junkie/workspaces.json` | Workspace list |
-| `~/.neural-junkie/last-session.json` | Session persistence |
+| `~/.neural-junkie/last-session.json` | Local resume cache (channels, recent messages, in-progress collabs). Bounded on save; oversized/corrupt files are **auto-archived** on startup — users never need to delete it manually. Dev: `scripts/analyze-last-session.sh` |
 
 ## Next Steps
 

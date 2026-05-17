@@ -1,5 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store';
-import { normalizeLegacyHubServerAddr } from '../config/hubUrl';
+import { normalizeHubBaseURL } from '../config/hubUrl';
 
 export interface SavedCredentials {
   username: string;
@@ -64,7 +64,7 @@ export async function loadCredentials(): Promise<SavedCredentials | null> {
     const credentials = await storeInstance.get<SavedCredentials>(CREDENTIALS_KEY);
     
     if (credentials) {
-      const normalized = normalizeLegacyHubServerAddr(credentials.serverAddr);
+      const normalized = normalizeHubBaseURL(credentials.serverAddr);
       if (normalized !== credentials.serverAddr.trim()) {
         const updated: SavedCredentials = {
           ...credentials,

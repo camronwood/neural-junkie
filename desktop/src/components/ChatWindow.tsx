@@ -7,6 +7,14 @@ import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
 import { buildHumanOutboundMetadata } from '../utils/outboundChatMetadata';
+import { GRANTED_HUB_DATA_ACCESS_KEY } from '../constants/promptMetadata';
+import {
+  detectHubDataAccessNeeds,
+  hasGrantedHubDataAccess,
+  type HubDataAccessOption,
+} from '../utils/hubDataAccess';
+import { HubDataAccessModal } from './HubDataAccessModal';
+import { shouldSendChannelJoinMessage } from '../utils/joinMessage';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { MessageList } from './MessageList';
 import { TypingIndicator } from './TypingIndicator';
@@ -147,6 +155,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
   const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [hubAccessPending, setHubAccessPending] = useState<{
+    mode: 'main' | 'thread';
+    threadId?: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+    options: HubDataAccessOption[];
+  } | null>(null);
+  const [hubAccessLoading, setHubAccessLoading] = useState(false);
+  const [hubAccessError, setHubAccessError] = useState<string | null>(null);
 
   const isTerminalCollaborationPhase = (phase?: Collaboration['phase']) =>
     phase === 'completed' || phase === 'cancelled';
@@ -218,9 +235,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   
   // Ref to access RichTextInput methods
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Track whether the initial join message has been sent this session
-  const hasJoinedRef = useRef(false);
 
   // Load layout settings on mount
   useEffect(() => {
@@ -392,6 +406,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     () =>
       trackedCollaborations.find(c => c.channel === channel && c.phase === 'executing') ?? null,
     [trackedCollaborations, channel]
+  );
+
+  const extendableCollaborations = useMemo(
+    () =>
+      trackedCollaborations.filter(
+        (c) =>
+          (c.phase === 'planning' || c.phase === 'reviewing') &&
+          (c.discussion?.status === 'budget_exhausted' ||
+            c.discussion?.status === 'timed_out' ||
+            c.discussion?.status === 'active')
+      ),
+    [trackedCollaborations]
   );
 
   // Handle switching channel: switch store state, then load fresh messages
@@ -730,85 +756,157 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       setCommandDefs(withClientPaletteCommands([]));
     }
 
-    if (!hasJoinedRef.current) {
-      hasJoinedRef.current = true;
-      setTimeout(async () => {
-        try {
-          const { channel: joinCh, username: joinUser } = useChatStore.getState();
-          await api.sendMessage(
-            joinCh,
-            `${joinUser} has joined the chat`,
-            { name: joinUser, type: 'human' },
-            'system_info'
-          );
-        } catch (e) {
-          console.error('[loadInitialData] join message failed:', e);
-        }
-      }, 500);
+    const { channel: joinCh, username: joinUser } = useChatStore.getState();
+    if (shouldSendChannelJoinMessage(joinCh, joinUser)) {
+      void api
+        .sendMessage(
+          joinCh,
+          `${joinUser} has joined the chat`,
+          { name: joinUser, type: 'human' },
+          'system_info'
+        )
+        .catch((e) => console.error('[loadInitialData] join message failed:', e));
     }
   };
 
-  const buildThreadOutboundMetadata = useCallback(
-    (composerMeta?: Record<string, unknown>) =>
-      buildHumanOutboundMetadata({
+  const dispatchThreadReply = useCallback(
+    async (threadId: string, content: string, metadata?: Record<string, unknown>) => {
+      const mergedMetadata = buildHumanOutboundMetadata({
         shareWorkspace,
-        composerMetadata: composerMeta,
-      }),
-    [shareWorkspace]
+        composerMetadata: metadata,
+      });
+      await api.sendThreadReply(
+        threadId,
+        channel,
+        content,
+        { name: username, type: 'human' },
+        mergedMetadata
+      );
+    },
+    [api, channel, username, shareWorkspace]
   );
 
-  const handleSendMessage = async (content: string, metadata?: Record<string, any>) => {
+  const dispatchMessage = useCallback(
+    async (content: string, metadata?: Record<string, unknown>) => {
+      const mergedMetadata = buildHumanOutboundMetadata({
+        shareWorkspace,
+        composerMetadata: metadata,
+      });
+
+      useChatStore.getState().setIsTyping(true);
+      try {
+        const trimmed = content.trimStart();
+        if (trimmed.startsWith('/collaborate')) {
+          if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
+            return;
+          }
+        }
+        const sendResult = await api.sendMessage(
+          channel,
+          content,
+          { name: username, type: 'human' },
+          'question',
+          mergedMetadata
+        );
+        let timelineChannel = channel;
+        if (sendResult.collaboration_channel) {
+          await loadChannels();
+          await handleSwitchChannel(sendResult.collaboration_channel);
+          timelineChannel = sendResult.collaboration_channel;
+        }
+        if (content.trimStart().startsWith('/')) {
+          try {
+            const msgs = await api.fetchMessages(timelineChannel, 50);
+            useChatStore.getState().setMessages(msgs);
+            await loadCollaborations(timelineChannel);
+          } catch (e) {
+            console.error('[dispatchMessage] post-command refresh failed:', e);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        addToast({
+          type: 'error',
+          title: 'Message not sent',
+          message: error instanceof Error ? error.message : 'Failed to send message.',
+        });
+      } finally {
+        useChatStore.getState().setIsTyping(false);
+      }
+    },
+    [
+      api,
+      channel,
+      username,
+      shareWorkspace,
+      loadChannels,
+      handleSwitchChannel,
+      loadCollaborations,
+      executingCollaborationForChannel,
+      addToast,
+    ]
+  );
+
+  const handleSendMessage = async (content: string, metadata?: Record<string, unknown>) => {
     if (content.trim() === '/nj-open-model-library') {
       setModelLibraryOpen(true);
       return;
     }
 
-    const mergedMetadata = buildHumanOutboundMetadata({
-      shareWorkspace,
-      composerMetadata: metadata,
-    });
+    const needs = detectHubDataAccessNeeds(content);
+    const composerMeta = metadata ?? {};
+    if (needs.length > 0 && !hasGrantedHubDataAccess(composerMeta)) {
+      setHubAccessError(null);
+      setHubAccessPending({ mode: 'main', content, metadata: composerMeta, options: needs });
+      return;
+    }
 
-    useChatStore.getState().setIsTyping(true);
+    await dispatchMessage(content, composerMeta);
+  };
+
+  const handleThreadSend = useCallback(
+    async (content: string, composerMeta?: Record<string, unknown>) => {
+      if (!openThreadId) return;
+      const needs = detectHubDataAccessNeeds(content);
+      const meta = composerMeta ?? {};
+      if (needs.length > 0 && !hasGrantedHubDataAccess(meta)) {
+        setHubAccessError(null);
+        setHubAccessPending({
+          mode: 'thread',
+          threadId: openThreadId,
+          content,
+          metadata: meta,
+          options: needs,
+        });
+        return;
+      }
+      await dispatchThreadReply(openThreadId, content, meta);
+    },
+    [openThreadId, dispatchThreadReply]
+  );
+
+  const handleHubAccessConfirm = async (selected: HubDataAccessOption[]) => {
+    if (!hubAccessPending) return;
+    setHubAccessLoading(true);
+    setHubAccessError(null);
     try {
-      const trimmed = content.trimStart();
-      if (trimmed.startsWith('/collaborate')) {
-        if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
-          return;
-        }
-      }
-      const sendResult = await api.sendMessage(
-        channel,
-        content,
-        { name: username, type: 'human' },
-        'question',
-        mergedMetadata
+      const result = await api.readHubDataAccess(
+        selected.map((s) => ({ kind: s.kind, relative_path: s.relativePath }))
       );
-      let timelineChannel = channel;
-      if (sendResult.collaboration_channel) {
-        await loadChannels();
-        await handleSwitchChannel(sendResult.collaboration_channel);
-        timelineChannel = sendResult.collaboration_channel;
+      const merged = {
+        ...(hubAccessPending.metadata ?? {}),
+        [GRANTED_HUB_DATA_ACCESS_KEY]: result,
+      };
+      if (hubAccessPending.mode === 'thread' && hubAccessPending.threadId) {
+        await dispatchThreadReply(hubAccessPending.threadId, hubAccessPending.content, merged);
+      } else {
+        await dispatchMessage(hubAccessPending.content, merged);
       }
-      // Slash commands fan out multiple hub messages; WS can lag behind HTTP.
-      // Pull latest timeline so the user always sees kickoff + system lines.
-      if (content.trimStart().startsWith('/')) {
-        try {
-          const msgs = await api.fetchMessages(timelineChannel, 50);
-          useChatStore.getState().setMessages(msgs);
-          await loadCollaborations(timelineChannel);
-        } catch (e) {
-          console.error('[handleSendMessage] post-command refresh failed:', e);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      addToast({
-        type: 'error',
-        title: 'Message not sent',
-        message: error instanceof Error ? error.message : 'Failed to send message.',
-      });
+      setHubAccessPending(null);
+    } catch (err) {
+      setHubAccessError(err instanceof Error ? err.message : 'Failed to read hub data');
     } finally {
-      useChatStore.getState().setIsTyping(false);
+      setHubAccessLoading(false);
     }
   };
 
@@ -1217,7 +1315,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             threadId={openThreadId}
             parentMessage={parentMessage}
             onClose={closeThread}
-            buildOutboundMetadata={buildThreadOutboundMetadata}
+            onSendReply={handleThreadSend}
           />
         )}
 
@@ -1225,6 +1323,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {activeCollab && (
           <CollaborationPanel
             collaboration={activeCollab}
+            extendableCollaborations={extendableCollaborations}
             executingCollaboration={executingCollaborationForChannel}
             onClose={() => setActiveCollab(null)}
             onAfterCollaborationCommand={async () => {
@@ -1406,6 +1505,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         serverAddr={hubHttp}
         switchAllAgentProviders={switchAllAgentProviders}
       />
+
+      {hubAccessPending && (
+        <HubDataAccessModal
+          options={hubAccessPending.options}
+          isLoading={hubAccessLoading}
+          error={hubAccessError}
+          onCancel={() => {
+            setHubAccessPending(null);
+            setHubAccessError(null);
+          }}
+          onConfirm={handleHubAccessConfirm}
+        />
+      )}
 
       {/* Toast Notifications */}
       <ToastContainer />

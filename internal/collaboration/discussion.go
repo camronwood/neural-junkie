@@ -95,6 +95,7 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 		if c.Phase == PhasePlanning {
 			c.Phase = PhaseReviewing
 		}
+		cm.synthesizePlanFromDiscussionLocked(c)
 		c.UpdatedAt = time.Now()
 		log.Printf("[Discussion %s] Budget exhausted (%d/%d messages)", d.ID[:8], d.TotalMessageCount, d.MaxTotalMessages)
 		notifyBudget = true

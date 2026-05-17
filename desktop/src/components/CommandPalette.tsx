@@ -130,7 +130,7 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       role="presentation"
     >
       {/* Backdrop */}
@@ -141,8 +141,12 @@ export function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative z-10 flex w-full max-w-lg flex-col overflow-hidden rounded-xl border border-slack-border bg-slack-bg shadow-2xl"
-        style={{ maxHeight: '60vh' }}
+        className="relative z-10 flex w-full max-w-lg min-h-0 flex-col overflow-hidden rounded-xl border border-slack-border bg-slack-bg shadow-2xl"
+        style={{
+          maxHeight: activeCommand
+            ? 'min(90dvh, calc(100dvh - 1.5rem))'
+            : 'min(60vh, calc(100dvh - 1.5rem))',
+        }}
         onKeyDown={handleKeyDown}
       >
         {activeCommand ? (
@@ -169,7 +173,7 @@ export function CommandPalette({
             </div>
 
             {/* Results */}
-            <div ref={listRef} className="flex-1 overflow-y-auto">
+            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {flatList.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm text-slack-textMuted">
                   <p className="font-medium text-slack-text">No matching commands</p>

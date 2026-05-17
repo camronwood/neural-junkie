@@ -9,7 +9,8 @@ import {
 } from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
-import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
+import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
+import { isHumanJoinAnnouncement } from '../utils/joinMessage';
 import {
   capStreamContent,
   MAX_UI_CHANNEL_MESSAGES,
@@ -197,7 +198,7 @@ export const useChatStore = create<ChatState>((set, get) => {
   
   setConnectionStatus: (status) => set({ connectionStatus: status }),
   
-  setServerAddr: (addr) => set({ serverAddr: normalizeLegacyHubServerAddr(addr) }),
+  setServerAddr: (addr) => set({ serverAddr: normalizeHubBaseURL(addr) }),
   
   setChannel: (channel) => set({ channel }),
   
@@ -208,6 +209,18 @@ export const useChatStore = create<ChatState>((set, get) => {
       // Skip empty messages (some CLI agents send blank status messages)
       if (!message.content?.trim() && !channelTimelineAllowsEmptyContent(message.type)) {
         return state;
+      }
+
+      if (isHumanJoinAnnouncement(message)) {
+        const dup = state.messages.some(
+          (m) =>
+            isHumanJoinAnnouncement(m) &&
+            m.content === message.content &&
+            m.from?.name === message.from?.name
+        );
+        if (dup) {
+          return state;
+        }
       }
 
       const existingIdx = state.messages.findIndex(m => m.id === message.id);

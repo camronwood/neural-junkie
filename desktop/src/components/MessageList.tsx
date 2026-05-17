@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef } 
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Message as MessageType } from '../types/protocol';
 import { channelTimelineAllowsEmptyContent } from '../types/protocol';
+import { isHumanJoinAnnouncement } from '../utils/joinMessage';
 import { Message } from './Message';
 import { useChatStore } from '../stores/chatStore';
 import { shallow } from 'zustand/shallow';
@@ -53,7 +54,7 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
 
   const channelMessages = useMemo(() => {
-    return messages.filter((m) => {
+    const filtered = messages.filter((m) => {
       if (m.is_thread_reply) return false;
       if (!m.content?.trim() && !channelTimelineAllowsEmptyContent(m.type)) return false;
       if (!normalizedSearchQuery) return true;
@@ -61,6 +62,21 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
       const authorName = m.from?.name?.toLowerCase() || '';
       return content.includes(normalizedSearchQuery) || authorName.includes(normalizedSearchQuery);
     });
+    const deduped: MessageType[] = [];
+    for (const m of filtered) {
+      const prev = deduped[deduped.length - 1];
+      if (
+        prev &&
+        isHumanJoinAnnouncement(prev) &&
+        isHumanJoinAnnouncement(m) &&
+        prev.content === m.content &&
+        prev.from?.name === m.from?.name
+      ) {
+        continue;
+      }
+      deduped.push(m);
+    }
+    return deduped;
   }, [messages, normalizedSearchQuery]);
 
   const activeStreams = useMemo(() => Object.values(streamingMessages), [streamingMessages]);
@@ -114,16 +130,16 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
         align: 'end',
         behavior: 'auto',
       });
-      if (showJumpButton) setShowJumpButton(false);
-      if (pendingMessageCount !== 0) setPendingMessageCount(0);
+      setShowJumpButton((show) => (show ? false : show));
+      setPendingMessageCount((count) => (count !== 0 ? 0 : count));
       return;
     }
 
     if (!isNearBottom && delta > 0) {
       setPendingMessageCount((count) => count + delta);
-      if (!showJumpButton) setShowJumpButton(true);
+      setShowJumpButton((show) => (show ? show : true));
     }
-  }, [totalVisible, isNearBottom, showJumpButton, pendingMessageCount]);
+  }, [totalVisible, isNearBottom]);
 
   /**
    * Keep the view pinned while a streaming row grows in height. We only nudge

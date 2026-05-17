@@ -1,5 +1,5 @@
 import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration } from '../types/protocol';
-import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
+import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -13,11 +13,7 @@ export class ChatAPI {
   private commandsCache: CommandDefinition[] | null = null;
 
   constructor(serverAddr: string = getHubBaseURL()) {
-    const normalized = normalizeLegacyHubServerAddr(serverAddr);
-    // Ensure we have http:// prefix
-    this.baseURL = normalized.startsWith('http')
-      ? normalized
-      : `http://${normalized}`;
+    this.baseURL = normalizeHubBaseURL(serverAddr);
   }
 
   // Fetch existing messages for a channel
@@ -49,6 +45,27 @@ export class ChatAPI {
       throw new Error(`Failed to fetch collaborations: ${response.statusText}`);
     }
 
+    return response.json();
+  }
+
+  /** Read user-granted files/directories under ~/.neural-junkie for agent context. */
+  async readHubDataAccess(
+    targets: Array<{ kind: 'file' | 'directory'; relative_path: string }>
+  ): Promise<{ root: string; entries: unknown[] }> {
+    const response = await fetch(`${this.baseURL}/api/hub-data/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targets }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      if (response.status === 404) {
+        throw new Error(
+          'Hub does not expose /api/hub-data/read (404). Restart the hub (`make server`) or rebuild the packaged sidecar (`make build-sidecar`).'
+        );
+      }
+      throw new Error(t.trim() || response.statusText);
+    }
     return response.json();
   }
 
@@ -770,6 +787,23 @@ export class ChatAPI {
     
     const data = await response.json();
     return data.content;
+  }
+
+  /** Load a workspace image as a data URL (for editor preview in browser dev). */
+  async fetchWorkspaceImageDataUrl(workspaceId: string, path: string): Promise<string> {
+    const response = await fetch(
+      `${this.baseURL}/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}&binary=1`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to load image: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { mime?: string; content_base64?: string };
+    const b64 = data.content_base64 ?? '';
+    if (!b64) {
+      throw new Error('Empty image payload from hub');
+    }
+    const mime = data.mime || 'application/octet-stream';
+    return `data:${mime};base64,${b64}`;
   }
 
   async saveFileContent(workspaceId: string, path: string, content: string): Promise<void> {

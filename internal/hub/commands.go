@@ -235,6 +235,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/revise-plan":          ch.handleRevisePlan,
 		"/cancel-plan":          ch.handleCancelPlan,
 		"/collab-extend":        ch.handleCollabExtend,
+		"/collab-rename":        ch.handleCollabRename,
 		"/collab-status":        ch.handleCollabStatus,
 	}
 }
@@ -3863,6 +3864,15 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			},
 		},
 		{
+			Name:        "/collab-rename",
+			Description: "Set a short display title for a collaboration",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "title", Description: "New title", Type: "string", Required: true},
+			},
+		},
+		{
 			Name:        "/collab-status",
 			Description: "Show status of active collaborations",
 			Category:    "Collaboration",
@@ -4155,7 +4165,7 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 
 	if ch.hub.CollaborationCanDispatchTasks(collabSnap) {
-		ch.hub.dispatchCollabTaskMessages(collabSnap, msg)
+		ch.hub.dispatchCollabTaskMessages(collabSnap, msg, false)
 	} else if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
 		taskSummary.WriteString(fmt.Sprintf("\n⏸ **Waiting for workspace confirmation** — agents will receive their task prompts after you click **Continue** in the Neural Junkie desktop app, or run `/ack-collab-workspace %s` here.\n", collabID[:8]))
 	}
@@ -4229,7 +4239,7 @@ func (ch *CommandHandler) handleResumePlan(ctx context.Context, msg *protocol.Me
 			out.SetCollaborationID(collabID)
 			return out, nil
 		}
-		ch.hub.dispatchCollabTaskMessagesFilter(snap, msg, open)
+		ch.hub.dispatchCollabTaskMessagesFilter(snap, msg, open, true)
 		out := ch.systemResponse(msg.Channel, fmt.Sprintf("↻ **Resumed** (`%s`) — re-sent **%d** open task prompt(s) to assignees.", collabID[:8], n))
 		out.SetCollaborationID(collabID)
 		return out, nil
@@ -4336,6 +4346,38 @@ func (ch *CommandHandler) handleCollabExtend(ctx context.Context, msg *protocol.
 		"✅ **Discussion limits extended** (`%s`)\n\n**New caps:** %d rounds, %d agent messages (hard max %d / %d).\n**Status:** %s",
 		collabID[:8], d.MaxRounds, d.MaxTotalMessages, collaboration.HardMaxRounds, collaboration.HardMaxTotalMessages, d.Status,
 	))
+	out.SetCollaborationID(collabID)
+	return out, nil
+}
+
+func (ch *CommandHandler) handleCollabRename(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	_ = ctx
+	if len(parts) < 3 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collab-rename <collab-id> <title>"), nil
+	}
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to list active IDs."), nil
+	}
+	title := strings.TrimSpace(strings.Join(parts[2:], " "))
+	if title == "" {
+		return ch.systemResponse(msg.Channel, "❌ Title cannot be empty."), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
+	}
+	collab, err := cm.SetCollaborationTitle(collabID, title)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+	if collab.Channel != "" {
+		if err := ch.hub.SetChannelDescription(collab.Channel, collab.Title); err != nil {
+			log.Printf("[Collaboration] rename: channel description not updated: %v", err)
+		}
+	}
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ **Renamed** (`%s`) → **%s**", collabID[:8], collab.Title))
 	out.SetCollaborationID(collabID)
 	return out, nil
 }

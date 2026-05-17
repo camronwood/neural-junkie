@@ -65,7 +65,7 @@ func (h *Hub) AcknowledgeCollaborationWorkspace(collabID string) error {
 		return fmt.Errorf("collaboration snapshot: not found")
 	}
 	if !already && len(snap.Tasks) > 0 {
-		h.dispatchCollabTaskMessages(snap, nil)
+		h.dispatchCollabTaskMessages(snap, nil, false)
 	}
 	statusMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabStatus,
@@ -229,6 +229,18 @@ func (h *Hub) GetChannel(name string) (*protocol.Channel, error) {
 	}
 
 	return channel, nil
+}
+
+// SetChannelDescription updates the sidebar-visible description for a channel.
+func (h *Hub) SetChannelDescription(name, description string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ch, ok := h.channels[name]
+	if !ok {
+		return fmt.Errorf("channel %s not found", name)
+	}
+	ch.Description = strings.TrimSpace(description)
+	return nil
 }
 
 // inferChannelTypeForName fixes DM classification when legacy snapshots omitted
@@ -438,6 +450,9 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
+	if err := h.enforceExecutionMessageBudget(msg); err != nil {
+		return err
+	}
 	h.processCollaborationLifecycle(msg)
 	h.attachCollaborationData(msg)
 
@@ -943,29 +958,15 @@ func (h *Hub) attachCollaborationData(msg *protocol.Message) {
 	if collabID == "" {
 		return
 	}
-	filled, err := h.collabManager.EnsureExecutionTasks(collabID)
-	if err != nil {
-		return
-	}
+	_, _ = h.collabManager.EnsureExecutionTasks(collabID)
 	snapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
 	if err != nil || snapshot == nil {
 		return
 	}
-	if filled && snapshot.Phase == collaboration.PhaseExecuting && len(snapshot.Tasks) > 0 {
-		skipAttach := false
-		if msg.Metadata != nil {
-			if _, ok := msg.Metadata["collab_skip_attach_dispatch"]; ok {
-				skipAttach = true
-			}
-		}
-		if !skipAttach && h.CollaborationCanDispatchTasks(snapshot) {
-			h.dispatchCollabTaskMessages(snapshot, msg)
-		}
-	}
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
 	}
-	msg.Metadata["collaboration_data"] = snapshot
+	msg.Metadata["collaboration_data"] = snapshot.ToUIPayload()
 }
 
 // GetMessages returns messages from a channel
@@ -1738,8 +1739,9 @@ func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) [
 		}
 		if i < len(healFlags) && healFlags[i] &&
 			snap.Phase == collaboration.PhaseExecuting && len(snap.Tasks) > 0 &&
+			!snap.TasksDispatched &&
 			h.CollaborationCanDispatchTasks(snap) {
-			h.dispatchCollabTaskMessages(snap, nil)
+			h.dispatchCollabTaskMessages(snap, nil, false)
 		}
 	}
 	return snaps
@@ -1781,7 +1783,7 @@ func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {
 		if n == 0 {
 			continue
 		}
-		h.dispatchCollabTaskMessagesFilter(snap, nil, open)
+		h.dispatchCollabTaskMessagesFilter(snap, nil, open, true)
 		log.Printf("[Collaboration] Session restore: re-sent %d open task prompt(s) for executing collaboration %s", n, c.ID[:8])
 	}
 }
@@ -1789,21 +1791,29 @@ func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {
 // dispatchCollabTaskMessages sends collaboration_task messages so assignees
 // receive task_assigned_to metadata (mirrors /approve-plan). Used after the
 // manager heals missing assignees on executing collaborations.
-func (h *Hub) dispatchCollabTaskMessages(snap *collaboration.Collaboration, inheritFrom *protocol.Message) {
-	h.dispatchCollabTaskMessagesFilter(snap, inheritFrom, nil)
+func (h *Hub) dispatchCollabTaskMessages(snap *collaboration.Collaboration, inheritFrom *protocol.Message, forceRedispatch bool) {
+	h.dispatchCollabTaskMessagesFilter(snap, inheritFrom, nil, forceRedispatch)
 }
 
 // dispatchCollabTaskMessagesFilter sends collaboration_task messages for tasks
 // where include returns true. A nil include sends every task.
-func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration, inheritFrom *protocol.Message, include func(collaboration.CollaborationTask) bool) {
+// When forceRedispatch is false and tasks were already dispatched, this is a no-op.
+func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration, inheritFrom *protocol.Message, include func(collaboration.CollaborationTask) bool, forceRedispatch bool) {
 	if snap == nil || snap.Phase != collaboration.PhaseExecuting || len(snap.Tasks) == 0 {
 		return
 	}
 	if !h.CollaborationCanDispatchTasks(snap) {
 		return
 	}
-	ch := snap.Channel
 	collabID := snap.ID
+	if !forceRedispatch && h.collabManager != nil {
+		fresh, err := h.collabManager.GetCollaborationSnapshot(collabID)
+		if err == nil && fresh != nil && fresh.TasksDispatched {
+			return
+		}
+	}
+	ch := snap.Channel
+	sent := 0
 	for _, task := range snap.Tasks {
 		if include != nil && !include(task) {
 			continue
@@ -1839,6 +1849,13 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		}
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
+			continue
+		}
+		sent++
+	}
+	if sent > 0 && h.collabManager != nil {
+		if err := h.collabManager.MarkTasksDispatched(collabID); err != nil {
+			log.Printf("[Collaboration] MarkTasksDispatched %s: %v", collabID[:8], err)
 		}
 	}
 }
@@ -2246,17 +2263,27 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 // LoadSessionFromFile restores channels/messages/threads and collaboration
 // state from a previous snapshot. It is safe to call on startup.
 func (h *Hub) LoadSessionFromFile(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
+	load, _, statErr := sessionFileReadyToLoad(path)
+	if statErr != nil {
+		if os.IsNotExist(statErr) {
 			return nil
 		}
+		return fmt.Errorf("failed stat session file: %w", statErr)
+	}
+	if !load {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
 		return fmt.Errorf("failed reading session file: %w", err)
 	}
 
 	var snapshot SessionSnapshot
 	if err := json.Unmarshal(data, &snapshot); err != nil {
-		return fmt.Errorf("failed to unmarshal session file: %w", err)
+		if archErr := archiveUnusableSessionFile(path, "corrupt JSON"); archErr != nil {
+			return fmt.Errorf("failed to unmarshal session file: %w (archive failed: %v)", err, archErr)
+		}
+		return nil
 	}
 
 	h.mu.Lock()
@@ -2332,6 +2359,7 @@ func (h *Hub) SaveSessionToFile(path string) error {
 	defer h.sessionSaveMu.Unlock()
 	startedAt := time.Now()
 	snapshot := h.TakeSessionSnapshot()
+	prepareSessionSnapshotForPersist(snapshot)
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)

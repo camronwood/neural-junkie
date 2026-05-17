@@ -155,9 +155,9 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slack-border">
+      <div className="flex shrink-0 items-center gap-2 px-4 py-3 border-b border-slack-border">
         <button
           type="button"
           onClick={onBack}
@@ -173,8 +173,8 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
         </div>
       </div>
 
-      {/* Fields */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+      {/* Fields — scrollable; footer stays pinned below */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-4">
         {isCollaborateCommand ? (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -217,7 +217,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
               </label>
               <textarea
                 id="cmd-arg-description"
-                rows={4}
+                rows={3}
                 value={values.description ?? ''}
                 onChange={e => setValue('description', e.target.value)}
                 placeholder="Describe what you want the agents to collaborate on..."
@@ -230,7 +230,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
                 agents<span className="text-red-400 ml-0.5">*</span>
                 <span className="ml-1 opacity-60">({selectedCollaborators.size} selected, min 2)</span>
               </label>
-              <div className="max-h-48 overflow-y-auto border border-slack-border rounded bg-slack-bgHover p-1 space-y-0.5">
+              <div className="max-h-28 sm:max-h-40 overflow-y-auto overscroll-contain border border-slack-border rounded bg-slack-bgHover p-1 space-y-0.5">
                 {selectableCollaborators.map(agent => {
                   const selected = selectedCollaborators.has(agent.id);
                   return (
@@ -269,8 +269,8 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
         )}
       </div>
 
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-slack-border flex justify-end gap-2">
+      {/* Footer — always visible */}
+      <div className="shrink-0 border-t border-slack-border bg-slack-bg px-4 py-3 flex justify-end gap-2">
         <button
           type="button"
           onClick={onBack}
