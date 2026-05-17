@@ -87,6 +87,31 @@ func (collabSystemTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
 }
 func (collabSystemTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 
+func TestShouldRespond_CollabSeedBannerIgnored(t *testing.T) {
+	const agentID = "gemini-cli-id"
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+	ag := NewAgent(protocol.AgentTypeCLI, "Gemini", []string{"code"}, mockAI, hubStub)
+	ag.Info.ID = agentID
+	ag.SetCollabClient(collabSystemTurnStub{agentID: agentID})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"🤝 **Collaboration Started** (ID: `abcd1234`)",
+	)
+	msg.SetCollaborationID("550e8400-e29b-41d4-a716-446655440000")
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]interface{}{}
+	}
+	msg.Metadata["collab_internal_event"] = true
+
+	if ag.shouldRespond(msg) {
+		t.Fatal("expected agent to ignore collaboration seed banner (collab_internal_event)")
+	}
+}
+
 func TestShouldRespond_SystemCollabTurnPrompt(t *testing.T) {
 	const agentID = "cursor-cli-id"
 	hubStub := shouldRespondTestHub{}

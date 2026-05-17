@@ -1076,7 +1076,7 @@ func (h *Hub) Subscribe(channelName string) (chan *protocol.Message, error) {
 		return nil, fmt.Errorf("channel %s not found", channelName)
 	}
 
-	ch := make(chan *protocol.Message, 100)
+	ch := make(chan *protocol.Message, 512)
 	h.subscribers[channelName] = append(h.subscribers[channelName], ch)
 
 	return ch, nil
@@ -1833,7 +1833,6 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
 		taskMsg.SetTaskID(task.ID)
 		taskMsg.SetTaskStatus(string(task.Status))
-		inheritWorkspaceContextMetadata(inheritFrom, taskMsg)
 		if ws := collaborationWorkspaceContextSnapshot(snap); ws != nil {
 			if taskMsg.Metadata == nil {
 				taskMsg.Metadata = map[string]interface{}{}

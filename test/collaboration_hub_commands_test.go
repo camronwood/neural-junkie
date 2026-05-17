@@ -27,6 +27,102 @@ func humanTester() protocol.AgentInfo {
 
 // ── Hub slash commands: collaboration lifecycle (CommandHandler + SendMessage) ──
 
+func TestSlashCollaborateSeedOmitsWorkspaceByDefault(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		humanTester(),
+		"/collaborate @RustExpert @SecurityExpert who is the better programmer",
+	)
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "Neural Junkie",
+			"workspace_path": "/proj",
+			"file_tree":      "internal/\n",
+			"open_files":     []interface{}{},
+		},
+		"context_scope": "full",
+	}
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+
+	cm := h.GetCollaborationManager()
+	active := cm.ListActive()
+	if len(active) != 1 {
+		t.Fatalf("expected 1 collaboration, got %d", len(active))
+	}
+	ch := active[0].Channel
+	msgs, err := h.GetMessages(ch, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range msgs {
+		if m == nil || m.Type != protocol.MessageTypeCollabDiscussion {
+			continue
+		}
+		if m.Metadata != nil {
+			if _, ok := m.Metadata["workspace_context"]; ok {
+				t.Fatalf("seed/turn should not inherit workspace_context without --workspace, msg: %.80s", m.Content)
+			}
+		}
+	}
+}
+
+func TestSlashCollaborateWithWorkspaceFlag(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		humanTester(),
+		"/collaborate --workspace @RustExpert @SecurityExpert review this repo layout",
+	)
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "Neural Junkie",
+			"workspace_path": "/proj",
+			"file_tree":      "internal/\n",
+			"open_files": []interface{}{
+				map[string]interface{}{"path": "main.go", "language": "go", "content": "package main"},
+			},
+		},
+	}
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+
+	cm := h.GetCollaborationManager()
+	ch := cm.ListActive()[0].Channel
+	msgs, err := h.GetMessages(ch, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundOutline := false
+	for _, m := range msgs {
+		if m == nil || m.Metadata == nil {
+			continue
+		}
+		if m.Metadata["context_scope"] == "outline" {
+			foundOutline = true
+			if _, ok := m.Metadata["workspace_context"]; !ok {
+				t.Fatal("expected workspace_context with outline scope")
+			}
+			ws := m.Metadata["workspace_context"].(map[string]interface{})
+			if _, hasOpen := ws["open_files"]; hasOpen {
+				t.Fatal("collab --workspace should not copy open_files bodies")
+			}
+		}
+	}
+	if !foundOutline {
+		t.Fatal("expected context_scope outline on collab message with --workspace")
+	}
+}
+
 func TestSlashCollaboratePassesDiscussionFlags(t *testing.T) {
 	h := hub.NewHub()
 	registerTwoCollabAgents(t, h)

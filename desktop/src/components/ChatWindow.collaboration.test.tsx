@@ -86,6 +86,10 @@ vi.mock('../hooks/useWebSocket', () => ({
 
 vi.mock('../utils/outboundChatMetadata', () => ({
   buildHumanOutboundMetadata: () => ({}),
+  loadWorkspaceContextMode: () => 'auto' as const,
+  cycleWorkspaceContextMode: (m: string) => (m === 'auto' ? 'always' : m === 'always' ? 'off' : 'auto'),
+  workspaceContextModeLabel: (m: string) => m,
+  WORKSPACE_CONTEXT_MODE_KEY: 'workspace-context-mode',
 }));
 
 vi.mock('../stores/settingsStore', () => ({

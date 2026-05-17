@@ -2,17 +2,27 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5
+https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
 **Quick start:** https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md
 
-**Image:** `assets/neural-junkie-beta-download-ad-1080.png`
+**Image (beta.6):** `assets/neural-junkie-context-scope-ad-1080.png`
+
+**Image (general download):** `assets/neural-junkie-beta-download-ad-1080.png`
 
 ---
 
-## X / Mastodon (beta.5)
+## X / Mastodon (beta.6)
+
+Neural Junkie v1.0.0-beta.6 — **Auto** workspace context: agents get the right amount of repo (none → full) per message, not your whole open project every time. Collabs stay clean unless you `/collaborate --workspace`. Session files won’t balloon; hub data needs consent first.
+
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
+
+---
+
+## X / Mastodon (beta.5) — archived
 
 Neural Junkie v1.0.0-beta.5 — collab fixes (DM agents actually join the channel), cancel no longer locks the UI, Ollama DeepSeek **Reasoning** blocks, thread streaming in the right pane.
 
@@ -26,7 +36,7 @@ Neural Junkie v1.0.0-beta.5 is out — a downloadable desktop app (macOS / Windo
 
 Multi-agent Slack for devs: repo experts, slash commands, approve file edits. Local Ollama or your API keys.
 
-Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5
+Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
 
 OSS · feedback welcome
 
@@ -42,7 +52,7 @@ Install from GitHub Releases (macOS .dmg, Windows .msi, Linux AppImage). Setup w
 
 Looking for early testers — especially "does install + first chat work on your machine?"
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
 
 Site: https://camronwood.github.io/neural-junkie/
 
@@ -52,7 +62,7 @@ Site: https://camronwood.github.io/neural-junkie/
 
 **Title:** Show HN: Neural Junkie – multi-agent desktop for devs (beta download, local Ollama)
 
-**URL:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5
+**URL:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
 
 **First comment:**
 
@@ -78,7 +88,7 @@ Title: [Beta] Neural Junkie — multi-agent desktop with Ollama model library + 
 
 Body: Shipped v1.0.0-beta.1 installers (macOS/Win/Linux). Tauri app bundles a Go hub; you can browse/install Ollama models from Settings, run specialists in one Slack-style UI, and index local repos for context. Local-first or mix cloud providers per agent.
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
 
 Looking for feedback on install friction and local model workflows.
 
@@ -97,7 +107,7 @@ Graphic-only ad (no app screenshot). Attach a workspace screenshot separately in
 > Neural Junkie `/collaborate` — bounded multi-agent sessions:
 > discuss → shared plan → you approve → execute in a sandbox (file-change gates, `/approve-plan`, `/revise-plan`).
 >
-> Open source beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.5
+> Open source beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6
 
 ---
 

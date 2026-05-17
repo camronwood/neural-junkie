@@ -8,12 +8,18 @@ All notable changes to Neural Junkie.
 
 ### Fixed
 - **Collaboration task dispatch** — stop re-sending all `collaboration_task` prompts on every channel message during execution (`TasksDispatched` guard; removed dispatch from `attachCollaborationData`).
+- **Collaboration seed noise** — seed “Collaboration Started” messages are internal (`collab_internal_event`); agents no longer burn a turn replying to the seed. Collab agent replies use `collaboration_discussion` for correct UI routing.
+- **Hub broadcast** — subscriber channel buffer 512 (was 100) to reduce dropped messages under collab load.
 - **Session bloat** — slim `collaboration_data` on WebSocket messages (no nested `discussion.messages`); strip metadata from `last-session.json`; stricter **disk** caps (500 channel / 200 thread messages vs 5000 in-memory); drop history on terminal collab channels; cap persisted collaborations.
 - **Session restore** — oversized or corrupt `last-session.json` files are **auto-archived** on startup (no manual cleanup); load limit 64MB.
+- **Hub data consent** — first-time modal before agents read workspace metadata; assistant agent respects the same gate.
+- **Join dedupe** — desktop suppresses duplicate join/system lines when reconnecting or switching channels.
+- **Editor / chat images** — image preview in the editor and inline chat attachments render reliably.
 
 ### Added
 - **Execution limits** — max 100 agent chat messages per collaboration during executing phase; 3s rate limit on `collaboration_task` replies for hub agents.
 - **`scripts/analyze-last-session.sh`** — streaming session file stats.
+- **Selective workspace context** — `context_scope` metadata (`none` | `hint` | `outline` | `focus` | `full`); desktop **Auto** mode (default) infers scope per message; composer shows resolved scope; `/collaborate --workspace` opt-in for outline-only project tree during planning (no implicit editor leak).
 
 ## [1.0.0-beta.5] - 2026-05-17
 

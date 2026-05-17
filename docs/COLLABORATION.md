@@ -32,6 +32,14 @@ Optional limits (must appear **before** the first `@mention`; omitted values use
 /collaborate --rounds 5 --messages 40 @RustExpert @SecurityExpert design the auth flow
 ```
 
+Optional: attach a **high-level** view of your open editor workspace (file tree only, no open tab bodies) for repo-wide planning:
+
+```text
+/collaborate --workspace @RustExpert @SecurityExpert review the layout of this repo
+```
+
+Without `--workspace`, planning uses only the collaboration goal — agents are not given your open project files. This avoids general questions (for example “who is the better Rust programmer?”) being interpreted as questions about whatever repo you had open.
+
 Creates a collaboration in `planning` phase and starts a bounded discussion.
 
 **Dedicated channel:** On success the hub auto-creates a channel named `collab-<collaboration-uuid>` (type `collaboration`). Seeds, agent discussion, plan updates, and execution tasks for that session are isolated **there**. Your `/collaborate` line stays in the channel where you typed the command (for example `#general`). The desktop app switches to the new room after send and lists it under **Collaborations** in the sidebar; **Open collaboration** in the task panel also jumps to that channel.

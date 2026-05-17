@@ -8,16 +8,19 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 )
 
+// collaborateFlagParse holds discussion limits and optional workspace attach for /collaborate.
+type collaborateFlagParse struct {
+	Discussion collaboration.DiscussionConfig
+	AttachWorkspace bool
+}
+
 // parseCollaborateLeadFlags reads optional discussion limits from the start of
 // the command tail (parts[1:]). Flags must appear before @mentions and the
-// description. Unrecognized tokens stop flag parsing so @-mentions are never
-// consumed as flag values.
-//
-// Supported: --rounds N, -rounds N, --messages N, --max-messages N, -messages N
-func parseCollaborateLeadFlags(parts []string) (collaboration.DiscussionConfig, []string, string) {
-	var cfg collaboration.DiscussionConfig
+// description. Supported: --rounds N, --messages N, --workspace.
+func parseCollaborateLeadFlags(parts []string) (collaborateFlagParse, []string, string) {
+	var out collaborateFlagParse
 	if len(parts) < 2 {
-		return cfg, nil, ""
+		return out, nil, ""
 	}
 	i := 1
 	for i < len(parts) {
@@ -27,31 +30,34 @@ func parseCollaborateLeadFlags(parts []string) (collaboration.DiscussionConfig, 
 		}
 		key := stripCollaborateFlagPrefix(strings.ToLower(raw))
 		switch key {
+		case "workspace":
+			out.AttachWorkspace = true
+			i++
 		case "rounds":
 			if i+1 >= len(parts) {
-				return cfg, nil, "❌ `--rounds` needs a number (e.g. `--rounds 5`)."
+				return out, nil, "❌ `--rounds` needs a number (e.g. `--rounds 5`)."
 			}
 			n, err := strconv.Atoi(parts[i+1])
 			if err != nil {
-				return cfg, nil, fmt.Sprintf("❌ Invalid `--rounds` value: %q", parts[i+1])
+				return out, nil, fmt.Sprintf("❌ Invalid `--rounds` value: %q", parts[i+1])
 			}
-			cfg.MaxRounds = n
+			out.Discussion.MaxRounds = n
 			i += 2
 		case "messages", "max-messages":
 			if i+1 >= len(parts) {
-				return cfg, nil, "❌ `--messages` needs a number (e.g. `--messages 30`)."
+				return out, nil, "❌ `--messages` needs a number (e.g. `--messages 30`)."
 			}
 			n, err := strconv.Atoi(parts[i+1])
 			if err != nil {
-				return cfg, nil, fmt.Sprintf("❌ Invalid `--messages` value: %q", parts[i+1])
+				return out, nil, fmt.Sprintf("❌ Invalid `--messages` value: %q", parts[i+1])
 			}
-			cfg.MaxTotalMessages = n
+			out.Discussion.MaxTotalMessages = n
 			i += 2
 		default:
-			return cfg, nil, fmt.Sprintf("❌ Unknown option %q. Use `--rounds` and/or `--messages` before @mentions.", raw)
+			return out, nil, fmt.Sprintf("❌ Unknown option %q. Use `--rounds`, `--messages`, and/or `--workspace` before @mentions.", raw)
 		}
 	}
-	return cfg, parts[i:], ""
+	return out, parts[i:], ""
 }
 
 func stripCollaborateFlagPrefix(s string) string {

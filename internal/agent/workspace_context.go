@@ -268,37 +268,72 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	return len(loadedFiles)
 }
 
+// ResolveContextScope returns the effective workspace context tier for a message.
+// If workspace_context is absent, returns none. Legacy messages with workspace_context
+// but no context_scope default to full.
+func ResolveContextScope(msg *protocol.Message) string {
+	if msg == nil || msg.Metadata == nil {
+		return ContextScopeNone
+	}
+	if raw, ok := msg.Metadata[MetadataContextScope]; ok {
+		if s, ok := raw.(string); ok {
+			switch strings.TrimSpace(strings.ToLower(s)) {
+			case ContextScopeNone, ContextScopeHint, ContextScopeOutline, ContextScopeFocus, ContextScopeFull:
+				return strings.TrimSpace(strings.ToLower(s))
+			}
+		}
+	}
+	if _, ok := msg.Metadata["workspace_context"]; ok {
+		return ContextScopeFull
+	}
+	return ContextScopeNone
+}
+
 // AppendWorkspaceContext checks for workspace_context in message metadata
-// and appends it to the prompt builder so the agent can reference project files.
-//
-// The framing instructions are placed BEFORE the code so the model reads the
-// directive first, then processes the code with that directive in mind.
-//
-// Line numbers are prepended to every line of code so the model can reference
-// exact line numbers that match what the user sees in their editor.
+// and appends a scope-appropriate section to the prompt builder.
 func AppendWorkspaceContext(prompt *strings.Builder, msg *protocol.Message) {
-	if msg.Metadata == nil {
+	if msg == nil || msg.Metadata == nil {
 		return
 	}
-
 	wsCtx, ok := msg.Metadata["workspace_context"]
 	if !ok {
 		return
 	}
-
 	ctxMap, ok := wsCtx.(map[string]interface{})
 	if !ok {
 		return
 	}
+	scope := ResolveContextScope(msg)
+	if scope == ContextScopeNone {
+		return
+	}
+	appendWorkspacePromptSection(prompt, scope, ctxMap)
+}
 
+func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap map[string]interface{}) {
 	prompt.WriteString("\n=== WORKSPACE CONTEXT ===\n")
-	prompt.WriteString("The user has shared their active codebase with you. ")
-	prompt.WriteString("Use the code context below when the user's request is code-specific (review/debug/explain/edit paths/files). ")
-	prompt.WriteString("For capability or planning questions, answer directly first and only reference code when relevant. ")
-	prompt.WriteString("Each line of code is prefixed with its real line number (e.g., '  42 | code here'). ")
-	prompt.WriteString("When referencing code, use THESE line numbers -- they match what the user sees in their editor. ")
-	prompt.WriteString("When suggesting code changes, submit a file-change proposal that the user can approve.\n\n")
-	prompt.WriteString("Important: you can propose create/edit/delete changes for the currently shared workspace, but the user must approve before changes are applied.\n\n")
+	switch scope {
+	case ContextScopeHint:
+		prompt.WriteString("The user has a project open in their editor, but has NOT shared file contents. ")
+		prompt.WriteString("Do NOT assume their question is about this project unless they explicitly refer to it, paths, or code. ")
+		prompt.WriteString("Answer general questions directly without inventing repo-specific details.\n\n")
+	case ContextScopeOutline:
+		prompt.WriteString("The user shared a high-level view of their project (name, path, file tree). ")
+		prompt.WriteString("Use the tree for structure questions only; do not invent file contents. ")
+		prompt.WriteString("For general or planning questions, answer directly first.\n\n")
+	case ContextScopeFocus:
+		prompt.WriteString("The user shared limited code context (referenced paths and/or active file). ")
+		prompt.WriteString("Stay within the files shown; do not assume other parts of the repo. ")
+		prompt.WriteString("Line numbers in code blocks match the user's editor.\n\n")
+	default:
+		prompt.WriteString("The user has shared their active codebase with you. ")
+		prompt.WriteString("Use the code context below when the user's request is code-specific (review/debug/explain/edit paths/files). ")
+		prompt.WriteString("For capability or planning questions, answer directly first and only reference code when relevant. ")
+		prompt.WriteString("Each line of code is prefixed with its real line number (e.g., '  42 | code here'). ")
+		prompt.WriteString("When referencing code, use THESE line numbers. ")
+		prompt.WriteString("When suggesting code changes, submit a file-change proposal that the user can approve.\n\n")
+		prompt.WriteString("Important: you can propose create/edit/delete changes for the currently shared workspace, but the user must approve before changes are applied.\n\n")
+	}
 
 	if name, ok := ctxMap["workspace_name"].(string); ok && name != "" {
 		prompt.WriteString(fmt.Sprintf("Project: %s\n", name))
@@ -306,34 +341,37 @@ func AppendWorkspaceContext(prompt *strings.Builder, msg *protocol.Message) {
 	if path, ok := ctxMap["workspace_path"].(string); ok && path != "" {
 		prompt.WriteString(fmt.Sprintf("Path: %s\n", path))
 	}
-	if tree, ok := ctxMap["file_tree"].(string); ok && tree != "" {
-		prompt.WriteString(fmt.Sprintf("\nProject file tree:\n%s\n", tree))
+
+	includeTree := scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull
+	if includeTree {
+		if tree, ok := ctxMap["file_tree"].(string); ok && tree != "" {
+			prompt.WriteString(fmt.Sprintf("\nProject file tree:\n%s\n", tree))
+		}
 	}
 
-	if files, ok := ctxMap["open_files"].([]interface{}); ok && len(files) > 0 {
-		prompt.WriteString(fmt.Sprintf("\nOpen files (%d):\n", len(files)))
-		for _, f := range files {
-			fm, ok := f.(map[string]interface{})
-			if !ok {
-				continue
+	includeFiles := scope == ContextScopeFocus || scope == ContextScopeFull
+	if includeFiles {
+		if files, ok := ctxMap["open_files"].([]interface{}); ok && len(files) > 0 {
+			prompt.WriteString(fmt.Sprintf("\nOpen files (%d):\n", len(files)))
+			for _, f := range files {
+				fm, ok := f.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				filePath, _ := fm["path"].(string)
+				lang, _ := fm["language"].(string)
+				content, _ := fm["content"].(string)
+				isActive, _ := fm["is_active"].(bool)
+				activeMarker := ""
+				if isActive {
+					activeMarker = " [ACTIVE - user is viewing this file]"
+				}
+				numberedContent := addLineNumbers(content)
+				prompt.WriteString(fmt.Sprintf(
+					"\n### %s (%s)%s\n```%s\n%s\n```\n",
+					filePath, lang, activeMarker, lang, numberedContent,
+				))
 			}
-			filePath, _ := fm["path"].(string)
-			lang, _ := fm["language"].(string)
-			content, _ := fm["content"].(string)
-			isActive, _ := fm["is_active"].(bool)
-			activeMarker := ""
-			if isActive {
-				activeMarker = " [ACTIVE - user is viewing this file]"
-			}
-
-			// Add line numbers to the code content so the model can reference
-			// exact lines that match the user's editor.
-			numberedContent := addLineNumbers(content)
-
-			prompt.WriteString(fmt.Sprintf(
-				"\n### %s (%s)%s\n```%s\n%s\n```\n",
-				filePath, lang, activeMarker, lang, numberedContent,
-			))
 		}
 	}
 

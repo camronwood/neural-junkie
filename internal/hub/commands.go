@@ -3928,12 +3928,13 @@ func (ch *CommandHandler) validateCommandDefinitions() {
 // handleCollaborate starts a multi-agent collaboration.
 // Usage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
 func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
-	discussionCfg, tail, flagErr := parseCollaborateLeadFlags(parts)
+	flagParse, tail, flagErr := parseCollaborateLeadFlags(parts)
 	if flagErr != "" {
 		return ch.systemResponse(msg.Channel, flagErr), nil
 	}
+	discussionCfg := flagParse.Discussion
 	if len(tail) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
 	}
 
 	cm := ch.hub.GetCollaborationManager()
@@ -4032,7 +4033,13 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	)
 	seedMsg.SetCollaborationID(collab.ID)
 	seedMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
-	inheritWorkspaceContextMetadata(msg, seedMsg)
+	if seedMsg.Metadata == nil {
+		seedMsg.Metadata = map[string]interface{}{}
+	}
+	seedMsg.Metadata["collab_internal_event"] = true
+	if flagParse.AttachWorkspace {
+		inheritWorkspaceContextMetadata(msg, seedMsg, true)
+	}
 
 	if err := ch.hub.SendMessage(seedMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send seed message: %v", err)
@@ -4061,7 +4068,9 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	turnMsg.SetCollaborationID(collab.ID)
 	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
 	turnMsg.Mentions = []string{firstAgent.AgentID}
-	inheritWorkspaceContextMetadata(msg, turnMsg)
+	if flagParse.AttachWorkspace {
+		inheritWorkspaceContextMetadata(msg, turnMsg, true)
+	}
 
 	if err := ch.hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send first turn message: %v", err)
@@ -4283,7 +4292,6 @@ func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Me
 	)
 	revisionMsg.SetCollaborationID(collabID)
 	revisionMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
-	inheritWorkspaceContextMetadata(msg, revisionMsg)
 
 	// Mention all agents to notify them
 	for _, a := range collab.Agents {
@@ -4382,7 +4390,9 @@ func (ch *CommandHandler) handleCollabRename(ctx context.Context, msg *protocol.
 	return out, nil
 }
 
-func inheritWorkspaceContextMetadata(src, dst *protocol.Message) {
+// inheritWorkspaceContextMetadata copies workspace metadata from src to dst.
+// When outlineOnly is true (collab --workspace), only name/path/tree are copied — no open file bodies.
+func inheritWorkspaceContextMetadata(src, dst *protocol.Message, outlineOnly bool) {
 	if src == nil || dst == nil || src.Metadata == nil {
 		return
 	}
@@ -4407,29 +4417,34 @@ func inheritWorkspaceContextMetadata(src, dst *protocol.Message) {
 		}
 		safeCtx["file_tree"] = fileTree
 	}
-	if openFiles, ok := ctxMap["open_files"].([]interface{}); ok {
-		trimmedFiles := make([]map[string]interface{}, 0, len(openFiles))
-		for _, entry := range openFiles {
-			fileMeta, ok := entry.(map[string]interface{})
-			if !ok {
-				continue
+	if !outlineOnly {
+		if openFiles, ok := ctxMap["open_files"].([]interface{}); ok {
+			trimmedFiles := make([]map[string]interface{}, 0, len(openFiles))
+			for _, entry := range openFiles {
+				fileMeta, ok := entry.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				trimmed := map[string]interface{}{}
+				if path, ok := fileMeta["path"].(string); ok {
+					trimmed["path"] = path
+				}
+				if language, ok := fileMeta["language"].(string); ok {
+					trimmed["language"] = language
+				}
+				if isActive, ok := fileMeta["is_active"].(bool); ok {
+					trimmed["is_active"] = isActive
+				}
+				if content, ok := fileMeta["content"].(string); ok && content != "" {
+					trimmed["content"] = content
+				}
+				if len(trimmed) > 0 {
+					trimmedFiles = append(trimmedFiles, trimmed)
+				}
 			}
-			trimmed := map[string]interface{}{}
-			if path, ok := fileMeta["path"].(string); ok {
-				trimmed["path"] = path
+			if len(trimmedFiles) > 0 {
+				safeCtx["open_files"] = trimmedFiles
 			}
-			if language, ok := fileMeta["language"].(string); ok {
-				trimmed["language"] = language
-			}
-			if isActive, ok := fileMeta["is_active"].(bool); ok {
-				trimmed["is_active"] = isActive
-			}
-			if len(trimmed) > 0 {
-				trimmedFiles = append(trimmedFiles, trimmed)
-			}
-		}
-		if len(trimmedFiles) > 0 {
-			safeCtx["open_files"] = trimmedFiles
 		}
 	}
 	if len(safeCtx) == 0 {
@@ -4439,6 +4454,9 @@ func inheritWorkspaceContextMetadata(src, dst *protocol.Message) {
 		dst.Metadata = map[string]interface{}{}
 	}
 	dst.Metadata["workspace_context"] = safeCtx
+	if outlineOnly {
+		dst.Metadata[agent.MetadataContextScope] = agent.ContextScopeOutline
+	}
 }
 
 func (ch *CommandHandler) handleCollabStatus(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {

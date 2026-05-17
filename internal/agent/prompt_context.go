@@ -14,6 +14,17 @@ const (
 	MetadataUserRulesMarkdown    = "user_rules_markdown"
 	MetadataPromptAttachments    = "prompt_attachments"
 	MetadataGrantedHubDataAccess = "granted_hub_data_access"
+	MetadataContextScope         = "context_scope"
+	MetadataContextScopeReason   = "context_scope_reason"
+)
+
+// Context scope tiers (must match desktop inferContextScope).
+const (
+	ContextScopeNone    = "none"
+	ContextScopeHint    = "hint"
+	ContextScopeOutline = "outline"
+	ContextScopeFocus   = "focus"
+	ContextScopeFull    = "full"
 )
 
 const (

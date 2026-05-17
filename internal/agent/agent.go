@@ -540,8 +540,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	// Send response -- reuse the stream message ID when available so the
 	// frontend can correlate deltas with the final persisted message.
+	responseType := protocol.MessageTypeChat
+	if msg.GetCollaborationID() != "" &&
+		a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeCollaboration {
+		responseType = protocol.MessageTypeCollabDiscussion
+	}
 	responseMsg := protocol.NewMessage(
-		protocol.MessageTypeChat,
+		responseType,
 		msg.Channel,
 		a.Info,
 		response,
@@ -858,6 +863,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// COLLABORATION: orchestration messages (turn prompts, tasks) are sent from
 	// System — evaluate before the generic "ignore System" rule below.
 	if collabID := msg.GetCollaborationID(); collabID != "" && a.Collab != nil {
+		if msg.Metadata != nil {
+			if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
+				return false
+			}
+		}
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
 			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
 				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {

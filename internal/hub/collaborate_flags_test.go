@@ -9,12 +9,15 @@ import (
 
 func TestParseCollaborateLeadFlags_None(t *testing.T) {
 	parts := []string{"/collaborate", "@a", "@b", "do", "thing"}
-	cfg, tail, err := parseCollaborateLeadFlags(parts)
+	parsed, tail, err := parseCollaborateLeadFlags(parts)
 	if err != "" {
 		t.Fatalf("unexpected err: %s", err)
 	}
-	if cfg.MaxRounds != 0 || cfg.MaxTotalMessages != 0 {
-		t.Fatalf("expected zero cfg, got %+v", cfg)
+	if parsed.Discussion.MaxRounds != 0 || parsed.Discussion.MaxTotalMessages != 0 {
+		t.Fatalf("expected zero cfg, got %+v", parsed.Discussion)
+	}
+	if parsed.AttachWorkspace {
+		t.Fatal("expected AttachWorkspace false")
 	}
 	if len(tail) != 4 || tail[0] != "@a" {
 		t.Fatalf("unexpected tail: %#v", tail)
@@ -23,30 +26,47 @@ func TestParseCollaborateLeadFlags_None(t *testing.T) {
 
 func TestParseCollaborateLeadFlags_Both(t *testing.T) {
 	parts := []string{"/collaborate", "--rounds", "5", "--messages", "40", "@x", "@y", "goal"}
-	cfg, tail, err := parseCollaborateLeadFlags(parts)
+	parsed, tail, err := parseCollaborateLeadFlags(parts)
 	if err != "" {
 		t.Fatalf("unexpected err: %s", err)
 	}
-	if cfg.MaxRounds != 5 || cfg.MaxTotalMessages != 40 {
-		t.Fatalf("cfg: %+v", cfg)
+	if parsed.Discussion.MaxRounds != 5 || parsed.Discussion.MaxTotalMessages != 40 {
+		t.Fatalf("cfg: %+v", parsed.Discussion)
 	}
 	if len(tail) != 3 || tail[0] != "@x" {
 		t.Fatalf("tail: %#v", tail)
 	}
-	n := collaboration.DiscussionConfig{MaxRounds: cfg.MaxRounds, MaxTotalMessages: cfg.MaxTotalMessages}.Normalized()
+	n := collaboration.DiscussionConfig{MaxRounds: parsed.Discussion.MaxRounds, MaxTotalMessages: parsed.Discussion.MaxTotalMessages}.Normalized()
 	if n.MaxRounds != 5 || n.MaxTotalMessages != 40 {
 		t.Fatalf("normalized: %+v", n)
 	}
 }
 
-func TestParseCollaborateLeadFlags_MaxMessagesAlias(t *testing.T) {
-	parts := []string{"/collaborate", "--max-messages", "12", "@a", "@b", "z"}
-	cfg, tail, err := parseCollaborateLeadFlags(parts)
+func TestParseCollaborateLeadFlags_Workspace(t *testing.T) {
+	parts := []string{"/collaborate", "--workspace", "--rounds", "2", "@a", "@b", "goal"}
+	parsed, tail, err := parseCollaborateLeadFlags(parts)
 	if err != "" {
 		t.Fatalf("unexpected err: %s", err)
 	}
-	if cfg.MaxTotalMessages != 12 || len(tail) != 3 {
-		t.Fatalf("cfg %+v tail %#v", cfg, tail)
+	if !parsed.AttachWorkspace {
+		t.Fatal("expected AttachWorkspace")
+	}
+	if parsed.Discussion.MaxRounds != 2 {
+		t.Fatalf("rounds: %d", parsed.Discussion.MaxRounds)
+	}
+	if len(tail) != 3 {
+		t.Fatalf("tail: %#v", tail)
+	}
+}
+
+func TestParseCollaborateLeadFlags_MaxMessagesAlias(t *testing.T) {
+	parts := []string{"/collaborate", "--max-messages", "12", "@a", "@b", "z"}
+	parsed, tail, err := parseCollaborateLeadFlags(parts)
+	if err != "" {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	if parsed.Discussion.MaxTotalMessages != 12 || len(tail) != 3 {
+		t.Fatalf("cfg %+v tail %#v", parsed.Discussion, tail)
 	}
 }
 

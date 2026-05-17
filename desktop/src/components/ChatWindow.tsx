@@ -6,7 +6,15 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
-import { buildHumanOutboundMetadata } from '../utils/outboundChatMetadata';
+import {
+  buildHumanOutboundMetadata,
+  cycleWorkspaceContextMode,
+  loadWorkspaceContextMode,
+  workspaceContextModeLabel,
+  WORKSPACE_CONTEXT_MODE_KEY,
+} from '../utils/outboundChatMetadata';
+import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
+import type { WorkspaceContextMode } from '../constants/promptMetadata';
 import { GRANTED_HUB_DATA_ACCESS_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
@@ -176,10 +184,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     collaborationsByIDRef.current = collaborationsByID;
   }, [collaborationsByID]);
 
-  // State for sharing workspace context with agents
-  const [shareWorkspace, setShareWorkspace] = useState<boolean>(() => {
-    return localStorage.getItem('share-workspace') === 'true';
-  });
+  const [workspaceContextMode, setWorkspaceContextMode] = useState<WorkspaceContextMode>(() =>
+    loadWorkspaceContextMode()
+  );
+  const [composerDraft, setComposerDraft] = useState('');
+
+  const activeChannelMeta = useMemo(
+    () => channels.find((c) => c.name === channel),
+    [channels, channel]
+  );
+
+  const contextScopePreview = useMemo(() => {
+    return resolveContextScope({
+      message: composerDraft,
+      mode: workspaceContextMode,
+      channelKind: channelNameToKind(channel, activeChannelMeta?.type),
+    });
+  }, [composerDraft, workspaceContextMode, channel, activeChannelMeta?.type]);
 
   const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
@@ -376,7 +397,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       await api.acknowledgeCollaborationWorkspace(c.id);
       dismissedWorkspaceGateIdRef.current = null;
       if (useChatStore.getState().channel === c.channel) {
-        setShareWorkspace(true);
+        setWorkspaceContextMode('always');
+        localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, 'always');
       }
       await loadCollaborations(channel);
       setWorkspaceGateCollab(null);
@@ -772,7 +794,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const dispatchThreadReply = useCallback(
     async (threadId: string, content: string, metadata?: Record<string, unknown>) => {
       const mergedMetadata = buildHumanOutboundMetadata({
-        shareWorkspace,
+        contextMode: workspaceContextMode,
+        message: content,
+        channel,
+        channelType: activeChannelMeta?.type,
         composerMetadata: metadata,
       });
       await api.sendThreadReply(
@@ -783,13 +808,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         mergedMetadata
       );
     },
-    [api, channel, username, shareWorkspace]
+    [api, channel, username, workspaceContextMode, activeChannelMeta?.type]
   );
 
   const dispatchMessage = useCallback(
     async (content: string, metadata?: Record<string, unknown>) => {
       const mergedMetadata = buildHumanOutboundMetadata({
-        shareWorkspace,
+        contextMode: workspaceContextMode,
+        message: content,
+        channel,
+        channelType: activeChannelMeta?.type,
         composerMetadata: metadata,
       });
 
@@ -838,7 +866,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       api,
       channel,
       username,
-      shareWorkspace,
+      workspaceContextMode,
+      activeChannelMeta?.type,
       loadChannels,
       handleSwitchChannel,
       loadCollaborations,
@@ -1106,23 +1135,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <button
             type="button"
             onClick={() => {
-              const next = !shareWorkspace;
-              setShareWorkspace(next);
-              localStorage.setItem('share-workspace', String(next));
+              const next = cycleWorkspaceContextMode(workspaceContextMode);
+              setWorkspaceContextMode(next);
+              localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
             }}
             className={`w-7 h-7 rounded transition-colors flex items-center justify-center relative ${
-              shareWorkspace
+              workspaceContextMode !== 'off'
                 ? 'bg-purple-600 hover:bg-purple-700 text-white ring-1 ring-purple-400 ring-offset-1 ring-offset-slack-bg'
                 : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
             }`}
-            title={shareWorkspace ? 'Workspace sharing ON — agents can see your files' : 'Share workspace context with agents'}
-            aria-label={shareWorkspace ? 'Workspace sharing on' : 'Share workspace context with agents'}
-            aria-pressed={shareWorkspace}
+            title={`Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`}
+            aria-label={`Workspace context mode ${workspaceContextModeLabel(workspaceContextMode)}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
             </svg>
-            {shareWorkspace && (
+            {workspaceContextMode === 'auto' && (
               <span className="absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full h-2 w-2 border border-slack-bg" />
             )}
           </button>
@@ -1306,7 +1334,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           agents={agents}
           ref={inputRef}
           onSlashTrigger={handleSlashTrigger}
+          onDraftChange={setComposerDraft}
         />
+
+        {workspaceContextMode === 'auto' && composerDraft.trim() && (
+          <div
+            className="px-3 py-1 text-xs text-slack-textMuted border-t border-slack-border"
+            title={contextScopePreview.reason}
+          >
+            Context: Auto → <span className="text-slack-text">{contextScopePreview.scope}</span>
+          </div>
+        )}
         </div>
 
         {/* Thread Panel - slides in when thread is open */}

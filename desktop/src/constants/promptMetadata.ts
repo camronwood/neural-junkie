@@ -5,6 +5,13 @@ export const PROMPT_ATTACHMENTS_METADATA_KEY = 'prompt_attachments';
 export const GRANTED_HUB_DATA_ACCESS_KEY = 'granted_hub_data_access';
 /** Canonical multimodal image array on outbound messages */
 export const USER_IMAGES_METADATA_KEY = 'user_images';
+/** Tiered workspace attachment: none | hint | outline | focus | full */
+export const CONTEXT_SCOPE_KEY = 'context_scope';
+/** Dev UI: why Auto chose this scope */
+export const CONTEXT_SCOPE_REASON_KEY = 'context_scope_reason';
+
+export type ContextScope = 'none' | 'hint' | 'outline' | 'focus' | 'full';
+export type WorkspaceContextMode = 'auto' | 'always' | 'off';
 
 export interface PromptAttachmentPayload {
   path: string;

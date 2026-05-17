@@ -14,6 +14,8 @@ interface RichTextInputProps {
   agents?: AgentInfo[];
   onInsertMention?: (name: string) => void;
   onSlashTrigger?: (query: string) => void;
+  /** Fired when the composer text changes (for context-scope preview). */
+  onDraftChange?: (text: string) => void;
 }
 
 const MAX_USER_IMAGES = 6;
@@ -44,10 +46,16 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       agents = [],
       onInsertMention,
       onSlashTrigger,
+      onDraftChange,
     },
     ref
   ) {
     const [message, setMessage] = useState('');
+
+    const updateMessage = (next: string) => {
+      setMessage(next);
+      onDraftChange?.(next);
+    };
     const [showMentionMenu, setShowMentionMenu] = useState(false);
     const [mentionQuery, setMentionQuery] = useState('');
     const [mentionStartPos, setMentionStartPos] = useState(0);
@@ -108,7 +116,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       const afterCursor = message.substring(cursorPos);
 
       const newMessage = `${beforeMention}@${agentName} ${afterCursor}`;
-      setMessage(newMessage);
+      updateMessage(newMessage);
       setShowMentionMenu(false);
 
       setTimeout(() => {
@@ -270,7 +278,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         onSend(`/analyze-design ${message}`, metadata);
 
         clearPendingImages();
-        setMessage('');
+        updateMessage('');
       } catch (error) {
         console.error('Error processing image:', error);
         alert('Error processing image. Please try again.');
@@ -300,7 +308,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
         const textOut = trimmed || (pendingImages.length > 0 ? '(see attached images)' : '');
         onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined);
-        setMessage('');
+        updateMessage('');
         setPendingAttachments([]);
         clearPendingImages();
         setShowMentionMenu(false);
@@ -346,7 +354,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         ({
           ...textareaRef.current!,
           clearInput: () => {
-            setMessage('');
+            updateMessage('');
           },
           insertMentionText: (agentName: string) => {
             const cursorPos = textareaRef.current?.selectionStart || message.length;
@@ -357,7 +365,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             const prefix = needsSpaceBefore ? ' ' : '';
 
             const newMessage = `${beforeCursor}${prefix}@${agentName} ${afterCursor}`;
-            setMessage(newMessage);
+            updateMessage(newMessage);
 
             setTimeout(() => {
               if (textareaRef.current) {
@@ -472,7 +480,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           <textarea
             ref={textareaRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => updateMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
             placeholder={placeholder}
