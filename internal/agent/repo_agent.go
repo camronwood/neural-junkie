@@ -349,7 +349,6 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		return
 	}
 
-	// Check if we've already responded to this message
 	ra.respondedMutex.Lock()
 	if ra.respondedMessages[msg.ID] {
 		ra.respondedMutex.Unlock()
@@ -358,6 +357,11 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	ra.respondedMessages[msg.ID] = true
 	ra.respondedMutex.Unlock()
+	clearResponded := func() {
+		ra.respondedMutex.Lock()
+		delete(ra.respondedMessages, msg.ID)
+		ra.respondedMutex.Unlock()
+	}
 
 	log.Printf("[%s] Processing message from %s: %s", ra.Info.Name, msg.From.Name, msg.Content)
 
@@ -368,6 +372,7 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	response, err := ra.generateRepoResponse(ctx, msg)
 	if err != nil {
 		log.Printf("[%s] Error generating response: %v", ra.Info.Name, err)
+		clearResponded()
 		ra.sendThinkingStatus(msg, protocol.ThinkingStatusError)
 		return
 	}

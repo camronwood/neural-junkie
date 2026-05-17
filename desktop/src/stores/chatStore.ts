@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
-import { channelTimelineAllowsEmptyContent } from '../types/protocol';
+import {
+  channelTimelineAllowsEmptyContent,
+  getReasoningText,
+  isReasoningStreamDelta,
+  REASONING_APPEND_METADATA_KEY,
+  REASONING_TEXT_METADATA_KEY,
+} from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL, normalizeLegacyHubServerAddr } from '../config/hubUrl';
@@ -484,26 +490,53 @@ export const useChatStore = create<ChatState>((set, get) => {
   // Streaming actions — deltas coalesced per rAF to avoid one React commit per token
   appendStreamDelta: (msg) => {
     const id = msg.id;
-    const chunk = msg.content ?? '';
+    const meta = msg.metadata ?? {};
+    const isReasoning = isReasoningStreamDelta(meta);
+    const reasoningChunk =
+      typeof meta[REASONING_APPEND_METADATA_KEY] === 'string'
+        ? (meta[REASONING_APPEND_METADATA_KEY] as string)
+        : '';
+
+    const mergeDelta = (base: Message): Message => {
+      if (isReasoning) {
+        const prev = getReasoningText(base.metadata as Record<string, unknown> | undefined);
+        return {
+          ...base,
+          type: 'chat' as Message['type'],
+          metadata: {
+            ...base.metadata,
+            [REASONING_TEXT_METADATA_KEY]: prev + reasoningChunk,
+          },
+        };
+      }
+      const chunk = msg.content ?? '';
+      return {
+        ...base,
+        type: 'chat' as Message['type'],
+        content: capStreamContent((base.content ?? '') + chunk),
+      };
+    };
+
     const curPending = streamPending.get(id);
     const state = get();
     if (curPending) {
-      streamPending.set(id, {
-        ...curPending,
-        content: capStreamContent(curPending.content + chunk),
-      });
+      streamPending.set(id, mergeDelta(curPending));
     } else if (state.streamingMessages[id]) {
-      const existing = state.streamingMessages[id];
-      streamPending.set(id, {
-        ...existing,
-        content: capStreamContent(existing.content + chunk),
+      streamPending.set(id, mergeDelta(state.streamingMessages[id]));
+    } else if (isReasoning) {
+      streamPending.set(id, mergeDelta({
+        ...msg,
         type: 'chat' as Message['type'],
-      });
+        content: '',
+        metadata: { ...msg.metadata },
+      }));
     } else {
+      const chunk = msg.content ?? '';
       streamPending.set(id, {
         ...msg,
         type: 'chat' as Message['type'],
         content: capStreamContent(chunk),
+        metadata: { ...msg.metadata },
       });
     }
     scheduleStreamFlush();
@@ -518,33 +551,41 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
       streamFlushRaf.current = 0;
     }
-    if (streamPending.size > 0) {
-      const batch = new Map(streamPending);
+    const pendingBatch =
+      streamPending.size > 0 ? new Map(streamPending) : null;
+    if (pendingBatch) {
       streamPending.clear();
-      set((state) => {
-        const next = { ...state.streamingMessages };
-        for (const [id, m] of batch) {
-          next[id] = { ...m, content: capStreamContent(m.content ?? '') };
-        }
-        return { streamingMessages: next };
-      });
     }
     set((state) => {
-      const streamed = state.streamingMessages[streamId];
+      let streamingMessages = state.streamingMessages;
+      if (pendingBatch) {
+        const next = { ...streamingMessages };
+        for (const [id, m] of pendingBatch) {
+          next[id] = { ...m, content: capStreamContent(m.content ?? '') };
+        }
+        streamingMessages = next;
+      }
+      const streamed = streamingMessages[streamId];
       // Unknown stream id (already finalized, or never started): no-op.
-      if (!streamed) return state;
-      const { [streamId]: _removed, ...rest } = state.streamingMessages;
-      if (!streamed.content?.trim()) {
-        return { streamingMessages: rest };
+      if (!streamed) {
+        return pendingBatch ? { ...state, streamingMessages } : state;
+      }
+      const { [streamId]: _removed, ...rest } = streamingMessages;
+      const reasoning = getReasoningText(streamed.metadata as Record<string, unknown> | undefined);
+      if (!streamed.content?.trim() && !reasoning.trim()) {
+        return { ...state, streamingMessages: rest };
       }
       const alreadyInMessages = state.messages.some((m) => m.id === streamId);
       if (alreadyInMessages) {
-        return { streamingMessages: rest };
+        return { ...state, streamingMessages: rest };
       }
       const finalized: Message = {
         ...streamed,
         type: 'chat' as Message['type'],
         content: capStreamContent(streamed.content ?? ''),
+        metadata: reasoning
+          ? { ...streamed.metadata, [REASONING_TEXT_METADATA_KEY]: reasoning }
+          : streamed.metadata,
       };
       return {
         streamingMessages: rest,

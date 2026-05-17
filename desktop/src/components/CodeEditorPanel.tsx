@@ -4,6 +4,7 @@ import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import type { EditorTab } from '../stores/editorStore';
+import { EditorImagePreview } from './EditorImagePreview';
 
 interface CodeEditorPanelProps {
   onClose: () => void;
@@ -68,6 +69,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   editorRef.current = editor;
 
   const activeTab = getActiveTab();
+  const isImageTab = activeTab?.viewMode === 'image';
 
   useEffect(() => {
     if (!activeTabId) {
@@ -196,7 +198,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -294,6 +296,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   };
 
   const getTabIcon = (tab: EditorTab) => {
+    if (tab.viewMode === 'image') return '🖼️';
     const ext = tab.path.split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
@@ -311,6 +314,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
       txt: '📄',
       yml: '⚙️',
       yaml: '⚙️',
+      png: '🖼️',
     };
     return iconMap[ext || ''] || '📄';
   };
@@ -373,9 +377,9 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
           )}
           <button
             onClick={() => void handleSave()}
-            disabled={saving || !activeTab}
+            disabled={saving || !activeTab || isImageTab}
             className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
-            title="Save current file (Cmd+S)"
+            title={isImageTab ? 'Preview only' : 'Save current file (Cmd+S)'}
           >
             Save
           </button>
@@ -431,13 +435,21 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
       <div className="flex-1 min-h-0">
         {activeTab ? (
-          <Editor
-            height="100%"
-            language={activeTab.language || 'plaintext'}
-            defaultValue=""
-            onMount={handleEditorDidMount}
-            options={editorOptions}
-          />
+          activeTab.viewMode === 'image' && activeTab.imageSrc ? (
+            <EditorImagePreview
+              src={activeTab.imageSrc}
+              alt={getTabDisplayName(activeTab)}
+              reloadKey={activeTab.contentSyncKey ?? 0}
+            />
+          ) : (
+            <Editor
+              height="100%"
+              language={activeTab.language || 'plaintext'}
+              defaultValue=""
+              onMount={handleEditorDidMount}
+              options={editorOptions}
+            />
+          )
         ) : (
           <div className="flex items-center justify-center h-full text-slack-textMuted">
             <div className="text-center">
@@ -453,20 +465,26 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
         <div className="px-4 py-2 border-t border-slack-border bg-slack-bgHover text-xs text-slack-textMuted flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span>{activeTab.path}</span>
-            {activeTab.language && (
-              <span className="px-2 py-1 bg-slack-bg rounded text-xs">{activeTab.language}</span>
+            {isImageTab ? (
+              <span className="px-2 py-1 bg-slack-bg rounded text-xs">Preview only</span>
+            ) : (
+              activeTab.language && (
+                <span className="px-2 py-1 bg-slack-bg rounded text-xs">{activeTab.language}</span>
+              )
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {saving && <span className="text-yellow-500">Saving...</span>}
-            <button
-              onClick={() => void handleSave()}
-              disabled={!activeTab.isDirty || saving}
-              className="px-2 py-1 bg-slack-accent hover:bg-slack-accentHover text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Save (⌘S)
-            </button>
-          </div>
+          {!isImageTab && (
+            <div className="flex items-center gap-2">
+              {saving && <span className="text-yellow-500">Saving...</span>}
+              <button
+                onClick={() => void handleSave()}
+                disabled={!activeTab.isDirty || saving}
+                className="px-2 py-1 bg-slack-accent hover:bg-slack-accentHover text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save (⌘S)
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

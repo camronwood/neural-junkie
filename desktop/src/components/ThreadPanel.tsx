@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
@@ -31,6 +31,7 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
     setThreadMessages,
     updateThreadMetadata,
     addThreadMessage,
+    streamingMessages,
   } = useChatStore(
     (s) => ({
       serverAddr: s.serverAddr,
@@ -42,6 +43,7 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
       setThreadMessages: s.setThreadMessages,
       updateThreadMetadata: s.updateThreadMetadata,
       addThreadMessage: s.addThreadMessage,
+      streamingMessages: s.streamingMessages,
     }),
     shallow
   );
@@ -71,6 +73,13 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
   // Get messages for this thread
   const messages = threadMessages.get(threadId) || [];
   const metadata = threadMetadata.get(threadId);
+  const threadStreams = useMemo(
+    () =>
+      Object.values(streamingMessages).filter(
+        (m) => m.is_thread_reply && m.thread_id === threadId
+      ),
+    [streamingMessages, threadId]
+  );
 
   // WebSocket URL for this thread
   const threadWsURL = api.getThreadWebSocketURL(channel, threadId);
@@ -79,10 +88,18 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
   useWebSocket({
     url: threadWsURL,
     onMessage: async (message: MessageType) => {
-      // Add thread message to store
+      const st = useChatStore.getState();
+      if (message.type === 'stream_delta') {
+        st.appendStreamDelta(message);
+        return;
+      }
+      if (message.type === 'stream_end') {
+        st.finalizeStream(message.id);
+        return;
+      }
+
       addThreadMessage(message);
-      
-      // Update metadata
+
       try {
         const meta = await api.fetchThreadMetadata(threadId);
         updateThreadMetadata(threadId, meta);
@@ -263,7 +280,7 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
           <div className="flex items-center justify-center h-full text-slack-textMuted">
             Loading thread...
           </div>
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && threadStreams.length === 0 ? (
           <div className="flex items-center justify-center h-full text-slack-textMuted">
             No replies yet. Start the conversation!
           </div>
@@ -271,6 +288,9 @@ export function ThreadPanel({ threadId, parentMessage, onClose, buildOutboundMet
           <div className="py-2">
             {messages.map((msg) => (
               <Message key={msg.id} message={msg} />
+            ))}
+            {threadStreams.map((msg) => (
+              <Message key={msg.id} message={msg} isStreaming />
             ))}
             <div ref={messagesEndRef} />
           </div>

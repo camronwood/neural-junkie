@@ -264,10 +264,10 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 		a.channelMu.Unlock()
 		return nil // already listening
 	}
-	a.channelMu.Unlock()
 
 	subCh, err := a.Hub.Subscribe(channel)
 	if err != nil {
+		a.channelMu.Unlock()
 		return fmt.Errorf("failed to subscribe to channel %s: %w", channel, err)
 	}
 
@@ -277,8 +277,6 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	}
 
 	chCtx, cancel := context.WithCancel(ctx)
-
-	a.channelMu.Lock()
 	a.activeChannels[channel] = cancel
 	a.channelMu.Unlock()
 
@@ -455,16 +453,19 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		return
 	}
 
-	// Now mark as responded since we're going to respond
-	// Use atomic check-and-set to prevent race conditions
+	// Reserve this message so duplicate listeners do not start a second generation.
 	a.respondedMutex.Lock()
 	if a.respondedMessages[msg.ID] {
-		// Another agent already responded, skip
 		a.respondedMutex.Unlock()
 		return
 	}
 	a.respondedMessages[msg.ID] = true
 	a.respondedMutex.Unlock()
+	clearResponded := func() {
+		a.respondedMutex.Lock()
+		delete(a.respondedMessages, msg.ID)
+		a.respondedMutex.Unlock()
+	}
 
 	// Log that we're processing this message
 	log.Printf("[%s] ⬇️ RECEIVED msg ID %s from %s (mentions: %v)", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Mentions)
@@ -479,6 +480,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Try streaming path first, fall back to batch
 	var response string
 	var streamMsgID string
+	var reasoningText string
 	var err error
 
 	eff := a.EffectiveAIProvider(ctx, msg)
@@ -487,7 +489,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
-		response, streamMsgID, err = a.generateResponseStreaming(ctx, msg, eff)
+		response, streamMsgID, reasoningText, err = a.generateResponseStreaming(ctx, msg, eff)
 	} else {
 		log.Printf("[%s] 📝 Generating response (batch)...", a.Info.Name)
 		response, err = a.generateResponse(ctx, msg, eff)
@@ -495,6 +497,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	if err != nil {
 		log.Printf("[%s] Error generating response: %v", a.Info.Name, err)
+		clearResponded()
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
 
 		// Surface a user-safe error to chat while keeping full details in logs.
@@ -540,6 +543,12 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	)
 	if streamMsgID != "" {
 		responseMsg.ID = streamMsgID
+	}
+	if strings.TrimSpace(reasoningText) != "" {
+		if responseMsg.Metadata == nil {
+			responseMsg.Metadata = make(map[string]interface{})
+		}
+		responseMsg.Metadata["reasoning_text"] = reasoningText
 	}
 	responseMsg.ReplyTo = msg.ID
 
@@ -1342,10 +1351,10 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 // and the stable stream message ID so the caller can reuse it for the
 // final chat message (allowing the frontend to correlate streaming with
 // the persisted message).
-func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, string, error) {
+func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, string, string, error) {
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
 		resp, err := a.generateDesignAnalysisResponse(ctx, msg)
-		return resp, "", err
+		return resp, "", "", err
 	}
 	if eff == nil {
 		eff = a.GetAIProvider()
@@ -1410,37 +1419,59 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			}
 			log.Printf("[%s] Multimodal stream failed (%v), falling back to batch multimodal", a.Info.Name, err)
 			text, err := mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
-			return text, "", err
+			return text, "", "", err
 		}
 		if len(imgs) == 1 {
 			text, err := eff.GenerateVisionResponse(approvalCtx, prompt, imgs[0].Data, imgs[0].MIME, historyToMessages(history))
-			return text, "", err
+			return text, "", "", err
 		}
-		return "", "", fmt.Errorf("multiple images require a multimodal-capable provider")
+		return "", "", "", fmt.Errorf("multiple images require a multimodal-capable provider")
 	}
 
 	sp, ok := eff.(ai.StreamingProvider)
 	if !ok || !sp.SupportsStreaming() {
-		return "", "", fmt.Errorf("internal: expected streaming-capable provider")
+		return "", "", "", fmt.Errorf("internal: expected streaming-capable provider")
 	}
 	tokenCh, err := sp.GenerateResponseStream(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	return a.collectStreamTokens(msg, streamMsgID, tokenCh)
 }
 
 // collectStreamTokens drains a stream channel, broadcasts deltas, emits stream_end, and returns full text.
-func (a *Agent) collectStreamTokens(msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken) (string, string, error) {
+func (a *Agent) collectStreamTokens(msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken) (string, string, string, error) {
 	var fullResponse strings.Builder
+	var fullReasoning strings.Builder
 	var streamErr error
 	for token := range tokenCh {
 		if token.Error != nil {
-			if fullResponse.Len() > 0 {
+			if fullResponse.Len() > 0 || fullReasoning.Len() > 0 {
 				streamErr = token.Error
 				break
 			}
-			return "", "", token.Error
+			return "", "", "", token.Error
+		}
+		if token.Thinking != "" {
+			fullReasoning.WriteString(token.Thinking)
+			delta := protocol.NewMessage(
+				protocol.MessageTypeStreamDelta,
+				msg.Channel,
+				a.Info,
+				"",
+			)
+			delta.ID = streamMsgID
+			delta.ReplyTo = msg.ID
+			if delta.Metadata == nil {
+				delta.Metadata = make(map[string]interface{})
+			}
+			delta.Metadata["reasoning_delta"] = true
+			delta.Metadata["reasoning_append"] = token.Thinking
+			if msg.IsInThread() {
+				delta.ThreadID = msg.ThreadID
+				delta.IsThreadReply = true
+			}
+			a.Hub.BroadcastDirect(msg.Channel, delta)
 		}
 		if token.Content != "" {
 			fullResponse.WriteString(token.Content)
@@ -1485,7 +1516,7 @@ func (a *Agent) collectStreamTokens(msg *protocol.Message, streamMsgID string, t
 	}
 	a.Hub.BroadcastDirect(msg.Channel, endMsg)
 
-	return fullResponse.String(), streamMsgID, nil
+	return fullResponse.String(), streamMsgID, fullReasoning.String(), nil
 }
 
 // isRepoOrHelperAgent returns true for agent types that already have their
@@ -1744,6 +1775,10 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("9. NEVER mention internal tool/function names (e.g., ProposeFileEdit/ProposeFileCreate) to the user.\n")
 		system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
 		appendFileChangeMachineBlockDocs(&system)
+		if a.Info.Type == protocol.AgentTypeHelper {
+			system.WriteString("11. If the user asks you to create, write, or save a file, you MUST emit a [FILE_CHANGE] block (usually operation: create with a relative path). ")
+			system.WriteString("Chat-only explanations do not write to disk; the host only applies changes from FILE_CHANGE proposals (after user approval).\n")
+		}
 	}
 
 	// Add context about other agents in the channel
@@ -2222,6 +2257,11 @@ type fileChangeDirective struct {
 var fileChangeBlockRegex = regexp.MustCompile(`(?s)\[FILE_CHANGE\](.*?)\[/FILE_CHANGE\]`)
 var editorLineNumberPrefixRegex = regexp.MustCompile(`(?m)^\s*\d+\s*\|\s?`)
 
+// userNamedFileRegex captures "call new-tab.txt", `named foo.md`, etc.
+var userNamedFileRegex = regexp.MustCompile(`(?i)\b(?:call|named|called|name)\s+['"]?([a-zA-Z0-9][a-zA-Z0-9._\-]{0,220}\.[a-zA-Z0-9]{1,16})['"]?\b`)
+
+var looseOutputFileRegex = regexp.MustCompile(`\b([a-zA-Z0-9][a-zA-Z0-9._\-]*\.(?:txt|md|go|ts|tsx|jsx|js|mjs|cjs|json|yaml|yml|rs|py|html|css|sh|tab))\b`)
+
 func sanitizeInternalToolNames(response string) string {
 	replacer := strings.NewReplacer(
 		"ProposeFileEdit", "a file-change proposal",
@@ -2235,9 +2275,9 @@ func sanitizeInternalToolNames(response string) string {
 func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
 	match := fileChangeBlockRegex.FindStringSubmatch(response)
 	if len(match) < 2 {
-		// Deterministic fallback path: if the user explicitly asked to propose/apply
-		// and the model returned a concrete fenced content block, auto-propose edit.
-		if sourceMsg == nil || !isExplicitProposalIntent(sourceMsg.Content) {
+		// Deterministic fallback: user asked to write/create/save files and the model
+		// returned fenced content (or explicit approval phrases) but omitted [FILE_CHANGE].
+		if sourceMsg == nil || (!isExplicitProposalIntent(sourceMsg.Content) && !isUserRequestingFileWrite(sourceMsg.Content)) {
 			log.Printf("[%s] fallback_skipped(reason=no_explicit_proposal_intent)", a.Info.Name)
 			return response, false, nil
 		}
@@ -2248,23 +2288,39 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 			return response, false, nil
 		}
 
-		newContent := stripEditorLineNumberPrefixes(extractLongestCodeFence(response))
+		newContent := stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(response))
 		if strings.TrimSpace(newContent) == "" {
 			log.Printf("[%s] fallback_skipped(reason=no_fenced_content)", a.Info.Name)
 			return response, false, nil
 		}
 
-		targetPath := extractActiveOpenFilePath(sourceMsg)
-		if strings.TrimSpace(targetPath) == "" {
-			log.Printf("[%s] fallback_skipped(reason=missing_active_file_path)", a.Info.Name)
+		activePath := strings.TrimSpace(extractActiveOpenFilePath(sourceMsg))
+		namedPath := strings.TrimSpace(extractLikelyOutputPathFromUserMessage(sourceMsg.Content))
+		wantCreate := userWantsCreateOperation(sourceMsg.Content)
+
+		switch {
+		case wantCreate && namedPath != "":
+			if err := a.proposeFileCreateInChannel(channel, namedPath, newContent); err != nil {
+				return response, false, err
+			}
+			log.Printf("[%s] fallback_path_used(operation=create,target=%s)", a.Info.Name, namedPath)
+			return response, true, nil
+		case activePath != "":
+			if err := a.proposeFileEditInChannel(channel, activePath, "", newContent); err != nil {
+				return response, false, err
+			}
+			log.Printf("[%s] fallback_path_used(operation=edit,target=%s)", a.Info.Name, activePath)
+			return response, true, nil
+		case namedPath != "":
+			if err := a.proposeFileCreateInChannel(channel, namedPath, newContent); err != nil {
+				return response, false, err
+			}
+			log.Printf("[%s] fallback_path_used(operation=create,target=%s)", a.Info.Name, namedPath)
+			return response, true, nil
+		default:
+			log.Printf("[%s] fallback_skipped(reason=missing_target_path)", a.Info.Name)
 			return response, false, nil
 		}
-
-		if err := a.proposeFileEditInChannel(channel, targetPath, "", newContent); err != nil {
-			return response, false, err
-		}
-		log.Printf("[%s] fallback_path_used(target=%s)", a.Info.Name, targetPath)
-		return response, true, nil
 	}
 
 	directive, err := parseFileChangeDirective(match[1])
@@ -2401,6 +2457,91 @@ func extractLongestCodeFence(content string) string {
 	return longest
 }
 
+// extractAnyCodeFenceContent returns the longest fenced body, trying strict then relaxed patterns
+// (models often omit the newline the strict extractor requires).
+func extractAnyCodeFenceContent(content string) string {
+	if s := extractLongestCodeFence(content); strings.TrimSpace(s) != "" {
+		return s
+	}
+	relaxed := regexp.MustCompile("(?s)```[a-zA-Z0-9_-]*\\s*\\n(.*?)```")
+	longest := ""
+	for _, m := range relaxed.FindAllStringSubmatch(content, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		if len(m[1]) > len(longest) {
+			longest = m[1]
+		}
+	}
+	if strings.TrimSpace(longest) != "" {
+		return longest
+	}
+	anyFence := regexp.MustCompile("(?s)```(.*?)```")
+	for _, m := range anyFence.FindAllStringSubmatch(content, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		body := strings.TrimSpace(m[1])
+		// Skip single-line ```lang``` with no body
+		if !strings.Contains(body, "\n") && strings.HasPrefix(body, "```") {
+			continue
+		}
+		if len(body) > len(longest) {
+			longest = body
+		}
+	}
+	return longest
+}
+
+func extractLikelyOutputPathFromUserMessage(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ""
+	}
+	if m := userNamedFileRegex.FindStringSubmatch(content); len(m) > 1 {
+		return filepath.Base(strings.TrimSpace(m[1]))
+	}
+	all := looseOutputFileRegex.FindAllString(content, -1)
+	if len(all) == 0 {
+		return ""
+	}
+	return filepath.Base(strings.TrimSpace(all[len(all)-1]))
+}
+
+func isUserRequestingFileWrite(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	phrases := []string{
+		"create a file", "create file", "create new file", "new file",
+		"write a file", "write file", "write the file", "write this file",
+		"save to", "save this", "save the file", "save as",
+		"put in a file", "put the tab", "put this in",
+		"generate a file", "output to", "store in", "store the",
+		"make a file", "make the file", "add a file",
+		"complete file", "full tab", "complete tab", "turn it into",
+		"write to disk", "same directory", "this folder", "next to the",
+	}
+	for _, p := range phrases {
+		if strings.Contains(lower, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func userWantsCreateOperation(content string) bool {
+	lower := strings.ToLower(content)
+	if strings.Contains(lower, "new file") {
+		return true
+	}
+	if strings.Contains(lower, "create") && (strings.Contains(lower, "file") || strings.Contains(lower, "tab")) {
+		return true
+	}
+	return false
+}
+
 func isExplicitProposalIntent(content string) bool {
 	lower := strings.TrimSpace(strings.ToLower(content))
 	if lower == "" {
@@ -2410,6 +2551,7 @@ func isExplicitProposalIntent(content string) bool {
 		"propose it", "please propose", "submit it", "submit the change",
 		"apply it", "go ahead and update", "update the file", "make the change",
 		"yes propose", "yes, propose", "yes please propose",
+		"create the file", "create this file", "save the file", "write the file",
 	}
 	for _, p := range explicitPhrases {
 		if strings.Contains(lower, p) {

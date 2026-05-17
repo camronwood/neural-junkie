@@ -454,7 +454,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	if len(mentionStrings) > 0 {
 		// Resolve mentions and check for unresolved ones
 		resolvedMentions := make(map[string]bool) // track which mentions were resolved
-		agentIDs := h.ResolveMentionsWithValidation(mentionStrings, resolvedMentions)
+		agentIDs := h.ResolveMentionsWithValidation(mentionStrings, resolvedMentions, msg.Channel)
 		msg.Mentions = agentIDs
 
 		h.maybeExpandCollaborationParticipants(msg, agentIDs)
@@ -658,6 +658,12 @@ func (h *Hub) maybeExpandCollaborationParticipants(msg *protocol.Message, mentio
 	for _, participant := range added {
 		if err := h.AddAgentToChannel(participant.AgentID, msg.Channel); err != nil {
 			log.Printf("[Collaboration] Failed to add %s to channel %s: %v", participant.AgentName, msg.Channel, err)
+			continue
+		}
+		if h.commandHandler != nil {
+			if err := h.commandHandler.EnsureAgentSubscribedToChannel(context.Background(), participant.AgentID, msg.Channel); err != nil {
+				log.Printf("[Collaboration] Failed to subscribe %s to %s: %v", participant.AgentName, msg.Channel, err)
+			}
 		}
 	}
 
@@ -989,11 +995,12 @@ func (h *Hub) GetMessages(channelName string, limit int) ([]*protocol.Message, e
 // Example: mentions = ["alice", "backend"] returns IDs for agent "Alice" + all backend agents
 func (h *Hub) ResolveMentions(mentions []string) []string {
 	resolved := make(map[string]bool)
-	return h.ResolveMentionsWithValidation(mentions, resolved)
+	return h.ResolveMentionsWithValidation(mentions, resolved, "")
 }
 
-// ResolveMentionsWithValidation converts @mention strings to agent IDs and tracks which were resolved
-func (h *Hub) ResolveMentionsWithValidation(mentions []string, resolvedMap map[string]bool) []string {
+// ResolveMentionsWithValidation converts @mention strings to agent IDs and tracks which were resolved.
+// When scopeChannel is non-empty, @here / @channel / @everyone resolve to every agent currently in that channel.
+func (h *Hub) ResolveMentionsWithValidation(mentions []string, resolvedMap map[string]bool, scopeChannel string) []string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -1003,6 +1010,22 @@ func (h *Hub) ResolveMentionsWithValidation(mentions []string, resolvedMap map[s
 	for _, mention := range mentions {
 		mentionLower := strings.ToLower(mention)
 		found := false
+
+		if scopeChannel != "" && (mentionLower == "here" || mentionLower == "channel" || mentionLower == "everyone") {
+			if ch, ok := h.channels[scopeChannel]; ok {
+				for _, agent := range ch.Agents {
+					if !seen[agent.ID] {
+						agentIDs = append(agentIDs, agent.ID)
+						seen[agent.ID] = true
+						found = true
+					}
+				}
+			}
+			if resolvedMap != nil {
+				resolvedMap[mention] = found
+			}
+			continue
+		}
 
 		// Check for exact agent name match (case-insensitive)
 		for _, agent := range h.agents {
@@ -1084,12 +1107,16 @@ func (h *Hub) broadcast(channelName string, msg *protocol.Message) {
 		return
 	}
 
+	dropped := 0
 	for _, ch := range subs {
 		select {
 		case ch <- msg:
 		default:
-			// Channel full, skip
+			dropped++
 		}
+	}
+	if dropped > 0 {
+		log.Printf("[Hub] broadcast: dropped %d/%d messages on channel %q (subscriber buffer full)", dropped, len(subs), channelName)
 	}
 }
 
@@ -1101,6 +1128,11 @@ func (h *Hub) BroadcastDirect(channelName string, msg *protocol.Message) {
 	defer h.mu.RUnlock()
 
 	h.broadcast(channelName, msg)
+	if msg != nil && msg.IsInThread() {
+		if threadID := msg.GetThreadID(); threadID != "" {
+			h.broadcastToThread(threadID, msg)
+		}
+	}
 }
 
 // GetChannelAgents returns all agents in a channel

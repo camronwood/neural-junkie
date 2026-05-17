@@ -480,23 +480,42 @@ func (a *AssistantAgent) checkDueReminders(ctx context.Context) {
 
 		// Check if reminder is due
 		if reminder.TriggerTime.Before(now) || reminder.TriggerTime.Equal(now) {
-			// Send the reminder
-			a.sendReminder(ctx, reminder)
+			err := a.sendReminder(ctx, reminder)
+			deadChannel := err != nil && isReminderChannelMissingError(err)
 
-			// Handle recurring reminders
 			if reminder.Recurring != nil {
-				a.scheduleNextRecurring(reminder)
+				if err == nil {
+					a.scheduleNextRecurring(reminder)
+				} else if deadChannel {
+					reminder.Active = false
+					if saveErr := a.storage.SaveReminder(reminder); saveErr != nil {
+						log.Printf("[%s] Failed to save reminder after channel missing: %v", a.Info.Name, saveErr)
+					} else {
+						log.Printf("[%s] Reminder deactivated (channel missing): %q → %v", a.Info.Name, reminder.Channel, err)
+					}
+				}
 			} else {
-				// Mark as inactive for one-time reminders
-				reminder.Active = false
-				a.storage.SaveReminder(reminder)
+				if err == nil || deadChannel {
+					reminder.Active = false
+					if saveErr := a.storage.SaveReminder(reminder); saveErr != nil {
+						log.Printf("[%s] Failed to save reminder after send: %v", a.Info.Name, saveErr)
+					}
+				}
 			}
 		}
 	}
 }
 
-// sendReminder sends a reminder message
-func (a *AssistantAgent) sendReminder(ctx context.Context, reminder *Reminder) {
+func isReminderChannelMissingError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "channel ") && strings.Contains(s, " not found")
+}
+
+// sendReminder sends a reminder message.
+func (a *AssistantAgent) sendReminder(ctx context.Context, reminder *Reminder) error {
 	message := fmt.Sprintf("🔔 **Reminder**: %s", reminder.Content)
 
 	msg := protocol.NewMessage(
@@ -508,7 +527,9 @@ func (a *AssistantAgent) sendReminder(ctx context.Context, reminder *Reminder) {
 
 	if err := a.Hub.SendMessage(msg); err != nil {
 		log.Printf("[%s] Failed to send reminder: %v", a.Info.Name, err)
+		return err
 	}
+	return nil
 }
 
 // scheduleNextRecurring calculates the next occurrence of a recurring reminder

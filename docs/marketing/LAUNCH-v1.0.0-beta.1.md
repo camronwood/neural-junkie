@@ -76,6 +76,23 @@ Looking for feedback on install friction and local model workflows.
 
 ---
 
+## Collaboration feature ad
+
+**Image:** `assets/neural-junkie-collaboration-ad-1080.png` (regenerate: `./scripts/compose-collaboration-ad.sh`)
+
+Graphic-only ad (no app screenshot). Attach a workspace screenshot separately in the thread if you want product proof.
+
+**X / LinkedIn (short):**
+
+> One chat thread isn't enough for hard refactors.
+>
+> Neural Junkie `/collaborate` — bounded multi-agent sessions:
+> discuss → shared plan → you approve → execute in a sandbox (file-change gates, `/approve-plan`, `/revise-plan`).
+>
+> Open source beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.4
+
+---
+
 ## Posting order
 
 1. Tag pushed + CI green + assets on GitHub

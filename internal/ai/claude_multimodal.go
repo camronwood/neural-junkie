@@ -19,12 +19,8 @@ func (c *ClaudeProvider) appendClaudeHistory(messages *[]ClaudeMessage, conversa
 		if len(*messages) >= max {
 			break
 		}
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
 		*messages = append(*messages, ClaudeMessage{
-			Role:    role,
+			Role:    ChatRoleForHistory(msg),
 			Content: msg.Content,
 		})
 	}

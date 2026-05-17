@@ -4,6 +4,29 @@ All notable changes to Neural Junkie.
 
 **Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v1.0.0-beta.1`, `v0.1.x`, …). Sections **0.1.2–0.1.4** below are development milestones bundled into **v1.0.0-beta.1** (first public downloadable beta). Older sections include milestones never tagged (for example internal `2.0.0`, which is **not** semver above `0.1.x`).
 
+## [1.0.0-beta.5] - 2026-05-17
+
+### Fixed
+- **Collaboration** — DM-spawned agents now subscribe to the collab channel (`EnsureAgentSubscribedToChannel` after `AddAgentToChannel`); join/subscribe and seed/turn failures fail closed with a system message instead of a silent no-op.
+- **Cancel / collab UI** — cancel targets the active collaboration channel; clears `activeCollab` and task drawer so the sidebar and composer do not stay locked.
+- **Thread streaming** — `stream_delta` / `stream_end` route to thread subscribers (hub `broadcastToThread` + desktop `ThreadPanel`); main chat no longer shows thread-only streams.
+- **Chat send** — composer always clears typing on error; send failures surface in the UI.
+- **Hub broadcast** — log when a subscriber buffer is full instead of dropping silently.
+- **Agent retries** — clear `respondedMessages` when generation fails so a failed turn can be retried.
+- **Loading** — single-flight `onReady` on the loading screen avoids duplicate hub connects.
+- **Integrations** — GitHub/Confluence “test connection” reports format-only checks honestly (no fake success).
+- **`/revise-plan`** — posts to the bound collaboration channel, not the caller’s current channel.
+- **Ollama / DeepSeek** — correct chat roles for history; `think` API for reasoning models; collapsible **Reasoning** blocks in the desktop; fewer duplicate DM replies and history echo in prompts.
+- **Mermaid** — shared `MermaidCanvas` (sharp SVG fit, macOS zoom smear fix) ported from Dickory Docs.
+
+### Added
+- **Editor** — image preview for supported files; file-kind helpers and tests.
+- **Tests** — Ollama thinking/roles, chat stream reasoning, hub collab subscribe, file-change fallback.
+- **Marketing** — collaboration ad asset and compose script.
+
+### Changed
+- **DM agents** — channel discovery disabled only where appropriate; collab rebind ensures subscription on channel switch.
+
 ## [1.0.0-beta.4] - 2026-05-16
 
 ### Fixed

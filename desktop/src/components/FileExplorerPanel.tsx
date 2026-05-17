@@ -7,6 +7,8 @@ import { getHubBaseURL } from '../config/hubUrl';
 import type { FileNode } from '../stores/fileExplorerStore';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
+import { isPngPath, workspaceAbsolutePath } from '../utils/editorFileKind';
+import { resolveChatImageSrc } from '../utils/chatImageSrc';
 
 interface FileExplorerPanelProps {
   onClose: () => void;
@@ -226,10 +228,19 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
       if (activeWorkspace) {
         try {
           console.log('Opening file:', file.path, 'in workspace:', activeWorkspace.id);
-          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
-          const language = getLanguageFromPath(file.path);
-          console.log('File content loaded, opening in editor...');
-          openFile(activeWorkspace.id, file.path, content, language);
+          if (isPngPath(file.path)) {
+            const absolutePath = workspaceAbsolutePath(activeWorkspace.path, file.path);
+            const imageSrc = resolveChatImageSrc(absolutePath);
+            openFile(activeWorkspace.id, file.path, '', undefined, {
+              viewMode: 'image',
+              imageSrc,
+            });
+          } else {
+            const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+            const language = getLanguageFromPath(file.path);
+            console.log('File content loaded, opening in editor...');
+            openFile(activeWorkspace.id, file.path, content, language);
+          }
           // Auto-open the editor panel when a file is opened
           if (onFileOpen) {
             onFileOpen();
@@ -351,13 +362,8 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
     
     try {
-      // Construct absolute path by joining workspace.path and file path
-      // Handle both cases: workspace.path with/without trailing slash
-      const workspacePath = activeWorkspace.path.endsWith('/') || activeWorkspace.path.endsWith('\\')
-        ? activeWorkspace.path.slice(0, -1)
-        : activeWorkspace.path;
-      const absolutePath = `${workspacePath}/${contextMenu.path}`;
-      
+      const absolutePath = workspaceAbsolutePath(activeWorkspace.path, contextMenu.path);
+
       await navigator.clipboard.writeText(absolutePath);
       addToast({
         type: 'success',

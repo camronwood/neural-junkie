@@ -128,12 +128,8 @@ func (l *LMStudioProvider) GenerateResponse(ctx context.Context, prompt string, 
 	}
 
 	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
 		messages = append(messages, OpenAICompatibleMessage{
-			Role:    role,
+			Role:    ChatRoleForHistory(msg),
 			Content: msg.Content,
 		})
 	}
@@ -284,11 +280,10 @@ func (l *LMStudioProvider) GenerateResponseStream(ctx context.Context, prompt st
 		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
 	}
 	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, OpenAICompatibleMessage{Role: role, Content: msg.Content})
+		messages = append(messages, OpenAICompatibleMessage{
+			Role:    ChatRoleForHistory(msg),
+			Content: msg.Content,
+		})
 	}
 	messages = append(messages, OpenAICompatibleMessage{Role: "user", Content: userMessage})
 

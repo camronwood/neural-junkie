@@ -493,7 +493,7 @@ func TestMentionResolution(t *testing.T) {
 
 	// Test with validation
 	resolvedMap := make(map[string]bool)
-	validated := h.ResolveMentionsWithValidation(mentions, resolvedMap)
+	validated := h.ResolveMentionsWithValidation(mentions, resolvedMap, "")
 
 	if len(validated) != 2 {
 		t.Errorf("Expected 2 validated mentions, got %d", len(validated))
@@ -501,6 +501,36 @@ func TestMentionResolution(t *testing.T) {
 
 	if !resolvedMap["BackendExpert"] || !resolvedMap["FrontendExpert"] {
 		t.Error("Expected resolved map to contain both agent names")
+	}
+}
+
+// TestResolveMentionsHere expands @here to all agents in scopeChannel.
+func TestResolveMentionsHere(t *testing.T) {
+	h := hub.NewHub()
+	_ = h.CreateChannel("phoenix", "Phoenix", "")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "Cursor", Type: protocol.AgentTypeCLI, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "Gemini", Type: protocol.AgentTypeCLI, Status: "active"}
+	if err := h.RegisterAgent(a1); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.RegisterAgent(a2); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.JoinChannel("a1", "phoenix", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.JoinChannel("a2", "phoenix", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := make(map[string]bool)
+	ids := h.ResolveMentionsWithValidation([]string{"here"}, resolved, "phoenix")
+	if len(ids) != 2 {
+		t.Fatalf("want 2 agents for @here, got %d: %v", len(ids), ids)
+	}
+	if !resolved["here"] {
+		t.Fatal("expected here resolved")
 	}
 }
 

@@ -73,7 +73,11 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
    */
   const streamContentBytes = useMemo(() => {
     let n = 0;
-    for (const s of activeStreams) n += s.content?.length ?? 0;
+    for (const s of activeStreams) {
+      n += s.content?.length ?? 0;
+      const rt = s.metadata?.reasoning_text;
+      if (typeof rt === 'string') n += rt.length;
+    }
     return n;
   }, [activeStreams]);
 

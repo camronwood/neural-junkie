@@ -65,11 +65,10 @@ func buildOpenAIChatMessages(systemPrompt, userMessage string, conversationHisto
 		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
 	}
 	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, OpenAICompatibleMessage{Role: role, Content: msg.Content})
+		messages = append(messages, OpenAICompatibleMessage{
+			Role:    ChatRoleForHistory(msg),
+			Content: msg.Content,
+		})
 	}
 	lastContent := openAITurnContent(userMessage, currentImages)
 	messages = append(messages, OpenAICompatibleMessage{Role: "user", Content: lastContent})

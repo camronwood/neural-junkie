@@ -315,6 +315,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, []);
 
+  const clearActiveCollabIf = useCallback((collaborationID: string) => {
+    setActiveCollab(current => (current?.id === collaborationID ? null : current));
+  }, []);
+
   const loadCollaborations = useCallback(async (targetChannel: string) => {
     try {
       const snapshots = await api.fetchCollaborations(targetChannel);
@@ -576,14 +580,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       
       // Handle streaming tokens -- accumulate deltas, finalize on stream_end
       if (message.type === 'stream_delta') {
-        if (!message.channel || message.channel === activeChannel) {
-          st.appendStreamDelta(message);
+        if (!message.is_thread_reply) {
+          if (!message.channel || message.channel === activeChannel) {
+            st.appendStreamDelta(message);
+          }
         }
         st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
         return;
       }
       if (message.type === 'stream_end') {
-        st.finalizeStream(message.id);
+        if (!message.is_thread_reply && (!message.channel || message.channel === activeChannel)) {
+          st.finalizeStream(message.id);
+        }
         return;
       }
 
@@ -750,10 +758,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   const handleSendMessage = async (content: string, metadata?: Record<string, any>) => {
-    useChatStore.getState().setIsTyping(true);
-
     if (content.trim() === '/nj-open-model-library') {
-      useChatStore.getState().setIsTyping(false);
       setModelLibraryOpen(true);
       return;
     }
@@ -763,11 +768,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       composerMetadata: metadata,
     });
 
+    useChatStore.getState().setIsTyping(true);
     try {
       const trimmed = content.trimStart();
       if (trimmed.startsWith('/collaborate')) {
         if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
-          useChatStore.getState().setIsTyping(false);
           return;
         }
       }
@@ -797,7 +802,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
     } catch (error) {
       console.error('Failed to send message:', error);
-      // TODO: Show error to user
+      addToast({
+        type: 'error',
+        title: 'Message not sent',
+        message: error instanceof Error ? error.message : 'Failed to send message.',
+      });
+    } finally {
+      useChatStore.getState().setIsTyping(false);
     }
   };
 
@@ -1289,6 +1300,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             onCollaborationCommand={async (command, collaborationID, feedbackText) => {
               const from = { name: username || 'User', type: 'human' };
               const shortID = collaborationID.slice(0, 8);
+              const collab =
+                collaborationsByIDRef.current[collaborationID] ??
+                trackedCollaborations.find(c => c.id === collaborationID);
+              const targetChannel = collab?.channel?.trim() || channel;
               let content = '';
               if (command === 'approve') {
                 content = `/resume-plan ${shortID}`;
@@ -1302,8 +1317,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 content = `/cancel-plan ${shortID}`;
               }
               try {
-                await api.sendMessage(channel, content, from);
-                await loadCollaborations(channel);
+                if (targetChannel !== channel) {
+                  await handleSwitchChannel(targetChannel);
+                }
+                await api.sendMessage(targetChannel, content, from);
+                await loadCollaborations(targetChannel);
+                if (command === 'cancel') {
+                  clearActiveCollabIf(collaborationID);
+                  setTaskManagementOpen(false);
+                }
               } catch (e) {
                 addToast({
                   type: 'error',

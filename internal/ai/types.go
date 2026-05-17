@@ -50,9 +50,10 @@ type AIProvider interface {
 
 // StreamToken represents a single token/chunk from a streaming AI response.
 type StreamToken struct {
-	Content string
-	Done    bool
-	Error   error
+	Content  string
+	Thinking string // reasoning delta (Ollama thinking models)
+	Done     bool
+	Error    error
 }
 
 // StreamingProvider is an optional interface that AIProviders can implement

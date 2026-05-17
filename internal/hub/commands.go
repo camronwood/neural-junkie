@@ -765,6 +765,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 				"**Preset types** (curated engineering specialists):\n"+
 				"• `rust`, `backend`, `frontend`, `devops`, `database`, `security`, `assistant`\n\n"+
 				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`).\n\n"+
+				"The expert is created in a **private DM** with you — it is **not** added to this channel. Invite the agent from the channel member UI when you want help here.\n\n"+
 				"**Examples:**\n"+
 				"```\n"+
 				"/create-expert rust\n"+
@@ -807,18 +808,17 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
-	if err := ch.hub.JoinChannel(agentInstance.Info.ID, msg.Channel); err != nil {
+	createdBy := strings.TrimSpace(msg.From.Name)
+	if createdBy == "" {
 		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
 		delete(ch.runtimeAgents, agentInstance.Info.ID)
 		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to join channel: %v", err)), nil
+			"❌ Cannot create expert: your display name is empty. Set your name in the app and try again."), nil
 	}
 
-	if err := agentInstance.Start(ctx, msg.Channel); err != nil {
-		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
-		delete(ch.runtimeAgents, agentInstance.Info.ID)
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("❌ Failed to start agent: %v", err)), nil
+	dmCh, err := ch.startExpertInDMOnly(agentInstance, createdBy)
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
 	expertiseStr := strings.Join(agentInstance.Info.Expertise, ", ")
@@ -847,8 +847,8 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 			"**Type:** %s\n"+
 			"**Provider:** %s\n"+
 			"**Expertise:** %s\n\n"+
-			"Mention with `@%s` to ask questions.",
-			spec.Label, name, typeLabel, providerDisplay, expertiseStr, name)), nil
+			"**DM:** `%s` — chat there with `@%s`. To use them in this channel, invite **%s** from the member list.",
+			spec.Label, name, typeLabel, providerDisplay, expertiseStr, dmCh.Name, name, name)), nil
 }
 
 // handleHelp shows available commands
@@ -860,7 +860,7 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/enable-watch <name>` - Enable automatic file watching and reindexing\n" +
 		"• `/disable-watch <name>` - Disable automatic file watching\n\n" +
 		"**Expert Agents:**\n" +
-		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist agent (presets: rust, backend, … — or any custom slug)\n\n" +
+		"• `/create-expert <type> [name] [provider] [model]` - Create a specialist in a **private DM** (invite them to a channel when needed)\n\n" +
 		"**Agent Management:**\n" +
 		"• `/remove-agent <name>` - Remove agent from conversation (can recall later)\n" +
 		"• `/recall-agent <name>` - Recall a removed agent back to conversation\n" +
@@ -1079,7 +1079,13 @@ func (ch *CommandHandler) handleRemoveAgent(ctx context.Context, msg *protocol.M
 	}
 
 	if !agentInChannel {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Agent '%s' is not in this channel", agentName)), nil
+		var hint strings.Builder
+		hint.WriteString(fmt.Sprintf(" To add them here: `/add-to-channel %s %s`", msg.Channel, agentName))
+		if others := ch.hub.GetAgentChannels(agentID); len(others) > 0 {
+			hint.WriteString(fmt.Sprintf(" (currently in: %s)", strings.Join(others, ", ")))
+		}
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("❌ Agent '%s' is not in this channel.%s", agentName, hint.String())), nil
 	}
 
 	// Leave channel
@@ -1472,7 +1478,7 @@ func (ch *CommandHandler) handleTestGitHubConnection(ctx context.Context, msg *p
 	// TODO: Implement actual GitHub API test
 	// This would involve making a request to https://api.github.com/user with the token
 	// For now, we'll just validate the format
-	return ch.systemResponse(msg.Channel, "✅ GitHub token format is valid (connection test not implemented yet)"), nil
+	return ch.systemResponse(msg.Channel, "ℹ️ GitHub token format looks valid. A live API call is not implemented yet — verify access by running a GitHub-related command."), nil
 }
 
 // handleTestConfluenceConnection tests Confluence API connection
@@ -1502,7 +1508,7 @@ func (ch *CommandHandler) handleTestConfluenceConnection(ctx context.Context, ms
 		return ch.systemResponse(msg.Channel, "❌ Invalid email format"), nil
 	}
 
-	return ch.systemResponse(msg.Channel, "✅ Confluence credentials format is valid (connection test not implemented yet)"), nil
+	return ch.systemResponse(msg.Channel, "ℹ️ Confluence credentials format look valid. A live API call is not implemented yet — verify by indexing a space or asking the Confluence agent."), nil
 }
 
 // handleMigrateAgentNames migrates existing agents with problematic names to @mention-compatible format
@@ -3267,6 +3273,39 @@ func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 }
 
+// EnsureAgentSubscribedToChannel starts the agent's hub subscription on channelName.
+// JoinChannel alone only updates membership; DM-spawned agents disable channel discovery
+// and must be subscribed explicitly (e.g. collaboration rooms).
+func (ch *CommandHandler) EnsureAgentSubscribedToChannel(ctx context.Context, agentID, channelName string) error {
+	if ch == nil || agentID == "" || channelName == "" {
+		return nil
+	}
+	if runtimeAgent, ok := ch.runtimeAgents[agentID]; ok && runtimeAgent != nil {
+		return runtimeAgent.AddChannel(ctx, channelName)
+	}
+	for _, ca := range ch.cliAgents {
+		if ca != nil && ca.Info.ID == agentID {
+			return ca.AddChannel(ctx, channelName)
+		}
+	}
+	for _, ra := range ch.repoAgents {
+		if ra != nil && ra.GetAgentInfo().ID == agentID {
+			return ra.AddChannel(ctx, channelName)
+		}
+	}
+	if ch.assistantAgent != nil && ch.assistantAgent.Agent != nil && ch.assistantAgent.Info.ID == agentID {
+		return ch.assistantAgent.AddChannel(ctx, channelName)
+	}
+	for _, ca := range ch.confluenceAgents {
+		if ca != nil && ca.GetAgentInfo().ID == agentID {
+			if ca.Agent != nil {
+				return ca.Agent.AddChannel(ctx, channelName)
+			}
+		}
+	}
+	return nil
+}
+
 // Ensure CommandHandler implements CommandHandlerInterface
 var _ agent.CommandHandlerInterface = (*CommandHandler)(nil)
 
@@ -3900,7 +3939,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	// Resolve mentions to agent IDs
 	resolved := make(map[string]bool)
-	agentIDs := ch.hub.ResolveMentionsWithValidation(mentionStrings, resolved)
+	agentIDs := ch.hub.ResolveMentionsWithValidation(mentionStrings, resolved, msg.Channel)
 	if len(agentIDs) < 2 {
 		unresolved := []string{}
 		for _, m := range mentionStrings {
@@ -3941,12 +3980,25 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to bind collaboration channel: %v", err)), nil
 	}
 
-	// Ensure all collaboration participants are joined to the dedicated channel
-	// so they can subscribe/respond.
+	// Join hub membership and subscribe so agents receive collab messages (DM-spawned
+	// agents disable channel discovery and would otherwise never hear this channel).
+	var setupFailures []string
 	for _, participantID := range agentIDs {
 		if err := ch.hub.AddAgentToChannel(participantID, collabChannelName); err != nil {
+			setupFailures = append(setupFailures, fmt.Sprintf("join %s: %v", shortID(participantID), err))
 			log.Printf("[Collaboration] Warning: failed to add participant %s to channel %s: %v", participantID, collabChannelName, err)
+			continue
 		}
+		if err := ch.EnsureAgentSubscribedToChannel(ctx, participantID, collabChannelName); err != nil {
+			setupFailures = append(setupFailures, fmt.Sprintf("subscribe %s: %v", shortID(participantID), err))
+			log.Printf("[Collaboration] Warning: failed to subscribe participant %s to %s: %v", participantID, collabChannelName, err)
+		}
+	}
+	if len(setupFailures) > 0 {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf(
+			"❌ Collaboration `%s` created but some participants could not join the room: %s",
+			collab.ID[:8], strings.Join(setupFailures, "; "),
+		)), nil
 	}
 
 	// Build agent list for display
@@ -3974,12 +4026,17 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	if err := ch.hub.SendMessage(seedMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send seed message: %v", err)
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration created but failed to start discussion: %v", err)), nil
 	}
 
 	// Set the Collab field on participating agents so they can check collaboration state
 	collabClient := ch.hub.NewCollaborationClientAdapter()
 	for _, a := range collab.Agents {
 		ch.setCollabClientOnAgent(a.AgentID, a.AgentName, collabClient)
+	}
+
+	if len(collab.Agents) == 0 {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration has no participants."), nil
 	}
 
 	// Send the first turn prompt to the first agent
@@ -3998,6 +4055,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	if err := ch.hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send first turn message: %v", err)
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration started but failed to prompt first agent: %v", err)), nil
 	}
 
 	ch.setCollaborateRedirect(collabChannelName, collab.ID)
@@ -4025,6 +4083,12 @@ func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, clie
 	for _, ca := range ch.cliAgents {
 		if ca.Info.ID == agentID {
 			ca.SetCollabClient(client)
+			return
+		}
+	}
+	for _, ca := range ch.confluenceAgents {
+		if ca.GetAgentInfo().ID == agentID && ca.Agent != nil {
+			ca.Agent.SetCollabClient(client)
 			return
 		}
 	}
@@ -4194,10 +4258,15 @@ func (ch *CommandHandler) handleRevisePlan(ctx context.Context, msg *protocol.Me
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
+	revisionChannel := strings.TrimSpace(collab.Channel)
+	if revisionChannel == "" {
+		revisionChannel = msg.Channel
+	}
+
 	// Send feedback to the collaboration channel
 	revisionMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
-		msg.Channel,
+		revisionChannel,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
 		fmt.Sprintf("📝 **Plan Revision Requested** (Collaboration `%s`)\n\n**Feedback:** %s\n\nAgents, please revise the plan based on this feedback.",
 			collabID[:8], feedback),

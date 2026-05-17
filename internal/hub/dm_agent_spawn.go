@@ -273,6 +273,33 @@ func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, pro
 	return agentInstance, nil
 }
 
+// startExpertInDMOnly starts a prepared expert agent in a private DM with createdBy only
+// (no subscription to the channel where /create-expert was run).
+func (ch *CommandHandler) startExpertInDMOnly(agentInstance *agent.Agent, createdBy string) (*protocol.Channel, error) {
+	createdBy = strings.TrimSpace(createdBy)
+	if createdBy == "" {
+		return nil, fmt.Errorf("created_by is required")
+	}
+	agentInstance.DisableChannelDiscovery = true
+
+	dmCh, err := ch.hub.CreateDMChannel(createdBy, agentInstance.Info.ID)
+	if err != nil {
+		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
+		delete(ch.runtimeAgents, agentInstance.Info.ID)
+		return nil, fmt.Errorf("failed to create DM channel: %w", err)
+	}
+
+	// Agent listen loop must not use the HTTP request context: net/http cancels
+	// r.Context() when ServeHTTP returns, which would tear down subscriptions.
+	if err := agentInstance.Start(context.Background(), dmCh.Name); err != nil {
+		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
+		delete(ch.runtimeAgents, agentInstance.Info.ID)
+		return nil, fmt.Errorf("failed to start agent: %w", err)
+	}
+
+	return dmCh, nil
+}
+
 // SpawnExpertAgentForDM creates an expert (or assistant) agent and a DM with createdBy; agent only joins the DM.
 func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerName, modelOverride, persona string) (*protocol.Channel, error) {
 	createdBy = strings.TrimSpace(createdBy)
@@ -293,24 +320,7 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 	if err != nil {
 		return nil, err
 	}
-	agentInstance.DisableChannelDiscovery = true
-
-	dmCh, err := ch.hub.CreateDMChannel(createdBy, agentInstance.Info.ID)
-	if err != nil {
-		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
-		delete(ch.runtimeAgents, agentInstance.Info.ID)
-		return nil, fmt.Errorf("failed to create DM channel: %w", err)
-	}
-
-	// Agent listen loop must not use the HTTP request context: net/http cancels
-	// r.Context() when ServeHTTP returns, which would tear down subscriptions.
-	if err := agentInstance.Start(context.Background(), dmCh.Name); err != nil {
-		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
-		delete(ch.runtimeAgents, agentInstance.Info.ID)
-		return nil, fmt.Errorf("failed to start agent: %w", err)
-	}
-
-	return dmCh, nil
+	return ch.startExpertInDMOnly(agentInstance, createdBy)
 }
 
 // SpawnCLIAgentForDM creates a CLI-backed agent and a DM; agent only joins the DM.

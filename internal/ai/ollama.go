@@ -10,7 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -27,13 +27,15 @@ type OllamaRequest struct {
 	Model    string          `json:"model"`
 	Messages []OllamaMessage `json:"messages"`
 	Stream   bool            `json:"stream"`
+	Think    *bool           `json:"think,omitempty"`
 }
 
 // OllamaMessage represents a message in Ollama API format
 type OllamaMessage struct {
-	Role    string   `json:"role"`
-	Content string   `json:"content"`
-	Images  []string `json:"images,omitempty"` // base64-encoded raw image bytes (vision models)
+	Role     string   `json:"role"`
+	Content  string   `json:"content"`
+	Thinking string   `json:"thinking,omitempty"`
+	Images   []string `json:"images,omitempty"` // base64-encoded raw image bytes (vision models)
 }
 
 // OllamaResponse represents a response from Ollama API
@@ -60,7 +62,7 @@ func NewOllamaProvider() (*OllamaProvider, error) {
 		Endpoint: endpoint,
 		Model:    model,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second, // Ollama can be slower than cloud APIs
+			Timeout: ollamaHTTPTimeout(model),
 		},
 	}, nil
 }
@@ -78,55 +80,51 @@ func NewOllamaProviderWithConfig(endpoint, model string) *OllamaProvider {
 		Endpoint: endpoint,
 		Model:    model,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: ollamaHTTPTimeout(model),
 		},
 	}
 }
 
-// GenerateResponse generates a response using Ollama API
-func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, conversationHistory []protocol.Message) (string, error) {
-	// Split system prompt from user message for better model adherence
-	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-
-	// Build messages array
+func (o *OllamaProvider) buildChatMessages(systemPrompt, userMessage string, conversationHistory []protocol.Message) []OllamaMessage {
 	messages := []OllamaMessage{}
-
-	// Add system message if present (Ollama supports "system" role)
 	if systemPrompt != "" {
-		messages = append(messages, OllamaMessage{
-			Role:    "system",
-			Content: systemPrompt,
-		})
+		messages = append(messages, OllamaMessage{Role: "system", Content: systemPrompt})
 	}
-
-	// Add conversation history (limit to last 10 messages to avoid token limits)
 	historyLimit := 10
 	if len(conversationHistory) > historyLimit {
 		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
 	}
-
 	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
 		}
 		messages = append(messages, OllamaMessage{
-			Role:    role,
-			Content: msg.Content,
+			Role:    ChatRoleForHistory(msg),
+			Content: content,
 		})
 	}
+	messages = append(messages, OllamaMessage{Role: "user", Content: userMessage})
+	return messages
+}
 
-	// Add current user message
-	messages = append(messages, OllamaMessage{
-		Role:    "user",
-		Content: userMessage,
-	})
-
-	request := OllamaRequest{
+func (o *OllamaProvider) newChatRequest(messages []OllamaMessage, stream bool) OllamaRequest {
+	req := OllamaRequest{
 		Model:    o.Model,
 		Messages: messages,
-		Stream:   false,
+		Stream:   stream,
 	}
+	if ollamaModelWantsThinking(o.Model) {
+		req.Think = boolPtr(true)
+	}
+	return req
+}
+
+// GenerateResponse generates a response using Ollama API
+func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, conversationHistory []protocol.Message) (string, error) {
+	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+	messages := o.buildChatMessages(systemPrompt, userMessage, conversationHistory)
+	request := o.newChatRequest(messages, false)
 
 	jsonData, err := json.Marshal(request)
 	if err != nil {
@@ -137,7 +135,6 @@ func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, co
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := o.httpClient.Do(req)
@@ -160,11 +157,7 @@ func (o *OllamaProvider) GenerateResponse(ctx context.Context, prompt string, co
 		return "", fmt.Errorf("Ollama API error: %s", response.Error)
 	}
 
-	if response.Message.Content == "" {
-		return "", fmt.Errorf("no content in response")
-	}
-
-	return response.Message.Content, nil
+	return ollamaFinalizeContent(response.Message.Content, response.Message.Thinking)
 }
 
 // GenerateVisionResponse uses vision-capable Ollama models (e.g. llava).
@@ -178,22 +171,8 @@ func (o *OllamaProvider) GenerateVisionResponse(ctx context.Context, prompt stri
 // GenerateMultimodal sends images on the final user turn (Ollama /api/chat).
 func (o *OllamaProvider) GenerateMultimodal(ctx context.Context, prompt string, images []protocol.UserImagePart, conversationHistory []protocol.Message) (string, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
+	messages := o.buildChatMessages(systemPrompt, userMessage, conversationHistory)
 
-	messages := []OllamaMessage{}
-	if systemPrompt != "" {
-		messages = append(messages, OllamaMessage{Role: "system", Content: systemPrompt})
-	}
-	historyLimit := 10
-	if len(conversationHistory) > historyLimit {
-		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
-	}
-	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, OllamaMessage{Role: role, Content: msg.Content})
-	}
 	var imgB64 []string
 	for _, im := range images {
 		if len(im.Data) == 0 {
@@ -201,18 +180,12 @@ func (o *OllamaProvider) GenerateMultimodal(ctx context.Context, prompt string, 
 		}
 		imgB64 = append(imgB64, base64.StdEncoding.EncodeToString(im.Data))
 	}
-	last := OllamaMessage{Role: "user", Content: userMessage}
 	if len(imgB64) > 0 {
+		last := &messages[len(messages)-1]
 		last.Images = imgB64
 	}
-	messages = append(messages, last)
 
-	request := OllamaRequest{
-		Model:    o.Model,
-		Messages: messages,
-		Stream:   false,
-	}
-
+	request := o.newChatRequest(messages, false)
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
@@ -242,10 +215,7 @@ func (o *OllamaProvider) GenerateMultimodal(ctx context.Context, prompt string, 
 	if response.Error != "" {
 		return "", fmt.Errorf("Ollama API error: %s", response.Error)
 	}
-	if response.Message.Content == "" {
-		return "", fmt.Errorf("no content in response")
-	}
-	return response.Message.Content, nil
+	return ollamaFinalizeContent(response.Message.Content, response.Message.Thinking)
 }
 
 // GenerateMultimodalStream runs a non-streaming multimodal request and emits the full reply as one chunk.
@@ -278,43 +248,22 @@ func (o *OllamaProvider) SupportsStreaming() bool { return true }
 // a text chunk from Ollama's NDJSON streaming response.
 func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt string, conversationHistory []protocol.Message) (<-chan StreamToken, error) {
 	systemPrompt, userMessage := SplitSystemPrompt(prompt)
-
-	messages := []OllamaMessage{}
-	if systemPrompt != "" {
-		messages = append(messages, OllamaMessage{Role: "system", Content: systemPrompt})
-	}
-
-	historyLimit := 10
-	if len(conversationHistory) > historyLimit {
-		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
-	}
-	for _, msg := range conversationHistory {
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, OllamaMessage{Role: role, Content: msg.Content})
-	}
-	messages = append(messages, OllamaMessage{Role: "user", Content: userMessage})
-
-	request := OllamaRequest{
-		Model:    o.Model,
-		Messages: messages,
-		Stream:   true,
-	}
+	messages := o.buildChatMessages(systemPrompt, userMessage, conversationHistory)
+	request := o.newChatRequest(messages, true)
 
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	client := &http.Client{}
 	req, err := http.NewRequestWithContext(ctx, "POST", o.Endpoint+"/api/chat", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	// No client timeout: reasoning models may think for minutes; ctx cancels.
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
@@ -330,6 +279,9 @@ func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt stri
 	go func() {
 		defer close(ch)
 		defer resp.Body.Close()
+
+		var accumulatedThinking strings.Builder
+		var accumulatedContent strings.Builder
 
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
@@ -350,10 +302,19 @@ func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt stri
 				ch <- StreamToken{Error: fmt.Errorf("Ollama error: %s", chunk.Error), Done: true}
 				return
 			}
+			if chunk.Message.Thinking != "" {
+				accumulatedThinking.WriteString(chunk.Message.Thinking)
+				ch <- StreamToken{Thinking: chunk.Message.Thinking}
+			}
 			if chunk.Message.Content != "" {
+				accumulatedContent.WriteString(chunk.Message.Content)
 				ch <- StreamToken{Content: chunk.Message.Content}
 			}
 			if chunk.Done {
+				if accumulatedContent.Len() == 0 && accumulatedThinking.Len() > 0 {
+					ch <- StreamToken{Error: errOllamaReasoningOnly, Done: true}
+					return
+				}
 				ch <- StreamToken{Done: true}
 				return
 			}
@@ -429,6 +390,7 @@ func (o *OllamaProvider) GetAvailableModels(ctx context.Context) ([]string, erro
 // SetModel changes the model for this provider
 func (o *OllamaProvider) SetModel(model string) {
 	o.Model = model
+	o.httpClient.Timeout = ollamaHTTPTimeout(model)
 }
 
 // SetEndpoint changes the endpoint for this provider

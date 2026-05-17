@@ -62,6 +62,7 @@ export function CollaborationPanel({
   const from = { name: username || 'User', type: 'human' };
 
   const c = collaboration;
+  const collabChannel = c.channel?.trim() || channel;
   const completedTasks = c.tasks?.filter(t => t.status === 'completed').length ?? 0;
   const totalTasks = c.tasks?.length ?? 0;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -75,7 +76,7 @@ export function CollaborationPanel({
     }
     setIsSubmitting(true);
     try {
-      await api.sendMessage(channel, `/resume-plan ${c.id.slice(0, 8)}`, from);
+      await api.sendMessage(collabChannel, `/resume-plan ${c.id.slice(0, 8)}`, from);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -86,7 +87,7 @@ export function CollaborationPanel({
     if (!feedback.trim()) return;
     setIsSubmitting(true);
     try {
-      await api.sendMessage(channel, `/revise-plan ${c.id.slice(0, 8)} ${feedback}`, from);
+      await api.sendMessage(collabChannel, `/revise-plan ${c.id.slice(0, 8)} ${feedback}`, from);
       setFeedback('');
       await onAfterCollaborationCommand?.();
     } finally {
@@ -97,7 +98,7 @@ export function CollaborationPanel({
   const handleCancel = async () => {
     setIsSubmitting(true);
     try {
-      await api.sendMessage(channel, `/cancel-plan ${c.id.slice(0, 8)}`, from);
+      await api.sendMessage(collabChannel, `/cancel-plan ${c.id.slice(0, 8)}`, from);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);

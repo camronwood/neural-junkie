@@ -19,17 +19,20 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
   const finishedRef = useRef(false);
 
   const markConnected = () => {
+    if (finishedRef.current) {
+      return;
+    }
     finishedRef.current = true;
+    setStatus('Ready');
+    setHasError(false);
+    setTimeout(onReady, 280);
   };
 
   useEffect(() => {
     finishedRef.current = false;
 
     const unlisten1 = listen<boolean>('server-ready', () => {
-      setStatus('Ready');
-      setHasError(false);
       markConnected();
-      setTimeout(onReady, 280);
     });
 
     const unlisten2 = listen<string>('server-error', event => {
@@ -45,10 +48,7 @@ export function LoadingScreen({ onReady, onError, onContinueWithoutHub }: Loadin
         const data = (await resp.json()) as { status?: string };
         if (data.status !== 'ok') return;
         clearInterval(pollInterval);
-        setHasError(false);
-        setStatus('Ready');
         markConnected();
-        setTimeout(onReady, 280);
       } catch {
         /* hub still starting or wrong host/port */
       }

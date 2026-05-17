@@ -91,6 +91,22 @@ export interface MessageErrorMetadata {
   retryable?: boolean;
 }
 
+/** Persisted model reasoning (Ollama thinking / DeepSeek R1). */
+export const REASONING_TEXT_METADATA_KEY = 'reasoning_text';
+/** Stream delta carries a reasoning chunk when true. */
+export const REASONING_DELTA_METADATA_KEY = 'reasoning_delta';
+/** Per-delta reasoning append payload. */
+export const REASONING_APPEND_METADATA_KEY = 'reasoning_append';
+
+export function getReasoningText(metadata?: Record<string, unknown>): string {
+  const v = metadata?.[REASONING_TEXT_METADATA_KEY];
+  return typeof v === 'string' ? v : '';
+}
+
+export function isReasoningStreamDelta(metadata?: Record<string, unknown>): boolean {
+  return metadata?.[REASONING_DELTA_METADATA_KEY] === true;
+}
+
 export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration';
 
 export interface Channel {

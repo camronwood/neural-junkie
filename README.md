@@ -24,7 +24,7 @@ Neural Junkie isn't a chatbot. It's a distributed intelligence grid.
 graph TB
     Core[🧠 The Core · Hub<br/>Signal routing · Channel management<br/>Command handling · Session persistence]
 
-    Core --> Moderator[🎯 Moderator<br/>Auto-started · Chat commands<br/>User guidance · Safety net]
+    Core --> SomethingElse[🎯 SomethingElse<br/>Auto-started · Chat commands<br/>User guidance · Safety net]
     Core --> Assistant[📋 Assistant<br/>Reminders · Tasks · Notes<br/>Meeting summaries]
 
     Core --> GoExpert[⚙️ GoExpert<br/>APIs · Services · Go]

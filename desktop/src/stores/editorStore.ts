@@ -4,6 +4,8 @@ import { getHubBaseURL } from '../config/hubUrl';
 
 const api = new ChatAPI(getHubBaseURL());
 
+export type EditorTabViewMode = 'text' | 'image';
+
 export interface EditorTab {
   id: string;
   workspaceId: string;
@@ -14,6 +16,14 @@ export interface EditorTab {
   contentSyncKey?: number;
   cursorPosition?: { line: number; column: number };
   language?: string;
+  viewMode?: EditorTabViewMode;
+  /** Tauri asset URL or path for image preview tabs. */
+  imageSrc?: string;
+}
+
+export interface OpenFileOptions {
+  viewMode?: EditorTabViewMode;
+  imageSrc?: string;
 }
 
 interface EditorState {
@@ -26,7 +36,13 @@ interface EditorState {
   error: string | null;
   
   // Actions
-  openFile: (workspaceId: string, path: string, content: string, language?: string) => void;
+  openFile: (
+    workspaceId: string,
+    path: string,
+    content: string,
+    language?: string,
+    options?: OpenFileOptions
+  ) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
   updateTabContent: (tabId: string, content: string) => void;
@@ -54,16 +70,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saving: false,
   error: null,
   
-  openFile: (workspaceId, path, content, language) => {
+  openFile: (workspaceId, path, content, language, options) => {
     const state = get();
-    
+    const viewMode = options?.viewMode ?? 'text';
+    const imageSrc = options?.imageSrc;
+
     // Check if file is already open
     const existingTab = state.getTabByPath(workspaceId, path);
     if (existingTab) {
       set({ activeTabId: existingTab.id });
       return;
     }
-    
+
     // Create new tab
     const newTab: EditorTab = {
       id: `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -72,7 +90,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language,
+      language: viewMode === 'image' ? undefined : language,
+      viewMode,
+      imageSrc,
     };
     
     set({
@@ -116,6 +136,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab;
+        if (tab.viewMode === 'image') return tab;
         if (tab.content === content) return tab;
         return { ...tab, content, isDirty: true };
       }),
@@ -146,7 +167,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const tab = state.getTabById(tabId);
     if (!tab) return false;
-    
+    if (tab.viewMode === 'image') return true;
+
     set({ saving: true, error: null });
     
     try {
@@ -173,7 +195,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   
   saveAllTabs: async () => {
     const state = get();
-    const dirtyTabs = state.tabs.filter(tab => tab.isDirty);
+    const dirtyTabs = state.tabs.filter(tab => tab.isDirty && tab.viewMode !== 'image');
     
     if (dirtyTabs.length === 0) return true;
     
@@ -206,6 +228,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const tab = state.getTabByPath(workspaceId, path);
     if (!tab || tab.isDirty) {
       // Never overwrite unsaved edits in the editor.
+      return;
+    }
+
+    if (tab.viewMode === 'image') {
+      set(current => ({
+        tabs: current.tabs.map(t =>
+          t.id === tab.id
+            ? {
+                ...t,
+                contentSyncKey: (t.contentSyncKey ?? 0) + 1,
+              }
+            : t
+        ),
+      }));
       return;
     }
 

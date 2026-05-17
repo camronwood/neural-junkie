@@ -216,11 +216,16 @@ func IsActionableMentionType(msgType MessageType) bool {
 	}
 }
 
+// IsUserLikeSender reports whether a message author should be treated as the human
+// user in chat history (as opposed to an agent or system actor).
+func IsUserLikeSender(from AgentInfo) bool {
+	return from.Type == "human" || (from.Type == AgentTypeGeneral && !strings.EqualFold(from.Name, "system"))
+}
+
 // ShouldParseMentions determines if mention extraction should run at message
 // creation time.
 func ShouldParseMentions(msgType MessageType, from AgentInfo) bool {
-	isUserLikeSender := from.Type == "human" || (from.Type == AgentTypeGeneral && !strings.EqualFold(from.Name, "system"))
-	return isUserLikeSender && IsActionableMentionType(msgType)
+	return IsUserLikeSender(from) && IsActionableMentionType(msgType)
 }
 
 // AddTag adds a tag to the message

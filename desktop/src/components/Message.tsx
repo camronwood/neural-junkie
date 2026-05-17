@@ -1,6 +1,11 @@
-import { useState, memo } from 'react';
+import { useState, memo, useEffect } from 'react';
 import type { Message as MessageType, CommandOutput as CommandOutputType, MessageErrorMetadata, ThreadMetadata } from '../types/protocol';
-import { getAgentColor, isSystemMessage, isCollaborationMessage } from '../types/protocol';
+import {
+  getAgentColor,
+  getReasoningText,
+  isSystemMessage,
+  isCollaborationMessage,
+} from '../types/protocol';
 import { MessageContent } from './MessageContent';
 import { CommandOutput } from './CommandOutput';
 import { DesignOutput } from './DesignOutput';
@@ -44,6 +49,46 @@ function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> })
           />
         );
       })}
+    </div>
+  );
+}
+
+function MessageReasoningBlock({
+  reasoningText,
+  isStreaming,
+}: {
+  reasoningText: string;
+  isStreaming?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(() => !!isStreaming);
+  useEffect(() => {
+    if (!isStreaming) {
+      setExpanded(false);
+    }
+  }, [isStreaming]);
+  if (!reasoningText.trim()) return null;
+
+  const showExpanded = expanded;
+
+  return (
+    <div className="mb-2 rounded border border-slack-border/80 bg-slack-bgHover/60 text-sm">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-slack-textMuted hover:text-slack-text transition-colors"
+        aria-expanded={showExpanded}
+      >
+        <span className="text-xs select-none">{showExpanded ? '▼' : '▶'}</span>
+        <span className="font-medium text-xs uppercase tracking-wide">Reasoning</span>
+        {isStreaming && !showExpanded && (
+          <span className="text-xs italic">(in progress)</span>
+        )}
+      </button>
+      {showExpanded && (
+        <div className="px-3 pb-3 text-slack-textMuted whitespace-pre-wrap break-words border-t border-slack-border/50">
+          {reasoningText}
+        </div>
+      )}
     </div>
   );
 }
@@ -101,6 +146,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
 
   const suggestsFileChange = shouldShowProposeAction(message);
   const canShowProposeButton = suggestsFileChange && !isStreaming;
+  const reasoningText = getReasoningText(message.metadata as Record<string, unknown> | undefined);
 
   // Parse command output from metadata if present
   let commandOutput: CommandOutputType | null = null;
@@ -252,6 +298,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
           <>
             <MessageUserImages metadata={message.metadata as Record<string, unknown> | undefined} />
             <MessageGeneratedImage metadata={message.metadata as Record<string, unknown> | undefined} />
+            <MessageReasoningBlock reasoningText={reasoningText} isStreaming={isStreaming} />
             <MessageContent content={message.content} isStreaming={isStreaming} />
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />

@@ -145,12 +145,8 @@ func (c *ClaudeProvider) GenerateResponse(ctx context.Context, prompt string, co
 		if len(messages) >= 10 { // Limit history
 			break
 		}
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
 		messages = append(messages, ClaudeMessage{
-			Role:    role,
+			Role:    ChatRoleForHistory(msg),
 			Content: msg.Content,
 		})
 	}
@@ -253,11 +249,7 @@ func (c *ClaudeProvider) GenerateResponseStream(ctx context.Context, prompt stri
 		if i >= 10 {
 			break
 		}
-		role := "user"
-		if msg.From.Type != protocol.AgentTypeGeneral {
-			role = "assistant"
-		}
-		messages = append(messages, ClaudeMessage{Role: role, Content: msg.Content})
+		messages = append(messages, ClaudeMessage{Role: ChatRoleForHistory(msg), Content: msg.Content})
 	}
 	messages = append(messages, ClaudeMessage{Role: "user", Content: userMessage})
 

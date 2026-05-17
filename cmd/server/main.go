@@ -405,9 +405,14 @@ func rebindRuntimeAgentsToRestoredDMs() {
 
 		if err := chatHub.JoinChannel(target.ID, ch.Name); err != nil {
 			log.Printf("⚠️  DM rebind failed for %s -> %s: %v", target.Name, ch.Name, err)
-		} else {
-			log.Printf("✅ DM rebind: %s -> %s", target.Name, ch.Name)
+			continue
 		}
+		if chHandler, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok && chHandler != nil {
+			if err := chHandler.EnsureAgentSubscribedToChannel(context.Background(), target.ID, ch.Name); err != nil {
+				log.Printf("⚠️  DM rebind subscribe failed for %s -> %s: %v", target.Name, ch.Name, err)
+			}
+		}
+		log.Printf("✅ DM rebind: %s -> %s", target.Name, ch.Name)
 	}
 }
 
