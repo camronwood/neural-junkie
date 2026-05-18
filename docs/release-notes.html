@@ -24,7 +24,7 @@
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8">Download beta.8</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">Download beta.9</a>
       </nav>
     </div>
   </header>
@@ -35,11 +35,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8">v1.0.0-beta.8</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">v1.0.0-beta.9</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-9">1.0.0-beta.9</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-8">1.0.0-beta.8</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-7">1.0.0-beta.7</a>
@@ -68,6 +70,21 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-9" class="release-version-heading">1.0.0-beta.9 <span class="release-date">— 2026-05-18</span></h2>
+
+      <p><strong>Collaboration git worktree execution.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>. Worktree details: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">docs/COLLABORATION.md</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Git worktree mode</strong> — <code>/collaborate --worktree</code> executes approved plans in <code>&lt;assets-root&gt;/worktrees/&lt;collab-id&gt;/</code> on branch <code>nj/collab-…</code>; optional <code>--workspace</code> binds the source repo at start; desktop <strong>Continue</strong> can supply <code>source_repo_path</code> from the active git workspace.</li>
+        <li><strong>Worktree gate UI</strong> — collaboration channel shows source repo, branch, and worktree path before task dispatch.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Release CI</strong> — desktop TypeScript build (<code>workspaceFileDrag.test.ts</code>) blocked beta.8 installers; beta.9 restores macOS / Windows / Linux artifacts.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-8" class="release-version-heading">1.0.0-beta.8 <span class="release-date">— 2026-05-18</span></h2>
 
       <p><strong>Model library, Hugging Face, and MCP.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>.</p>

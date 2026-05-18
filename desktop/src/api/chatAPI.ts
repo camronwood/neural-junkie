@@ -70,11 +70,20 @@ export class ChatAPI {
   }
 
   /** Confirm collaboration sandbox so the hub sends task prompts to agents (after /approve-plan). */
-  async acknowledgeCollaborationWorkspace(collaborationId: string): Promise<void> {
+  async acknowledgeCollaborationWorkspace(
+    collaborationId: string,
+    sourceRepoPath?: string
+  ): Promise<void> {
+    const body: { collaboration_id: string; source_repo_path?: string } = {
+      collaboration_id: collaborationId,
+    };
+    if (sourceRepoPath?.trim()) {
+      body.source_repo_path = sourceRepoPath.trim();
+    }
     const response = await fetch(`${this.baseURL}/api/collaboration-workspace-ack`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ collaboration_id: collaborationId }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       const t = await response.text();
@@ -427,6 +436,25 @@ export class ChatAPI {
     return data.my_agents || [];
   }
 
+  /** Delete a cached agent entry (repo index, CLI record) without loading it. */
+  async deleteCachedAgent(payload: {
+    type: string;
+    name: string;
+    path?: string;
+  }): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/my-agents`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 404) {
+      throw new Error('Cached agent not found');
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to delete cached agent: ${response.statusText}`);
+    }
+  }
+
   // Fetch removed agents
   async fetchRemovedAgents(): Promise<AgentInfo[]> {
     const response = await fetch(`${this.baseURL}/api/removed-agents`);
@@ -446,6 +474,16 @@ export class ChatAPI {
     from: { name: string; type: string }
   ): Promise<void> {
     const command = `/remove-agent ${agentName}`;
+    await this.sendMessage(channel, command, from, 'question');
+  }
+
+  /** Permanently delete an agent (unregister, cleanup repo cache when applicable). */
+  async deleteAgent(
+    channel: string,
+    agentName: string,
+    from: { name: string; type: string }
+  ): Promise<void> {
+    const command = `/delete-agent ${agentName}`;
     await this.sendMessage(channel, command, from, 'question');
   }
 

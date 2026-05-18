@@ -498,7 +498,7 @@ type PendingReview struct {
 type CommandArgument struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
-	Type        string   `json:"type"` // "string", "path", "provider", "model", "agent-name"
+	Type        string   `json:"type"` // "string", "path", "provider", "model", "agent-name", "repo-agent-name"
 	Required    bool     `json:"required"`
 	Options     []string `json:"options,omitempty"`
 	Default     string   `json:"default,omitempty"`

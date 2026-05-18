@@ -28,10 +28,21 @@ func collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) ma
 	if name == "" {
 		name = "Collaboration"
 	}
+	wsName := fmt.Sprintf("Collaboration: %s", name)
+	if snap.ExecutionMode == collaboration.ExecutionModeWorktree {
+		wsName = fmt.Sprintf("Collab worktree: %s", name)
+	}
+	fileTree := ".  (sandbox — empty until agents create files)\n"
+	if snap.ExecutionMode == collaboration.ExecutionModeWorktree {
+		fileTree = buildOutlineFileTree(snap.WorkingDirectory, 3)
+		if fileTree == "" {
+			fileTree = ".\n"
+		}
+	}
 	return map[string]interface{}{
-		"workspace_name": fmt.Sprintf("Collaboration: %s", name),
+		"workspace_name": wsName,
 		"workspace_path": snap.WorkingDirectory,
-		"file_tree":      ".  (sandbox — empty until agents create files)\n",
+		"file_tree":      fileTree,
 		"open_files":     []interface{}{},
 	}
 }
@@ -42,22 +53,38 @@ func (h *Hub) CollaborationCanDispatchTasks(snap *collaboration.Collaboration) b
 		return false
 	}
 	if strings.TrimSpace(snap.WorkingDirectory) == "" {
+		if snap.ExecutionMode == collaboration.ExecutionModeWorktree {
+			return false
+		}
 		return true
 	}
 	return snap.WorkspaceAcknowledged
 }
 
-// AcknowledgeCollaborationWorkspace marks the execution sandbox as user-confirmed,
-// dispatches task prompts once, and broadcasts a collaboration_status update.
-func (h *Hub) AcknowledgeCollaborationWorkspace(collabID string) error {
+// AcknowledgeCollaborationWorkspace marks the execution workspace as user-confirmed,
+// creates a deferred git worktree when needed, dispatches task prompts once,
+// and broadcasts a collaboration_status update.
+func (h *Hub) AcknowledgeCollaborationWorkspace(collabID, sourceRepoPath string) error {
 	if h.collabManager == nil {
 		return fmt.Errorf("collaboration manager unavailable")
+	}
+	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil {
+		return err
+	}
+	if snap == nil {
+		return fmt.Errorf("collaboration not found")
+	}
+	if snap.ExecutionMode == collaboration.ExecutionModeWorktree && strings.TrimSpace(snap.WorkingDirectory) == "" {
+		if _, err := h.collabManager.EnsureWorktree(collabID, sourceRepoPath); err != nil {
+			return err
+		}
 	}
 	already, _, err := h.collabManager.AcknowledgeWorkspace(collabID)
 	if err != nil {
 		return err
 	}
-	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	snap, err = h.collabManager.GetCollaborationSnapshot(collabID)
 	if err != nil {
 		return fmt.Errorf("collaboration snapshot: %w", err)
 	}
@@ -329,6 +356,7 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 	}
 
 	// Register the new agent
+	enrichAgentImageGeneration(agent)
 	h.agents[agent.ID] = agent
 	if h.agentRulesStore != nil {
 		if md, ok := h.agentRulesStore.Get(agent.ID); ok {
@@ -1989,6 +2017,9 @@ func (a *collabClientAdapter) GetCollaborationForAgent(agentID string) agent.Col
 		AgentRole:        agentRole,
 		Agents:           agents,
 		Channel:          c.Channel,
+		ExecutionMode:    string(c.ExecutionMode),
+		SourceRepoPath:   c.SourceRepoPath,
+		WorktreeBranch:   c.WorktreeBranch,
 		WorkingDirectory: c.WorkingDirectory,
 	}
 }

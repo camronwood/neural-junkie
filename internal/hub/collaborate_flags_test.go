@@ -42,6 +42,23 @@ func TestParseCollaborateLeadFlags_Both(t *testing.T) {
 	}
 }
 
+func TestParseCollaborateLeadFlags_Worktree(t *testing.T) {
+	parts := []string{"/collaborate", "--worktree", "--workspace", "@a", "@b", "goal"}
+	parsed, tail, err := parseCollaborateLeadFlags(parts)
+	if err != "" {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	if !parsed.Worktree {
+		t.Fatal("expected Worktree")
+	}
+	if !parsed.AttachWorkspace {
+		t.Fatal("expected AttachWorkspace")
+	}
+	if len(tail) != 3 {
+		t.Fatalf("tail: %#v", tail)
+	}
+}
+
 func TestParseCollaborateLeadFlags_Workspace(t *testing.T) {
 	parts := []string{"/collaborate", "--workspace", "--rounds", "2", "@a", "@b", "goal"}
 	parsed, tail, err := parseCollaborateLeadFlags(parts)

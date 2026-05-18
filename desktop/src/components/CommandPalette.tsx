@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { CommandForm } from './CommandForm';
+import type { ChatAPI } from '../api/chatAPI';
 import type { CommandDefinition, AgentInfo } from '../types/protocol';
 
 interface CommandPaletteProps {
   commands: CommandDefinition[];
   agents: AgentInfo[];
+  api?: ChatAPI;
   isOpen: boolean;
   initialFilter?: string;
   onClose: () => void;
@@ -14,6 +16,7 @@ interface CommandPaletteProps {
 export function CommandPalette({
   commands,
   agents,
+  api,
   isOpen,
   initialFilter = '',
   onClose,
@@ -153,6 +156,7 @@ export function CommandPalette({
           <CommandForm
             command={activeCommand}
             agents={agents}
+            api={api}
             onSubmit={handleFormSubmit}
             onBack={() => setActiveCommand(null)}
           />

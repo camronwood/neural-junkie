@@ -17,6 +17,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/collabworktree"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
@@ -420,7 +421,16 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 		}
 	}
 
-	return ch.systemResponse(msg.Channel, statusMsg), nil
+	resp := ch.systemResponse(msg.Channel, statusMsg)
+	if resp.Metadata == nil {
+		resp.Metadata = map[string]interface{}{}
+	}
+	resp.Metadata["client_action"] = map[string]interface{}{
+		"type": "select_repo_workspace",
+		"path": absPath,
+		"name": agentName,
+	}
+	return resp, nil
 }
 
 // handleDeleteAgent deletes an agent
@@ -442,6 +452,13 @@ func (ch *CommandHandler) handleDeleteAgent(ctx context.Context, msg *protocol.M
 	}
 
 	if agentID == "" {
+		cacheDeleted, err := DeleteCachedAgent("", agentName, "")
+		if err != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to delete cached agent: %v", err)), nil
+		}
+		if cacheDeleted {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Cached agent '%s' has been deleted", agentName)), nil
+		}
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Agent '%s' not found", agentName)), nil
 	}
 
@@ -2276,45 +2293,18 @@ func shortID(id string) string {
 	return id
 }
 
-func (ch *CommandHandler) openAIImageGenFromEnv() ai.ImageGenerator {
-	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	if key == "" {
-		return nil
-	}
-	endpoint := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
-	if endpoint == "" {
-		endpoint = "https://api.openai.com/v1"
-	}
-	model := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_IMAGE_MODEL"))
-	if model == "" {
-		model = "dall-e-3"
-	}
-	p := ai.NewOpenAICompatProvider(strings.TrimRight(endpoint, "/"), key, model, nil)
-	return p
-}
-
 func (ch *CommandHandler) handleGenerateImage(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
 		return ch.systemResponse(msg.Channel,
 			"❌ Usage: `/generate-image <prompt>`\n\nExample: `/generate-image a minimal app icon for a biotech lab`\n\nRequires `OPENAI_API_KEY` on the hub server (optional `OPENAI_BASE_URL`, `NEURAL_JUNKIE_IMAGE_MODEL`)."), nil
 	}
 	prompt := strings.TrimSpace(strings.Join(parts[1:], " "))
-	gen := ch.openAIImageGenFromEnv()
-	if gen == nil {
+	if !ImageGenerationAvailable() {
 		return ch.systemResponse(msg.Channel,
 			"❌ Image generation is not configured. Set `OPENAI_API_KEY` on the hub server."), nil
 	}
-	mime, b64, err := gen.GenerateImage(ctx, prompt, "")
-	if err != nil {
+	if err := ch.hub.GenerateAndPostImage(ctx, msg.Channel, msg.From, prompt, ""); err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Image generation failed: %v", err)), nil
-	}
-	out := protocol.NewMessage(protocol.MessageTypeChat, msg.Channel, msg.From, "🖼️ Generated image.")
-	out.Metadata["generated_image"] = map[string]interface{}{
-		"mime": mime,
-		"data": b64,
-	}
-	if err := ch.hub.SendMessage(out); err != nil {
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to post generated image: %v", err)), nil
 	}
 	return ch.systemResponse(msg.Channel, "✅ Image generated and posted to the channel."), nil
 }
@@ -3370,7 +3360,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Re-index a repository agent",
 			Category:    "Repository Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "agent-name", Description: "Name of the repo agent", Type: "agent-name", Required: true},
+				{Name: "agent-name", Description: "Name of the repo agent", Type: "repo-agent-name", Required: true},
 			},
 		},
 		{
@@ -3378,7 +3368,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Enable file watching for a repo agent",
 			Category:    "Repository Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "agent-name", Description: "Name of the repo agent", Type: "agent-name", Required: true},
+				{Name: "agent-name", Description: "Name of the repo agent", Type: "repo-agent-name", Required: true},
 			},
 		},
 		{
@@ -3386,7 +3376,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Disable file watching for a repo agent",
 			Category:    "Repository Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "agent-name", Description: "Name of the repo agent", Type: "agent-name", Required: true},
+				{Name: "agent-name", Description: "Name of the repo agent", Type: "repo-agent-name", Required: true},
 			},
 		},
 
@@ -3840,10 +3830,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Collaboration ─────────────────────────────────────────────
 		{
 			Name:        "/collaborate",
-			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` before mentions (defaults 3 / 20, server clamps to hard max).",
+			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` / `--workspace` / `--worktree` before mentions (defaults 3 / 20). `--worktree` runs execution in a git worktree; combine with `--workspace` to bind the source repo at start.",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "description", Description: "[--rounds N] [--messages M] @Agent1 @Agent2 ... description", Type: "string", Required: true},
+				{Name: "description", Description: "[--rounds N] [--messages M] [--workspace] [--worktree] @Agent1 @Agent2 ... description", Type: "string", Required: true},
 			},
 		},
 		{
@@ -3986,7 +3976,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 	discussionCfg := flagParse.Discussion
 	if len(tail) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
 	}
 
 	cm := ch.hub.GetCollaborationManager()
@@ -4026,7 +4016,20 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	ch.clearCollaborateRedirect()
 
-	collab, err := cm.CreateCollaboration(description, agentIDs, msg.Channel, msg.From.Name, discussionCfg)
+	var createOpts collaboration.CreateOptions
+	if flagParse.Worktree {
+		createOpts.ExecutionMode = collaboration.ExecutionModeWorktree
+		if flagParse.AttachWorkspace {
+			if repoPath := workspacePathFromMessageMetadata(msg); repoPath != "" {
+				if err := collabworktree.ValidateGitRepo(repoPath); err != nil {
+					return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ --worktree with --workspace: %v", err)), nil
+				}
+				createOpts.SourceRepoPath = repoPath
+			}
+		}
+	}
+
+	collab, err := cm.CreateCollaboration(description, agentIDs, msg.Channel, msg.From.Name, discussionCfg, createOpts)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create collaboration: %v", err)), nil
 	}
@@ -4073,15 +4076,25 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		agentListStr.WriteString(fmt.Sprintf("**@%s** (%s)", a.AgentName, a.Role))
 	}
 
+	seedBody := fmt.Sprintf("🤝 **Collaboration Started** (ID: `%s`)\n\n**Goal:** %s\n\n**Participants:** %s\n\n**Discussion limits:** %d rounds, %d agent messages (server hard max: %d rounds, %d messages)\n\n**Phase:** Planning (agents will discuss and propose a plan)\n\nAgents, please discuss and create a structured plan with tasks assigned to the agent best suited for each task. Use `- Task N: @AgentName - description` format for tasks.",
+		collab.ID[:8], description, agentListStr.String(),
+		collab.Discussion.MaxRounds, collab.Discussion.MaxTotalMessages,
+		collaboration.HardMaxRounds, collaboration.HardMaxTotalMessages)
+	if flagParse.Worktree {
+		seedBody += "\n\n**Execution mode:** Git worktree (isolated branch). "
+		if collab.SourceRepoPath != "" {
+			seedBody += fmt.Sprintf("Source repo: `%s`.", collab.SourceRepoPath)
+		} else {
+			seedBody += "Source repo will be chosen at execution (desktop active workspace or `--workspace` at start)."
+		}
+	}
+
 	// Send the seed message to kick off the planning discussion
 	seedMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
 		collabChannelName,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		fmt.Sprintf("🤝 **Collaboration Started** (ID: `%s`)\n\n**Goal:** %s\n\n**Participants:** %s\n\n**Discussion limits:** %d rounds, %d agent messages (server hard max: %d rounds, %d messages)\n\n**Phase:** Planning (agents will discuss and propose a plan)\n\nAgents, please discuss and create a structured plan with tasks assigned to the agent best suited for each task. Use `- Task N: @AgentName - description` format for tasks.",
-			collab.ID[:8], description, agentListStr.String(),
-			collab.Discussion.MaxRounds, collab.Discussion.MaxTotalMessages,
-			collaboration.HardMaxRounds, collaboration.HardMaxTotalMessages),
+		seedBody,
 	)
 	seedMsg.SetCollaborationID(collab.ID)
 	seedMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
@@ -4227,8 +4240,18 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 
 	if ch.hub.CollaborationCanDispatchTasks(collabSnap) {
 		ch.hub.dispatchCollabTaskMessages(collabSnap, msg, false)
-	} else if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
+	} else {
+		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree {
+			if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
+				taskSummary.WriteString(fmt.Sprintf("\n**Git worktree:** `%s` (branch `%s`)\n", collabSnap.WorkingDirectory, collabSnap.WorktreeBranch))
+			} else {
+				taskSummary.WriteString("\n**Git worktree:** will be created from your active workspace when you confirm.\n")
+			}
+		}
 		taskSummary.WriteString(fmt.Sprintf("\n⏸ **Waiting for workspace confirmation** — agents will receive their task prompts after you click **Continue** in the Neural Junkie desktop app, or run `/ack-collab-workspace %s` here.\n", collabID[:8]))
+		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree && collabSnap.WorktreeBranch != "" && strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
+			taskSummary.WriteString(fmt.Sprintf("_After completion, merge branch `%s` from your main checkout._\n", collabSnap.WorktreeBranch))
+		}
 	}
 
 	out := ch.systemResponse(msg.Channel, taskSummary.String())
@@ -4244,7 +4267,7 @@ func (ch *CommandHandler) handleAckCollabWorkspace(_ context.Context, msg *proto
 	if collabID == "" {
 		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
 	}
-	if err := ch.hub.AcknowledgeCollaborationWorkspace(collabID); err != nil {
+	if err := ch.hub.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ **Workspace confirmed** (`%s`). Task prompts are with the agents.", collabID[:8]))

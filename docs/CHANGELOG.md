@@ -6,6 +6,15 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.9] - 2026-05-18
+
+### Added
+- **Collaboration git worktree execution** — `/collaborate --worktree` runs approved plans in a real repo copy on branch `nj/collab-<id>` under `<assets-root>/worktrees/`; combine with `--workspace` to bind the source repo at start, or pick the active git workspace at the desktop **Continue** gate (`source_repo_path` on workspace ack).
+- **Worktree desktop gate** — collaboration channel shows source repo, branch, and worktree path; blocks Continue until a git workspace is selected when the repo was not bound at start.
+
+### Fixed
+- **Release builds** — desktop `npm run build` no longer fails TypeScript check on `workspaceFileDrag.test.ts` (CI had produced source-only beta.8).
+
 ## [1.0.0-beta.8] - 2026-05-18
 
 ### Added

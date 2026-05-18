@@ -93,6 +93,9 @@ type HubClient interface {
 	GetCommandHandler() CommandHandlerInterface
 	GetAgentChannels(agentID string) []string
 	GetChannelType(channelName string) protocol.ChannelType
+	// Image generation (hub OpenAI Images API when OPENAI_API_KEY is set).
+	ImageGenerationEnabled() bool
+	GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error
 }
 
 // CollaborationClient is the subset of CollaborationManager that agents
@@ -124,7 +127,10 @@ type CollaborationInfo struct {
 	AgentRole        string
 	Agents           []CollaborationAgentSummary
 	Channel          string
-	WorkingDirectory string // collaboration execution sandbox (absolute path)
+	ExecutionMode    string // sandbox | worktree
+	SourceRepoPath   string
+	WorktreeBranch   string
+	WorkingDirectory string // collaboration execution root (absolute path)
 }
 
 // CollaborationAgentSummary describes another agent in a collaboration
@@ -1382,8 +1388,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
-	if a.MCPServer != nil {
-		return a.generateWithMCPTools(approvalCtx, prompt, history, eff)
+	if len(a.agentToolDefinitions()) > 0 {
+		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 	}
 	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
@@ -1476,9 +1482,9 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		return "", "", "", fmt.Errorf("multiple images require a multimodal-capable provider")
 	}
 
-	// MCP tool loop uses batch API; stream the final answer as one chunk.
-	if a.MCPServer != nil {
-		text, err := a.generateWithMCPTools(approvalCtx, prompt, history, eff)
+	// Tool loop (MCP / image generation) uses batch API; stream the final answer as one chunk.
+	if len(a.agentToolDefinitions()) > 0 {
+		text, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 		if err != nil {
 			return "", "", "", err
 		}
@@ -1722,6 +1728,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	if a.MCPServer != nil {
 		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer))
 	}
+	if a.imageGenerationToolsEnabled() {
+		appendImageGenerationPrompt(&system)
+	}
 
 	// Check if this message is part of an active collaboration
 	collabInfo := a.getCollaborationContext(msg)
@@ -1757,8 +1766,19 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 			system.WriteString("Focus on completing your assigned tasks. Ask other agents if you need their input.\n")
 			system.WriteString(CollaborationExecutionTaskStatusInstructions())
 			if collabInfo.WorkingDirectory != "" {
-				system.WriteString(fmt.Sprintf("\n**Execution workspace (shared sandbox):** %s\n", collabInfo.WorkingDirectory))
-				system.WriteString("The desktop app registers this directory as a workspace when execution starts; use it as the root for relative paths and for shell commands in this collaboration.\n")
+				if collabInfo.ExecutionMode == "worktree" {
+					system.WriteString(fmt.Sprintf("\n**Execution workspace (git worktree):** %s\n", collabInfo.WorkingDirectory))
+					if collabInfo.WorktreeBranch != "" {
+						system.WriteString(fmt.Sprintf("**Branch:** `%s`\n", collabInfo.WorktreeBranch))
+					}
+					if collabInfo.SourceRepoPath != "" {
+						system.WriteString(fmt.Sprintf("**Source repo:** %s\n", collabInfo.SourceRepoPath))
+					}
+					system.WriteString("This is a full copy of the project on an isolated branch. Use paths relative to this root; merge the branch from your main checkout when work is done.\n")
+				} else {
+					system.WriteString(fmt.Sprintf("\n**Execution workspace (shared sandbox):** %s\n", collabInfo.WorkingDirectory))
+					system.WriteString("The desktop app registers this directory as a workspace when execution starts; use it as the root for relative paths and for shell commands in this collaboration.\n")
+				}
 			}
 			system.WriteString("To actually create or modify files, you MUST emit a [FILE_CHANGE] block (see below). ")
 			system.WriteString("Conversation-only replies do not write to disk.\n")

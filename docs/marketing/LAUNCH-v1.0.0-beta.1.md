@@ -2,7 +2,7 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8
+https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
@@ -18,7 +18,7 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8
 
 Neural Junkie v1.0.0-beta.8 — **app-store model library** in the toolbar (Ollama + Hugging Face): grid browse, one-tap install/download, detail for full actions. HF hosted inference + local GGUF → Ollama. MCP tool servers back.
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
 
 ---
 

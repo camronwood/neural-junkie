@@ -16,7 +16,8 @@ export async function ensureCollaborationExecutionWorkspace(collab: Collaboratio
   }
 
   try {
-    const name = `Collab: ${(collab.title || 'session').slice(0, 48)}`;
+    const prefix = collab.execution_mode === 'worktree' ? 'Collab worktree' : 'Collab';
+    const name = `${prefix}: ${(collab.title || 'session').slice(0, 48)}`;
     await useFileExplorerStore.getState().addWorkspace(name, collab.working_directory);
     await useFileExplorerStore.getState().loadWorkspaces();
     const wid = useFileExplorerStore.getState().activeWorkspaceId;

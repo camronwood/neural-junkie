@@ -1,14 +1,19 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { CommandDefinition, CommandArgument, AgentInfo } from '../types/protocol';
+import type { ChatAPI } from '../api/chatAPI';
+import { isTauriRuntime } from '../utils/promptAttachments';
+
+const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
 
 interface CommandFormProps {
   command: CommandDefinition;
   agents: AgentInfo[];
+  api?: ChatAPI;
   onSubmit: (commandString: string) => void;
   onBack: () => void;
 }
 
-export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormProps) {
+export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandFormProps) {
   const isCollaborateCommand = command.name === '/collaborate';
   const [collabRounds, setCollabRounds] = useState('');
   const [collabMessages, setCollabMessages] = useState('');
@@ -20,6 +25,22 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
     return initial;
   });
   const [selectedCollaborators, setSelectedCollaborators] = useState<Set<string>>(new Set());
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [pathBrowseError, setPathBrowseError] = useState<string | null>(null);
+
+  const providerArg = useMemo(
+    () => command.arguments.find(a => a.type === 'provider'),
+    [command.arguments]
+  );
+  const modelArg = useMemo(
+    () => command.arguments.find(a => a.type === 'model'),
+    [command.arguments]
+  );
+  const providerValue =
+    (providerArg ? values[providerArg.name] : '') ||
+    providerArg?.default ||
+    'ollama';
 
   const firstInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>(null);
 
@@ -27,8 +48,79 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
     firstInputRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    if (!api || !modelArg) {
+      setModelOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    setModelsLoading(true);
+
+    (async () => {
+      try {
+        let models: string[] = [];
+        if (providerValue === 'ollama') {
+          models = await api.fetchOllamaModels();
+        } else if (providerValue === 'lmstudio') {
+          models = await api.fetchLMStudioModels();
+        } else if (providerValue === 'huggingface' || providerValue === 'hf') {
+          const catalog = await api.fetchHfCatalog();
+          models = catalog
+            .filter(entry => entry.modes?.includes('hosted'))
+            .map(entry => entry.repo_id);
+        } else if (providerValue === 'claude') {
+          models = [...CLAUDE_MODELS];
+        }
+        if (!cancelled) {
+          setModelOptions(models);
+        }
+      } catch {
+        if (!cancelled) {
+          setModelOptions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setModelsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, modelArg, providerValue]);
+
   const setValue = (name: string, value: string) => {
     setValues(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleProviderChange = (argName: string, value: string) => {
+    setValue(argName, value);
+    if (modelArg) {
+      setValue(modelArg.name, '');
+    }
+  };
+
+  const handleBrowsePath = async (arg: CommandArgument) => {
+    setPathBrowseError(null);
+    if (!isTauriRuntime()) {
+      setPathBrowseError('Folder picker requires the desktop app');
+      return;
+    }
+    try {
+      const { open } = await import('@tauri-apps/api/dialog');
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: arg.description || 'Select directory',
+      });
+      if (selected && typeof selected === 'string') {
+        setValue(arg.name, selected);
+      }
+    } catch (error) {
+      setPathBrowseError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -100,44 +192,112 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
     a => a.status === 'active' && a.type !== 'human' && a.type !== 'moderator'
   );
 
+  const fieldClass =
+    'w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent';
+
   const renderField = (arg: CommandArgument, idx: number) => {
     const refProp = idx === 0 ? { ref: firstInputRef as React.Ref<any> } : {};
     const id = `cmd-arg-${arg.name}`;
 
     switch (arg.type) {
+      case 'path':
+        return (
+          <div>
+            <div className="flex gap-2">
+              <input
+                id={id}
+                type="text"
+                value={values[arg.name]}
+                onChange={e => setValue(arg.name, e.target.value)}
+                placeholder={arg.description}
+                className={`flex-1 ${fieldClass} placeholder-slack-textMuted`}
+                {...refProp}
+              />
+              <button
+                type="button"
+                onClick={() => void handleBrowsePath(arg)}
+                disabled={!isTauriRuntime()}
+                title={
+                  isTauriRuntime()
+                    ? 'Browse for directory'
+                    : 'Folder picker requires the desktop app'
+                }
+                className="shrink-0 px-3 py-2 text-sm border border-slack-border rounded text-slack-text hover:bg-slack-bgHover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Browse…
+              </button>
+            </div>
+            {pathBrowseError && (
+              <p className="mt-1 text-xs text-red-400">{pathBrowseError}</p>
+            )}
+          </div>
+        );
+
       case 'provider':
         return (
           <select
             id={id}
             value={values[arg.name]}
-            onChange={e => setValue(arg.name, e.target.value)}
-            className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
+            onChange={e => handleProviderChange(arg.name, e.target.value)}
+            className={fieldClass}
             {...refProp}
           >
             <option value="">Select provider...</option>
-            {(arg.options ?? ['ollama', 'claude', 'lmstudio']).map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
+            {(arg.options ?? ['ollama', 'claude', 'lmstudio', 'huggingface']).map(opt => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
             ))}
           </select>
         );
 
-      case 'agent-name':
+      case 'model':
         return (
           <select
             id={id}
             value={values[arg.name]}
             onChange={e => setValue(arg.name, e.target.value)}
-            className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
+            disabled={modelsLoading && modelOptions.length === 0}
+            className={fieldClass}
             {...refProp}
           >
-            <option value="">Select agent...</option>
-            {agents
-              .filter(a => a.type !== 'moderator' && a.type !== 'human')
-              .map(a => (
-                <option key={a.id} value={a.name}>{a.name} ({a.type})</option>
-              ))}
+            <option value="">
+              {modelsLoading ? 'Loading models…' : 'Server default (optional)'}
+            </option>
+            {modelOptions.map(model => (
+              <option key={model} value={model}>
+                {model}
+              </option>
+            ))}
           </select>
         );
+
+      case 'agent-name':
+      case 'repo-agent-name': {
+        const selectable =
+          arg.type === 'repo-agent-name'
+            ? agents.filter(a => a.type === 'repo')
+            : agents.filter(a => a.type !== 'moderator' && a.type !== 'human');
+        const placeholder =
+          arg.type === 'repo-agent-name' ? 'Select repo agent...' : 'Select agent...';
+        return (
+          <select
+            id={id}
+            value={values[arg.name]}
+            onChange={e => setValue(arg.name, e.target.value)}
+            className={fieldClass}
+            {...refProp}
+          >
+            <option value="">{placeholder}</option>
+            {selectable.map(a => (
+              <option key={a.id} value={a.name}>
+                {a.name}
+                {arg.type === 'agent-name' ? ` (${a.type})` : ''}
+              </option>
+            ))}
+          </select>
+        );
+      }
 
       default:
         return (
@@ -147,7 +307,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
             value={values[arg.name]}
             onChange={e => setValue(arg.name, e.target.value)}
             placeholder={arg.description}
-            className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+            className={`${fieldClass} placeholder-slack-textMuted`}
             {...refProp}
           />
         );
@@ -191,7 +351,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
                   value={collabRounds}
                   onChange={e => setCollabRounds(e.target.value)}
                   placeholder="3"
-                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                  className={`${fieldClass} placeholder-slack-textMuted`}
                 />
               </div>
               <div>
@@ -207,7 +367,7 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
                   value={collabMessages}
                   onChange={e => setCollabMessages(e.target.value)}
                   placeholder="20"
-                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text placeholder-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
+                  className={`${fieldClass} placeholder-slack-textMuted`}
                 />
               </div>
             </div>
@@ -262,6 +422,9 @@ export function CommandForm({ command, agents, onSubmit, onBack }: CommandFormPr
                 {arg.name}
                 {arg.required && <span className="text-red-400 ml-0.5">*</span>}
                 {!arg.required && <span className="ml-1 opacity-60">(optional)</span>}
+                {arg.type === 'model' && modelsLoading && (
+                  <span className="ml-1 opacity-60">(loading…)</span>
+                )}
               </label>
               {renderField(arg, idx)}
             </div>

@@ -11,14 +11,24 @@ interface AgentListProps {
   onRefresh: () => void;
   onAgentClick?: (agentName: string) => void;
   onRemoveAgent?: (agentId: string, agentName: string) => void;
+  onDeleteAgent?: (agentId: string, agentName: string) => void;
   onExportAgent?: (agentName: string) => void;
+  deletingAgentId?: string | null;
 }
 
 const MIN_WIDTH = 150; // Minimum usable width
 const DEFAULT_WIDTH = 320;
 const STORAGE_KEY = 'agent-list-width';
 
-export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onExportAgent }: AgentListProps) {
+export function AgentList({
+  agents,
+  onRefresh,
+  onAgentClick,
+  onRemoveAgent,
+  onDeleteAgent,
+  onExportAgent,
+  deletingAgentId = null,
+}: AgentListProps) {
   const { switchAgentProvider, loadingAgents } = useChatStore(
     (s) => ({ switchAgentProvider: s.switchAgentProvider, loadingAgents: s.loadingAgents }),
     shallow
@@ -294,6 +304,8 @@ export function AgentList({ agents, onRefresh, onAgentClick, onRemoveAgent, onEx
           onProviderSwitch={handleProviderSwitch}
           onExport={onExportAgent}
           onRemove={onRemoveAgent}
+          onDelete={onDeleteAgent}
+          deletingAgent={deletingAgentId === infoAgentId}
           onApprovalModeChange={handleApprovalModeChange}
           onAfterRulesSaved={onRefresh}
           switchingProvider={switchingProvider}

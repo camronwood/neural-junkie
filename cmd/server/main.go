@@ -1477,6 +1477,7 @@ func handleCollaborationWorkspaceAck(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		CollaborationID string `json:"collaboration_id"`
+		SourceRepoPath  string `json:"source_repo_path"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
@@ -1487,7 +1488,7 @@ func handleCollaborationWorkspaceAck(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "collaboration_id required", http.StatusBadRequest)
 		return
 	}
-	if err := chatHub.AcknowledgeCollaborationWorkspace(id); err != nil {
+	if err := chatHub.AcknowledgeCollaborationWorkspace(id, strings.TrimSpace(req.SourceRepoPath)); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2613,23 +2614,37 @@ func handleCachedAgents(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMyAgents(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		myAgents, err := getAllCachedAgents()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"my_agents": myAgents})
+	case http.MethodDelete:
+		var req struct {
+			Type string `json:"type"`
+			Name string `json:"name"`
+			Path string `json:"path"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+		deleted, err := hub.DeleteCachedAgent(req.Type, req.Name, req.Path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !deleted {
+			http.Error(w, "cached agent not found", http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
-
-	// Get cached agents from all storage types
-	myAgents, err := getAllCachedAgents()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := map[string]interface{}{
-		"my_agents": myAgents,
-	}
-
-	json.NewEncoder(w).Encode(response)
 }
 
 // getAllCachedAgents aggregates cached agents from all storage types

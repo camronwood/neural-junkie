@@ -11,6 +11,8 @@ interface AgentInfoModalProps {
   onProviderSwitch?: (agentId: string, provider: string, model: string) => void;
   onExport?: (agentName: string) => void;
   onRemove?: (agentId: string, agentName: string) => void;
+  onDelete?: (agentId: string, agentName: string) => void;
+  deletingAgent?: boolean;
   onApprovalModeChange?: (agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo') => void;
   /** Called after agent custom rules are saved successfully (refresh agent list). */
   onAfterRulesSaved?: () => void;
@@ -26,6 +28,8 @@ export function AgentInfoModal({
   onProviderSwitch,
   onExport,
   onRemove,
+  onDelete,
+  deletingAgent = false,
   onApprovalModeChange,
   onAfterRulesSaved,
   switchingProvider,
@@ -391,17 +395,34 @@ export function AgentInfoModal({
                 </button>
               )}
               
-              {/* Remove Button - not available for moderator */}
-              {onRemove && agent.type !== 'moderator' && (
+              {/* Remove — hide from channel only (can recall later) */}
+              {onRemove && agent.type !== 'moderator' && agent.type !== 'human' && (
                 <button
+                  type="button"
+                  disabled={deletingAgent}
                   onClick={() => {
                     onRemove(agent.id, agent.name);
                     onClose();
                   }}
-                  className="px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors border border-red-500/30"
-                  title={`Remove ${agent.name} from conversation`}
+                  className="px-4 py-2 text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded transition-colors border border-amber-500/30 disabled:opacity-50"
+                  title={`Remove ${agent.name} from this channel (can recall later)`}
                 >
-                  Remove
+                  Remove from channel
+                </button>
+              )}
+
+              {/* Delete — permanent */}
+              {onDelete && agent.type !== 'moderator' && agent.type !== 'human' && (
+                <button
+                  type="button"
+                  disabled={deletingAgent}
+                  onClick={() => {
+                    onDelete(agent.id, agent.name);
+                  }}
+                  className="px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors border border-red-500/30 disabled:opacity-50"
+                  title={`Permanently delete ${agent.name}`}
+                >
+                  {deletingAgent ? 'Deleting…' : 'Delete permanently'}
                 </button>
               )}
             </div>

@@ -76,6 +76,7 @@ func (cm *CollaborationManager) FinalizeCollaboration(collabID string, opts Fina
 	if c.Discussion != nil {
 		c.Discussion.Status = DiscussionConverged
 	}
+	cm.cleanupWorktreeLocked(c)
 
 	log.Printf("[CollaborationManager] Collaboration %s finalized (force_tasks=%v)", collabID[:8], opts.MarkOpenTasksComplete)
 	return c, nil

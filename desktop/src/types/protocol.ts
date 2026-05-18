@@ -331,7 +331,13 @@ export interface FileChangeDiff {
 
 // Command palette types
 
-export type CommandArgType = 'string' | 'path' | 'provider' | 'model' | 'agent-name';
+export type CommandArgType =
+  | 'string'
+  | 'path'
+  | 'provider'
+  | 'model'
+  | 'agent-name'
+  | 'repo-agent-name';
 
 export interface CommandArgument {
   name: string;
@@ -449,7 +455,13 @@ export interface Collaboration {
   created_by: string;
   created_at: string;
   updated_at: string;
-  /** Absolute sandbox directory created when execution starts (server). */
+  /** sandbox (default) or worktree execution mode. */
+  execution_mode?: 'sandbox' | 'worktree';
+  /** Git repository root for worktree mode. */
+  source_repo_path?: string;
+  /** Branch created for worktree execution (e.g. nj/collab-abc12345). */
+  worktree_branch?: string;
+  /** Absolute execution directory (sandbox or git worktree). */
   working_directory?: string;
   /** True after user confirms workspace setup; until then task prompts are not sent to agents. */
   workspace_acknowledged?: boolean;

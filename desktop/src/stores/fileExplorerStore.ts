@@ -4,6 +4,46 @@ import { getHubBaseURL } from '../config/hubUrl';
 
 const api = new ChatAPI(getHubBaseURL());
 
+const ACTIVE_WORKSPACE_STORAGE_KEY = 'nj-active-workspace-id';
+
+function readStoredActiveWorkspaceId(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const id = localStorage.getItem(ACTIVE_WORKSPACE_STORAGE_KEY);
+    return id && id.trim() ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredActiveWorkspaceId(workspaceId: string | null) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (workspaceId) {
+      localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, workspaceId);
+    } else {
+      localStorage.removeItem(ACTIVE_WORKSPACE_STORAGE_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function resolveActiveWorkspaceId(
+  workspaces: Workspace[],
+  previousActiveId: string | null
+): string | null {
+  if (workspaces.length === 0) return null;
+  const stored = readStoredActiveWorkspaceId();
+  if (stored && workspaces.some((w) => w.id === stored)) {
+    return stored;
+  }
+  if (previousActiveId && workspaces.some((w) => w.id === previousActiveId)) {
+    return previousActiveId;
+  }
+  return workspaces[0]?.id ?? null;
+}
+
 export interface Workspace {
   id: string;
   name: string;
@@ -86,10 +126,14 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     try {
       const workspaces = await api.fetchWorkspaces();
       console.log('FileExplorerStore: Loaded workspaces:', workspaces);
-      set({ 
-        workspaces,
-        activeWorkspaceId: workspaces[0]?.id || null,
-        loadingWorkspaces: false,
+      set((state) => {
+        const activeWorkspaceId = resolveActiveWorkspaceId(workspaces, state.activeWorkspaceId);
+        writeStoredActiveWorkspaceId(activeWorkspaceId);
+        return {
+          workspaces,
+          activeWorkspaceId,
+          loadingWorkspaces: false,
+        };
       });
     } catch (error) {
       console.error('Failed to load workspaces:', error);
@@ -103,10 +147,17 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   addWorkspace: async (name, path) => {
     try {
       const workspace = await api.addWorkspace(name, path);
-      set(state => ({
-        workspaces: [...state.workspaces, workspace],
-        activeWorkspaceId: workspace.id,
-      }));
+      set((state) => {
+        const exists = state.workspaces.some((w) => w.id === workspace.id);
+        const workspaces = exists
+          ? state.workspaces.map((w) => (w.id === workspace.id ? workspace : w))
+          : [...state.workspaces, workspace];
+        writeStoredActiveWorkspaceId(workspace.id);
+        return {
+          workspaces,
+          activeWorkspaceId: workspace.id,
+        };
+      });
       return workspace;
     } catch (error) {
       console.error('Failed to add workspace:', error);
@@ -140,6 +191,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   },
   
   setActiveWorkspace: (workspaceId) => {
+    writeStoredActiveWorkspaceId(workspaceId);
     set({ activeWorkspaceId: workspaceId });
   },
   

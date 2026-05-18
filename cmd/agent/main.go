@@ -218,6 +218,14 @@ func (h *httpHubClient) GetChannelType(channelName string) protocol.ChannelType 
 	return protocol.ChannelTypePublic
 }
 
+func (h *httpHubClient) ImageGenerationEnabled() bool {
+	return false
+}
+
+func (h *httpHubClient) GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error {
+	return fmt.Errorf("image generation requires an in-process hub connection")
+}
+
 func main() {
 	flag.Parse()
 

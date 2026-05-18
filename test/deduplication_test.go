@@ -49,6 +49,10 @@ func (m *mockHubClient) GetCommandHandler() agent.CommandHandlerInterface {
 func (m *mockHubClient) BroadcastDirect(channelName string, msg *protocol.Message) {}
 func (m *mockHubClient) GetAgentChannels(agentID string) []string { return []string{"general"} }
 func (m *mockHubClient) GetChannelType(channelName string) protocol.ChannelType { return protocol.ChannelTypePublic }
+func (m *mockHubClient) ImageGenerationEnabled() bool                            { return false }
+func (m *mockHubClient) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
+	return nil
+}
 
 func (m *mockHubClient) GetSentMessages() []*protocol.Message {
 	m.mutex.RLock()

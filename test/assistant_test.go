@@ -475,6 +475,10 @@ func (m *MockHub) GetAgentChannels(agentID string) []string {
 func (m *MockHub) GetChannelType(channelName string) protocol.ChannelType {
 	return protocol.ChannelTypePublic
 }
+func (m *MockHub) ImageGenerationEnabled() bool { return false }
+func (m *MockHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
+	return nil
+}
 
 // TestAssistantStoragePersistence tests that data persists across restarts
 func TestAssistantStoragePersistence(t *testing.T) {

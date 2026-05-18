@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -107,6 +108,30 @@ func (s *CLIAgentStorage) ListWithMetadata() ([]map[string]interface{}, error) {
 		})
 	}
 	return result, nil
+}
+
+// DeleteByName removes a persisted CLI agent record by display name.
+func (s *CLIAgentStorage) DeleteByName(name string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	records, err := s.load()
+	if err != nil {
+		return false, err
+	}
+	var kept []CLIAgentRecord
+	found := false
+	for _, r := range records {
+		if strings.EqualFold(r.Name, name) {
+			found = true
+			continue
+		}
+		kept = append(kept, r)
+	}
+	if !found {
+		return false, nil
+	}
+	return true, s.save(kept)
 }
 
 // SaveCLIAgent is a convenience function for saving from the command handler.

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/collabworktree"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -77,7 +78,12 @@ func (cm *CollaborationManager) CreateCollaboration(
 	channel string,
 	createdBy string,
 	config DiscussionConfig,
+	opts ...CreateOptions,
 ) (*Collaboration, error) {
+	var createOpts CreateOptions
+	if len(opts) > 0 {
+		createOpts = opts[0]
+	}
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -150,19 +156,25 @@ func (cm *CollaborationManager) CreateCollaboration(
 		discussion.Consensus[id] = ConsensusUndecided
 	}
 
+	execMode := createOpts.ExecutionMode
+	if execMode == "" {
+		execMode = ExecutionModeSandbox
+	}
 	collab := &Collaboration{
-		ID:          collabID,
-		Title:       DeriveCollaborationTitle(description),
-		Description: description,
-		Phase:       PhasePlanning,
-		Agents:      agents,
-		Plan:        artifact,
-		Discussion:  discussion,
-		Channel:     channel,
-		CreatedBy:   createdBy,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		Config:      cfg,
+		ID:             collabID,
+		Title:          DeriveCollaborationTitle(description),
+		Description:    description,
+		Phase:          PhasePlanning,
+		Agents:         agents,
+		Plan:           artifact,
+		Discussion:     discussion,
+		Channel:        channel,
+		CreatedBy:      createdBy,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		Config:         cfg,
+		ExecutionMode:  execMode,
+		SourceRepoPath: strings.TrimSpace(createOpts.SourceRepoPath),
 	}
 
 	cm.collaborations[collabID] = collab
@@ -450,24 +462,31 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 				other.Discussion.Status = DiscussionCancelled
 			}
 			log.Printf("[CollaborationManager] Auto-cancelled executing collaboration %s (channel %q) so %s can execute", id[:8], ch, collabID[:8])
+			cm.cleanupWorktreeLocked(other)
 		}
 	}
 
 	c.Phase = PhaseExecuting
 	c.UpdatedAt = now
 
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		return nil, fmt.Errorf("collaboration working directory: mkdir base: %w", err)
+	execMode := c.ExecutionMode
+	if execMode == "" {
+		execMode = ExecutionModeSandbox
+		c.ExecutionMode = execMode
 	}
-	workDir := filepath.Join(baseDir, c.ID)
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return nil, fmt.Errorf("collaboration working directory: mkdir: %w", err)
+	switch execMode {
+	case ExecutionModeWorktree:
+		if c.WorktreeBranch == "" {
+			c.WorktreeBranch = collabworktree.DefaultBranchName(c.ID)
+		}
+		if err := cm.createWorktreeIfReady(c, baseDir); err != nil {
+			return nil, err
+		}
+	default:
+		if err := cm.createSandboxWorkingDir(c, baseDir); err != nil {
+			return nil, err
+		}
 	}
-	absWork, err := filepath.Abs(workDir)
-	if err != nil {
-		return nil, fmt.Errorf("collaboration working directory: abs: %w", err)
-	}
-	c.WorkingDirectory = absWork
 
 	participantIDs := make([]string, 0, len(c.Agents))
 	for _, a := range c.Agents {
@@ -638,6 +657,7 @@ func (cm *CollaborationManager) CancelCollaboration(collabID string) (*Collabora
 	if c.Discussion != nil {
 		c.Discussion.Status = DiscussionCancelled
 	}
+	cm.cleanupWorktreeLocked(c)
 
 	log.Printf("[CollaborationManager] Collaboration %s cancelled", collabID[:8])
 	return c, nil

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
@@ -20,7 +21,11 @@ func (shouldRespondTestHub) Subscribe(string) (chan *protocol.Message, error) {
 func (shouldRespondTestHub) GetMessages(string, int) ([]*protocol.Message, error)  { return nil, nil }
 func (shouldRespondTestHub) GetChannelAgents(string) ([]protocol.AgentInfo, error) { return nil, nil }
 func (shouldRespondTestHub) GetThreadParentAuthor(string) string                   { return "" }
-func (shouldRespondTestHub) GetCommandHandler() CommandHandlerInterface            { return nil }
+func (shouldRespondTestHub) GetCommandHandler() CommandHandlerInterface { return nil }
+func (shouldRespondTestHub) ImageGenerationEnabled() bool             { return false }
+func (shouldRespondTestHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
+	return nil
+}
 func (shouldRespondTestHub) GetAgentChannels(string) []string                      { return nil }
 func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelType {
 	if channel == h.dmChannel {

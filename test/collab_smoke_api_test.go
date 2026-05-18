@@ -185,7 +185,7 @@ func collabSmokeHandleWorkspaceAck(h *hub.Hub) http.HandlerFunc {
 			http.Error(w, "collaboration_id required", http.StatusBadRequest)
 			return
 		}
-		if err := h.AcknowledgeCollaborationWorkspace(id); err != nil {
+		if err := h.AcknowledgeCollaborationWorkspace(id, ""); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

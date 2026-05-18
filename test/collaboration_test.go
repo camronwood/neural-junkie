@@ -2,6 +2,7 @@ package test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -657,6 +658,74 @@ func TestTransitionToExecutingUsesConfiguredAssetsRoot(t *testing.T) {
 	wantDir := filepath.Join(customRoot, c.ID)
 	if filepath.Clean(c.WorkingDirectory) != filepath.Clean(wantDir) {
 		t.Fatalf("WorkingDirectory = %q want %q", c.WorkingDirectory, wantDir)
+	}
+}
+
+func TestTransitionToExecutingWorktreeMode(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(repo, 0755); err != nil {
+		t.Fatal(err)
+	}
+	initGitRepoForCollabTest(t, repo)
+
+	assets := filepath.Join(t.TempDir(), "collab-assets")
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	cm := collaboration.NewCollaborationManager(hub)
+	cm.SetAssetsRootResolver(func() string { return assets })
+
+	collab, err := cm.CreateCollaboration(
+		"worktree test", []string{"a1", "a2"}, "general", "user",
+		collaboration.DiscussionConfig{},
+		collaboration.CreateOptions{
+			ExecutionMode:  collaboration.ExecutionModeWorktree,
+			SourceRepoPath: repo,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if collab.ExecutionMode != collaboration.ExecutionModeWorktree {
+		t.Fatalf("execution mode: %s", collab.ExecutionMode)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	c, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.WorkingDirectory == "" || c.WorktreeBranch == "" {
+		t.Fatalf("worktree not set: dir=%q branch=%q", c.WorkingDirectory, c.WorktreeBranch)
+	}
+	wantDir := filepath.Join(assets, "worktrees", c.ID)
+	if filepath.Clean(c.WorkingDirectory) != filepath.Clean(wantDir) {
+		t.Fatalf("WorkingDirectory = %q want %q", c.WorkingDirectory, wantDir)
+	}
+	if _, err := os.Stat(filepath.Join(c.WorkingDirectory, ".git")); err != nil {
+		t.Fatalf("worktree should be a git checkout: %v", err)
+	}
+}
+
+func initGitRepoForCollabTest(t *testing.T, dir string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@example.com"},
+		{"config", "user.name", "Test"},
+		{"commit", "--allow-empty", "-m", "init"},
+	} {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
 	}
 }
 

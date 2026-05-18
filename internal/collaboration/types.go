@@ -111,6 +111,20 @@ func (dc DiscussionConfig) Normalized() DiscussionConfig {
 	return out
 }
 
+// ExecutionMode selects where collaboration execution writes files.
+type ExecutionMode string
+
+const (
+	ExecutionModeSandbox  ExecutionMode = "sandbox"
+	ExecutionModeWorktree ExecutionMode = "worktree"
+)
+
+// CreateOptions configures optional collaboration creation parameters.
+type CreateOptions struct {
+	ExecutionMode  ExecutionMode
+	SourceRepoPath string // absolute git repo root; optional until workspace ack
+}
+
 // CollaborationAgent pairs an agent identity with its role inside
 // a particular collaboration.
 type CollaborationAgent struct {
@@ -138,8 +152,14 @@ type Collaboration struct {
 	CreatedAt   time.Time            `json:"created_at"`
 	UpdatedAt   time.Time            `json:"updated_at"`
 	Config      DiscussionConfig     `json:"config"`
+	// ExecutionMode is sandbox (default) or worktree (git worktree under assets root).
+	ExecutionMode ExecutionMode `json:"execution_mode,omitempty"`
+	// SourceRepoPath is the git repository to branch from in worktree mode.
+	SourceRepoPath string `json:"source_repo_path,omitempty"`
+	// WorktreeBranch is the branch created for worktree execution (e.g. nj/collab-abc12345).
+	WorktreeBranch string `json:"worktree_branch,omitempty"`
 	// WorkingDirectory is an absolute path created when execution starts; agents
-	// and the desktop app use it as the collaboration sandbox workspace root.
+	// and the desktop app use it as the collaboration execution workspace root.
 	WorkingDirectory string `json:"working_directory,omitempty"`
 	// WorkspaceAcknowledged is set after the user confirms the sandbox in the
 	// desktop app (or via /ack-collab-workspace). Until then, task messages are

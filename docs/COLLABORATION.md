@@ -38,7 +38,27 @@ Optional: attach a **high-level** view of your open editor workspace (file tree 
 /collaborate --workspace @RustExpert @SecurityExpert review the layout of this repo
 ```
 
+Optional: run execution in a **git worktree** (isolated branch + full repo copy) instead of an empty sandbox:
+
+```text
+/collaborate --worktree --workspace @RustExpert @SecurityExpert refactor the auth middleware
+```
+
 Without `--workspace`, planning uses only the collaboration goal — agents are not given your open project files. This avoids general questions (for example “who is the better Rust programmer?”) being interpreted as questions about whatever repo you had open.
+
+### Git worktree execution (`--worktree`)
+
+When you pass `--worktree`, approved plans execute in a **git worktree** under your collaboration assets folder (`<assets-root>/worktrees/<collab-id>/`) on branch `nj/collab-<id-prefix>`. Your main checkout is not modified.
+
+| Flag / step | Behavior |
+|---|---|
+| `--worktree --workspace` | Binds the source repo from message `workspace_path` at create time |
+| `--worktree` only | Source repo is chosen at the desktop **Continue** gate from the **active workspace** (must be a git repo) |
+| `/approve-plan` | Creates the worktree when the source repo is already known; otherwise waits for gate |
+| **Continue** (desktop) | Sends `source_repo_path` if needed, creates worktree, registers it as a workspace, acks the hub |
+| Complete / cancel | Worktree directory is removed (branch is kept for you to merge) |
+
+Merge from your main checkout when done, for example: `git merge nj/collab-abc12345`.
 
 Creates a collaboration in `planning` phase and starts a bounded discussion.
 
@@ -144,7 +164,9 @@ Agents create or edit files by emitting **`[FILE_CHANGE]`** blocks in their repl
 
 - **Workspace sharing:** The hub resolves file proposals against the **workspace path** carried in message metadata. Collaboration traffic usually happens in `collab-…` channels, while your IDE workspace is often attached to messages on `#general` or your project channel. The app now **falls back** to the most recent `workspace_context` from other channels the agent has seen, so proposals still register when you had sharing enabled from the project window.
 - **Paths must stay under the shared root:** Requests like “write under `~/development/test-site-001`” only work if that directory is the shared workspace (or added as a workspace) and sharing is on. Otherwise agents should explain the limitation and ask you to add that folder or use paths **relative** to the current workspace root.
-- **Collaboration sandbox:** When a plan is approved and execution starts, the hub creates `<assets-root>/<collaboration-id>/` (default assets root: `~/.neural-junkie/collaborations`), attaches it as `workspace_context` on `collaboration_task` messages **after you confirm**, and snapshots expose `working_directory` plus `workspace_acknowledged`. Set the parent folder in **Settings → AI Providers → Collaboration output folder** (`collaboration.assets_root` in `config.json`) or via `NEURAL_JUNKIE_COLLAB_ASSETS_DIR`. **Agents do not receive task prompts until you confirm:** use the desktop **Continue** dialog on the collaboration channel, or run `/ack-collab-workspace <id>`.
+- **Collaboration sandbox (default):** When a plan is approved and execution starts, the hub creates `<assets-root>/<collaboration-id>/` (default assets root: `~/.neural-junkie/collaborations`), attaches it as `workspace_context` on `collaboration_task` messages **after you confirm**, and snapshots expose `working_directory` plus `workspace_acknowledged`.
+- **Git worktree (`--worktree`):** Execution uses `<assets-root>/worktrees/<collaboration-id>/` on branch `nj/collab-<prefix>`. Agents receive a real project tree in `workspace_context`. Source repo binding uses `--workspace` at start and/or the desktop active workspace at **Continue** (`POST /api/collaboration-workspace-ack` with optional `source_repo_path`).
+- Set the parent folder in **Settings → AI Providers → Collaboration output folder** (`collaboration.assets_root` in `config.json`) or via `NEURAL_JUNKIE_COLLAB_ASSETS_DIR`. **Agents do not receive task prompts until you confirm:** use the desktop **Continue** dialog on the collaboration channel, or run `/ack-collab-workspace <id>`.
 - **Shell commands:** During execution, agents should put runnable commands in fenced **bash** code blocks; the desktop surfaces **Run** and passes the collaboration sandbox as the working directory when executing suggestions.
 
 ## One executing collaboration per channel

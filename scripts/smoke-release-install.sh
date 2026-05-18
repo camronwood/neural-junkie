@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${1:-v1.0.0-beta.8}"
+VERSION="${1:-v1.0.0-beta.9}"
 REPO="${SMOKE_REPO:-camronwood/neural-junkie}"
 HUB_PORT="${HUB_PORT:-18765}"
 

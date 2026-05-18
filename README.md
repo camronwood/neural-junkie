@@ -89,7 +89,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.8](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.9](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|

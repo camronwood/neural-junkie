@@ -72,6 +72,10 @@ func (m *mockHubClientReview) GetAgentChannels(agentID string) []string {
 func (m *mockHubClientReview) GetChannelType(channelName string) protocol.ChannelType {
 	return protocol.ChannelTypePublic
 }
+func (m *mockHubClientReview) ImageGenerationEnabled() bool { return false }
+func (m *mockHubClientReview) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
+	return nil
+}
 
 // Helper function to broadcast a message to all subscribers
 func (m *mockHubClientReview) BroadcastMessage(msg *protocol.Message) {

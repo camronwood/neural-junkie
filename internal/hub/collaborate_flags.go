@@ -6,12 +6,14 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 // collaborateFlagParse holds discussion limits and optional workspace attach for /collaborate.
 type collaborateFlagParse struct {
-	Discussion collaboration.DiscussionConfig
+	Discussion      collaboration.DiscussionConfig
 	AttachWorkspace bool
+	Worktree        bool
 }
 
 // parseCollaborateLeadFlags reads optional discussion limits from the start of
@@ -32,6 +34,9 @@ func parseCollaborateLeadFlags(parts []string) (collaborateFlagParse, []string, 
 		switch key {
 		case "workspace":
 			out.AttachWorkspace = true
+			i++
+		case "worktree":
+			out.Worktree = true
 			i++
 		case "rounds":
 			if i+1 >= len(parts) {
@@ -54,7 +59,7 @@ func parseCollaborateLeadFlags(parts []string) (collaborateFlagParse, []string, 
 			out.Discussion.MaxTotalMessages = n
 			i += 2
 		default:
-			return out, nil, fmt.Sprintf("❌ Unknown option %q. Use `--rounds`, `--messages`, and/or `--workspace` before @mentions.", raw)
+			return out, nil, fmt.Sprintf("❌ Unknown option %q. Use `--rounds`, `--messages`, `--workspace`, and/or `--worktree` before @mentions.", raw)
 		}
 	}
 	return out, parts[i:], ""
@@ -64,6 +69,25 @@ func stripCollaborateFlagPrefix(s string) string {
 	s = strings.TrimPrefix(s, "--")
 	s = strings.TrimPrefix(s, "-")
 	return s
+}
+
+// workspacePathFromMessageMetadata returns workspace_path from outbound message metadata.
+func workspacePathFromMessageMetadata(msg *protocol.Message) string {
+	if msg == nil || msg.Metadata == nil {
+		return ""
+	}
+	raw, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return ""
+	}
+	ctxMap, ok := raw.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if p, ok := ctxMap["workspace_path"].(string); ok {
+		return strings.TrimSpace(p)
+	}
+	return ""
 }
 
 // parseCollabExtendArgs parses `/collab-extend <id-prefix> [--rounds N] [--messages M]`.

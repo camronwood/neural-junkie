@@ -7,13 +7,13 @@ import {
 
 describe('workspaceFileDrag', () => {
   it('round-trips payload via DataTransfer', () => {
+    const store: Record<string, string> = {};
     const dt = {
-      _data: {} as Record<string, string>,
       setData(type: string, value: string) {
-        this._data[type] = value;
+        store[type] = value;
       },
       getData(type: string) {
-        return this._data[type] ?? '';
+        return store[type] ?? '';
       },
       effectAllowed: '',
     } as unknown as DataTransfer;

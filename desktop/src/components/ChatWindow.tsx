@@ -69,6 +69,12 @@ import type {
 import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
+import {
+  ensureRepoAgentWorkspace,
+  isRepoAgentWorkspaceAction,
+  parseCreateRepoAgentCommand,
+} from '../utils/repoAgentWorkspace';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
@@ -205,13 +211,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
   const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
+  const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const activeCh = useChatStore.getState().channel;
     let next: Collaboration | null = null;
     for (const c of Object.values(collaborationsByID)) {
-      if (c.phase !== 'executing' || !c.working_directory?.trim()) continue;
-      if (c.workspace_acknowledged) continue;
+      if (c.phase !== 'executing' || c.workspace_acknowledged) continue;
+      const isWorktree = c.execution_mode === 'worktree';
+      if (!isWorktree && !c.working_directory?.trim()) continue;
       if (c.channel !== activeCh) continue;
       if (dismissedWorkspaceGateIdRef.current === c.id) continue;
       next = c;
@@ -430,14 +438,34 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     if (!c) return;
     setWorkspaceGateBusy(true);
     try {
-      await ensureCollaborationExecutionWorkspace(c);
-      await api.acknowledgeCollaborationWorkspace(c.id);
+      let sourceRepoPath: string | undefined;
+      if (c.execution_mode === 'worktree' && !c.source_repo_path?.trim()) {
+        const active = useFileExplorerStore.getState().getActiveWorkspace();
+        if (!active?.path?.trim()) {
+          throw new Error('Select a git workspace in the file explorer before continuing.');
+        }
+        if (!active.is_git_repo) {
+          throw new Error('Active workspace is not a git repository.');
+        }
+        sourceRepoPath = active.path;
+      }
+      const deferWorktree = c.execution_mode === 'worktree' && !c.working_directory?.trim();
+      if (!deferWorktree) {
+        await ensureCollaborationExecutionWorkspace(c);
+      }
+      await api.acknowledgeCollaborationWorkspace(c.id, sourceRepoPath);
       dismissedWorkspaceGateIdRef.current = null;
       if (useChatStore.getState().channel === c.channel) {
         setWorkspaceContextMode('always');
         localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, 'always');
       }
       await loadCollaborations(channel);
+      if (deferWorktree) {
+        const refreshed = collaborationsByIDRef.current[c.id];
+        if (refreshed?.working_directory?.trim()) {
+          await ensureCollaborationExecutionWorkspace(refreshed);
+        }
+      }
       setWorkspaceGateCollab(null);
     } catch (e) {
       console.error('[workspace gate]', e);
@@ -756,6 +784,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           useTerminalStore.getState().addTab(tab);
           useTerminalStore.getState().setPanelOpen(true);
         }
+
+        const clientAction = message.metadata?.client_action;
+        if (
+          clientAction &&
+          isRepoAgentWorkspaceAction(clientAction) &&
+          !handledRepoWorkspaceActionsRef.current.has(message.id)
+        ) {
+          handledRepoWorkspaceActionsRef.current.add(message.id);
+          void ensureRepoAgentWorkspace(clientAction.path, {
+            preferredName: clientAction.name,
+          }).then((workspaceId) => {
+            if (workspaceId) {
+              setFileExplorerOpen(true);
+            }
+          });
+        }
       }
       
       // Clear thinking indicator when agent sends actual message
@@ -796,11 +840,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       loadAgents(),
       loadCounts(),
       loadChannels(),
+      useFileExplorerStore.getState().loadWorkspaces(),
     ]);
 
     results.forEach((r, i) => {
       if (r.status === 'rejected') {
-        const label = ['messages', 'collaborations', 'agents', 'counts', 'channels'][i];
+        const label = ['messages', 'collaborations', 'agents', 'counts', 'channels', 'workspaces'][i];
         console.error(`[loadInitialData] ${label} failed:`, r.reason);
       }
     });
@@ -997,7 +1042,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       setModelLibraryOpen(true);
       return;
     }
+    const repoAgentCmd = parseCreateRepoAgentCommand(trimmed);
     await handleSendMessage(commandString);
+    if (repoAgentCmd) {
+      window.setTimeout(() => {
+        void ensureRepoAgentWorkspace(repoAgentCmd.repoPath, {
+          preferredName: repoAgentCmd.agentName,
+        }).then((workspaceId) => {
+          if (workspaceId) {
+            setFileExplorerOpen(true);
+          }
+        });
+      }, 400);
+    }
   };
 
   // Handle slash trigger from input
@@ -1554,6 +1611,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       <CommandPalette
         commands={commandDefs}
         agents={agents}
+        api={api}
         isOpen={commandPaletteOpen}
         initialFilter={commandPaletteFilter}
         onClose={() => {

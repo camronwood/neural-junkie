@@ -30,6 +30,9 @@ type CollaborationUIPayload struct {
 	ThreadID              string               `json:"thread_id,omitempty"`
 	CreatedBy             string               `json:"created_by,omitempty"`
 	Config                DiscussionConfig     `json:"config,omitempty"`
+	ExecutionMode         ExecutionMode        `json:"execution_mode,omitempty"`
+	SourceRepoPath        string               `json:"source_repo_path,omitempty"`
+	WorktreeBranch        string               `json:"worktree_branch,omitempty"`
 	WorkingDirectory      string               `json:"working_directory,omitempty"`
 	WorkspaceAcknowledged bool                 `json:"workspace_acknowledged,omitempty"`
 	TasksDispatched       bool                 `json:"tasks_dispatched,omitempty"`
@@ -50,6 +53,9 @@ func (c *Collaboration) ToUIPayload() *CollaborationUIPayload {
 		ThreadID:              c.ThreadID,
 		CreatedBy:             c.CreatedBy,
 		Config:                c.Config,
+		ExecutionMode:         c.ExecutionMode,
+		SourceRepoPath:        c.SourceRepoPath,
+		WorktreeBranch:        c.WorktreeBranch,
 		WorkingDirectory:      c.WorkingDirectory,
 		WorkspaceAcknowledged: c.WorkspaceAcknowledged,
 		TasksDispatched:       c.TasksDispatched,

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import type { CachedAgentInfo, AgentInfo } from '../types/protocol';
 import { AgentInfoModal } from './AgentInfoModal';
+import { CachedAgentInfoModal } from './CachedAgentInfoModal';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
@@ -44,6 +46,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
     shallow
   );
   const { fetchOllamaModels, fetchLMStudioModels } = useSettingsStore();
+  const addToast = useToastStore((s) => s.addToast);
 
   const [activeTab, setActiveTab] = useState<TabType>('active');
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,6 +56,9 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
   const [recallingAgent, setRecallingAgent] = useState<string | null>(null);
   const [switchingProvider, setSwitchingProvider] = useState<string | null>(null);
   const [infoAgentId, setInfoAgentId] = useState<string | null>(null);
+  const [cachedInfoAgent, setCachedInfoAgent] = useState<CachedAgentInfo | null>(null);
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
+  const [deletingCachedAgent, setDeletingCachedAgent] = useState(false);
   const [availableOllamaModels, setAvailableOllamaModels] = useState<string[]>([]);
   const [availableLMStudioModels, setAvailableLMStudioModels] = useState<string[]>([]);
 
@@ -257,6 +263,13 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
         'question'
       );
 
+      if (agent.type === 'repo' && agent.path) {
+        const { ensureRepoAgentWorkspace } = await import('../utils/repoAgentWorkspace');
+        window.setTimeout(() => {
+          void ensureRepoAgentWorkspace(agent.path, { preferredName: agent.name });
+        }, 400);
+      }
+
       // Close panel after successful load
       onClose();
     } catch (error) {
@@ -309,14 +322,67 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
   };
 
   const handleRemoveAgent = async (_agentId: string, agentName: string) => {
-    if (!window.confirm(`Remove ${agentName} from conversation? (You can recall later)`)) {
+    if (!window.confirm(`Remove "${agentName}" from this channel?\n\nYou can bring them back later with /recall-agent.`)) {
       return;
     }
     try {
       await api.removeAgent(channel, agentName, { name: username, type: 'human' });
       setInfoAgentId(null);
+      const fresh = await api.fetchAgents();
+      useChatStore.getState().setAgents(fresh);
+      addToast({
+        type: 'success',
+        title: 'Agent removed from channel',
+        message: agentName,
+      });
     } catch (error) {
       console.error('Failed to remove agent:', error);
+      addToast({
+        type: 'error',
+        title: 'Remove failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
+  const handleDeleteAgent = async (agentId: string, agentName: string) => {
+    const agent =
+      agents.find((a) => a.id === agentId) || useChatStore.getState().agents.find((a) => a.id === agentId);
+    const repoNote =
+      agent?.type === 'repo'
+        ? '\n\nRepo index cache for this path will be removed.'
+        : '';
+    if (
+      !window.confirm(
+        `Permanently delete "${agentName}"?${repoNote}\n\nThis cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeletingAgentId(agentId);
+    try {
+      await api.deleteAgent(channel, agentName, { name: username, type: 'human' });
+      setInfoAgentId(null);
+      const [freshAgents, freshMyAgents] = await Promise.all([
+        api.fetchAgents(),
+        api.fetchMyAgents().catch(() => []),
+      ]);
+      useChatStore.getState().setAgents(freshAgents);
+      setMyAgents(freshMyAgents);
+      addToast({
+        type: 'success',
+        title: 'Agent deleted',
+        message: `${agentName} was permanently removed.`,
+      });
+    } catch (error) {
+      console.error('Failed to delete agent:', error);
+      addToast({
+        type: 'error',
+        title: 'Delete failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setDeletingAgentId(null);
     }
   };
 
@@ -325,6 +391,57 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       await api.exportAgent(channel, agentName);
     } catch (error) {
       console.error('Failed to export agent:', error);
+    }
+  };
+
+  const handleDeleteCachedAgent = async (cached: CachedAgentInfo) => {
+    const repoNote =
+      cached.type === 'repo'
+        ? '\n\nRepo index cache for this path will be removed.'
+        : '';
+    if (
+      !window.confirm(
+        `Permanently delete "${cached.name}"?${repoNote}\n\nThis cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setDeletingCachedAgent(true);
+    try {
+      const registered = agents.find((a) => a.name.toLowerCase() === cached.name.toLowerCase());
+      if (registered) {
+        await api.deleteAgent(channel, cached.name, { name: username, type: 'human' });
+      }
+      try {
+        await api.deleteCachedAgent({
+          type: cached.type,
+          name: cached.name,
+          path: cached.path,
+        });
+      } catch (cacheErr) {
+        if (!registered) {
+          throw cacheErr;
+        }
+      }
+      setCachedInfoAgent(null);
+      const freshMyAgents = await api.fetchMyAgents();
+      setMyAgents(freshMyAgents);
+      const freshAgents = await api.fetchAgents();
+      useChatStore.getState().setAgents(freshAgents);
+      addToast({
+        type: 'success',
+        title: 'Agent deleted',
+        message: `${cached.name} was permanently removed.`,
+      });
+    } catch (error) {
+      console.error('Failed to delete cached agent:', error);
+      addToast({
+        type: 'error',
+        title: 'Delete failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setDeletingCachedAgent(false);
     }
   };
 
@@ -542,10 +659,13 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                   When you remove agents from the conversation, they appear here so you can recall them later.
                 </p>
                 <div className="bg-slack-bgHover rounded p-4 text-left text-sm">
-                  <p className="font-medium text-slack-text mb-2">To remove an agent:</p>
+                  <p className="font-medium text-slack-text mb-2">To remove from channel (recall later):</p>
                   <code className="block bg-slack-bg p-2 rounded mb-3">/remove-agent &lt;agent-name&gt;</code>
                   <p className="font-medium text-slack-text mb-2">To recall an agent:</p>
-                  <code className="block bg-slack-bg p-2 rounded">/recall-agent &lt;agent-name&gt;</code>
+                  <code className="block bg-slack-bg p-2 rounded mb-3">/recall-agent &lt;agent-name&gt;</code>
+                  <p className="font-medium text-slack-text mb-2">To delete permanently:</p>
+                  <code className="block bg-slack-bg p-2 rounded">/delete-agent &lt;agent-name&gt;</code>
+                  <p className="text-slack-textMuted mt-2">Or open an agent and use Delete permanently.</p>
                 </div>
               </div>
             )
@@ -658,13 +778,32 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                         </span>
                       </div>
                     ) : activeTab === 'my-agents' ? (
-                      <button
-                        onClick={() => handleLoadAgent(agent as CachedAgentInfo)}
-                        disabled={loadingAgent === agent.name}
-                        className="px-3 py-1 bg-slack-accent hover:bg-slack-accentHover text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                      >
-                        {loadingAgent === agent.name ? 'Loading...' : 'Load'}
-                      </button>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setCachedInfoAgent(agent as CachedAgentInfo)}
+                          disabled={loadingAgent === agent.name || deletingCachedAgent}
+                          className="text-slack-textMuted hover:text-slack-text transition-colors disabled:opacity-40"
+                          title={`View ${agent.name} details`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLoadAgent(agent as CachedAgentInfo)}
+                          disabled={loadingAgent === agent.name || deletingCachedAgent}
+                          className="px-3 py-1 bg-slack-accent hover:bg-slack-accentHover text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {loadingAgent === agent.name ? 'Loading...' : 'Load'}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => handleRecallAgent(agent as AgentInfo)}
@@ -700,6 +839,8 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
             onProviderSwitch={handleProviderSwitch}
             onExport={handleExportAgent}
             onRemove={handleRemoveAgent}
+            onDelete={handleDeleteAgent}
+            deletingAgent={deletingAgentId === infoAgentId}
             onApprovalModeChange={handleApprovalModeChange}
             onAfterRulesSaved={async () => {
               try {
@@ -712,6 +853,22 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
             switchingProvider={switchingProvider}
             availableOllamaModels={availableOllamaModels}
             availableLMStudioModels={availableLMStudioModels}
+          />
+        )}
+
+        {cachedInfoAgent && (
+          <CachedAgentInfoModal
+            agent={cachedInfoAgent}
+            isOpen={!!cachedInfoAgent}
+            onClose={() => setCachedInfoAgent(null)}
+            onLoad={(cached) => {
+              void handleLoadAgent(cached);
+            }}
+            onDelete={(cached) => {
+              void handleDeleteCachedAgent(cached);
+            }}
+            loading={loadingAgent === cachedInfoAgent.name}
+            deleting={deletingCachedAgent}
           />
         )}
       </div>
