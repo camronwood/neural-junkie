@@ -14,6 +14,14 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
 
 ---
 
+## X / Mastodon (beta.9)
+
+Neural Junkie v1.0.0-beta.9 — **`/collaborate --worktree`**: agents execute in a real git worktree on `nj/collab-…` (full repo, isolated branch). Bind with `--workspace` or your active workspace at Continue. Installers back after beta.8 CI fix.
+
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+
+---
+
 ## X / Mastodon (beta.8)
 
 Neural Junkie v1.0.0-beta.8 — **app-store model library** in the toolbar (Ollama + Hugging Face): grid browse, one-tap install/download, detail for full actions. HF hosted inference + local GGUF → Ollama. MCP tool servers back.
