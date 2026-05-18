@@ -13,7 +13,9 @@ import {
   type ContentPart,
   getCachedContentParts,
   getCachedMarkdownElements,
+  getCachedRenderedMarkdown,
 } from '../utils/messageContentCache';
+import { renderChatMarkdown } from '../utils/markdownRenderer';
 import { perfMarkEnd, perfMarkStart } from '../utils/perfMarks';
 
 export type { ContentPart } from '../utils/messageContentCache';
@@ -151,7 +153,7 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
       case 'image': {
         const src = resolveChatImageSrc(m.url);
         elements.push(
-          <span key={`img-wrap-${idx}`} className="my-2 block">
+          <span key={`img-wrap-${idx}`} className="block pt-2 pb-2">
             <img
               src={src}
               alt={m.alt || 'Image'}
@@ -296,7 +298,7 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
   return (
     <div className="mermaid-diagram relative">
       {renderError ? (
-        <div className="my-3 p-4 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
+        <div className="pt-3 pb-3 p-4 bg-red-500/10 border border-red-500/20 rounded text-red-400 text-sm">
           <strong>Mermaid Diagram Error:</strong>
           <pre className="mt-2 text-xs whitespace-pre-wrap">{renderError}</pre>
           <button
@@ -309,7 +311,7 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
       ) : (
         <div
           ref={containerRef}
-          className="my-3 p-4 bg-slack-bgHover rounded border border-slack-border overflow-x-auto cursor-pointer hover:bg-slack-accent/10 transition-colors"
+          className="pt-3 pb-3 p-4 bg-slack-bgHover rounded border border-slack-border overflow-x-auto cursor-pointer hover:bg-slack-accent/10 transition-colors"
           onClick={handleClick}
           title="Click to expand diagram"
         />
@@ -330,7 +332,7 @@ const CodeBlock = memo(function CodeBlockImpl({ content, language }: { content: 
   const hl = mapHighlighterLanguage(language || 'text');
   const showLineNumbers = useMemo(() => content.split('\n').length <= 40, [content]);
   return (
-    <div className="my-3 overflow-hidden rounded-md border border-slack-border shadow-sm">
+    <div className="pt-3 pb-3 overflow-hidden rounded-md border border-slack-border shadow-sm">
       <div className="border-b border-slack-border bg-slack-bgHover px-3 py-1.5 text-xs font-mono text-slack-textMuted">
         {language || 'text'}
       </div>
@@ -395,7 +397,7 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
               return (
                 <div
                   key={`stream-fence-${idx}`}
-                  className="my-2 overflow-hidden rounded-md border border-slack-border bg-black/20"
+                  className="pt-2 pb-2 overflow-hidden rounded-md border border-slack-border bg-black/20"
                 >
                   <div className="border-b border-slack-border bg-slack-bgHover px-3 py-1.5 text-xs font-mono text-slack-textMuted">
                     {seg.lang || 'text'}
@@ -409,7 +411,7 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
             return (
               <pre
                 key={`stream-fence-${idx}`}
-                className="my-2 message-content leading-relaxed whitespace-pre-wrap font-mono text-slack-text text-xs m-0 px-3 py-2 rounded-md border border-slack-border border-dashed bg-slack-bgHover/50 overflow-x-auto"
+                className="pt-2 pb-2 message-content leading-relaxed whitespace-pre-wrap font-mono text-slack-text text-xs m-0 px-3 py-2 rounded-md border border-slack-border border-dashed bg-slack-bgHover/50 overflow-x-auto"
               >
                 {seg.raw}
               </pre>
@@ -440,11 +442,13 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
               <CodeBlock key={`code-${index}`} content={part.content} language={part.language || 'text'} />
             );
           }
-          const markdownElements = getCachedMarkdownElements(part.content, parseMarkdownToElements);
+          const html = getCachedRenderedMarkdown(part.content, renderChatMarkdown);
           return (
-            <div key={`text-${index}`} className="message-content leading-relaxed whitespace-pre-wrap">
-              {markdownElements}
-            </div>
+            <div
+              key={`text-${index}`}
+              className="markdown-content markdown-content--chat"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
           );
         })}
       </div>

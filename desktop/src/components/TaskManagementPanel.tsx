@@ -217,7 +217,7 @@ export function TaskManagementPanel({
         <div>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Task Management</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)' }}>
-            {totals.all} task(s) • {totals.inProgress} in progress • {totals.completed} completed • {totals.blocked} blocked
+            {totals.all} task(s) • {visibleCollaborations.length} active collaboration(s) • {totals.inProgress} in progress • {totals.completed} completed • {totals.blocked} blocked
           </div>
         </div>
         <button

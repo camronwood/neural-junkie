@@ -43,3 +43,17 @@ export function getCachedMarkdownElements(
   trimMap(markdownElementsCache, MAX_PARSE_ENTRIES);
   return nodes;
 }
+
+const renderedMarkdownCache = new Map<string, string>();
+
+export function getCachedRenderedMarkdown(
+  text: string,
+  render: (t: string) => string
+): string {
+  const hit = renderedMarkdownCache.get(text);
+  if (hit !== undefined) return hit;
+  const html = render(text);
+  renderedMarkdownCache.set(text, html);
+  trimMap(renderedMarkdownCache, MAX_PARSE_ENTRIES);
+  return html;
+}

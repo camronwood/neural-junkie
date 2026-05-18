@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { resolveChatImageSrc } from './chatImageSrc';
 
 export interface MermaidBlock {
   type: 'mermaid';
@@ -70,6 +71,22 @@ export function renderMarkdown(
   }
 
   return html;
+}
+
+/** Rewrite <img src="…"> for Tauri asset paths and other chat-local URLs. */
+export function resolveChatImagesInMarkdownHtml(html: string): string {
+  return html.replace(
+    /<img\b([^>]*?)\ssrc=(["'])(.*?)\2/gi,
+    (_match, attrs: string, quote: string, src: string) => {
+      const resolved = resolveChatImageSrc(src);
+      return `<img${attrs} src=${quote}${resolved}${quote}`;
+    }
+  );
+}
+
+/** GFM HTML for chat message bodies (same marked pipeline as preview/plan + chat images). */
+export function renderChatMarkdown(content: string): string {
+  return resolveChatImagesInMarkdownHtml(renderMarkdown(content));
 }
 
 export function parseMarkdownWithMermaid(content: string): MarkdownParseResult {

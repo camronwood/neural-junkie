@@ -61,7 +61,8 @@ func (cm *CollaborationManager) CreateCollaboration(
 		}
 	}
 	if active >= MaxConcurrentCollaborations {
-		return nil, fmt.Errorf("maximum concurrent collaborations (%d) reached", MaxConcurrentCollaborations)
+		return nil, fmt.Errorf("maximum concurrent collaborations (%d) reached — %s",
+			MaxConcurrentCollaborations, summarizeActiveCollaborations(cm.collaborations))
 	}
 
 	if len(agentIDs) < 2 {
@@ -181,6 +182,48 @@ func (cm *CollaborationManager) GetCollaborationSnapshot(id string) (*Collaborat
 		return nil, fmt.Errorf("collaboration %s not found", id)
 	}
 	return cloneCollaboration(c)
+}
+
+func summarizeActiveCollaborations(collabs map[string]*Collaboration) string {
+	type row struct {
+		id    string
+		phase CollaborationPhase
+		ch    string
+		title string
+		tasks int
+	}
+	rows := make([]row, 0, len(collabs))
+	for _, c := range collabs {
+		if c == nil || c.Phase == PhaseCompleted || c.Phase == PhaseCancelled {
+			continue
+		}
+		rows = append(rows, row{
+			id:    shortCollabID(c.ID),
+			phase: c.Phase,
+			ch:    c.Channel,
+			title: c.Title,
+			tasks: len(c.Tasks),
+		})
+	}
+	if len(rows) == 0 {
+		return "no active collaborations listed"
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].id < rows[j].id
+	})
+	parts := make([]string, 0, len(rows))
+	for _, r := range rows {
+		title := strings.TrimSpace(r.title)
+		if title == "" {
+			title = "untitled"
+		}
+		if len(title) > 48 {
+			title = title[:45] + "..."
+		}
+		parts = append(parts, fmt.Sprintf("`%s` %s — %s on #%s (%d task(s); cancel via Task Management or /collab-cancel %s)",
+			r.id, r.phase, title, r.ch, r.tasks, r.id))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // ListActive returns all non-terminal collaborations.
@@ -1017,6 +1060,39 @@ func (cm *CollaborationManager) Snapshot() map[string]*Collaboration {
 		out[id] = cloned
 	}
 	return out
+}
+
+// PruneTerminalCollaborations removes completed/cancelled collaborations from memory,
+// keeping only the most recently updated terminal entries. Returns how many were removed.
+func (cm *CollaborationManager) PruneTerminalCollaborations(maxKeep int) int {
+	if maxKeep < 0 {
+		maxKeep = 0
+	}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	var terminal []*Collaboration
+	for id, c := range cm.collaborations {
+		if c == nil {
+			delete(cm.collaborations, id)
+			continue
+		}
+		if c.Phase == PhaseCompleted || c.Phase == PhaseCancelled {
+			terminal = append(terminal, c)
+		}
+	}
+	if len(terminal) <= maxKeep {
+		return 0
+	}
+	sort.Slice(terminal, func(i, j int) bool {
+		return terminal[i].UpdatedAt.After(terminal[j].UpdatedAt)
+	})
+	removed := 0
+	for _, c := range terminal[maxKeep:] {
+		delete(cm.collaborations, c.ID)
+		removed++
+	}
+	return removed
 }
 
 // Restore replaces the in-memory collaboration map from a snapshot.

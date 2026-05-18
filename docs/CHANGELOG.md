@@ -4,6 +4,23 @@ All notable changes to Neural Junkie.
 
 **Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v1.0.0-beta.1`, `v0.1.x`, …). Sections **0.1.2–0.1.4** below are development milestones bundled into **v1.0.0-beta.1** (first public downloadable beta). Older sections include milestones never tagged (for example internal `2.0.0`, which is **not** semver above `0.1.x`).
 
+## [1.0.0-beta.7] - 2026-05-18
+
+### Added
+- **Unified GFM markdown** — chat message bodies use the same `marked` pipeline as file preview and collaboration plans (`RichMarkdownView`, `renderChatMarkdown`); headings, lists, and tables render in the timeline. Fenced code still uses Prism; streaming keeps a lightweight path.
+- **RichMarkdownView** — shared component for plans, MD preview, and chat prose segments.
+- **Assistant workspace review** — when users ask to review editor content, prompt guidance nudges agents to use open-file workspace context.
+- **Tests** — assistant history filter, workspace review heuristics, hub session collab sync and channel dedupe, outbound chat metadata.
+
+### Fixed
+- **Chat scroll** — reliable pin-to-bottom during streaming (Virtuoso scroller ref, footer spacer, `streamContentBytes` follow).
+- **Session restore** — collaboration discussion transcripts sync into collab channel timelines for scroll/search; channel message dedupe on persist.
+- **Assistant** — meeting-note startup uses batch notification (no `#general` flood); filtered history reduces echo; meeting notes dir resolved on load.
+- **Collaboration** — max-concurrent error lists active collaborations (phase, channel, task count).
+
+### Changed
+- **MarkdownPreview** and **CollaborationPanel** plans use `RichMarkdownView` instead of inline marked wiring.
+
 ## [1.0.0-beta.6] - 2026-05-17
 
 ### Fixed

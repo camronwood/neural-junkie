@@ -152,6 +152,7 @@ type Channel struct {
 // ThreadMetadata contains metadata about a message thread
 type ThreadMetadata struct {
 	ThreadID      string    `json:"thread_id"`
+	Channel       string    `json:"channel,omitempty"`
 	ReplyCount    int       `json:"reply_count"`
 	LastReplyTime time.Time `json:"last_reply_time"`
 	Participants  []string  `json:"participants"` // Agent/user names who participated in thread

@@ -222,7 +222,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
 
   return (
     <div
-      className={`group relative px-4 py-2 hover:bg-slack-bgHover transition-colors ${
+      className={`message-list-item group relative px-4 py-2 hover:bg-slack-bgHover transition-colors ${
         isSystem ? 'italic text-slack-textMuted' : ''
       }`}
       style={{

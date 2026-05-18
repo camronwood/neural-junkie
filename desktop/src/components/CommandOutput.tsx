@@ -32,7 +32,7 @@ export function CommandOutput({ output }: CommandOutputProps) {
   const hasOutput = stdout.length > 0 || stderr.length > 0;
 
   return (
-    <div className="my-2 border border-slack-border rounded-lg overflow-hidden bg-slack-bgHover/30">
+    <div className="pt-2 pb-2 border border-slack-border rounded-lg overflow-hidden bg-slack-bgHover/30">
       {/* Header */}
       <div
         className={`px-4 py-2 flex items-center justify-between cursor-pointer ${

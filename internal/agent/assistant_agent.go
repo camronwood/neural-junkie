@@ -83,6 +83,7 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 	if storage != nil {
 		if loadedConfig, err := storage.LoadConfig(); err == nil {
 			config = loadedConfig
+			config.MeetingNotesDir = ResolveMeetingNotesDir(config.MeetingNotesDir)
 		}
 	}
 
@@ -209,11 +210,7 @@ func (a *AssistantAgent) GenerateResponse(ctx context.Context, msg *protocol.Mes
 		prompt = a.buildAssistantPrompt(msg)
 	}
 
-	// Get recent conversation history for context
-	history := a.Context.History[msg.Channel]
-	if len(history) > 10 {
-		history = history[len(history)-10:]
-	}
+	history := filterAssistantHistory(a.Context.History[msg.Channel], msg)
 
 	response, err := a.AI.GenerateResponse(ctx, prompt, historyToMessages(history))
 	if err != nil {
@@ -432,9 +429,17 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContext(&prompt, msg)
+	appendAssistantWorkspaceReviewGuidance(&prompt, msg)
 
 	AppendPromptAttachments(&prompt, msg)
 	AppendGrantedHubDataAccess(&prompt, msg)
+
+	if userAsksAboutPromptContext(msg.Content) {
+		prompt.WriteString("\nThe user is asking what context or metadata you received for this turn. ")
+		prompt.WriteString("Summarize the WORKSPACE CONTEXT section (if any), list relevant metadata keys ")
+		prompt.WriteString("(e.g. context_scope, workspace_context), and quote their exact User message below. ")
+		prompt.WriteString("Do NOT claim they failed to provide a prompt.\n\n")
+	}
 
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 
@@ -1217,7 +1222,7 @@ func (a *AssistantAgent) handleFileEvent(ctx context.Context, event fsnotify.Eve
 		a.processedFilesMutex.RUnlock()
 
 		if !processed {
-			go a.processMeetingNote(ctx, event.Name)
+			go a.processMeetingNote(ctx, event.Name, true)
 		}
 	}
 }
@@ -1255,6 +1260,7 @@ func (a *AssistantAgent) ingestExistingMeetingNotes(ctx context.Context) {
 
 	log.Printf("📄 [Assistant] Found %d markdown files to process", len(files))
 	newFilesCount := 0
+	var ingestedNotes []*MeetingNote
 	for i, file := range files {
 		log.Printf("📝 [Assistant] Checking file %d/%d: %s", i+1, len(files), filepath.Base(file))
 
@@ -1266,9 +1272,11 @@ func (a *AssistantAgent) ingestExistingMeetingNotes(ctx context.Context) {
 		persistentProcessed := processedPaths[file]
 
 		if !inMemoryProcessed && !persistentProcessed {
-			// File is truly new - process it
+			// File is truly new - process it (batch notify after loop to avoid #general flood)
 			log.Printf("🆕 [Assistant] New file detected: %s", filepath.Base(file))
-			a.processMeetingNote(ctx, file)
+			if note := a.processMeetingNote(ctx, file, false); note != nil {
+				ingestedNotes = append(ingestedNotes, note)
+			}
 			newFilesCount++
 		} else if persistentProcessed {
 			log.Printf("⏭️  [Assistant] File already in storage: %s", filepath.Base(file))
@@ -1280,11 +1288,15 @@ func (a *AssistantAgent) ingestExistingMeetingNotes(ctx context.Context) {
 			log.Printf("⏭️  [Assistant] File already processed in memory: %s", filepath.Base(file))
 		}
 	}
+	if len(ingestedNotes) > 0 {
+		a.sendMeetingNotesBatchNotification(ctx, ingestedNotes)
+	}
 	log.Printf("✅ [Assistant] Completed ingestion of existing meeting notes (%d new files processed)", newFilesCount)
 }
 
-// processMeetingNote parses and stores a meeting note file
-func (a *AssistantAgent) processMeetingNote(ctx context.Context, filePath string) {
+// processMeetingNote parses and stores a meeting note file.
+// When notify is true, posts a single chat message (used for live watcher events).
+func (a *AssistantAgent) processMeetingNote(ctx context.Context, filePath string, notify bool) *MeetingNote {
 	log.Printf("🔄 [Assistant] Processing meeting note: %s", filePath)
 
 	// Mark as processed
@@ -1296,7 +1308,7 @@ func (a *AssistantAgent) processMeetingNote(ctx context.Context, filePath string
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Printf("❌ [Assistant] Failed to read meeting note file %s: %v", filePath, err)
-		return
+		return nil
 	}
 
 	log.Printf("📖 [Assistant] Read %d bytes from %s", len(content), filepath.Base(filePath))
@@ -1305,7 +1317,7 @@ func (a *AssistantAgent) processMeetingNote(ctx context.Context, filePath string
 	meetingNote, err := a.parseMeetingNote(filePath, string(content))
 	if err != nil {
 		log.Printf("❌ [Assistant] Failed to parse meeting note %s: %v", filePath, err)
-		return
+		return nil
 	}
 
 	log.Printf("📋 [Assistant] Parsed meeting note: %s (ID: %s)", meetingNote.Title, meetingNote.ID)
@@ -1314,13 +1326,15 @@ func (a *AssistantAgent) processMeetingNote(ctx context.Context, filePath string
 	if a.storage != nil {
 		if err := a.storage.SaveMeetingNote(meetingNote); err != nil {
 			log.Printf("❌ [Assistant] Failed to save meeting note: %v", err)
-			return
+			return nil
 		}
 		log.Printf("💾 [Assistant] Saved meeting note to storage: %s", meetingNote.ID)
 	}
 
-	// Send notification to chat
-	a.sendMeetingNoteNotification(ctx, meetingNote)
+	if notify {
+		a.sendMeetingNoteNotification(ctx, meetingNote)
+	}
+	return meetingNote
 }
 
 // parseMeetingNote extracts structured data from a markdown meeting note
@@ -1560,6 +1574,45 @@ func (a *AssistantAgent) sendMeetingNoteNotification(ctx context.Context, note *
 	a.Hub.SendMessage(msg)
 }
 
+// sendMeetingNotesBatchNotification posts one summary instead of N startup messages.
+func (a *AssistantAgent) sendMeetingNotesBatchNotification(ctx context.Context, notes []*MeetingNote) {
+	if len(notes) == 0 {
+		return
+	}
+	if len(notes) == 1 {
+		a.sendMeetingNoteNotification(ctx, notes[0])
+		return
+	}
+
+	const maxListed = 12
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("📝 Ingested **%d** meeting notes on startup:\n\n", len(notes)))
+	for i, note := range notes {
+		if i >= maxListed {
+			b.WriteString(fmt.Sprintf("\n… and **%d** more (already in assistant storage).\n", len(notes)-maxListed))
+			break
+		}
+		summary := note.Summary
+		if len(summary) > 80 {
+			summary = summary[:80] + "…"
+		}
+		b.WriteString(fmt.Sprintf("• **%s** — %s\n", note.Title, note.MeetingDate.Format("2006-01-02")))
+		if summary != "" {
+			b.WriteString(fmt.Sprintf("  _%s_\n", summary))
+		}
+	}
+
+	msg := &protocol.Message{
+		ID:        fmt.Sprintf("meeting_notes_batch_%d", time.Now().UnixNano()),
+		Type:      protocol.MessageTypeSystemInfo,
+		Channel:   a.config.DefaultChannel,
+		From:      a.Info,
+		Content:   b.String(),
+		Timestamp: time.Now(),
+	}
+	a.Hub.SendMessage(msg)
+}
+
 // detectsMeetingQuery determines if a message is asking about meetings
 func (a *AssistantAgent) detectsMeetingQuery(msg *protocol.Message) bool {
 	content := strings.ToLower(msg.Content)
@@ -1676,7 +1729,7 @@ func (a *AssistantAgent) GetConfig() *AssistantConfig {
 
 // ProcessMeetingNote processes a single meeting note file (public method for commands)
 func (a *AssistantAgent) ProcessMeetingNote(ctx context.Context, filePath string) {
-	a.processMeetingNote(ctx, filePath)
+	a.processMeetingNote(ctx, filePath, true)
 }
 
 // SearchMeetingNotes searches meeting notes by query
@@ -2037,4 +2090,60 @@ func (a *AssistantAgent) parseEmail(filePath, content string) (*Email, error) {
 	}
 
 	return email, nil
+}
+
+// filterAssistantHistory trims noisy rows and excludes the current message (it is
+// appended again in buildAssistantPrompt) so small models are not confused by duplicates.
+func filterAssistantHistory(history []*protocol.Message, current *protocol.Message) []*protocol.Message {
+	if len(history) == 0 {
+		return nil
+	}
+	currentID := ""
+	if current != nil {
+		currentID = current.ID
+	}
+	seen := make(map[string]struct{})
+	out := make([]*protocol.Message, 0, len(history))
+	for _, m := range history {
+		if m == nil {
+			continue
+		}
+		switch m.Type {
+		case protocol.MessageTypeAgentJoin, protocol.MessageTypeAgentLeave, protocol.MessageTypeAgentStatus:
+			continue
+		}
+		if currentID != "" && m.ID == currentID {
+			continue
+		}
+		if m.ID != "" {
+			if _, ok := seen[m.ID]; ok {
+				continue
+			}
+			seen[m.ID] = struct{}{}
+		}
+		out = append(out, m)
+	}
+	const maxAssistantHistory = 8
+	if len(out) > maxAssistantHistory {
+		out = out[len(out)-maxAssistantHistory:]
+	}
+	return out
+}
+
+func userAsksAboutPromptContext(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	markers := []string{
+		"what information", "what infomation", "what context", "what data",
+		"exact information", "metadata", "in your context", "current context",
+		"when i send you a prompt", "what you get when",
+	}
+	for _, m := range markers {
+		if strings.Contains(lower, m) {
+			return true
+		}
+	}
+	return false
 }

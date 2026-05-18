@@ -508,7 +508,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		// Surface a user-safe error to chat while keeping full details in logs.
 		userMsg, code, retryable := classifyUserFacingError(err)
 		errMsg := protocol.NewMessage(
-			protocol.MessageTypeChat,
+			protocol.MessageTypeSystemInfo,
 			msg.Channel,
 			a.Info,
 			userMsg,
@@ -2043,7 +2043,19 @@ func getResponseLengthGuidance(content string) string {
 
 // addToHistory adds a message to the conversation history
 func (a *Agent) addToHistory(msg *protocol.Message) {
+	if msg == nil {
+		return
+	}
 	history := a.Context.History[msg.Channel]
+	if msg.ID != "" {
+		for i := len(history) - 1; i >= 0; i-- {
+			if history[i] != nil && history[i].ID == msg.ID {
+				history[i] = msg
+				a.Context.History[msg.Channel] = history
+				return
+			}
+		}
+	}
 	history = append(history, msg)
 
 	// Trim history if too long

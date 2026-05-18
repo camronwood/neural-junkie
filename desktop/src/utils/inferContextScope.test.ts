@@ -65,4 +65,32 @@ describe('resolveContextScope', () => {
       }).scope
     ).toBe('full');
   });
+
+  it('new document open without path returns focus', () => {
+    const r = resolveContextScope({
+      message: 'I have a new document open, can you review?',
+      mode: 'auto',
+      channelKind: 'general',
+    });
+    expect(r.scope).toBe('focus');
+  });
+
+  it('review typo with active tab returns focus', () => {
+    const r = resolveContextScope({
+      message: 'can you reivew what I have open?',
+      mode: 'auto',
+      channelKind: 'general',
+      activeTabPath: '/Users/me/proj/rfc.md',
+    });
+    expect(r.scope).toBe('focus');
+  });
+
+  it('ambiguous chat without editor signals stays hint', () => {
+    const r = resolveContextScope({
+      message: 'thoughts on our roadmap for Q3?',
+      mode: 'auto',
+      channelKind: 'general',
+    });
+    expect(r.scope).toBe('hint');
+  });
 });

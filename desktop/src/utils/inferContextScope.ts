@@ -20,7 +20,11 @@ const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
 
 const CODE_VERBS_RE =
-  /\b(review|refactor|debug|fix|implement|compile|lint|test|patch|edit|change|update|add|remove|rewrite|optimize|trace|diff)\b/i;
+  /\b(review|reivew|refactor|debug|fix|implement|compile|lint|test|patch|edit|change|update|add|remove|rewrite|optimize|trace|diff)\b/i;
+
+/** User refers to an open editor tab without naming a repo path. */
+const EDITOR_DOCUMENT_RE =
+  /\b(new\s+(document|file)|document\s+open|file\s+open|open\s+(document|file|one)|in\s+(my\s+|the\s+)?editor|editor\s+open|active\s+(file|document|tab)|have\s+.{0,16}open|opened\s+.{0,16}(editor|document|file)|review\s+(this|the|it|that|one|doc)|can\s+.{0,24}review|take\s+a\s+look|look\s+at\s+(this|the|it|that|one))\b/i;
 
 const OUTLINE_RE =
   /\b(architecture|file structure|project structure|codebase structure|repo structure|directory structure|what does this repo|how is (this|the) (repo|project) (organized|structured))\b/i;
@@ -61,6 +65,17 @@ function hasGeneralSignals(text: string): boolean {
   return false;
 }
 
+function hasEditorDocumentSignals(text: string): boolean {
+  return EDITOR_DOCUMENT_RE.test(text);
+}
+
+function wantsActiveEditorContext(text: string, activeTabPath?: string): boolean {
+  if (!activeTabPath) return false;
+  if (hasEditorDocumentSignals(text)) return true;
+  if (hasCodeSignals(text)) return true;
+  return /\b(look at|check|read|feedback|proofread|critique)\b/i.test(text);
+}
+
 /**
  * Resolves how much workspace context to attach for an outbound human message.
  */
@@ -95,6 +110,9 @@ export function resolveContextScope(input: InferContextScopeInput): InferContext
   }
   if (hasGeneralSignals(text) || text.length < 12) {
     return { scope: 'none', reason: 'general or short message' };
+  }
+  if (hasEditorDocumentSignals(text) || wantsActiveEditorContext(text, input.activeTabPath)) {
+    return { scope: 'focus', reason: 'editor document or active tab review' };
   }
   return { scope: 'hint', reason: 'ambiguous — project hint only' };
 }

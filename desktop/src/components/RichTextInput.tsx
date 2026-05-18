@@ -66,6 +66,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     const [dragActive, setDragActive] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const sendingRef = useRef(false);
 
     const visionAgents = agents.filter((agent) => agent.supports_vision);
     const hasVisionAgents = visionAgents.length > 0;
@@ -289,9 +290,11 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
     const handleSend = () => {
       const trimmed = message.trim();
-      if (disabled || (!trimmed && pendingImages.length === 0)) return;
+      if (disabled || sendingRef.current || (!trimmed && pendingImages.length === 0)) return;
 
+      sendingRef.current = true;
       void (async () => {
+        try {
         const composerMeta: Record<string, unknown> = {};
         if (pendingAttachments.length > 0) {
           composerMeta[PROMPT_ATTACHMENTS_METADATA_KEY] = pendingAttachments.map(({ path, language, content }) => ({
@@ -307,11 +310,16 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         }
 
         const textOut = trimmed || (pendingImages.length > 0 ? '(see attached images)' : '');
-        onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined);
+        await Promise.resolve(
+          onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined)
+        );
         updateMessage('');
         setPendingAttachments([]);
         clearPendingImages();
         setShowMentionMenu(false);
+        } finally {
+          sendingRef.current = false;
+        }
       })();
     };
 

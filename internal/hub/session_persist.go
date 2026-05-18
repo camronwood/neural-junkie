@@ -91,11 +91,12 @@ func prepareSessionSnapshotForPersist(snapshot *SessionSnapshot) {
 		th.Messages = keepLastPtrSlice(trimmed, MaxSessionPersistThreadHistory)
 		snapshot.Threads[tid] = th
 	}
-	// Drop message history for channels tied to terminal collaborations (state lives in Collaborations).
-	dropTerminalCollabChannelMessages(snapshot)
+	// Mirror collab discussion transcripts into their channels so the UI can scroll/search them.
+	syncCollabDiscussionIntoSnapshotChannels(snapshot)
 	if len(snapshot.Collaborations) > 0 {
 		snapshot.Collaborations = trimCollaborationsForPersist(snapshot.Collaborations)
 	}
+	dedupeSnapshotChannelMessages(snapshot)
 }
 
 // trimCollaborationsForPersist keeps all active collaborations and only the most
@@ -133,25 +134,104 @@ func trimCollaborationsForPersist(collabs map[string]*collaboration.Collaboratio
 	return out
 }
 
-func dropTerminalCollabChannelMessages(snapshot *SessionSnapshot) {
+// syncCollabDiscussionIntoSnapshotChannels copies discussion.messages into the collab
+// channel timeline (deduped by message ID) so restored sessions show collab history in-chat.
+func syncCollabDiscussionIntoSnapshotChannels(snapshot *SessionSnapshot) {
 	if snapshot == nil || len(snapshot.Collaborations) == 0 {
 		return
 	}
-	terminalChannels := make(map[string]struct{})
 	for _, c := range snapshot.Collaborations {
-		if c == nil || c.Channel == "" {
+		if c == nil || c.Channel == "" || c.Discussion == nil || len(c.Discussion.Messages) == 0 {
 			continue
 		}
-		if isTerminalCollaborationPhase(c.Phase) {
-			terminalChannels[c.Channel] = struct{}{}
+		ch := snapshot.Channels[c.Channel]
+		if ch == nil {
+			ch = &ChannelSnapshot{Name: c.Channel, Messages: []*protocol.Message{}}
+			snapshot.Channels[c.Channel] = ch
+		}
+		seen := make(map[string]struct{}, len(ch.Messages))
+		for _, m := range ch.Messages {
+			if m != nil && m.ID != "" {
+				seen[m.ID] = struct{}{}
+			}
+		}
+		for _, dm := range c.Discussion.Messages {
+			if dm == nil || dm.ID == "" {
+				continue
+			}
+			if _, ok := seen[dm.ID]; ok {
+				continue
+			}
+			ch.Messages = append(ch.Messages, cloneMessageForSessionPersist(dm))
+			seen[dm.ID] = struct{}{}
 		}
 	}
-	for chName, ch := range snapshot.Channels {
-		if ch == nil {
+}
+
+func dedupeSnapshotChannelMessages(snapshot *SessionSnapshot) {
+	if snapshot == nil {
+		return
+	}
+	for name, ch := range snapshot.Channels {
+		if ch == nil || len(ch.Messages) == 0 {
 			continue
 		}
-		if _, ok := terminalChannels[chName]; ok {
-			ch.Messages = nil
+		ch.Messages = dedupeMessagesByID(ch.Messages)
+		snapshot.Channels[name] = ch
+	}
+}
+
+func dedupeMessagesByID(msgs []*protocol.Message) []*protocol.Message {
+	if len(msgs) == 0 {
+		return msgs
+	}
+	seen := make(map[string]struct{}, len(msgs))
+	out := make([]*protocol.Message, 0, len(msgs))
+	for _, m := range msgs {
+		if m == nil {
+			continue
+		}
+		if m.ID == "" {
+			out = append(out, m)
+			continue
+		}
+		if _, ok := seen[m.ID]; ok {
+			continue
+		}
+		seen[m.ID] = struct{}{}
+		out = append(out, m)
+	}
+	return out
+}
+
+// hydrateCollabChannelsFromCollaborationsLocked merges persisted discussion transcripts into
+// live channel history after session restore. Caller must hold h.mu (write lock).
+func (h *Hub) hydrateCollabChannelsFromCollaborationsLocked(collabs map[string]*collaboration.Collaboration) {
+	if h == nil || len(collabs) == 0 {
+		return
+	}
+	for _, c := range collabs {
+		if c == nil || c.Channel == "" || c.Discussion == nil || len(c.Discussion.Messages) == 0 {
+			continue
+		}
+		if _, ok := h.channels[c.Channel]; !ok {
+			continue
+		}
+		seen := make(map[string]struct{})
+		for _, m := range h.messages[c.Channel] {
+			if m != nil && m.ID != "" {
+				seen[m.ID] = struct{}{}
+			}
+		}
+		for _, dm := range c.Discussion.Messages {
+			if dm == nil || dm.ID == "" {
+				continue
+			}
+			if _, ok := seen[dm.ID]; ok {
+				continue
+			}
+			h.messages[c.Channel] = append(h.messages[c.Channel], dm)
+			seen[dm.ID] = struct{}{}
 		}
 	}
 }

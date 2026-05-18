@@ -393,22 +393,44 @@ func (h *Hub) JoinChannel(agentID, channelName string, greeting ...string) error
 
 	channel.Agents = append(channel.Agents, *agent)
 
-	content := fmt.Sprintf("%s (%s) has joined the channel", agent.Name, agent.Type)
-	if len(greeting) > 0 && greeting[0] != "" {
-		content = greeting[0]
+	if !h.shouldSkipJoinAnnouncementLocked(channelName, agent) {
+		content := fmt.Sprintf("%s (%s) has joined the channel", agent.Name, agent.Type)
+		if len(greeting) > 0 && greeting[0] != "" {
+			content = greeting[0]
+		}
+
+		joinMsg := protocol.NewMessage(
+			protocol.MessageTypeAgentJoin,
+			channelName,
+			*agent,
+			content,
+		)
+
+		h.appendChannelMessageLocked(channelName, joinMsg)
+		h.broadcast(channelName, joinMsg)
 	}
 
-	joinMsg := protocol.NewMessage(
-		protocol.MessageTypeAgentJoin,
-		channelName,
-		*agent,
-		content,
-	)
-
-	h.appendChannelMessageLocked(channelName, joinMsg)
-	h.broadcast(channelName, joinMsg)
-
 	return nil
+}
+
+// shouldSkipJoinAnnouncementLocked avoids duplicate join lines when agents rebind after
+// hub restart (DM restore, specialist boot) while history already records a prior join.
+// Caller must hold h.mu (write lock).
+func (h *Hub) shouldSkipJoinAnnouncementLocked(channelName string, agent *protocol.AgentInfo) bool {
+	if agent == nil {
+		return true
+	}
+	msgs := h.messages[channelName]
+	for i := len(msgs) - 1; i >= 0 && i >= len(msgs)-40; i-- {
+		m := msgs[i]
+		if m == nil || m.Type != protocol.MessageTypeAgentJoin {
+			continue
+		}
+		if m.From.ID == agent.ID || m.From.Name == agent.Name {
+			return true
+		}
+	}
+	return false
 }
 
 // LeaveChannel removes an agent from a channel
@@ -1293,11 +1315,16 @@ func (h *Hub) updateThreadMetadata(threadID string, msg *protocol.Message) {
 		// Create new metadata
 		metadata = &protocol.ThreadMetadata{
 			ThreadID:      threadID,
+			Channel:       msg.Channel,
 			ReplyCount:    0,
 			LastReplyTime: time.Time{},
 			Participants:  []string{},
 		}
 		h.threadMetadata[threadID] = metadata
+	}
+
+	if metadata.Channel == "" && msg.Channel != "" {
+		metadata.Channel = msg.Channel
 	}
 
 	// Increment reply count
@@ -2339,11 +2366,16 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		h.threadSubscribers[threadID] = []chan *protocol.Message{}
 	}
 	h.repairChannelTypesLocked()
+	h.hydrateCollabChannelsFromCollaborationsLocked(snapshot.Collaborations)
 	h.trimAllChannelAndThreadHistoryLocked()
 	h.mu.Unlock()
 
 	if h.collabManager != nil && snapshot.Collaborations != nil {
 		h.collabManager.Restore(snapshot.Collaborations)
+		pruned := h.collabManager.PruneTerminalCollaborations(maxPersistTerminalCollaborations)
+		if pruned > 0 {
+			log.Printf("💾 Pruned %d terminal collaboration(s) from memory after restore", pruned)
+		}
 	}
 
 	log.Printf("💾 Session restored from %s (%d channels, %d threads, %d collaborations)",

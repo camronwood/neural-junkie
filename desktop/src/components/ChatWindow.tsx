@@ -356,23 +356,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const loadCollaborations = useCallback(async (targetChannel: string) => {
     try {
-      const snapshots = await api.fetchCollaborations(targetChannel);
-      setCollaborationsByID(prev => {
+      // Hub enforces max concurrent collaborations globally; list all active
+      // collabs so Task Management is accurate even when user is on #general.
+      const snapshots = await api.fetchCollaborations();
+      setCollaborationsByID(() => {
         const next: Record<string, Collaboration> = {};
-
-        // Keep tracked collaborations from other channels as-is.
-        for (const [id, collab] of Object.entries(prev)) {
-          if (collab.channel !== targetChannel) {
-            next[id] = collab;
-          }
-        }
-
-        // Replace this channel's tracked collaborations with the latest snapshots.
         for (const snapshot of snapshots) {
           if (!snapshot?.id || isTerminalCollaborationPhase(snapshot.phase)) continue;
           next[snapshot.id] = snapshot;
         }
-
         return next;
       });
       setActiveCollab(current => {
@@ -779,12 +771,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
 
     const { channel: joinCh, username: joinUser } = useChatStore.getState();
-    if (shouldSendChannelJoinMessage(joinCh, joinUser)) {
+    const joinName = joinUser?.trim() || 'User';
+    if (shouldSendChannelJoinMessage(joinCh, joinName)) {
       void api
         .sendMessage(
           joinCh,
-          `${joinUser} has joined the chat`,
-          { name: joinUser, type: 'human' },
+          `${joinName} has joined the chat`,
+          { name: joinName, type: 'human' },
           'system_info'
         )
         .catch((e) => console.error('[loadInitialData] join message failed:', e));
@@ -1307,12 +1300,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         {/* Main Chat Area - always flex-grow to fill remaining space */}
         <div 
-          className="flex flex-col transition-all duration-300 ease-in-out relative overflow-hidden"
-          style={{ 
-            flex: '1 1 auto',
-            minWidth: '300px',
-            minHeight: 0,
-          }}
+          className="flex flex-col flex-1 min-h-0 min-w-[300px] transition-all duration-300 ease-in-out relative overflow-hidden"
         >
 
         {/* Messages */}

@@ -78,13 +78,54 @@ input {
   color: white;
 }
 
+/* Chat list scroll — contain wheel/trackpad so nested code blocks don't steal scroll */
+.nj-chat-scroller {
+  overscroll-behavior-y: contain;
+}
+
+/* flow-root contains child margins so Virtuoso measures full item height */
+.message-list-item {
+  margin: 0;
+  display: flow-root;
+}
+
+/* Margins on inner blocks (code, mermaid) break Virtuoso scroll height — use padding */
+.message-list-item .message-content > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.message-list-item .message-content > * + * {
+  margin-top: 0;
+  padding-top: 0.75rem;
+}
+
+/* GFM blocks in chat (non-streaming) — same pipeline as preview/plan */
+.message-list-item .markdown-content > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.message-list-item .markdown-content > * + * {
+  margin-top: 0;
+  padding-top: 0.75rem;
+}
+
+.message-content pre,
+.message-content .mermaid-diagram,
+.markdown-content--chat pre,
+.markdown-content--chat .mermaid-diagram {
+  overscroll-behavior-x: contain;
+}
+
 /* Font Size System */
 :root {
   --app-font-size: 16px;
 }
 
 /* Font size scope classes */
-.font-scope-messages .message-content {
+.font-scope-messages .message-content,
+.font-scope-messages .markdown-content--chat {
   font-size: var(--app-font-size);
 }
 
@@ -367,6 +408,103 @@ input {
   height: auto;
   border-radius: 4px;
   margin: 1em 0;
+}
+
+/* Sidebar / panel markdown (collaboration plans, etc.) */
+.markdown-content--compact {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.markdown-content--compact h1 {
+  font-size: 1.35em;
+  margin-top: 1em;
+  margin-bottom: 0.4em;
+}
+
+.markdown-content--compact h2 {
+  font-size: 1.15em;
+  margin-top: 0.85em;
+  margin-bottom: 0.35em;
+}
+
+.markdown-content--compact h3 {
+  font-size: 1.05em;
+  margin-top: 0.75em;
+}
+
+.markdown-content--compact h1,
+.markdown-content--compact h2 {
+  padding-bottom: 0.2em;
+}
+
+.markdown-content--compact p,
+.markdown-content--compact ul,
+.markdown-content--compact ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-content--compact li {
+  margin: 0.25em 0;
+}
+
+.markdown-content--compact pre {
+  padding: 0.65em;
+  margin: 0.65em 0;
+  font-size: 0.8em;
+}
+
+/* Chat timeline: full GFM but tighter than file preview */
+.markdown-content--chat {
+  font-size: inherit;
+  line-height: 1.5;
+}
+
+.markdown-content--chat h1 {
+  font-size: 1.35em;
+  margin-top: 0.75em;
+  margin-bottom: 0.35em;
+}
+
+.markdown-content--chat h2 {
+  font-size: 1.15em;
+  margin-top: 0.65em;
+  margin-bottom: 0.3em;
+}
+
+.markdown-content--chat h3 {
+  font-size: 1.05em;
+  margin-top: 0.55em;
+  margin-bottom: 0.25em;
+}
+
+.markdown-content--chat h1,
+.markdown-content--chat h2 {
+  padding-bottom: 0.2em;
+}
+
+.markdown-content--chat p,
+.markdown-content--chat ul,
+.markdown-content--chat ol {
+  margin-top: 0.35em;
+  margin-bottom: 0.35em;
+}
+
+.markdown-content--chat li {
+  margin: 0.2em 0;
+}
+
+.markdown-content--chat table {
+  margin: 0.5em 0;
+  font-size: 0.9em;
+}
+
+.markdown-content--chat img {
+  max-height: 16rem;
+  border: 1px solid #2c2c2c;
+  border-radius: 4px;
+  background-color: #1a1d21;
 }
 
 /* Mermaid diagram responsive sizing */

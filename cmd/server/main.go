@@ -353,6 +353,19 @@ func main() {
 	log.Println("👋 Server stopped.")
 }
 
+// defaultHumanSender returns the fallback identity for UI/API messages when the
+// client omits from.name (avoids generic "Human User" and malformed join lines).
+func defaultHumanSender() (id string, name string, agentType protocol.AgentType) {
+	if n := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_HUMAN_NAME")); n != "" {
+		slug := strings.ToLower(strings.ReplaceAll(n, " ", "-"))
+		return "human-" + slug, n, protocol.AgentTypeGeneral
+	}
+	if u := strings.TrimSpace(os.Getenv("USER")); u != "" {
+		return "human-" + strings.ToLower(u), u, protocol.AgentTypeGeneral
+	}
+	return "human-user", "Human User", protocol.AgentTypeGeneral
+}
+
 func handleCommands(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1520,10 +1533,7 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		msgType = protocol.MessageTypeChat
 	}
 
-	// Use provided 'from' info or default to "Human User"
-	senderID := "human-user"
-	senderName := "Human User"
-	senderType := protocol.AgentTypeGeneral
+	senderID, senderName, senderType := defaultHumanSender()
 
 	if req.From != nil {
 		if req.From.ID != "" {
@@ -1669,10 +1679,7 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 		return
 	}
 
-	// Use provided 'from' info or default to "Human User"
-	senderID := "human-user"
-	senderName := "Human User"
-	senderType := protocol.AgentTypeGeneral
+	senderID, senderName, senderType := defaultHumanSender()
 
 	if req.From != nil {
 		if req.From.ID != "" {

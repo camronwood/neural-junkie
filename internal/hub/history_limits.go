@@ -33,9 +33,25 @@ func (h *Hub) enforceMaxChannelHistoryLocked(channelName string) {
 }
 
 // appendChannelMessageLocked appends to channel history and enforces MaxHubChannelHistory.
+// If msg.ID already exists in the channel, the existing row is replaced (avoids duplicate
+// rows from double POST or reconnect replay).
 // Caller must hold h.mu (write lock).
 func (h *Hub) appendChannelMessageLocked(channelName string, msg *protocol.Message) {
-	h.messages[channelName] = append(h.messages[channelName], msg)
+	if msg == nil {
+		return
+	}
+	msgs := h.messages[channelName]
+	if msg.ID != "" {
+		for i := len(msgs) - 1; i >= 0; i-- {
+			if msgs[i] != nil && msgs[i].ID == msg.ID {
+				msgs[i] = msg
+				h.messages[channelName] = msgs
+				h.enforceMaxChannelHistoryLocked(channelName)
+				return
+			}
+		}
+	}
+	h.messages[channelName] = append(msgs, msg)
 	h.enforceMaxChannelHistoryLocked(channelName)
 }
 

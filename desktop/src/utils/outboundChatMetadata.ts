@@ -37,7 +37,7 @@ function pathMatchesRef(tabPath: string, ref: string): boolean {
   return base != null && tabPath.endsWith('/' + base);
 }
 
-function trimWorkspaceContext(
+export function trimWorkspaceContext(
   scope: ContextScope,
   full: WorkspaceContext,
   message: string,

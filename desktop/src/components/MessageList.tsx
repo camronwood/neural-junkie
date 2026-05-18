@@ -11,24 +11,39 @@ type ListRow =
   | { kind: 'message'; message: MessageType }
   | { kind: 'stream'; message: MessageType };
 
-/** Stable Scroller so wheel handling does not remount Virtuoso every render */
+/** DOM scroller element for reliable scroll-to-bottom (Virtuoso height estimates can lag). */
+export const chatScrollerElRef: { current: HTMLDivElement | null } = { current: null };
+
+function mergeScrollerRefs(
+  node: HTMLDivElement | null,
+  forwardedRef: React.ForwardedRef<HTMLDivElement>
+) {
+  chatScrollerElRef.current = node;
+  if (typeof forwardedRef === 'function') {
+    forwardedRef(node);
+  } else if (forwardedRef) {
+    forwardedRef.current = node;
+  }
+}
+
+/** Stable Scroller — must not be recreated each render or Virtuoso remounts. */
 const VirtuosoScroller = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   function VirtuosoScroller(props, ref) {
-    const { onWheel, ...rest } = props;
+    const { className, ...rest } = props;
     return (
       <div
         {...rest}
-        ref={ref}
-        onWheel={(e) => {
-          onWheel?.(e);
-          if (e.deltaY < 0) {
-            window.dispatchEvent(new CustomEvent('nj-chat-scroll-up'));
-          }
-        }}
+        ref={(node) => mergeScrollerRefs(node, ref)}
+        className={[className, 'nj-chat-scroller overscroll-y-contain'].filter(Boolean).join(' ')}
       />
     );
   }
 );
+
+/** Virtuoso Footer gives the scroller a definite end when item margins confuse height math. */
+function ChatListFooter() {
+  return <div className="h-px w-full shrink-0" aria-hidden />;
+}
 
 interface MessageListProps {
   searchQuery?: string;
@@ -47,6 +62,8 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const lastRenderCountRef = useRef(0);
+  const isNearBottomRef = useRef(true);
+  const pinScrollRafRef = useRef<number | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [pendingMessageCount, setPendingMessageCount] = useState(0);
   const [showJumpButton, setShowJumpButton] = useState(false);
@@ -81,12 +98,6 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
 
   const activeStreams = useMemo(() => Object.values(streamingMessages), [streamingMessages]);
 
-  /**
-   * Total length of all in-flight stream content. Used as a render-cheap
-   * dependency so we can re-pin the scroll to bottom while a streaming row
-   * grows in height — Virtuoso's followOutput only fires on data length
-   * changes, not on item resize.
-   */
   const streamContentBytes = useMemo(() => {
     let n = 0;
     for (const s of activeStreams) {
@@ -111,12 +122,60 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
   const totalVisible = rows.length;
 
   useEffect(() => {
-    const onScrollUp = () => {
-      setIsNearBottom((near) => (near ? false : near));
-      setShowJumpButton((show) => (show ? show : true));
+    isNearBottomRef.current = isNearBottom;
+  }, [isNearBottom]);
+
+  /**
+   * Scroll to the true bottom of the chat. Virtuoso's scrollToIndex can stop short when
+   * items have margins or grow after mount (code highlight, mermaid). We combine LAST
+   * index, autoscrollToBottom, and a direct scroller scrollTop as fallback.
+   */
+  const scrollToTrueBottom = useCallback((behavior: 'auto' | 'smooth' = 'auto') => {
+    const virtuoso = virtuosoRef.current;
+    if (!virtuoso || totalVisible === 0) return;
+
+    virtuoso.scrollToIndex({ index: 'LAST', align: 'end', behavior });
+    virtuoso.autoscrollToBottom();
+
+    const scroller = chatScrollerElRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior });
+    }
+  }, [totalVisible]);
+
+  const scheduleScrollToTrueBottom = useCallback(
+    (behavior: 'auto' | 'smooth' = 'auto') => {
+      if (!isNearBottomRef.current || totalVisible === 0) return;
+      if (pinScrollRafRef.current != null) {
+        cancelAnimationFrame(pinScrollRafRef.current);
+      }
+      pinScrollRafRef.current = requestAnimationFrame(() => {
+        pinScrollRafRef.current = null;
+        scrollToTrueBottom(behavior);
+        // Second pass after layout (syntax highlighter / mermaid / images).
+        requestAnimationFrame(() => scrollToTrueBottom('auto'));
+      });
+    },
+    [scrollToTrueBottom, totalVisible]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (pinScrollRafRef.current != null) {
+        cancelAnimationFrame(pinScrollRafRef.current);
+      }
     };
-    window.addEventListener('nj-chat-scroll-up', onScrollUp);
-    return () => window.removeEventListener('nj-chat-scroll-up', onScrollUp);
+  }, []);
+
+  const handleAtBottomStateChange = useCallback((atBottom: boolean) => {
+    isNearBottomRef.current = atBottom;
+    setIsNearBottom(atBottom);
+    if (atBottom) {
+      setShowJumpButton(false);
+      setPendingMessageCount(0);
+    } else {
+      setShowJumpButton(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -124,47 +183,36 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     const delta = Math.max(0, totalVisible - prevCount);
     lastRenderCountRef.current = totalVisible;
 
-    if (isNearBottom && totalVisible > 0) {
-      virtuosoRef.current?.scrollToIndex({
-        index: totalVisible - 1,
-        align: 'end',
-        behavior: 'auto',
-      });
-      setShowJumpButton((show) => (show ? false : show));
-      setPendingMessageCount((count) => (count !== 0 ? 0 : count));
+    if (isNearBottomRef.current && totalVisible > 0) {
+      scheduleScrollToTrueBottom('auto');
+      setShowJumpButton(false);
+      setPendingMessageCount(0);
       return;
     }
 
-    if (!isNearBottom && delta > 0) {
+    if (!isNearBottomRef.current && delta > 0) {
       setPendingMessageCount((count) => count + delta);
-      setShowJumpButton((show) => (show ? show : true));
+      setShowJumpButton(true);
     }
-  }, [totalVisible, isNearBottom]);
+  }, [totalVisible, scheduleScrollToTrueBottom]);
 
-  /**
-   * Keep the view pinned while a streaming row grows in height. We only nudge
-   * the scroll position when the user is near the bottom; otherwise we leave
-   * them where they are (the jump button handles re-engagement).
-   */
   useEffect(() => {
-    if (!isNearBottom || totalVisible === 0 || streamContentBytes === 0) return;
-    virtuosoRef.current?.scrollToIndex({
-      index: totalVisible - 1,
-      align: 'end',
-      behavior: 'auto',
-    });
-  }, [streamContentBytes, isNearBottom, totalVisible]);
+    if (streamContentBytes === 0) return;
+    scheduleScrollToTrueBottom('auto');
+  }, [streamContentBytes, scheduleScrollToTrueBottom]);
 
   const jumpToCurrent = useCallback(() => {
     if (rows.length === 0) return;
-    virtuosoRef.current?.scrollToIndex({
-      index: rows.length - 1,
-      align: 'end',
-      behavior: 'smooth',
-    });
+    isNearBottomRef.current = true;
+    setIsNearBottom(true);
     setShowJumpButton(false);
     setPendingMessageCount(0);
-  }, [rows.length]);
+
+    scrollToTrueBottom('auto');
+    requestAnimationFrame(() => scrollToTrueBottom('auto'));
+    window.setTimeout(() => scrollToTrueBottom('auto'), 50);
+    window.setTimeout(() => scrollToTrueBottom('auto'), 200);
+  }, [rows.length, scrollToTrueBottom]);
 
   const itemContent = useCallback(
     (_index: number, row: ListRow) => {
@@ -182,10 +230,18 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     [threadMetadata, openThread]
   );
 
+  const virtuosoComponents = useMemo(
+    () => ({
+      Scroller: VirtuosoScroller,
+      Footer: ChatListFooter,
+    }),
+    []
+  );
+
   if (rows.length === 0) {
     return (
       <div className="relative flex-1 min-h-0 bg-slack-bg">
-        <div className="h-full overflow-y-auto flex items-center justify-center text-slack-textMuted p-8">
+        <div className="h-full overflow-y-auto overscroll-y-contain flex items-center justify-center text-slack-textMuted p-8">
           <div className="text-center">
             <p className="text-lg mb-2">{normalizedSearchQuery ? 'No matches in this chat' : 'No messages yet'}</p>
             <p className="text-sm">
@@ -201,20 +257,17 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     <div className="relative flex-1 min-h-0 bg-slack-bg">
       <Virtuoso
         ref={virtuosoRef}
-        className="h-full"
+        className="h-full min-h-0"
         style={{ scrollbarWidth: 'thin' }}
         data={rows}
+        alignToBottom
+        atBottomThreshold={200}
         computeItemKey={(_, row) => (row.kind === 'message' ? row.message.id : `stream-${row.message.id}`)}
-        components={{ Scroller: VirtuosoScroller }}
+        components={virtuosoComponents}
         followOutput={isNearBottom ? 'auto' : false}
-        atBottomStateChange={(atBottom) => {
-          setIsNearBottom(atBottom);
-          if (atBottom) {
-            setShowJumpButton(false);
-            setPendingMessageCount(0);
-          }
-        }}
-        increaseViewportBy={{ top: 200, bottom: 400 }}
+        atBottomStateChange={handleAtBottomStateChange}
+        totalListHeightChanged={() => scheduleScrollToTrueBottom('auto')}
+        increaseViewportBy={{ top: 400, bottom: 800 }}
         itemContent={itemContent}
       />
 

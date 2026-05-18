@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
-import { MessageContent } from './MessageContent';
+import { RichMarkdownView } from './RichMarkdownView';
 import type {
   Collaboration,
   CollaborationTask,
@@ -375,10 +375,9 @@ export function CollaborationPanel({
             <div style={{
               padding: 12, borderRadius: 6,
               backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
-              fontSize: 13, lineHeight: 1.5,
-              maxHeight: 300, overflow: 'auto',
+              maxHeight: 400, overflow: 'auto',
             }}>
-              <MessageContent content={c.plan.content} />
+              <RichMarkdownView content={c.plan.content} compact />
             </div>
           </div>
         )}

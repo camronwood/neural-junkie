@@ -24,7 +24,7 @@
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6">Download beta.6</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7">Download beta.7</a>
       </nav>
     </div>
   </header>
@@ -35,11 +35,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6">v1.0.0-beta.6</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7">v1.0.0-beta.7</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-7">1.0.0-beta.7</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-6">1.0.0-beta.6</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-5">1.0.0-beta.5</a>
@@ -64,6 +66,24 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-7" class="release-version-heading">1.0.0-beta.7 <span class="release-date">— 2026-05-18</span></h2>
+
+      <p><strong>Markdown and chat polish release.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Unified GFM markdown</strong> — chat uses the same <code>marked</code> pipeline as file preview and collaboration plans; headings, lists, and tables render in the timeline. <code>RichMarkdownView</code> shared component; Prism still highlights fenced code.</li>
+        <li><strong>Assistant workspace review</strong> — prompt guidance when users ask to review editor content.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Chat scroll</strong> — pin-to-bottom during streaming; Virtuoso scroller ref and footer spacer.</li>
+        <li><strong>Session restore</strong> — collab discussion synced into channel timelines; channel message dedupe on persist.</li>
+        <li><strong>Assistant</strong> — meeting-note batch notification on startup; filtered history; meeting notes dir resolved on load.</li>
+        <li><strong>Collaboration</strong> — max-concurrent error lists active collaborations.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-6" class="release-version-heading">1.0.0-beta.6 <span class="release-date">— 2026-05-17</span></h2>
 
       <p><strong>Context routing and stability release.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.6">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>.</p>

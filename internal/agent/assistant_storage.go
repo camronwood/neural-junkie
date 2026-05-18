@@ -149,12 +149,39 @@ func (s *AssistantStorage) ensureDefaultConfig() error {
 		DefaultChannel:      "general",
 		ReminderAdvance:     15, // 15 minutes before meetings
 		Keywords:            []string{"meeting", "deadline", "review", "deploy", "release"},
-		MeetingNotesDir:     "/Users/camronwood/development/meeting-notes",
+		MeetingNotesDir:     defaultMeetingNotesDir(),
 		AutoIngestEnabled:   true,
 		ProactiveAssistance: true,
 	}
 
 	return s.SaveConfig(config)
+}
+
+// defaultMeetingNotesDir returns the preferred meeting-notes directory for this machine.
+func defaultMeetingNotesDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return filepath.Join("development", "meeting-notes")
+	}
+	return filepath.Join(home, "development", "meeting-notes")
+}
+
+// ResolveMeetingNotesDir normalizes configured paths and repairs known bad legacy values.
+func ResolveMeetingNotesDir(configured string) string {
+	configured = strings.TrimSpace(configured)
+	if configured == "" {
+		return defaultMeetingNotesDir()
+	}
+	if strings.Contains(configured, "camron.wood.ext") {
+		return defaultMeetingNotesDir()
+	}
+	if strings.HasPrefix(configured, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil && home != "" {
+			return filepath.Join(home, strings.TrimPrefix(configured, "~/"))
+		}
+	}
+	return configured
 }
 
 // SaveConfig saves the assistant configuration

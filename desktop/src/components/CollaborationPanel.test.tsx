@@ -308,6 +308,7 @@ describe('CollaborationPanel', () => {
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
 
     expect(screen.getByText('Plan (v2)')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Plan' })).toBeInTheDocument();
     expect(screen.getByText(/Step one/)).toBeInTheDocument();
     expect(screen.getByText(/@unassigned/)).toBeInTheDocument();
   });
