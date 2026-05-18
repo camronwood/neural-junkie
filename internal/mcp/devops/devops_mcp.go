@@ -1,5 +1,3 @@
-//go:build ignore
-
 package devops
 
 import (
@@ -10,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	mcp "github.com/camronwood/neural-junkie/internal/mcp_disabled"
+	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -66,24 +64,24 @@ func (d *DevOpsMCP) registerTools() {
 			"resource":  "Kubernetes resource type (e.g., pods, services, deployments)",
 			"namespace": "Kubernetes namespace (optional, defaults to current context)",
 		}),
-		d.handleKubectlQuery,
-	))
+		nil,
+	), d.handleKubectlQuery)
 
 	// Tool 3: check_docker_image
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"check_docker_image",
 		"Analyze Docker image for size, layers, and vulnerabilities",
 		mcp.CreateStringInputSchema("image_name", "Docker image name to analyze"),
-		d.handleCheckDockerImage,
-	))
+		nil,
+	), d.handleCheckDockerImage)
 
 	// Tool 4: validate_yaml
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"validate_yaml",
 		"Validate Kubernetes or Helm YAML files for syntax and best practices",
 		mcp.CreateStringInputSchema("yaml_file", "Path to YAML file to validate"),
-		d.handleValidateYaml,
-	))
+		nil,
+	), d.handleValidateYaml)
 
 	// Tool 5: check_pod_logs
 	d.mcpServer.AddTool(mcp.CreateTool(
@@ -93,16 +91,16 @@ func (d *DevOpsMCP) registerTools() {
 			"pod_name":  "Name of the pod to check logs for",
 			"namespace": "Kubernetes namespace (optional)",
 		}),
-		d.handleCheckPodLogs,
-	))
+		nil,
+	), d.handleCheckPodLogs)
 
 	// Tool 6: query_prometheus
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"query_prometheus",
 		"Query Prometheus metrics for monitoring data",
 		mcp.CreateStringInputSchema("query", "Prometheus query to execute"),
-		d.handleQueryPrometheus,
-	))
+		nil,
+	), d.handleQueryPrometheus)
 
 	log.Printf("Registered %d DevOps MCP tools", len(d.mcpServer.ListTools()))
 }

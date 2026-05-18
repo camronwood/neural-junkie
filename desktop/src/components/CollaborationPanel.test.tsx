@@ -208,6 +208,95 @@ describe('CollaborationPanel', () => {
     });
   });
 
+  it('mark done sends /complete-collab with --force when tasks are open', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({
+      phase: 'executing',
+      tasks: [
+        {
+          id: 't1',
+          title: 'Build index',
+          description: 'd',
+          assigned_to: 'ag1',
+          assigned_name: 'RustExpert',
+          status: 'in_progress',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    });
+
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark collaboration done' }));
+
+    await waitFor(() => {
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'collab-test-channel',
+        `/complete-collab ${collabPrefix} --force`,
+        expect.objectContaining({ name: 'PanelTester' })
+      );
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it('mark task done sends /collab-task-done with 1-based index', async () => {
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({
+      phase: 'executing',
+      tasks: [
+        {
+          id: 't1',
+          title: 'Build index',
+          description: 'd',
+          assigned_to: 'ag1',
+          assigned_name: 'RustExpert',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 't2',
+          title: 'Review',
+          description: 'd',
+          assigned_to: 'ag1',
+          assigned_name: 'RustExpert',
+          status: 'completed',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    });
+
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+
+    const buttons = screen.getAllByRole('button', { name: 'Mark task done' });
+    expect(buttons).toHaveLength(1);
+    fireEvent.click(buttons[0]);
+
+    await waitFor(() => {
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'collab-test-channel',
+        `/collab-task-done ${collabPrefix} 1`,
+        expect.objectContaining({ name: 'PanelTester' })
+      );
+    });
+  });
+
+  it('completed phase shows dismiss and hides resume', () => {
+    const collab = makeCollaboration({ phase: 'completed' });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume plan' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mark collaboration done' })).not.toBeInTheDocument();
+  });
+
   it('cancel sends /cancel-plan with id prefix', async () => {
     const onAfter = vi.fn().mockResolvedValue(undefined);
     const collab = makeCollaboration({ phase: 'planning', discussion: discussion() });

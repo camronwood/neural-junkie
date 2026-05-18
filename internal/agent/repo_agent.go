@@ -385,21 +385,7 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		response,
 	)
 	responseMsg.ReplyTo = msg.ID
-	if collabID := msg.GetCollaborationID(); collabID != "" {
-		responseMsg.SetCollaborationID(collabID)
-		if phase := msg.GetCollaborationPhase(); phase != "" {
-			responseMsg.SetCollaborationPhase(phase)
-		}
-		if taskID := msg.GetTaskID(); taskID != "" {
-			responseMsg.SetTaskID(taskID)
-		}
-		if taskStatus := msg.GetTaskStatus(); taskStatus != "" {
-			responseMsg.SetTaskStatus(taskStatus)
-		}
-		if taskOutput := msg.GetTaskOutput(); taskOutput != "" {
-			responseMsg.SetTaskOutput(taskOutput)
-		}
-	}
+	ApplyCollaborationTaskMetadataOnReply(responseMsg, msg, response)
 
 	if err := ra.Hub.SendMessage(responseMsg); err != nil {
 		log.Printf("[%s] Error sending message: %v", ra.Info.Name, err)

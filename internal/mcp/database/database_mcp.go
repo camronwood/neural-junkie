@@ -1,5 +1,3 @@
-//go:build ignore
-
 package database
 
 import (
@@ -10,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	mcp "github.com/camronwood/neural-junkie/internal/mcp_disabled"
+	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -118,40 +116,40 @@ func (d *DatabaseMCP) registerTools() {
 		"explain_query",
 		"Run EXPLAIN ANALYZE on SQL queries to analyze performance",
 		mcp.CreateStringInputSchema("sql_query", "SQL query to analyze"),
-		d.handleExplainQuery,
-	))
+		nil,
+	), d.handleExplainQuery)
 
 	// Tool 2: check_indexes
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"check_indexes",
 		"Analyze table indexes for optimization opportunities",
 		mcp.CreateStringInputSchema("table_name", "Table name to analyze indexes for"),
-		d.handleCheckIndexes,
-	))
+		nil,
+	), d.handleCheckIndexes)
 
 	// Tool 3: validate_schema
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"validate_schema",
 		"Check database schema for consistency and best practices",
 		mcp.CreateStringInputSchema("schema_name", "Schema name to validate (optional, defaults to public)"),
-		d.handleValidateSchema,
-	))
+		nil,
+	), d.handleValidateSchema)
 
 	// Tool 4: suggest_optimizations
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"suggest_optimizations",
 		"Analyze query patterns and suggest database optimizations",
 		mcp.CreateStringInputSchema("table_name", "Table name to analyze for optimization suggestions"),
-		d.handleSuggestOptimizations,
-	))
+		nil,
+	), d.handleSuggestOptimizations)
 
 	// Tool 5: check_table_stats
 	d.mcpServer.AddTool(mcp.CreateTool(
 		"check_table_stats",
 		"Get table statistics including size, row count, and storage info",
 		mcp.CreateStringInputSchema("table_name", "Table name to get statistics for"),
-		d.handleCheckTableStats,
-	))
+		nil,
+	), d.handleCheckTableStats)
 
 	// Tool 6: generate_migration
 	d.mcpServer.AddTool(mcp.CreateTool(
@@ -161,8 +159,8 @@ func (d *DatabaseMCP) registerTools() {
 			"description": "Description of the migration",
 			"changes":     "Description of schema changes to implement",
 		}),
-		d.handleGenerateMigration,
-	))
+		nil,
+	), d.handleGenerateMigration)
 
 	log.Printf("Registered %d Database MCP tools", len(d.mcpServer.ListTools()))
 }

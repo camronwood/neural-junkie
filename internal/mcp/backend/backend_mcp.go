@@ -1,5 +1,3 @@
-//go:build ignore
-
 package backend
 
 import (
@@ -11,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -56,173 +55,93 @@ func (b *BackendMCP) GetMCPServer() *server.MCPServer {
 	return b.mcpServer
 }
 
-// registerTools registers all Backend MCP tools
 func (b *BackendMCP) registerTools() {
-	// Tool 1: analyze_go_code
-	b.mcpServer.AddTool(mcp.Tool{
-		Name:        "analyze_go_code",
-		Description: "Analyze Go code for issues using go vet, staticcheck, and golangci-lint",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"file_path": map[string]any{
-					"type":        "string",
-					"description": "Path to Go file or directory to analyze",
-				},
-			},
-			Required: []string{"file_path"},
-		},
-	}, b.handleAnalyzeGoCode)
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"analyze_go_code",
+		"Analyze Go code for issues using go vet, staticcheck, and golangci-lint",
+		mcp.CreateStringInputSchema("file_path", "Path to Go file or directory to analyze"),
+		nil,
+	), b.handleAnalyzeGoCode)
 
-	// Tool 2: run_go_tests
-	b.mcpServer.AddTool(mcp.Tool{
-		Name:        "run_go_tests",
-		Description: "Execute Go tests and return results",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"package_path": map[string]any{
-					"type":        "string",
-					"description": "Go package path to test (e.g., ./cmd/server or .)",
-				},
-			},
-			Required: []string{"package_path"},
-		},
-	}, b.handleRunGoTests)
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"run_go_tests",
+		"Execute Go tests and return results",
+		mcp.CreateStringInputSchema("package_path", "Go package path to test (e.g., ./cmd/server or .)"),
+		nil,
+	), b.handleRunGoTests)
 
-	// Tool 3: profile_performance
-	b.mcpServer.AddTool(mcp.Tool{
-		Name:        "profile_performance",
-		Description: "Profile Go application performance using pprof",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"binary_path": map[string]any{
-					"type":        "string",
-					"description": "Path to Go binary to profile",
-				},
-				"endpoint": map[string]any{
-					"type":        "string",
-					"description": "HTTP endpoint to profile (e.g., /api/users)",
-				},
-			},
-			Required: []string{"binary_path", "endpoint"},
-		},
-	}, b.handleProfilePerformance)
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"profile_performance",
+		"Profile Go application performance using pprof",
+		mcp.CreateMultiStringInputSchema(map[string]string{
+			"binary_path": "Path to Go binary to profile",
+			"endpoint":    "HTTP endpoint to profile (e.g., /api/users)",
+		}),
+		nil,
+	), b.handleProfilePerformance)
 
-	// Tool 4: check_dependencies
-	b.mcpServer.AddTool(mcp.Tool{
-		Name:        "check_dependencies",
-		Description: "Check Go module dependencies for vulnerabilities and updates",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"module_path": map[string]any{
-					"type":        "string",
-					"description": "Path to Go module (directory containing go.mod)",
-				},
-			},
-			Required: []string{"module_path"},
-		},
-	}, b.handleCheckDependencies)
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"check_dependencies",
+		"Check Go module dependencies for vulnerabilities and updates",
+		mcp.CreateStringInputSchema("module_path", "Path to Go module (directory containing go.mod)"),
+		nil,
+	), b.handleCheckDependencies)
 
-	// Tool 5: detect_race_conditions
-	b.mcpServer.AddTool(mcp.Tool{
-		Name:        "detect_race_conditions",
-		Description: "Run Go race detector on tests to find race conditions",
-		InputSchema: mcp.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"package_path": map[string]any{
-					"type":        "string",
-					"description": "Go package path to test for races",
-				},
-			},
-			Required: []string{"package_path"},
-		},
-	}, b.handleDetectRaceConditions)
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"detect_race_conditions",
+		"Run Go race detector on tests to find race conditions",
+		mcp.CreateStringInputSchema("package_path", "Go package path to test for races"),
+		nil,
+	), b.handleDetectRaceConditions)
 
 	log.Printf("Registered %d Backend MCP tools", len(b.mcpServer.ListTools()))
 }
 
-// handleAnalyzeGoCode analyzes Go code for issues
 func (b *BackendMCP) handleAnalyzeGoCode(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	filePath := request.GetString("file_path", "")
 	if filePath == "" {
-		return &mcpgo.CallToolResult{
-			Content: []mcpgo.Content{
-				mcpgo.TextContent{
-					Type: "text",
-					Text: "Error: file_path is required",
-				},
-			},
-			IsError: true,
-		}, nil
+		return mcp.HandleToolError(fmt.Errorf("file_path is required"), "analyze_go_code"), nil
 	}
 	if !b.isValidGoPath(filePath) {
-		return &mcpgo.CallToolResult{
-			Content: []mcpgo.Content{
-				mcpgo.TextContent{
-					Type: "text",
-					Text: fmt.Sprintf("Error: invalid Go file path: %s", filePath),
-				},
-			},
-			IsError: true,
-		}, nil
+		return mcp.HandleToolError(fmt.Errorf("invalid Go file path: %s", filePath), "analyze_go_code"), nil
 	}
 
 	var results []string
 	var errors []string
 
-	// Run go vet
 	if result, err := b.runGoVet(filePath); err != nil {
 		errors = append(errors, fmt.Sprintf("go vet error: %v", err))
 	} else if result != "" {
-		results = append(results, "=== go vet ===")
-		results = append(results, result)
+		results = append(results, "=== go vet ===", result)
 	}
 
-	// Run staticcheck if available
 	if result, err := b.runStaticcheck(filePath); err != nil {
 		errors = append(errors, fmt.Sprintf("staticcheck error: %v", err))
 	} else if result != "" {
-		results = append(results, "=== staticcheck ===")
-		results = append(results, result)
+		results = append(results, "=== staticcheck ===", result)
 	}
 
-	// Run golangci-lint if available
 	if result, err := b.runGolangciLint(filePath); err != nil {
 		errors = append(errors, fmt.Sprintf("golangci-lint error: %v", err))
 	} else if result != "" {
-		results = append(results, "=== golangci-lint ===")
-		results = append(results, result)
+		results = append(results, "=== golangci-lint ===", result)
 	}
 
-	// Combine results
 	var output strings.Builder
 	if len(results) > 0 {
 		output.WriteString(strings.Join(results, "\n\n"))
 	}
 	if len(errors) > 0 {
-		output.WriteString("\n\n=== Errors ===")
+		output.WriteString("\n\n=== Errors ===\n")
 		output.WriteString(strings.Join(errors, "\n"))
 	}
-
 	if output.Len() == 0 {
 		output.WriteString("No issues found in Go code analysis.")
 	}
 
-	return &mcpgo.CallToolResult{
-		Content: []mcpgo.Content{
-			mcpgo.TextContent{
-				Type: "text",
-				Text: output.String(),
-			},
-		},
-	}, nil
+	return mcp.HandleToolSuccess(output.String()), nil
 }
 
-// handleRunGoTests runs Go tests
 func (b *BackendMCP) handleRunGoTests(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	if err := mcp.ValidateToolInput(request, []string{"package_path"}); err != nil {
 		return mcp.HandleToolError(err, "run_go_tests"), nil
@@ -233,7 +152,6 @@ func (b *BackendMCP) handleRunGoTests(ctx context.Context, request mcpgo.CallToo
 		return mcp.HandleToolError(fmt.Errorf("invalid Go package path: %s", packagePath), "run_go_tests"), nil
 	}
 
-	// Run go test with verbose output
 	cmd := exec.CommandContext(ctx, "go", "test", "-v", "-timeout", "30s", packagePath)
 	cmd.Dir = b.getWorkingDir(packagePath)
 
@@ -242,11 +160,9 @@ func (b *BackendMCP) handleRunGoTests(ctx context.Context, request mcpgo.CallToo
 		return mcp.HandleToolError(fmt.Errorf("test execution failed: %w\nOutput: %s", err, string(output)), "run_go_tests"), nil
 	}
 
-	result := fmt.Sprintf("Test Results for %s:\n%s", packagePath, string(output))
-	return mcp.HandleToolSuccess(result), nil
+	return mcp.HandleToolSuccess(fmt.Sprintf("Test Results for %s:\n%s", packagePath, string(output))), nil
 }
 
-// handleProfilePerformance profiles Go application performance
 func (b *BackendMCP) handleProfilePerformance(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	if err := mcp.ValidateToolInput(request, []string{"binary_path", "endpoint"}); err != nil {
 		return mcp.HandleToolError(err, "profile_performance"), nil
@@ -259,23 +175,12 @@ func (b *BackendMCP) handleProfilePerformance(ctx context.Context, request mcpgo
 		return mcp.HandleToolError(fmt.Errorf("invalid binary path: %s", binaryPath), "profile_performance"), nil
 	}
 
-	// This is a simplified implementation - in practice, you'd need to:
-	// 1. Start the binary with pprof enabled
-	// 2. Make requests to the endpoint
-	// 3. Collect profiling data
-	// 4. Analyze the results
-
 	result := fmt.Sprintf("Performance profiling for %s endpoint %s:\n", binaryPath, endpoint)
-	result += "Note: This is a placeholder implementation. Full profiling requires:\n"
-	result += "1. Binary compiled with pprof support\n"
-	result += "2. HTTP server with pprof endpoints enabled\n"
-	result += "3. Load testing to generate profile data\n"
-	result += "4. Analysis of CPU, memory, and goroutine profiles"
+	result += "Note: Placeholder implementation. Full profiling requires pprof-enabled binary and load testing."
 
 	return mcp.HandleToolSuccess(result), nil
 }
 
-// handleCheckDependencies checks Go module dependencies
 func (b *BackendMCP) handleCheckDependencies(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	if err := mcp.ValidateToolInput(request, []string{"module_path"}); err != nil {
 		return mcp.HandleToolError(err, "check_dependencies"), nil
@@ -286,45 +191,29 @@ func (b *BackendMCP) handleCheckDependencies(ctx context.Context, request mcpgo.
 		return mcp.HandleToolError(fmt.Errorf("invalid module path: %s", modulePath), "check_dependencies"), nil
 	}
 
-	var results []string
-
-	// Check for go.mod file
 	goModPath := filepath.Join(modulePath, "go.mod")
 	if _, err := os.Stat(goModPath); os.IsNotExist(err) {
 		return mcp.HandleToolError(fmt.Errorf("go.mod not found in %s", modulePath), "check_dependencies"), nil
 	}
 
-	// Run go mod why to understand dependencies
+	var results []string
+
 	cmd := exec.CommandContext(ctx, "go", "mod", "why", "all")
 	cmd.Dir = modulePath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		results = append(results, fmt.Sprintf("go mod why failed: %v", err))
 	} else {
-		results = append(results, "=== Dependency Analysis ===")
-		results = append(results, string(output))
+		results = append(results, "=== Dependency Analysis ===", string(output))
 	}
 
-	// Run go mod graph to show dependency graph
-	cmd = exec.CommandContext(ctx, "go", "mod", "graph")
-	cmd.Dir = modulePath
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		results = append(results, fmt.Sprintf("go mod graph failed: %v", err))
-	} else {
-		results = append(results, "\n=== Dependency Graph ===")
-		results = append(results, string(output))
-	}
-
-	// Check for outdated dependencies
 	cmd = exec.CommandContext(ctx, "go", "list", "-u", "-m", "all")
 	cmd.Dir = modulePath
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		results = append(results, fmt.Sprintf("go list -u failed: %v", err))
 	} else if string(output) != "" {
-		results = append(results, "\n=== Outdated Dependencies ===")
-		results = append(results, string(output))
+		results = append(results, "\n=== Outdated Dependencies ===", string(output))
 	}
 
 	result := strings.Join(results, "\n")
@@ -335,7 +224,6 @@ func (b *BackendMCP) handleCheckDependencies(ctx context.Context, request mcpgo.
 	return mcp.HandleToolSuccess(result), nil
 }
 
-// handleDetectRaceConditions runs Go race detector
 func (b *BackendMCP) handleDetectRaceConditions(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	if err := mcp.ValidateToolInput(request, []string{"package_path"}); err != nil {
 		return mcp.HandleToolError(err, "detect_race_conditions"), nil
@@ -346,42 +234,33 @@ func (b *BackendMCP) handleDetectRaceConditions(ctx context.Context, request mcp
 		return mcp.HandleToolError(fmt.Errorf("invalid package path: %s", packagePath), "detect_race_conditions"), nil
 	}
 
-	// Run go test with race detector
 	cmd := exec.CommandContext(ctx, "go", "test", "-race", "-timeout", "30s", packagePath)
 	cmd.Dir = b.getWorkingDir(packagePath)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Race detector found issues
-		result := fmt.Sprintf("Race conditions detected in %s:\n%s", packagePath, string(output))
-		return mcp.HandleToolSuccess(result), nil
+		return mcp.HandleToolSuccess(fmt.Sprintf("Race conditions detected in %s:\n%s", packagePath, string(output))), nil
 	}
 
-	result := fmt.Sprintf("No race conditions detected in %s", packagePath)
-	return mcp.HandleToolSuccess(result), nil
+	return mcp.HandleToolSuccess(fmt.Sprintf("No race conditions detected in %s", packagePath)), nil
 }
-
-// Helper methods
 
 func (b *BackendMCP) isValidGoPath(path string) bool {
 	if path == "" {
 		return false
 	}
-
-	// Check if path exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false
-	}
-
-	return true
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (b *BackendMCP) getWorkingDir(path string) string {
 	if filepath.IsAbs(path) {
-		return filepath.Dir(path)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return filepath.Dir(path)
+		}
+		return path
 	}
 
-	// Try to find the module root
 	dir, _ := os.Getwd()
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
@@ -393,7 +272,6 @@ func (b *BackendMCP) getWorkingDir(path string) string {
 		}
 		dir = parent
 	}
-
 	return dir
 }
 
@@ -412,7 +290,6 @@ func (b *BackendMCP) runStaticcheck(path string) (string, error) {
 	cmd.Dir = b.getWorkingDir(path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// staticcheck might not be installed
 		return "", fmt.Errorf("staticcheck not available: %w", err)
 	}
 	return string(output), nil
@@ -423,7 +300,6 @@ func (b *BackendMCP) runGolangciLint(path string) (string, error) {
 	cmd.Dir = b.getWorkingDir(path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// golangci-lint might not be installed
 		return "", fmt.Errorf("golangci-lint not available: %w", err)
 	}
 	return string(output), nil

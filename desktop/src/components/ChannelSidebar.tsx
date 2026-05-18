@@ -20,6 +20,14 @@ const MIN_WIDTH = 180;
 const DEFAULT_WIDTH = 220;
 const STORAGE_KEY = 'channel-sidebar-width';
 
+function maxSidebarWidth(): number {
+  return Math.min(window.innerWidth * 0.4, 520);
+}
+
+function clampSidebarWidth(w: number): number {
+  return Math.max(MIN_WIDTH, Math.min(maxSidebarWidth(), w));
+}
+
 /** DM rooms use the `dm-` slug; collaboration rooms use `collab-`. Coerce type when the hub omits or mis-stores `type` so rows appear under the right sidebar group. */
 function normalizeChannelRow(ch: Channel): Channel {
   const name = (ch.name ?? '').trim();
@@ -84,11 +92,19 @@ export function ChannelSidebar({
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     const w = saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
-    return (w >= MIN_WIDTH && w <= 400) ? w : DEFAULT_WIDTH;
+    if (Number.isNaN(w)) return DEFAULT_WIDTH;
+    return clampSidebarWidth(w);
   });
   const [isResizing, setIsResizing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const resizeStartX = useRef(0);
+  const resizeStartWidth = useRef(width);
+  const currentWidthRef = useRef(width);
+
+  useEffect(() => {
+    currentWidthRef.current = width;
+  }, [width]);
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
   const hiddenDmSet = new Set(settings.hiddenDmChannelNames ?? []);
@@ -182,27 +198,55 @@ export function ChannelSidebar({
     filteredDMChannels.length > 0 ||
     (sidebarAgentsVisible && filteredAgentsWithoutDM.length > 0);
 
-  // Resize drag handling
   useEffect(() => {
-    if (!isResizing) return;
+    const onWindowResize = () => {
+      const clamped = clampSidebarWidth(currentWidthRef.current);
+      if (clamped !== currentWidthRef.current) {
+        setWidth(clamped);
+        localStorage.setItem(STORAGE_KEY, String(clamped));
+      }
+    };
+    window.addEventListener('resize', onWindowResize);
+    return () => window.removeEventListener('resize', onWindowResize);
+  }, []);
 
+  useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      const newWidth = Math.max(MIN_WIDTH, Math.min(400, e.clientX));
-      setWidth(newWidth);
+      if (!isResizing) return;
+      const delta = e.clientX - resizeStartX.current;
+      const next = clampSidebarWidth(resizeStartWidth.current + delta);
+      setWidth(next);
+      currentWidthRef.current = next;
     };
 
     const onMouseUp = () => {
+      if (!isResizing) return;
       setIsResizing(false);
-      localStorage.setItem(STORAGE_KEY, String(width));
+      localStorage.setItem(STORAGE_KEY, String(currentWidthRef.current));
     };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    if (isResizing) {
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
-  }, [isResizing, width]);
+  }, [isResizing]);
+
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeStartX.current = e.clientX;
+    resizeStartWidth.current = currentWidthRef.current;
+    setIsResizing(true);
+  };
 
   const TypingDots = ({ active }: { active?: boolean }) => (
     <span className="inline-flex ml-1 gap-[2px] items-center">
@@ -433,8 +477,8 @@ export function ChannelSidebar({
   return (
     <div
       ref={sidebarRef}
-      className="flex-shrink-0 bg-[#1a1d21] border-r border-slack-border flex flex-col overflow-hidden select-none"
-      style={{ width: `${width}px` }}
+      className="relative flex-shrink-0 bg-[#1a1d21] border-r border-slack-border flex flex-col overflow-hidden select-none"
+      style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
     >
       {/* Header */}
       <div className="px-3 py-2 border-b border-white/10">
@@ -549,12 +593,20 @@ export function ChannelSidebar({
         )}
       </div>
 
-      {/* Resize handle */}
+      {/* Resize handle — right edge */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-slack-accent/50 transition-colors"
-        onMouseDown={() => setIsResizing(true)}
-        style={{ zIndex: 10 }}
-      />
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize channel sidebar"
+        onMouseDown={handleResizeStart}
+        className={`absolute top-0 right-0 bottom-0 z-20 cursor-col-resize group ${
+          isResizing ? 'bg-slack-accent/40' : ''
+        }`}
+        style={{ width: 6, marginRight: -3, touchAction: 'none' }}
+      >
+        <div className="absolute inset-0 bg-transparent group-hover:bg-slack-accent/30 transition-colors" />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-10 bg-white/20 group-hover:bg-slack-accent rounded-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+      </div>
     </div>
   );
 }

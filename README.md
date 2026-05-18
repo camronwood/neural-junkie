@@ -89,7 +89,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.7](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.8](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -309,6 +309,18 @@ make bundle-mac       # Build macOS bundle (Apple Silicon)
 make bundle-linux     # Build Linux bundle (x86_64)
 make release VERSION=0.1.0  # Bump versions, commit, tag (then push to trigger CI)
 ```
+
+## Minimal static splash (`index.html`)
+
+The repo root `index.html` is a zero-build splash (black background, centered title) suitable for GitHub Pages, Cloudflare Pages, Netlify, or Vercel when the publish/root directory is this repository root.
+
+Preview locally:
+
+```bash
+python3 -m http.server 8765 --bind 127.0.0.1
+```
+
+Then open `http://127.0.0.1:8765/` in a browser. Do not commit API keys or other secrets into this repo; keep hosting tokens in CI or provider dashboards only.
 
 ## License
 

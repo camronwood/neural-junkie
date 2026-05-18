@@ -30,6 +30,8 @@ import (
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	"github.com/camronwood/neural-junkie/internal/mcp/resources"
+	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -127,8 +129,17 @@ func main() {
 	}
 
 	chatHub = hub.NewHub()
+	chatHub.SetCollaborationAssetsRootResolver(func() string {
+		return config.CollabAssetsRoot(appConfig)
+	})
 	globalProviderCache = ai.NewProviderCache()
 	agent.SetGlobalCollabRouting(collabRoutingRuntime{})
+	if err := initHFManager(); err != nil {
+		log.Printf("⚠️  HF download manager init failed: %v", err)
+	}
+	if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
+		ch.SetProviderRegistry(appConfig, globalProviderCache)
+	}
 
 	sessionPath := hub.DefaultSessionPath()
 	log.Printf("💾 Session will be saved to: %s", sessionPath)
@@ -176,6 +187,10 @@ func main() {
 	}
 	ollamaMgr = ollamaManager.NewManager(ollamaEndpoint)
 
+	if appConfig.Ollama.AutoStart && len(appConfig.Ollama.ModelsToEnsure) > 0 {
+		go ensureOllamaModels(context.Background())
+	}
+
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
 	if sessionRestored {
@@ -207,7 +222,24 @@ func main() {
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
 	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
 	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
-	http.HandleFunc("/api/import", corsMiddleware(handleImport))    // Import agent endpoint
+	http.HandleFunc("/api/import", corsMiddleware(handleImport))
+	http.HandleFunc("/api/export", corsMiddleware(handleExport))
+	http.HandleFunc("/api/exports", corsMiddleware(handleExports))
+
+	if os.Getenv("ENABLE_MCP_RESOURCES") == "true" {
+		go func() {
+			rs, err := resources.NewResourceServer()
+			if err != nil {
+				log.Printf("MCP resource server not started: %v", err)
+				return
+			}
+			if err := rs.Start(); err != nil {
+				log.Printf("MCP resource server failed: %v", err)
+				return
+			}
+			log.Printf("MCP resource server listening (ENABLE_MCP_RESOURCES=true)")
+		}()
+	}
 
 	// File system API endpoints
 	http.HandleFunc("/api/workspaces", corsMiddleware(handleWorkspaces))
@@ -259,6 +291,14 @@ func main() {
 	http.HandleFunc("/api/ollama/pull", corsMiddleware(handleOllamaPull))
 	http.HandleFunc("/api/ollama/catalog", corsMiddleware(handleOllamaCatalog))
 	http.HandleFunc("/api/ollama/delete", corsMiddleware(handleOllamaDelete))
+
+	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
+	http.HandleFunc("/api/hf/catalog", corsMiddleware(handleHfCatalog))
+	http.HandleFunc("/api/hf/test-connection", corsMiddleware(handleHfTestConnection))
+	http.HandleFunc("/api/hf/download", corsMiddleware(handleHfDownload))
+	http.HandleFunc("/api/hf/local", corsMiddleware(handleHfLocal))
+	http.HandleFunc("/api/hf/delete", corsMiddleware(handleHfDelete))
+	http.HandleFunc("/api/hf/import-ollama", corsMiddleware(handleHfImportOllama))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -1155,6 +1195,7 @@ func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 		DisplayName string `json:"display_name"`
 		ExpertType  string `json:"expert_type"`
 		Persona     string `json:"persona"` // optional extra instructions for custom experts
+		ProviderID  string `json:"provider_id"`
 		Provider    string `json:"provider"`
 		Model       string `json:"model"`
 		CLIType     string `json:"cli_type"`
@@ -1193,7 +1234,7 @@ func handleCreateDMAgent(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "expert_type is required for mode expert", http.StatusBadRequest)
 			return
 		}
-		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.Provider, req.Model, req.Persona)
+		dmCh, err = ch.SpawnExpertAgentForDM(ctx, req.CreatedBy, req.ExpertType, req.DisplayName, req.ProviderID, req.Provider, req.Model, req.Persona)
 	case "cli":
 		if strings.TrimSpace(req.CLIType) == "" {
 			http.Error(w, "cli_type is required for mode cli", http.StatusBadRequest)
@@ -2387,15 +2428,22 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		if strings.Contains(incoming.HF.Token, "...") || incoming.HF.Token == "***" {
+			incoming.HF.Token = appConfig.HF.Token
+		}
 
 		appConfig.Server = incoming.Server
 		appConfig.AI = incoming.AI
 		appConfig.Agents = incoming.Agents
 		appConfig.Ollama = incoming.Ollama
+		appConfig.HF = incoming.HF
 		appConfig.Updates = incoming.Updates
 		appConfig.Collaboration = incoming.Collaboration
 
 		globalProviderCache.Clear()
+		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
+			ch.SetProviderRegistry(appConfig, globalProviderCache)
+		}
 
 		if err := appConfig.Save(); err != nil {
 			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
@@ -2691,6 +2739,120 @@ func handleImport(w http.ResponseWriter, r *http.Request) {
 			if part == "agent" && i+2 < len(parts) {
 				responseData["name"] = strings.Trim(parts[i+1], "'")
 				break
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(responseData)
+}
+
+// handleExports lists exported agents for the CLI.
+func handleExports(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	storage, err := mcp_export.NewExportStorage()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to open export storage: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	exports, err := storage.ListExports()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list exports: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	type exportJSON struct {
+		Name           string  `json:"name"`
+		Type           string  `json:"type"`
+		ResourceCount  int     `json:"resourceCount"`
+		PromptCount    int     `json:"promptCount"`
+		FileSize       int64   `json:"fileSize"`
+		Description    string  `json:"description,omitempty"`
+		ExportPath     string  `json:"exportPath,omitempty"`
+	}
+
+	out := make([]exportJSON, 0, len(exports))
+	for _, e := range exports {
+		out = append(out, exportJSON{
+			Name:          e.Name,
+			Type:          e.Type,
+			ResourceCount: e.ResourceCount,
+			PromptCount:   e.PromptCount,
+			FileSize:      e.FileSize,
+			Description:   e.Description,
+			ExportPath:    e.ExportPath,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
+// handleExport exports an agent via the hub command handler.
+func handleExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var request struct {
+		AgentType  string `json:"agent_type"`
+		AgentName  string `json:"agent_name"`
+		OutputPath string `json:"output_path"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if request.AgentName == "" {
+		http.Error(w, "agent_name is required", http.StatusBadRequest)
+		return
+	}
+
+	commandHandler, err := hub.NewCommandHandler(chatHub)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create command handler: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	msg := &protocol.Message{
+		ID:        "export-" + strconv.FormatInt(time.Now().UnixNano(), 10),
+		Type:      protocol.MessageTypeSystemInfo,
+		Channel:   "general",
+		From:      protocol.AgentInfo{ID: "cli", Name: "CLI", Type: "system"},
+		Content:   fmt.Sprintf("/export-agent-mcp %s", request.AgentName),
+		Timestamp: time.Now(),
+	}
+
+	response, err := commandHandler.ProcessCommand(context.Background(), msg)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Export failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	responseData := map[string]interface{}{
+		"success": strings.Contains(response.Content, "✅"),
+		"message": response.Content,
+	}
+
+	storage, err := mcp_export.NewExportStorage()
+	if err == nil {
+		if exports, err := storage.ListExports(); err == nil {
+			for _, e := range exports {
+				if strings.EqualFold(e.Name, request.AgentName) {
+					responseData["resources"] = float64(e.ResourceCount)
+					responseData["prompts"] = float64(e.PromptCount)
+					responseData["size"] = float64(e.FileSize)
+					responseData["name"] = e.Name
+					responseData["type"] = e.Type
+					break
+				}
 			}
 		}
 	}
@@ -3702,8 +3864,8 @@ func handleAgentProvider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate provider
-	if request.Provider != "claude" && request.Provider != "ollama" && request.Provider != "lmstudio" {
-		http.Error(w, "Invalid provider. Use 'claude', 'ollama', or 'lmstudio'", http.StatusBadRequest)
+	if !isAllowedRuntimeProvider(request.Provider) {
+		http.Error(w, "Invalid provider. Use 'claude', 'ollama', 'lmstudio', or 'huggingface'", http.StatusBadRequest)
 		return
 	}
 
@@ -3751,8 +3913,8 @@ func handleSwitchAllProviders(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate provider
-	if request.Provider != "claude" && request.Provider != "ollama" && request.Provider != "lmstudio" {
-		http.Error(w, "Invalid provider. Use 'claude', 'ollama', or 'lmstudio'", http.StatusBadRequest)
+	if !isAllowedRuntimeProvider(request.Provider) {
+		http.Error(w, "Invalid provider. Use 'claude', 'ollama', 'lmstudio', or 'huggingface'", http.StatusBadRequest)
 		return
 	}
 

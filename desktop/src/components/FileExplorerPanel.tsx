@@ -8,6 +8,7 @@ import type { FileNode } from '../stores/fileExplorerStore';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
+import { setWorkspaceFileDragData } from '../utils/workspaceFileDrag';
 import { resolveEditorImageSrc } from '../utils/chatImageSrc';
 import { ViewportContextMenu } from './ViewportContextMenu';
 
@@ -259,6 +260,15 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
   };
 
+  const handleFileDragStart = (e: React.DragEvent, file: FileNode) => {
+    if (file.is_dir || !activeWorkspaceId || !file.path) return;
+    e.stopPropagation();
+    setWorkspaceFileDragData(e.dataTransfer, {
+      workspaceId: activeWorkspaceId,
+      path: file.path,
+    });
+  };
+
   const handleContextMenu = (e: React.MouseEvent, file: FileNode) => {
     e.preventDefault();
     setContextMenu({
@@ -486,10 +496,13 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
         <div
           className={`flex items-center gap-2 py-1 px-2 cursor-pointer hover:bg-slack-bgHover rounded ${
             selectedPath === file.path ? 'bg-slack-accent text-white' : 'text-slack-text'
-          }`}
+          } ${!file.is_dir ? 'cursor-grab active:cursor-grabbing' : ''}`}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
+          draggable={!file.is_dir}
+          onDragStart={(e) => handleFileDragStart(e, file)}
           onClick={() => handleFileClick(file)}
           onContextMenu={(e) => handleContextMenu(e, file)}
+          title={file.is_dir ? undefined : 'Drag to chat to attach as context'}
         >
           <span className="text-sm">
             {file.is_dir ? (expandedPaths[file.path] ? '📂' : '📁') : renderFileIcon(file)}

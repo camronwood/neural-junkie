@@ -7,8 +7,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/mcp/resources"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -388,16 +393,23 @@ func importAgent(client *http.Client, filePath string) {
 
 // serveMCPResources starts the MCP resource server
 func serveMCPResources(port int) {
-	fmt.Printf("🚀 Starting MCP Resource Server on port %d...\n", port)
-	fmt.Println("📡 Server will expose exported agents via MCP protocol")
-	fmt.Println("🔗 Connect Claude Desktop or other MCP clients to this server")
-	fmt.Println("⏹️  Press Ctrl+C to stop")
+	os.Setenv("ENABLE_MCP_RESOURCES", "true")
+	os.Setenv("MCP_RESOURCES_PORT", strconv.Itoa(port))
 
-	// This would start the MCP resource server
-	// For now, just show the message since the actual server
-	// would need to be implemented as a separate service
-	fmt.Println("\n⚠️  Note: MCP resource server implementation requires additional setup")
-	fmt.Println("   Use the chat commands in the main application instead:")
-	fmt.Println("   /export-agent-mcp <name>")
-	fmt.Println("   /list-exports")
+	rs, err := resources.NewResourceServer()
+	if err != nil {
+		log.Fatalf("Failed to start MCP resource server: %v", err)
+	}
+	if err := rs.Start(); err != nil {
+		log.Fatalf("MCP resource server failed: %v", err)
+	}
+
+	fmt.Printf("MCP resource server listening on port %d\n", port)
+	fmt.Printf("Connect MCP clients to http://localhost:%d/mcp\n", port)
+	fmt.Println("Press Ctrl+C to stop")
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	<-sigCh
+	fmt.Println("Stopping MCP resource server...")
 }

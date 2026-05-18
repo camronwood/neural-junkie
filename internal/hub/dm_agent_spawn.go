@@ -34,9 +34,11 @@ type ExpertResolveResult struct {
 }
 
 var knownExpertProviders = map[string]struct{}{
-	"ollama":   {},
-	"claude":   {},
-	"lmstudio": {},
+	"ollama":       {},
+	"claude":       {},
+	"lmstudio":     {},
+	"huggingface":  {},
+	"hf":           {},
 }
 
 // normalizeCommandArg trims whitespace and leading/trailing punctuation from a slash-command token.
@@ -107,8 +109,31 @@ func splitCreateExpertArgs(parts []string) (expertSlug, displayName, provider, m
 	return expertSlug, displayName, provider, model
 }
 
-// buildExpertAIProvider matches /create-expert provider + model resolution.
-func buildExpertAIProvider(providerName, modelOverride string) (ai.AIProvider, error) {
+// buildExpertAIProvider resolves an AI backend for expert/DM agents.
+func (ch *CommandHandler) buildExpertAIProvider(providerID, providerName, modelOverride string) (ai.AIProvider, error) {
+	providerID = strings.TrimSpace(providerID)
+	if providerID != "" {
+		if ch.appConfig == nil {
+			return nil, fmt.Errorf("provider registry not configured")
+		}
+		pcfg := ch.appConfig.GetProvider(providerID)
+		if pcfg == nil {
+			return nil, fmt.Errorf("provider_id %q not found in config", providerID)
+		}
+		if modelOverride != "" {
+			copy := *pcfg
+			copy.Model = modelOverride
+			return ai.ProviderFromConfig(&copy)
+		}
+		if ch.providerCache != nil {
+			return ch.providerCache.Get(ch.appConfig, providerID)
+		}
+		return ai.ProviderFromConfig(pcfg)
+	}
+	return buildExpertAIProviderLegacy(providerName, modelOverride)
+}
+
+func buildExpertAIProviderLegacy(providerName, modelOverride string) (ai.AIProvider, error) {
 	p := strings.ToLower(normalizeCommandArg(providerName))
 	switch p {
 	case "claude":
@@ -126,6 +151,16 @@ func buildExpertAIProvider(providerName, modelOverride string) (ai.AIProvider, e
 			return nil, fmt.Errorf("failed to create LM Studio provider: %w", err)
 		}
 		return lmProvider, nil
+	case "huggingface", "hf":
+		token := ai.ResolveHFToken("")
+		if token == "" {
+			return nil, fmt.Errorf("HF token required: set HF_TOKEN or add a huggingface provider in Settings")
+		}
+		model := strings.TrimSpace(modelOverride)
+		if model == "" {
+			return nil, fmt.Errorf("model (Hugging Face repo id) is required for huggingface provider")
+		}
+		return ai.NewHuggingFaceProvider("", token, model), nil
 	case "ollama", "":
 		if modelOverride != "" {
 			return ai.NewOllamaProviderWithConfig("", modelOverride), nil
@@ -136,7 +171,7 @@ func buildExpertAIProvider(providerName, modelOverride string) (ai.AIProvider, e
 		}
 		return ollamaProvider, nil
 	default:
-		return nil, fmt.Errorf("unknown provider %q: use ollama, claude, or lmstudio", providerName)
+		return nil, fmt.Errorf("unknown provider %q: use ollama, claude, lmstudio, or huggingface", providerName)
 	}
 }
 
@@ -230,7 +265,7 @@ func (ch *CommandHandler) expertAgentNameTaken(name string) bool {
 }
 
 // prepareExpertAgent registers a new expert-style runtime agent (no channel join / start).
-func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, providerName, modelOverride string) (*agent.Agent, error) {
+func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, providerID, providerName, modelOverride string) (*agent.Agent, error) {
 	name = protocol.NormalizeAgentName(name)
 	if name == "" {
 		return nil, fmt.Errorf("agent name is required")
@@ -239,7 +274,7 @@ func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, pro
 		return nil, fmt.Errorf("agent %q already exists; use a different name or delete the existing agent first", name)
 	}
 
-	aiProvider, err := buildExpertAIProvider(providerName, modelOverride)
+	aiProvider, err := ch.buildExpertAIProvider(providerID, providerName, modelOverride)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +336,7 @@ func (ch *CommandHandler) startExpertInDMOnly(agentInstance *agent.Agent, create
 }
 
 // SpawnExpertAgentForDM creates an expert (or assistant) agent and a DM with createdBy; agent only joins the DM.
-func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerName, modelOverride, persona string) (*protocol.Channel, error) {
+func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, expertSlug, displayName, providerID, providerName, modelOverride, persona string) (*protocol.Channel, error) {
 	createdBy = strings.TrimSpace(createdBy)
 	if createdBy == "" {
 		return nil, fmt.Errorf("created_by is required")
@@ -316,7 +351,7 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 		return nil, fmt.Errorf("display_name is required")
 	}
 
-	agentInstance, err := ch.prepareExpertAgent(spec, name, providerName, modelOverride)
+	agentInstance, err := ch.prepareExpertAgent(spec, name, providerID, providerName, modelOverride)
 	if err != nil {
 		return nil, err
 	}

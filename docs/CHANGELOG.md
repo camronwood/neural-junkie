@@ -4,9 +4,29 @@ All notable changes to Neural Junkie.
 
 **Versioning:** Installable desktop builds use **SemVer tags** on GitHub (`v1.0.0-beta.1`, `v0.1.x`, …). Sections **0.1.2–0.1.4** below are development milestones bundled into **v1.0.0-beta.1** (first public downloadable beta). Older sections include milestones never tagged (for example internal `2.0.0`, which is **not** semver above `0.1.x`).
 
+## [Unreleased]
+
+## [1.0.0-beta.8] - 2026-05-18
+
+### Added
+- **App-store model library** — toolbar **Model library** (⇧⌘M, `/nj-open-model-library`): browse grid + detail for Ollama and Hugging Face catalogs; one primary action per tile; full install/use/download actions on the detail screen. Curated `icon_key` / `publisher` metadata on catalog entries.
+- **Hugging Face model integration** — `huggingface` provider type (HF Inference Router), curated catalog (`GET /api/hf/catalog`), HF tab in the model library with hosted (cloud) and download (local GGUF) modes, SSE download progress, `POST /api/hf/import-ollama`, and DM expert creation via `provider_id` or `huggingface` + Hub repo id. Config: `hf.token`, `hf.cache_dir`, `HF_TOKEN` env.
+- **MCP tool servers re-enabled** — Backend, DevOps, and Database agents start MCP HTTP servers when `ENABLE_MCP=true` (ports 8081–8083).
+- **In-app MCP tool execution** — Claude-backed specialist agents run a tool-use loop via in-process MCP handlers (`internal/agent/mcp_tools.go`, `internal/ai/claude_tools.go`).
+- **MCP resource server** — `ENABLE_MCP_RESOURCES=true` starts export knowledge server on port 8086; CLI `--serve-mcp` runs standalone.
+- **CLI/API export** — `GET /api/exports`, `POST /api/export`; `MCP_EXPORTS_DIR` honored for export storage.
+- **Tests & smoke** — `modelVisuals` unit tests, `internal/mcp/server_test.go`, `mcp_tools_test.go`, `claude_tools_test.go`, `scripts/mcp-smoke.sh`.
+
+### Changed
+- **Model installs** — Ollama pull/delete and HF download/import live in the toolbar model library; Settings → AI Providers keeps the provider registry and Ollama endpoint only.
+- Consolidated `internal/mcp` package (removed `internal/mcp_disabled` duplicates); dynamic tool list in agent prompts from `ListTools()`.
+
 ## [1.0.0-beta.7] - 2026-05-18
 
 ### Added
+- **Collaboration completion closure** — `/complete-collab` (`--force` when tasks are open), `/collab-task-done`, agent `TASK_STATUS:` lines, plan handoff → task sync, desktop **Mark collaboration done** / read-only closed panel, and completion toast + channel banner.
+- **Chat file attachments** — drag-and-drop, paste, and 📎 picker on the message composer attach text files as `prompt_attachments` context (Tauri reads absolute paths from Finder; images still use 📷 / vision). Send with files only (no message body required).
+- **Collaboration assets root** — configurable parent directory for execution sandboxes (`collaboration.assets_root` in `~/.neural-junkie/config.json`, Settings → AI Providers, or `NEURAL_JUNKIE_COLLAB_ASSETS_DIR`). Default remains `~/.neural-junkie/collaborations/<collaboration-id>/`.
 - **Unified GFM markdown** — chat message bodies use the same `marked` pipeline as file preview and collaboration plans (`RichMarkdownView`, `renderChatMarkdown`); headings, lists, and tables render in the timeline. Fenced code still uses Prism; streaming keeps a lightweight path.
 - **RichMarkdownView** — shared component for plans, MD preview, and chat prose segments.
 - **Assistant workspace review** — when users ask to review editor content, prompt guidance nudges agents to use open-file workspace context.

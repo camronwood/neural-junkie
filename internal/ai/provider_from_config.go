@@ -51,6 +51,21 @@ func ProviderFromConfig(pcfg *config.ProviderConfig) (AIProvider, error) {
 		}
 		return NewCursorCLIProvider(workDir, pcfg.APIKey, opts...), nil
 
+	case "huggingface":
+		token := ResolveHFToken(pcfg.APIKey)
+		if token == "" {
+			return nil, fmt.Errorf("huggingface provider %q has no API key (set api_key or HF_TOKEN)", pcfg.ID)
+		}
+		endpoint := pcfg.Endpoint
+		if endpoint == "" {
+			endpoint = DefaultHuggingFaceRouterEndpoint
+		}
+		model := strings.TrimSpace(pcfg.Model)
+		if model == "" {
+			return nil, fmt.Errorf("huggingface provider %q has no model (Hub repo id, e.g. Qwen/Qwen2.5-Coder-7B-Instruct)", pcfg.ID)
+		}
+		return NewHuggingFaceProvider(endpoint, token, model), nil
+
 	case "gemini-cli":
 		workDir := pcfg.WorkDir
 		if workDir == "" {

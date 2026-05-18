@@ -16,6 +16,8 @@ type LibraryModel struct {
 	Description string   `json:"description"`
 	Tags        []string `json:"tags"`
 	SizeHint    string   `json:"size_hint,omitempty"`
+	IconKey     string   `json:"icon_key,omitempty"`
+	Publisher   string   `json:"publisher,omitempty"`
 }
 
 // Library returns the embedded catalog (curated pull names and copy).

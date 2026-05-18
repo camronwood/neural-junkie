@@ -123,6 +123,40 @@ export function CollaborationPanel({
     }
   };
 
+  const openTasks = c.tasks?.filter(t => t.status !== 'completed') ?? [];
+
+  const handleMarkDone = async () => {
+    if (openTasks.length > 0) {
+      const lines = openTasks.map((t, i) => `• ${t.title || `Task ${i + 1}`}`).join('\n');
+      const ok = window.confirm(
+        `Mark this collaboration done?\n\n${openTasks.length} task(s) are not completed yet:\n${lines}\n\nOpen tasks will be marked complete.`
+      );
+      if (!ok) return;
+    }
+    setIsSubmitting(true);
+    try {
+      const force = openTasks.length > 0 ? ' --force' : '';
+      await api.sendMessage(collabChannel, `/complete-collab ${c.id.slice(0, 8)}${force}`, from);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTaskDone = async (taskIndex: number) => {
+    setIsSubmitting(true);
+    try {
+      await api.sendMessage(
+        collabChannel,
+        `/collab-task-done ${c.id.slice(0, 8)} ${taskIndex + 1}`,
+        from
+      );
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleRename = async () => {
     const title = renameDraft.trim();
     if (!title) return;
@@ -293,6 +327,11 @@ export function CollaborationPanel({
           )}
           <p style={{ margin: '8px 0 0 0', fontSize: 12, color: 'var(--text-secondary, #999)' }}>
             <code style={{ fontSize: 11 }}>{c.id.slice(0, 8)}</code>
+            {isTerminal && c.updated_at && (
+              <span style={{ marginLeft: 8 }}>
+                Closed {new Date(c.updated_at).toLocaleString()}
+              </span>
+            )}
           </p>
           <p style={{ margin: '8px 0 0 0', fontSize: 13, color: 'var(--text-secondary, #999)', lineHeight: 1.4 }}>
             {c.description}
@@ -359,6 +398,26 @@ export function CollaborationPanel({
                     <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)', marginTop: 2 }}>
                       Assigned to @{task.assigned_name || 'unassigned'}
                     </div>
+                    {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleTaskDone(i)}
+                        disabled={isSubmitting}
+                        style={{
+                          marginTop: 6,
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          border: '1px solid var(--border-color, #444)',
+                          background: 'transparent',
+                          color: '#10b981',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          opacity: isSubmitting ? 0.6 : 1,
+                        }}
+                      >
+                        Mark task done
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -494,13 +553,41 @@ export function CollaborationPanel({
                 <>
                   <div style={{ gridColumn: '1 / -1' }}>Execution — limits off</div>
                   <div style={{ gridColumn: '1 / -1' }}>Messages: {c.discussion.total_message_count}</div>
-                  <div style={{ gridColumn: '1 / -1' }}>Status: {c.discussion.status}</div>
+                  <div style={{ gridColumn: '1 / -1' }}>Execution Q&A: {c.discussion.status}</div>
                 </>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {isTerminal && (
+        <div style={{
+          padding: '12px 16px',
+          borderTop: '1px solid var(--border-color, #333)',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #aaa)' }}>
+            This collaboration is closed. Review tasks and plan above, then dismiss the panel.
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 6,
+              border: '1px solid var(--border-color, #444)',
+              backgroundColor: 'transparent',
+              color: 'var(--text-primary, #eee)',
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Action buttons */}
       {!isTerminal && (
@@ -584,6 +671,26 @@ export function CollaborationPanel({
                 </button>
               </div>
             </>
+          )}
+          {(c.phase === 'executing' || c.phase === 'reviewing' || c.phase === 'approved') && (
+            <button
+              type="button"
+              onClick={() => void handleMarkDone()}
+              disabled={isSubmitting}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: 'none',
+                backgroundColor: '#059669',
+                color: '#fff',
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontSize: 13,
+                opacity: isSubmitting ? 0.6 : 1,
+              }}
+            >
+              Mark collaboration done
+            </button>
           )}
           <button
             type="button"

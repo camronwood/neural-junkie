@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 
 interface OllamaManagerProps {
   serverAddr: string;
+  /** When false, hides the “open from toolbar” hint (e.g. inside the model library modal). */
+  showLibraryHint?: boolean;
 }
 
 interface OllamaStatus {
@@ -11,7 +13,7 @@ interface OllamaStatus {
   path?: string;
 }
 
-export function OllamaManager({ serverAddr }: OllamaManagerProps) {
+export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaManagerProps) {
   const [status, setStatus] = useState<OllamaStatus | null>(null);
 
   useEffect(() => {
@@ -85,11 +87,13 @@ export function OllamaManager({ serverAddr }: OllamaManagerProps) {
             </div>
           )}
 
-          <p className="text-xs text-gray-500">
-            Open this anytime from the <strong className="text-gray-400">chat toolbar</strong> (amber model icon),{' '}
-            <strong className="text-gray-400">⇧⌘M</strong> / <strong className="text-gray-400">Ctrl+Shift+M</strong>, or the command palette:{' '}
-            <span className="font-mono text-gray-400">/nj-open-model-library</span>.
-          </p>
+          {showLibraryHint && (
+            <p className="text-xs text-gray-500">
+              Open this anytime from the <strong className="text-gray-400">chat toolbar</strong> (amber model icon),{' '}
+              <strong className="text-gray-400">⇧⌘M</strong> / <strong className="text-gray-400">Ctrl+Shift+M</strong>, or the command palette:{' '}
+              <span className="font-mono text-gray-400">/nj-open-model-library</span>.
+            </p>
+          )}
         </div>
       )}
     </div>

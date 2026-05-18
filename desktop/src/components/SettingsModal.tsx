@@ -5,9 +5,8 @@ import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
 import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings } from '../types/protocol';
 import { ProviderManager } from './ProviderManager';
-import { OllamaManager } from './OllamaManager';
-import { OllamaModelLibrary } from './OllamaModelLibrary';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
+import { open } from '@tauri-apps/api/dialog';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -61,6 +60,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [collabSmartRouting, setCollabSmartRouting] = useState(false);
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
+  const [collabAssetsRoot, setCollabAssetsRoot] = useState('');
+  const [collabAssetsSaving, setCollabAssetsSaving] = useState(false);
+  const [collabAssetsErr, setCollabAssetsErr] = useState<string | null>(null);
 
   // Load settings when modal opens
   useEffect(() => {
@@ -94,6 +96,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+          setCollabAssetsRoot(typeof cfg.collaboration?.assets_root === 'string' ? cfg.collaboration.assets_root : '');
         }
       } catch (e) {
         if (!cancelled) {
@@ -180,6 +183,59 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setCollabRoutingErr(e instanceof Error ? e.message : String(e));
     } finally {
       setCollabRoutingSaving(false);
+    }
+  };
+
+  const handleCollabAssetsRootSave = async () => {
+    setCollabAssetsSaving(true);
+    setCollabAssetsErr(null);
+    try {
+      const r = await fetch(`${hubHttp}/api/settings`);
+      if (!r.ok) {
+        throw new Error(await r.text());
+      }
+      const cfg = await r.json();
+      const trimmed = collabAssetsRoot.trim();
+      const next = {
+        ...cfg,
+        collaboration: {
+          ...(cfg.collaboration ?? {}),
+          assets_root: trimmed,
+        },
+      };
+      const put = await fetch(`${hubHttp}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!put.ok) {
+        throw new Error(await put.text());
+      }
+      setCollabAssetsRoot(trimmed);
+    } catch (e) {
+      setCollabAssetsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollabAssetsSaving(false);
+    }
+  };
+
+  const handleBrowseCollabAssetsRoot = async () => {
+    setCollabAssetsErr(null);
+    if (!(typeof window !== 'undefined' && (window as { __TAURI__?: unknown }).__TAURI__)) {
+      setCollabAssetsErr('Folder picker requires the desktop app');
+      return;
+    }
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'Collaboration output folder',
+      });
+      if (selected && typeof selected === 'string') {
+        setCollabAssetsRoot(selected);
+      }
+    } catch (e) {
+      setCollabAssetsErr(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -1098,6 +1154,47 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {activeTab === 'ai-providers' && (
             <div className="space-y-8">
               <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Collaboration output folder</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  When a plan is approved, each collaboration gets a sandbox at{' '}
+                  <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">&lt;folder&gt;/&lt;collaboration-id&gt;/</code>.
+                  Leave empty to use{' '}
+                  <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">~/.neural-junkie/collaborations</code>.
+                  You can also set <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">NEURAL_JUNKIE_COLLAB_ASSETS_DIR</code> in the hub environment.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={collabAssetsRoot}
+                    onChange={(e) => setCollabAssetsRoot(e.target.value)}
+                    placeholder="~/development/collab-output"
+                    disabled={collabAssetsSaving}
+                    className="flex-1 px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text font-mono"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleBrowseCollabAssetsRoot()}
+                    disabled={collabAssetsSaving}
+                    className="px-3 py-2 text-sm border border-slack-border rounded text-slack-text hover:bg-slack-bgHover disabled:opacity-50"
+                  >
+                    Browse…
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCollabAssetsRootSave()}
+                    disabled={collabAssetsSaving}
+                    className="px-4 py-2 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    {collabAssetsSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+                {collabAssetsErr && (
+                  <p className="text-sm text-red-600">{collabAssetsErr}</p>
+                )}
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Collaboration smart routing</h3>
                 <p className="text-sm text-slack-textMuted mb-4">
                   When enabled, the hub picks a configured AI provider for each <strong>collaboration execution task</strong>{' '}
@@ -1123,29 +1220,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <ProviderManager serverAddr={hubHttp} />
               </div>
 
-              {/* Ollama Lifecycle Management */}
-              <div className="border border-slack-border rounded-lg p-6">
-                <OllamaManager serverAddr={hubHttp} />
-              </div>
-
-              <div className="border border-slack-border rounded-lg p-6">
-                <p className="text-xs text-slack-textMuted mb-3">
-                  Quick access: chat toolbar (amber model icon), <kbd className="font-mono text-slack-text">⇧⌘M</kbd> /{' '}
-                  <kbd className="font-mono text-slack-text">Ctrl+Shift+M</kbd>, or command{' '}
+              <div className="border border-slack-border rounded-lg p-4 bg-slack-bgHover/30">
+                <p className="text-sm text-slack-text">
+                  <strong className="font-medium">Model library</strong> — browse, download, and install Ollama and
+                  Hugging Face models from the chat toolbar (amber icon),{' '}
+                  <kbd className="font-mono text-xs px-1 rounded bg-slack-bgHover">⇧⌘M</kbd> /{' '}
+                  <kbd className="font-mono text-xs px-1 rounded bg-slack-bgHover">Ctrl+Shift+M</kbd>, or{' '}
                   <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">/nj-open-model-library</code>.
                 </p>
-                <OllamaModelLibrary
-                  serverAddr={hubHttp}
-                  switchAllAgentProviders={switchAllAgentProviders}
-                  onAfterModelChange={async () => {
-                    try {
-                      const models = await fetchOllamaModels();
-                      setOllamaForm((prev) => ({ ...prev, availableModels: models }));
-                    } catch (e) {
-                      console.error('Failed to refresh Ollama model list:', e);
-                    }
-                  }}
-                />
               </div>
 
               {/* Ollama Settings (legacy) */}

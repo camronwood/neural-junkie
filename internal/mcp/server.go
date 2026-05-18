@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	mcp "github.com/mark3labs/mcp-go/mcp"
+	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -18,18 +18,28 @@ type MCPServerConfig struct {
 	Version string
 }
 
+// defaultPorts matches env.example (MCP_*_PORT).
+var defaultPorts = map[string]int{
+	"BACKEND":  8081,
+	"DEVOPS":   8082,
+	"DATABASE": 8083,
+	"FRONTEND": 8084,
+	"SECURITY": 8085,
+}
+
 // GetMCPServerConfig returns configuration for a specific agent type
 func GetMCPServerConfig(agentType string) *MCPServerConfig {
 	enabled := os.Getenv("ENABLE_MCP") == "true"
 
-	// Check agent-specific enable flag
 	agentFlag := fmt.Sprintf("ENABLE_%s_MCP", agentType)
 	agentEnabled := os.Getenv(agentFlag) == "true"
 
-	// Get port from environment
 	portFlag := fmt.Sprintf("MCP_%s_PORT", agentType)
 	portStr := os.Getenv(portFlag)
-	port := 18765 // default
+	port := defaultPorts[agentType]
+	if port == 0 {
+		port = 8081
+	}
 	if portStr != "" {
 		if p, err := strconv.Atoi(portStr); err == nil {
 			port = p
@@ -76,9 +86,9 @@ func StartMCPServer(httpServer *server.StreamableHTTPServer, port int) error {
 	return nil
 }
 
-// CreateTool creates a standardized MCP tool with error handling
-func CreateTool(name, description string, inputSchema mcp.ToolInputSchema, handler server.ToolHandlerFunc) mcp.Tool {
-	return mcp.Tool{
+// CreateTool creates a standardized MCP tool definition
+func CreateTool(name, description string, inputSchema mcpgo.ToolInputSchema, handler server.ToolHandlerFunc) mcpgo.Tool {
+	return mcpgo.Tool{
 		Name:        name,
 		Description: description,
 		InputSchema: inputSchema,
@@ -86,8 +96,8 @@ func CreateTool(name, description string, inputSchema mcp.ToolInputSchema, handl
 }
 
 // CreateStringInputSchema creates a simple string input schema
-func CreateStringInputSchema(paramName, description string) mcp.ToolInputSchema {
-	return mcp.ToolInputSchema{
+func CreateStringInputSchema(paramName, description string) mcpgo.ToolInputSchema {
+	return mcpgo.ToolInputSchema{
 		Type: "object",
 		Properties: map[string]any{
 			paramName: map[string]any{
@@ -100,7 +110,7 @@ func CreateStringInputSchema(paramName, description string) mcp.ToolInputSchema 
 }
 
 // CreateMultiStringInputSchema creates a schema with multiple string parameters
-func CreateMultiStringInputSchema(params map[string]string) mcp.ToolInputSchema {
+func CreateMultiStringInputSchema(params map[string]string) mcpgo.ToolInputSchema {
 	properties := make(map[string]any)
 	required := make([]string, 0, len(params))
 
@@ -112,7 +122,7 @@ func CreateMultiStringInputSchema(params map[string]string) mcp.ToolInputSchema 
 		required = append(required, name)
 	}
 
-	return mcp.ToolInputSchema{
+	return mcpgo.ToolInputSchema{
 		Type:       "object",
 		Properties: properties,
 		Required:   required,
@@ -120,11 +130,11 @@ func CreateMultiStringInputSchema(params map[string]string) mcp.ToolInputSchema 
 }
 
 // HandleToolError creates a standardized error response
-func HandleToolError(err error, toolName string) *mcp.CallToolResult {
+func HandleToolError(err error, toolName string) *mcpgo.CallToolResult {
 	log.Printf("Tool %s error: %v", toolName, err)
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			mcp.TextContent{
+	return &mcpgo.CallToolResult{
+		Content: []mcpgo.Content{
+			mcpgo.TextContent{
 				Type: "text",
 				Text: fmt.Sprintf("Error in %s: %v", toolName, err),
 			},
@@ -134,10 +144,10 @@ func HandleToolError(err error, toolName string) *mcp.CallToolResult {
 }
 
 // HandleToolSuccess creates a standardized success response
-func HandleToolSuccess(result string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			mcp.TextContent{
+func HandleToolSuccess(result string) *mcpgo.CallToolResult {
+	return &mcpgo.CallToolResult{
+		Content: []mcpgo.Content{
+			mcpgo.TextContent{
 				Type: "text",
 				Text: result,
 			},
@@ -146,7 +156,7 @@ func HandleToolSuccess(result string) *mcp.CallToolResult {
 }
 
 // ValidateToolInput validates required string parameters
-func ValidateToolInput(request mcp.CallToolRequest, requiredParams []string) error {
+func ValidateToolInput(request mcpgo.CallToolRequest, requiredParams []string) error {
 	for _, param := range requiredParams {
 		if request.GetString(param, "") == "" {
 			return fmt.Errorf("missing required parameter: %s", param)

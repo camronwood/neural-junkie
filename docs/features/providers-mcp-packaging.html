@@ -38,12 +38,16 @@
     </header>
 
     <article class="feature-prose">
-      <h2>Ollama model library</h2>
-      <p>Under <strong>Settings → AI Providers</strong>, the desktop loads a <strong>curated catalog</strong> from the hub (<code>GET /api/ollama/catalog</code>) so you can discover models without hunting tags on the web. Install streams progress over the same pull pipeline as manual pulls; remove frees disk via <code>POST /api/ollama/delete</code>. <strong>Use for agents</strong> updates the Ollama provider row and aligns agent wiring in one step.</p>
+      <h2>Model library (toolbar)</h2>
+      <p>Open <strong>Model library</strong> from the toolbar (⇧⌘M or <code>/nj-open-model-library</code>). Browse Ollama and Hugging Face catalogs in an app-store grid; one primary action per tile; detail pages for full install, use, download, and import flows. Ollama uses <code>GET /api/ollama/catalog</code> with SSE pull progress; Hugging Face adds hosted inference and local GGUF download (<code>GET /api/hf/catalog</code>, <code>POST /api/hf/download</code>, <code>POST /api/hf/import-ollama</code>). <strong>Settings → AI Providers</strong> keeps the provider registry and Ollama endpoint only.</p>
+
+      <h2>Hugging Face tab</h2>
+      <p>In the model library <strong>Hugging Face</strong> tab, a curated catalog (<code>GET /api/hf/catalog</code>) supports <strong>Hosted</strong> (Inference Router; <code>HF_TOKEN</code> or per-provider key) and <strong>Download</strong> (GGUF with SSE progress, then <strong>Import to Ollama</strong>). Create DM experts with a registry <code>provider_id</code> or <code>huggingface</code> + repo id.</p>
 
       <h2>Supported provider families</h2>
       <ul>
         <li><strong>Ollama</strong> — local inference with optional lifecycle help (detect, start/stop, health checks), the model library above, and classic pull/list flows from the hub and desktop.</li>
+        <li><strong>Hugging Face</strong> — hosted inference via the router API, or local GGUF download + Ollama import (see above).</li>
         <li><strong>Claude</strong> — Anthropic API keys via settings or <code>env.local</code>.</li>
         <li><strong>LM Studio</strong> — OpenAI-compatible local server presets.</li>
         <li><strong>OpenAI-compatible</strong> — Amazon Q, Azure OpenAI, Together, Groq, or any URL that speaks the compatible chat API.</li>

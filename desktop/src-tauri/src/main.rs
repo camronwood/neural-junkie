@@ -452,6 +452,104 @@ async fn destroy_embedded_browser(
 }
 
 
+const MAX_ATTACH_BYTES: usize = 80_000;
+const MAX_ATTACH_COUNT: usize = 12;
+const MAX_ATTACH_TOTAL: usize = 350_000;
+
+fn is_binary_attachment_path(path: &str) -> bool {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "svg" | "bmp" | "zip" | "tar" | "gz"
+            | "pdf" | "mp4" | "mp3" | "wav" | "exe" | "dll" | "so" | "dylib" | "woff" | "woff2"
+            | "ttf" | "eot" | "gguf" | "bin"
+    )
+}
+
+fn infer_language_from_path(path: &str) -> String {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let lang = match ext.as_str() {
+        "go" => "go",
+        "rs" => "rust",
+        "py" => "python",
+        "ts" => "typescript",
+        "tsx" => "tsx",
+        "js" => "javascript",
+        "jsx" => "jsx",
+        "md" => "markdown",
+        "json" => "json",
+        "yaml" | "yml" => "yaml",
+        "toml" => "toml",
+        "sql" => "sql",
+        "sh" => "bash",
+        "tf" | "hcl" => "hcl",
+        "html" => "html",
+        "css" => "css",
+        "scss" => "scss",
+        "vue" => "vue",
+        "rb" => "ruby",
+        "java" => "java",
+        "kt" => "kotlin",
+        "swift" => "swift",
+        "c" | "h" => "c",
+        "cpp" | "cc" | "cxx" => "cpp",
+        "cs" => "csharp",
+        _ => "text",
+    };
+    lang.to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PromptAttachmentRead {
+    path: String,
+    language: String,
+    content: String,
+}
+
+/// Read text files from absolute paths for chat prompt attachments (drag-and-drop from Finder).
+#[tauri::command]
+async fn read_prompt_attachment_paths(paths: Vec<String>) -> Result<Vec<PromptAttachmentRead>, String> {
+    let mut out = Vec::new();
+    let mut total = 0usize;
+    for path in paths {
+        if out.len() >= MAX_ATTACH_COUNT {
+            break;
+        }
+        let path = path.trim();
+        if path.is_empty() || is_binary_attachment_path(path) {
+            continue;
+        }
+        let meta = std::fs::metadata(path).map_err(|e| format!("{}: {}", path, e))?;
+        if !meta.is_file() {
+            continue;
+        }
+        let raw = std::fs::read_to_string(path).map_err(|e| format!("{}: {}", path, e))?;
+        let mut content = raw;
+        if content.len() > MAX_ATTACH_BYTES {
+            content.truncate(MAX_ATTACH_BYTES);
+            content.push_str("\n[truncated client-side]");
+        }
+        if total + content.len() > MAX_ATTACH_TOTAL {
+            break;
+        }
+        total += content.len();
+        out.push(PromptAttachmentRead {
+            path: path.to_string(),
+            language: infer_language_from_path(path),
+            content,
+        });
+    }
+    Ok(out)
+}
+
 #[tauri::command]
 async fn open_markdown_preview(
     workspace_id: String,
@@ -622,6 +720,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            read_prompt_attachment_paths,
             execute_command,
             create_pty_session,
             write_pty_session,

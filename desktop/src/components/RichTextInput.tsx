@@ -1,4 +1,13 @@
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle, KeyboardEvent } from 'react';
+import {
+  useState,
+  useRef,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+  KeyboardEvent,
+  ClipboardEvent,
+  ChangeEvent,
+} from 'react';
 import { MentionAutocomplete } from './MentionAutocomplete';
 import type { AgentInfo } from '../types/protocol';
 import {
@@ -6,9 +15,20 @@ import {
   USER_IMAGES_METADATA_KEY,
   type PromptAttachmentPayload,
 } from '../constants/promptMetadata';
+import {
+  attachmentsFromAbsolutePaths,
+  attachmentsFromFileList,
+  attachmentsFromWorkspaceRefs,
+  isImageFile,
+  isTauriRuntime,
+} from '../utils/promptAttachments';
+import { isImagePreviewPath } from '../utils/editorFileKind';
+import { parseWorkspaceFileDrag, WORKSPACE_FILE_DRAG_MIME } from '../utils/workspaceFileDrag';
+import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 
 interface RichTextInputProps {
-  onSend: (message: string, metadata?: Record<string, any>) => void;
+  onSend: (message: string, metadata?: Record<string, unknown>) => void;
   disabled?: boolean;
   placeholder?: string;
   agents?: AgentInfo[];
@@ -20,6 +40,9 @@ interface RichTextInputProps {
 
 const MAX_USER_IMAGES = 6;
 const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
+
+const TEXT_FILE_ACCEPT =
+  '.go,.rs,.py,.ts,.tsx,.js,.jsx,.md,.json,.yaml,.yml,.toml,.sql,.sh,.txt,.html,.css,.scss,.vue,.rb,.java,.kt,.swift,.c,.cpp,.h,.cs,.tf,.hcl';
 
 type PendingImage = { id: string; file: File; preview: string };
 
@@ -35,6 +58,11 @@ async function readImageBase64Payload(file: File): Promise<{ mime: string; data:
     reader.readAsDataURL(file);
   });
   return { mime: file.type || 'image/png', data };
+}
+
+function displayPath(path: string): string {
+  const parts = path.split(/[/\\]/);
+  return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : path;
 }
 
 export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>(
@@ -65,11 +93,15 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     const [pendingAttachments, setPendingAttachments] = useState<PromptAttachmentPayload[]>([]);
     const [dragActive, setDragActive] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const attachInputRef = useRef<HTMLInputElement>(null);
     const sendingRef = useRef(false);
+    const dropZoneDepthRef = useRef(0);
 
     const visionAgents = agents.filter((agent) => agent.supports_vision);
     const hasVisionAgents = visionAgents.length > 0;
+    const hasComposerContext =
+      message.trim().length > 0 || pendingImages.length > 0 || pendingAttachments.length > 0;
 
     useEffect(() => {
       if (!textareaRef.current) return;
@@ -139,8 +171,8 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         prev.forEach((p) => URL.revokeObjectURL(p.preview));
         return [];
       });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
       }
     };
 
@@ -172,7 +204,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       });
     };
 
-    const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
       const list = event.target.files;
       if (!list?.length) return;
       for (let i = 0; i < list.length; i++) {
@@ -181,82 +213,99 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       event.target.value = '';
     };
 
-    const inferLanguageFromPath = (path: string): string => {
-      const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : '';
-      const m: Record<string, string> = {
-        go: 'go',
-        rs: 'rust',
-        py: 'python',
-        ts: 'typescript',
-        tsx: 'tsx',
-        js: 'javascript',
-        jsx: 'jsx',
-        md: 'markdown',
-        json: 'json',
-        yaml: 'yaml',
-        yml: 'yaml',
-        toml: 'toml',
-        sql: 'sql',
-        sh: 'bash',
-        tf: 'hcl',
-      };
-      return m[ext] || 'text';
+    const handleAttachFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+      const list = event.target.files;
+      if (!list?.length) return;
+      void ingestDroppedFiles(list);
+      event.target.value = '';
     };
 
-    const binaryExt = new Set([
-      'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp', 'zip', 'tar', 'gz', 'pdf', 'mp4', 'mp3', 'wav',
-      'exe', 'dll', 'so', 'dylib', 'woff', 'woff2', 'ttf', 'eot', 'gguf', 'bin',
-    ]);
-
-    const isBinaryPath = (path: string) => {
-      const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : '';
-      return binaryExt.has(ext);
+    const ingestAbsolutePaths = async (paths: string[]) => {
+      if (!paths.length) return;
+      setPendingAttachments((prev) => {
+        void attachmentsFromAbsolutePaths(paths, prev).then(setPendingAttachments);
+        return prev;
+      });
     };
 
-    const MAX_ATTACH_BYTES = 80_000;
-    const MAX_ATTACH_COUNT = 12;
-    const MAX_ATTACH_TOTAL = 350_000;
-
-    const ingestDroppedFiles = async (files: FileList | null) => {
-      if (!files?.length) return;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (VALID_IMAGE_TYPES.includes(file.type)) {
-          addImageFile(file);
-          continue;
-        }
+    const addImageFromWorkspace = async (workspaceId: string, path: string) => {
+      try {
+        const api = new ChatAPI(getHubBaseURL());
+        const dataUrl = await api.fetchWorkspaceImageDataUrl(workspaceId, path);
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const name = path.split(/[/\\]/).pop() || 'image.png';
+        addImageFile(new File([blob], name, { type: blob.type || 'image/png' }));
+      } catch (e) {
+        console.error('[addImageFromWorkspace]', path, e);
       }
+    };
 
-      const next: PromptAttachmentPayload[] = [...pendingAttachments];
-      let total = next.reduce((s, x) => s + x.content.length, 0);
-      for (let i = 0; i < files.length; i++) {
-        if (next.length >= MAX_ATTACH_COUNT) break;
-        const file = files[i];
-        if (VALID_IMAGE_TYPES.includes(file.type)) continue;
-        if (isBinaryPath(file.name)) continue;
-        try {
-          const text = await file.text();
-          let slice = text;
-          if (slice.length > MAX_ATTACH_BYTES) {
-            slice = slice.slice(0, MAX_ATTACH_BYTES) + '\n[truncated client-side]';
+    const ingestDataTransfer = async (dataTransfer: DataTransfer) => {
+      const workspaceRefs = parseWorkspaceFileDrag(dataTransfer);
+      if (workspaceRefs.length > 0) {
+        for (const ref of workspaceRefs) {
+          if (isImagePreviewPath(ref.path)) {
+            await addImageFromWorkspace(ref.workspaceId, ref.path);
           }
-          if (total + slice.length > MAX_ATTACH_TOTAL) break;
-          next.push({
-            path: file.name,
-            language: inferLanguageFromPath(file.name),
-            content: slice,
-          });
-          total += slice.length;
-        } catch {
-          /* skip unreadable */
+        }
+        setPendingAttachments((prev) => {
+          void attachmentsFromWorkspaceRefs(workspaceRefs, prev).then(setPendingAttachments);
+          return prev;
+        });
+        return;
+      }
+      await ingestDroppedFiles(dataTransfer.files);
+    };
+
+    const ingestDroppedFiles = async (files: FileList | File[] | null) => {
+      if (!files || (Array.isArray(files) ? files.length === 0 : files.length === 0)) return;
+      const list = Array.from(files);
+      for (const file of list) {
+        if (isImageFile(file)) {
+          addImageFile(file);
         }
       }
-      setPendingAttachments(next);
+      setPendingAttachments((prev) => {
+        void attachmentsFromFileList(list, prev).then(setPendingAttachments);
+        return prev;
+      });
     };
 
     const removeAttachmentAt = (idx: number) => {
       setPendingAttachments((prev) => prev.filter((_, i) => i !== idx));
     };
+
+    useEffect(() => {
+      if (!isTauriRuntime()) return;
+      let cancelled = false;
+      const unsubs: Array<() => void> = [];
+      void (async () => {
+        const { listen } = await import('@tauri-apps/api/event');
+        unsubs.push(
+          await listen('tauri://file-drop-hover', () => {
+            if (!cancelled) setDragActive(true);
+          })
+        );
+        unsubs.push(
+          await listen('tauri://file-drop-cancelled', () => {
+            if (!cancelled) setDragActive(false);
+          })
+        );
+        unsubs.push(
+          await listen<string[]>('tauri://file-drop', (event) => {
+            if (cancelled) return;
+            setDragActive(false);
+            dropZoneDepthRef.current = 0;
+            void ingestAbsolutePaths(event.payload);
+          })
+        );
+      })();
+      return () => {
+        cancelled = true;
+        unsubs.forEach((u) => u());
+      };
+    }, []);
 
     const handleAnalyzeDesign = async () => {
       if (pendingImages.length === 0) return;
@@ -290,37 +339,55 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
     const handleSend = () => {
       const trimmed = message.trim();
-      if (disabled || sendingRef.current || (!trimmed && pendingImages.length === 0)) return;
+      if (disabled || sendingRef.current || !hasComposerContext) return;
 
       sendingRef.current = true;
       void (async () => {
         try {
-        const composerMeta: Record<string, unknown> = {};
-        if (pendingAttachments.length > 0) {
-          composerMeta[PROMPT_ATTACHMENTS_METADATA_KEY] = pendingAttachments.map(({ path, language, content }) => ({
-            path,
-            language,
-            content,
-          }));
-        }
-        if (pendingImages.length > 0) {
-          composerMeta[USER_IMAGES_METADATA_KEY] = await Promise.all(
-            pendingImages.map((p) => readImageBase64Payload(p.file))
-          );
-        }
+          const composerMeta: Record<string, unknown> = {};
+          if (pendingAttachments.length > 0) {
+            composerMeta[PROMPT_ATTACHMENTS_METADATA_KEY] = pendingAttachments.map(
+              ({ path, language, content }) => ({
+                path,
+                language,
+                content,
+              })
+            );
+          }
+          if (pendingImages.length > 0) {
+            composerMeta[USER_IMAGES_METADATA_KEY] = await Promise.all(
+              pendingImages.map((p) => readImageBase64Payload(p.file))
+            );
+          }
 
-        const textOut = trimmed || (pendingImages.length > 0 ? '(see attached images)' : '');
-        await Promise.resolve(
-          onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined)
-        );
-        updateMessage('');
-        setPendingAttachments([]);
-        clearPendingImages();
-        setShowMentionMenu(false);
+          let textOut = trimmed;
+          if (!textOut) {
+            if (pendingImages.length > 0) {
+              textOut = '(see attached images)';
+            } else if (pendingAttachments.length > 0) {
+              textOut = '(see attached files)';
+            }
+          }
+          await Promise.resolve(
+            onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined)
+          );
+          updateMessage('');
+          setPendingAttachments([]);
+          clearPendingImages();
+          setShowMentionMenu(false);
         } finally {
           sendingRef.current = false;
         }
       })();
+    };
+
+    const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const dt = e.clipboardData;
+      if (!dt) return;
+      if (parseWorkspaceFileDrag(dt).length > 0 || dt.files?.length) {
+        e.preventDefault();
+        void ingestDataTransfer(dt);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -363,6 +430,8 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           ...textareaRef.current!,
           clearInput: () => {
             updateMessage('');
+            setPendingAttachments([]);
+            clearPendingImages();
           },
           insertMentionText: (agentName: string) => {
             const cursorPos = textareaRef.current?.selectionStart || message.length;
@@ -391,29 +460,48 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     return (
       <div
         className={`relative flex flex-col gap-2 p-4 border-t border-slack-border bg-slack-bg rich-text-input ${
-          dragActive ? 'ring-2 ring-slack-accent ring-inset rounded-lg' : ''
+          dragActive ? 'ring-2 ring-slack-accent ring-inset' : ''
         }`}
         onDragEnter={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          dropZoneDepthRef.current += 1;
           setDragActive(true);
         }}
         onDragLeave={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (e.currentTarget === e.target) setDragActive(false);
+          dropZoneDepthRef.current = Math.max(0, dropZoneDepthRef.current - 1);
+          if (dropZoneDepthRef.current === 0 && !isTauriRuntime()) {
+            setDragActive(false);
+          }
         }}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (e.dataTransfer.types.includes(WORKSPACE_FILE_DRAG_MIME)) {
+            e.dataTransfer.dropEffect = 'copy';
+          }
         }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          dropZoneDepthRef.current = 0;
           setDragActive(false);
-          void ingestDroppedFiles(e.dataTransfer.files);
+          void ingestDataTransfer(e.dataTransfer);
         }}
       >
+        {dragActive && (
+          <div
+            className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-slack-accent bg-slack-accent/10"
+            aria-hidden
+          >
+            <p className="text-sm font-medium text-slack-text px-4 text-center">
+              Drop to attach — from disk, or drag a file from the file explorer
+            </p>
+          </div>
+        )}
+
         {pendingImages.length > 0 && (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
@@ -458,8 +546,11 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
                 key={`${a.path}-${idx}`}
                 className="flex items-center gap-1 px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-xs text-slack-text max-w-full"
               >
-                <span className="truncate" title={a.path}>
-                  {a.path}
+                <span className="truncate font-mono" title={a.path}>
+                  {displayPath(a.path)}
+                  <span className="text-slack-textMuted ml-1">
+                    ({Math.round(a.content.length / 1024)}k)
+                  </span>
                 </span>
                 <button
                   type="button"
@@ -490,6 +581,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             value={message}
             onChange={(e) => updateMessage(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             disabled={disabled}
             placeholder={placeholder}
             className="flex-1 bg-slack-bgHover text-slack-text placeholder-slack-textMuted px-4 py-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50 disabled:cursor-not-allowed"
@@ -502,7 +594,15 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
           <div className="flex flex-col gap-2">
             <input
-              ref={fileInputRef}
+              ref={attachInputRef}
+              type="file"
+              multiple
+              accept={TEXT_FILE_ACCEPT}
+              onChange={handleAttachFileSelect}
+              className="hidden"
+            />
+            <input
+              ref={imageInputRef}
               type="file"
               accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
               multiple
@@ -511,7 +611,16 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => attachInputRef.current?.click()}
+              disabled={disabled}
+              className="px-3 py-2 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Attach text files for agent context (drag-and-drop also supported)"
+            >
+              📎
+            </button>
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
               disabled={disabled}
               className="px-3 py-2 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Attach images (up to 6, 5MB each). @mention vision-capable agents."
@@ -534,7 +643,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             <button
               type="button"
               onClick={handleSend}
-              disabled={disabled || (!message.trim() && pendingImages.length === 0)}
+              disabled={disabled || !hasComposerContext}
               className="px-6 py-3 bg-slack-success hover:bg-slack-success/80 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send

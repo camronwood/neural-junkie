@@ -1,13 +1,12 @@
 package agent
 
 import (
-	// "log" // Temporarily unused due to MCP disable
+	"log"
 
-	// MCP imports temporarily disabled
-	// "github.com/camronwood/neural-junkie/internal/mcp/backend"
-	// "github.com/camronwood/neural-junkie/internal/mcp/database"
-	// "github.com/camronwood/neural-junkie/internal/mcp/devops"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/mcp/backend"
+	"github.com/camronwood/neural-junkie/internal/mcp/database"
+	"github.com/camronwood/neural-junkie/internal/mcp/devops"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -44,18 +43,17 @@ func NewBackendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeBackend, name, expertise, ai, hub)
 
-	// MCP temporarily disabled
-	// backendMCP, err := backend.NewBackendMCP()
-	// if err != nil {
-	// 	log.Printf("Failed to create Backend MCP server: %v", err)
-	// } else {
-	// 	agent.MCPServer = backendMCP
-	// 	if err := backendMCP.Start(); err != nil {
-	// 		log.Printf("Failed to start Backend MCP server: %v", err)
-	// 	} else {
-	// 		log.Printf("Backend MCP server started for agent: %s", name)
-	// 	}
-	// }
+	backendMCP, err := backend.NewBackendMCP()
+	if err != nil {
+		log.Printf("Failed to create Backend MCP server: %v", err)
+	} else {
+		agent.MCPServer = backendMCP
+		if err := backendMCP.Start(); err != nil {
+			log.Printf("Failed to start Backend MCP server: %v", err)
+		} else {
+			log.Printf("Backend MCP server started for agent: %s", name)
+		}
+	}
 
 	return agent
 }
@@ -76,18 +74,17 @@ func NewDevOpsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeDevOps, name, expertise, ai, hub)
 
-	// MCP temporarily disabled
-	// devopsMCP, err := devops.NewDevOpsMCP()
-	// if err != nil {
-	// 	log.Printf("Failed to create DevOps MCP server: %v", err)
-	// } else {
-	// 	agent.MCPServer = devopsMCP
-	// 	if err := devopsMCP.Start(); err != nil {
-	// 		log.Printf("Failed to start DevOps MCP server: %v", err)
-	// 	} else {
-	// 		log.Printf("DevOps MCP server started for agent: %s", name)
-	// 	}
-	// }
+	devopsMCP, err := devops.NewDevOpsMCP()
+	if err != nil {
+		log.Printf("Failed to create DevOps MCP server: %v", err)
+	} else {
+		agent.MCPServer = devopsMCP
+		if err := devopsMCP.Start(); err != nil {
+			log.Printf("Failed to start DevOps MCP server: %v", err)
+		} else {
+			log.Printf("DevOps MCP server started for agent: %s", name)
+		}
+	}
 
 	return agent
 }
@@ -105,18 +102,17 @@ func NewDatabaseAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeDatabase, name, expertise, ai, hub)
 
-	// MCP temporarily disabled
-	// databaseMCP, err := database.NewDatabaseMCP()
-	// if err != nil {
-	// 	log.Printf("Failed to create Database MCP server: %v", err)
-	// } else {
-	// 	agent.MCPServer = databaseMCP
-	// 	if err := databaseMCP.Start(); err != nil {
-	// 		log.Printf("Failed to start Database MCP server: %v", err)
-	// 	} else {
-	// 		log.Printf("Database MCP server started for agent: %s", name)
-	// 	}
-	// }
+	databaseMCP, err := database.NewDatabaseMCP()
+	if err != nil {
+		log.Printf("Failed to create Database MCP server: %v", err)
+	} else {
+		agent.MCPServer = databaseMCP
+		if err := databaseMCP.Start(); err != nil {
+			log.Printf("Failed to start Database MCP server: %v", err)
+		} else {
+			log.Printf("Database MCP server started for agent: %s", name)
+		}
+	}
 
 	return agent
 }
@@ -165,8 +161,6 @@ func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvi
 }
 
 // NewRepoAgentWrapper creates a repository expert agent wrapper
-// Note: The actual RepoAgent is created with NewRepoAgent which requires a repo path
-// This is just a placeholder for the factory pattern
 func NewRepoAgentWrapper(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
 		"Repository Analysis",
@@ -192,14 +186,11 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 	case protocol.AgentTypeRust:
 		return NewRustAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
-		// For repo agents, use the wrapper - actual repo agents should be created with NewRepoAgent
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeModerator:
-		// Return the base Agent from the ModeratorAgent
 		moderator := NewModeratorAgent(name, ai, hub)
 		return moderator.Agent, nil
 	case protocol.AgentTypeAssistant:
-		// Return the base Agent from the AssistantAgent
 		assistant := NewAssistantAgent(name, ai, hub)
 		return assistant.Agent, nil
 	case protocol.AgentTypeCLI:

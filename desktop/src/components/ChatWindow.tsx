@@ -43,7 +43,7 @@ import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
-import { OllamaModelLibraryModal } from './OllamaModelLibraryModal';
+import { ModelLibraryModal } from './ModelLibraryModal';
 import {
   PendingChangesIcon,
   MyAgentsIcon,
@@ -73,7 +73,7 @@ import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExe
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
     name: '/nj-open-model-library',
-    description: 'Open Ollama model library (download models, set defaults for agents)',
+    description: 'Open model library (Ollama & Hugging Face — download, install, assign to agents)',
     category: 'Neural Junkie',
     arguments: [],
   },
@@ -317,36 +317,75 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api]);
 
+  const pruneTerminalCollaborations = (
+    next: Record<string, Collaboration>,
+    channelName: string
+  ): Record<string, Collaboration> => {
+    const terminals = Object.values(next)
+      .filter(
+        c =>
+          isTerminalCollaborationPhase(c.phase) &&
+          (c.channel || '') === channelName
+      )
+      .sort(
+        (a, b) => Date.parse(b.updated_at || '') - Date.parse(a.updated_at || '')
+      );
+    if (terminals.length <= 3) return next;
+    const drop = new Set(terminals.slice(3).map(c => c.id));
+    const pruned = { ...next };
+    for (const id of drop) {
+      delete pruned[id];
+    }
+    return pruned;
+  };
+
   const mergeCollaborationSnapshot = useCallback((snapshot: Collaboration) => {
     if (!snapshot?.id) return;
     const isTerminal = isTerminalCollaborationPhase(snapshot.phase);
+    const wasTerminal =
+      collaborationsByIDRef.current[snapshot.id] &&
+      isTerminalCollaborationPhase(collaborationsByIDRef.current[snapshot.id].phase);
+
     setCollaborationsByID(prev => {
-      if (isTerminal) {
-        if (!prev[snapshot.id]) return prev;
-        const next = { ...prev };
-        delete next[snapshot.id];
-        return next;
-      }
       const existing = prev[snapshot.id];
-      if (!existing) {
-        return { ...prev, [snapshot.id]: snapshot };
-      }
       if (
+        existing &&
         existing.updated_at === snapshot.updated_at &&
         existing.phase === snapshot.phase &&
         existing.workspace_acknowledged === snapshot.workspace_acknowledged
       ) {
         return prev;
       }
-      const nextTime = Date.parse(snapshot.updated_at || '');
-      const existingTime = Date.parse(existing.updated_at || '');
-      if (!Number.isNaN(nextTime) && !Number.isNaN(existingTime) && nextTime < existingTime) {
-        return prev;
+      if (existing) {
+        const nextTime = Date.parse(snapshot.updated_at || '');
+        const existingTime = Date.parse(existing.updated_at || '');
+        if (!Number.isNaN(nextTime) && !Number.isNaN(existingTime) && nextTime < existingTime) {
+          return prev;
+        }
       }
-      return { ...prev, [snapshot.id]: snapshot };
+      let next = { ...prev, [snapshot.id]: snapshot };
+      if (isTerminal && snapshot.channel) {
+        next = pruneTerminalCollaborations(next, snapshot.channel);
+      }
+      return next;
     });
+
+    if (isTerminal && !wasTerminal) {
+      const completed =
+        snapshot.tasks?.filter(t => t.status === 'completed').length ?? 0;
+      const total = snapshot.tasks?.length ?? 0;
+      addToast({
+        type: 'success',
+        title: 'Collaboration completed',
+        message:
+          total > 0
+            ? `${snapshot.title || 'Collaboration'} — ${completed}/${total} tasks done.`
+            : `${snapshot.title || 'Collaboration'} is closed.`,
+      });
+    }
+
     if (isTerminal) {
-      setActiveCollab(current => (current?.id === snapshot.id ? null : current));
+      setActiveCollab(current => (current?.id === snapshot.id ? snapshot : current));
     }
   }, []);
 
@@ -356,23 +395,29 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const loadCollaborations = useCallback(async (targetChannel: string) => {
     try {
-      // Hub enforces max concurrent collaborations globally; list all active
-      // collabs so Task Management is accurate even when user is on #general.
-      const snapshots = await api.fetchCollaborations();
+      const includeTerminal = targetChannel.startsWith('collab-');
+      const snapshots = await api.fetchCollaborations(undefined, includeTerminal);
       setCollaborationsByID(() => {
         const next: Record<string, Collaboration> = {};
         for (const snapshot of snapshots) {
-          if (!snapshot?.id || isTerminalCollaborationPhase(snapshot.phase)) continue;
+          if (!snapshot?.id) continue;
+          if (isTerminalCollaborationPhase(snapshot.phase)) {
+            if (includeTerminal && snapshot.channel === targetChannel) {
+              next[snapshot.id] = snapshot;
+            }
+            continue;
+          }
           next[snapshot.id] = snapshot;
+        }
+        if (includeTerminal) {
+          return pruneTerminalCollaborations(next, targetChannel);
         }
         return next;
       });
       setActiveCollab(current => {
         if (!current || current.channel !== targetChannel) return current;
         const refreshed = snapshots.find(snapshot => snapshot.id === current.id);
-        if (!refreshed || isTerminalCollaborationPhase(refreshed.phase)) {
-          return null;
-        }
+        if (!refreshed) return null;
         return refreshed;
       });
     } catch (error) {
@@ -661,9 +706,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           mergeCollaborationSnapshot(collabData);
           const currentlyOpen = activeCollabRef.current;
           if (currentlyOpen?.id === collabData.id) {
-            if (isTerminalCollaborationPhase(collabData.phase)) {
-              setActiveCollab(null);
-            } else if (isActiveChannelCollab) {
+            if (isActiveChannelCollab || isTerminalCollaborationPhase(collabData.phase)) {
               setActiveCollab(collabData);
             }
           } else if (
@@ -1227,8 +1270,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             type="button"
             onClick={() => setModelLibraryOpen(true)}
             className="w-7 h-7 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
-            title="Ollama model library (Ctrl+Shift+M or ⌘⇧M)"
-            aria-label="Open Ollama model library"
+            title="Model library (Ctrl+Shift+M or ⌘⇧M)"
+            aria-label="Open model library"
           >
             <ModelLibraryIcon className="w-3.5 h-3.5" />
           </button>
@@ -1302,6 +1345,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         <div 
           className="flex flex-col flex-1 min-h-0 min-w-[300px] transition-all duration-300 ease-in-out relative overflow-hidden"
         >
+
+        {activeCollab &&
+          activeCollab.channel === channel &&
+          isTerminalCollaborationPhase(activeCollab.phase) && (
+            <div
+              className="mx-3 mt-2 px-3 py-2 rounded-md text-sm border border-emerald-700/50 bg-emerald-950/40 text-emerald-100"
+              role="status"
+            >
+              Collaboration completed —{' '}
+              {activeCollab.tasks?.filter(t => t.status === 'completed').length ?? 0}/
+              {activeCollab.tasks?.length ?? 0} tasks done. Review the panel or dismiss when finished.
+            </div>
+          )}
 
         {/* Messages */}
         <MessageList key={channel} searchQuery={messageSearchQuery} />
@@ -1422,7 +1478,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 });
               }
             }}
-            onCollaborationCommand={async (command, collaborationID, feedbackText) => {
+            onCollaborationCommand={async (command, collaborationID, feedbackText, taskIndex) => {
               const from = { name: username || 'User', type: 'human' };
               const shortID = collaborationID.slice(0, 8);
               const collab =
@@ -1438,6 +1494,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                   throw new Error('Revision feedback is required.');
                 }
                 content = `/revise-plan ${shortID} ${trimmed}`;
+              } else if (command === 'complete') {
+                const open = collab?.tasks?.filter(t => t.status !== 'completed') ?? [];
+                content = `/complete-collab ${shortID}${open.length > 0 ? ' --force' : ''}`;
+              } else if (command === 'task-done') {
+                if (taskIndex == null || taskIndex < 0) {
+                  throw new Error('Task index is required.');
+                }
+                content = `/collab-task-done ${shortID} ${taskIndex + 1}`;
               } else {
                 content = `/cancel-plan ${shortID}`;
               }
@@ -1525,7 +1589,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         onCreated={handleNewDmCreated}
       />
 
-      <OllamaModelLibraryModal
+      <ModelLibraryModal
         isOpen={modelLibraryOpen}
         onClose={() => setModelLibraryOpen(false)}
         serverAddr={hubHttp}

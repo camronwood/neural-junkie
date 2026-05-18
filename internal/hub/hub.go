@@ -747,6 +747,7 @@ func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
 	}
 
 	h.maybeIngestPlanArtifact(msg, collabID)
+	h.maybeSyncTaskStatusFromPlanHandoff(msg, collabID)
 	h.maybeUpdateTaskStatus(msg, collabID)
 }
 
@@ -848,16 +849,21 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 		return
 	}
 
-	status, ok := normalizeTaskStatus(msg.GetTaskStatus())
-	if !ok {
-		inferred := inferTaskStatusFromContent(msg.Content)
-		if inferred != "" {
-			status = inferred
-			ok = true
-		} else if task.Status == collaboration.TaskPending && msg.From.ID == task.AssignedTo && !msg.IsFromSystem() {
-			status = collaboration.TaskInProgress
+	inferred := collaboration.InferTaskStatusFromAgentReply(msg.Content)
+	var status collaboration.TaskStatus
+	var ok bool
+	if inferred != "" {
+		status = inferred
+		ok = true
+	} else if metaStatus, metaOK := normalizeTaskStatus(msg.GetTaskStatus()); metaOK {
+		if metaStatus != collaboration.TaskPending || msg.From.ID != task.AssignedTo {
+			status = metaStatus
 			ok = true
 		}
+	}
+	if !ok && task.Status == collaboration.TaskPending && msg.From.ID == task.AssignedTo && !msg.IsFromSystem() {
+		status = collaboration.TaskInProgress
+		ok = true
 	}
 	if !ok {
 		return
@@ -918,25 +924,59 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	}
 
 	if h.collabManager.AllTasksComplete(collabID) {
-		if _, err := h.collabManager.CompleteCollaboration(collabID); err != nil {
-			log.Printf("[Collaboration] Failed to complete collaboration %s: %v", collabID[:8], err)
-			return
+		h.finalizeAndBroadcastCollaboration(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
+	}
+}
+
+func (h *Hub) finalizeAndBroadcastCollaboration(collabID, channel, reason string, opts collaboration.FinalizeOptions) {
+	if h.collabManager == nil {
+		return
+	}
+	c, err := h.collabManager.FinalizeCollaboration(collabID, opts)
+	if err != nil {
+		log.Printf("[Collaboration] Failed to finalize collaboration %s: %v", collabID[:8], err)
+		return
+	}
+	if channel == "" {
+		channel = c.Channel
+	}
+	if channel == "" {
+		channel = "general"
+	}
+
+	completed := 0
+	for _, t := range c.Tasks {
+		if t.Status == collaboration.TaskCompleted {
+			completed++
 		}
-		completedMsg := protocol.NewMessage(
-			protocol.MessageTypeCollabStatus,
-			msg.Channel,
-			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-			fmt.Sprintf("✅ Collaboration `%s` completed. All tasks are done.", collabID[:8]),
-		)
-		completedMsg.SetCollaborationID(collabID)
-		completedMsg.SetCollaborationPhase(string(collaboration.PhaseCompleted))
-		if completedMsg.Metadata == nil {
-			completedMsg.Metadata = map[string]interface{}{}
+	}
+	total := len(c.Tasks)
+	summary := fmt.Sprintf("✅ Collaboration `%s` completed. %s", collabID[:8], reason)
+	if total > 0 {
+		summary += fmt.Sprintf(" (%d/%d tasks done", completed, total)
+		if ch := strings.TrimSpace(c.Channel); ch != "" {
+			summary += fmt.Sprintf(", channel #%s", ch)
 		}
-		completedMsg.Metadata["collab_internal_event"] = true
-		if err := h.SendMessage(completedMsg); err != nil {
-			log.Printf("[Collaboration] Failed to broadcast collaboration completion message: %v", err)
-		}
+		summary += ")."
+	} else if ch := strings.TrimSpace(c.Channel); ch != "" {
+		summary += fmt.Sprintf(" (channel #%s).", ch)
+	}
+
+	completedMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabStatus,
+		channel,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		summary,
+	)
+	completedMsg.SetCollaborationID(collabID)
+	completedMsg.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+	if completedMsg.Metadata == nil {
+		completedMsg.Metadata = map[string]interface{}{}
+	}
+	completedMsg.Metadata["collab_internal_event"] = true
+	h.attachCollaborationData(completedMsg)
+	if err := h.SendMessage(completedMsg); err != nil {
+		log.Printf("[Collaboration] Failed to broadcast collaboration completion message: %v", err)
 	}
 }
 
@@ -953,23 +993,6 @@ func normalizeTaskStatus(raw string) (collaboration.TaskStatus, bool) {
 	default:
 		return "", false
 	}
-}
-
-func inferTaskStatusFromContent(content string) collaboration.TaskStatus {
-	lower := strings.ToLower(content)
-	if strings.Contains(lower, "blocked") || strings.Contains(lower, "stuck") || strings.Contains(lower, "cannot proceed") {
-		return collaboration.TaskBlocked
-	}
-	if strings.Contains(lower, "completed") ||
-		strings.Contains(lower, "done") ||
-		strings.Contains(lower, "finished") ||
-		strings.Contains(lower, "implemented") {
-		return collaboration.TaskCompleted
-	}
-	if strings.Contains(lower, "working on") || strings.Contains(lower, "in progress") || strings.Contains(lower, "started") {
-		return collaboration.TaskInProgress
-	}
-	return ""
 }
 
 func (h *Hub) attachCollaborationData(msg *protocol.Message) {
@@ -1751,6 +1774,14 @@ func (h *Hub) GetToolApprovalManager() *ToolApprovalManager {
 // GetCollaborationManager returns the collaboration manager
 func (h *Hub) GetCollaborationManager() *collaboration.CollaborationManager {
 	return h.collabManager
+}
+
+// SetCollaborationAssetsRootResolver configures where per-collaboration execution
+// sandboxes are created (<root>/<collaboration-id>/).
+func (h *Hub) SetCollaborationAssetsRootResolver(fn func() string) {
+	if h.collabManager != nil {
+		h.collabManager.SetAssetsRootResolver(fn)
+	}
 }
 
 // ListCollaborationSnapshots returns collaboration snapshots suitable for UI

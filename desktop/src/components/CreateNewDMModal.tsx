@@ -34,7 +34,10 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
   const [expertType, setExpertType] = useState('assistant');
   const [customDomain, setCustomDomain] = useState('');
   const [customPersona, setCustomPersona] = useState('');
-  const [provider, setProvider] = useState<'ollama' | 'lmstudio' | 'claude'>('ollama');
+  const [provider, setProvider] = useState<'ollama' | 'lmstudio' | 'claude' | 'huggingface' | 'registry'>('ollama');
+  const [providerId, setProviderId] = useState('');
+  const [hubProviders, setHubProviders] = useState<{ id: string; type: string; name: string; model?: string }[]>([]);
+  const [hfCatalog, setHfCatalog] = useState<{ repo_id: string; title: string }[]>([]);
   const [model, setModel] = useState('');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [lmModels, setLmModels] = useState<string[]>([]);
@@ -54,6 +57,9 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
     setCustomDomain('');
     setCustomPersona('');
     setProvider('ollama');
+    setProviderId('');
+    setHubProviders([]);
+    setHfCatalog([]);
     setModel('');
     setOllamaModels([]);
     setLmModels([]);
@@ -77,7 +83,15 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
     (async () => {
       setModelsLoading(true);
       try {
-        if (provider === 'ollama') {
+        if (provider === 'registry') {
+          const rows = await api.fetchProviders();
+          if (!cancelled) setHubProviders(rows);
+        } else if (provider === 'huggingface') {
+          const cat = await api.fetchHfCatalog();
+          if (!cancelled) {
+            setHfCatalog(cat.filter((e) => e.modes?.includes('hosted')).map((e) => ({ repo_id: e.repo_id, title: e.title })));
+          }
+        } else if (provider === 'ollama') {
           const m = await api.fetchOllamaModels();
           if (!cancelled) setOllamaModels(m);
         } else if (provider === 'lmstudio') {
@@ -87,7 +101,9 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
       } catch {
         if (!cancelled) {
           if (provider === 'ollama') setOllamaModels([]);
-          else setLmModels([]);
+          else if (provider === 'lmstudio') setLmModels([]);
+          else if (provider === 'huggingface') setHfCatalog([]);
+          else setHubProviders([]);
         }
       } finally {
         if (!cancelled) setModelsLoading(false);
@@ -156,15 +172,25 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
           setSubmitting(false);
           return;
         }
-        const ch = await api.createDMAgent({
+        const payload: Parameters<typeof api.createDMAgent>[0] = {
           created_by: username.trim(),
           mode: 'expert',
           display_name: name,
           expert_type: domain,
           persona: isCustom ? customPersona.trim() : undefined,
-          provider,
           model: model.trim(),
-        });
+        };
+        if (provider === 'registry') {
+          if (!providerId) {
+            setFormError('Select a configured provider.');
+            setSubmitting(false);
+            return;
+          }
+          payload.provider_id = providerId;
+        } else {
+          payload.provider = provider === 'huggingface' ? 'huggingface' : provider;
+        }
+        const ch = await api.createDMAgent(payload);
         await onCreated(ch);
         reset();
         onClose();
@@ -194,7 +220,8 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
 
   if (!isOpen) return null;
 
-  const modelSuggestions = provider === 'ollama' ? ollamaModels : provider === 'lmstudio' ? lmModels : [];
+  const modelSuggestions =
+    provider === 'ollama' ? ollamaModels : provider === 'lmstudio' ? lmModels : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -295,15 +322,64 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
                   <label className="block text-xs font-medium text-slack-textMuted mb-1">Provider</label>
                   <select
                     value={provider}
-                    onChange={e => setProvider(e.target.value as 'ollama' | 'lmstudio' | 'claude')}
+                    onChange={e => {
+                      setProvider(e.target.value as typeof provider);
+                      setModel('');
+                      setProviderId('');
+                    }}
                     className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
                   >
                     <option value="ollama">Ollama (local)</option>
                     <option value="lmstudio">LM Studio (local)</option>
+                    <option value="huggingface">Hugging Face (hosted)</option>
+                    <option value="registry">From hub providers…</option>
                     <option value="claude">Claude API (cloud)</option>
                   </select>
                 </div>
-                {provider !== 'claude' && (
+                {provider === 'registry' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slack-textMuted mb-1">
+                      Configured provider {modelsLoading ? '(loading…)' : ''}
+                    </label>
+                    <select
+                      value={providerId}
+                      onChange={e => {
+                        setProviderId(e.target.value);
+                        const p = hubProviders.find(x => x.id === e.target.value);
+                        if (p?.model) setModel(p.model);
+                      }}
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
+                    >
+                      <option value="">Select…</option>
+                      {hubProviders.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name || p.id} ({p.type}{p.model ? ` · ${p.model}` : ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {provider === 'huggingface' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slack-textMuted mb-1">
+                      HF model {modelsLoading ? '(loading…)' : ''}
+                    </label>
+                    <select
+                      value={model}
+                      onChange={e => setModel(e.target.value)}
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
+                    >
+                      <option value="">Select catalog model…</option>
+                      {hfCatalog.map(e => (
+                        <option key={e.repo_id} value={e.repo_id}>
+                          {e.title} ({e.repo_id})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slack-textMuted mt-1">Uses HF Inference (cloud). Set HF_TOKEN on the hub.</p>
+                  </div>
+                )}
+                {provider !== 'claude' && provider !== 'huggingface' && provider !== 'registry' && (
                   <div>
                     <label className="block text-xs font-medium text-slack-textMuted mb-1">
                       Model {modelsLoading ? '(loading…)' : ''}

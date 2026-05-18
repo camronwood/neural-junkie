@@ -24,7 +24,7 @@
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7">Download beta.7</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8">Download beta.8</a>
       </nav>
     </div>
   </header>
@@ -35,11 +35,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7">v1.0.0-beta.7</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8">v1.0.0-beta.8</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-8">1.0.0-beta.8</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-7">1.0.0-beta.7</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-6">1.0.0-beta.6</a>
@@ -66,6 +68,23 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-8" class="release-version-heading">1.0.0-beta.8 <span class="release-date">— 2026-05-18</span></h2>
+
+      <p><strong>Model library, Hugging Face, and MCP.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>App-store model library</strong> — toolbar entry (&#8984;&#8679;M, <code>/nj-open-model-library</code>): grid + detail for Ollama and Hugging Face; primary action per tile; full actions on detail.</li>
+        <li><strong>Hugging Face</strong> — <code>huggingface</code> provider, curated catalog, hosted inference and local GGUF download with SSE progress, import to Ollama (<code>HF_TOKEN</code> or per-provider key).</li>
+        <li><strong>MCP tool servers</strong> — Backend, DevOps, Database agents with <code>ENABLE_MCP=true</code>; in-app tool-use loop; export API and resource server when enabled.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li>Model install/download UI moved from Settings to the toolbar model library; Settings keeps provider registry and Ollama endpoint.</li>
+        <li>Consolidated <code>internal/mcp</code> (removed <code>mcp_disabled</code> duplicates).</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-7" class="release-version-heading">1.0.0-beta.7 <span class="release-date">— 2026-05-18</span></h2>
 
       <p><strong>Markdown and chat polish release.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>.</p>

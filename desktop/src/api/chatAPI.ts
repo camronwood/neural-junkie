@@ -234,6 +234,7 @@ export class ChatAPI {
     expert_type?: string;
     /** Optional extra instructions for custom (non-preset) experts. */
     persona?: string;
+    provider_id?: string;
     provider?: string;
     model?: string;
     cli_type?: string;
@@ -247,6 +248,7 @@ export class ChatAPI {
     if (payload.mode === 'expert') {
       body.expert_type = payload.expert_type ?? '';
       body.persona = payload.persona ?? '';
+      body.provider_id = payload.provider_id ?? '';
       body.provider = payload.provider ?? '';
       body.model = payload.model ?? '';
     } else {
@@ -701,6 +703,45 @@ export class ChatAPI {
     
     const result = await response.json();
     return result.models || [];
+  }
+
+  async fetchHfCatalog(): Promise<
+    {
+      repo_id: string;
+      title: string;
+      description: string;
+      tags: string[];
+      modes: string[];
+      files?: { filename: string; quant?: string }[];
+    }[]
+  > {
+    const response = await fetch(`${this.baseURL}/api/hf/catalog`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch HF catalog: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchHfStatus(): Promise<{
+    token_configured: boolean;
+    router_reachable: boolean;
+    cache_dir?: string;
+  }> {
+    const response = await fetch(`${this.baseURL}/api/hf/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch HF status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchProviders(): Promise<
+    { id: string; type: string; name: string; model?: string; endpoint?: string }[]
+  > {
+    const response = await fetch(`${this.baseURL}/api/providers`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch providers: ${response.statusText}`);
+    }
+    return response.json();
   }
 
   // Send message with credentials for agent creation

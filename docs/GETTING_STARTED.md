@@ -6,7 +6,7 @@ Get Neural Junkie running in under 5 minutes.
 
 No Go, Node, or Rust required.
 
-1. Install from [GitHub Releases — v1.0.0-beta.7](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7).
+1. Install from [GitHub Releases — v1.0.0-beta.8](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8).
 2. Open the app and complete the **setup wizard** (Ollama local or cloud API key).
 3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and slash commands.
 
@@ -110,6 +110,13 @@ make server
 1. Install LM Studio from [lmstudio.ai](https://lmstudio.ai)
 2. Load a model and start the local server (default: `http://localhost:1234/v1`)
 3. In the desktop app, go to **Settings > AI Providers** and configure the LM Studio endpoint
+
+### Hugging Face (Hosted or local GGUF)
+
+1. Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and set `HF_TOKEN` in `env.local` or add a **Hugging Face** row under **Settings → AI Providers → Provider registry** (`type: huggingface`, model = Hub repo id such as `Qwen/Qwen2.5-Coder-7B-Instruct`).
+2. **Hosted (cloud):** open the toolbar **Model library** (⇧⌘M), **Hugging Face** tab, **Hosted**, then **Use for agents** (or **Add provider** on the detail screen).
+3. **Local download:** use the **Download** tab to pull a curated GGUF, then **Import to Ollama** (requires Ollama running). Agents use the Ollama provider with the imported tag.
+4. When creating a DM expert, choose **Hugging Face (hosted)** or **From hub providers** to bind `provider_id` from the registry.
 
 ### Switching Providers at Runtime
 
@@ -311,6 +318,7 @@ Neural Junkie stores data in `~/.neural-junkie/`:
 | `~/.neural-junkie/exports/` | MCP-format agent exports |
 | `~/.neural-junkie/backups/` | File change backups |
 | `~/.neural-junkie/workspaces.json` | Workspace list |
+| `~/.neural-junkie/collaborations/` | Default parent for collaboration execution sandboxes (`<id>/` per run). Override with `collaboration.assets_root` in config or `NEURAL_JUNKIE_COLLAB_ASSETS_DIR` |
 | `~/.neural-junkie/last-session.json` | Local resume cache (channels, recent messages, in-progress collabs). Bounded on save; oversized/corrupt files are **auto-archived** on startup — users never need to delete it manually. Dev: `scripts/analyze-last-session.sh` |
 
 ## Next Steps

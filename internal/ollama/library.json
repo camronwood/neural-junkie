@@ -4,14 +4,18 @@
     "title": "Qwen 2.5 Coder 14B",
     "description": "Strong coding and tool use; default for Neural Junkie specialists.",
     "tags": ["code", "recommended"],
-    "size_hint": "~9 GB"
+    "size_hint": "~9 GB",
+    "icon_key": "qwen",
+    "publisher": "Qwen"
   },
   {
     "name": "qwen2.5:7b",
     "title": "Qwen 2.5 7B",
     "description": "Faster general assistant; good for lighter hardware.",
     "tags": ["general", "recommended"],
-    "size_hint": "~4.5 GB"
+    "size_hint": "~4.5 GB",
+    "icon_key": "qwen",
+    "publisher": "Qwen"
   },
   {
     "name": "qwen2.5-coder:7b",
@@ -25,7 +29,9 @@
     "title": "Llama 3.1 8B",
     "description": "Meta general-purpose instruct model.",
     "tags": ["general"],
-    "size_hint": "~4.7 GB"
+    "size_hint": "~4.7 GB",
+    "icon_key": "llama",
+    "publisher": "Meta"
   },
   {
     "name": "llama3.1:70b",
@@ -46,21 +52,27 @@
     "title": "Mistral 7B",
     "description": "Popular efficient instruct baseline.",
     "tags": ["general"],
-    "size_hint": "~4.1 GB"
+    "size_hint": "~4.1 GB",
+    "icon_key": "mistral",
+    "publisher": "Mistral AI"
   },
   {
     "name": "codellama:13b",
     "title": "Code Llama 13B",
     "description": "Code-focused Llama derivative.",
     "tags": ["code"],
-    "size_hint": "~7.4 GB"
+    "size_hint": "~7.4 GB",
+    "icon_key": "codellama",
+    "publisher": "Meta"
   },
   {
     "name": "deepseek-coder:6.7b",
     "title": "DeepSeek Coder 6.7B",
     "description": "Strong code completion and explanation at modest size.",
     "tags": ["code"],
-    "size_hint": "~3.8 GB"
+    "size_hint": "~3.8 GB",
+    "icon_key": "deepseek",
+    "publisher": "DeepSeek"
   },
   {
     "name": "deepseek-r1:8b",
@@ -74,21 +86,27 @@
     "title": "Phi-3 Medium",
     "description": "Microsoft compact instruct model.",
     "tags": ["general"],
-    "size_hint": "~7.9 GB"
+    "size_hint": "~7.9 GB",
+    "icon_key": "phi",
+    "publisher": "Microsoft"
   },
   {
     "name": "gemma2:9b",
     "title": "Gemma 2 9B",
     "description": "Google Gemma 2 mid-size instruct.",
     "tags": ["general"],
-    "size_hint": "~5.4 GB"
+    "size_hint": "~5.4 GB",
+    "icon_key": "gemma",
+    "publisher": "Google"
   },
   {
     "name": "llava:7b",
     "title": "LLaVA 7B",
     "description": "Vision + language for image understanding in chat.",
     "tags": ["vision"],
-    "size_hint": "~4.5 GB"
+    "size_hint": "~4.5 GB",
+    "icon_key": "llava",
+    "publisher": "LLaVA"
   },
   {
     "name": "llava:13b",
@@ -137,6 +155,8 @@
     "title": "IBM Granite Code 8B",
     "description": "Enterprise-oriented code model.",
     "tags": ["code"],
-    "size_hint": "~4.6 GB"
+    "size_hint": "~4.6 GB",
+    "icon_key": "granite",
+    "publisher": "IBM"
   }
 ]

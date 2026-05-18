@@ -20,6 +20,7 @@ interface ProviderManagerProps {
 
 const PROVIDER_TYPES = [
   { value: 'ollama', label: 'Ollama (Local)' },
+  { value: 'huggingface', label: 'Hugging Face (Hosted Inference)' },
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'openai-compatible', label: 'OpenAI-Compatible (Bedrock, Azure, Groq, etc.)' },
   { value: 'cursor-cli', label: 'Cursor CLI' },
@@ -304,22 +305,22 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
             <input
               value={editing.model || ''}
               onChange={(e) => setEditing({ ...editing, model: e.target.value })}
-              placeholder="Model"
+              placeholder={editing.type === 'huggingface' ? 'Hub repo id (org/model)' : 'Model'}
               className="px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white"
             />
-            {(editing.type === 'ollama' || editing.type === 'openai-compatible') && (
+            {(editing.type === 'ollama' || editing.type === 'openai-compatible' || editing.type === 'huggingface') && (
               <input
                 value={editing.endpoint || ''}
                 onChange={(e) => setEditing({ ...editing, endpoint: e.target.value })}
-                placeholder="Endpoint URL"
+                placeholder={editing.type === 'huggingface' ? 'https://router.huggingface.co/v1' : 'Endpoint URL'}
                 className="col-span-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white"
               />
             )}
-            {(editing.type === 'anthropic' || editing.type === 'openai-compatible') && (
+            {(editing.type === 'anthropic' || editing.type === 'openai-compatible' || editing.type === 'huggingface') && (
               <input
                 value={editing.api_key || ''}
                 onChange={(e) => setEditing({ ...editing, api_key: e.target.value })}
-                placeholder="API Key"
+                placeholder={editing.type === 'huggingface' ? 'HF token (or HF_TOKEN on hub)' : 'API Key'}
                 type="password"
                 className="col-span-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white"
               />

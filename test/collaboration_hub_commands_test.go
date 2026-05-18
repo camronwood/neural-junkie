@@ -319,6 +319,75 @@ func TestSlashRevisePlanReturnsToPlanning(t *testing.T) {
 	}
 }
 
+func TestSlashCompleteCollabRequiresForceWhenOpenTasks(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+
+	if err := h.SendMessage(protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		humanTester(),
+		"/collaborate @RustExpert @SecurityExpert ship the landing page",
+	)); err != nil {
+		t.Fatal(err)
+	}
+
+	cm := h.GetCollaborationManager()
+	active := cm.ListActive()
+	id, ch := active[0].ID, active[0].Channel
+
+	_ = cm.SetTasks(id, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "HTML", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending},
+	})
+	_, _ = cm.TransitionToReviewing(id)
+	_, _ = cm.ApprovePlan(id)
+	_, _ = cm.TransitionToExecuting(id)
+
+	attempt := protocol.NewMessage(protocol.MessageTypeQuestion, ch, humanTester(), "/complete-collab "+id[:8])
+	if err := h.SendMessage(attempt); err != nil {
+		t.Fatalf("complete-collab: %v", err)
+	}
+	got, _ := cm.GetCollaboration(id)
+	if got.Phase == collaboration.PhaseCompleted {
+		t.Fatal("expected not completed without --force")
+	}
+
+	force := protocol.NewMessage(protocol.MessageTypeQuestion, ch, humanTester(), "/complete-collab "+id[:8]+" --force")
+	if err := h.SendMessage(force); err != nil {
+		t.Fatalf("complete-collab --force: %v", err)
+	}
+	got, _ = cm.GetCollaboration(id)
+	if got.Phase != collaboration.PhaseCompleted {
+		t.Fatalf("expected completed, got %s", got.Phase)
+	}
+}
+
+func TestSlashCollabTaskDoneCompletesCollaboration(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("done test", []string{"a1", "a2"}, "general", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Only", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending},
+	})
+	_, _ = cm.TransitionToReviewing(collab.ID)
+	_, _ = cm.ApprovePlan(collab.ID)
+	_, _ = cm.TransitionToExecuting(collab.ID)
+
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general", humanTester(), "/collab-task-done "+collab.ID[:8]+" 1")
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("collab-task-done: %v", err)
+	}
+	got, _ := cm.GetCollaboration(collab.ID)
+	if got.Phase != collaboration.PhaseCompleted {
+		t.Fatalf("expected completed, got %s", got.Phase)
+	}
+}
+
 func TestSlashCancelPlanFromPlanning(t *testing.T) {
 	h := hub.NewHub()
 	registerTwoCollabAgents(t, h)

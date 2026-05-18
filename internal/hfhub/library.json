@@ -1,0 +1,123 @@
+[
+  {
+    "repo_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+    "title": "Qwen 2.5 Coder 7B Instruct",
+    "description": "Strong coding model; good balance of quality and hardware requirements.",
+    "tags": ["code", "recommended"],
+    "size_hint": "~4.7 GB (Q4)",
+    "icon_key": "qwen",
+    "publisher": "Qwen",
+    "modes": ["hosted", "local"],
+    "files": [
+      {
+        "filename": "Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~4.7 GB"
+      }
+    ]
+  },
+  {
+    "repo_id": "Qwen/Qwen2.5-7B-Instruct",
+    "title": "Qwen 2.5 7B Instruct",
+    "description": "Fast general assistant for moderation and lighter tasks.",
+    "tags": ["general", "recommended"],
+    "size_hint": "~4.5 GB (Q4)",
+    "icon_key": "qwen",
+    "publisher": "Qwen",
+    "modes": ["hosted", "local"],
+    "files": [
+      {
+        "filename": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~4.5 GB"
+      }
+    ]
+  },
+  {
+    "repo_id": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "title": "Llama 3 8B Instruct",
+    "description": "Meta general-purpose instruct model via HF Inference or local GGUF.",
+    "tags": ["general"],
+    "icon_key": "llama",
+    "publisher": "Meta",
+    "modes": ["hosted"]
+  },
+  {
+    "repo_id": "mistralai/Mistral-7B-Instruct-v0.3",
+    "title": "Mistral 7B Instruct v0.3",
+    "description": "Popular efficient instruct baseline.",
+    "tags": ["general"],
+    "icon_key": "mistral",
+    "publisher": "Mistral AI",
+    "modes": ["hosted"]
+  },
+  {
+    "repo_id": "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct",
+    "title": "DeepSeek Coder V2 Lite",
+    "description": "Code-focused model for explanation and generation.",
+    "tags": ["code"],
+    "icon_key": "deepseek",
+    "publisher": "DeepSeek",
+    "modes": ["hosted"]
+  },
+  {
+    "repo_id": "microsoft/Phi-3-mini-4k-instruct",
+    "title": "Phi-3 Mini 4K Instruct",
+    "description": "Compact Microsoft instruct model for quick replies.",
+    "tags": ["general", "small"],
+    "icon_key": "phi",
+    "publisher": "Microsoft",
+    "modes": ["hosted"]
+  },
+  {
+    "repo_id": "google/gemma-2-9b-it",
+    "title": "Gemma 2 9B IT",
+    "description": "Google Gemma 2 mid-size instruct.",
+    "tags": ["general"],
+    "icon_key": "gemma",
+    "publisher": "Google",
+    "modes": ["hosted"]
+  },
+  {
+    "repo_id": "bartowski/Qwen2.5-Coder-14B-Instruct-GGUF",
+    "title": "Qwen 2.5 Coder 14B (GGUF)",
+    "description": "Larger coding model for local import via Ollama after download.",
+    "tags": ["code", "large"],
+    "modes": ["local"],
+    "files": [
+      {
+        "filename": "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~9 GB"
+      }
+    ]
+  },
+  {
+    "repo_id": "bartowski/Mistral-7B-Instruct-v0.3-GGUF",
+    "title": "Mistral 7B Instruct (GGUF)",
+    "description": "Local GGUF build of Mistral 7B for Ollama import.",
+    "tags": ["general"],
+    "modes": ["local"],
+    "files": [
+      {
+        "filename": "Mistral-7B-Instruct-v0.3-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~4.1 GB"
+      }
+    ]
+  },
+  {
+    "repo_id": "bartowski/deepseek-coder-6.7b-instruct-GGUF",
+    "title": "DeepSeek Coder 6.7B (GGUF)",
+    "description": "Code model at modest size for local Ollama workflows.",
+    "tags": ["code"],
+    "modes": ["local"],
+    "files": [
+      {
+        "filename": "deepseek-coder-6.7b-instruct.Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~3.8 GB"
+      }
+    ]
+  }
+]

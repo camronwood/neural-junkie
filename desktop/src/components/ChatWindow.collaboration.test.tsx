@@ -5,7 +5,7 @@ import { ChatWindow } from './ChatWindow';
 import { useChatStore } from '../stores/chatStore';
 import type { AgentInfo, Collaboration, Message } from '../types/protocol';
 
-const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock } = vi.hoisted(() => {
+const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock, addToastMock } = vi.hoisted(() => {
   const apiHarness = {
     fetchMessages: vi.fn().mockResolvedValue([]),
     fetchCollaborations: vi.fn().mockResolvedValue([]),
@@ -47,7 +47,8 @@ const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock } = vi.hoist
   };
   const confirmStartMock = vi.fn((_e: unknown) => true);
   const confirmReplaceMock = vi.fn((_a: unknown, _b: unknown) => true);
-  return { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock };
+  const addToastMock = vi.fn();
+  return { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock, addToastMock };
 });
 
 vi.mock('../api/chatAPI', () => ({
@@ -101,7 +102,7 @@ vi.mock('../stores/settingsStore', () => ({
 
 vi.mock('../stores/toastStore', () => ({
   useToastStore: (sel: (s: { addToast: (...a: unknown[]) => void }) => unknown) =>
-    sel({ addToast: vi.fn() }),
+    sel({ addToast: addToastMock }),
 }));
 
 vi.mock('../utils/collaborationConfirm', () => ({
@@ -342,14 +343,30 @@ describe('ChatWindow collaboration wiring', () => {
     expect(screen.getByText('Wire-test collaboration')).toBeInTheDocument();
   });
 
-  it('closes the side panel when the collaboration reaches a terminal phase over WS', async () => {
+  it('keeps the panel open read-only and toasts when collaboration completes over WS', async () => {
     apiHarness.fetchCollaborations.mockResolvedValue([]);
+    addToastMock.mockClear();
 
     render(<ChatWindow />);
     await flushWsConnect();
 
     const opts = wsHarness.lastOpts!;
-    const openCollab = makeCollaboration({ id: 'bbbbbbbb-2222-3333-4444-555555555555', phase: 'planning' });
+    const openCollab = makeCollaboration({
+      id: 'bbbbbbbb-2222-3333-4444-555555555555',
+      phase: 'planning',
+      tasks: [
+        {
+          id: 't1',
+          title: 'Ship UI',
+          description: '',
+          assigned_to: 'a1',
+          assigned_name: 'Agent',
+          status: 'completed',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
     await opts.onMessage({
       id: 'ws-open',
       type: 'collaboration_discussion',
@@ -361,7 +378,11 @@ describe('ChatWindow collaboration wiring', () => {
     });
     await waitFor(() => expect(screen.getByText('Planning')).toBeInTheDocument());
 
-    const completed = { ...openCollab, phase: 'completed' as const, updated_at: '2026-01-05T00:00:00.000Z' };
+    const completed = {
+      ...openCollab,
+      phase: 'completed' as const,
+      updated_at: '2026-01-05T00:00:00.000Z',
+    };
     await opts.onMessage({
       id: 'ws-done',
       type: 'collaboration_status',
@@ -373,7 +394,73 @@ describe('ChatWindow collaboration wiring', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText('Planning')).not.toBeInTheDocument();
+      expect(screen.getByText('Completed')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Resume plan' })).not.toBeInTheDocument();
+    expect(addToastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'success',
+        title: 'Collaboration completed',
+      })
+    );
+  });
+
+  it('shows a completion banner on the collab channel after the panel was open', async () => {
+    const collabChannel = 'collab-bbbb2222';
+    const base = makeCollaboration({
+      id: 'bbbbbbbb-2222-3333-4444-555555555555',
+      channel: collabChannel,
+      phase: 'planning',
+      tasks: [
+        {
+          id: 't1',
+          title: 'Done task',
+          description: '',
+          assigned_to: 'a1',
+          assigned_name: 'Agent',
+          status: 'pending',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    apiHarness.fetchCollaborations.mockResolvedValue([]);
+
+    useChatStore.setState({ channel: collabChannel });
+    render(<ChatWindow />);
+    await flushWsConnect();
+
+    const opts = wsHarness.lastOpts!;
+    await opts.onMessage({
+      id: 'ws-collab-open',
+      type: 'collaboration_discussion',
+      channel: collabChannel,
+      from: minimalAgent(),
+      content: 'Kickoff',
+      timestamp: new Date().toISOString(),
+      metadata: { collaboration_data: base },
+    });
+    await waitFor(() => expect(screen.getByText('Planning')).toBeInTheDocument());
+
+    const completed = {
+      ...base,
+      phase: 'completed' as const,
+      tasks: [{ ...base.tasks![0], status: 'completed' as const }],
+    };
+    await opts.onMessage({
+      id: 'ws-collab-done',
+      type: 'collaboration_status',
+      channel: collabChannel,
+      from: minimalAgent(),
+      content: 'done',
+      timestamp: new Date().toISOString(),
+      metadata: { collaboration_data: completed },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent(/Collaboration completed/i);
+      expect(screen.getByText(/1\/1 tasks done/)).toBeInTheDocument();
     });
   });
 

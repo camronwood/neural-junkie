@@ -17,6 +17,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/server"
 )
 
 const (
@@ -75,8 +76,8 @@ type Agent struct {
 
 // MCPServerInterface defines the interface for MCP servers
 type MCPServerInterface interface {
-	GetMCPServer() interface{} // Returns the underlying MCP server
-	Start() error              // Starts the MCP server
+	GetMCPServer() *server.MCPServer
+	Start() error
 }
 
 // AIProvider is now defined in the ai package
@@ -628,23 +629,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		}
 	}
 
-	// Propagate collaboration metadata so the response stays within the
-	// collaboration's discussion session.
-	if collabID := msg.GetCollaborationID(); collabID != "" {
-		responseMsg.SetCollaborationID(collabID)
-		if phase := msg.GetCollaborationPhase(); phase != "" {
-			responseMsg.SetCollaborationPhase(phase)
-		}
-		if taskID := msg.GetTaskID(); taskID != "" {
-			responseMsg.SetTaskID(taskID)
-		}
-		if taskStatus := msg.GetTaskStatus(); taskStatus != "" {
-			responseMsg.SetTaskStatus(taskStatus)
-		}
-		if taskOutput := msg.GetTaskOutput(); taskOutput != "" {
-			responseMsg.SetTaskOutput(taskOutput)
-		}
-	}
+	ApplyCollaborationTaskMetadataOnReply(responseMsg, msg, response)
 
 	// Detect commands in the response and add them to metadata
 	commandDetector := protocol.NewCommandDetector(nil)
@@ -1397,6 +1382,9 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+	if a.MCPServer != nil {
+		return a.generateWithMCPTools(approvalCtx, prompt, history, eff)
+	}
 	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
 	if err != nil {
 		return "", err
@@ -1486,6 +1474,19 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			return text, "", "", err
 		}
 		return "", "", "", fmt.Errorf("multiple images require a multimodal-capable provider")
+	}
+
+	// MCP tool loop uses batch API; stream the final answer as one chunk.
+	if a.MCPServer != nil {
+		text, err := a.generateWithMCPTools(approvalCtx, prompt, history, eff)
+		if err != nil {
+			return "", "", "", err
+		}
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: text}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(msg, streamMsgID, tokenCh)
 	}
 
 	sp, ok := eff.(ai.StreamingProvider)
@@ -1718,42 +1719,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("\n\n")
 	}
 
-	// Add MCP tools if available
 	if a.MCPServer != nil {
-		system.WriteString("AVAILABLE TOOLS:\n")
-		system.WriteString("You have access to the following diagnostic and analysis tools:\n")
-
-		switch a.Info.Type {
-		case protocol.AgentTypeBackend:
-			system.WriteString("- analyze_go_code(file_path): Run static analysis on Go code using go vet, staticcheck, golangci-lint\n")
-			system.WriteString("- run_go_tests(package_path): Execute Go tests and return results\n")
-			system.WriteString("- profile_performance(binary_path, endpoint): Profile Go application performance using pprof\n")
-			system.WriteString("- check_dependencies(module_path): Check Go module dependencies for vulnerabilities\n")
-			system.WriteString("- detect_race_conditions(package_path): Run Go race detector on tests\n")
-		case protocol.AgentTypeRust:
-			system.WriteString("- cargo_check(package_path): Run cargo check for compile errors without producing binaries\n")
-			system.WriteString("- cargo_clippy(package_path): Run clippy lints for idiomatic Rust improvements\n")
-			system.WriteString("- cargo_test(package_path): Execute Rust tests with cargo test\n")
-			system.WriteString("- cargo_audit(package_path): Audit Cargo.lock for known security vulnerabilities\n")
-			system.WriteString("- miri_check(package_path): Run Miri to detect undefined behavior in unsafe code\n")
-		case protocol.AgentTypeDevOps:
-			system.WriteString("- kubectl_query(resource, namespace): Query Kubernetes cluster using kubectl\n")
-			system.WriteString("- check_docker_image(image_name): Analyze Docker image for size, layers, and vulnerabilities\n")
-			system.WriteString("- validate_yaml(yaml_file): Validate Kubernetes or Helm YAML files\n")
-			system.WriteString("- check_pod_logs(pod_name, namespace): Fetch and analyze logs from Kubernetes pods\n")
-			system.WriteString("- query_prometheus(query): Query Prometheus metrics for monitoring data\n")
-		case protocol.AgentTypeDatabase:
-			system.WriteString("- explain_query(sql_query): Run EXPLAIN ANALYZE on SQL queries to analyze performance\n")
-			system.WriteString("- check_indexes(table_name): Analyze table indexes for optimization opportunities\n")
-			system.WriteString("- validate_schema(schema_name): Check database schema for consistency and best practices\n")
-			system.WriteString("- suggest_optimizations(table_name): Analyze query patterns and suggest database optimizations\n")
-			system.WriteString("- check_table_stats(table_name): Get table statistics including size, row count, and storage info\n")
-			system.WriteString("- generate_migration(description, changes): Generate database migration scripts based on schema changes\n")
-		}
-
-		system.WriteString("\nUse these tools to provide data-driven answers. When diagnosing issues,\n")
-		system.WriteString("USE THE TOOLS to get actual data rather than guessing. Always explain\n")
-		system.WriteString("what tools you used and what the results show.\n\n")
+		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer))
 	}
 
 	// Check if this message is part of an active collaboration
@@ -1788,6 +1755,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		} else if collabInfo.Phase == "executing" {
 			system.WriteString("\n=== EXECUTION PHASE INSTRUCTIONS ===\n")
 			system.WriteString("Focus on completing your assigned tasks. Ask other agents if you need their input.\n")
+			system.WriteString(CollaborationExecutionTaskStatusInstructions())
 			if collabInfo.WorkingDirectory != "" {
 				system.WriteString(fmt.Sprintf("\n**Execution workspace (shared sandbox):** %s\n", collabInfo.WorkingDirectory))
 				system.WriteString("The desktop app registers this directory as a workspace when execution starts; use it as the root for relative paths and for shell commands in this collaboration.\n")

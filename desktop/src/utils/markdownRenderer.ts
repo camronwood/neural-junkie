@@ -97,13 +97,14 @@ export function parseMarkdownWithMermaid(content: string): MarkdownParseResult {
   // - Optional whitespace after 'mermaid'
   // - Different line ending formats (CRLF, LF, CR)
   // - Optional leading/trailing whitespace
-  const mermaidRegex = /```\s*mermaid\s*(\r?\n|\r)([\s\S]*?)```/gi;
+  // Optional newline after ```mermaid — agents sometimes use ```mermaid\n or ```mermaid flowchart
+  const mermaidRegex = /```\s*mermaid\s*(?:\r?\n)?([\s\S]*?)```/gi;
   const matches: Array<{ fullMatch: string; content: string; index: number }> = [];
   
   // First, collect all matches with their positions
   let match;
   while ((match = mermaidRegex.exec(content)) !== null) {
-    const mermaidContent = match[2].trim();
+    const mermaidContent = match[1].trim();
     // Only add non-empty blocks
     if (mermaidContent.length > 0) {
       matches.push({
@@ -162,7 +163,8 @@ export type MarkdownSegment =
  * placeholder-in-HTML approach entirely.
  */
 export function splitMarkdownAndMermaid(raw: string): MarkdownSegment[] {
-  const mermaidRegex = /```\s*mermaid\s*(\r?\n|\r)([\s\S]*?)```/gi;
+  // Optional newline after ```mermaid — agents sometimes use ```mermaid\n or ```mermaid flowchart
+  const mermaidRegex = /```\s*mermaid\s*(?:\r?\n)?([\s\S]*?)```/gi;
   const segments: MarkdownSegment[] = [];
   let cursor = 0;
   let match: RegExpExecArray | null;
@@ -171,7 +173,7 @@ export function splitMarkdownAndMermaid(raw: string): MarkdownSegment[] {
     if (match.index > cursor) {
       segments.push({ type: 'markdown', content: raw.slice(cursor, match.index) });
     }
-    const mermaidContent = match[2].trim();
+    const mermaidContent = match[1].trim();
     if (mermaidContent.length > 0) {
       segments.push({ type: 'mermaid', content: mermaidContent });
     }

@@ -589,6 +589,7 @@ func TestCollaborationPhaseTransitions(t *testing.T) {
 func TestTransitionToExecutingCreatesWorkingDirectory(t *testing.T) {
 	tmpHome := t.TempDir()
 	t.Setenv("HOME", tmpHome)
+	t.Setenv("NEURAL_JUNKIE_COLLAB_ASSETS_DIR", "")
 
 	hub := newMockCollabHub()
 	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
@@ -621,6 +622,41 @@ func TestTransitionToExecutingCreatesWorkingDirectory(t *testing.T) {
 	st, err := os.Stat(c.WorkingDirectory)
 	if err != nil || !st.IsDir() {
 		t.Fatalf("working directory missing or not a dir: %v", err)
+	}
+}
+
+func TestTransitionToExecutingUsesConfiguredAssetsRoot(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	customRoot := filepath.Join(tmpHome, "collab-assets")
+	t.Setenv("NEURAL_JUNKIE_COLLAB_ASSETS_DIR", customRoot)
+
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	cm := collaboration.NewCollaborationManager(hub)
+	cm.SetAssetsRootResolver(func() string { return customRoot })
+
+	collab, err := cm.CreateCollaboration("custom root", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatal(err)
+	}
+	c, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantDir := filepath.Join(customRoot, c.ID)
+	if filepath.Clean(c.WorkingDirectory) != filepath.Clean(wantDir) {
+		t.Fatalf("WorkingDirectory = %q want %q", c.WorkingDirectory, wantDir)
 	}
 }
 
@@ -847,6 +883,56 @@ func TestConsensusDisagreement(t *testing.T) {
 }
 
 // ── Task Assignment Tests ────────────────────────────────────────────
+
+func TestFinalizeCollaborationForceMarksOpenTasks(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("test", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "A", AssignedTo: "a1", Status: collaboration.TaskPending},
+		{ID: "t2", Title: "B", AssignedTo: "a1", Status: collaboration.TaskInProgress},
+	})
+	_, _ = cm.TransitionToReviewing(collab.ID)
+	_, _ = cm.ApprovePlan(collab.ID)
+	_, _ = cm.TransitionToExecuting(collab.ID)
+
+	c, err := cm.FinalizeCollaboration(collab.ID, collaboration.FinalizeOptions{MarkOpenTasksComplete: true})
+	if err != nil {
+		t.Fatalf("FinalizeCollaboration: %v", err)
+	}
+	if c.Phase != collaboration.PhaseCompleted {
+		t.Fatalf("phase %s", c.Phase)
+	}
+	if c.Discussion == nil || c.Discussion.Status != collaboration.DiscussionConverged {
+		t.Fatalf("discussion status %+v", c.Discussion)
+	}
+	for _, task := range c.Tasks {
+		if task.Status != collaboration.TaskCompleted {
+			t.Fatalf("task %s status %s", task.ID, task.Status)
+		}
+	}
+}
+
+func TestFinalizeCollaborationIdempotent(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("test", []string{"a1", "a2"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+	_, _ = cm.FinalizeCollaboration(collab.ID, collaboration.FinalizeOptions{})
+	_, err = cm.FinalizeCollaboration(collab.ID, collaboration.FinalizeOptions{})
+	if err != nil {
+		t.Fatalf("second finalize: %v", err)
+	}
+}
 
 func TestSetAndUpdateTasks(t *testing.T) {
 	hub := newMockCollabHub()

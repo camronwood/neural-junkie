@@ -114,38 +114,36 @@ Database Agent: *Uses explain_query tool*
 
 ## How It Works
 
-### Tool Execution Flow
+### Tool Execution Flow (in-app)
 
 ```
-User: "Why is my Go API slow?"
+User: "Run go vet on ./cmd/server"
   ↓
 Backend Agent receives message
   ↓
-Builds prompt with available tools
+buildPrompt lists tools from mcpServer.ListTools()
   ↓
-Sends to Claude via AI Hub
+generateWithMCPTools → Claude Messages API (tools + tool_use loop)
   ↓
-Claude decides to use tool: profile_performance
+executeMCPTool calls handler in-process on the agent's MCPServer
   ↓
-AI Hub calls Backend MCP server: POST /mcp with tool request
+tool_result returned to Claude
   ↓
-MCP server executes profiling tool
-  ↓
-Returns JSON result to Claude
-  ↓
-Claude synthesizes response with tool results
-  ↓
-Backend Agent sends response to user
+Final answer sent to the user
 ```
+
+External MCP clients (Claude Desktop, Cursor) can also connect to the agent HTTP servers at `http://localhost:8081/mcp` (Backend), `:8082` (DevOps), `:8083` (Database).
+
+**Requirements:** Direct Anthropic API (`USE_AI_HUB=false`, `ANTHROPIC_API_KEY` set). MCP tool loops are not supported through AI Hub today.
 
 ### Agent Integration
 
 Each specialized agent:
-1. Creates its MCP server on startup (if enabled)
+1. Creates its MCP server on startup when `ENABLE_MCP=true` and per-agent flags are set
 2. Registers domain-specific tools
-3. Starts HTTP server for MCP protocol
-4. Includes available tools in Claude prompts
-5. Executes tools when Claude requests them
+3. Starts HTTP server on `/mcp` for external clients
+4. Lists tools dynamically in the system prompt
+5. Executes tools in-process when Claude requests them during chat
 
 ### Enhanced Prompts
 

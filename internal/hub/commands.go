@@ -17,6 +17,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -26,6 +27,8 @@ import (
 // CommandHandler handles chat commands
 type CommandHandler struct {
 	hub              *Hub
+	appConfig        *config.Config
+	providerCache    *ai.ProviderCache
 	aiProvider       ai.AIProvider
 	repoAgents       map[string]*agent.RepoAgent        // Track repo agents for management
 	confluenceAgents map[string]*agent.ConfluenceAgent  // Track confluence agents for management
@@ -74,6 +77,15 @@ func NewCommandHandler(hub *Hub) (*CommandHandler, error) {
 	}
 	ch.validateCommandDefinitions()
 	return ch, nil
+}
+
+// SetProviderRegistry wires persisted provider config for expert/DM agent creation.
+func (ch *CommandHandler) SetProviderRegistry(cfg *config.Config, cache *ai.ProviderCache) {
+	if ch == nil {
+		return
+	}
+	ch.appConfig = cfg
+	ch.providerCache = cache
 }
 
 func (ch *CommandHandler) clearCollaborateRedirect() {
@@ -234,6 +246,8 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/resume-plan":          ch.handleResumePlan,
 		"/revise-plan":          ch.handleRevisePlan,
 		"/cancel-plan":          ch.handleCancelPlan,
+		"/complete-collab":      ch.handleCompleteCollab,
+		"/collab-task-done":     ch.handleCollabTaskDone,
 		"/collab-extend":        ch.handleCollabExtend,
 		"/collab-rename":        ch.handleCollabRename,
 		"/collab-status":        ch.handleCollabStatus,
@@ -243,7 +257,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 // handleCreateRepoAgent creates a new repository expert agent
 func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
-		return ch.systemResponse(msg.Channel, "Usage: /create-repo-agent <repo-path> [agent-name] [provider] [model]\nProviders: ollama (default), claude, lmstudio\nExample: /create-repo-agent /path/to/repo MyRepoExpert ollama llama3.1"), nil
+		return ch.systemResponse(msg.Channel, "Usage: /create-repo-agent <repo-path> [agent-name] [provider] [model]\nProviders: ollama (default), claude, lmstudio, huggingface\nExample: /create-repo-agent /path/to/repo MyRepoExpert ollama llama3.1"), nil
 	}
 
 	repoPath := parts[1]
@@ -254,7 +268,7 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 	// Parse arguments
 	if len(parts) >= 3 {
 		// Check if third argument is a provider
-		if parts[2] == "claude" || parts[2] == "ollama" || parts[2] == "lmstudio" {
+		if parts[2] == "claude" || parts[2] == "ollama" || parts[2] == "lmstudio" || parts[2] == "huggingface" || parts[2] == "hf" {
 			provider = parts[2]
 			if len(parts) >= 4 {
 				model = parts[3]
@@ -293,6 +307,15 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 			model = "llama3.1"
 		}
 		aiProvider = ai.NewOllamaProviderWithConfig("http://localhost:11434", model)
+	} else if provider == "huggingface" || provider == "hf" {
+		if model == "" {
+			return ch.systemResponse(msg.Channel, "❌ huggingface provider requires a model (Hub repo id, e.g. Qwen/Qwen2.5-Coder-7B-Instruct)"), nil
+		}
+		token := ai.ResolveHFToken("")
+		if token == "" {
+			return ch.systemResponse(msg.Channel, "❌ HF token required: set HF_TOKEN or add a huggingface provider in Settings"), nil
+		}
+		aiProvider = ai.NewHuggingFaceProvider("", token, model)
 	} else if provider == "lmstudio" {
 		if model == "" {
 			model = "" // Will be determined from available models
@@ -804,7 +827,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		}
 	}
 
-	agentInstance, err := ch.prepareExpertAgent(spec, name, providerName, modelOverride)
+	agentInstance, err := ch.prepareExpertAgent(spec, name, "", providerName, modelOverride)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
@@ -2849,6 +2872,8 @@ func defaultModelForProvider(provider string) string {
 		return "claude-sonnet"
 	case "lmstudio":
 		return ""
+	case "huggingface", "hf":
+		return "Qwen/Qwen2.5-Coder-7B-Instruct"
 	default:
 		return ""
 	}
@@ -2894,8 +2919,17 @@ func buildProviderForSwitch(provider, model string, metadata map[string]interfac
 			return nil, "", fmt.Errorf("failed to initialize claude provider: %w", err)
 		}
 		return claudeProvider, resolvedModel, nil
+	case "huggingface", "hf":
+		token := ai.ResolveHFToken("")
+		if token == "" {
+			return nil, "", fmt.Errorf("HF token required: set HF_TOKEN or add a huggingface provider in Settings")
+		}
+		if resolvedModel == "" {
+			return nil, "", fmt.Errorf("model (Hugging Face repo id) is required for huggingface provider")
+		}
+		return ai.NewHuggingFaceProvider("", token, resolvedModel), resolvedModel, nil
 	default:
-		return nil, "", fmt.Errorf("invalid provider %q (allowed: claude, ollama, lmstudio)", provider)
+		return nil, "", fmt.Errorf("invalid provider %q (allowed: claude, ollama, lmstudio, huggingface)", provider)
 	}
 }
 
@@ -3316,7 +3350,7 @@ func (ch *CommandHandler) GetCommandDefinitions() []protocol.CommandDefinition {
 }
 
 func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition {
-	providerOpts := []string{"ollama", "claude", "lmstudio"}
+	providerOpts := []string{"ollama", "claude", "lmstudio", "huggingface"}
 
 	return []protocol.CommandDefinition{
 		// ── Repository Agents ──────────────────────────────────────────
@@ -3854,6 +3888,24 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			},
 		},
 		{
+			Name:        "/complete-collab",
+			Description: "Mark a collaboration complete (use --force to close open tasks)",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "force", Description: "Pass --force to mark open tasks done and close", Type: "string", Required: false},
+			},
+		},
+		{
+			Name:        "/collab-task-done",
+			Description: "Mark one collaboration task complete (1-based task number or task id prefix)",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "task", Description: "Task number (1-based) or task id prefix", Type: "string", Required: true},
+			},
+		},
+		{
 			Name:        "/collab-extend",
 			Description: "Raise planning/review discussion limits after budget_exhausted (or bump caps while active)",
 			Category:    "Collaboration",
@@ -4323,6 +4375,128 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 
 	out := ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8]))
 	out.SetCollaborationID(collabID)
+	return out, nil
+}
+
+func (ch *CommandHandler) handleCompleteCollab(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	_ = ctx
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /complete-collab <collab-id> [--force]"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
+	}
+
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	force := false
+	for _, p := range parts[2:] {
+		if strings.EqualFold(strings.TrimSpace(p), "--force") {
+			force = true
+		}
+	}
+
+	snap, err := cm.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found."), nil
+	}
+	if snap.Phase == collaboration.PhaseCompleted {
+		out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Collaboration `%s` is already completed.", collabID[:8]))
+		out.SetCollaborationID(collabID)
+		out.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+		return out, nil
+	}
+	if snap.Phase == collaboration.PhaseCancelled {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration `%s` was cancelled. Start a new session with `/collaborate`.", collabID[:8])), nil
+	}
+
+	if collaboration.HasOpenTasks(snap) && !force {
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("❌ Collaboration `%s` still has open tasks:\n", collabID[:8]))
+		for i, title := range collaboration.OpenTaskTitles(snap) {
+			sb.WriteString(fmt.Sprintf("- Task %d: %s\n", i+1, title))
+		}
+		sb.WriteString("\nUse `/complete-collab ")
+		sb.WriteString(collabID[:8])
+		sb.WriteString(" --force` after you confirm, or mark tasks done with `/collab-task-done`.")
+		return ch.systemResponse(msg.Channel, sb.String()), nil
+	}
+
+	opts := collaboration.FinalizeOptions{MarkOpenTasksComplete: force}
+	reason := "Marked complete by user."
+	if force && collaboration.HasOpenTasks(snap) {
+		reason = "Closed by user (open tasks marked done)."
+	}
+	ch.hub.finalizeAndBroadcastCollaboration(collabID, msg.Channel, reason, opts)
+
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Collaboration `%s` marked complete.", collabID[:8]))
+	out.SetCollaborationID(collabID)
+	out.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+	ch.hub.attachCollaborationData(out)
+	return out, nil
+}
+
+func (ch *CommandHandler) handleCollabTaskDone(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	_ = ctx
+	if len(parts) < 3 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collab-task-done <collab-id> <task#|task-id-prefix>"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration manager is not available."), nil
+	}
+
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	taskID, err := cm.ResolveTaskIndex(collabID, parts[2])
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+
+	snap, err := cm.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found."), nil
+	}
+	if snap.Phase == collaboration.PhaseCompleted || snap.Phase == collaboration.PhaseCancelled {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration is **%s**.", snap.Phase)), nil
+	}
+
+	if err := cm.UpdateTaskStatus(collabID, taskID, collaboration.TaskCompleted, "Marked complete by user"); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+
+	var taskTitle string
+	for _, t := range snap.Tasks {
+		if t.ID == taskID {
+			taskTitle = t.Title
+			break
+		}
+	}
+	if taskTitle == "" {
+		taskTitle = taskID[:8]
+	}
+
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Task **%s** marked complete (`%s`).", taskTitle, collabID[:8]))
+	out.SetCollaborationID(collabID)
+	out.SetTaskID(taskID)
+	out.SetTaskStatus(string(collaboration.TaskCompleted))
+
+	if cm.AllTasksComplete(collabID) {
+		ch.hub.finalizeAndBroadcastCollaboration(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
+		out.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+	} else {
+		out.SetCollaborationPhase(string(snap.Phase))
+	}
+	ch.hub.attachCollaborationData(out)
 	return out, nil
 }
 

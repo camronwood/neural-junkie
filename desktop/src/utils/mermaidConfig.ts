@@ -1,4 +1,5 @@
 import mermaid from 'mermaid';
+import { normalizeMermaidSource } from './mermaidNormalize';
 
 mermaid.initialize({
   startOnLoad: false,
@@ -23,7 +24,7 @@ export function renderMermaidSvg(content: string): Promise<string> {
     .then(async () => {
       const id = `mermaid-${++renderCounter}-${Math.random().toString(36).slice(2, 7)}`;
       document.getElementById('d' + id)?.remove();
-      const { svg } = await mermaid.render(id, content);
+      const { svg } = await mermaid.render(id, normalizeMermaidSource(content));
       return svg;
     });
   return renderQueue;

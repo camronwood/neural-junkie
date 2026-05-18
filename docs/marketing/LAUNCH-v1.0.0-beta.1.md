@@ -2,7 +2,7 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7
+https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
@@ -14,7 +14,15 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7
 
 ---
 
-## X / Mastodon (beta.7)
+## X / Mastodon (beta.8)
+
+Neural Junkie v1.0.0-beta.8 — **app-store model library** in the toolbar (Ollama + Hugging Face): grid browse, one-tap install/download, detail for full actions. HF hosted inference + local GGUF → Ollama. MCP tool servers back.
+
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.8
+
+---
+
+## X / Mastodon (beta.7) — archived
 
 Neural Junkie v1.0.0-beta.7 — chat finally renders **real markdown** (headings, lists, tables) like plans and file preview. Streaming scroll stays pinned; collab history survives session restore.
 
@@ -102,20 +110,35 @@ Looking for feedback on install friction and local model workflows.
 
 ---
 
-## Collaboration feature ad
+## Collaboration feature ad (agent orchestration)
 
 **Image:** `assets/neural-junkie-collaboration-ad-1080.png` (regenerate: `./scripts/compose-collaboration-ad.sh`)
 
-Graphic-only ad (no app screenshot). Attach a workspace screenshot separately in the thread if you want product proof.
+Graphic mock (faux collab channel + panel + agent mesh). For extra proof, reply with a real `collab-…` channel screenshot or 15–30s screen recording.
 
-**X / LinkedIn (short):**
+**X / LinkedIn (orchestration — primary):**
 
-> One chat thread isn't enough for hard refactors.
+> One chat isn't a team.
 >
-> Neural Junkie `/collaborate` — bounded multi-agent sessions:
-> discuss → shared plan → you approve → execute in a sandbox (file-change gates, `/approve-plan`, `/revise-plan`).
+> Neural Junkie `/collaborate`: your @RustExpert and @SecurityExpert **discuss with each other**, produce one **shared plan**, you **`/approve-plan`**, then they **execute assigned tasks** in a sandbox — with turn/message caps so it can't spiral.
+>
+> Not @mentions. Not copy-paste between chats.
 >
 > Open source beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7
+
+**X / LinkedIn (incident angle — optional follow-up):**
+
+> Security review without playing telephone between five ChatGPT tabs.
+>
+> `/collaborate @SecurityExpert @DevOpsPro @GoExpert` on an outage or CVE — bounded agent discussion → plan you approve → parallel tasks.
+>
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7
+
+**LinkedIn (longer):**
+
+Hard refactors and incident response don't fit a single LLM thread. Neural Junkie's `/collaborate` is structured multi-agent orchestration: specialists debate in a dedicated `collab-…` channel (turn-limited), refine one plan artifact, and wait for your approval before execution. Tasks fan out by agent strength; file changes still go through your approve/reject flow.
+
+Try the beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.7
 
 ---
 

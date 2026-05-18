@@ -30,6 +30,7 @@ type HubInterface interface {
 type CollaborationManager struct {
 	hub            HubInterface
 	collaborations map[string]*Collaboration // id -> collaboration
+	assetsRootFn   func() string             // parent dir for per-collab sandboxes; optional
 	mu             sync.RWMutex
 }
 
@@ -39,6 +40,32 @@ func NewCollaborationManager(hub HubInterface) *CollaborationManager {
 		hub:            hub,
 		collaborations: make(map[string]*Collaboration),
 	}
+}
+
+// SetAssetsRootResolver supplies the parent directory for collaboration execution
+// sandboxes (<root>/<collaboration-id>/). Called on each transition to executing.
+func (cm *CollaborationManager) SetAssetsRootResolver(fn func() string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.assetsRootFn = fn
+}
+
+func (cm *CollaborationManager) collabAssetsBaseDir() (string, error) {
+	cm.mu.RLock()
+	fn := cm.assetsRootFn
+	cm.mu.RUnlock()
+
+	if fn != nil {
+		if root := strings.TrimSpace(fn()); root != "" {
+			return root, nil
+		}
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("collaboration working directory: home dir: %w", err)
+	}
+	return filepath.Join(home, ".neural-junkie", "collaborations"), nil
 }
 
 // CreateCollaboration starts a new multi-agent collaboration.
@@ -394,6 +421,11 @@ func (cm *CollaborationManager) ApprovePlan(collabID string) (*Collaboration, er
 // TransitionToExecuting moves an approved collaboration into execution
 // and creates a fresh bounded discussion for cross-agent Q&A during execution.
 func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collaboration, error) {
+	baseDir, err := cm.collabAssetsBaseDir()
+	if err != nil {
+		return nil, err
+	}
+
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -424,11 +456,6 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 	c.Phase = PhaseExecuting
 	c.UpdatedAt = now
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("collaboration working directory: home dir: %w", err)
-	}
-	baseDir := filepath.Join(home, ".neural-junkie", "collaborations")
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("collaboration working directory: mkdir base: %w", err)
 	}
@@ -613,23 +640,6 @@ func (cm *CollaborationManager) CancelCollaboration(collabID string) (*Collabora
 	}
 
 	log.Printf("[CollaborationManager] Collaboration %s cancelled", collabID[:8])
-	return c, nil
-}
-
-// CompleteCollaboration marks a collaboration as finished.
-func (cm *CollaborationManager) CompleteCollaboration(collabID string) (*Collaboration, error) {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	c, ok := cm.collaborations[collabID]
-	if !ok {
-		return nil, fmt.Errorf("collaboration %s not found", collabID)
-	}
-
-	c.Phase = PhaseCompleted
-	c.UpdatedAt = time.Now()
-
-	log.Printf("[CollaborationManager] Collaboration %s completed", collabID[:8])
 	return c, nil
 }
 

@@ -64,11 +64,10 @@ Collaboration is implemented. Future improvements can focus on:
 - Response caching for repeated queries
 - Token usage monitoring
 
-### MCP Tool Servers (Re-enable)
-The MCP tool servers for Backend, DevOps, and Database agents are implemented but currently disabled. Re-enable with:
-- Go code analysis and testing tools
-- Kubernetes query and Docker analysis tools
-- SQL explain, index analysis, and schema validation tools
+### MCP Tool Servers
+- ~~Re-enable Backend/DevOps/Database MCP tool servers~~ — **Done** (beta.8)
+- Tool calling for Ollama / LM Studio / OpenAI-compat providers (Claude-only today)
+- Rust MCP server (prompt no longer lists phantom Rust tools)
 
 ## Low Priority
 

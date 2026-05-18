@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ModelStoreBrowse } from './model-library/ModelStoreBrowse';
+import type { StoreModelAction, StoreModelItem } from './model-library/types';
 
 export interface OllamaCatalogEntry {
   name: string;
@@ -6,6 +8,8 @@ export interface OllamaCatalogEntry {
   description: string;
   tags: string[];
   size_hint?: string;
+  icon_key?: string;
+  publisher?: string;
 }
 
 interface HubProvider {
@@ -23,6 +27,8 @@ interface OllamaModelLibraryProps {
   serverAddr: string;
   switchAllAgentProviders: (provider: string, model: string) => Promise<void>;
   onAfterModelChange?: () => void;
+  onViewChange?: (view: 'grid' | 'detail') => void;
+  resetDetailSignal?: number;
 }
 
 async function parseSSEChunks(
@@ -64,6 +70,8 @@ export function OllamaModelLibrary({
   serverAddr,
   switchAllAgentProviders,
   onAfterModelChange,
+  onViewChange,
+  resetDetailSignal,
 }: OllamaModelLibraryProps) {
   const [catalog, setCatalog] = useState<OllamaCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -136,7 +144,8 @@ export function OllamaModelLibrary({
     const q = query.trim().toLowerCase();
     if (!q) return catalog;
     return catalog.filter((row) => {
-      const hay = [row.name, row.title, row.description, ...(row.tags || [])]
+      const hay = [row.name, row.title, row.description, row.publisher, ...(row.tags || [])]
+        .filter(Boolean)
         .join(' ')
         .toLowerCase();
       return hay.includes(q);
@@ -262,23 +271,91 @@ export function OllamaModelLibrary({
     }
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-sm font-semibold text-gray-300">Model library</h3>
-        <button
-          type="button"
-          onClick={() => void refreshInstalled()}
-          className="px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
-        >
-          Refresh installed
-        </button>
-      </div>
+  const storeItems = useMemo((): StoreModelItem[] => {
+    const globalPullBusy = !!pullingName;
 
+    return filtered.map((row) => {
+      const isIn = installed.has(row.name);
+      const rowBusy =
+        pullingName === row.name || deletingName === row.name || useBusyName === row.name;
+      const pullLabel =
+        pullingName === row.name ? pullProgress || 'Pulling…' : 'Install';
+
+      const primaryAction: StoreModelAction | undefined = isIn
+        ? {
+            id: 'use',
+            label: 'Use for agents',
+            variant: 'primary',
+            disabled: rowBusy || globalPullBusy,
+            busyLabel: useBusyName === row.name ? 'Applying…' : undefined,
+            onClick: () => void useForAgents(row.name),
+          }
+        : {
+            id: 'install',
+            label: 'Install',
+            disabled: !ollamaRunning || rowBusy || globalPullBusy,
+            busyLabel: pullingName === row.name ? pullLabel : undefined,
+            onClick: () => void pullModel(row.name),
+          };
+
+      const detailActions: StoreModelAction[] = [];
+      if (!isIn) {
+        detailActions.push({
+          id: 'install',
+          label: 'Install',
+          disabled: !ollamaRunning || rowBusy || globalPullBusy,
+          busyLabel: pullingName === row.name ? pullLabel : undefined,
+          onClick: () => void pullModel(row.name),
+        });
+      } else {
+        detailActions.push({
+          id: 'use',
+          label: 'Use for agents',
+          variant: 'primary',
+          disabled: rowBusy || globalPullBusy,
+          busyLabel: useBusyName === row.name ? 'Applying…' : undefined,
+          onClick: () => void useForAgents(row.name),
+        });
+        detailActions.push({
+          id: 'remove',
+          label: 'Remove',
+          variant: 'danger',
+          disabled: rowBusy || globalPullBusy,
+          busyLabel: deletingName === row.name ? 'Removing…' : undefined,
+          onClick: () => void deleteModel(row.name),
+        });
+      }
+
+      return {
+        id: row.name,
+        title: row.title,
+        subtitle: row.name,
+        description: row.description,
+        tags: row.tags ?? [],
+        sizeHint: row.size_hint,
+        publisher: row.publisher,
+        iconKey: row.icon_key,
+        status: isIn ? 'installed' : 'available',
+        detailRows: [{ label: 'Ollama tag', value: row.name }],
+        primaryAction,
+        detailActions,
+      };
+    });
+  }, [
+    filtered,
+    installed,
+    ollamaRunning,
+    pullingName,
+    pullProgress,
+    deletingName,
+    useBusyName,
+  ]);
+
+  const banner = (
+    <>
       {catalogError && (
         <div className="text-sm text-red-400 border border-red-900/50 rounded p-2">{catalogError}</div>
       )}
-
       {actionMessage && (
         <div
           className={`text-sm rounded p-2 border ${
@@ -290,131 +367,72 @@ export function OllamaModelLibrary({
           {actionMessage.text}
         </div>
       )}
-
       {!ollamaRunning && (
         <p className="text-xs text-gray-500">
           Start Ollama above to install models. Browse the catalog and pull when the server is running.
         </p>
       )}
+    </>
+  );
 
-      <div>
-        <label className="block text-xs text-gray-500 mb-1">Search catalog</label>
+  const footer = (
+    <div className="border border-gray-700 rounded-lg p-3 space-y-2">
+      <div className="text-xs font-medium text-gray-400">Custom model tag</div>
+      <p className="text-xs text-gray-500">
+        Pull any Ollama library name (e.g. <span className="font-mono text-gray-400">mistral-nemo:12b</span>).
+      </p>
+      <div className="flex gap-2 items-center">
         <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Name, tag, or description…"
-          className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white"
+          value={customTag}
+          onChange={(e) => setCustomTag(e.target.value)}
+          placeholder="model:tag"
+          disabled={!ollamaRunning || !!pullingName}
+          className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white disabled:opacity-50"
         />
+        <button
+          type="button"
+          disabled={!ollamaRunning || !customTag.trim() || !!pullingName}
+          onClick={() => {
+            void (async () => {
+              const tag = customTag.trim();
+              if (!tag) return;
+              await pullModel(tag);
+              setCustomTag('');
+            })();
+          }}
+          className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40"
+        >
+          Pull
+        </button>
       </div>
-
-      <div className="max-h-[min(420px,50vh)] overflow-y-auto border border-gray-700 rounded-lg divide-y divide-gray-800">
-        {filtered.length === 0 ? (
-          <div className="p-4 text-sm text-gray-500">No catalog entries match your search.</div>
-        ) : (
-          filtered.map((row) => {
-            const isIn = installed.has(row.name);
-            const busy = pullingName === row.name || deletingName === row.name || useBusyName === row.name;
-            return (
-              <div key={row.name} className="p-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-white">{row.title}</span>
-                    {isIn && (
-                      <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-green-900/40 text-green-300">
-                        Installed
-                      </span>
-                    )}
-                    {row.size_hint && (
-                      <span className="text-xs text-gray-500">{row.size_hint}</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-gray-500 font-mono mt-0.5">{row.name}</div>
-                  <p className="text-xs text-gray-400 mt-1">{row.description}</p>
-                  {row.tags?.length ? (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {row.tags.map((t) => (
-                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  {!isIn && (
-                    <button
-                      type="button"
-                      disabled={!ollamaRunning || busy || !!pullingName}
-                      onClick={() => void pullModel(row.name)}
-                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40"
-                    >
-                      {pullingName === row.name ? pullProgress || 'Pulling…' : 'Install'}
-                    </button>
-                  )}
-                  {isIn && (
-                    <>
-                      <button
-                        type="button"
-                        disabled={busy || !!pullingName}
-                        onClick={() => void useForAgents(row.name)}
-                        className="px-2 py-1 text-xs bg-emerald-700/80 text-white rounded hover:bg-emerald-600 disabled:opacity-40"
-                      >
-                        {useBusyName === row.name ? 'Applying…' : 'Use for agents'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy || !!pullingName}
-                        onClick={() => void deleteModel(row.name)}
-                        className="px-2 py-1 text-xs bg-red-900/50 text-red-200 rounded hover:bg-red-800/60 disabled:opacity-40"
-                      >
-                        {deletingName === row.name ? 'Removing…' : 'Remove'}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      <div className="border border-gray-700 rounded-lg p-3 space-y-2">
-        <div className="text-xs font-medium text-gray-400">Custom model tag</div>
-        <p className="text-xs text-gray-500">
-          Pull any Ollama library name (e.g. <span className="font-mono text-gray-400">mistral-nemo:12b</span>).
-        </p>
-        <div className="flex gap-2 items-center">
-          <input
-            value={customTag}
-            onChange={(e) => setCustomTag(e.target.value)}
-            placeholder="model:tag"
-            disabled={!ollamaRunning || !!pullingName}
-            className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white disabled:opacity-50"
-          />
-          <button
-            type="button"
-            disabled={!ollamaRunning || !customTag.trim() || !!pullingName}
-            onClick={() => {
-              void (async () => {
-                const tag = customTag.trim();
-                if (!tag) return;
-                await pullModel(tag);
-                setCustomTag('');
-              })();
-            }}
-            className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40"
-          >
-            Pull
-          </button>
+      {pullingName && (
+        <div className="text-xs text-blue-300 font-mono">
+          {pullingName}
+          {pullProgress ? ` — ${pullProgress}` : ''}
         </div>
-        {pullingName && (
-          <div className="text-xs text-blue-300 font-mono">
-            {pullingName}
-            {pullProgress ? ` — ${pullProgress}` : ''}
-          </div>
-        )}
-      </div>
+      )}
     </div>
+  );
+
+  return (
+    <ModelStoreBrowse
+      items={storeItems}
+      query={query}
+      onQueryChange={setQuery}
+      searchPlaceholder="Name, tag, or description…"
+      onViewChange={onViewChange}
+      resetDetailSignal={resetDetailSignal}
+      banner={banner}
+      footer={footer}
+      headerRight={
+        <button
+          type="button"
+          onClick={() => void refreshInstalled()}
+          className="px-3 py-1.5 text-xs bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 shrink-0"
+        >
+          Refresh installed
+        </button>
+      }
+    />
   );
 }

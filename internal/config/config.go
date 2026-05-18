@@ -45,6 +45,14 @@ type OllamaConfig struct {
 	ModelsToEnsure []string `json:"models_to_ensure"`
 }
 
+// HFConfig holds Hugging Face Hub download and token defaults.
+type HFConfig struct {
+	// Token is optional; HF_TOKEN env is used when empty.
+	Token string `json:"token,omitempty"`
+	// CacheDir overrides HF cache (default ~/.cache/huggingface/hub).
+	CacheDir string `json:"cache_dir,omitempty"`
+}
+
 type UpdateConfig struct {
 	AutoCheck bool `json:"auto_check"`
 }
@@ -54,6 +62,10 @@ type CollaborationConfig struct {
 	// SmartRoutingEnabled selects a configured AI provider per collaboration
 	// execution task (MessageTypeCollabTask with task_id) using a static heuristic.
 	SmartRoutingEnabled bool `json:"smart_routing_enabled"`
+	// AssetsRoot is the parent directory for per-collaboration execution sandboxes.
+	// Each run uses <AssetsRoot>/<collaboration-id>/. Empty uses ~/.neural-junkie/collaborations.
+	// Overridden by NEURAL_JUNKIE_COLLAB_ASSETS_DIR when set.
+	AssetsRoot string `json:"assets_root,omitempty"`
 }
 
 type Config struct {
@@ -61,6 +73,7 @@ type Config struct {
 	AI             AIConfig             `json:"ai"`
 	Agents         []AgentConfig        `json:"agents"`
 	Ollama         OllamaConfig         `json:"ollama"`
+	HF             HFConfig             `json:"hf"`
 	Updates        UpdateConfig         `json:"updates"`
 	Collaboration  CollaborationConfig  `json:"collaboration"`
 
@@ -351,6 +364,7 @@ func (c *Config) Redacted() *Config {
 	srcProviders := c.AI.Providers
 	agents := append([]AgentConfig(nil), c.Agents...)
 	ollama := c.Ollama
+	hf := c.HF
 	updates := c.Updates
 	collab := c.Collaboration
 	filePath := c.filePath
@@ -367,11 +381,20 @@ func (c *Config) Redacted() *Config {
 			}
 		}
 	}
+	redactedHF := hf
+	if redactedHF.Token != "" {
+		if len(redactedHF.Token) > 8 {
+			redactedHF.Token = redactedHF.Token[:4] + "..." + redactedHF.Token[len(redactedHF.Token)-4:]
+		} else {
+			redactedHF.Token = "***"
+		}
+	}
 	return &Config{
 		Server:        server,
 		AI:            AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
 		Agents:        agents,
 		Ollama:        ollama,
+		HF:            redactedHF,
 		Updates:       updates,
 		Collaboration: collab,
 		filePath:      filePath,

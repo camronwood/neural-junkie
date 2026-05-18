@@ -25,9 +25,10 @@ interface TaskManagementPanelProps {
   onAssistantTaskDone: (taskID: string) => void;
   onAssistantReminderDismiss: (reminderID: string) => void;
   onCollaborationCommand: (
-    command: 'approve' | 'revise' | 'cancel',
+    command: 'approve' | 'revise' | 'cancel' | 'complete' | 'task-done',
     collaborationID: string,
-    feedback?: string
+    feedback?: string,
+    taskIndex?: number
   ) => Promise<void>;
 }
 
@@ -171,7 +172,11 @@ export function TaskManagementPanel({
     [collaborations]
   );
 
-  const runCollabCommand = async (command: 'approve' | 'revise' | 'cancel', collab: Collaboration) => {
+  const runCollabCommand = async (
+    command: 'approve' | 'revise' | 'cancel' | 'complete' | 'task-done',
+    collab: Collaboration,
+    taskIndex?: number
+  ) => {
     const collabID = collab.id;
     if (!collabID) return;
     if (
@@ -180,11 +185,23 @@ export function TaskManagementPanel({
     ) {
       return;
     }
+    if (command === 'complete') {
+      const open = collab.tasks?.filter(t => t.status !== 'completed') ?? [];
+      if (open.length > 0) {
+        const lines = open.map((t, i) => `• ${t.title || `Task ${i + 1}`}`).join('\n');
+        const ok = window.confirm(
+          `Mark collaboration done?\n\n${open.length} open task(s):\n${lines}\n\nThey will be marked complete.`
+        );
+        if (!ok) return;
+      }
+    }
     setSubmittingByCollab(prev => ({ ...prev, [collabID]: true }));
     try {
       if (command === 'revise') {
         await onCollaborationCommand('revise', collabID, revisionFeedback[collabID] || '');
         setRevisionFeedback(prev => ({ ...prev, [collabID]: '' }));
+      } else if (command === 'task-done') {
+        await onCollaborationCommand('task-done', collabID, undefined, taskIndex);
       } else {
         await onCollaborationCommand(command, collabID);
       }
@@ -515,9 +532,10 @@ function CollaborationRow({
   feedback: string;
   setFeedback: (value: string) => void;
   isSubmitting: boolean;
-  onRunCommand: (command: 'approve' | 'revise' | 'cancel') => void;
+  onRunCommand: (command: 'approve' | 'revise' | 'cancel' | 'complete' | 'task-done', taskIndex?: number) => void;
 }) {
   const isTerminal = collaboration.phase === 'completed' || collaboration.phase === 'cancelled';
+  const openTaskCount = collaboration.tasks?.filter(t => t.status !== 'completed').length ?? 0;
   const resumeLabel =
     collaboration.phase === 'executing'
       ? 'Resume plan'
@@ -637,6 +655,28 @@ function CollaborationRow({
             </button>
           </>
         )}
+        {!isTerminal &&
+          (collaboration.phase === 'executing' ||
+            collaboration.phase === 'reviewing' ||
+            collaboration.phase === 'approved') && (
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => onRunCommand('complete')}
+              style={{
+                border: '1px solid #059669',
+                borderRadius: 6,
+                backgroundColor: 'transparent',
+                color: '#10b981',
+                fontSize: 11,
+                padding: '2px 8px',
+                cursor: 'pointer',
+                opacity: isSubmitting ? 0.6 : 1,
+              }}
+            >
+              Mark done{openTaskCount > 0 ? ` (${openTaskCount} open)` : ''}
+            </button>
+          )}
         {!isTerminal && (
           <button
             disabled={isSubmitting}

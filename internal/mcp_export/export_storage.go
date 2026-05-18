@@ -19,14 +19,31 @@ type ExportStorage struct {
 	baseDir string
 }
 
-// NewExportStorage creates a new export storage manager
-func NewExportStorage() (*ExportStorage, error) {
+// resolveExportsBaseDir returns the exports directory from MCP_EXPORTS_DIR or ~/.neural-junkie/exports.
+func resolveExportsBaseDir() (string, error) {
+	if dir := strings.TrimSpace(os.Getenv("MCP_EXPORTS_DIR")); dir != "" {
+		if strings.HasPrefix(dir, "~/") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return "", fmt.Errorf("failed to get home directory: %w", err)
+			}
+			return filepath.Join(homeDir, dir[2:]), nil
+		}
+		return filepath.Clean(dir), nil
+	}
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
+		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
+	return filepath.Join(homeDir, ExportsDir), nil
+}
 
-	baseDir := filepath.Join(homeDir, ExportsDir)
+// NewExportStorage creates a new export storage manager
+func NewExportStorage() (*ExportStorage, error) {
+	baseDir, err := resolveExportsBaseDir()
+	if err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create exports directory: %w", err)
 	}
