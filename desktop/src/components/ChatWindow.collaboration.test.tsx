@@ -459,7 +459,7 @@ describe('ChatWindow collaboration wiring', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/Collaboration completed/i);
+      expect(screen.getByRole('status')).toHaveTextContent(/Collaboration complete/i);
       expect(screen.getByText(/1\/1 tasks done/)).toBeInTheDocument();
     });
   });

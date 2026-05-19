@@ -22,6 +22,7 @@ type CollaborationUIPayload struct {
 	Title                 string               `json:"title"`
 	Description           string               `json:"description,omitempty"`
 	Phase                 CollaborationPhase   `json:"phase"`
+	Source                CollaborationSource  `json:"source,omitempty"`
 	Agents                []CollaborationAgent `json:"agents,omitempty"`
 	Plan                  *SharedArtifact      `json:"plan,omitempty"`
 	Tasks                 []CollaborationTask  `json:"tasks,omitempty"`
@@ -48,6 +49,7 @@ func (c *Collaboration) ToUIPayload() *CollaborationUIPayload {
 		Title:                 c.Title,
 		Description:           c.Description,
 		Phase:                 c.Phase,
+		Source:                c.Source,
 		Agents:                append([]CollaborationAgent(nil), c.Agents...),
 		Channel:               c.Channel,
 		ThreadID:              c.ThreadID,

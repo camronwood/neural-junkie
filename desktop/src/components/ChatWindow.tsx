@@ -41,6 +41,7 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
+import { RunbookBuilderPanel } from './RunbookBuilderPanel';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
 import { ModelLibraryModal } from './ModelLibraryModal';
@@ -59,8 +60,10 @@ import {
 import type {
   AssistantReminder,
   AssistantTask,
+  AgentInfo,
   Channel,
   Collaboration,
+  CollaborationAgent,
   CommandDefinition,
   Message,
   ThinkingAgent,
@@ -495,6 +498,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [trackedCollaborations, channel]
   );
 
+  const collaborationForChannel = useMemo(
+    () => trackedCollaborations.find(c => c.channel === channel) ?? null,
+    [trackedCollaborations, channel]
+  );
+
+  const isClosedCollaborationChannel = Boolean(
+    collaborationForChannel && isTerminalCollaborationPhase(collaborationForChannel.phase)
+  );
+
   const extendableCollaborations = useMemo(
     () =>
       trackedCollaborations.filter(
@@ -526,6 +538,39 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     },
     [api, loadCollaborations]
   );
+
+  const handleNewRunbook = useCallback(async () => {
+    const pool = agents.filter((a) => a.status === 'active' || a.status === 'idle');
+    if (pool.length < 1) {
+      addToast({ type: 'error', title: 'No agents', message: 'Add at least one active agent before creating a runbook.' });
+      return;
+    }
+    const picked = pool.slice(0, Math.min(4, pool.length));
+    try {
+      const result = await api.createRunbook({
+        description: 'New runbook',
+        agent_ids: picked.map((a) => a.id),
+        channel,
+        created_by: username || 'User',
+      });
+      if (result.collaboration_channel && result.collaboration_channel !== channel) {
+        await handleSwitchChannel(result.collaboration_channel);
+      }
+      setActiveCollab(result.collaboration);
+      addToast({
+        type: 'success',
+        title: 'Runbook created',
+        message: 'Define tasks in the runbook builder panel.',
+      });
+      void loadCollaborations(channel);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: 'Runbook failed',
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }, [agents, api, channel, username, addToast, loadCollaborations, handleSwitchChannel]);
 
   // Create a custom channel
   const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
@@ -963,6 +1008,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       return;
     }
 
+    const trimmed = content.trimStart();
+    if (
+      isClosedCollaborationChannel &&
+      trimmed.length > 0 &&
+      trimmed[0] !== '/'
+    ) {
+      addToast({
+        type: 'info',
+        title: 'Collaboration closed',
+        message:
+          collaborationForChannel?.phase === 'cancelled'
+            ? 'This session was cancelled. Chat is read-only; use /commands or start a new /collaborate or /runbook.'
+            : 'This session is complete. Chat is read-only; use /commands or start a new /collaborate or /runbook.',
+      });
+      return;
+    }
+
     const needs = detectHubDataAccessNeeds(content);
     const composerMeta = metadata ?? {};
     if (needs.length > 0 && !hasGrantedHubDataAccess(composerMeta)) {
@@ -977,6 +1039,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const handleThreadSend = useCallback(
     async (content: string, composerMeta?: Record<string, unknown>) => {
       if (!openThreadId) return;
+      const trimmed = content.trimStart();
+      if (isClosedCollaborationChannel && trimmed.length > 0 && trimmed[0] !== '/') {
+        addToast({
+          type: 'info',
+          title: 'Collaboration closed',
+          message: 'Threads are read-only on closed collaboration channels.',
+        });
+        return;
+      }
       const needs = detectHubDataAccessNeeds(content);
       const meta = composerMeta ?? {};
       if (needs.length > 0 && !hasGrantedHubDataAccess(meta)) {
@@ -992,7 +1063,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
       await dispatchThreadReply(openThreadId, content, meta);
     },
-    [openThreadId, dispatchThreadReply]
+    [openThreadId, dispatchThreadReply, isClosedCollaborationChannel, addToast]
   );
 
   const handleHubAccessConfirm = async (selected: HubDataAccessOption[]) => {
@@ -1270,6 +1341,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           >
             <TaskManagementIcon className="w-3.5 h-3.5" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => void handleNewRunbook()}
+            className="w-7 h-7 rounded transition-colors flex items-center justify-center bg-slate-600 hover:bg-slate-500 text-white text-[10px] font-bold"
+            title="New runbook (task DAG)"
+            aria-label="Create new runbook"
+          >
+            RB
+          </button>
           
           <button
             type="button"
@@ -1403,16 +1484,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           className="flex flex-col flex-1 min-h-0 min-w-[300px] transition-all duration-300 ease-in-out relative overflow-hidden"
         >
 
-        {activeCollab &&
-          activeCollab.channel === channel &&
-          isTerminalCollaborationPhase(activeCollab.phase) && (
+        {isClosedCollaborationChannel && collaborationForChannel && (
             <div
-              className="mx-3 mt-2 px-3 py-2 rounded-md text-sm border border-emerald-700/50 bg-emerald-950/40 text-emerald-100"
+              className={`mx-3 mt-2 px-3 py-2 rounded-md text-sm border ${
+                collaborationForChannel.phase === 'cancelled'
+                  ? 'border-red-700/50 bg-red-950/40 text-red-100'
+                  : 'border-emerald-700/50 bg-emerald-950/40 text-emerald-100'
+              }`}
               role="status"
             >
-              Collaboration completed —{' '}
-              {activeCollab.tasks?.filter(t => t.status === 'completed').length ?? 0}/
-              {activeCollab.tasks?.length ?? 0} tasks done. Review the panel or dismiss when finished.
+              {collaborationForChannel.phase === 'cancelled' ? (
+                <>Collaboration cancelled — this channel is read-only.</>
+              ) : (
+                <>
+                  Collaboration complete —{' '}
+                  {collaborationForChannel.tasks?.filter(t => t.status === 'completed').length ?? 0}/
+                  {collaborationForChannel.tasks?.length ?? 0} tasks done. This channel is read-only.
+                </>
+              )}
             </div>
           )}
 
@@ -1426,11 +1515,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {/* Input */}
         <RichTextInput
           onSend={handleSendMessage}
-          disabled={status !== 'connected'}
+          disabled={status !== 'connected' || isClosedCollaborationChannel}
           placeholder={
-            status === 'connected'
-              ? 'Type your message here...'
-              : 'Connecting...'
+            isClosedCollaborationChannel
+              ? 'Collaboration closed — read-only (slash commands still work)'
+              : status === 'connected'
+                ? 'Type your message here...'
+                : 'Connecting...'
           }
           agents={agents}
           ref={inputRef}
@@ -1458,8 +1549,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
-        {/* Collaboration Panel */}
-        {activeCollab && (
+        {/* Collaboration / Runbook Panel */}
+        {activeCollab && showRunbookBuilderForCollab(activeCollab) ? (
+          <RunbookBuilderPanel
+            collaboration={activeCollab}
+            hubAgents={agentsToCollaborationAgents(agents)}
+            onClose={() => setActiveCollab(null)}
+            onSaved={(snap) => {
+              setActiveCollab(snap);
+              void loadCollaborations(channel);
+            }}
+            onStarted={(snap) => {
+              setActiveCollab(snap);
+              void loadCollaborations(channel);
+            }}
+          />
+        ) : activeCollab ? (
           <CollaborationPanel
             collaboration={activeCollab}
             extendableCollaborations={extendableCollaborations}
@@ -1469,7 +1574,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               await loadCollaborations(channel);
             }}
           />
-        )}
+        ) : null}
 
         {/* Task Management Panel */}
         {taskManagementOpen && (
@@ -1674,3 +1779,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 }
 
+function showRunbookBuilderForCollab(collab: Collaboration): boolean {
+  return (
+    collab.source === 'runbook' &&
+    (collab.phase === 'draft' || collab.phase === 'reviewing')
+  );
+}
+
+function agentsToCollaborationAgents(agents: AgentInfo[]): CollaborationAgent[] {
+  return agents.map((a) => ({
+    agent_id: a.id,
+    agent_name: a.name,
+    agent_type: a.type,
+    expertise: a.expertise ?? [],
+    role: '',
+  }));
+}

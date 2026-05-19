@@ -218,6 +218,8 @@ func main() {
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
 	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
 	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(handleCollaborationWorkspaceAck))
+	http.HandleFunc("/api/runbooks", corsMiddleware(handleRunbooksRoute))
+	http.HandleFunc("/api/runbooks/", corsMiddleware(handleRunbooksRoute))
 	http.HandleFunc("/api/hub-data/read", corsMiddleware(handleHubDataRead))
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
 	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))

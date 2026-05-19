@@ -10,12 +10,21 @@ import (
 type CollaborationPhase string
 
 const (
+	PhaseDraft     CollaborationPhase = "draft"
 	PhasePlanning  CollaborationPhase = "planning"
 	PhaseReviewing CollaborationPhase = "reviewing"
 	PhaseApproved  CollaborationPhase = "approved"
 	PhaseExecuting CollaborationPhase = "executing"
 	PhaseCompleted CollaborationPhase = "completed"
 	PhaseCancelled CollaborationPhase = "cancelled"
+)
+
+// CollaborationSource distinguishes agent-driven planning from user-authored runbooks.
+type CollaborationSource string
+
+const (
+	SourceDiscussion CollaborationSource = "discussion"
+	SourceRunbook    CollaborationSource = "runbook"
 )
 
 // TaskStatus represents the status of a collaboration task
@@ -123,6 +132,9 @@ const (
 type CreateOptions struct {
 	ExecutionMode  ExecutionMode
 	SourceRepoPath string // absolute git repo root; optional until workspace ack
+	Source         CollaborationSource
+	InitialTasks   []CollaborationTask
+	SkipDiscussion bool
 }
 
 // CollaborationAgent pairs an agent identity with its role inside
@@ -142,6 +154,7 @@ type Collaboration struct {
 	Title       string               `json:"title"`
 	Description string               `json:"description"`
 	Phase       CollaborationPhase   `json:"phase"`
+	Source      CollaborationSource  `json:"source,omitempty"`
 	Agents      []CollaborationAgent `json:"agents"`
 	Plan        *SharedArtifact      `json:"plan,omitempty"`
 	Tasks       []CollaborationTask  `json:"tasks,omitempty"`
@@ -179,7 +192,7 @@ func (c *Collaboration) DiscussionBudgetEnforced() bool {
 		return true
 	}
 	switch c.Phase {
-	case PhasePlanning, PhaseReviewing:
+	case PhaseDraft, PhasePlanning, PhaseReviewing:
 		return true
 	default:
 		return false
@@ -195,9 +208,10 @@ type CollaborationTask struct {
 	Description  string     `json:"description"`
 	AssignedTo   string     `json:"assigned_to"`
 	AssignedName string     `json:"assigned_name"`
-	Status       TaskStatus `json:"status"`
-	Dependencies []string   `json:"dependencies,omitempty"`
-	Output       string     `json:"output,omitempty"`
+	Status           TaskStatus `json:"status"`
+	Dependencies     []string   `json:"dependencies,omitempty"`
+	PromptDispatched bool       `json:"prompt_dispatched,omitempty"`
+	Output           string     `json:"output,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }

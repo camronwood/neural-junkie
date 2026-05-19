@@ -154,21 +154,74 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 		if isTaskListLine(trimmed) {
 			task := parseTaskLine(trimmed, agentByName, now)
 			if task != nil {
+				deps, next := collectDependencyLines(lines, i+1)
+				task.Dependencies = deps
 				tasks = append(tasks, *task)
+				i = next - 1
 			}
 			continue
 		}
 
 		// Format: "### Task N: description (@AgentName)"
 		if isTaskHeading(trimmed) {
-			task := parseTaskHeading(trimmed, collectTaskHeadingContext(lines, i+1), agentByName, now)
+			ctx, next := collectTaskHeadingContextWithEnd(lines, i+1)
+			task := parseTaskHeading(trimmed, ctx, agentByName, now)
 			if task != nil {
+				deps, _ := collectDependencyLines(lines, next)
+				task.Dependencies = deps
 				tasks = append(tasks, *task)
+				i = next - 1
 			}
 		}
 	}
 
+	NormalizeDependencies(tasks)
 	return tasks
+}
+
+// collectDependencyLines reads depends:/after: lines until the next task boundary.
+// Returns raw refs and the index of the first line after the consumed block.
+func collectDependencyLines(lines []string, start int) ([]string, int) {
+	var refs []string
+	i := start
+	for i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			i++
+			continue
+		}
+		if isTaskListLine(trimmed) || isTaskHeading(trimmed) {
+			break
+		}
+		if depRefs := ParseDependencyRefs(trimmed); len(depRefs) > 0 {
+			refs = append(refs, depRefs...)
+			i++
+			continue
+		}
+		break
+	}
+	return refs, i
+}
+
+func collectTaskHeadingContextWithEnd(lines []string, start int) ([]string, int) {
+	context := make([]string, 0, 3)
+	i := start
+	for i < len(lines) && len(context) < 3 {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			i++
+			continue
+		}
+		if isTaskHeading(trimmed) || isTaskListLine(trimmed) {
+			break
+		}
+		if len(ParseDependencyRefs(trimmed)) > 0 {
+			break
+		}
+		context = append(context, trimmed)
+		i++
+	}
+	return context, i
 }
 
 func isTaskHeading(line string) bool {

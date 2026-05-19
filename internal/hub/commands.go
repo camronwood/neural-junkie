@@ -242,6 +242,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 			return ch.handleListFileChanges(ctx, msg)
 		},
 		"/collaborate":          ch.handleCollaborate,
+		"/runbook":              ch.handleRunbook,
 		"/approve-plan":         ch.handleApprovePlan,
 		"/ack-collab-workspace": ch.handleAckCollabWorkspace,
 		"/resume-plan":          ch.handleResumePlan,
@@ -3829,6 +3830,15 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 
 		// ── Collaboration ─────────────────────────────────────────────
 		{
+			Name:        "/runbook",
+			Description: "Create a draft runbook (user-built task DAG). Optional `--workspace` / `--worktree` before mentions. At least 1 agent; open the Runbook builder in the desktop app to add tasks.",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "agents", Description: "At least one @mentioned agent for the pool", Type: "string", Required: true},
+				{Name: "description", Description: "Runbook goal", Type: "string", Required: true},
+			},
+		},
+		{
 			Name:        "/collaborate",
 			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` / `--workspace` / `--worktree` before mentions (defaults 3 / 20). `--worktree` runs execution in a git worktree; combine with `--workspace` to bind the source repo at start.",
 			Category:    "Collaboration",
@@ -4145,6 +4155,89 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	ch.setCollaborateRedirect(collabChannelName, collab.ID)
 
 	return nil, nil
+}
+
+// handleRunbook creates a draft runbook collaboration (user-built task DAG).
+// Usage: /runbook [--workspace] [--worktree] @Agent1 @Agent2 goal description
+func (ch *CommandHandler) handleRunbook(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	flagParse, tail, flagErr := parseCollaborateLeadFlags(parts)
+	if flagErr != "" {
+		return ch.systemResponse(msg.Channel, flagErr), nil
+	}
+	if len(tail) < 1 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /runbook [--workspace] [--worktree] @Agent1 ... description\nAt least 1 agent and a description are required."), nil
+	}
+
+	mentionStrings := protocol.ParseMentions(strings.Join(tail, " "))
+	if len(mentionStrings) < 1 {
+		return ch.systemResponse(msg.Channel, "❌ At least 1 agent must be @mentioned.\nUsage: /runbook @Agent1 ... description"), nil
+	}
+
+	resolved := make(map[string]bool)
+	agentIDs := ch.hub.ResolveMentionsWithValidation(mentionStrings, resolved, msg.Channel)
+	if len(agentIDs) < 1 {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not resolve agents. Available: %s", ch.hub.getAgentListString())), nil
+	}
+
+	description := strings.Join(tail, " ")
+	for _, m := range mentionStrings {
+		description = strings.Replace(description, "@"+m, "", 1)
+	}
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return ch.systemResponse(msg.Channel, "❌ A description is required after the agent mentions."), nil
+	}
+
+	ch.clearCollaborateRedirect()
+
+	execMode := ""
+	if flagParse.Worktree {
+		execMode = string(collaboration.ExecutionModeWorktree)
+	}
+	sourceRepo := ""
+	if flagParse.Worktree && flagParse.AttachWorkspace {
+		sourceRepo = workspacePathFromMessageMetadata(msg)
+	}
+
+	result, err := ch.hub.CreateRunbookSession(RunbookCreateRequest{
+		Description:    description,
+		AgentIDs:       agentIDs,
+		Channel:        msg.Channel,
+		CreatedBy:      msg.From.Name,
+		ExecutionMode:  execMode,
+		SourceRepoPath: sourceRepo,
+	})
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to create runbook: %v", err)), nil
+	}
+
+	collabChannelName := result.CollaborationChannel
+	for _, participantID := range agentIDs {
+		_ = ch.hub.AddAgentToChannel(participantID, collabChannelName)
+		_ = ch.EnsureAgentSubscribedToChannel(ctx, participantID, collabChannelName)
+	}
+
+	seedBody := fmt.Sprintf("📋 **Runbook created** (ID: `%s`)\n\n**Goal:** %s\n\n**Phase:** Draft — open **Runbook builder** in the desktop app (or PUT `/api/runbooks/%s`) to add tasks, dependencies, and assignees. Then **Submit** → **Start** to execute.",
+		result.CollaborationID[:8], description, result.CollaborationID)
+	seedMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabStatus,
+		collabChannelName,
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		seedBody,
+	)
+	seedMsg.SetCollaborationID(result.CollaborationID)
+	seedMsg.SetCollaborationPhase(string(collaboration.PhaseDraft))
+	if seedMsg.Metadata == nil {
+		seedMsg.Metadata = map[string]interface{}{}
+	}
+	seedMsg.Metadata["collab_internal_event"] = true
+	_ = ch.hub.SendMessage(seedMsg)
+
+	ch.setCollaborateRedirect(collabChannelName, result.CollaborationID)
+
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("📋 **Runbook** `%s` created in #%s. Open the Runbook builder to define tasks.", result.CollaborationID[:8], collabChannelName))
+	out.SetCollaborationID(result.CollaborationID)
+	return out, nil
 }
 
 // setCollabClientOnAgent sets the CollaborationClient on any agent type

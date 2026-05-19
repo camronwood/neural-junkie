@@ -575,3 +575,33 @@ func TestSlashApprovePlanUnknownID(t *testing.T) {
 		t.Fatal("expected not-found system response for bogus collab id")
 	}
 }
+
+func TestSlashRunbookCreatesDraft(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		humanTester(),
+		"/runbook @RustExpert @SecurityExpert refactor auth middleware",
+	)
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+
+	cm := h.GetCollaborationManager()
+	var found *collaboration.Collaboration
+	for _, c := range cm.ListActive() {
+		if c.Source == collaboration.SourceRunbook && c.Phase == collaboration.PhaseDraft {
+			found = c
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("expected draft runbook collaboration")
+	}
+	if found.Discussion != nil {
+		t.Fatal("runbook should not create planning discussion")
+	}
+}

@@ -9,6 +9,8 @@ import type {
   CollaborationPhase,
 } from '../types/protocol';
 import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
+import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
+import { RunbookGraphModal } from './runbook-graph';
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
@@ -22,6 +24,7 @@ interface CollaborationPanelProps {
 }
 
 const phaseLabels: Record<CollaborationPhase, string> = {
+  draft: 'Draft (Runbook)',
   planning: 'Planning',
   reviewing: 'Reviewing Plan',
   approved: 'Approved',
@@ -31,6 +34,7 @@ const phaseLabels: Record<CollaborationPhase, string> = {
 };
 
 const phaseColors: Record<CollaborationPhase, string> = {
+  draft: '#64748b',
   planning: '#f59e0b',
   reviewing: '#3b82f6',
   approved: '#10b981',
@@ -64,6 +68,7 @@ export function CollaborationPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameDraft, setRenameDraft] = useState('');
+  const [graphOpen, setGraphOpen] = useState(false);
   const [extendTargetId, setExtendTargetId] = useState('');
   const [extendRounds, setExtendRounds] = useState('1');
   const [extendMessages, setExtendMessages] = useState('');
@@ -379,9 +384,26 @@ export function CollaborationPanel({
         {/* Tasks */}
         {c.tasks && c.tasks.length > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <h4 style={{ margin: '0 0 8px 0', fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary, #888)', letterSpacing: 0.5 }}>
-              Tasks
-            </h4>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <h4 style={{ margin: 0, fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary, #888)', letterSpacing: 0.5 }}>
+                Tasks
+              </h4>
+              <button
+                type="button"
+                onClick={() => setGraphOpen(true)}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: 11,
+                  borderRadius: 4,
+                  border: '1px solid var(--border-color, #444)',
+                  background: 'transparent',
+                  color: 'var(--text-primary, #ccc)',
+                  cursor: 'pointer',
+                }}
+              >
+                View graph
+              </button>
+            </div>
             {c.tasks.map((task: CollaborationTask, i: number) => (
               <div key={task.id} style={{
                 padding: '8px 10px', marginBottom: 6,
@@ -398,6 +420,11 @@ export function CollaborationPanel({
                     <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)', marginTop: 2 }}>
                       Assigned to @{task.assigned_name || 'unassigned'}
                     </div>
+                    {c.tasks && taskOrchestrationLabel(task, c.tasks, c.phase) ? (
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                        {taskOrchestrationLabel(task, c.tasks, c.phase)}
+                      </div>
+                    ) : null}
                     {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (
                       <button
                         type="button"
@@ -708,6 +735,16 @@ export function CollaborationPanel({
           </button>
         </div>
       )}
+
+      <RunbookGraphModal
+        isOpen={graphOpen}
+        collaboration={c}
+        agents={c.agents}
+        tasks={c.tasks ?? []}
+        editable={false}
+        onClose={() => setGraphOpen(false)}
+        onTasksChange={() => {}}
+      />
     </div>
   );
 }

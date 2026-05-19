@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration, CollaborationTask, AssignSuggestion } from '../types/protocol';
 import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
@@ -89,6 +89,110 @@ export class ChatAPI {
       const t = await response.text();
       throw new Error(t || response.statusText);
     }
+  }
+
+  async createRunbook(body: {
+    description: string;
+    agent_ids: string[];
+    channel: string;
+    created_by: string;
+    tasks?: CollaborationTask[];
+    execution_mode?: string;
+    source_repo_path?: string;
+  }): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
+    const response = await fetch(`${this.baseURL}/api/runbooks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async updateRunbook(
+    collabId: string,
+    body: { title?: string; description?: string; agent_ids?: string[]; tasks?: CollaborationTask[] }
+  ): Promise<Collaboration> {
+    const response = await fetch(`${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async getRunbook(collabId: string): Promise<Collaboration> {
+    const response = await fetch(`${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}`);
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async suggestRunbookAssignee(
+    collabId: string,
+    title: string,
+    description: string
+  ): Promise<AssignSuggestion | null> {
+    const response = await fetch(
+      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/suggest-assignee`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    const data = await response.json();
+    if (data.agent_id) {
+      return data as AssignSuggestion;
+    }
+    return null;
+  }
+
+  async parseRunbookPlan(collabId: string, markdown: string): Promise<CollaborationTask[]> {
+    const response = await fetch(
+      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/parse-plan`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    const data = await response.json();
+    return data.tasks ?? [];
+  }
+
+  async submitRunbook(collabId: string): Promise<Collaboration> {
+    const response = await fetch(
+      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/submit`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async startRunbook(collabId: string): Promise<Collaboration> {
+    const response = await fetch(
+      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/start`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
   }
 
   // Send a message to the server

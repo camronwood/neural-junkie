@@ -18,7 +18,67 @@ When **Collaboration smart routing** is enabled (Desktop **Settings → AI Provi
 
 **In-process specialists only:** separate specialist processes (`make agents` / `cmd/agent`) do not load hub multi-provider routing in v1.
 
+## Two paths: collaborate vs runbook
+
+| Path | Entry | Who defines tasks | Execution |
+|------|--------|-------------------|-----------|
+| **Collaborate** | `/collaborate` | Agents during bounded planning discussion | Hub orchestrates task DAG after `/approve-plan` |
+| **Runbook** | Desktop **RB** button, `/runbook`, or `POST /api/runbooks` | You in the Runbook builder (or import markdown) | Same orchestrator after **Start execution** |
+
+Both paths share the same execution engine: dependency-aware waves, workspace ack, file-change approvals, and sandbox/worktree modes.
+
+## Task dependencies (DAG orchestration)
+
+During planning, agents can declare dependencies on task lines:
+
+```markdown
+- Task 1: @RustExpert - Scaffold CLI
+- Task 2: @SecurityExpert - Threat model
+- Task 3: @GoExpert - Integration tests
+  - depends: 1, 2
+```
+
+After approval, the hub dispatches only **ready** tasks (all dependencies completed). When a task completes, the next wave unlocks automatically. Upstream task output is included in downstream `collaboration_task` prompts.
+
+Task statuses during execution: `pending`, `in_progress`, `completed`, `blocked`. The desktop collaboration panel shows **Waiting on**, **Ready**, or **Dispatched** per task.
+
+## Runbook builder (desktop)
+
+1. Click **RB** in the chat toolbar or run `/runbook @Agent1 @Agent2 goal description`.
+2. In the Runbook builder: define tasks, assign agents (or **Auto** suggest), set **Depends on** checkboxes.
+3. **Import from markdown** (parse-plan API) or **Save draft**.
+4. **Submit for review** → **Start execution** (same workspace gate as `/collaborate`).
+
+### Graph view (task DAG)
+
+Open the visual task graph from:
+
+- **Runbook builder** — **Graph** (draft/reviewing): drag nodes, connect edges (upstream → downstream = dependency), edit title/assignee in the inspector, **Auto-layout**, **Save & close** (same as Save draft).
+- **Collaboration panel** — **View graph** (any collaboration with tasks, including `/collaborate` and executing runbooks): read-only topology with live status; pan/zoom and optional node drag for layout only.
+
+Edges mean “target waits for source.” Cycles are rejected before save (client and server). Layout positions are stored locally per collaboration id (`localStorage`); task data uses the existing runbook/collaboration APIs.
+
+### Runbook HTTP API
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/runbooks` | Create draft runbook |
+| GET | `/api/runbooks/:id` | Snapshot |
+| PUT | `/api/runbooks/:id` | Update draft/reviewing |
+| POST | `/api/runbooks/:id/suggest-assignee` | Auto-assign heuristic |
+| POST | `/api/runbooks/:id/parse-plan` | Import tasks from markdown |
+| POST | `/api/runbooks/:id/submit` | `draft` → `reviewing` |
+| POST | `/api/runbooks/:id/start` | Approve and begin execution |
+
 ## Commands
+
+### Start a runbook (user-built DAG)
+
+```text
+/runbook @RustExpert @SecurityExpert ship the auth refactor
+```
+
+Creates a collaboration in **draft** phase. Use the desktop Runbook builder to add tasks and dependencies, then submit and start.
 
 ### Start a collaboration
 

@@ -61,8 +61,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
   const [collabAssetsRoot, setCollabAssetsRoot] = useState('');
+  const [collabAssetsPersisted, setCollabAssetsPersisted] = useState('');
   const [collabAssetsSaving, setCollabAssetsSaving] = useState(false);
   const [collabAssetsErr, setCollabAssetsErr] = useState<string | null>(null);
+  const [collabAssetsOk, setCollabAssetsOk] = useState<string | null>(null);
 
   // Load settings when modal opens
   useEffect(() => {
@@ -96,7 +98,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
-          setCollabAssetsRoot(typeof cfg.collaboration?.assets_root === 'string' ? cfg.collaboration.assets_root : '');
+          const root =
+            typeof cfg.collaboration?.assets_root === 'string' ? cfg.collaboration.assets_root : '';
+          setCollabAssetsRoot(root);
+          setCollabAssetsPersisted(root);
+          setCollabAssetsOk(null);
         }
       } catch (e) {
         if (!cancelled) {
@@ -186,16 +192,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleCollabAssetsRootSave = async () => {
+  const persistCollabAssetsRoot = async (path: string): Promise<boolean> => {
     setCollabAssetsSaving(true);
     setCollabAssetsErr(null);
+    setCollabAssetsOk(null);
     try {
       const r = await fetch(`${hubHttp}/api/settings`);
       if (!r.ok) {
         throw new Error(await r.text());
       }
       const cfg = await r.json();
-      const trimmed = collabAssetsRoot.trim();
+      const trimmed = path.trim();
       const next = {
         ...cfg,
         collaboration: {
@@ -212,15 +219,34 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         throw new Error(await put.text());
       }
       setCollabAssetsRoot(trimmed);
+      setCollabAssetsPersisted(trimmed);
+      setCollabAssetsOk(
+        trimmed
+          ? 'Saved to hub. New collaborations will use this folder.'
+          : 'Saved. New collaborations will use the default ~/.neural-junkie/collaborations.'
+      );
+      return true;
     } catch (e) {
       setCollabAssetsErr(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setCollabAssetsSaving(false);
     }
   };
 
+  const handleCollabAssetsRootSave = async () => {
+    await persistCollabAssetsRoot(collabAssetsRoot);
+  };
+
+  const handleCollabAssetsRootBlur = () => {
+    if (collabAssetsSaving) return;
+    if (collabAssetsRoot.trim() === collabAssetsPersisted.trim()) return;
+    void persistCollabAssetsRoot(collabAssetsRoot);
+  };
+
   const handleBrowseCollabAssetsRoot = async () => {
     setCollabAssetsErr(null);
+    setCollabAssetsOk(null);
     if (!(typeof window !== 'undefined' && (window as { __TAURI__?: unknown }).__TAURI__)) {
       setCollabAssetsErr('Folder picker requires the desktop app');
       return;
@@ -233,6 +259,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       });
       if (selected && typeof selected === 'string') {
         setCollabAssetsRoot(selected);
+        await persistCollabAssetsRoot(selected);
       }
     } catch (e) {
       setCollabAssetsErr(e instanceof Error ? e.message : String(e));
@@ -1160,13 +1187,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">&lt;folder&gt;/&lt;collaboration-id&gt;/</code>.
                   Leave empty to use{' '}
                   <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">~/.neural-junkie/collaborations</code>.
-                  You can also set <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">NEURAL_JUNKIE_COLLAB_ASSETS_DIR</code> in the hub environment.
+                  <strong className="text-slack-text"> Browse saves immediately.</strong> Typed paths save when you click Save or leave the field.
+                  Hub env <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">NEURAL_JUNKIE_COLLAB_ASSETS_DIR</code> overrides this if set at server start.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 mb-3">
                   <input
                     type="text"
                     value={collabAssetsRoot}
-                    onChange={(e) => setCollabAssetsRoot(e.target.value)}
+                    onChange={(e) => {
+                      setCollabAssetsRoot(e.target.value);
+                      setCollabAssetsOk(null);
+                    }}
+                    onBlur={handleCollabAssetsRootBlur}
                     placeholder="~/development/collab-output"
                     disabled={collabAssetsSaving}
                     className="flex-1 px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text font-mono"
@@ -1192,6 +1224,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {collabAssetsErr && (
                   <p className="text-sm text-red-600">{collabAssetsErr}</p>
                 )}
+                {collabAssetsOk && !collabAssetsErr && (
+                  <p className="text-sm text-green-600">{collabAssetsOk}</p>
+                )}
+                {!collabAssetsSaving &&
+                  !collabAssetsErr &&
+                  collabAssetsRoot.trim() !== collabAssetsPersisted.trim() && (
+                    <p className="text-sm text-amber-600">Unsaved changes — Save or tab out of the field.</p>
+                  )}
               </div>
 
               <div className="border border-slack-border rounded-lg p-6">

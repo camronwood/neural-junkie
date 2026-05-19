@@ -93,9 +93,11 @@ Categories: Repository Agents, Confluence, Agent Management, MCP Export, Provide
 Implements structured multi-agent collaboration with hard bounds and user-controlled phase transitions.
 
 - **DiscussionSession** -- Round-robin turn-taking, per-agent turn budgets, total message ceilings, timeout enforcement
-- **CollaborationManager** -- Lifecycle management (`planning -> reviewing -> approved -> executing -> completed/cancelled`)
+- **CollaborationManager** -- Lifecycle management (`draft` runbook → `planning` → `reviewing` → `approved` → `executing` → `completed/cancelled`)
 - **SharedArtifact** -- Versioned plan document with edit history
-- **Task Assignment** -- Parses plan tasks and tracks per-agent task status
+- **Task DAG** (`dag.go`) -- `ValidateDAG`, `ReadyTasks`, dependency normalization; hub dispatches waves on completion
+- **Runbooks** (`runbook.go`) -- User-authored collaborations (`source: runbook`) via `POST /api/runbooks` and desktop Runbook builder
+- **Assign heuristic** (`suggest_assign.go`) -- Skill-based auto-assign for runbook tasks
 - **Consensus Detection** -- Signal + heuristic convergence detection with disagreement escalation path
 
 ### Protocol (`internal/protocol/`)

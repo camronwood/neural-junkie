@@ -84,103 +84,8 @@ func (cm *CollaborationManager) CreateCollaboration(
 	if len(opts) > 0 {
 		createOpts = opts[0]
 	}
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	active := 0
-	for _, c := range cm.collaborations {
-		if c.Phase != PhaseCompleted && c.Phase != PhaseCancelled {
-			active++
-		}
-	}
-	if active >= MaxConcurrentCollaborations {
-		return nil, fmt.Errorf("maximum concurrent collaborations (%d) reached — %s",
-			MaxConcurrentCollaborations, summarizeActiveCollaborations(cm.collaborations))
-	}
-
-	if len(agentIDs) < 2 {
-		return nil, fmt.Errorf("at least 2 agents are required for a collaboration")
-	}
-
-	cfg := config.Normalized()
-
-	agents := make([]CollaborationAgent, 0, len(agentIDs))
-	participantIDs := make([]string, 0, len(agentIDs))
-	for _, id := range agentIDs {
-		info, err := cm.hub.GetAgent(id)
-		if err != nil {
-			return nil, fmt.Errorf("agent %s not found: %w", id, err)
-		}
-		role := SuggestRole(info.Type, info.Expertise)
-		agents = append(agents, CollaborationAgent{
-			AgentID:   info.ID,
-			AgentName: info.Name,
-			AgentType: info.Type,
-			Expertise: info.Expertise,
-			Role:      role,
-		})
-		participantIDs = append(participantIDs, info.ID)
-	}
-
-	now := time.Now()
-	collabID := uuid.New().String()
-
-	artifact := &SharedArtifact{
-		ID:        uuid.New().String(),
-		Title:     "Collaboration Plan",
-		Content:   "",
-		Version:   0,
-		Status:    ArtifactDraft,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	discussion := &DiscussionSession{
-		ID:                uuid.New().String(),
-		CollaborationID:   collabID,
-		Topic:             description,
-		Participants:      participantIDs,
-		MaxRounds:         cfg.MaxRounds,
-		CurrentRound:      1,
-		TurnBudget:        cfg.TurnBudget,
-		TotalMessageCount: 0,
-		MaxTotalMessages:  cfg.MaxTotalMessages,
-		Status:            DiscussionActive,
-		Timeout:           cfg.Timeout,
-		StartedAt:         now,
-		CurrentTurnIndex:  0,
-		TurnsThisRound:    make(map[string]int),
-		Consensus:         make(map[string]ConsensusState),
-	}
-	for _, id := range participantIDs {
-		discussion.Consensus[id] = ConsensusUndecided
-	}
-
-	execMode := createOpts.ExecutionMode
-	if execMode == "" {
-		execMode = ExecutionModeSandbox
-	}
-	collab := &Collaboration{
-		ID:             collabID,
-		Title:          DeriveCollaborationTitle(description),
-		Description:    description,
-		Phase:          PhasePlanning,
-		Agents:         agents,
-		Plan:           artifact,
-		Discussion:     discussion,
-		Channel:        channel,
-		CreatedBy:      createdBy,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		Config:         cfg,
-		ExecutionMode:  execMode,
-		SourceRepoPath: strings.TrimSpace(createOpts.SourceRepoPath),
-	}
-
-	cm.collaborations[collabID] = collab
-
-	log.Printf("[CollaborationManager] Created collaboration %s with %d agents", collabID[:8], len(agents))
-	return collab, nil
+	createOpts.Source = SourceDiscussion
+	return cm.createCollaborationCore(description, agentIDs, channel, createdBy, config, createOpts, PhasePlanning)
 }
 
 // BindCollaborationChannel sets the hub channel where collaboration messages are routed.
@@ -259,10 +164,34 @@ func summarizeActiveCollaborations(collabs map[string]*Collaboration) string {
 		if len(title) > 48 {
 			title = title[:45] + "..."
 		}
-		parts = append(parts, fmt.Sprintf("`%s` %s — %s on #%s (%d task(s); cancel via Task Management or /collab-cancel %s)",
+		parts = append(parts, fmt.Sprintf("`%s` %s — %s on #%s (%d task(s); cancel via Task Management or /cancel-plan %s)",
 			r.id, r.phase, title, r.ch, r.tasks, r.id))
 	}
 	return strings.Join(parts, "; ")
+}
+
+// GetByChannel returns the collaboration bound to channelName, if any.
+// When multiple match (unusual), returns the most recently updated.
+func (cm *CollaborationManager) GetByChannel(channelName string) *Collaboration {
+	channelName = strings.TrimSpace(channelName)
+	if channelName == "" {
+		return nil
+	}
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	var best *Collaboration
+	var bestTime time.Time
+	for _, c := range cm.collaborations {
+		if c == nil || c.Channel != channelName {
+			continue
+		}
+		t := c.UpdatedAt
+		if best == nil || t.After(bestTime) {
+			best = c
+			bestTime = t
+		}
+	}
+	return best
 }
 
 // ListActive returns all non-terminal collaborations.
@@ -488,9 +417,14 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 		}
 	}
 
-	participantIDs := make([]string, 0, len(c.Agents))
-	for _, a := range c.Agents {
-		participantIDs = append(participantIDs, a.AgentID)
+	var participantIDs []string
+	if c.Source == SourceRunbook {
+		participantIDs = runbookExecutionParticipants(c)
+	} else {
+		participantIDs = make([]string, 0, len(c.Agents))
+		for _, a := range c.Agents {
+			participantIDs = append(participantIDs, a.AgentID)
+		}
 	}
 	c.Discussion = &DiscussionSession{
 		ID:                uuid.New().String(),
@@ -745,9 +679,32 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	if len(tasks) > MaxTasksPerCollaboration {
 		tasks = tasks[:MaxTasksPerCollaboration]
 	}
+	NormalizeDependencies(tasks)
+	if err := ValidateDAG(tasks); err != nil {
+		return fmt.Errorf("invalid task graph: %w", err)
+	}
 	c.Tasks = tasks
 	c.UpdatedAt = time.Now()
 	return nil
+}
+
+// MarkTaskPromptDispatched records that a collaboration_task prompt was sent for one task.
+func (cm *CollaborationManager) MarkTaskPromptDispatched(collabID, taskID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	for i := range c.Tasks {
+		if c.Tasks[i].ID == taskID {
+			c.Tasks[i].PromptDispatched = true
+			c.Tasks[i].UpdatedAt = time.Now()
+			c.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return fmt.Errorf("task %s not found in collaboration %s", taskID, collabID)
 }
 
 // assignRoundRobinToUnassignedTasks fills AssignedTo / AssignedName on tasks that

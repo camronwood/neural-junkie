@@ -1760,7 +1760,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 			system.WriteString("Propose a structured plan with tasks assigned to agents based on their strengths.\n")
 			system.WriteString("Use this format for tasks:\n")
 			system.WriteString("- Task N: @AgentName - description of the task\n")
-			system.WriteString("Consider dependencies between tasks and suggest an execution order.\n")
+			system.WriteString("  - depends: 1, 2   (optional; 1-based task numbers this task waits on)\n")
+			system.WriteString("Consider dependencies between tasks and declare them with depends: lines.\n")
 		} else if collabInfo.Phase == "executing" {
 			system.WriteString("\n=== EXECUTION PHASE INSTRUCTIONS ===\n")
 			system.WriteString("Focus on completing your assigned tasks. Ask other agents if you need their input.\n")

@@ -92,7 +92,7 @@ func (h *Hub) AcknowledgeCollaborationWorkspace(collabID, sourceRepoPath string)
 		return fmt.Errorf("collaboration snapshot: not found")
 	}
 	if !already && len(snap.Tasks) > 0 {
-		h.dispatchCollabTaskMessages(snap, nil, false)
+		h.dispatchReadyCollabTasks(snap, nil, false)
 	}
 	statusMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabStatus,
@@ -501,6 +501,9 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
 	if err := h.enforceExecutionMessageBudget(msg); err != nil {
+		return err
+	}
+	if err := h.rejectClosedCollaborationChannel(msg); err != nil {
 		return err
 	}
 	h.processCollaborationLifecycle(msg)
@@ -953,6 +956,13 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 
 	if h.collabManager.AllTasksComplete(collabID) {
 		h.finalizeAndBroadcastCollaboration(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
+		return
+	}
+
+	if status == collaboration.TaskCompleted {
+		if fresh, err := h.collabManager.GetCollaborationSnapshot(collabID); err == nil && fresh != nil && fresh.Phase == collaboration.PhaseExecuting {
+			h.dispatchReadyCollabTasks(fresh, msg, false)
+		}
 	}
 }
 
@@ -1869,33 +1879,43 @@ func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {
 		if n == 0 {
 			continue
 		}
-		h.dispatchCollabTaskMessagesFilter(snap, nil, open, true)
-		log.Printf("[Collaboration] Session restore: re-sent %d open task prompt(s) for executing collaboration %s", n, c.ID[:8])
+		sent := h.dispatchCollabTaskMessagesFilter(snap, nil, open, true)
+		log.Printf("[Collaboration] Session restore: re-sent %d open task prompt(s) for executing collaboration %s", sent, c.ID[:8])
 	}
+}
+
+// dispatchReadyCollabTasks sends collaboration_task prompts for DAG-ready pending tasks.
+func (h *Hub) dispatchReadyCollabTasks(snap *collaboration.Collaboration, inheritFrom *protocol.Message, forceRedispatch bool) int {
+	return h.dispatchCollabTaskMessagesFilter(snap, inheritFrom, nil, forceRedispatch)
+}
+
+// DispatchReadyCollabTasksForSnapshot dispatches ready tasks (exported for runbook start API).
+func (h *Hub) DispatchReadyCollabTasksForSnapshot(snap *collaboration.Collaboration, forceRedispatch bool) int {
+	return h.dispatchReadyCollabTasks(snap, nil, forceRedispatch)
 }
 
 // dispatchCollabTaskMessages sends collaboration_task messages so assignees
 // receive task_assigned_to metadata (mirrors /approve-plan). Used after the
 // manager heals missing assignees on executing collaborations.
 func (h *Hub) dispatchCollabTaskMessages(snap *collaboration.Collaboration, inheritFrom *protocol.Message, forceRedispatch bool) {
-	h.dispatchCollabTaskMessagesFilter(snap, inheritFrom, nil, forceRedispatch)
+	h.dispatchReadyCollabTasks(snap, inheritFrom, forceRedispatch)
 }
 
 // dispatchCollabTaskMessagesFilter sends collaboration_task messages for tasks
-// where include returns true. A nil include sends every task.
-// When forceRedispatch is false and tasks were already dispatched, this is a no-op.
-func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration, inheritFrom *protocol.Message, include func(collaboration.CollaborationTask) bool, forceRedispatch bool) {
+// selected by include when set, otherwise DAG-ready pending tasks only.
+// Returns the number of prompts sent.
+func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration, inheritFrom *protocol.Message, include func(collaboration.CollaborationTask) bool, forceRedispatch bool) int {
 	if snap == nil || snap.Phase != collaboration.PhaseExecuting || len(snap.Tasks) == 0 {
-		return
+		return 0
 	}
 	if !h.CollaborationCanDispatchTasks(snap) {
-		return
+		return 0
 	}
 	collabID := snap.ID
-	if !forceRedispatch && h.collabManager != nil {
+	if h.collabManager != nil {
 		fresh, err := h.collabManager.GetCollaborationSnapshot(collabID)
-		if err == nil && fresh != nil && fresh.TasksDispatched {
-			return
+		if err == nil && fresh != nil {
+			snap = fresh
 		}
 	}
 	ch := snap.Channel
@@ -1904,16 +1924,47 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		if include != nil && !include(task) {
 			continue
 		}
+		if include == nil {
+			if task.Status != collaboration.TaskPending {
+				continue
+			}
+			if !forceRedispatch && task.PromptDispatched {
+				continue
+			}
+			if !collaboration.IsTaskReady(task, snap.Tasks) {
+				continue
+			}
+		} else if forceRedispatch {
+			switch task.Status {
+			case collaboration.TaskPending:
+				if !collaboration.IsTaskReady(task, snap.Tasks) {
+					continue
+				}
+			case collaboration.TaskInProgress, collaboration.TaskBlocked:
+				// allow resume redispatch
+			default:
+				continue
+			}
+		} else {
+			if task.Status != collaboration.TaskPending || task.PromptDispatched {
+				continue
+			}
+			if !collaboration.IsTaskReady(task, snap.Tasks) {
+				continue
+			}
+		}
+
 		mentionName := task.AssignedName
 		if mentionName == "" {
 			mentionName = "team"
 		}
+		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
+			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoff(task, snap.Tasks))
 		taskMsg := protocol.NewMessage(
 			protocol.MessageTypeCollabTask,
 			ch,
 			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-			fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
-				mentionName, task.Title, task.Description),
+			body,
 		)
 		taskMsg.SetCollaborationID(collabID)
 		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
@@ -1936,13 +1987,17 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
 			continue
 		}
+		if h.collabManager != nil {
+			if err := h.collabManager.MarkTaskPromptDispatched(collabID, task.ID); err != nil {
+				log.Printf("[Collaboration] MarkTaskPromptDispatched %s: %v", task.ID[:8], err)
+			}
+		}
 		sent++
 	}
 	if sent > 0 && h.collabManager != nil {
-		if err := h.collabManager.MarkTasksDispatched(collabID); err != nil {
-			log.Printf("[Collaboration] MarkTasksDispatched %s: %v", collabID[:8], err)
-		}
+		_ = h.collabManager.MarkTasksDispatched(collabID)
 	}
+	return sent
 }
 
 // NewCollaborationClientAdapter creates an adapter that implements

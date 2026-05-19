@@ -3,6 +3,7 @@ package hub
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -62,4 +63,45 @@ func (h *Hub) enforceExecutionMessageBudget(msg *protocol.Message) error {
 		log.Printf("[Collaboration] execution cap notice failed: %v", sendErr)
 	}
 	return fmt.Errorf("execution message budget exceeded for collaboration %s", collabID[:8])
+}
+
+// rejectClosedCollaborationChannel blocks chat on completed/cancelled collaboration channels.
+// Slash commands and system/internal messages are still allowed.
+func (h *Hub) rejectClosedCollaborationChannel(msg *protocol.Message) error {
+	if msg == nil || h.collabManager == nil {
+		return nil
+	}
+	ch := strings.TrimSpace(msg.Channel)
+	if ch == "" {
+		return nil
+	}
+	snap := h.collabManager.GetByChannel(ch)
+	if snap == nil {
+		return nil
+	}
+	if snap.Phase != collaboration.PhaseCompleted && snap.Phase != collaboration.PhaseCancelled {
+		return nil
+	}
+	content := strings.TrimSpace(msg.Content)
+	if len(content) > 0 && content[0] == '/' {
+		return nil
+	}
+	if msg.IsFromSystem() || msg.From.ID == "system" {
+		return nil
+	}
+	if msg.Metadata != nil {
+		if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
+			return nil
+		}
+	}
+	switch msg.Type {
+	case protocol.MessageTypeSystemInfo, protocol.MessageTypeCollabStatus, protocol.MessageTypeCollabPlan,
+		protocol.MessageTypeCollabTask, protocol.MessageTypeFileChange:
+		return nil
+	}
+	phase := string(snap.Phase)
+	return fmt.Errorf(
+		"collaboration channel is closed (%s); use slash commands or start a new /collaborate or /runbook",
+		phase,
+	)
 }

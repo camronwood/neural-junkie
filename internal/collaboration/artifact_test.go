@@ -54,3 +54,33 @@ func TestExtractTasksFromPlanSupportsHeadingWithAssignedLine(t *testing.T) {
 		t.Fatalf("expected task 2 assigned to sec-1, got %s", tasks[1].AssignedTo)
 	}
 }
+
+func TestExtractTasksFromPlanParsesDependencies(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "a1", AgentName: "RustExpert", AgentType: protocol.AgentTypeRust},
+		{AgentID: "a2", AgentName: "SecurityExpert", AgentType: protocol.AgentTypeSecurity},
+		{AgentID: "a3", AgentName: "GoExpert", AgentType: protocol.AgentTypeBackend},
+	}
+
+	planContent := `## Plan
+
+- Task 1: @RustExpert - Scaffold CLI
+- Task 2: @SecurityExpert - Threat model
+- Task 3: @GoExpert - Integration tests
+  - depends: 1, 2
+`
+
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(tasks))
+	}
+	if len(tasks[2].Dependencies) != 2 {
+		t.Fatalf("task 3 deps: %#v", tasks[2].Dependencies)
+	}
+	if tasks[2].Dependencies[0] != tasks[0].ID || tasks[2].Dependencies[1] != tasks[1].ID {
+		t.Fatalf("expected deps on task 1 and 2 ids, got %#v", tasks[2].Dependencies)
+	}
+	if err := ValidateDAG(tasks); err != nil {
+		t.Fatalf("ValidateDAG: %v", err)
+	}
+}

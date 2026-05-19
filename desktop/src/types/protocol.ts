@@ -358,12 +358,15 @@ export interface CommandDefinition {
 // ── Collaboration Types ──────────────────────────────────────────────
 
 export type CollaborationPhase =
+  | 'draft'
   | 'planning'
   | 'reviewing'
   | 'approved'
   | 'executing'
   | 'completed'
   | 'cancelled';
+
+export type CollaborationSource = 'discussion' | 'runbook';
 
 export type CollaborationTaskStatus =
   | 'pending'
@@ -394,6 +397,13 @@ export interface CollaborationAgent {
   role: string;
 }
 
+export interface AssignSuggestion {
+  agent_id: string;
+  agent_name: string;
+  score: number;
+  reason: string;
+}
+
 export interface CollaborationTask {
   id: string;
   title: string;
@@ -402,6 +412,7 @@ export interface CollaborationTask {
   assigned_name: string;
   status: CollaborationTaskStatus;
   dependencies?: string[];
+  prompt_dispatched?: boolean;
   output?: string;
   created_at: string;
   updated_at: string;
@@ -446,6 +457,7 @@ export interface Collaboration {
   title: string;
   description: string;
   phase: CollaborationPhase;
+  source?: CollaborationSource;
   agents: CollaborationAgent[];
   plan?: SharedArtifact;
   tasks?: CollaborationTask[];
