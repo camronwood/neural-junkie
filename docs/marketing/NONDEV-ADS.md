@@ -1,6 +1,6 @@
 # Non-developer audience — ad concepts & copy
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 **Regenerate graphics:**
 
@@ -28,7 +28,7 @@
 >
 > Neural Junkie is one desktop for **Claude + local Ollama + any OpenAI-compatible API** — different agents, different models, one Slack-style workspace. Draft on local, polish in the cloud, track usage in Settings.
 >
-> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 **LinkedIn (longer):**
 
@@ -36,7 +36,7 @@
 >
 > Neural Junkie routes **per agent**: writing coach on Claude, brainstorming on Ollama, research on your other API. Channels, DMs, threads, plus Assistant for tasks and reminders.
 >
-> Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+> Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 ---
 
@@ -50,7 +50,7 @@
 >
 > Create a **writing coach**, **trip planner**, or **budget buddy** in a private DM — your API keys or local Ollama, plus Assistant for tasks, notes, and `/summarize`.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 **LinkedIn (longer):**
 
@@ -70,7 +70,7 @@
 >
 > `/collaborate` — specialists **talk to each other**, produce **one plan**, you **approve**, then they execute (with limits so it can’t spiral). Not copy-paste between five chats.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 **LinkedIn (incident / business angle):**
 
@@ -78,7 +78,7 @@
 >
 > Neural Junkie: bounded agent discussion → shared plan → your approval → parallel tasks. No codebase required for planning-only workflows.
 >
-> Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+> Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 ---
 

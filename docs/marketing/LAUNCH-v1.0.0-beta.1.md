@@ -2,7 +2,7 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
+https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
@@ -11,6 +11,14 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9
 **Image (beta.6):** `assets/neural-junkie-context-scope-ad-1080.png`
 
 **Image (general download):** `assets/neural-junkie-beta-download-ad-1080.png`
+
+---
+
+## X / Mastodon (beta.11)
+
+Neural Junkie v1.0.0-beta.11 — **Runbook builder**: plan multi-step work in a visual DAG (RB button or `/runbook`), assign agents, import markdown, start execution. Plus git worktree collabs, model library, HF, MCP. macOS / Windows / Linux installers.
+
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 ---
 

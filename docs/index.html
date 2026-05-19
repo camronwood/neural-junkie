@@ -22,8 +22,8 @@
 
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
-      <strong>v1.0.0-beta.9 available</strong>
-      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">Download installers</a> for macOS, Windows, and Linux — collaboration <strong>git worktree</strong> execution (<code>--worktree</code>), plus model library, Hugging Face, and MCP from beta.8. Or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
+      <strong>v1.0.0-beta.11 available</strong>
+      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">Download installers</a> for macOS, Windows, and Linux — <strong>Runbook builder</strong> with DAG graph, plus git worktree collabs, model library, Hugging Face, and MCP. Or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
     </div>
   </div>
 
@@ -37,7 +37,7 @@
         <a class="btn btn-ghost" href="#latest-feature">What’s new</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
-        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">Download</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">Download</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">Quick start</a>
         <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
       </nav>
@@ -47,13 +47,13 @@
   <main id="main">
     <section class="hero">
       <div class="wrap">
-        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.9</p>
+        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.11</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
           <strong>Neural Junkie</strong> is a native desktop app and Go hub for <strong>multi-agent orchestration</strong> — specialized agents for your stack, repo-aware context, slash commands, and workflows that actually ship. <strong>Open beta:</strong> install on macOS, Windows, or Linux — no clone required.
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">Download for macOS / Windows / Linux</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">Download for macOS / Windows / Linux</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">5-minute quick start</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie#quick-start-from-source">Build from source</a>
           <a class="btn btn-ghost" href="#latest-feature">What’s new</a>
@@ -77,25 +77,25 @@
     <section class="latest-feature" id="latest-feature" aria-labelledby="latest-feature-heading">
       <div class="wrap latest-feature-inner">
         <div class="latest-feature-copy">
-          <p class="latest-feature-kicker">Open beta · <time datetime="2026-05-18">v1.0.0-beta.9</time></p>
-          <h2 id="latest-feature-heading">Collaborate in your real repo (git worktree)</h2>
-          <p class="latest-feature-lead"><strong>v1.0.0-beta.9</strong> adds <code>/collaborate --worktree</code>: after you approve a plan, agents execute in an isolated <strong>git worktree</strong> on branch <code>nj/collab-…</code> — full project tree without touching your main checkout. Bind the repo with <code>--workspace</code> or pick your active git workspace at the <strong>Continue</strong> gate. Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">GitHub Releases</a> (installers fixed after the beta.8 CI miss). <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">Quick start guide</a>.</p>
+          <p class="latest-feature-kicker">Open beta · <time datetime="2026-05-19">v1.0.0-beta.11</time></p>
+          <h2 id="latest-feature-heading">Plan multi-step work with Runbooks</h2>
+          <p class="latest-feature-lead"><strong>v1.0.0-beta.11</strong> adds a desktop <strong>Runbook builder</strong> (<strong>RB</strong> or <code>/runbook</code>): define tasks, wire dependencies in a <strong>graph view</strong>, assign specialists (or <strong>Auto</strong>), import markdown, then start execution like any collaboration. Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">GitHub Releases</a> — all six platform installers (beta.10 CI fix). <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">Quick start guide</a>.</p>
           <ul class="feature-list feature-list--tight latest-feature-list">
-            <li><strong>Git worktree mode</strong> — <code>--worktree</code> + optional <code>--workspace</code>; desktop gate confirms repo, branch, and worktree path.</li>
-            <li><strong>Same safety rails</strong> — workspace ack before task dispatch; file-change approvals; default sandbox unchanged without the flag.</li>
-            <li><strong>Installers</strong> — macOS, Windows, and Linux builds ship again for this tag.</li>
+            <li><strong>Graph editor</strong> — drag tasks, connect upstream → downstream, inspector, auto-layout, save draft.</li>
+            <li><strong>Hub APIs</strong> — <code>POST /api/runbooks</code>, DAG validation, suggest-assign for open tiles.</li>
+            <li><strong>Completion UX</strong> — channel banner and read-only state when a collab finishes.</li>
           </ul>
           <div class="latest-feature-actions">
-            <a class="btn btn-primary" href="release-notes.html#v1-0-0-beta-9">Beta.9 release notes</a>
+            <a class="btn btn-primary" href="release-notes.html#v1-0-0-beta-11">Beta.11 release notes</a>
             <a class="btn btn-ghost" href="features/multi-agent-collaboration.html">Collaboration guide</a>
-            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Worktree docs</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md#runbook-builder-desktop">Runbook docs</a>
           </div>
         </div>
         <aside class="latest-feature-aside" aria-label="Related capability">
-          <p class="latest-feature-aside-label">Also in beta.8</p>
-          <p class="latest-feature-aside-title">Model library &amp; Hugging Face</p>
-          <p class="latest-feature-aside-text">Toolbar model library (&#8984;&#8679;M), HF hosted inference and GGUF import, MCP tool servers for specialists.</p>
-          <a class="btn btn-ghost btn-sm" href="release-notes.html#v1-0-0-beta-8">Beta.8 notes →</a>
+          <p class="latest-feature-aside-label">Also in beta.9</p>
+          <p class="latest-feature-aside-title">Git worktree collabs</p>
+          <p class="latest-feature-aside-text"><code>/collaborate --worktree</code> runs approved plans on <code>nj/collab-…</code> without touching your main checkout.</p>
+          <a class="btn btn-ghost btn-sm" href="release-notes.html#v1-0-0-beta-9">Beta.9 notes →</a>
         </aside>
       </div>
     </section>
@@ -261,11 +261,11 @@
         <p class="section-intro">Tagged desktop builds and major hub milestones. Install artifacts and checksums are attached to each <a href="https://github.com/camronwood/neural-junkie/releases">GitHub release</a>.</p>
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
-          <p class="release-landing-version"><strong>v1.0.0-beta.9</strong> <time datetime="2026-05-18">May 18, 2026</time></p>
-          <p class="release-landing-summary">Collaboration git worktree execution (<code>--worktree</code>), desktop gate for repo binding, and restored CI installers after the beta.8 build failure.</p>
+          <p class="release-landing-version"><strong>v1.0.0-beta.11</strong> <time datetime="2026-05-19">May 19, 2026</time></p>
+          <p class="release-landing-summary">Runbook builder with DAG graph, hub runbook APIs, collab completion banner, and full macOS / Windows / Linux installers.</p>
           <p class="release-landing-actions">
-            <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">Download v1.0.0-beta.9</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-9">Release notes</a>
+            <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">Download v1.0.0-beta.11</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-11">Release notes</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
           </p>
         </div>
@@ -276,8 +276,8 @@
       <div class="wrap">
         <div class="cta-band">
           <h2 id="cta-heading">Download the beta</h2>
-          <p>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
-          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.9">Get v1.0.0-beta.9</a>
+          <p>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">Get v1.0.0-beta.11</a>
         </div>
       </div>
     </section>
@@ -287,7 +287,7 @@
     <div class="wrap">
       <p>
         <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
-        — open source (MIT per README) · v1.0.0-beta.9 open beta
+        — open source (MIT per README) · v1.0.0-beta.11 open beta
       </p>
     </div>
   </footer>

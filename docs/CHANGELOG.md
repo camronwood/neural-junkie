@@ -6,6 +6,22 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.11] - 2026-05-19
+
+### Added
+- **Runbook builder** — desktop **RB** button and `/runbook`: define tasks, dependencies, and agent assignments; **Graph** view (xyflow) with drag-connect edges, inspector, auto-layout; import markdown runbooks.
+- **Runbook collaborations** — `POST /api/runbooks` creates `source: runbook` collaborations; DAG validation, suggest-assign for Auto tiles, hub dispatch and lifecycle aligned with slash-command collabs.
+- **Collab completion UX** — channel banner when a collaboration completes (`Collaboration complete — N/M tasks done`); read-only closed channel; desktop panel sync.
+- **Non-developer marketing assets** — `assets/neural-junkie-nondev-*-ad-1080.png` and `docs/marketing/NONDEV-ADS.md`; `./scripts/compose-nondev-ads.sh`.
+
+### Changed
+- **Collaboration manager** — runbook task orchestration, artifact handling, and hub limits refined for runbook + discussion flows.
+
+## [1.0.0-beta.10] - 2026-05-19
+
+### Fixed
+- **Release builds** — all six platform installers (macOS arm/x64, Windows msi/exe, Linux AppImage/deb); `tauri.conf.json` package version stays `1.0.0` for WiX/MSI; `make release` no longer overwrites it; Vitest files excluded from `tsc`.
+
 ## [1.0.0-beta.9] - 2026-05-18
 
 ### Added
