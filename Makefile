@@ -337,9 +337,11 @@ release: ## Tag and push a release (usage: make release VERSION=1.2.0)
 		exit 1; \
 	fi
 	@echo "🏷️  Releasing v$(VERSION)..."
-	@cd desktop && sed -i.bak 's/"version": "[^"]*"/"version": "$(VERSION)"/' src-tauri/tauri.conf.json && rm -f src-tauri/tauri.conf.json.bak
+	@echo "   (tauri.conf.json package.version stays 1.0.0 — WiX/MSI rejects non-numeric prerelease tags)"
 	@cd desktop && sed -i.bak 's/^version = "[^"]*"/version = "$(VERSION)"/' src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
 	@cd desktop && npm version $(VERSION) --no-git-tag-version 2>/dev/null || true
-	@git add -A && git commit -m "release: v$(VERSION)"
+	@cd desktop/src-tauri && cargo check -q 2>/dev/null || true
+	@git add desktop/package.json desktop/package-lock.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock
+	@git commit -m "release: v$(VERSION)"
 	@git tag v$(VERSION)
 	@echo "✅ Tagged v$(VERSION). Push with: git push && git push origin v$(VERSION)"
