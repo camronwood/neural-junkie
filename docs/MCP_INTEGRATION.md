@@ -17,8 +17,10 @@ neural-junkie/
 │   │   │   └── backend_mcp.go        # Go analysis tools
 │   │   ├── devops/                   # DevOps Agent MCP tools
 │   │   │   └── devops_mcp.go         # Infrastructure tools
-│   │   └── database/                 # Database Agent MCP tools
-│   │       └── database_mcp.go       # Query analysis tools
+│   │   ├── database/                 # Database Agent MCP tools
+│   │   │   └── database_mcp.go       # Query analysis tools
+│   │   └── biology/                  # BiologyExpert MCP tools
+│   │       └── biology_mcp.go        # Sequence + structure tools
 ```
 
 ### Port Allocation
@@ -29,31 +31,31 @@ neural-junkie/
 - Database MCP: `:8083`
 - Frontend MCP: `:8084` (optional)
 - Security MCP: `:8085` (optional)
+- Biology MCP: `:8087` (Life sciences pack)
 
 ## Configuration
 
-### Environment Variables
+MCP tool servers are controlled from **Settings → AI & providers** and persisted in `~/.neural-junkie/config.json`:
 
-Add to your `env.local`:
+- `mcp.enabled` — master switch (default on)
+- `mcp.agents` — per-type overrides (`backend`, `devops`, `database`, `biology`, …)
+- `mcp.ports` — optional port overrides
+- `mcp.biology` — ESMFold model, sequence limits, artifacts directory
+- `hf.token` — Hugging Face hub token (folding + downloads)
 
-```bash
-# MCP Server Configuration
-ENABLE_MCP=true                        # Master switch
-ENABLE_BACKEND_MCP=true                # Backend Agent tools
-ENABLE_DEVOPS_MCP=true                 # DevOps Agent tools
-ENABLE_DATABASE_MCP=true               # Database Agent tools
-ENABLE_FRONTEND_MCP=false              # Optional
-ENABLE_SECURITY_MCP=false              # Optional
+**Life sciences pack:** enabling the pack starts BiologyExpert and its MCP tools automatically — no `ENABLE_BIOLOGY_MCP` env var. See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
 
-# MCP Server Ports
-MCP_BACKEND_PORT=8081
-MCP_DEVOPS_PORT=8082
-MCP_DATABASE_PORT=8083
-MCP_FRONTEND_PORT=8084
-MCP_SECURITY_PORT=8085
-```
+**Software development pack:** enabling the pack starts backend, DevOps, and database MCP servers when those specialists are enabled. See [SOFTWARE_DEVELOPMENT_PACK.md](SOFTWARE_DEVELOPMENT_PACK.md).
 
 ## Available Tools
+
+### BiologyExpert (Life sciences)
+
+**Tools:**
+- `analyze_sequence(sequence)` — DNA/RNA/protein validation and summary
+- `fold_protein(sequence)` — ESMFold via Hugging Face (hub token in Settings)
+
+See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
 
 ### Backend Agent (Go Expert)
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { AgentInfo, Channel } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 
@@ -5,6 +6,7 @@ interface ChannelInfoModalProps {
   channel: Channel;
   agents: AgentInfo[];
   onClose: () => void;
+  onClearHistory?: (channelName: string) => Promise<void>;
 }
 
 function typeLabel(t: Channel['type'] | undefined): string {
@@ -29,7 +31,10 @@ function formatWhen(iso: string | undefined): string {
   return new Date(d).toLocaleString();
 }
 
-export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose }: ChannelInfoModalProps) {
+export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose, onClearHistory }: ChannelInfoModalProps) {
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+
   const inRoom = new Map<string, AgentInfo>();
   for (const a of ch.agents ?? []) {
     inRoom.set(a.id, a);
@@ -42,6 +47,31 @@ export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose }:
     seen.add(id);
     memberOnlyRows.push({ id, agent: globalAgents.find((a) => a.id === id) });
   }
+
+  const canClearHistory =
+    !!onClearHistory && (ch.type === 'dm' || ch.type === 'custom' || ch.type === 'collaboration');
+
+  const handleClearHistory = async () => {
+    if (!onClearHistory || clearing) return;
+    const label = ch.type === 'dm' ? 'this DM' : `#${ch.name}`;
+    if (
+      !window.confirm(
+        `Clear all message history for ${label}? This cannot be undone. Agents will not replay old messages after hub restart.`
+      )
+    ) {
+      return;
+    }
+    setClearing(true);
+    setClearError(null);
+    try {
+      await onClearHistory(ch.name);
+      onClose();
+    } catch (e) {
+      setClearError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClearing(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -132,6 +162,26 @@ export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose }:
                 Tags
               </div>
               <p className="text-xs">{ch.tags.join(', ')}</p>
+            </div>
+          ) : null}
+
+          {canClearHistory ? (
+            <div className="pt-2 border-t border-slack-border">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slack-textMuted mb-2">
+                History
+              </div>
+              <p className="text-xs text-slack-textMuted mb-2">
+                Remove all messages in this channel so agents stop replaying stale errors on restore.
+              </p>
+              {clearError ? <p className="text-xs text-red-400 mb-2">{clearError}</p> : null}
+              <button
+                type="button"
+                disabled={clearing}
+                onClick={() => void handleClearHistory()}
+                className="px-3 py-1.5 text-sm border border-red-500/50 text-red-300 hover:bg-red-500/10 rounded font-medium transition-colors disabled:opacity-50"
+              >
+                {clearing ? 'Clearing…' : 'Clear message history'}
+              </button>
             </div>
           ) : null}
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
@@ -86,6 +86,9 @@ export function CollaborationPanel({
   const totalTasks = c.tasks?.length ?? 0;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const isTerminal = c.phase === 'completed' || c.phase === 'cancelled';
+  const planningRecapPending = c.planning_recap_status === 'pending';
+  const recapFacilitatorName =
+    c.agents?.find(a => a.agent_id === c.planning_recap_agent_id)?.agent_name ?? 'agent';
 
   useEffect(() => {
     setExtendTargetId(c.id);
@@ -148,14 +151,44 @@ export function CollaborationPanel({
     }
   };
 
-  const handleTaskDone = async (taskIndex: number) => {
+  const handleTaskDone = async (task: CollaborationTask) => {
     setIsSubmitting(true);
     try {
-      await api.sendMessage(
-        collabChannel,
-        `/collab-task-done ${c.id.slice(0, 8)} ${taskIndex + 1}`,
-        from
-      );
+      await api.collabTaskComplete(c.id, task.id);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTaskSkip = async (task: CollaborationTask) => {
+    setIsSubmitting(true);
+    try {
+      await api.collabTaskSkip(c.id, task.id);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTaskRedispatch = async (task: CollaborationTask) => {
+    setIsSubmitting(true);
+    try {
+      await api.collabTaskRedispatch(c.id, task.id);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePauseResume = async () => {
+    setIsSubmitting(true);
+    try {
+      if (c.dispatch_paused) {
+        await api.collabResume(c.id);
+      } else {
+        await api.collabPause(c.id);
+      }
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -426,24 +459,32 @@ export function CollaborationPanel({
                       </div>
                     ) : null}
                     {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (
-                      <button
-                        type="button"
-                        onClick={() => void handleTaskDone(i)}
-                        disabled={isSubmitting}
-                        style={{
-                          marginTop: 6,
-                          padding: '4px 8px',
-                          borderRadius: 4,
-                          border: '1px solid var(--border-color, #444)',
-                          background: 'transparent',
-                          color: '#10b981',
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          opacity: isSubmitting ? 0.6 : 1,
-                        }}
-                      >
-                        Mark task done
-                      </button>
+                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => void handleTaskDone(task)}
+                          disabled={isSubmitting}
+                          style={taskActionBtnStyle('#10b981')}
+                        >
+                          Complete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleTaskSkip(task)}
+                          disabled={isSubmitting}
+                          style={taskActionBtnStyle('#94a3b8')}
+                        >
+                          Skip
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleTaskRedispatch(task)}
+                          disabled={isSubmitting}
+                          style={taskActionBtnStyle('#3b82f6')}
+                        >
+                          Redispatch
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -588,6 +629,29 @@ export function CollaborationPanel({
         )}
       </div>
 
+      {(c.planning_recap || c.session_recap) && (
+        <div
+          style={{
+            margin: '12px 16px 0',
+            padding: 12,
+            borderRadius: 8,
+            border: '1px solid var(--border-color, #444)',
+            backgroundColor: 'var(--bg-tertiary, #252525)',
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary, #aaa)' }}>
+            Session summary
+          </div>
+          <RichMarkdownView content={c.session_recap || c.planning_recap || ''} />
+        </div>
+      )}
+
+      {planningRecapPending && c.phase === 'reviewing' && (
+        <p style={{ margin: '12px 16px 0', fontSize: 13, color: 'var(--text-secondary, #aaa)' }}>
+          Generating session summary with @{recapFacilitatorName}… Approval unlocks when the recap is posted.
+        </p>
+      )}
+
       {isTerminal && (
         <div style={{
           padding: '12px 16px',
@@ -627,7 +691,7 @@ export function CollaborationPanel({
             <button
               type="button"
               onClick={() => void handleResume()}
-              disabled={isSubmitting}
+              disabled={isSubmitting || (c.phase === 'reviewing' && planningRecapPending)}
               title={
                 c.phase === 'executing'
                   ? 'Re-send task prompts for open work (pending, in progress, or blocked)'
@@ -699,6 +763,22 @@ export function CollaborationPanel({
               </div>
             </>
           )}
+          {c.phase === 'executing' && (
+            <button
+              type="button"
+              onClick={() => void handlePauseResume()}
+              disabled={isSubmitting}
+              style={{
+                padding: '6px 12px', borderRadius: 6,
+                border: '1px solid var(--border-color, #444)',
+                backgroundColor: 'transparent',
+                color: 'var(--text-primary, #ccc)',
+                fontWeight: 500, cursor: 'pointer', fontSize: 13,
+              }}
+            >
+              {c.dispatch_paused ? 'Resume dispatch' : 'Pause dispatch'}
+            </button>
+          )}
           {(c.phase === 'executing' || c.phase === 'reviewing' || c.phase === 'approved') && (
             <button
               type="button"
@@ -747,4 +827,16 @@ export function CollaborationPanel({
       />
     </div>
   );
+}
+
+function taskActionBtnStyle(color: string): CSSProperties {
+  return {
+    padding: '4px 8px',
+    borderRadius: 4,
+    border: '1px solid var(--border-color, #444)',
+    background: 'transparent',
+    color,
+    fontSize: 11,
+    cursor: 'pointer',
+  };
 }

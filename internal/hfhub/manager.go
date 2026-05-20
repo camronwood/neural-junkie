@@ -3,7 +3,6 @@ package hfhub
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,7 +36,8 @@ type LocalFile struct {
 type Manager struct {
 	cacheDir   string
 	httpClient *http.Client
-	downloadMu sync.Mutex
+	jobsMu     sync.Mutex
+	jobs       map[string]*downloadJob
 }
 
 // NewManager creates a download manager with the given cache directory.
@@ -57,6 +57,7 @@ func NewManager(cacheDir string) (*Manager, error) {
 		httpClient: &http.Client{
 			Timeout: 0, // downloads set per-request context
 		},
+		jobs: make(map[string]*downloadJob),
 	}, nil
 }
 
@@ -89,107 +90,17 @@ func (m *Manager) filePath(repoID, filename string) string {
 	return filepath.Join(m.snapshotDir(repoID), filename)
 }
 
-// Download fetches one file from the Hub (catalog-validated repo_id).
+// Download starts (if needed) and watches a hub-side background download.
 func (m *Manager) Download(ctx context.Context, repoID, filename, token string, onProgress func(DownloadProgress)) error {
-	m.downloadMu.Lock()
-	defer m.downloadMu.Unlock()
-
-	entry, err := FindCatalogEntry(repoID)
-	if err != nil {
+	if err := m.EnsureDownloadStarted(token, repoID, filename); err != nil {
 		return err
 	}
-	if !catalogHasMode(entry, "local") {
-		return fmt.Errorf("repo_id %q is not enabled for local download in the catalog", repoID)
+	err := m.WatchDownload(ctx, repoID, filename, onProgress)
+	if err != nil && err == context.Canceled {
+		// Client disconnected; download continues in background.
+		return nil
 	}
-	filename, err = ResolveDownloadFilename(entry, filename)
-	if err != nil {
-		return err
-	}
-
-	dest := m.filePath(repoID, filename)
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-
-	url := fmt.Sprintf("https://huggingface.co/%s/resolve/main/%s", repoID, filename)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	report := func(p DownloadProgress) {
-		if onProgress != nil {
-			onProgress(p)
-		}
-	}
-	report(DownloadProgress{Status: "starting", RepoID: repoID, Filename: filename})
-
-	client := &http.Client{Timeout: 0}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("download request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return fmt.Errorf("access denied (%d): accept the model license on Hugging Face and set HF_TOKEN for gated models", resp.StatusCode)
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	total := resp.ContentLength
-	tmp := dest + ".partial"
-	out, err := os.Create(tmp)
-	if err != nil {
-		return err
-	}
-
-	var written int64
-	buf := make([]byte, 32*1024)
-	for {
-		if ctx.Err() != nil {
-			out.Close()
-			os.Remove(tmp)
-			return ctx.Err()
-		}
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, wErr := out.Write(buf[:n]); wErr != nil {
-				out.Close()
-				os.Remove(tmp)
-				return wErr
-			}
-			written += int64(n)
-			p := DownloadProgress{Status: "downloading", RepoID: repoID, Filename: filename, Completed: written, Total: total}
-			if total > 0 {
-				p.Percent = float64(written) / float64(total) * 100
-			}
-			report(p)
-		}
-		if readErr == io.EOF {
-			break
-		}
-		if readErr != nil {
-			out.Close()
-			os.Remove(tmp)
-			return readErr
-		}
-	}
-	if err := out.Close(); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, dest); err != nil {
-		os.Remove(tmp)
-		return err
-	}
-	report(DownloadProgress{Status: "success", RepoID: repoID, Filename: filename, Completed: written, Total: total, Percent: 100})
-	return nil
+	return err
 }
 
 func catalogHasMode(entry *LibraryModel, mode string) bool {

@@ -1,6 +1,6 @@
 import type { CollaborationTask } from '../types/protocol';
 
-export const MAX_RUNBOOK_TASKS = 10;
+export const MAX_RUNBOOK_TASKS = 25;
 
 export function newTaskId(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID

@@ -4,6 +4,13 @@ import { getAgentColor } from '../types/protocol';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { parseDMDisplayName } from '../utils/dmChannelDisplay';
+import {
+  agentSidebarHideKey,
+  isAgentShownInSidebar,
+  isAgentShortcutHidden,
+  isDmChannelVisibleInSidebar,
+} from '../utils/sidebarVisibility';
 
 interface ChannelSidebarProps {
   channels: Channel[];
@@ -68,27 +75,6 @@ export function ChannelSidebar({
   const settingsLoaded = useSettingsStore(s => s.isLoaded);
   const updateSettings = useSettingsStore(s => s.updateSettings);
 
-  const parseDMDisplayName = (dmChannel: Channel): string => {
-    const directAgent = dmChannel.agents?.[0]?.name;
-    if (directAgent) return directAgent;
-
-    // Preferred fallback: the server-provided description preserves casing.
-    const desc = dmChannel.description || '';
-    const m = desc.match(/^Direct message with\s+(.+)$/i);
-    if (m && m[1]) {
-      return m[1].trim();
-    }
-
-    // Last fallback: derive from channel slug, then normalize common expert suffixes.
-    const raw = dmChannel.name.replace(/^dm-[^-]+-/, '');
-    if (!raw) return dmChannel.name;
-    if (raw.endsWith('expert')) {
-      const stem = raw.slice(0, -6);
-      return `${stem.charAt(0).toUpperCase()}${stem.slice(1)}Expert`;
-    }
-    return `${raw.charAt(0).toUpperCase()}${raw.slice(1)}`;
-  };
-
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     const w = saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
@@ -109,7 +95,8 @@ export function ChannelSidebar({
 
   const hiddenDmSet = new Set(settings.hiddenDmChannelNames ?? []);
   const hiddenCollabSet = new Set(settings.hiddenCollaborationChannelNames ?? []);
-  const hiddenAgentSet = new Set(settings.hiddenAgentIdsForSidebar ?? []);
+  const isShortcutHidden = (agent: AgentInfo) =>
+    settingsLoaded && isAgentShortcutHidden(settings, agent);
 
   // Separate channels by type, sorted alphabetically for stable ordering
   const publicChannels = channelsNorm
@@ -123,6 +110,7 @@ export function ChannelSidebar({
     .sort((a, b) => a.name.localeCompare(b.name));
   const dmChannels = channelsNorm
     .filter(c => c.type === 'dm')
+    .filter(c => isDmChannelVisibleInSidebar(c, agents))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const collaborationChannelLabel = (ch: Channel): string => {
@@ -179,10 +167,9 @@ export function ChannelSidebar({
   );
 
   const filteredAgentsWithoutDM = agents
-    .filter(a => a.status === 'active' && !agentsWithDM.has(a.id))
+    .filter(a => isAgentShownInSidebar(a) && !agentsWithDM.has(a.id))
     .filter(a => {
-      if (!settingsLoaded) return false;
-      const hidden = hiddenAgentSet.has(a.id);
+      const hidden = settingsLoaded && isShortcutHidden(a);
       if (hidden && !normalizedQuery) return false;
       if (!normalizedQuery) return true;
       return (
@@ -271,10 +258,11 @@ export function ChannelSidebar({
     }
   };
 
-  const hideAgentShortcutFromSidebar = (agentId: string) => {
-    const cur = settings.hiddenAgentIdsForSidebar ?? [];
-    if (cur.includes(agentId)) return;
-    void updateSettings({ hiddenAgentIdsForSidebar: [...cur, agentId] });
+  const hideAgentShortcutFromSidebar = (agent: AgentInfo) => {
+    const key = agentSidebarHideKey(agent);
+    const keys = settings.hiddenAgentSidebarKeys ?? [];
+    if (keys.includes(key)) return;
+    void updateSettings({ hiddenAgentSidebarKeys: [...keys, key] });
   };
 
   const ChannelItem = ({ ch }: { ch: Channel }) => {
@@ -428,7 +416,7 @@ export function ChannelSidebar({
     const dmChannel = dmChannels.find(c =>
       c.agents?.some(a => a.id === agent.id) || c.members?.includes(agent.id)
     );
-    const isHiddenShortcut = hiddenAgentSet.has(agent.id) && normalizedQuery.length > 0;
+    const isHiddenShortcut = isShortcutHidden(agent) && normalizedQuery.length > 0;
 
     return (
       <div className="group flex items-center gap-0.5 w-full min-w-0">
@@ -462,7 +450,7 @@ export function ChannelSidebar({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            hideAgentShortcutFromSidebar(agent.id);
+            hideAgentShortcutFromSidebar(agent);
           }}
           className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
           title="Hide shortcut from sidebar"

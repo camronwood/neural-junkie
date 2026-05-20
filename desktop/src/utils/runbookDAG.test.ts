@@ -4,6 +4,7 @@ import {
   applyEdgeConnect,
   applyEdgeRemove,
   autoLayoutDagre,
+  edgeIsActive,
   removeTask,
   tasksToFlow,
   validateDAG,
@@ -100,6 +101,14 @@ describe('removeTask', () => {
     const next = removeTask(tasks, 'a');
     expect(next).toHaveLength(1);
     expect(next[0].dependencies).toEqual([]);
+  });
+});
+
+describe('edgeIsActive', () => {
+  it('treats completed upstream as active during executing', () => {
+    expect(edgeIsActive(task({ id: 'a', title: 'A', status: 'completed' }), 'executing')).toBe(true);
+    expect(edgeIsActive(task({ id: 'a', title: 'A', status: 'pending' }), 'executing')).toBe(false);
+    expect(edgeIsActive(task({ id: 'a', title: 'A', status: 'pending' }), 'draft')).toBe(true);
   });
 });
 

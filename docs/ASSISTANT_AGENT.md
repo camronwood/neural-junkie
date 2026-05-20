@@ -237,6 +237,9 @@ All assistant data is stored persistently in `~/.neural-junkie/assistant/`:
 - `tasks.json` - Task list with status and priorities
 - `notes.json` - Saved notes with tags and search
 - `meetings.json` - Meeting and schedule data
+- `meeting_notes.json` - Ingested Gemini Meet notes (Google sync)
+- `google_oauth.json` - Google OAuth tokens (Gmail + Drive read-only)
+- `google_sync_state.json` - Processed Gmail message IDs
 - `config.json` - Assistant configuration
 
 ## Configuration
@@ -248,9 +251,20 @@ The assistant can be configured through the `config.json` file:
   "timezone": "UTC",
   "default_channel": "general",
   "reminder_advance": 15,
-  "keywords": ["meeting", "deadline", "review", "deploy", "release"]
+  "keywords": ["meeting", "deadline", "review", "deploy", "release"],
+  "google_meet_notes_enabled": true,
+  "google_sync_interval_minutes": 15,
+  "google_sender_email": "gemini-notes@google.com",
+  "google_backfill_days": 90
 }
 ```
+
+### Google Meet notes
+
+1. In the desktop app: **Settings → Integrations → Google Meet notes** — enter OAuth Client ID, Secret, and Redirect URI, then **Save OAuth credentials**.
+2. **Connect Google** to authorize your account.
+3. Optional: set `NEURAL_JUNKIE_GOOGLE_OAUTH_*` env vars on the hub to override saved credentials (see `env.example`).
+3. Notes sync automatically every `google_sync_interval_minutes`, or use **Sync now** / `/ingest-meetings`.
 
 ### Configuration Options
 
@@ -258,6 +272,10 @@ The assistant can be configured through the `config.json` file:
 - **default_channel**: Default channel for notifications
 - **reminder_advance**: Minutes before meetings to send reminders
 - **keywords**: Keywords to watch for proactive suggestions
+- **google_meet_notes_enabled**: Enable periodic Gmail/Docs sync
+- **google_sync_interval_minutes**: Poll interval (default 15)
+- **google_sender_email**: Gmail sender filter (default `gemini-notes@google.com`)
+- **google_backfill_days**: How far back to search on sync (default 90)
 
 ## Best Practices
 

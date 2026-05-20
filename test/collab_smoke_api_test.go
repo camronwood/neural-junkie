@@ -43,6 +43,9 @@ func TestCollabSmokePhaseTransitions(t *testing.T) {
 	simulateDiscussionBudgetExhausted(t, h, collabID, "a1", "RustExpert", protocol.AgentTypeRust)
 	assertCollabPhase(t, base, collabCh, collabID, collaboration.PhaseReviewing)
 
+	// Planning recap must complete before /approve-plan (hub wires recap on enter reviewing).
+	ensurePlanningRecapComplete(t, h.GetCollaborationManager(), collabID)
+
 	// 3) Approve plan → executing
 	apiSend(t, base, collabCh, "/approve-plan "+collabID[:8])
 	assertCollabPhase(t, base, collabCh, collabID, collaboration.PhaseExecuting)

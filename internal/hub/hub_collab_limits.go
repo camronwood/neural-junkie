@@ -50,7 +50,7 @@ func (h *Hub) enforceExecutionMessageBudget(msg *protocol.Message) error {
 		msg.Channel,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
 		fmt.Sprintf("⛔ **Execution message limit reached** for collaboration `%s` (%d messages). Further agent posts in this session are blocked.",
-			collabID[:8], collaboration.MaxExecutionMessages),
+			collabID[:8], snap.MaxExecutionMessagesLimit()),
 	)
 	warn.SetCollaborationID(collabID)
 	warn.SetCollaborationPhase(string(collaboration.PhaseExecuting))
@@ -96,7 +96,7 @@ func (h *Hub) rejectClosedCollaborationChannel(msg *protocol.Message) error {
 	}
 	switch msg.Type {
 	case protocol.MessageTypeSystemInfo, protocol.MessageTypeCollabStatus, protocol.MessageTypeCollabPlan,
-		protocol.MessageTypeCollabTask, protocol.MessageTypeFileChange:
+		protocol.MessageTypeCollabTask, protocol.MessageTypeCollabRecap, protocol.MessageTypeFileChange:
 		return nil
 	}
 	phase := string(snap.Phase)

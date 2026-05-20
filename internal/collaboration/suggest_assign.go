@@ -19,6 +19,7 @@ const minSuggestScore = 2.0
 var typeKeywords = map[protocol.AgentType][]string{
 	protocol.AgentTypeSecurity: {"security", "auth", "oauth", "jwt", "encrypt", "crypt", "owasp", "vulnerability", "cve"},
 	protocol.AgentTypeRust:     {"rust", "cargo", "wasm"},
+	protocol.AgentTypeBiology:  {"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr", "mutation", "enzyme", "pathway", "lab", "protocol"},
 	protocol.AgentTypeBackend:  {"go", "golang", "api", "rest", "graphql", "grpc", "backend", "server"},
 	protocol.AgentTypeFrontend: {"react", "vue", "angular", "css", "ui", "ux", "frontend", "component"},
 	protocol.AgentTypeDevOps:   {"docker", "kubernetes", "k8s", "ci", "cd", "terraform", "aws", "deploy", "devops"},

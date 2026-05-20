@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, Collaboration, CollaborationTask, AssignSuggestion } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate } from '../types/protocol';
 import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
@@ -6,6 +6,21 @@ export interface SendMessageResponse {
   status?: string;
   collaboration_channel?: string;
   collaboration_id?: string;
+}
+
+export interface PackStatus {
+  id: string;
+  title: string;
+  description: string;
+  enabled: boolean;
+  expert_slug?: string;
+  expert_label?: string;
+}
+
+export interface ExpertPresetOption {
+  slug: string;
+  label: string;
+  from_pack?: string;
 }
 
 export class ChatAPI {
@@ -113,7 +128,14 @@ export class ChatAPI {
 
   async updateRunbook(
     collabId: string,
-    body: { title?: string; description?: string; agent_ids?: string[]; tasks?: CollaborationTask[] }
+    body: {
+      title?: string;
+      description?: string;
+      agent_ids?: string[];
+      tasks?: CollaborationTask[];
+      execution_policy?: ExecutionPolicy;
+      graph_layout?: GraphLayout;
+    }
   ): Promise<Collaboration> {
     const response = await fetch(`${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}`, {
       method: 'PUT',
@@ -187,6 +209,92 @@ export class ChatAPI {
   async startRunbook(collabId: string): Promise<Collaboration> {
     const response = await fetch(
       `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/start`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async listRunbookTemplates(): Promise<RunbookTemplate[]> {
+    const response = await fetch(`${this.baseURL}/api/runbook-templates`);
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async createRunbookFromTemplate(
+    templateName: string,
+    body: { channel: string; created_by: string; agent_ids: string[] }
+  ): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
+    const response = await fetch(
+      `${this.baseURL}/api/runbook-templates/${encodeURIComponent(templateName)}/instantiate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async collabTaskComplete(collabId: string, taskId: string): Promise<Collaboration> {
+    return this.collabTaskPost(collabId, taskId, 'complete');
+  }
+
+  async collabTaskSkip(collabId: string, taskId: string): Promise<Collaboration> {
+    return this.collabTaskPost(collabId, taskId, 'skip');
+  }
+
+  async collabTaskRedispatch(collabId: string, taskId: string): Promise<Collaboration> {
+    return this.collabTaskPost(collabId, taskId, 'redispatch');
+  }
+
+  async collabTaskReassign(collabId: string, taskId: string, agentId: string): Promise<Collaboration> {
+    const response = await fetch(
+      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/reassign`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async collabPause(collabId: string): Promise<Collaboration> {
+    const response = await fetch(
+      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/pause`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async collabResume(collabId: string): Promise<Collaboration> {
+    const response = await fetch(
+      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/resume`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  private async collabTaskPost(collabId: string, taskId: string, action: string): Promise<Collaboration> {
+    const response = await fetch(
+      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -318,6 +426,73 @@ export class ChatAPI {
     }
   }
 
+  async getGoogleMeetNotesAppConfig(): Promise<GoogleMeetNotesAppConfig> {
+    const response = await fetch(`${this.baseURL}/api/assistant/google/config`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Google OAuth config: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async saveGoogleMeetNotesAppConfig(
+    clientId: string,
+    clientSecret: string,
+    redirectUrl?: string
+  ): Promise<GoogleMeetNotesAppConfig> {
+    const response = await fetch(`${this.baseURL}/api/assistant/google/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_url: redirectUrl ?? '',
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to save Google OAuth config: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  async getGoogleMeetNotesStatus(): Promise<GoogleMeetNotesStatus> {
+    const response = await fetch(`${this.baseURL}/api/assistant/google/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Google meet notes status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getGoogleMeetNotesAuthURL(): Promise<string> {
+    const response = await fetch(`${this.baseURL}/api/assistant/google/auth?json=1`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to get auth URL: ${response.statusText}`);
+    }
+    return data.url;
+  }
+
+  async disconnectGoogleMeetNotes(): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/assistant/google/disconnect`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Disconnect failed: ${response.statusText}`);
+    }
+  }
+
+  async syncGoogleMeetNotes(): Promise<number> {
+    const response = await fetch(`${this.baseURL}/api/assistant/google/sync`, {
+      method: 'POST',
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Sync failed: ${response.statusText}`);
+    }
+    return data.ingested ?? 0;
+  }
+
   // Create a new channel
   async createChannel(
     name: string,
@@ -407,6 +582,19 @@ export class ChatAPI {
   }
 
   // Delete a channel
+  async clearChannelHistory(name: string): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/channels/clear-history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to clear channel history: ${response.statusText}`);
+    }
+  }
+
   async deleteChannel(name: string): Promise<void> {
     const response = await fetch(`${this.baseURL}/api/channels/delete`, {
       method: 'POST',
@@ -1273,6 +1461,43 @@ export class ChatAPI {
     }
     
     return response.json();
+  }
+
+  async fetchPacks(): Promise<PackStatus[]> {
+    const response = await fetch(`${this.baseURL}/api/packs`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch packs: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async setPackEnabled(packId: string, enabled: boolean): Promise<PackStatus[]> {
+    const response = await fetch(`${this.baseURL}/api/packs/${encodeURIComponent(packId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = await response.json();
+    return (data.packs as PackStatus[]) ?? [];
+  }
+
+  async fetchExpertPresets(): Promise<ExpertPresetOption[]> {
+    const response = await fetch(`${this.baseURL}/api/expert-presets`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch expert presets: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async restartConfiguredAgents(): Promise<void> {
+    const response = await fetch(`${this.baseURL}/api/agents/restart`, { method: 'POST' });
+    if (!response.ok) {
+      throw new Error(`Failed to restart agents: ${response.statusText}`);
+    }
   }
 }
 

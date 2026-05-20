@@ -1,0 +1,28 @@
+{
+  "name": "health-check-alert",
+  "title": "Health check and alert",
+  "description": "Fetch API health, summarize with an agent, optionally notify on failure.",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "title": "Health check",
+      "description": "GET the configured health endpoint",
+      "kind": "action",
+      "action": {
+        "type": "http_get",
+        "config": {
+          "url": "https://httpbin.org/status/200"
+        }
+      }
+    },
+    {
+      "title": "Summarize status",
+      "description": "Review upstream health output and summarize for the team",
+      "dependencies": []
+    }
+  ]
+}

@@ -20,7 +20,14 @@ export function layoutStorageKey(collaborationId: string): string {
   return `${LAYOUT_STORAGE_PREFIX}${collaborationId}`;
 }
 
-export function loadLayout(collaborationId: string): LayoutMap {
+export function loadLayout(collaborationId: string, serverLayout?: GraphLayoutFromCollab): LayoutMap {
+  if (serverLayout && Object.keys(serverLayout).length > 0) {
+    const map: LayoutMap = {};
+    for (const [id, pos] of Object.entries(serverLayout)) {
+      map[id] = { x: pos.x, y: pos.y };
+    }
+    return map;
+  }
   try {
     const raw = localStorage.getItem(layoutStorageKey(collaborationId));
     if (!raw) return {};
@@ -30,6 +37,8 @@ export function loadLayout(collaborationId: string): LayoutMap {
     return {};
   }
 }
+
+export type GraphLayoutFromCollab = Record<string, { x: number; y: number }>;
 
 export function saveLayout(collaborationId: string, positions: LayoutMap): void {
   try {

@@ -119,5 +119,31 @@
         "size_hint": "~3.8 GB"
       }
     ]
+  },
+  {
+    "repo_id": "aaditya/OpenBioLLM-Llama3-8B-GGUF",
+    "title": "Neural Junkie Bio 8B (GGUF)",
+    "description": "OpenBioLLM-Llama3-8B for molecular biology and lab work. Import as nj-bio:8b (Llama 3 chat template). Prefer koesn/llama3-openbiollm-8b from the Ollama tab for daily chat.",
+    "tags": ["biology", "recommended"],
+    "size_hint": "~4.9 GB (Q4)",
+    "icon_key": "bio",
+    "publisher": "OpenBioLLM",
+    "modes": ["hosted", "local"],
+    "files": [
+      {
+        "filename": "openbiollm-llama3-8b.Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~4.9 GB"
+      }
+    ]
+  },
+  {
+    "repo_id": "aaditya/Llama3-OpenBioLLM-8B",
+    "title": "OpenBioLLM 8B Instruct",
+    "description": "Hosted inference for molecular biology Q&A when local GPU is unavailable.",
+    "tags": ["biology"],
+    "icon_key": "bio",
+    "publisher": "OpenBioLLM",
+    "modes": ["hosted"]
   }
 ]

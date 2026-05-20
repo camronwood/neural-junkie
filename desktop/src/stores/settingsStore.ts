@@ -13,8 +13,10 @@ export interface Settings {
   hiddenDmChannelNames?: string[];
   /** Collaboration channel names hidden from the sidebar (does not cancel or delete the collab). */
   hiddenCollaborationChannelNames?: string[];
-  /** Agent IDs hidden from the "agents without a DM" shortcut list. */
+  /** Agent IDs hidden from the "agents without a DM" shortcut list (legacy; prefer hiddenAgentSidebarKeys). */
   hiddenAgentIdsForSidebar?: string[];
+  /** Stable agent keys (type:name) hidden from the sidebar shortcut list; survives agent restarts. */
+  hiddenAgentSidebarKeys?: string[];
 }
 
 export interface AnthropicSettings {
@@ -46,10 +48,17 @@ export interface LMStudioSettings {
   availableModels: string[];
 }
 
+export interface GoogleMeetNotesSettings {
+  clientId: string;
+  clientSecret: string;
+  redirectUrl: string;
+}
+
 export interface IntegrationSettings {
   anthropic: AnthropicSettings;
   github: GitHubSettings;
   confluence: ConfluenceSettings;
+  googleMeetNotes: GoogleMeetNotesSettings;
   ollama: OllamaSettings;
   lmstudio: LMStudioSettings;
 }
@@ -85,6 +94,7 @@ interface SettingsState {
   updateAnthropicSettings: (settings: Partial<AnthropicSettings>) => Promise<void>;
   updateGitHubSettings: (settings: Partial<GitHubSettings>) => Promise<void>;
   updateConfluenceSettings: (settings: Partial<ConfluenceSettings>) => Promise<void>;
+  updateGoogleMeetNotesSettings: (settings: Partial<GoogleMeetNotesSettings>) => Promise<void>;
   updateOllamaSettings: (settings: Partial<OllamaSettings>) => Promise<void>;
   updateLMStudioSettings: (settings: Partial<LMStudioSettings>) => Promise<void>;
   clearIntegrationSettings: () => Promise<void>;
@@ -123,6 +133,11 @@ const defaultIntegrations: IntegrationSettings = {
     domain: '',
     email: '',
     apiToken: '',
+  },
+  googleMeetNotes: {
+    clientId: '',
+    clientSecret: '',
+    redirectUrl: 'http://localhost:18765/api/assistant/google/callback',
   },
   ollama: {
     endpoint: 'http://localhost:11434',
@@ -261,9 +276,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const savedIntegrations = await integrationsStore.get<IntegrationSettings>('integrations');
       
       if (savedIntegrations) {
-        set({ 
-          integrations: { ...defaultIntegrations, ...savedIntegrations },
-          integrationsStore 
+        set({
+          integrations: {
+            ...defaultIntegrations,
+            ...savedIntegrations,
+            googleMeetNotes: {
+              ...defaultIntegrations.googleMeetNotes,
+              ...(savedIntegrations.googleMeetNotes ?? {}),
+            },
+          },
+          integrationsStore,
         });
       } else {
         // No saved integrations, use defaults
@@ -337,6 +359,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         await integrationsStore.save();
       } catch (error) {
         console.error('Failed to save GitHub settings:', error);
+        throw error;
+      }
+    }
+  },
+
+  updateGoogleMeetNotesSettings: async (settings: Partial<GoogleMeetNotesSettings>) => {
+    const { integrationsStore } = get();
+    const newIntegrations = {
+      ...get().integrations,
+      googleMeetNotes: { ...get().integrations.googleMeetNotes, ...settings },
+    };
+    set({ integrations: newIntegrations });
+    if (integrationsStore) {
+      try {
+        await integrationsStore.set('integrations', newIntegrations);
+        await integrationsStore.save();
+      } catch (error) {
+        console.error('Failed to save Google Meet notes settings:', error);
         throw error;
       }
     }

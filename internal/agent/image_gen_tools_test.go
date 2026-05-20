@@ -25,6 +25,7 @@ func (h *imageGenTestHub) GetThreadParentAuthor(string) string                  
 func (h *imageGenTestHub) GetCommandHandler() CommandHandlerInterface            { return nil }
 func (h *imageGenTestHub) GetAgentChannels(string) []string                        { return nil }
 func (h *imageGenTestHub) GetChannelType(string) protocol.ChannelType              { return protocol.ChannelTypePublic }
+func (h *imageGenTestHub) GetChannelSessionSummary(string) string                 { return "" }
 func (h *imageGenTestHub) ImageGenerationEnabled() bool                            { return h.enabled }
 func (h *imageGenTestHub) GenerateAndPostImage(_ context.Context, _ string, _ protocol.AgentInfo, prompt, _ string) error {
 	h.posted = true

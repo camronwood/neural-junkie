@@ -4,7 +4,7 @@
 
 Neural Junkie is a multi-agent collaboration system where specialized AI agents communicate over a central hub, share context, and collaborate to solve complex problems. The system consists of a Go backend (hub server + optional standalone `cmd/agent` processes), a Tauri + React desktop frontend, and multiple interface options (web chat, screenshot gallery, terminal, CLI).
 
-> **Default runtime:** Moderator, Assistant, and the six specialist roles normally run **in-process** inside the hub (`initializeConfiguredAgents`), sharing the hub’s internal message delivery. **`make agents`** is optional and starts **separate** specialist processes that talk to the hub over HTTP (see README *Specialist agents*).
+> **Default runtime:** Moderator, Assistant, and **auto-detected CLI agents** always start with the hub. In-process engineering specialists run when the **Software development** domain pack is enabled (`initializeConfiguredAgents`). **`make agents`** is optional for separate specialist processes over HTTP (see README).
 
 ```mermaid
 graph LR

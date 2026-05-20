@@ -72,6 +72,9 @@ type Agent struct {
 	// returns true, the message is considered fully handled and the base
 	// response pipeline is skipped.
 	messageInterceptor func(context.Context, *protocol.Message) bool
+
+	// Optional full prompt builder (Assistant uses buildAssistantPrompt).
+	customPromptBuilder func(*protocol.Message) string
 }
 
 // MCPServerInterface defines the interface for MCP servers
@@ -93,6 +96,7 @@ type HubClient interface {
 	GetCommandHandler() CommandHandlerInterface
 	GetAgentChannels(agentID string) []string
 	GetChannelType(channelName string) protocol.ChannelType
+	GetChannelSessionSummary(channel string) string
 	// Image generation (hub OpenAI Images API when OPENAI_API_KEY is set).
 	ImageGenerationEnabled() bool
 	GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error
@@ -343,18 +347,10 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, h
 			continue
 		}
 
-		alreadyResponded := false
-		for j := i + 1; j < len(history); j++ {
-			m := history[j]
-			if m == nil {
-				continue
-			}
-			if m.From.ID == a.Info.ID && (m.Type == protocol.MessageTypeChat || m.Type == protocol.MessageTypeAnswer) {
-				alreadyResponded = true
-				break
-			}
+		if messageTooOldForUnansweredReplay(candidate) {
+			return
 		}
-		if alreadyResponded {
+		if agentRespondedToUser(history, i, a.Info.ID, a.Info.Name, candidate.ID) {
 			return
 		}
 
@@ -409,6 +405,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if msg.Type == protocol.MessageTypeAgentStatus {
 		if msg.Metadata != nil {
 			if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
+				if old := a.Context.History[msg.Channel]; len(old) > 0 {
+					for _, m := range old {
+						if m != nil && m.ID != "" {
+							delete(a.respondedMessages, m.ID)
+						}
+					}
+				}
 				if hist, err := a.Hub.GetMessages(msg.Channel, 20); err == nil {
 					if a.Context.History == nil {
 						a.Context.History = make(map[string][]*protocol.Message)
@@ -660,7 +663,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
 	// Record the response in the collaboration discussion and check consensus
-	if collabID := responseMsg.GetCollaborationID(); collabID != "" && a.Collab != nil {
+	if collabID := responseMsg.GetCollaborationID(); collabID != "" && a.Collab != nil && msg.Type != protocol.MessageTypeCollabRecap {
 		if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
 			log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
 		}
@@ -710,6 +713,11 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 // SetMessageInterceptor sets an optional message pre-processing hook.
 func (a *Agent) SetMessageInterceptor(interceptor func(context.Context, *protocol.Message) bool) {
 	a.messageInterceptor = interceptor
+}
+
+// SetPromptBuilder replaces the default buildPrompt for this agent instance.
+func (a *Agent) SetPromptBuilder(builder func(*protocol.Message) string) {
+	a.customPromptBuilder = builder
 }
 
 func min(a, b int) int {
@@ -811,6 +819,24 @@ func taskAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
 	}
 }
 
+func recapAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
+	if meta == nil {
+		return "", false
+	}
+	v, ok := meta["recap_assignee"]
+	if !ok || v == nil {
+		return "", false
+	}
+	switch x := v.(type) {
+	case string:
+		s := strings.TrimSpace(x)
+		return s, s != ""
+	default:
+		s := strings.TrimSpace(fmt.Sprint(x))
+		return s, s != ""
+	}
+}
+
 func (a *Agent) collabTaskRateLimitOK(collabID, taskID string) bool {
 	key := collabID
 	if taskID != "" {
@@ -854,6 +880,13 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// COLLABORATION: orchestration messages (turn prompts, tasks) are sent from
 	// System — evaluate before the generic "ignore System" rule below.
 	if collabID := msg.GetCollaborationID(); collabID != "" && a.Collab != nil {
+		if msg.Type == protocol.MessageTypeCollabRecap && msg.Metadata != nil {
+			if assignee, ok := recapAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
+				log.Printf("[%s] ✅ COLLABORATION RECAP - will respond (collab %s)", a.Info.Name, collabID[:8])
+				return true
+			}
+			return false
+		}
 		if msg.Metadata != nil {
 			if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
 				return false
@@ -890,6 +923,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				msg.From.Type == protocol.AgentTypeDatabase ||
 				msg.From.Type == protocol.AgentTypeSecurity ||
 				msg.From.Type == protocol.AgentTypeRust ||
+				msg.From.Type == protocol.AgentTypeBiology ||
 				msg.From.Type == protocol.AgentTypeDevOps ||
 				msg.From.Type == protocol.AgentTypeRepo ||
 				msg.From.Type == protocol.AgentTypeHelper ||
@@ -927,6 +961,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeDatabase ||
 			msg.From.Type == protocol.AgentTypeSecurity ||
 			msg.From.Type == protocol.AgentTypeRust ||
+			msg.From.Type == protocol.AgentTypeBiology ||
 			msg.From.Type == protocol.AgentTypeDevOps ||
 			msg.From.Type == protocol.AgentTypeRepo ||
 			msg.From.Type == protocol.AgentTypeHelper ||
@@ -970,6 +1005,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		msg.From.Type == protocol.AgentTypeDatabase ||
 		msg.From.Type == protocol.AgentTypeSecurity ||
 		msg.From.Type == protocol.AgentTypeRust ||
+		msg.From.Type == protocol.AgentTypeBiology ||
 		msg.From.Type == protocol.AgentTypeDevOps ||
 		msg.From.Type == protocol.AgentTypeRepo ||
 		msg.From.Type == protocol.AgentTypeHelper ||
@@ -1005,6 +1041,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 						repliedToMsg.From.Type == protocol.AgentTypeDatabase ||
 						repliedToMsg.From.Type == protocol.AgentTypeSecurity ||
 						repliedToMsg.From.Type == protocol.AgentTypeRust ||
+						repliedToMsg.From.Type == protocol.AgentTypeBiology ||
 						repliedToMsg.From.Type == protocol.AgentTypeDevOps ||
 						repliedToMsg.From.Type == protocol.AgentTypeRepo ||
 						repliedToMsg.From.Type == protocol.AgentTypeHelper ||
@@ -1145,6 +1182,8 @@ func (a *Agent) getTypeKeywords() []string {
 			"iam", "ssl", "tls", "cors", "csrf", "rbac", "jwt", "oauth2", "secrets"}
 	case protocol.AgentTypeRust:
 		return []string{"rust", "cargo", "tokio", "ownership", "borrowing", "lifetime", "trait", "async", "unsafe", "wasm", "serde", "crate"}
+	case protocol.AgentTypeBiology:
+		return []string{"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr", "enzyme", "mutation", "pathway", "cell", "lab", "protocol"}
 	default:
 		return []string{}
 	}
@@ -1306,6 +1345,7 @@ func isAgentType(t protocol.AgentType) bool {
 		t == protocol.AgentTypeDatabase ||
 		t == protocol.AgentTypeSecurity ||
 		t == protocol.AgentTypeRust ||
+		t == protocol.AgentTypeBiology ||
 		t == protocol.AgentTypeDevOps ||
 		t == protocol.AgentTypeRepo ||
 		t == protocol.AgentTypeHelper ||
@@ -1320,6 +1360,14 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if designAnalysis, ok := msg.Metadata["design_analysis"].(bool); ok && designAnalysis {
 		return a.generateDesignAnalysisResponse(ctx, msg)
 	}
+	intent := a.classifyTurnIntentForMessage(msg)
+	a.logTurnIntent(intent, msg)
+	if intent == IntentClosure {
+		if resp, ok := tryConversationalClosure(a, msg); ok {
+			log.Printf("[%s] Conversational closure (no LLM): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+			return resp, nil
+		}
+	}
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
@@ -1328,12 +1376,12 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	// doesn't duplicate them.
 	includedFiles := collectIncludedFilePaths(msg)
 
-	prompt := a.buildPrompt(msg)
+	prompt := a.buildPromptForIntent(msg, intent)
 
 	// Auto-detect and load file paths referenced in the user's message.
 	wsPath := a.resolveWorkspacePath(msg)
 	referencedLoaded := 0
-	if wsPath != "" {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" {
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 		if referencedFiles.Len() > 0 {
@@ -1348,8 +1396,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	// This lets specialist agents (RustExpert, GoExpert, etc.) see project
 	// code even when the user doesn't mention specific file paths.
 	scannedLoaded := 0
-	if wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
-		existingContextSize := len(prompt) - len(a.buildPrompt(msg))
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
+		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
 		if existingContextSize < maxScanChars/2 {
 			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
 			if err != nil {
@@ -1369,11 +1417,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		}
 	}
 
-	// Get recent conversation history for context
-	history := a.Context.History[msg.Channel]
-	if len(history) > 10 {
-		history = history[len(history)-10:]
-	}
+	history := a.conversationHistoryForIntent(msg, intent)
 
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
@@ -1388,7 +1432,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
-	if len(a.agentToolDefinitions()) > 0 {
+	if len(a.agentToolDefinitions()) > 0 && providerSupportsNativeTools(eff) {
 		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 	}
 	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
@@ -1410,17 +1454,25 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		resp, err := a.generateDesignAnalysisResponse(ctx, msg)
 		return resp, "", "", err
 	}
+	intent := a.classifyTurnIntentForMessage(msg)
+	a.logTurnIntent(intent, msg)
+	if intent == IntentClosure {
+		if resp, ok := tryConversationalClosure(a, msg); ok {
+			log.Printf("[%s] Conversational closure (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+			return resp, "", "", nil
+		}
+	}
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
 
-	prompt := a.buildPrompt(msg)
+	prompt := a.buildPromptForIntent(msg, intent)
 
 	includedFiles := collectIncludedFilePaths(msg)
 
 	wsPath := a.resolveWorkspacePath(msg)
 	referencedLoaded := 0
-	if wsPath != "" {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" {
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
 		if referencedFiles.Len() > 0 {
@@ -1432,8 +1484,8 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	scannedLoaded := 0
-	if wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
-		existingContextSize := len(prompt) - len(a.buildPrompt(msg))
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
+		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
 		if existingContextSize < maxScanChars/2 {
 			scannedFiles, loadedCount, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
 			if scanErr != nil {
@@ -1445,7 +1497,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 	}
 
-	if shouldInjectWorkspaceCode(msg.Content) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && shouldInjectWorkspaceCode(msg.Content) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
 		if totalLoaded > 0 {
@@ -1453,10 +1505,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 	}
 
-	history := a.Context.History[msg.Channel]
-	if len(history) > 10 {
-		history = history[len(history)-10:]
-	}
+	history := a.conversationHistoryForIntent(msg, intent)
 
 	// Pre-create a stable message ID for the stream so the frontend can
 	// correlate deltas with the final message.
@@ -1483,7 +1532,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	// Tool loop (MCP / image generation) uses batch API; stream the final answer as one chunk.
-	if len(a.agentToolDefinitions()) > 0 {
+	if len(a.agentToolDefinitions()) > 0 && providerSupportsNativeTools(eff) {
 		text, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 		if err != nil {
 			return "", "", "", err
@@ -1499,11 +1548,67 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	if !ok || !sp.SupportsStreaming() {
 		return "", "", "", fmt.Errorf("internal: expected streaming-capable provider")
 	}
-	tokenCh, err := sp.GenerateResponseStream(approvalCtx, prompt, historyToMessages(history))
-	if err != nil {
-		return "", "", "", err
+
+	maxAttempts := 1
+	if a.useCompactOllamaPrompt(msg) {
+		maxAttempts = 3
 	}
-	return a.collectStreamTokens(msg, streamMsgID, tokenCh)
+	var lastErr error
+	attemptPrompt := prompt
+	streamProvider := eff
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if attempt > 0 && a.useCompactOllamaPrompt(msg) {
+			attemptPrompt = a.buildUltraCompactOllamaPrompt(msg)
+			history = nil
+			log.Printf("[%s] Retrying Ollama stream (attempt %d/%d, prompt %d bytes)", a.Info.Name, attempt+1, maxAttempts, len(attemptPrompt))
+		}
+		attemptSP, ok := streamProvider.(ai.StreamingProvider)
+		if !ok {
+			return "", "", "", fmt.Errorf("internal: expected streaming-capable provider")
+		}
+		tokenCh, err := attemptSP.GenerateResponseStream(approvalCtx, attemptPrompt, historyToMessages(history))
+		if err != nil {
+			return "", "", "", err
+		}
+		text, id, reasoning, err := a.collectStreamTokens(msg, streamMsgID, tokenCh)
+		if err != nil {
+			lastErr = err
+			if errors.Is(err, ai.ErrOllamaNoContent) && attempt+1 < maxAttempts {
+				continue
+			}
+			break
+		}
+		if looksLikeOllamaPromptLeak(text) && attempt+1 < maxAttempts {
+			log.Printf("[%s] Ollama reply looked like prompt echo; retrying", a.Info.Name)
+			continue
+		}
+		return text, id, reasoning, nil
+	}
+
+	if a.useCompactOllamaPrompt(msg) && errors.Is(lastErr, ai.ErrOllamaNoContent) {
+		if fb := ollamaFallbackProvider(eff, ai.OllamaBiologyFallbackModel); fb != nil {
+			log.Printf("[%s] nj-bio returned empty; trying fallback model %q", a.Info.Name, ai.OllamaBiologyFallbackModel)
+			fbSP, ok := fb.(ai.StreamingProvider)
+			if ok && fbSP.SupportsStreaming() {
+				fbPrompt := a.buildCompactOllamaPrompt(msg)
+				tokenCh, err := fbSP.GenerateResponseStream(approvalCtx, fbPrompt, nil)
+				if err == nil {
+					text, id, reasoning, err := a.collectStreamTokens(msg, streamMsgID, tokenCh)
+					if err == nil && strings.TrimSpace(text) != "" && !looksLikeOllamaPromptLeak(text) {
+						return text, id, reasoning, nil
+					}
+					if err != nil {
+						lastErr = err
+					}
+				}
+			}
+		}
+	}
+
+	if lastErr != nil {
+		return "", "", "", lastErr
+	}
+	return "", "", "", ai.ErrOllamaNoContent
 }
 
 // collectStreamTokens drains a stream channel, broadcasts deltas, emits stream_end, and returns full text.
@@ -1598,27 +1703,6 @@ func (a *Agent) isRepoOrHelperAgent() bool {
 	}
 }
 
-func classifyUserFacingError(err error) (message, code string, retryable bool) {
-	if err == nil {
-		return "Sorry, I encountered an unexpected error.", "unknown", true
-	}
-	lower := strings.ToLower(err.Error())
-
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ai.ErrCLIProviderTimeout) || strings.Contains(lower, "timed out") {
-		return "Sorry, the response timed out before completion. Please try again.", "timeout", true
-	}
-	if strings.Contains(lower, "429") || strings.Contains(lower, "rate limit") || strings.Contains(lower, "resource_exhausted") || strings.Contains(lower, "capacity") {
-		return "Sorry, the provider is rate-limited right now. Please try again in a moment.", "rate_limit", true
-	}
-	if strings.Contains(lower, "workspace trust") {
-		return "I couldn't run that because workspace trust is required for this agent. Please trust the workspace and try again.", "workspace_trust", false
-	}
-	if strings.Contains(lower, "not found") || strings.Contains(lower, "executable file") || strings.Contains(lower, "is not installed") {
-		return "I couldn't run the configured CLI agent because it is not available on this machine.", "provider_unavailable", false
-	}
-	return "Sorry, I encountered an error while generating a response. Please try again.", "provider_error", true
-}
-
 func truncationLabelForError(err error) string {
 	_, code, _ := classifyUserFacingError(err)
 	switch code {
@@ -1699,6 +1783,13 @@ func (a *Agent) resolveWorkspacePath(msg *protocol.Message) string {
 // AI providers that support a "system" role (Ollama, Claude, LM Studio) will
 // split on the separator and send the first part as a system message.
 func (a *Agent) buildPrompt(msg *protocol.Message) string {
+	if a.customPromptBuilder != nil {
+		return a.customPromptBuilder(msg)
+	}
+	if a.useCompactOllamaPrompt(msg) {
+		return a.buildCompactOllamaPrompt(msg)
+	}
+
 	var system strings.Builder
 	var user strings.Builder
 
@@ -1755,7 +1846,12 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("6. Keep responses focused and concise -- this is a bounded discussion.\n")
 		system.WriteString("7. Reference specific file paths, function names, and technical details.\n")
 
-		if collabInfo.Phase == "planning" {
+		if msg.Type == protocol.MessageTypeCollabRecap {
+			system.WriteString("\n=== SESSION RECAP (TO USER) ===\n")
+			system.WriteString("You are the designated facilitator. Write a clear recap **to the human user**, not to other agents.\n")
+			system.WriteString("Use markdown sections: what we set out to do, what was discussed/decided, plan and tasks OR accomplishments, research findings (even if no code shipped), open questions, and what the user should do next.\n")
+			system.WriteString("Do NOT emit TASK_STATUS lines, new plan blocks, or @mention other agents unless quoting them.\n")
+		} else if collabInfo.Phase == "planning" {
 			system.WriteString("\n=== PLANNING PHASE INSTRUCTIONS ===\n")
 			system.WriteString("Propose a structured plan with tasks assigned to agents based on their strengths.\n")
 			system.WriteString("Use this format for tasks:\n")
@@ -1882,7 +1978,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	AppendPromptAttachments(&user, msg)
 
 	// Append workspace context if the user shared it
-	AppendWorkspaceContext(&user, msg)
+	AppendWorkspaceContextForChannel(&user, msg, a.effectiveChannelType(msg.Channel))
 	AppendGrantedHubDataAccess(&user, msg)
 
 	// Adaptive response length based on intent
@@ -1915,6 +2011,14 @@ func getAgentTypeInstructions(agentType protocol.AgentType) string {
 Structure your findings by severity: Critical > High > Medium > Low.
 For each finding, cite the specific file, function, and line number.
 Provide a concrete fix or mitigation for each issue.`
+
+	case protocol.AgentTypeBiology:
+		return `You are a life-sciences research assistant (not a clinician).
+- Use analyze_sequence and fold_protein tools for sequences and structures; do not invent PDB files or assay results.
+- Clearly label in silico predictions vs wet-lab experimental needs.
+- For protocols, include controls, replicates, and safety considerations.
+- Refuse medical diagnosis or treatment advice; research and education only.
+- Cite tool outputs when you use them.`
 
 	case protocol.AgentTypeRust:
 		return `When asked to review or analyze Rust code, focus on:
@@ -1978,6 +2082,11 @@ Suggest optimized query alternatives with concrete SQL/code examples.`
 		return `You are a custom domain expert. Follow your persona and scoped rules above.
 Answer from the perspective of your stated expertise. Be practical and specific.
 If a question is outside your domain, say so briefly and offer what you can from adjacent knowledge.`
+
+	case protocol.AgentTypeAssistant:
+		return `You are a personal assistant in Neural Junkie (reminders, tasks, notes, scheduling).
+If the user thanks you or says you already answered, reply briefly and do NOT repeat prior facts or numbers.
+For geography, live traffic, or time-sensitive facts you cannot verify, give a cautious estimate or suggest Maps / an authoritative source.`
 
 	case protocol.AgentTypeDevOps:
 		return `When asked to review or analyze code, check:
@@ -2133,11 +2242,7 @@ Please analyze this design mockup and provide a comprehensive style guide with w
 
 Provide the output in a structured format with clear sections for CSS, HTML, and documentation.`
 
-	// Get recent conversation history for context
-	history := a.Context.History[msg.Channel]
-	if len(history) > 10 {
-		history = history[len(history)-10:]
-	}
+	history := historyForGeneration(a.Context.History[msg.Channel], msg.ID)
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	var response string
@@ -2296,6 +2401,11 @@ func (a *Agent) createZipFile(sourceDir, zipPath string) error {
 	// This is a simplified implementation
 	// In a real implementation, you'd use a proper ZIP library
 	return nil // Placeholder - would implement actual ZIP creation
+}
+
+func providerSupportsNativeTools(eff ai.AIProvider) bool {
+	tp, ok := eff.(ai.ToolCapableProvider)
+	return ok && tp.SupportsTools()
 }
 
 // historyToMessages converts protocol messages to a simpler format

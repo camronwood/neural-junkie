@@ -150,6 +150,12 @@ type Hub struct {
 	sessionHealthMu sync.RWMutex
 	sessionHealth   SessionSaveHealth
 
+	// Per-channel session summaries (dm/custom); persisted via ChannelSnapshot fields.
+	channelContext           map[string]*ChannelContextState
+	channelSummaryRefreshGen map[string]uint64
+	channelSummaryGen        ChannelSummaryGenerator
+	channelSummaryModel      string
+
 	mu sync.RWMutex
 }
 
@@ -164,7 +170,9 @@ func NewHub() *Hub {
 		threadParentAuthors: make(map[string]string),
 		subscribers:         make(map[string][]chan *protocol.Message),
 		threadSubscribers:   make(map[string][]chan *protocol.Message),
-		removedAgents:       make(map[string]*protocol.AgentInfo),
+		removedAgents:            make(map[string]*protocol.AgentInfo),
+		channelContext:           make(map[string]*ChannelContextState),
+		channelSummaryRefreshGen: make(map[string]uint64),
 	}
 
 	// Create default channel
@@ -194,6 +202,7 @@ func NewHub() *Hub {
 
 	// Initialize collaboration manager
 	hub.collabManager = collaboration.NewCollaborationManager(hub)
+	hub.wireCollaborationRecaps()
 
 	rulesStore, err := agent.NewAgentCustomRulesStorage()
 	if err != nil {
@@ -297,6 +306,29 @@ func (h *Hub) repairChannelTypesLocked() {
 	}
 }
 
+// channelListedInSidebarLocked reports whether a channel belongs in /api/channels and the
+// desktop sidebar. DM rows whose agent was unregistered (e.g. domain pack off) are omitted.
+// Caller must hold h.mu.
+func (h *Hub) channelListedInSidebarLocked(ch *protocol.Channel) bool {
+	if ch == nil {
+		return false
+	}
+	if inferChannelTypeForName(ch.Name, ch.Type) != protocol.ChannelTypeDM {
+		return true
+	}
+	for _, a := range ch.Agents {
+		if _, ok := h.agents[a.ID]; ok {
+			return true
+		}
+	}
+	for _, memberID := range ch.Members {
+		if _, ok := h.agents[memberID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // ListChannels returns all available channels in a stable order:
 // public first, then custom, then collaboration, then DM, alphabetical within each group.
 func (h *Hub) ListChannels() []*protocol.Channel {
@@ -304,7 +336,9 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 	h.repairChannelTypesLocked()
 	channels := make([]*protocol.Channel, 0, len(h.channels))
 	for _, ch := range h.channels {
-		channels = append(channels, ch)
+		if h.channelListedInSidebarLocked(ch) {
+			channels = append(channels, ch)
+		}
 	}
 	h.mu.Unlock()
 
@@ -613,6 +647,9 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		}
 	}
 
+	activityMsg := msg
+	defer h.noteChannelActivity(activityMsg)
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -771,6 +808,9 @@ func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
 	if collabID == "" || h.collabManager == nil {
 		return
 	}
+	if h.maybeProcessRecapReply(msg) {
+		return
+	}
 	if msg.Metadata != nil {
 		if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
 			return
@@ -880,7 +920,8 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 		return
 	}
 
-	inferred := collaboration.InferTaskStatusFromAgentReply(msg.Content)
+	strict := collabSnapshot.EffectiveExecutionPolicy().StrictTaskStatus
+	inferred := collaboration.InferTaskStatusFromAgentReply(msg.Content, strict)
 	var status collaboration.TaskStatus
 	var ok bool
 	if inferred != "" {
@@ -904,8 +945,16 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	if output == "" && (status == collaboration.TaskCompleted || status == collaboration.TaskBlocked) {
 		output = strings.TrimSpace(msg.Content)
 	}
-	if err := h.collabManager.UpdateTaskStatus(collabID, taskID, status, output); err != nil {
+	effects, err := h.collabManager.UpdateTaskStatusWithEffects(collabID, taskID, status, output)
+	if err != nil {
 		log.Printf("[Collaboration] Failed to update task %s in %s: %v", taskID, collabID[:8], err)
+		return
+	}
+	if effects.ShouldFailRun {
+		if _, err := h.collabManager.CancelCollaboration(collabID); err != nil {
+			log.Printf("[Collaboration] fail_run cancel %s: %v", collabID[:8], err)
+		}
+		h.broadcastCollabSystem(msg.Channel, collabID, "🚫 **Run stopped:** "+effects.FailRunReason)
 		return
 	}
 
@@ -955,11 +1004,11 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	}
 
 	if h.collabManager.AllTasksComplete(collabID) {
-		h.finalizeAndBroadcastCollaboration(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
+		h.requestFinalRecapAndFinalize(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
 		return
 	}
 
-	if status == collaboration.TaskCompleted {
+	if effects.ShouldDispatchWave {
 		if fresh, err := h.collabManager.GetCollaborationSnapshot(collabID); err == nil && fresh != nil && fresh.Phase == collaboration.PhaseExecuting {
 			h.dispatchReadyCollabTasks(fresh, msg, false)
 		}
@@ -998,6 +1047,9 @@ func (h *Hub) finalizeAndBroadcastCollaboration(collabID, channel, reason string
 		summary += ")."
 	} else if ch := strings.TrimSpace(c.Channel); ch != "" {
 		summary += fmt.Sprintf(" (channel #%s).", ch)
+	}
+	if strings.TrimSpace(c.SessionRecap) != "" {
+		summary += "\n\n---\n\n" + strings.TrimSpace(c.SessionRecap)
 	}
 
 	completedMsg := protocol.NewMessage(
@@ -1822,6 +1874,18 @@ func (h *Hub) SetCollaborationAssetsRootResolver(fn func() string) {
 	}
 }
 
+// GetCollaborationAssetsRoot returns the configured collaboration assets parent directory.
+func (h *Hub) GetCollaborationAssetsRoot() string {
+	if h.collabManager == nil {
+		return ""
+	}
+	dir, err := h.collabManager.CollabAssetsBaseDir()
+	if err != nil {
+		return ""
+	}
+	return dir
+}
+
 // ListCollaborationSnapshots returns collaboration snapshots suitable for UI
 // consumption. Data is deep-copied by the collaboration manager.
 func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) []*collaboration.Collaboration {
@@ -1908,9 +1972,13 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 	if snap == nil || snap.Phase != collaboration.PhaseExecuting || len(snap.Tasks) == 0 {
 		return 0
 	}
+	if snap.DispatchPaused {
+		return 0
+	}
 	if !h.CollaborationCanDispatchTasks(snap) {
 		return 0
 	}
+	maxParallel := snap.EffectiveExecutionPolicy().MaxConcurrentTasks
 	collabID := snap.ID
 	if h.collabManager != nil {
 		fresh, err := h.collabManager.GetCollaborationSnapshot(collabID)
@@ -1931,13 +1999,13 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			if !forceRedispatch && task.PromptDispatched {
 				continue
 			}
-			if !collaboration.IsTaskReady(task, snap.Tasks) {
+			if !collaboration.IsTaskReadyForCollab(task, snap) {
 				continue
 			}
 		} else if forceRedispatch {
 			switch task.Status {
 			case collaboration.TaskPending:
-				if !collaboration.IsTaskReady(task, snap.Tasks) {
+				if !collaboration.IsTaskReadyForCollab(task, snap) {
 					continue
 				}
 			case collaboration.TaskInProgress, collaboration.TaskBlocked:
@@ -1949,17 +2017,30 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			if task.Status != collaboration.TaskPending || task.PromptDispatched {
 				continue
 			}
-			if !collaboration.IsTaskReady(task, snap.Tasks) {
+			if !collaboration.IsTaskReadyForCollab(task, snap) {
 				continue
 			}
+		}
+
+		if maxParallel > 0 && sent >= maxParallel {
+			break
+		}
+
+		// Action tasks: execute on hub then mark complete (wave continues via status handler).
+		if task.EffectiveKind() == collaboration.TaskKindAction && task.Action != nil {
+			if h.executeCollabActionTask(snap, task) {
+				sent++
+			}
+			continue
 		}
 
 		mentionName := task.AssignedName
 		if mentionName == "" {
 			mentionName = "team"
 		}
+		handoffLimit := snap.EffectiveExecutionPolicy().HandoffMaxChars
 		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
-			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoff(task, snap.Tasks))
+			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit))
 		taskMsg := protocol.NewMessage(
 			protocol.MessageTypeCollabTask,
 			ch,
@@ -1982,6 +2063,18 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 				taskMsg.Metadata = map[string]interface{}{}
 			}
 			taskMsg.Metadata["task_assigned_to"] = task.AssignedTo
+		}
+		if task.Options != nil && task.Options.ProviderID != "" {
+			if taskMsg.Metadata == nil {
+				taskMsg.Metadata = map[string]interface{}{}
+			}
+			taskMsg.Metadata["task_provider_id"] = task.Options.ProviderID
+		}
+		if task.Options != nil && len(task.Options.ContextPaths) > 0 {
+			if taskMsg.Metadata == nil {
+				taskMsg.Metadata = map[string]interface{}{}
+			}
+			taskMsg.Metadata["task_context_paths"] = task.Options.ContextPaths
 		}
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
@@ -2328,12 +2421,14 @@ type SessionSaveHealth struct {
 
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Type        protocol.ChannelType `json:"type"`
-	CreatedBy   string               `json:"created_by,omitempty"`
-	Members     []string             `json:"members,omitempty"`
-	Messages    []*protocol.Message  `json:"messages"`
+	Name               string               `json:"name"`
+	Description        string               `json:"description"`
+	Type               protocol.ChannelType `json:"type"`
+	CreatedBy          string               `json:"created_by,omitempty"`
+	Members            []string             `json:"members,omitempty"`
+	Messages           []*protocol.Message  `json:"messages"`
+	SessionSummary     string               `json:"session_summary,omitempty"`
+	SessionSummaryAt   time.Time            `json:"session_summary_at,omitempty"`
 }
 
 // ThreadSnapshot holds all messages and metadata for a single thread.
@@ -2365,6 +2460,12 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 			CreatedBy:   ch.CreatedBy,
 			Members:     ch.Members,
 			Messages:    make([]*protocol.Message, 0),
+		}
+		if h.channelContext != nil {
+			if ctx := h.channelContext[name]; ctx != nil && ctx.Summary != "" {
+				cs.SessionSummary = ctx.Summary
+				cs.SessionSummaryAt = ctx.UpdatedAt
+			}
 		}
 		if msgs, ok := h.messages[name]; ok {
 			for _, m := range msgs {
@@ -2436,6 +2537,8 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 	h.threadMetadata = make(map[string]*protocol.ThreadMetadata)
 	h.subscribers = make(map[string][]chan *protocol.Message)
 	h.threadSubscribers = make(map[string][]chan *protocol.Message)
+	h.channelContext = make(map[string]*ChannelContextState)
+	h.channelSummaryRefreshGen = make(map[string]uint64)
 
 	for name, ch := range snapshot.Channels {
 		if ch == nil {
@@ -2455,6 +2558,12 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		h.channels[name] = channel
 		h.messages[name] = append([]*protocol.Message(nil), ch.Messages...)
 		h.subscribers[name] = []chan *protocol.Message{}
+		if strings.TrimSpace(ch.SessionSummary) != "" {
+			h.channelContext[name] = &ChannelContextState{
+				Summary:   ch.SessionSummary,
+				UpdatedAt: ch.SessionSummaryAt,
+			}
+		}
 	}
 	if len(h.channels) == 0 {
 		channel := &protocol.Channel{

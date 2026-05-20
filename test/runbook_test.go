@@ -110,6 +110,50 @@ func TestRunbookDAGExecutionViaHub(t *testing.T) {
 	}
 }
 
+func TestRunbookStrictTaskStatusIgnoresFuzzyDone(t *testing.T) {
+	h := hub.NewHub()
+	chName := "runbook-strict-status"
+	h.CreateChannel(chName, "rb", "")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "RustExpert", Type: protocol.AgentTypeRust, Status: "active"}
+	_ = h.RegisterAgent(a1)
+
+	now := time.Now()
+	policy := collaboration.ExecutionPolicy{StrictTaskStatus: true}
+	res, err := h.CreateRunbookSession(hub.RunbookCreateRequest{
+		Description: "strict",
+		AgentIDs:    []string{"a1"},
+		Channel:     chName,
+		CreatedBy:   "tester",
+		Tasks: []collaboration.CollaborationTask{
+			{ID: "t1", Title: "Work", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := h.UpdateRunbookSession(res.CollaborationID, collaboration.RunbookUpdatePayload{ExecutionPolicy: &policy}); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = h.GetCollaborationManager().SubmitRunbook(res.CollaborationID)
+	_, _ = h.StartRunbook(res.CollaborationID)
+	_ = h.AcknowledgeCollaborationWorkspace(res.CollaborationID, "")
+
+	ch := res.CollaborationChannel
+	reply := protocol.NewMessage(protocol.MessageTypeAnswer, ch, *a1, "All done and finished implementing.")
+	reply.SetCollaborationID(res.CollaborationID)
+	reply.SetCollaborationPhase(string(collaboration.PhaseExecuting))
+	reply.SetTaskID("t1")
+	_ = h.SendMessage(reply)
+
+	snap, _ := h.GetCollaborationManager().GetCollaborationSnapshot(res.CollaborationID)
+	for _, task := range snap.Tasks {
+		if task.ID == "t1" && task.Status == collaboration.TaskCompleted {
+			t.Fatal("strict policy should not infer completed without TASK_STATUS line")
+		}
+	}
+}
+
 func countCollabTaskMessages(msgs []*protocol.Message) int {
 	n := 0
 	for _, m := range msgs {

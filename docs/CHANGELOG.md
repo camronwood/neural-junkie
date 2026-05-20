@@ -6,6 +6,22 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.12] - 2026-05-20
+
+### Added
+- **Domain packs** — optional **Software development** and **Life sciences** packs in Settings → Domain packs; wizard focus tracks; fresh installs stay lean (Moderator, Assistant, CLI agents only until you enable a pack).
+- **Life sciences pack** — BiologyExpert, OpenBioLLM 8B, bio MCP tools (`analyze_sequence`, `fold_protein`), sequence review runbook template. See [docs/BIOLOGY_PACK.md](BIOLOGY_PACK.md).
+- **Context model** — turn intent router (closure / low-signal / meta / substantive) and rolling **session summary** for DMs (`qwen2.5:7b`). See [docs/CONTEXT_MODEL.md](CONTEXT_MODEL.md).
+- **Runbook action tasks** — deterministic `http_get`, `http_post`, `webhook`, and conditional edges; bundled **runbook templates** (`GET /api/runbook-templates`). See [docs/RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md).
+- **Collab recap** — end-of-collaboration summary messages in collab channels.
+- **Google Meet notes** — Assistant integration for meeting note ingestion (Settings).
+- **Marketing** — beta.12 feature ads (`assets/neural-junkie-*-ad-1080.png`); `./scripts/compose-beta12-ads.sh`; [docs/marketing/BETA12-ADS.md](marketing/BETA12-ADS.md).
+
+### Changed
+- **Specialist agents** — engineering specialists and MCP tool servers follow pack toggles (migration enables software-development pack when legacy config had dev agents enabled).
+- **Sidebar** — auto-unhide DM/collab/agent shortcuts when opened; stable hide keys survive agent restarts.
+- **Ollama** — native tool calling path and capability detection for supported models.
+
 ## [1.0.0-beta.11] - 2026-05-19
 
 ### Added

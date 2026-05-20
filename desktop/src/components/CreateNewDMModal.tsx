@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Channel } from '../types/protocol';
-import { ChatAPI } from '../api/chatAPI';
+import { ChatAPI, type ExpertPresetOption } from '../api/chatAPI';
 
-const PRESET_EXPERT_TYPES: { value: string; label: string }[] = [
-  { value: 'assistant', label: 'Assistant' },
-  { value: 'rust', label: 'Rust' },
-  { value: 'backend', label: 'Backend' },
-  { value: 'frontend', label: 'Frontend' },
-  { value: 'devops', label: 'DevOps' },
-  { value: 'database', label: 'Database' },
-  { value: 'security', label: 'Security' },
-];
+const FALLBACK_EXPERT_PRESETS: ExpertPresetOption[] = [{ slug: 'assistant', label: 'Assistant' }];
 
 const CUSTOM_EXPERT_VALUE = '__custom__';
 
@@ -49,6 +41,7 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
   const [workDir, setWorkDir] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [expertPresets, setExpertPresets] = useState<ExpertPresetOption[]>(FALLBACK_EXPERT_PRESETS);
 
   const reset = useCallback(() => {
     setTab('expert');
@@ -75,7 +68,24 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
   useEffect(() => {
     if (!isOpen) return;
     setFormError(null);
-  }, [isOpen, tab]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const presets = await api.fetchExpertPresets();
+        if (!cancelled && presets.length > 0) {
+          setExpertPresets(presets);
+          if (!presets.some(p => p.slug === expertType)) {
+            setExpertType(presets[0].slug);
+          }
+        }
+      } catch {
+        if (!cancelled) setExpertPresets(FALLBACK_EXPERT_PRESETS);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, api]);
 
   useEffect(() => {
     if (!isOpen || tab !== 'expert') return;
@@ -281,9 +291,9 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
                     onChange={e => setExpertType(e.target.value)}
                     className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
                   >
-                    {PRESET_EXPERT_TYPES.map(o => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
+                    {expertPresets.map(o => (
+                      <option key={o.slug} value={o.slug}>
+                        {o.from_pack ? `${o.label} (pack)` : o.label}
                       </option>
                     ))}
                     <option value={CUSTOM_EXPERT_VALUE}>Custom…</option>
@@ -376,7 +386,7 @@ export function CreateNewDMModal({ api, username, isOpen, onClose, onCreated }: 
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-slack-textMuted mt-1">Uses HF Inference (cloud). Set HF_TOKEN on the hub.</p>
+                    <p className="text-xs text-slack-textMuted mt-1">Uses HF Inference (cloud). Set Hugging Face hub token in Settings.</p>
                   </div>
                 )}
                 {provider !== 'claude' && provider !== 'huggingface' && provider !== 'registry' && (

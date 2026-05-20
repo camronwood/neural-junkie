@@ -31,6 +31,7 @@ const (
 	MessageTypeCollabTask        MessageType = "collaboration_task"
 	MessageTypeCollabStatus      MessageType = "collaboration_status"
 	MessageTypeCollabDiscussion  MessageType = "collaboration_discussion"
+	MessageTypeCollabRecap       MessageType = "collaboration_recap"
 )
 
 // AgentType defines the specialty of an agent
@@ -43,6 +44,7 @@ const (
 	AgentTypeDatabase   AgentType = "database"
 	AgentTypeSecurity   AgentType = "security"
 	AgentTypeRust       AgentType = "rust"
+	AgentTypeBiology    AgentType = "biology"
 	AgentTypeGeneral    AgentType = "general"
 	AgentTypeRepo       AgentType = "repo"
 	AgentTypeHelper     AgentType = "helper"     // Custom helper/expert agents
@@ -210,7 +212,8 @@ func IsActionableMentionType(msgType MessageType) bool {
 		MessageTypeAnswer,
 		MessageTypeCollabDiscussion,
 		MessageTypeCollabTask,
-		MessageTypeCollabPlan:
+		MessageTypeCollabPlan,
+		MessageTypeCollabRecap:
 		return true
 	default:
 		return false

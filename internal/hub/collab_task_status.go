@@ -40,6 +40,6 @@ func (h *Hub) maybeSyncTaskStatusFromPlanHandoff(msg *protocol.Message, collabID
 	}
 
 	if h.collabManager.AllTasksComplete(collabID) {
-		h.finalizeAndBroadcastCollaboration(collabID, channel, "All tasks are done.", collaboration.FinalizeOptions{})
+		h.requestFinalRecapAndFinalize(collabID, channel, "All tasks are done.", collaboration.FinalizeOptions{})
 	}
 }

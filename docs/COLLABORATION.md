@@ -56,7 +56,26 @@ Open the visual task graph from:
 - **Runbook builder** — **Graph** (draft/reviewing): drag nodes, connect edges (upstream → downstream = dependency), edit title/assignee in the inspector, **Auto-layout**, **Save & close** (same as Save draft).
 - **Collaboration panel** — **View graph** (any collaboration with tasks, including `/collaborate` and executing runbooks): read-only topology with live status; pan/zoom and optional node drag for layout only.
 
-Edges mean “target waits for source.” Cycles are rejected before save (client and server). Layout positions are stored locally per collaboration id (`localStorage`); task data uses the existing runbook/collaboration APIs.
+Edges mean “target waits for source.” Cycles are rejected before save (client and server). Layout positions are stored on the collaboration (`graph_layout` via PUT runbook) with `localStorage` fallback.
+
+### Execution policy (runbook / collaboration)
+
+| Field | Values | Effect |
+|-------|--------|--------|
+| `blocked_upstream_policy` | `block` (default), `skip_branch`, `fail_run` | How blocked upstream tasks affect downstream readiness |
+| `max_concurrent_tasks` | 0 = unlimited | Cap prompts dispatched per wave |
+| `max_execution_messages` | default 100 | Agent chat cap during execution |
+| `strict_task_status` | default true for runbooks | Only `TASK_STATUS:` lines update task state (no keyword guessing) |
+
+### Task controls (executing)
+
+Desktop collaboration panel and REST:
+
+- `POST /api/collaborations/:id/tasks/:taskId/complete` — mark done and unlock DAG wave
+- `POST .../skip`, `.../redispatch`, `.../reassign`, `.../approve`
+- `POST /api/collaborations/:id/pause` / `resume` — pause dispatch without cancelling
+
+See [RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md) for **action** task types (HTTP, webhook, web search, SMS).
 
 ### Runbook HTTP API
 
@@ -195,6 +214,8 @@ Shows active collaborations or details for one collaboration.
    - Tasks are proposed and assigned.
 2. **reviewing**
    - Plan is presented to the user.
+   - The **last agent who spoke** in planning delivers a **session summary** recap to you (research-only sessions included).
+   - **`/approve-plan` and Resume plan are blocked** until that recap is posted (or the hub times out and posts a fallback summary).
    - User approves, revises, or cancels.
 3. **approved**
    - Transitional state after `/approve-plan` (before execution starts).
@@ -207,6 +228,16 @@ Shows active collaborations or details for one collaboration.
 5. **completed** or **cancelled**
    - **Automatic:** when every task is `completed` (agents report `TASK_STATUS: completed`, plan handoff lines like `Task N — Complete`, or `/collab-task-done`).
    - **Manual:** `/complete-collab` or UI **Mark collaboration done**.
+   - Before the collaboration is marked **completed**, the **last speaker** during execution (fallback: planning recap agent, then first participant) posts a **final session summary** — accomplishments, research, open questions, and next steps — even when no files were changed.
+
+### Session recaps (two checkpoints)
+
+| When | Who | What you see |
+|------|-----|----------------|
+| Planning → **reviewing** | Last planning speaker | Pre-approval summary in the collab channel; pinned in the collaboration panel. Unlocks `/approve-plan`. |
+| All tasks done / **complete-collab** | Last execution speaker | Final summary in channel + completion status; panel shows `session_recap`. |
+
+If an agent does not respond within ~90 seconds, the hub generates a fallback summary so sessions do not hang.
 
 ### Task status signaling (execution)
 

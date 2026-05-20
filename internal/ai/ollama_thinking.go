@@ -7,8 +7,16 @@ import (
 )
 
 var (
-	errOllamaNoContent      = errors.New("no content in response")
-	errOllamaReasoningOnly  = errors.New("model returned reasoning only; try again or use a non-reasoning model")
+	// ErrOllamaNoContent is returned when Ollama completes without assistant text.
+	ErrOllamaNoContent = errors.New("no content in response")
+	// ErrOllamaReasoningOnly is returned when only thinking/reasoning text arrived.
+	ErrOllamaReasoningOnly = errors.New("model returned reasoning only; try again or use a non-reasoning model")
+)
+
+// errOllamaNoContent and errOllamaReasoningOnly are aliases kept for internal use.
+var (
+	errOllamaNoContent     = ErrOllamaNoContent
+	errOllamaReasoningOnly = ErrOllamaReasoningOnly
 )
 
 // ollamaModelWantsThinking reports whether the model should use Ollama's think API.

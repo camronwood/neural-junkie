@@ -16,6 +16,7 @@ const ICON_GRADIENTS: Record<string, { from: string; to: string; label: string }
   llava: { from: '#9333ea', to: '#7e22ce', label: 'LLaVA' },
   granite: { from: '#475569', to: '#334155', label: 'Granite' },
   starcoder: { from: '#16a34a', to: '#15803d', label: 'StarCoder' },
+  bio: { from: '#0d9488', to: '#0f766e', label: 'Biology' },
   embedding: { from: '#64748b', to: '#475569', label: 'Embedding' },
 };
 
@@ -28,6 +29,7 @@ const TAG_GRADIENTS: Record<string, { from: string; to: string; label: string }>
   large: { from: '#dc2626', to: '#b91c1c', label: 'Large' },
   small: { from: '#65a30d', to: '#4d7c0f', label: 'Compact' },
   recommended: { from: '#ca8a04', to: '#a16207', label: 'Featured' },
+  biology: { from: '#0d9488', to: '#0f766e', label: 'Life sciences' },
 };
 
 function monogramFromTitle(title: string): string {

@@ -27,6 +27,7 @@ func TestAttachCollaborationDataDoesNotDispatchTasks(t *testing.T) {
 	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
 		t.Fatalf("reviewing: %v", err)
 	}
+	completePlanningRecapForHubTest(t, cm, collab.ID)
 	if _, err := cm.ApprovePlan(collab.ID); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
@@ -81,9 +82,7 @@ func TestDispatchCollabTaskMessagesSkipsWhenAlreadyDispatched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	_, _ = cm.TransitionToReviewing(collab.ID)
-	_, _ = cm.ApprovePlan(collab.ID)
-	_, _ = cm.TransitionToExecuting(collab.ID)
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
 	_, _ = cm.EnsureExecutionTasks(collab.ID)
 	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
 
@@ -136,9 +135,7 @@ func TestDispatchWaveDAGOnlyReadyTasks(t *testing.T) {
 	if err := cm.SetTasks(collab.ID, tasks); err != nil {
 		t.Fatalf("SetTasks: %v", err)
 	}
-	_, _ = cm.TransitionToReviewing(collab.ID)
-	_, _ = cm.ApprovePlan(collab.ID)
-	_, _ = cm.TransitionToExecuting(collab.ID)
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
 	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
 
 	snap, _ := cm.GetCollaborationSnapshot(collab.ID)
@@ -187,9 +184,7 @@ func TestSendMessageTaskCompleteDispatchesDependentWave(t *testing.T) {
 	if err := cm.SetTasks(collab.ID, tasks); err != nil {
 		t.Fatalf("SetTasks: %v", err)
 	}
-	_, _ = cm.TransitionToReviewing(collab.ID)
-	_, _ = cm.ApprovePlan(collab.ID)
-	_, _ = cm.TransitionToExecuting(collab.ID)
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
 	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
 
 	snap, _ := cm.GetCollaborationSnapshot(collab.ID)
@@ -240,9 +235,7 @@ func TestDispatchHandoffIncludesUpstreamOutput(t *testing.T) {
 		{ID: "t1", Title: "Upstream", AssignedTo: "a1", AssignedName: "AgentA", Status: collaboration.TaskCompleted, Output: "built the API", CreatedAt: now, UpdatedAt: now},
 		{ID: "t2", Title: "Downstream", AssignedTo: "a2", AssignedName: "AgentB", Status: collaboration.TaskPending, Dependencies: []string{"t1"}, CreatedAt: now, UpdatedAt: now},
 	})
-	_, _ = cm.TransitionToReviewing(collab.ID)
-	_, _ = cm.ApprovePlan(collab.ID)
-	_, _ = cm.TransitionToExecuting(collab.ID)
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
 	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
 
 	snap, _ := cm.GetCollaborationSnapshot(collab.ID)

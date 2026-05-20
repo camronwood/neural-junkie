@@ -3,8 +3,7 @@ package mcp
 import (
 	"fmt"
 	"log"
-	"os"
-	"strconv"
+	"strings"
 
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -25,31 +24,28 @@ var defaultPorts = map[string]int{
 	"DATABASE": 8083,
 	"FRONTEND": 8084,
 	"SECURITY": 8085,
+	"BIOLOGY":  8087,
 }
 
-// GetMCPServerConfig returns configuration for a specific agent type
+// GetMCPServerConfig returns configuration for a specific agent type (BACKEND, BIOLOGY, …).
+// Enablement comes from hub config (Settings → MCP / domain packs), not environment variables.
 func GetMCPServerConfig(agentType string) *MCPServerConfig {
-	enabled := os.Getenv("ENABLE_MCP") == "true"
-
-	agentFlag := fmt.Sprintf("ENABLE_%s_MCP", agentType)
-	agentEnabled := os.Getenv(agentFlag) == "true"
-
-	portFlag := fmt.Sprintf("MCP_%s_PORT", agentType)
-	portStr := os.Getenv(portFlag)
-	port := defaultPorts[agentType]
+	key := strings.ToUpper(strings.TrimSpace(agentType))
+	port := defaultPorts[key]
 	if port == 0 {
 		port = 8081
 	}
-	if portStr != "" {
-		if p, err := strconv.Atoi(portStr); err == nil {
+	enabled := false
+	if cfg := AppConfig(); cfg != nil {
+		enabled = cfg.MCPEnabledForAgent(key)
+		if p := cfg.MCPPort(key); p > 0 {
 			port = p
 		}
 	}
-
 	return &MCPServerConfig{
-		Enabled: enabled && agentEnabled,
+		Enabled: enabled,
 		Port:    port,
-		Name:    fmt.Sprintf("%s-agent-mcp", agentType),
+		Name:    fmt.Sprintf("%s-agent-mcp", strings.ToLower(key)),
 		Version: "1.0.0",
 	}
 }

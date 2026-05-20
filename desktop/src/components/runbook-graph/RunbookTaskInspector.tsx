@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { CollaborationAgent, CollaborationTask } from '../../types/protocol';
+import { TaskDependenciesEditor } from '../runbook/TaskDependenciesEditor';
 
 const inputStyle: CSSProperties = {
   width: '100%',
@@ -17,18 +18,22 @@ const inputStyle: CSSProperties = {
 interface RunbookTaskInspectorProps {
   task: CollaborationTask;
   taskIndex: number;
+  tasks: CollaborationTask[];
   agents: CollaborationAgent[];
   editable: boolean;
   onUpdate: (patch: Partial<CollaborationTask>) => void;
+  onUpdateDependencies: (deps: string[]) => void;
   onDelete: () => void;
 }
 
 export function RunbookTaskInspector({
   task,
   taskIndex,
+  tasks,
   agents,
   editable,
   onUpdate,
+  onUpdateDependencies,
   onDelete,
 }: RunbookTaskInspectorProps) {
   return (
@@ -87,6 +92,14 @@ export function RunbookTaskInspector({
           ))}
         </select>
       </label>
+      {tasks.length > 1 ? (
+        <TaskDependenciesEditor
+          taskIndex={taskIndex}
+          tasks={tasks}
+          disabled={!editable}
+          onChange={onUpdateDependencies}
+        />
+      ) : null}
       {editable ? (
         <button
           type="button"

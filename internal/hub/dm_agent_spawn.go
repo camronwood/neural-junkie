@@ -16,6 +16,7 @@ import (
 // Preset expert slugs for engineering specialists (used by /create-expert and DM spawn).
 var presetExpertTypes = map[string]protocol.AgentType{
 	"rust":      protocol.AgentTypeRust,
+	"biology":   protocol.AgentTypeBiology,
 	"backend":   protocol.AgentTypeBackend,
 	"frontend":  protocol.AgentTypeFrontend,
 	"devops":    protocol.AgentTypeDevOps,
@@ -340,6 +341,11 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 	createdBy = strings.TrimSpace(createdBy)
 	if createdBy == "" {
 		return nil, fmt.Errorf("created_by is required")
+	}
+	if ch.appConfig != nil {
+		if denied := ch.appConfig.PresetExpertDeniedMessage(expertSlug); denied != "" {
+			return nil, fmt.Errorf("%s", denied)
+		}
 	}
 	spec, err := ResolveExpert(expertSlug, persona)
 	if err != nil {

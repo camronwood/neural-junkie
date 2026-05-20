@@ -2,7 +2,7 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
@@ -14,7 +14,17 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
 
 ---
 
-## X / Mastodon (beta.11)
+## X / Mastodon (beta.12)
+
+Neural Junkie v1.0.0-beta.12 — **Domain packs**: Software dev specialists (Go, React, Rust, MCP) or **Life sciences** (BiologyExpert, sequences, ESMFold). **Session memory** for DMs, **runbook action** steps (HTTP/webhook + templates). macOS / Windows / Linux installers.
+
+Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+
+**Ads:** `docs/marketing/BETA12-ADS.md` · `./scripts/compose-beta12-ads.sh all`
+
+---
+
+## X / Mastodon (beta.11) — archived
 
 Neural Junkie v1.0.0-beta.11 — **Runbook builder**: plan multi-step work in a visual DAG (RB button or `/runbook`), assign agents, import markdown, start execution. Plus git worktree collabs, model library, HF, MCP. macOS / Windows / Linux installers.
 

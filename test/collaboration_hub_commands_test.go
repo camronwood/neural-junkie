@@ -176,6 +176,7 @@ func TestSlashApprovePlanStartsExecution(t *testing.T) {
 	if _, err := cm.TransitionToReviewing(id); err != nil {
 		t.Fatalf("TransitionToReviewing: %v", err)
 	}
+	ensurePlanningRecapComplete(t, cm, id)
 
 	approve := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
@@ -233,6 +234,7 @@ func TestSlashApprovePlan_NoTaskMessagesUntilWorkspaceAck(t *testing.T) {
 	if _, err := cm.TransitionToReviewing(id); err != nil {
 		t.Fatalf("TransitionToReviewing: %v", err)
 	}
+	ensurePlanningRecapComplete(t, cm, id)
 
 	approve := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
@@ -340,6 +342,7 @@ func TestSlashCompleteCollabRequiresForceWhenOpenTasks(t *testing.T) {
 		{ID: "t1", Title: "HTML", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending},
 	})
 	_, _ = cm.TransitionToReviewing(id)
+	ensurePlanningRecapComplete(t, cm, id)
 	_, _ = cm.ApprovePlan(id)
 	_, _ = cm.TransitionToExecuting(id)
 
@@ -356,10 +359,59 @@ func TestSlashCompleteCollabRequiresForceWhenOpenTasks(t *testing.T) {
 	if err := h.SendMessage(force); err != nil {
 		t.Fatalf("complete-collab --force: %v", err)
 	}
+	finishExecutingCollabViaRecap(t, h, id)
 	got, _ = cm.GetCollaboration(id)
 	if got.Phase != collaboration.PhaseCompleted {
 		t.Fatalf("expected completed, got %s", got.Phase)
 	}
+}
+
+func TestSlashCollabTaskDoneDispatchesNextWave(t *testing.T) {
+	h := hub.NewHub()
+	registerTwoCollabAgents(t, h)
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("wave", []string{"a1", "a2"}, "general", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := collab.Channel
+	if ch == "" {
+		ch = "general"
+	}
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "First", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending},
+		{ID: "t2", Title: "Second", AssignedTo: "a2", AssignedName: "SecurityExpert", Status: collaboration.TaskPending, Dependencies: []string{"t1"}},
+	})
+	_, _ = cm.TransitionToReviewing(collab.ID)
+	ensurePlanningRecapComplete(t, cm, collab.ID)
+	_, _ = cm.ApprovePlan(collab.ID)
+	_, _ = cm.TransitionToExecuting(collab.ID)
+	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
+	h.DispatchReadyCollabTasksForSnapshot(mustCollabSnap(t, cm, collab.ID), false)
+
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, ch, humanTester(), "/collab-task-done "+collab.ID[:8]+" 1")
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("collab-task-done: %v", err)
+	}
+	msgs, _ := h.GetMessages(ch, 50)
+	var taskMsgs int
+	for _, m := range msgs {
+		if m.Type == protocol.MessageTypeCollabTask {
+			taskMsgs++
+		}
+	}
+	if taskMsgs < 2 {
+		t.Fatalf("expected at least 2 collab_task after completing task 1, got %d", taskMsgs)
+	}
+}
+
+func mustCollabSnap(t *testing.T, cm *collaboration.CollaborationManager, id string) *collaboration.Collaboration {
+	t.Helper()
+	s, err := cm.GetCollaborationSnapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }
 
 func TestSlashCollabTaskDoneCompletesCollaboration(t *testing.T) {
@@ -375,6 +427,7 @@ func TestSlashCollabTaskDoneCompletesCollaboration(t *testing.T) {
 		{ID: "t1", Title: "Only", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending},
 	})
 	_, _ = cm.TransitionToReviewing(collab.ID)
+	ensurePlanningRecapComplete(t, cm, collab.ID)
 	_, _ = cm.ApprovePlan(collab.ID)
 	_, _ = cm.TransitionToExecuting(collab.ID)
 
@@ -382,6 +435,7 @@ func TestSlashCollabTaskDoneCompletesCollaboration(t *testing.T) {
 	if err := h.SendMessage(msg); err != nil {
 		t.Fatalf("collab-task-done: %v", err)
 	}
+	finishExecutingCollabViaRecap(t, h, collab.ID)
 	got, _ := cm.GetCollaboration(collab.ID)
 	if got.Phase != collaboration.PhaseCompleted {
 		t.Fatalf("expected completed, got %s", got.Phase)

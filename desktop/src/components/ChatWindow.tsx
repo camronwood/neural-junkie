@@ -24,6 +24,12 @@ import {
 import { HubDataAccessModal } from './HubDataAccessModal';
 import { shouldSendChannelJoinMessage } from '../utils/joinMessage';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
+import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
+import {
+  patchRevealForChannel,
+  patchRevealSidebarItems,
+} from '../utils/sidebarVisibility';
 import { MessageList } from './MessageList';
 import { TypingIndicator } from './TypingIndicator';
 import { RichTextInput } from './RichTextInput';
@@ -134,8 +140,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const setMyAgentsPanelOpen = useChatStore((s) => s.setMyAgentsPanelOpen);
 
   const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
-  const { layoutSettings, loadLayoutSettings } = useSettingsStore();
+  const { layoutSettings, loadLayoutSettings, updateSettings } = useSettingsStore();
   const addToast = useToastStore(s => s.addToast);
+
+  useSidebarAutoUnhide(agents, channels);
 
   // State for tracking counts
   const [totalAgentsCount, setTotalAgentsCount] = useState(0);
@@ -519,10 +527,28 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [trackedCollaborations]
   );
 
+  const revealSidebarForChannel = useCallback(
+    (channelName: string) => {
+      const { settings, isLoaded } = useSettingsStore.getState();
+      if (!isLoaded) return;
+      const patch = patchRevealForChannel(
+        settings,
+        channelName,
+        useChatStore.getState().channels,
+        useChatStore.getState().agents
+      );
+      if (patch) {
+        void updateSettings(patch);
+      }
+    },
+    [updateSettings]
+  );
+
   // Handle switching channel: switch store state, then load fresh messages
   const handleSwitchChannel = useCallback(
     async (channelName: string) => {
       if (channelName === useChatStore.getState().channel) return;
+      revealSidebarForChannel(channelName);
       // Collaboration side panel is channel-scoped; clear when navigating.
       setActiveCollab(null);
       useChatStore.getState().switchChannel(channelName);
@@ -536,7 +562,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         console.error('Failed to load messages for channel:', error);
       }
     },
-    [api, loadCollaborations]
+    [api, loadCollaborations, revealSidebarForChannel]
   );
 
   const handleNewRunbook = useCallback(async () => {
@@ -629,12 +655,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const handleCreateDM = useCallback(async (agentId: string) => {
     try {
       const ch = await api.createChannel('', '', 'dm', [agentId], username);
+      const { settings, isLoaded } = useSettingsStore.getState();
+      const agent = useChatStore.getState().agents.find((a) => a.id === agentId);
+      if (isLoaded) {
+        const patch = patchRevealSidebarItems(settings, {
+          agentIds: [agentId],
+          agentSidebarKeys: agent ? [agentSidebarHideKey(agent)] : undefined,
+          dmChannelNames: [ch.name],
+        });
+        if (patch) {
+          void updateSettings(patch);
+        }
+      }
       await loadChannels();
       await handleSwitchChannel(ch.name);
     } catch (error) {
       console.error('Failed to create DM channel:', error);
     }
-  }, [api, username, loadChannels, handleSwitchChannel]);
+  }, [api, username, loadChannels, handleSwitchChannel, updateSettings]);
 
   const handleNewDmCreated = useCallback(
     async (ch: Channel) => {
@@ -648,6 +686,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         const merged = channelList.some((c) => c.name === ch.name) ? channelList : [...channelList, ch];
         useChatStore.getState().setChannels(merged);
         await loadAgents();
+        const { settings, isLoaded } = useSettingsStore.getState();
+        if (isLoaded) {
+          const patch = patchRevealForChannel(
+            settings,
+            ch.name,
+            merged,
+            useChatStore.getState().agents
+          );
+          if (patch) {
+            void updateSettings(patch);
+          }
+        }
         await handleSwitchChannel(ch.name);
       } catch (e) {
         console.error('Failed after creating DM agent:', e);
@@ -658,7 +708,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         });
       }
     },
-    [addToast, api, loadAgents, handleSwitchChannel]
+    [addToast, api, loadAgents, handleSwitchChannel, updateSettings]
   );
 
   // Debounced agent refresh (prevents excessive API calls).
@@ -1499,7 +1549,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 <>
                   Collaboration complete —{' '}
                   {collaborationForChannel.tasks?.filter(t => t.status === 'completed').length ?? 0}/
-                  {collaborationForChannel.tasks?.length ?? 0} tasks done. This channel is read-only.
+                  {collaborationForChannel.tasks?.length ?? 0} tasks done.
+                  {collaborationForChannel.session_recap?.trim() ? (
+                    <>
+                      {' '}
+                      {collaborationForChannel.session_recap.trim().split('\n')[0].slice(0, 120)}
+                      {collaborationForChannel.session_recap.trim().length > 120 ? '…' : ''}
+                    </>
+                  ) : null}{' '}
+                  This channel is read-only.
                 </>
               )}
             </div>
@@ -1741,6 +1799,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           channel={channelInfoModal}
           agents={agents}
           onClose={() => setChannelInfoModal(null)}
+          onClearHistory={async (name) => {
+            await api.clearChannelHistory(name);
+            const msgs = await api.fetchMessages(name, 50);
+            useChatStore.getState().setMessages(msgs);
+            addToast('Channel history cleared', 'success');
+          }}
         />
       )}
 

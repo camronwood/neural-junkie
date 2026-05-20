@@ -49,8 +49,14 @@ var disagreementPhrases = []string{
 // AnalyzeConsensus examines a message for agreement/disagreement signals
 // and updates the discussion's consensus map. Returns the detected state.
 func (cm *CollaborationManager) AnalyzeConsensus(collabID string, msg *protocol.Message) ConsensusState {
+	var notifyReviewing string
 	cm.mu.Lock()
-	defer cm.mu.Unlock()
+	defer func() {
+		cm.mu.Unlock()
+		if notifyReviewing != "" && cm.onEnterReviewing != nil {
+			go cm.onEnterReviewing(notifyReviewing)
+		}
+	}()
 
 	c, ok := cm.collaborations[collabID]
 	if !ok || c.Discussion == nil {
@@ -74,9 +80,11 @@ func (cm *CollaborationManager) AnalyzeConsensus(collabID string, msg *protocol.
 		}
 		if allAgreed {
 			c.Discussion.Status = DiscussionConverged
-			c.Phase = PhaseReviewing
-			c.UpdatedAt = msg.Timestamp
-			log.Printf("[Consensus] Collaboration %s converged and moved to reviewing", collabID[:8])
+			if cm.enterReviewingFromPlanningLocked(c) {
+				notifyReviewing = collabID
+				c.UpdatedAt = msg.Timestamp
+				log.Printf("[Consensus] Collaboration %s converged and moved to reviewing", collabID[:8])
+			}
 		}
 	}
 

@@ -7,8 +7,8 @@ import (
 
 var taskStatusLineRE = regexp.MustCompile(`(?im)^\s*TASK_STATUS\s*:\s*(pending|in_progress|completed|blocked)\s*$`)
 
-// InferTaskStatusFromAgentReply extracts an explicit TASK_STATUS line or conservative phrases.
-func InferTaskStatusFromAgentReply(content string) TaskStatus {
+// InferTaskStatusFromAgentReply extracts TASK_STATUS line; optional fuzzy heuristics when not strict.
+func InferTaskStatusFromAgentReply(content string, strict bool) TaskStatus {
 	if m := taskStatusLineRE.FindStringSubmatch(content); len(m) >= 2 {
 		switch strings.ToLower(strings.TrimSpace(m[1])) {
 		case string(TaskPending):
@@ -20,6 +20,9 @@ func InferTaskStatusFromAgentReply(content string) TaskStatus {
 		case string(TaskBlocked):
 			return TaskBlocked
 		}
+	}
+	if strict {
+		return ""
 	}
 	return inferTaskStatusFromContent(content)
 }

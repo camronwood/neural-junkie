@@ -6,7 +6,7 @@ import type { Collaboration, CollaborationAgent, CollaborationTask } from '../ty
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { RunbookImportModal } from './RunbookImportModal';
 import { RunbookGraphModal } from './runbook-graph';
-import { createEmptyTask } from '../utils/runbookTaskUtils';
+import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../utils/runbookTaskUtils';
 
 interface RunbookBuilderPanelProps {
   collaboration: Collaboration;
@@ -30,6 +30,9 @@ export function RunbookBuilderPanel({
   const [tasks, setTasks] = useState<CollaborationTask[]>(
     collaboration.tasks?.length ? collaboration.tasks : [createEmptyTask()]
   );
+  const [executionPolicy, setExecutionPolicy] = useState(
+    collaboration.execution_policy ?? { blocked_upstream_policy: 'block' as const, strict_task_status: true }
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,6 +55,8 @@ export function RunbookBuilderPanel({
         description: description.trim(),
         agent_ids: agentPool,
         tasks: normalized,
+        execution_policy: executionPolicy,
+        graph_layout: collaboration.graph_layout,
       });
       onSaved(snap);
       return snap;
@@ -185,13 +190,88 @@ export function RunbookBuilderPanel({
           />
         </label>
 
+        <SectionTitle>Execution policy</SectionTitle>
+        <label style={labelStyle}>
+          Blocked upstream
+          <select
+            value={executionPolicy.blocked_upstream_policy ?? 'block'}
+            onChange={(e) =>
+              setExecutionPolicy((p) => ({
+                ...p,
+                blocked_upstream_policy: e.target.value as 'block' | 'skip_branch' | 'fail_run',
+              }))
+            }
+            disabled={!editable || busy}
+            style={inputStyle}
+          >
+            <option value="block">Block downstream</option>
+            <option value="skip_branch">Skip branch</option>
+            <option value="fail_run">Fail run</option>
+          </select>
+        </label>
+        <label style={labelStyle}>
+          Max parallel tasks (0 = unlimited)
+          <input
+            type="number"
+            min={0}
+            value={executionPolicy.max_concurrent_tasks ?? 0}
+            onChange={(e) =>
+              setExecutionPolicy((p) => ({
+                ...p,
+                max_concurrent_tasks: parseInt(e.target.value, 10) || 0,
+              }))
+            }
+            disabled={!editable || busy}
+            style={inputStyle}
+          />
+        </label>
+
         <SectionTitle>Agent pool</SectionTitle>
         <AgentPoolPicker hubAgents={hubAgents} selected={agentPool} onChange={setAgentPool} disabled={!editable || busy} />
 
-        <SectionTitle>Tasks ({tasks.length}/10)</SectionTitle>
+        <SectionTitle>Tasks ({tasks.length}/{MAX_RUNBOOK_TASKS})</SectionTitle>
         {tasks.map((task, i) => (
           <div key={task.id} style={taskCardStyle}>
             <div style={{ ...taskTitleStyle }}>Task {i + 1}</div>
+            <select
+              value={task.kind ?? 'agent'}
+              onChange={(e) => {
+                const kind = e.target.value as 'agent' | 'action';
+                setTasks((prev) => {
+                  const next = [...prev];
+                  next[i] = {
+                    ...next[i],
+                    kind,
+                    action: kind === 'action' ? next[i].action ?? { type: 'http_get', config: { url: '' } } : undefined,
+                  };
+                  return next;
+                });
+              }}
+              disabled={!editable || busy}
+              style={{ ...inputStyle, marginBottom: 6 }}
+            >
+              <option value="agent">Agent task</option>
+              <option value="action">Action (HTTP / webhook / …)</option>
+            </select>
+            {task.kind === 'action' ? (
+              <input
+                placeholder="Action type (http_get, webhook, web_search, …)"
+                value={task.action?.type ?? 'http_get'}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setTasks((prev) => {
+                    const next = [...prev];
+                    next[i] = {
+                      ...next[i],
+                      action: { ...next[i].action, type: v, config: next[i].action?.config ?? {} },
+                    };
+                    return next;
+                  });
+                }}
+                disabled={!editable || busy}
+                style={{ ...inputStyle, marginBottom: 6 }}
+              />
+            ) : null}
             <input
               placeholder="Title"
               value={task.title}
@@ -256,7 +336,7 @@ export function RunbookBuilderPanel({
           </div>
         ))}
 
-        {editable && tasks.length < 10 ? (
+        {editable && tasks.length < MAX_RUNBOOK_TASKS ? (
           <button type="button" onClick={() => setTasks((prev) => [...prev, createEmptyTask()])} disabled={busy} style={secondaryBtn}>
             + Add task
           </button>

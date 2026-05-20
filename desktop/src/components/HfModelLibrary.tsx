@@ -40,6 +40,14 @@ interface HfModelLibraryProps {
 
 type LibraryTab = 'hosted' | 'local';
 
+type DownloadProgressRow = {
+  status?: string;
+  repo_id?: string;
+  filename?: string;
+  percent?: number;
+  error?: string;
+};
+
 async function parseSSEChunks(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   onData: (obj: Record<string, unknown>) => void
@@ -103,6 +111,36 @@ export function HfModelLibrary({
     }
   }, [serverAddr]);
 
+  const syncActiveDownloads = useCallback(async () => {
+    try {
+      const r = await fetch(`${serverAddr}/api/hf/downloads/active`);
+      if (!r.ok) return;
+      const data = (await r.json()) as { downloads?: DownloadProgressRow[] };
+      const rows = Array.isArray(data.downloads) ? data.downloads : [];
+      if (rows.length === 0) {
+        return;
+      }
+      const d = rows[0];
+      if (!d.repo_id || !d.filename) return;
+      const key = `${d.repo_id}:${d.filename}`;
+      if (d.status === 'error') {
+        setDownloadingKey(null);
+        setDownloadProgress('');
+        setActionMessage({ kind: 'err', text: d.error || 'Download failed' });
+        await refreshLocal();
+        return;
+      }
+      setDownloadingKey(key);
+      if (typeof d.percent === 'number' && d.percent > 0) {
+        setDownloadProgress(`${d.percent.toFixed(1)}%`);
+      } else if (d.status) {
+        setDownloadProgress(String(d.status));
+      }
+    } catch {
+      /* hub may be restarting */
+    }
+  }, [serverAddr, refreshLocal]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -127,10 +165,18 @@ export function HfModelLibrary({
       }
     })();
     void refreshLocal();
+    void syncActiveDownloads();
     return () => {
       cancelled = true;
     };
-  }, [serverAddr, refreshLocal]);
+  }, [serverAddr, refreshLocal, syncActiveDownloads]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      void syncActiveDownloads();
+    }, 2000);
+    return () => clearInterval(id);
+  }, [syncActiveDownloads]);
 
   const filtered = useMemo(() => {
     const mode = tab === 'hosted' ? 'hosted' : 'local';
@@ -213,6 +259,13 @@ export function HfModelLibrary({
     }
   }
 
+  async function pollDownloadStatus(repoId: string, filename: string): Promise<DownloadProgressRow | null> {
+    const q = new URLSearchParams({ repo_id: repoId, filename });
+    const r = await fetch(`${serverAddr}/api/hf/download/status?${q}`);
+    if (!r.ok) return null;
+    return (await r.json()) as DownloadProgressRow;
+  }
+
   async function downloadModel(entry: HfCatalogEntry) {
     const filename = entry.files?.[0]?.filename;
     if (!filename) {
@@ -223,6 +276,16 @@ export function HfModelLibrary({
     setDownloadingKey(key);
     setDownloadProgress('Starting…');
     setActionMessage(null);
+
+    const st = await pollDownloadStatus(entry.repo_id, filename);
+    if (st?.status === 'success') {
+      setActionMessage({ kind: 'ok', text: `${filename} is already on disk.` });
+      setDownloadingKey(null);
+      setDownloadProgress('');
+      await refreshLocal();
+      return;
+    }
+
     let streamError: string | null = null;
     try {
       const resp = await fetch(`${serverAddr}/api/hf/download`, {
@@ -251,13 +314,30 @@ export function HfModelLibrary({
       if (streamError) {
         setActionMessage({ kind: 'err', text: streamError });
       } else {
-        setActionMessage({ kind: 'ok', text: `Downloaded ${filename}` });
+        const done = await pollDownloadStatus(entry.repo_id, filename);
+        if (done?.status === 'success') {
+          setActionMessage({ kind: 'ok', text: `Downloaded ${filename}` });
+        }
       }
     } catch (e) {
-      setActionMessage({ kind: 'err', text: e instanceof Error ? e.message : String(e) });
+      const msg = e instanceof Error ? e.message : String(e);
+      const still = await pollDownloadStatus(entry.repo_id, filename);
+      if (still?.status === 'downloading' || still?.status === 'starting' || still?.status === 'queued') {
+        setActionMessage({
+          kind: 'ok',
+          text: 'Download continues on the hub in the background. Reopen Model Library to see progress.',
+        });
+      } else if (still?.status === 'success') {
+        setActionMessage({ kind: 'ok', text: `Downloaded ${filename}` });
+      } else {
+        setActionMessage({ kind: 'err', text: msg });
+      }
     } finally {
-      setDownloadingKey(null);
-      setDownloadProgress('');
+      const finalSt = await pollDownloadStatus(entry.repo_id, filename);
+      if (finalSt?.status === 'success' || finalSt?.status === 'error' || finalSt?.status === 'idle') {
+        setDownloadingKey(null);
+        setDownloadProgress('');
+      }
       await refreshLocal();
     }
   }
@@ -474,7 +554,7 @@ export function HfModelLibrary({
             type="password"
             value={hfToken}
             onChange={(e) => setHfToken(e.target.value)}
-            placeholder="hf_… or set HF_TOKEN on the hub"
+            placeholder="hf_… or set hub token in Settings"
             className="w-full px-2 py-1.5 text-sm bg-gray-900 border border-gray-600 rounded text-gray-200"
           />
         </div>

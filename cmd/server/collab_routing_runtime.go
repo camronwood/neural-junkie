@@ -22,6 +22,13 @@ func (collabRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider,
 	if msg == nil || msg.Type != protocol.MessageTypeCollabTask || strings.TrimSpace(msg.GetTaskID()) == "" {
 		return base
 	}
+	if msg.Metadata != nil {
+		if pid, ok := msg.Metadata["task_provider_id"].(string); ok && strings.TrimSpace(pid) != "" {
+			if p, err := globalProviderCache.Get(appConfig, strings.TrimSpace(pid)); err == nil {
+				return p
+			}
+		}
+	}
 	snap := appConfig.ListProvidersSnapshot()
 	defaultID := defaultProviderIDForAgentName(info.Name)
 	hasImages := len(protocol.ExtractUserImages(msg)) > 0 && info.SupportsVision

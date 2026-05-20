@@ -978,6 +978,7 @@ func TestSessionRestoreRedispatchesOpenCollabTasks(t *testing.T) {
 	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
 		t.Fatalf("TransitionToReviewing: %v", err)
 	}
+	ensurePlanningRecapComplete(t, cm, collab.ID)
 	if _, err := cm.ApprovePlan(collab.ID); err != nil {
 		t.Fatalf("ApprovePlan: %v", err)
 	}

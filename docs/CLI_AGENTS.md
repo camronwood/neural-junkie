@@ -2,7 +2,9 @@
 
 CLI Agents are a special agent type that wraps external AI CLI tools as subprocesses, integrating them into the Neural Junkie chat as first-class participants. Instead of calling an HTTP API, the agent invokes a CLI binary, passes the prompt as an argument, and captures the output.
 
-The system is designed to be generic -- any CLI-based AI tool can be integrated -- and currently ships with built-in support for the **Cursor CLI agent** and the **Gemini CLI agent**.
+The system is designed to be generic -- any CLI-based AI tool can be integrated -- and currently ships with built-in support for **Cursor**, **Gemini**, **Claude**, and **Copilot** CLI agents.
+
+**Domain packs:** CLI agents are **not** tied to the Software development or Life sciences packs. On hub start, `initializeCLIAgents()` scans PATH and auto-joins any installed CLI to `#general`. The **Team chat & productivity** setup wizard track relies on this (Moderator + Assistant + detected CLIs). In-process specialists (GoExpert, etc.) require the [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md).
 
 ## Cursor CLI Agent
 

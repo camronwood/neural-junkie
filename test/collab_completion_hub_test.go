@@ -31,6 +31,7 @@ func setupExecutingCollabWithTasks(t *testing.T, h *hub.Hub, tasks []collaborati
 	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
 		t.Fatalf("TransitionToReviewing: %v", err)
 	}
+	ensurePlanningRecapComplete(t, cm, collab.ID)
 	if _, err := cm.ApprovePlan(collab.ID); err != nil {
 		t.Fatalf("ApprovePlan: %v", err)
 	}
@@ -72,6 +73,19 @@ func TestHubAgentTASKSTATUSCompletesCollaboration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("expected executing while final recap pending, got %s", got.Phase)
+	}
+	if got.SessionRecapStatus != collaboration.RecapStatusPending {
+		t.Fatalf("expected session recap pending, got %s", got.SessionRecapStatus)
+	}
+
+	finishExecutingCollabViaRecap(t, h, collabID)
+
+	got, err = cm.GetCollaboration(collabID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got.Phase != collaboration.PhaseCompleted {
 		t.Fatalf("expected phase completed, got %s", got.Phase)
 	}
@@ -80,6 +94,9 @@ func TestHubAgentTASKSTATUSCompletesCollaboration(t *testing.T) {
 	}
 	if got.Discussion == nil || got.Discussion.Status != collaboration.DiscussionConverged {
 		t.Fatalf("expected discussion converged, got %+v", got.Discussion)
+	}
+	if !strings.Contains(got.SessionRecap, "Final session summary") {
+		t.Fatalf("expected session_recap stored, got %q", got.SessionRecap)
 	}
 }
 
@@ -141,6 +158,16 @@ func TestHubPlanHandoffSyncCompletesCollaboration(t *testing.T) {
 	}
 
 	got, err := h.GetCollaborationManager().GetCollaboration(collabID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("expected executing pending final recap, got %s", got.Phase)
+	}
+
+	finishExecutingCollabViaRecap(t, h, collabID)
+
+	got, err = h.GetCollaborationManager().GetCollaboration(collabID)
 	if err != nil {
 		t.Fatal(err)
 	}

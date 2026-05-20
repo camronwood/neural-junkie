@@ -30,6 +30,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/mcp/resources"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
@@ -119,6 +120,7 @@ func main() {
 		log.Printf("⚠️  Failed to load config, using defaults: %v", err)
 		appConfig = config.DefaultConfig()
 	}
+	syncMCPFromConfig()
 
 	// Override addr flag from config if not explicitly set via CLI
 	if appConfig.Server.Port != 0 {
@@ -133,6 +135,7 @@ func main() {
 		return config.CollabAssetsRoot(appConfig)
 	})
 	globalProviderCache = ai.NewProviderCache()
+	initChannelSummaryGenerator(appConfig, chatHub)
 	agent.SetGlobalCollabRouting(collabRoutingRuntime{})
 	if err := initHFManager(); err != nil {
 		log.Printf("⚠️  HF download manager init failed: %v", err)
@@ -209,6 +212,7 @@ func main() {
 	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
 	http.HandleFunc("/api/channels/join", corsMiddleware(handleJoinChannel))
 	http.HandleFunc("/api/channels/delete", corsMiddleware(handleDeleteChannel))
+	http.HandleFunc("/api/channels/clear-history", corsMiddleware(handleClearChannelHistory))
 	http.HandleFunc("/api/channels/agents", corsMiddleware(handleChannelAgentsManage))
 	http.HandleFunc("/api/agent-channels", corsMiddleware(handleAgentChannels))
 	http.HandleFunc("/api/agents", corsMiddleware(handleAgentsRoute))
@@ -217,9 +221,12 @@ func main() {
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
 	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
+	http.HandleFunc("/api/collaborations/", corsMiddleware(handleCollaborationsSubRoute))
 	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(handleCollaborationWorkspaceAck))
 	http.HandleFunc("/api/runbooks", corsMiddleware(handleRunbooksRoute))
 	http.HandleFunc("/api/runbooks/", corsMiddleware(handleRunbooksRoute))
+	http.HandleFunc("/api/runbook-templates", corsMiddleware(handleRunbookTemplatesRoute))
+	http.HandleFunc("/api/runbook-templates/", corsMiddleware(handleRunbookTemplatesRoute))
 	http.HandleFunc("/api/hub-data/read", corsMiddleware(handleHubDataRead))
 	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
 	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
@@ -282,6 +289,9 @@ func main() {
 	// Application config and health endpoints
 	http.HandleFunc("/api/health", corsMiddleware(handleHealth))
 	http.HandleFunc("/api/settings", corsMiddleware(handleSettings))
+	http.HandleFunc("/api/packs", corsMiddleware(handlePacksRoute))
+	http.HandleFunc("/api/packs/", corsMiddleware(handlePacksRoute))
+	http.HandleFunc("/api/expert-presets", corsMiddleware(handleExpertPresets))
 	http.HandleFunc("/api/agents/configured", corsMiddleware(handleConfiguredAgents))
 	http.HandleFunc("/api/agents/restart", corsMiddleware(handleRestartAgents))
 	http.HandleFunc("/api/providers", corsMiddleware(handleProviders))
@@ -298,6 +308,8 @@ func main() {
 	http.HandleFunc("/api/hf/catalog", corsMiddleware(handleHfCatalog))
 	http.HandleFunc("/api/hf/test-connection", corsMiddleware(handleHfTestConnection))
 	http.HandleFunc("/api/hf/download", corsMiddleware(handleHfDownload))
+	http.HandleFunc("/api/hf/download/status", corsMiddleware(handleHfDownloadStatus))
+	http.HandleFunc("/api/hf/downloads/active", corsMiddleware(handleHfDownloadsActive))
 	http.HandleFunc("/api/hf/local", corsMiddleware(handleHfLocal))
 	http.HandleFunc("/api/hf/delete", corsMiddleware(handleHfDelete))
 	http.HandleFunc("/api/hf/import-ollama", corsMiddleware(handleHfImportOllama))
@@ -307,9 +319,16 @@ func main() {
 	http.HandleFunc("/api/assistant/state", corsMiddleware(handleAssistantState))
 	http.HandleFunc("/api/assistant/task-done", corsMiddleware(handleAssistantTaskDone))
 	http.HandleFunc("/api/assistant/reminder-dismiss", corsMiddleware(handleAssistantReminderDismiss))
+	http.HandleFunc("/api/assistant/google/config", corsMiddleware(handleAssistantGoogleConfig))
+	http.HandleFunc("/api/assistant/google/status", corsMiddleware(handleAssistantGoogleStatus))
+	http.HandleFunc("/api/assistant/google/auth", corsMiddleware(handleAssistantGoogleAuth))
+	http.HandleFunc("/api/assistant/google/callback", corsMiddleware(handleAssistantGoogleCallback))
+	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(handleAssistantGoogleDisconnect))
+	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))
+		http.HandleFunc("/api/debug/channel-context", corsMiddleware(handleDebugChannelContext))
 		pprofAddr := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PPROF_ADDR"))
 		if pprofAddr == "" {
 			pprofAddr = "127.0.0.1:6060"
@@ -321,6 +340,7 @@ func main() {
 			}
 		}()
 		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: hub memory JSON at GET /api/debug/hub-memory")
+		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: channel context at GET /api/debug/channel-context?channel=...")
 	}
 
 	// Home page handler (must be last to avoid catching API routes)
@@ -1341,6 +1361,33 @@ func handleJoinChannel(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func handleClearChannelHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := chatHub.ClearChannelHistory(req.Name); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 func handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -2303,6 +2350,53 @@ func handleOllamaDelete(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "model": req.Model})
 }
 
+func syncMCPFromConfig() {
+	if appConfig != nil {
+		mcp.SetAppConfig(appConfig)
+	}
+}
+
+// reconcileConfiguredSpecialists stops hub specialists whose type is disabled in config
+// (e.g. after turning off a domain pack).
+func reconcileConfiguredSpecialists() {
+	if appConfig == nil || chatHub == nil {
+		return
+	}
+	specTypes := config.ConfigurableSpecialistTypes()
+	var cmdHandler *hub.CommandHandler
+	if h := chatHub.GetCommandHandler(); h != nil {
+		cmdHandler, _ = h.(*hub.CommandHandler)
+	}
+	for _, ag := range chatHub.ListAgents() {
+		t := strings.ToLower(string(ag.Type))
+		if !specTypes[t] {
+			continue
+		}
+		if appConfig.SpecialistShouldBeRunning(t) {
+			continue
+		}
+		// Leave channels first so clients get agent_leave and channel membership updates.
+		for _, channel := range chatHub.ListChannels() {
+			for _, member := range channel.Agents {
+				if member.ID == ag.ID {
+					if err := chatHub.LeaveChannel(ag.ID, channel.Name); err != nil {
+						log.Printf("Pack reconcile: leave %s from %s: %v", ag.Name, channel.Name, err)
+					}
+					break
+				}
+			}
+		}
+		if cmdHandler != nil {
+			cmdHandler.StopAndUnregisterRuntimeAgent(ag.ID)
+		}
+		if err := chatHub.UnregisterAgent(ag.ID); err != nil {
+			log.Printf("Pack reconcile: unregister %s: %v", ag.Name, err)
+		} else {
+			log.Printf("Pack reconcile: stopped specialist %s (type=%s, pack off or disabled)", ag.Name, t)
+		}
+	}
+}
+
 // initializeConfiguredAgents starts specialist agents defined in the config
 // file. Each enabled agent runs in-process using the hub's push-based
 // message delivery (same as moderator/assistant).
@@ -2327,7 +2421,7 @@ func initializeConfiguredAgents() {
 			continue
 		}
 
-		aiProvider, err := globalProviderCache.Get(appConfig, pcfg.ID)
+		aiProvider, err := globalProviderCache.GetForAgent(appConfig, acfg)
 		if err != nil {
 			log.Printf("⚠️  Failed to build provider for agent %s: %v — skipping", acfg.Name, err)
 			continue
@@ -2390,6 +2484,33 @@ func handleDebugHubMemory(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") != "1" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	if channel == "" {
+		http.Error(w, "channel query parameter required", http.StatusBadRequest)
+		return
+	}
+	summary := chatHub.GetChannelSessionSummary(channel)
+	msgs, _ := chatHub.GetMessages(channel, 50)
+	out := map[string]interface{}{
+		"channel":       channel,
+		"channel_type":  chatHub.GetChannelType(channel),
+		"summary_len":   len(summary),
+		"history_count": len(msgs),
+		"has_summary":   summary != "",
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -2442,6 +2563,13 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.HF = incoming.HF
 		appConfig.Updates = incoming.Updates
 		appConfig.Collaboration = incoming.Collaboration
+		if incoming.Packs.Enabled != nil {
+			appConfig.Packs = incoming.Packs
+		}
+		appConfig.MCP = incoming.MCP
+		appConfig.EnsureMCPDefaults()
+		appConfig.SyncAgentsFromPacks()
+		syncMCPFromConfig()
 
 		globalProviderCache.Clear()
 		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
@@ -2452,6 +2580,8 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		reconcileConfiguredSpecialists()
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
@@ -2475,6 +2605,7 @@ func handleRestartAgents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	reconcileConfiguredSpecialists()
 	// Re-run the configured agents initializer; existing agents keep running
 	// (hub silently skips re-registration of duplicate IDs).
 	initializeConfiguredAgents()

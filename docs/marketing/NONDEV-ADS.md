@@ -1,6 +1,6 @@
 # Non-developer audience — ad concepts & copy
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 **Regenerate graphics:**
 
@@ -13,6 +13,7 @@
 | `assets/neural-junkie-nondev-providers-ad-1080.png` | Hero typography + tab chaos + icon row (like `local-ai-tokens`) | Multiple AI backends, one desktop |
 | `assets/neural-junkie-nondev-experts-ad-1080.png` | 2×2 persona grid + Assistant strip (like `context-scope`) | Custom experts / DMs |
 | `assets/neural-junkie-nondev-collaborate-ad-1080.png` | Split column + hex cluster + quote card (like `oss-contributors` / timeline) | Multi-agent planning |
+| `assets/neural-junkie-nondev-second-opinion-ad-1080.png` | Two-column: tab chaos vs one thread mock | Second LLM check without a new tab — see [SECOND-OPINION-AD.md](SECOND-OPINION-AD.md) |
 
 **Honest constraint (use in replies, not on the image):** Neural Junkie uses **API keys and/or local models** (Ollama, LM Studio, etc.), not consumer ChatGPT Plus / Claude Pro logins. Position as “unify your AI stack,” not “import your subscriptions.”
 
@@ -28,7 +29,7 @@
 >
 > Neural Junkie is one desktop for **Claude + local Ollama + any OpenAI-compatible API** — different agents, different models, one Slack-style workspace. Draft on local, polish in the cloud, track usage in Settings.
 >
-> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 **LinkedIn (longer):**
 
@@ -36,7 +37,7 @@
 >
 > Neural Junkie routes **per agent**: writing coach on Claude, brainstorming on Ollama, research on your other API. Channels, DMs, threads, plus Assistant for tasks and reminders.
 >
-> Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+> Beta download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 ---
 
@@ -50,7 +51,7 @@
 >
 > Create a **writing coach**, **trip planner**, or **budget buddy** in a private DM — your API keys or local Ollama, plus Assistant for tasks, notes, and `/summarize`.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 **LinkedIn (longer):**
 
@@ -70,7 +71,7 @@
 >
 > `/collaborate` — specialists **talk to each other**, produce **one plan**, you **approve**, then they execute (with limits so it can’t spiral). Not copy-paste between five chats.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 **LinkedIn (incident / business angle):**
 
@@ -78,15 +79,16 @@
 >
 > Neural Junkie: bounded agent discussion → shared plan → your approval → parallel tasks. No codebase required for planning-only workflows.
 >
-> Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11
+> Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 ---
 
 ## Posting order (optional test)
 
 1. **Experts** — broadest hook, lowest technical bar; pair with site video `docs/media/general-experts-guitar.mp4` if desired.
-2. **Providers** — targets multi-AI spenders; expect “how is this different from Poe?” in replies — answer: local-first, per-agent routing, open source, approval gates.
-3. **Collaborate** — strongest differentiation; save for when you have a non-dev screen recording (launch planning channel, no terminal visible).
+2. **Second opinion** — for people who already use two AIs to cross-check answers; `./scripts/compose-second-opinion-ad.sh` — copy in [SECOND-OPINION-AD.md](SECOND-OPINION-AD.md).
+3. **Providers** — targets multi-AI spenders; expect “how is this different from Poe?” in replies — answer: local-first, per-agent routing, open source, approval gates.
+4. **Collaborate** — strongest differentiation; save for when you have a non-dev screen recording (launch planning channel, no terminal visible).
 
 ---
 

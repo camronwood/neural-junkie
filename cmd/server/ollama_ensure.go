@@ -6,8 +6,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/config"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
 )
+
+// ollamaTagsRequireHFImport cannot be installed with `ollama pull` (use Model Library → HF → Import to Ollama).
+var ollamaTagsRequireHFImport = map[string]string{
+	config.BioOllamaTag: "Model Library (⇧⌘M) → Hugging Face → Neural Junkie Bio 8B (GGUF) → Import to Ollama",
+}
 
 // ensureOllamaModels pulls configured tags when Ollama is running (background).
 func ensureOllamaModels(ctx context.Context) {
@@ -44,6 +50,10 @@ func ensureOllamaModels(ctx context.Context) {
 			continue
 		}
 		if _, ok := have[tag]; ok {
+			continue
+		}
+		if hint, skipPull := ollamaTagsRequireHFImport[tag]; skipPull {
+			log.Printf("ℹ️  models_to_ensure: %s is not on the Ollama registry — install via %s", tag, hint)
 			continue
 		}
 		log.Printf("📥 models_to_ensure: pulling %s", tag)

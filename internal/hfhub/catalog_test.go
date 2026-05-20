@@ -36,3 +36,17 @@ func TestResolveDownloadFilename(t *testing.T) {
 		t.Fatal("expected default filename")
 	}
 }
+
+func TestBioGGUFDefaultFilename(t *testing.T) {
+	entry, err := FindCatalogEntry("aaditya/OpenBioLLM-Llama3-8B-GGUF")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fn, err := ResolveDownloadFilename(entry, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fn != "openbiollm-llama3-8b.Q4_K_M.gguf" {
+		t.Fatalf("filename = %q (must match Hub repo paths)", fn)
+	}
+}

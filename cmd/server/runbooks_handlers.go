@@ -91,20 +91,24 @@ func handleRunbookGet(w http.ResponseWriter, r *http.Request, id string) {
 
 func handleRunbookUpdate(w http.ResponseWriter, r *http.Request, id string) {
 	var body struct {
-		Title       string                           `json:"title"`
-		Description string                           `json:"description"`
-		AgentIDs    []string                         `json:"agent_ids"`
-		Tasks       []collaboration.CollaborationTask `json:"tasks"`
+		Title            string                            `json:"title"`
+		Description      string                            `json:"description"`
+		AgentIDs         []string                          `json:"agent_ids"`
+		Tasks            []collaboration.CollaborationTask `json:"tasks"`
+		ExecutionPolicy  *collaboration.ExecutionPolicy    `json:"execution_policy"`
+		GraphLayout      collaboration.GraphLayout         `json:"graph_layout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 	snap, err := chatHub.UpdateRunbookSession(id, collaboration.RunbookUpdatePayload{
-		Title:       body.Title,
-		Description: body.Description,
-		AgentIDs:    body.AgentIDs,
-		Tasks:       body.Tasks,
+		Title:           body.Title,
+		Description:     body.Description,
+		AgentIDs:        body.AgentIDs,
+		Tasks:           body.Tasks,
+		ExecutionPolicy: body.ExecutionPolicy,
+		GraphLayout:     body.GraphLayout,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

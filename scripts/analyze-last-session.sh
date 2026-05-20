@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Analyze ~/.neural-junkie/last-session.json (collab + conversation focus).
-# Prefer: ./scripts/debug-collab.py session
+# Archive first: ./scripts/archive-last-session.sh --label before-debug
+# Quick summary:  ./scripts/archive-last-session.sh summary --channel biologyexpert --tail 10
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SESSION="${1:-${HOME}/.neural-junkie/last-session.json}"
-exec python3 "${ROOT}/scripts/debug-collab.py" session --session "${SESSION}" "${@:2}"
+exec "${ROOT}/scripts/archive-last-session.sh" analyze "$@"

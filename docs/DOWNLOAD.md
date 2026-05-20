@@ -1,6 +1,6 @@
-# Download and first run (v1.0.0-beta.11)
+# Download and first run (v1.0.0-beta.12)
 
-Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11) — no Go, Node, or Rust required for the desktop app.
+Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12) — no Go, Node, or Rust required for the desktop app.
 
 ## 1. Install
 
@@ -19,6 +19,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 
 1. Open **Neural Junkie**.
 2. Complete the **setup wizard**:
+   - Pick **Software development** or **Life sciences & lab work** (Bio 8B + BiologyExpert). See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
    - **macOS / Linux:** choose **Ollama (local)** — the wizard can install or start Ollama and pull a default model.
    - **Windows:** install Ollama from [ollama.com](https://ollama.com) first, or pick **cloud** and enter an API key.
 3. Sign in on the login screen (pick a username and channel — local dev defaults are fine).

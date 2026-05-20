@@ -5,6 +5,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/mcp/backend"
+	"github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/mcp/database"
 	"github.com/camronwood/neural-junkie/internal/mcp/devops"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -152,6 +153,31 @@ func NewRustAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return NewAgent(protocol.AgentTypeRust, name, expertise, ai, hub)
 }
 
+// NewBiologyAgent creates a life-sciences agent with Bio MCP tools.
+func NewBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Molecular Biology", "Genomics", "Protein Biochemistry",
+		"Lab Protocols", "Sequence Analysis", "Structure Prediction",
+		"Assay Design", "CRISPR", "Cell Culture", "Research Literature",
+	}
+
+	agent := NewAgent(protocol.AgentTypeBiology, name, expertise, ai, hub)
+
+	bioMCP, err := biology.NewBiologyMCP()
+	if err != nil {
+		log.Printf("Failed to create Biology MCP server: %v", err)
+	} else {
+		agent.MCPServer = bioMCP
+		if err := bioMCP.Start(); err != nil {
+			log.Printf("Failed to start Biology MCP server: %v", err)
+		} else {
+			log.Printf("Biology MCP server started for agent: %s", name)
+		}
+	}
+
+	return agent
+}
+
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
@@ -185,6 +211,8 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewSecurityAgent(name, ai, hub), nil
 	case protocol.AgentTypeRust:
 		return NewRustAgent(name, ai, hub), nil
+	case protocol.AgentTypeBiology:
+		return NewBiologyAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeModerator:

@@ -268,6 +268,24 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	return len(loadedFiles)
 }
 
+// ResolveContextScopeForChannel caps workspace injection for DMs so open-file payloads
+// do not overwhelm local models. Legacy full scope in a DM becomes outline (tree only).
+func ResolveContextScopeForChannel(msg *protocol.Message, channelType protocol.ChannelType) string {
+	scope := ResolveContextScope(msg)
+	if channelType != protocol.ChannelTypeDM {
+		return scope
+	}
+	switch scope {
+	case ContextScopeFull:
+		return ContextScopeOutline
+	case ContextScopeFocus:
+		// Keep focus when user explicitly scoped; still smaller than full workspace dump.
+		return ContextScopeFocus
+	default:
+		return scope
+	}
+}
+
 // ResolveContextScope returns the effective workspace context tier for a message.
 // If workspace_context is absent, returns none. Legacy messages with workspace_context
 // but no context_scope default to full.
@@ -292,6 +310,11 @@ func ResolveContextScope(msg *protocol.Message) string {
 // AppendWorkspaceContext checks for workspace_context in message metadata
 // and appends a scope-appropriate section to the prompt builder.
 func AppendWorkspaceContext(prompt *strings.Builder, msg *protocol.Message) {
+	AppendWorkspaceContextForChannel(prompt, msg, "")
+}
+
+// AppendWorkspaceContextForChannel applies DM-aware scope limits before appending workspace data.
+func AppendWorkspaceContextForChannel(prompt *strings.Builder, msg *protocol.Message, channelType protocol.ChannelType) {
 	if msg == nil || msg.Metadata == nil {
 		return
 	}
@@ -304,6 +327,9 @@ func AppendWorkspaceContext(prompt *strings.Builder, msg *protocol.Message) {
 		return
 	}
 	scope := ResolveContextScope(msg)
+	if channelType != "" {
+		scope = ResolveContextScopeForChannel(msg, channelType)
+	}
 	if scope == ContextScopeNone {
 		return
 	}

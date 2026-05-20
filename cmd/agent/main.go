@@ -195,6 +195,8 @@ func (h *httpHubClient) GetAgentChannels(agentID string) []string {
 	return result.Channels
 }
 
+func (h *httpHubClient) GetChannelSessionSummary(channel string) string { return "" }
+
 func (h *httpHubClient) GetChannelType(channelName string) protocol.ChannelType {
 	resp, err := h.client.Get(fmt.Sprintf("%s/api/channels", h.baseURL))
 	if err != nil {
@@ -238,12 +240,13 @@ func main() {
 		protocol.AgentTypeDatabase:  true,
 		protocol.AgentTypeSecurity:  true,
 		protocol.AgentTypeRust:      true,
+		protocol.AgentTypeBiology:   true,
 		protocol.AgentTypeRepo:      true,
 		protocol.AgentTypeAssistant: true,
 	}
 
 	if !validTypes[aType] {
-		log.Fatalf("Invalid agent type: %s. Valid types: frontend, backend, devops, database, security, rust, repo, assistant", *agentType)
+		log.Fatalf("Invalid agent type: %s. Valid types: frontend, backend, devops, database, security, rust, biology, repo, assistant", *agentType)
 	}
 
 	// Validate repo path for repo agents

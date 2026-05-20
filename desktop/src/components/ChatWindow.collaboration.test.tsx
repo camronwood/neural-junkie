@@ -93,12 +93,17 @@ vi.mock('../utils/outboundChatMetadata', () => ({
   WORKSPACE_CONTEXT_MODE_KEY: 'workspace-context-mode',
 }));
 
-vi.mock('../stores/settingsStore', () => ({
-  useSettingsStore: () => ({
+vi.mock('../stores/settingsStore', () => {
+  const state = {
     layoutSettings: null,
     loadLayoutSettings: vi.fn(),
-  }),
-}));
+    settings: {},
+    isLoaded: true,
+    saveSettings: vi.fn(),
+  };
+  const useSettingsStore = Object.assign(() => state, { getState: () => state });
+  return { useSettingsStore };
+});
 
 vi.mock('../stores/toastStore', () => ({
   useToastStore: (sel: (s: { addToast: (...a: unknown[]) => void }) => unknown) =>
@@ -447,6 +452,8 @@ describe('ChatWindow collaboration wiring', () => {
       ...base,
       phase: 'completed' as const,
       tasks: [{ ...base.tasks![0], status: 'completed' as const }],
+      session_recap_status: 'complete' as const,
+      session_recap: '### Final session summary\n\n- All tasks delivered on schedule.',
     };
     await opts.onMessage({
       id: 'ws-collab-done',
@@ -461,6 +468,7 @@ describe('ChatWindow collaboration wiring', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent(/Collaboration complete/i);
       expect(screen.getByText(/1\/1 tasks done/)).toBeInTheDocument();
+      expect(screen.getByRole('status')).toHaveTextContent(/Final session summary/);
     });
   });
 

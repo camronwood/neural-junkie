@@ -1,0 +1,27 @@
+{
+  "name": "sequence-review",
+  "title": "Sequence review",
+  "description": "Interpret a sequence or mutation, optionally predict structure with ESMFold, and suggest wet-lab next steps with controls. Research use only.",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "title": "Interpret sequence",
+      "description": "Review the user-provided sequence or mutation: type, length, notable motifs, and hypotheses. Use analyze_sequence when sequence text is provided.",
+      "kind": "agent"
+    },
+    {
+      "title": "Structure prediction",
+      "description": "If the sequence is protein and length allows, call fold_protein and summarize the PDB path and confidence. Skip with reason if not appropriate.",
+      "kind": "agent"
+    },
+    {
+      "title": "Wet-lab next steps",
+      "description": "Suggest experimental follow-up: controls, replicates, assays, and safety. Clearly separate in silico predictions from experiments.",
+      "kind": "agent"
+    }
+  ]
+}

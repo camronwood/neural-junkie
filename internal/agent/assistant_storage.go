@@ -80,34 +80,39 @@ type Meeting struct {
 	Recurring   *RecurringSchedule `json:"recurring,omitempty"`
 }
 
-// MeetingNote represents a meeting note from the gemini-email-to-markdown system
+// MeetingNote represents ingested Gemini Meet notes (Google sync).
 type MeetingNote struct {
-	ID            string      `json:"id"`
-	FilePath      string      `json:"file_path"` // Original markdown file path
-	MeetingDate   time.Time   `json:"meeting_date"`
-	Title         string      `json:"title"`
-	Attendees     []string    `json:"attendees"`
-	Summary       string      `json:"summary"`
-	ActionItems   []string    `json:"action_items"`
-	Deadlines     []time.Time `json:"deadlines"`
-	Topics        []string    `json:"topics"`
-	GoogleDocLink string      `json:"google_doc_link"`
-	FullContent   string      `json:"full_content"` // Complete markdown content
-	IngestedAt    time.Time   `json:"ingested_at"`
-	CreatedBy     string      `json:"created_by"`
+	ID             string      `json:"id"`
+	FilePath       string      `json:"file_path,omitempty"` // legacy markdown path
+	Source         string      `json:"source,omitempty"`  // "google"
+	GmailMessageID string      `json:"gmail_message_id,omitempty"`
+	GoogleDocID    string      `json:"google_doc_id,omitempty"`
+	MeetingDate    time.Time   `json:"meeting_date"`
+	Title          string      `json:"title"`
+	Attendees      []string    `json:"attendees"`
+	Summary        string      `json:"summary"`
+	ActionItems    []string    `json:"action_items"`
+	Deadlines      []time.Time `json:"deadlines"`
+	Topics         []string    `json:"topics"`
+	GoogleDocLink  string      `json:"google_doc_link"`
+	FullContent    string      `json:"full_content"`
+	IngestedAt     time.Time   `json:"ingested_at"`
+	CreatedBy      string      `json:"created_by"`
 }
 
 // AssistantConfig holds configuration for the assistant
 type AssistantConfig struct {
-	Timezone            string   `json:"timezone"`
-	DefaultChannel      string   `json:"default_channel"`
-	ReminderAdvance     int      `json:"reminder_advance"`     // Minutes before meeting to remind
-	Keywords            []string `json:"keywords"`             // Keywords to watch for proactive suggestions
-	MeetingNotesDir     string   `json:"meeting_notes_dir"`    // Path to meeting notes directory
-	AutoIngestEnabled   bool     `json:"auto_ingest_enabled"`  // Enable/disable automatic ingestion
-	EmailDir            string   `json:"email_dir"`            // Path to email directory
-	EmailIngestEnabled  bool     `json:"email_ingest_enabled"` // Enable/disable email ingestion
-	ProactiveAssistance bool     `json:"proactive_assistance"` // Enable/disable proactive suggestions
+	Timezone                 string   `json:"timezone"`
+	DefaultChannel           string   `json:"default_channel"`
+	ReminderAdvance          int      `json:"reminder_advance"`
+	Keywords                 []string `json:"keywords"`
+	GoogleMeetNotesEnabled   bool     `json:"google_meet_notes_enabled"`
+	GoogleSyncIntervalMinutes int     `json:"google_sync_interval_minutes"`
+	GoogleSenderEmail        string   `json:"google_sender_email"`
+	GoogleBackfillDays       int      `json:"google_backfill_days"`
+	EmailDir                 string   `json:"email_dir"`
+	EmailIngestEnabled       bool     `json:"email_ingest_enabled"`
+	ProactiveAssistance      bool     `json:"proactive_assistance"`
 }
 
 // NewAssistantStorage creates a new storage manager
@@ -144,44 +149,57 @@ func (s *AssistantStorage) ensureDefaultConfig() error {
 	}
 
 	// Create default config
-	config := &AssistantConfig{
-		Timezone:            "UTC",
-		DefaultChannel:      "general",
-		ReminderAdvance:     15, // 15 minutes before meetings
-		Keywords:            []string{"meeting", "deadline", "review", "deploy", "release"},
-		MeetingNotesDir:     defaultMeetingNotesDir(),
-		AutoIngestEnabled:   true,
-		ProactiveAssistance: true,
-	}
-
+	config := DefaultAssistantConfig()
 	return s.SaveConfig(config)
 }
 
-// defaultMeetingNotesDir returns the preferred meeting-notes directory for this machine.
-func defaultMeetingNotesDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return filepath.Join("development", "meeting-notes")
+// DefaultAssistantConfig returns default assistant configuration.
+func DefaultAssistantConfig() *AssistantConfig {
+	return &AssistantConfig{
+		Timezone:                  "UTC",
+		DefaultChannel:            "general",
+		ReminderAdvance:           15,
+		Keywords:                  []string{"meeting", "deadline", "review", "deploy", "release"},
+		GoogleMeetNotesEnabled:    true,
+		GoogleSyncIntervalMinutes: 15,
+		GoogleSenderEmail:         "gemini-notes@google.com",
+		GoogleBackfillDays:        90,
+		ProactiveAssistance:       true,
 	}
-	return filepath.Join(home, "development", "meeting-notes")
 }
 
-// ResolveMeetingNotesDir normalizes configured paths and repairs known bad legacy values.
-func ResolveMeetingNotesDir(configured string) string {
-	configured = strings.TrimSpace(configured)
-	if configured == "" {
-		return defaultMeetingNotesDir()
+// NormalizeAssistantConfig fills zero values and migrates legacy fields.
+func NormalizeAssistantConfig(config *AssistantConfig) {
+	if config == nil {
+		return
 	}
-	if strings.Contains(configured, "camron.wood.ext") {
-		return defaultMeetingNotesDir()
+	defaults := DefaultAssistantConfig()
+	if config.Timezone == "" {
+		config.Timezone = defaults.Timezone
 	}
-	if strings.HasPrefix(configured, "~/") {
-		home, err := os.UserHomeDir()
-		if err == nil && home != "" {
-			return filepath.Join(home, strings.TrimPrefix(configured, "~/"))
-		}
+	if config.DefaultChannel == "" {
+		config.DefaultChannel = defaults.DefaultChannel
 	}
-	return configured
+	if config.ReminderAdvance == 0 {
+		config.ReminderAdvance = defaults.ReminderAdvance
+	}
+	if len(config.Keywords) == 0 {
+		config.Keywords = defaults.Keywords
+	}
+	if config.GoogleSyncIntervalMinutes <= 0 {
+		config.GoogleSyncIntervalMinutes = defaults.GoogleSyncIntervalMinutes
+	}
+	if config.GoogleSenderEmail == "" {
+		config.GoogleSenderEmail = defaults.GoogleSenderEmail
+	}
+	if config.GoogleBackfillDays <= 0 {
+		config.GoogleBackfillDays = defaults.GoogleBackfillDays
+	}
+}
+
+// BaseDir returns the assistant data directory path.
+func (s *AssistantStorage) BaseDir() string {
+	return s.baseDir
 }
 
 // SaveConfig saves the assistant configuration
@@ -516,16 +534,21 @@ func (s *AssistantStorage) GetUpcomingMeetings(hours int) ([]*Meeting, error) {
 	return upcoming, nil
 }
 
-// SaveMeetingNote saves a meeting note
+// SaveMeetingNote saves a meeting note, upserting by GoogleDocID when set.
 func (s *AssistantStorage) SaveMeetingNote(note *MeetingNote) error {
 	notes, err := s.LoadMeetingNotes()
 	if err != nil {
 		return err
 	}
 
-	// Update existing or add new
 	found := false
 	for i, n := range notes {
+		if note.GoogleDocID != "" && n.GoogleDocID == note.GoogleDocID {
+			note.ID = n.ID
+			notes[i] = note
+			found = true
+			break
+		}
 		if n.ID == note.ID {
 			notes[i] = note
 			found = true
@@ -533,6 +556,9 @@ func (s *AssistantStorage) SaveMeetingNote(note *MeetingNote) error {
 		}
 	}
 	if !found {
+		if note.ID == "" {
+			note.ID = fmt.Sprintf("meeting_%d", time.Now().UnixNano())
+		}
 		notes = append(notes, note)
 	}
 

@@ -805,7 +805,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel,
 			"Usage: `/create-expert <type> [name ...] [provider] [model]`\n\n"+
 				"**Preset types** (curated engineering specialists):\n"+
-				"• `rust`, `backend`, `frontend`, `devops`, `database`, `security`, `assistant`\n\n"+
+				"• `rust`, `backend`, `frontend`, `devops`, `database`, `security`, `biology`, `assistant`\n\n"+
 				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`).\n\n"+
 				"The expert is created in a **private DM** with you — it is **not** added to this channel. Invite the agent from the channel member UI when you want help here.\n\n"+
 				"**Examples:**\n"+
@@ -822,6 +822,12 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 
 	expertSlug, name, providerName, modelOverride := splitCreateExpertArgs(parts)
 
+	if ch.appConfig != nil {
+		if denied := ch.appConfig.PresetExpertDeniedMessage(expertSlug); denied != "" {
+			return ch.systemResponse(msg.Channel, "❌ "+denied), nil
+		}
+	}
+
 	spec, err := ResolveExpert(expertSlug, "")
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
@@ -837,6 +843,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 				protocol.AgentTypeDevOps:    "DevOpsPro",
 				protocol.AgentTypeDatabase:  "SQLMaster",
 				protocol.AgentTypeSecurity:  "SecurityExpert",
+				protocol.AgentTypeBiology:   "BiologyExpert",
 				protocol.AgentTypeAssistant: "Assistant",
 			}
 			name = defaults[spec.AgentType]
@@ -2565,39 +2572,23 @@ func (ch *CommandHandler) handleListFileChanges(ctx context.Context, msg *protoc
 	return ch.systemResponse(msg.Channel, response.String()), nil
 }
 
-// handleIngestMeetings manually triggers ingestion of all meeting notes
+// handleIngestMeetings manually triggers Google meet notes sync
 func (ch *CommandHandler) handleIngestMeetings(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
-	// Find the assistant agent
 	assistantAgent := ch.findAssistantAgent()
 	if assistantAgent == nil {
 		return ch.systemResponse(msg.Channel, "❌ Assistant agent not found. Please ensure the assistant agent is running."), nil
 	}
 
-	// Trigger manual ingestion
 	go func() {
-		// Get all markdown files in the meeting notes directory
-		config := assistantAgent.GetConfig()
-		if config == nil {
-			return
-		}
-
-		files, err := filepath.Glob(filepath.Join(config.MeetingNotesDir, "*.md"))
+		n, err := assistantAgent.SyncGoogleMeetNotes(ctx)
 		if err != nil {
-			ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to list meeting notes directory: %v", err))
+			ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Meet notes sync failed: %v", err))
 			return
 		}
-
-		processed := 0
-		for _, file := range files {
-			// Process each file
-			assistantAgent.ProcessMeetingNote(ctx, file)
-			processed++
-		}
-
-		ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Ingested %d meeting notes successfully!", processed))
+		ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Synced %d meeting note(s) from Google.", n))
 	}()
 
-	return ch.systemResponse(msg.Channel, "🔄 Starting manual ingestion of meeting notes..."), nil
+	return ch.systemResponse(msg.Channel, "🔄 Syncing meeting notes from Google..."), nil
 }
 
 // handleSearchMeetings searches meeting notes by query
@@ -2988,7 +2979,7 @@ func (ch *CommandHandler) SwitchAllProviders(provider, model, channel string, me
 	}
 
 	if len(failures) > 0 {
-		return switchedCount, fmt.Errorf(strings.Join(failures, "; "))
+		return switchedCount, fmt.Errorf("%s", strings.Join(failures, "; "))
 	}
 	return switchedCount, nil
 }
@@ -3290,6 +3281,11 @@ func (ch *CommandHandler) SetAssistantAgent(assistant *agent.AssistantAgent) {
 	ch.assistantAgent = assistant
 }
 
+// GetAssistantAgent returns the registered assistant agent, if any.
+func (ch *CommandHandler) GetAssistantAgent() *agent.AssistantAgent {
+	return ch.assistantAgent
+}
+
 // RegisterRuntimeAgent tracks server-created runtime agents so collaboration
 // wiring can reliably reach specialists/moderator/assistant and startup CLIs.
 func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
@@ -3297,6 +3293,17 @@ func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
 		return
 	}
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
+}
+
+// StopAndUnregisterRuntimeAgent stops an in-process specialist and drops it from runtime tracking.
+func (ch *CommandHandler) StopAndUnregisterRuntimeAgent(agentID string) {
+	if ch == nil || agentID == "" {
+		return
+	}
+	if ra, ok := ch.runtimeAgents[agentID]; ok && ra != nil {
+		ra.Stop()
+		delete(ch.runtimeAgents, agentID)
+	}
 }
 
 // EnsureAgentSubscribedToChannel starts the agent's hub subscription on channelName.
@@ -3411,10 +3418,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Expert Agents ─────────────────────────────────────────────
 		{
 			Name:        "/create-expert",
-			Description: "Create a specialist agent (rust, backend, frontend, devops, database, security, assistant)",
+			Description: "Create a specialist agent (rust, backend, frontend, devops, database, security, biology, assistant)",
 			Category:    "Expert Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "type", Description: "Expert type (rust, backend, frontend, devops, database, security, assistant)", Type: "string", Required: true, Options: []string{"rust", "backend", "frontend", "devops", "database", "security", "assistant"}},
+				{Name: "type", Description: "Expert type (rust, backend, frontend, devops, database, security, biology, assistant)", Type: "string", Required: true, Options: []string{"rust", "backend", "frontend", "devops", "database", "security", "biology", "assistant"}},
 				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},
@@ -3557,7 +3564,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Meetings ───────────────────────────────────────────────────
 		{
 			Name:        "/ingest-meetings",
-			Description: "Ingest meeting notes from configured source",
+			Description: "Sync meeting notes from Google (Gmail + Docs)",
 			Category:    "Meetings",
 			Arguments:   []protocol.CommandArgument{},
 		},
@@ -4289,6 +4296,10 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
+	snapPre, _ := cm.GetCollaborationSnapshot(collabID)
+	if snapPre != nil && snapPre.PlanningRecapStatus == collaboration.RecapStatusFailed {
+		log.Printf("[Collaboration] Approving %s after failed planning recap (user override)", collabID[:8])
+	}
 	if len(collab.Tasks) == 0 && collab.Plan != nil && strings.TrimSpace(collab.Plan.Content) != "" {
 		extractedTasks := collaboration.ExtractTasksFromPlan(collab.Plan.Content, collab.Agents)
 		if len(extractedTasks) > 0 {
@@ -4548,11 +4559,13 @@ func (ch *CommandHandler) handleCompleteCollab(ctx context.Context, msg *protoco
 	if force && collaboration.HasOpenTasks(snap) {
 		reason = "Closed by user (open tasks marked done)."
 	}
-	ch.hub.finalizeAndBroadcastCollaboration(collabID, msg.Channel, reason, opts)
+	ch.hub.requestFinalRecapAndFinalize(collabID, msg.Channel, reason, opts)
 
-	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Collaboration `%s` marked complete.", collabID[:8]))
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Collaboration `%s` closing — session summary in progress.", collabID[:8]))
 	out.SetCollaborationID(collabID)
-	out.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+	if snap, _ := cm.GetCollaborationSnapshot(collabID); snap != nil {
+		out.SetCollaborationPhase(string(snap.Phase))
+	}
 	ch.hub.attachCollaborationData(out)
 	return out, nil
 }
@@ -4586,7 +4599,8 @@ func (ch *CommandHandler) handleCollabTaskDone(ctx context.Context, msg *protoco
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration is **%s**.", snap.Phase)), nil
 	}
 
-	if err := cm.UpdateTaskStatus(collabID, taskID, collaboration.TaskCompleted, "Marked complete by user"); err != nil {
+	effects, err := cm.UpdateTaskStatusWithEffects(collabID, taskID, collaboration.TaskCompleted, "Marked complete by user")
+	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
@@ -4607,10 +4621,15 @@ func (ch *CommandHandler) handleCollabTaskDone(ctx context.Context, msg *protoco
 	out.SetTaskStatus(string(collaboration.TaskCompleted))
 
 	if cm.AllTasksComplete(collabID) {
-		ch.hub.finalizeAndBroadcastCollaboration(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
-		out.SetCollaborationPhase(string(collaboration.PhaseCompleted))
+		ch.hub.requestFinalRecapAndFinalize(collabID, msg.Channel, "All tasks are done.", collaboration.FinalizeOptions{})
+		out.SetCollaborationPhase(string(collaboration.PhaseExecuting))
 	} else {
 		out.SetCollaborationPhase(string(snap.Phase))
+		if effects.ShouldDispatchWave {
+			if fresh, err := cm.GetCollaborationSnapshot(collabID); err == nil && fresh != nil && fresh.Phase == collaboration.PhaseExecuting {
+				ch.hub.dispatchReadyCollabTasks(fresh, msg, false)
+			}
+		}
 	}
 	ch.hub.attachCollaborationData(out)
 	return out, nil

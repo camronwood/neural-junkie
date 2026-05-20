@@ -1,32 +1,48 @@
 package mcp
 
 import (
-	"os"
 	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
-func TestGetMCPServerConfigDisabled(t *testing.T) {
-	os.Unsetenv("ENABLE_MCP")
-	os.Unsetenv("ENABLE_BACKEND_MCP")
-	cfg := GetMCPServerConfig("BACKEND")
-	if cfg.Enabled {
-		t.Fatal("expected MCP disabled without env flags")
+func TestGetMCPServerConfigFromHubConfig(t *testing.T) {
+	SetAppConfig(nil)
+	cfg := config.DefaultConfig()
+	cfg.MCP.Enabled = true
+	cfg.MCP.Agents["backend"] = true
+	cfg.Packs.Enabled[config.PackSoftwareDevelopment] = true
+	cfg.SyncAgentsFromPacks()
+	SetAppConfig(cfg)
+
+	got := GetMCPServerConfig("BACKEND")
+	if !got.Enabled {
+		t.Fatal("expected backend MCP enabled from config")
 	}
-	if cfg.Port != 8081 {
-		t.Fatalf("expected default port 8081, got %d", cfg.Port)
+	if got.Port != 8081 {
+		t.Fatalf("expected port 8081, got %d", got.Port)
 	}
 }
 
-func TestGetMCPServerConfigEnabled(t *testing.T) {
-	t.Setenv("ENABLE_MCP", "true")
-	t.Setenv("ENABLE_BACKEND_MCP", "true")
-	t.Setenv("MCP_BACKEND_PORT", "9099")
-	cfg := GetMCPServerConfig("BACKEND")
-	if !cfg.Enabled {
-		t.Fatal("expected MCP enabled")
+func TestGetMCPServerConfigDisabledWhenMasterOff(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.Enabled = false
+	SetAppConfig(cfg)
+
+	got := GetMCPServerConfig("BACKEND")
+	if got.Enabled {
+		t.Fatal("expected MCP disabled when master switch off")
 	}
-	if cfg.Port != 9099 {
-		t.Fatalf("expected port 9099, got %d", cfg.Port)
+}
+
+func TestGetMCPServerConfigCustomPort(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.Ports = map[string]int{"backend": 9099}
+	SetAppConfig(cfg)
+
+	got := GetMCPServerConfig("BACKEND")
+	if got.Port != 9099 {
+		t.Fatalf("expected port 9099, got %d", got.Port)
 	}
 }
 

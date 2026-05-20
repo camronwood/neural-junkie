@@ -32,7 +32,7 @@ func ImportToOllama(ctx context.Context, ggufPath, ollamaTag string) error {
 		return fmt.Errorf("ollama is not installed")
 	}
 
-	modelfile := fmt.Sprintf("FROM %q\n", abs)
+	modelfile := openBioGGUFModelfile(abs)
 	tmp, err := os.CreateTemp("", "nj-modelfile-*.txt")
 	if err != nil {
 		return err
@@ -56,8 +56,28 @@ func ImportToOllama(ctx context.Context, ggufPath, ollamaTag string) error {
 	return nil
 }
 
+// openBioGGUFModelfile builds a Modelfile with Llama 3 chat template for OpenBio GGUF imports.
+func openBioGGUFModelfile(ggufPath string) string {
+	return fmt.Sprintf(`FROM %q
+TEMPLATE """{{ if .System }}<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+
+{{ .System }}<|eot_id|>{{ end }}{{ if .Prompt }}<|start_header_id|>user<|end_header_id|>
+
+{{ .Prompt }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+{{ end }}"""
+PARAMETER stop "<|eot_id|>"
+PARAMETER stop "<|start_header_id|>"
+PARAMETER stop "<|end_header_id|>"
+`, ggufPath)
+}
+
 // DefaultOllamaTag suggests an Ollama tag from repo_id and filename.
 func DefaultOllamaTag(repoID, filename string) string {
+	repoLower := strings.ToLower(repoID)
+	if strings.Contains(repoLower, "openbiollm") {
+		return "nj-bio:8b"
+	}
 	base := strings.TrimSuffix(filename, filepath.Ext(filename))
 	base = strings.ToLower(base)
 	if len(base) > 48 {

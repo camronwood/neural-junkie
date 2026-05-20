@@ -32,7 +32,16 @@ type CollaborationManager struct {
 	hub            HubInterface
 	collaborations map[string]*Collaboration // id -> collaboration
 	assetsRootFn   func() string             // parent dir for per-collab sandboxes; optional
+	onEnterReviewing func(collabID string)   // optional; hub dispatches pre-approval recap
 	mu             sync.RWMutex
+}
+
+// SetOnEnterReviewing registers a callback invoked after a collaboration enters reviewing
+// (planning finished). Called without holding cm.mu.
+func (cm *CollaborationManager) SetOnEnterReviewing(fn func(collabID string)) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.onEnterReviewing = fn
 }
 
 // NewCollaborationManager creates a new manager attached to the hub.
@@ -49,6 +58,11 @@ func (cm *CollaborationManager) SetAssetsRootResolver(fn func() string) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.assetsRootFn = fn
+}
+
+// CollabAssetsBaseDir returns the parent directory for collaboration sandboxes/worktrees.
+func (cm *CollaborationManager) CollabAssetsBaseDir() (string, error) {
+	return cm.collabAssetsBaseDir()
 }
 
 func (cm *CollaborationManager) collabAssetsBaseDir() (string, error) {
@@ -347,6 +361,10 @@ func (cm *CollaborationManager) ApprovePlan(collabID string) (*Collaboration, er
 		log.Printf("[CollaborationManager] ApprovePlan: collaboration %s already approved (retry execution)", collabID[:8])
 		return c, nil
 	case PhaseReviewing:
+		if c.PlanningRecapStatus == RecapStatusPending {
+			name := FacilitatorDisplayName(c, c.PlanningRecapAgentID)
+			return nil, fmt.Errorf("waiting for session summary from %s — recap in progress", name)
+		}
 		c.Phase = PhaseApproved
 		if c.Plan != nil {
 			c.Plan.Status = ArtifactApproved
@@ -415,6 +433,10 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 		if err := cm.createSandboxWorkingDir(c, baseDir); err != nil {
 			return nil, err
 		}
+	}
+
+	if c.Discussion != nil && c.PlanningDiscussion == nil {
+		c.PlanningDiscussion = CopyDiscussionSession(c.Discussion)
 	}
 
 	var participantIDs []string
@@ -495,7 +517,8 @@ func (cm *CollaborationManager) IncrementExecutionMessageCount(collabID string) 
 	c.ExecutionMessageCount++
 	c.UpdatedAt = time.Now()
 	count = c.ExecutionMessageCount
-	return count, count > MaxExecutionMessages, nil
+	limit := c.MaxExecutionMessagesLimit()
+	return count, count > limit, nil
 }
 
 // ExtendDiscussionLimits raises planning/review discussion caps and re-opens
@@ -634,8 +657,8 @@ func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaborat
 	c.Plan.UpdatedAt = now
 	c.Plan.Status = ArtifactProposed
 	if len(tasks) > 0 {
-		if len(tasks) > MaxTasksPerCollaboration {
-			tasks = tasks[:MaxTasksPerCollaboration]
+		if len(tasks) > maxTasksLimit() {
+			tasks = tasks[:maxTasksLimit()]
 		}
 		c.Tasks = tasks
 	}
@@ -645,26 +668,179 @@ func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaborat
 
 // TransitionToReviewing moves a planning collaboration into user review.
 func (cm *CollaborationManager) TransitionToReviewing(collabID string) (*Collaboration, error) {
+	var notify string
 	cm.mu.Lock()
-	defer cm.mu.Unlock()
 
 	c, ok := cm.collaborations[collabID]
 	if !ok {
+		cm.mu.Unlock()
 		return nil, fmt.Errorf("collaboration %s not found", collabID)
 	}
+	if c.Phase == PhaseReviewing {
+		cm.mu.Unlock()
+		return c, nil
+	}
 	if c.Phase != PhasePlanning {
+		cm.mu.Unlock()
 		return nil, fmt.Errorf("collaboration is in %s phase, expected planning", c.Phase)
 	}
 
+	if cm.enterReviewingFromPlanningLocked(c) {
+		notify = collabID
+	}
+	c.UpdatedAt = time.Now()
+	log.Printf("[CollaborationManager] Collaboration %s moved to reviewing", collabID[:8])
+	cm.mu.Unlock()
+
+	if notify != "" && cm.onEnterReviewing != nil {
+		go cm.onEnterReviewing(notify)
+	}
+	return c, nil
+}
+
+// enterReviewingFromPlanningLocked moves planning -> reviewing. Caller must hold cm.mu.
+// Returns true when the collaboration newly entered reviewing (recap should be dispatched).
+func (cm *CollaborationManager) enterReviewingFromPlanningLocked(c *Collaboration) bool {
+	if c == nil || c.Phase != PhasePlanning {
+		return false
+	}
 	cm.synthesizePlanFromDiscussionLocked(c)
 	c.Phase = PhaseReviewing
-	c.UpdatedAt = time.Now()
 	if c.Plan != nil && c.Plan.Status == ArtifactDraft {
 		c.Plan.Status = ArtifactProposed
 	}
+	if cm.onEnterReviewing != nil {
+		if c.PlanningRecapStatus != RecapStatusComplete && c.PlanningRecapStatus != RecapStatusPending {
+			c.PlanningRecapStatus = RecapStatusPending
+		}
+	}
+	return true
+}
 
-	log.Printf("[CollaborationManager] Collaboration %s moved to reviewing", collabID[:8])
-	return c, nil
+// MarkPlanningRecapDispatched records the facilitator for a pending planning recap.
+func (cm *CollaborationManager) MarkPlanningRecapDispatched(collabID, agentID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.PlanningRecapStatus == RecapStatusComplete {
+		return nil
+	}
+	c.PlanningRecapAgentID = agentID
+	c.PlanningRecapStatus = RecapStatusPending
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+// CompletePlanningRecap stores the pre-approval recap and marks it complete.
+func (cm *CollaborationManager) CompletePlanningRecap(collabID, agentID, text string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.PlanningRecap = strings.TrimSpace(text)
+	c.PlanningRecapAgentID = agentID
+	c.PlanningRecapStatus = RecapStatusComplete
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+// MarkSessionRecapDispatched records the facilitator for a pending final recap.
+func (cm *CollaborationManager) MarkSessionRecapDispatched(collabID, agentID string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.SessionRecapStatus == RecapStatusComplete {
+		return nil
+	}
+	c.SessionRecapAgentID = agentID
+	c.SessionRecapStatus = RecapStatusPending
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+// CompleteSessionRecap stores the final session recap.
+func (cm *CollaborationManager) CompleteSessionRecap(collabID, agentID, text string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.SessionRecap = strings.TrimSpace(text)
+	c.SessionRecapAgentID = agentID
+	c.SessionRecapStatus = RecapStatusComplete
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+// FailPlanningRecap marks planning recap as failed (allows approve with warning).
+func (cm *CollaborationManager) FailPlanningRecap(collabID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return
+	}
+	if c.PlanningRecapStatus == RecapStatusPending {
+		c.PlanningRecapStatus = RecapStatusFailed
+		c.UpdatedAt = time.Now()
+	}
+}
+
+// SetAwaitingFinalize records that the collaboration should finalize after the session recap.
+func (cm *CollaborationManager) SetAwaitingFinalize(collabID, channel, reason string, opts FinalizeOptions) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.AwaitingFinalize = true
+	c.FinalizeChannel = channel
+	c.FinalizeReason = reason
+	c.FinalizeMarkOpenTasks = opts.MarkOpenTasksComplete
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
+// TakeAwaitingFinalize returns pending finalize details and clears the flag.
+func (cm *CollaborationManager) TakeAwaitingFinalize(collabID string) (channel, reason string, opts FinalizeOptions, ok bool) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil || !c.AwaitingFinalize {
+		return "", "", FinalizeOptions{}, false
+	}
+	channel = c.FinalizeChannel
+	reason = c.FinalizeReason
+	opts = FinalizeOptions{MarkOpenTasksComplete: c.FinalizeMarkOpenTasks}
+	c.AwaitingFinalize = false
+	c.FinalizeChannel = ""
+	c.FinalizeReason = ""
+	c.FinalizeMarkOpenTasks = false
+	return channel, reason, opts, true
+}
+
+// FailSessionRecap marks final recap as failed.
+func (cm *CollaborationManager) FailSessionRecap(collabID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return
+	}
+	if c.SessionRecapStatus == RecapStatusPending {
+		c.SessionRecapStatus = RecapStatusFailed
+		c.UpdatedAt = time.Now()
+	}
 }
 
 // SetTasks sets the parsed tasks on a collaboration (used after plan synthesis).
@@ -676,8 +852,11 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	if !ok {
 		return fmt.Errorf("collaboration %s not found", collabID)
 	}
-	if len(tasks) > MaxTasksPerCollaboration {
-		tasks = tasks[:MaxTasksPerCollaboration]
+	if len(tasks) > maxTasksLimit() {
+		tasks = tasks[:maxTasksLimit()]
+	}
+	for i := range tasks {
+		normalizeTaskOnSave(&tasks[i])
 	}
 	NormalizeDependencies(tasks)
 	if err := ValidateDAG(tasks); err != nil {
@@ -798,25 +977,8 @@ func (cm *CollaborationManager) EnsureExecutionTasks(collabID string) (assignees
 
 // UpdateTaskStatus updates the status of a specific task.
 func (cm *CollaborationManager) UpdateTaskStatus(collabID, taskID string, status TaskStatus, output string) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	c, ok := cm.collaborations[collabID]
-	if !ok {
-		return fmt.Errorf("collaboration %s not found", collabID)
-	}
-
-	for i := range c.Tasks {
-		if c.Tasks[i].ID == taskID {
-			c.Tasks[i].Status = status
-			if output != "" {
-				c.Tasks[i].Output = output
-			}
-			c.Tasks[i].UpdatedAt = time.Now()
-			return nil
-		}
-	}
-	return fmt.Errorf("task %s not found in collaboration %s", taskID, collabID)
+	_, err := cm.UpdateTaskStatusWithEffects(collabID, taskID, status, output)
+	return err
 }
 
 // AllTasksComplete returns true if every task in the collaboration is done.
@@ -1129,6 +1291,8 @@ func SuggestRole(agentType protocol.AgentType, expertise []string) string {
 		return "Security Review & Auth Design"
 	case protocol.AgentTypeRust:
 		return "Rust Architecture & Systems Design"
+	case protocol.AgentTypeBiology:
+		return "Molecular Biology & Lab Research"
 	case protocol.AgentTypeBackend:
 		return "Backend Architecture & API Design"
 	case protocol.AgentTypeFrontend:

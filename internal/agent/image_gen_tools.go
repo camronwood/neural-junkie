@@ -103,7 +103,8 @@ func (a *Agent) generateWithAgentTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	toolProvider, ok := eff.(ai.ToolCapableProvider)
+	toolEff := a.toolCapableProvider(eff)
+	toolProvider, ok := toolEff.(ai.ToolCapableProvider)
 	if !ok || !toolProvider.SupportsTools() {
 		log.Printf("[%s] Tools requested but provider does not support tool calling; using standard response", a.Info.Name)
 		return eff.GenerateResponse(ctx, prompt, histMsgs)

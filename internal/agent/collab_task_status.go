@@ -24,7 +24,7 @@ func ApplyCollaborationTaskMetadataOnReply(responseMsg *protocol.Message, source
 	}
 	responseMsg.SetTaskID(taskID)
 
-	if inferred := collaboration.InferTaskStatusFromAgentReply(responseContent); inferred != "" {
+	if inferred := collaboration.InferTaskStatusFromAgentReply(responseContent, false); inferred != "" {
 		responseMsg.SetTaskStatus(string(inferred))
 		if output := source.GetTaskOutput(); output != "" {
 			responseMsg.SetTaskOutput(output)

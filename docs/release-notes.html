@@ -24,7 +24,7 @@
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">Download beta.11</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12">Download beta.12</a>
       </nav>
     </div>
   </header>
@@ -35,11 +35,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">v1.0.0-beta.11</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12">v1.0.0-beta.12</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-12">1.0.0-beta.12</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-11">1.0.0-beta.11</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-10">1.0.0-beta.10</a>
@@ -74,6 +76,26 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-12" class="release-version-heading">1.0.0-beta.12 <span class="release-date">— 2026-05-20</span></h2>
+
+      <p><strong>Domain packs, session memory, and runbook actions.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12">GitHub Releases</a>. Packs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Software development</a>, <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences</a>. Context: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">CONTEXT_MODEL.md</a>. Actions: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/RUNBOOK_ACTIONS.md">RUNBOOK_ACTIONS.md</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Domain packs</strong> — optional software-development and life-sciences packs in Settings; wizard focus tracks; lean default install.</li>
+        <li><strong>Life sciences</strong> — BiologyExpert, OpenBioLLM, bio MCP tools, sequence review runbook template.</li>
+        <li><strong>Context model</strong> — turn intent router and rolling DM session summary (<code>qwen2.5:7b</code>).</li>
+        <li><strong>Runbook actions</strong> — <code>http_get</code>, <code>http_post</code>, <code>webhook</code>, conditional edges; bundled templates API.</li>
+        <li><strong>Collab recap</strong> — summary message when collaborations complete.</li>
+        <li><strong>Marketing</strong> — beta.12 ads and <code>docs/marketing/BETA12-ADS.md</code>.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Specialists + MCP</strong> — follow pack toggles; migration for legacy dev agent configs.</li>
+        <li><strong>Sidebar</strong> — auto-unhide channels and stable agent hide keys.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-11" class="release-version-heading">1.0.0-beta.11 <span class="release-date">— 2026-05-19</span></h2>
 
       <p><strong>Runbook builder and collaboration polish.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11">GitHub Releases</a>. Quick start: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">docs/DOWNLOAD.md</a>. Runbooks: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md#runbook-builder-desktop">docs/COLLABORATION.md</a>.</p>

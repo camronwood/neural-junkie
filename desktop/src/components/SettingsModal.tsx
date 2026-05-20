@@ -3,7 +3,10 @@ import { shallow } from 'zustand/shallow';
 import { useSettingsStore, type FontSizeScope } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
-import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings } from '../types/protocol';
+import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings, GoogleMeetNotesSettings, GoogleMeetNotesStatus } from '../types/protocol';
+import { ChatAPI, type PackStatus } from '../api/chatAPI';
+import { patchRevealActiveAgentsInSidebar } from '../utils/sidebarVisibility';
+import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
 import { ProviderManager } from './ProviderManager';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 import { open } from '@tauri-apps/api/dialog';
@@ -28,6 +31,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     updateAnthropicSettings,
     updateGitHubSettings,
     updateConfluenceSettings,
+    updateGoogleMeetNotesSettings,
     updateOllamaSettings,
     updateLMStudioSettings,
     clearIntegrationSettings,
@@ -39,19 +43,30 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     fetchOllamaModels,
     fetchLMStudioModels
   } = useSettingsStore();
-  const { switchAllAgentProviders, serverAddr: chatServerAddr, channels, agents } = useChatStore(
-    (s) => ({ switchAllAgentProviders: s.switchAllAgentProviders, serverAddr: s.serverAddr, channels: s.channels, agents: s.agents }),
+  const { switchAllAgentProviders, serverAddr: chatServerAddr, channels, agents, setAgents, setChannels } = useChatStore(
+    (s) => ({
+      switchAllAgentProviders: s.switchAllAgentProviders,
+      serverAddr: s.serverAddr,
+      channels: s.channels,
+      agents: s.agents,
+      setAgents: s.setAgents,
+      setChannels: s.setChannels,
+    }),
     shallow
   );
   const hubHttp =
     chatServerAddr.startsWith('http') ? chatServerAddr : `http://${chatServerAddr}`;
-  const [activeTab, setActiveTab] = useState<'appearance' | 'layout' | 'chat' | 'integrations' | 'ai-providers' | 'developer' | 'about'>('appearance');
+  const [activeTab, setActiveTab] = useState<
+    'appearance' | 'layout' | 'chat' | 'integrations' | 'ai-providers' | 'domain-packs' | 'about'
+  >('appearance');
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
   
   // Integration form states
   const [anthropicForm, setAnthropicForm] = useState<AnthropicSettings>(integrations.anthropic);
   const [githubForm, setGitHubForm] = useState<GitHubSettings>(integrations.github);
   const [confluenceForm, setConfluenceForm] = useState<ConfluenceSettings>(integrations.confluence);
+  const [googleOAuthForm, setGoogleOAuthForm] = useState<GoogleMeetNotesSettings>(integrations.googleMeetNotes);
+  const [googleOAuthSecretSet, setGoogleOAuthSecretSet] = useState(false);
   const [ollamaForm, setOllamaForm] = useState<OllamaSettings>(integrations.ollama);
   const [lmstudioForm, setLMStudioForm] = useState<LMStudioSettings>(integrations.lmstudio);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
@@ -65,6 +80,123 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [collabAssetsSaving, setCollabAssetsSaving] = useState(false);
   const [collabAssetsErr, setCollabAssetsErr] = useState<string | null>(null);
   const [collabAssetsOk, setCollabAssetsOk] = useState<string | null>(null);
+  const [googleMeetNotes, setGoogleMeetNotes] = useState<GoogleMeetNotesStatus | null>(null);
+  const [googleMeetNotesLoading, setGoogleMeetNotesLoading] = useState(false);
+  const [googleMeetNotesBusy, setGoogleMeetNotesBusy] = useState(false);
+  const [domainPacks, setDomainPacks] = useState<PackStatus[]>([]);
+  const [packsLoading, setPacksLoading] = useState(false);
+  const [packsSaving, setPacksSaving] = useState<string | null>(null);
+  const [packsErr, setPacksErr] = useState<string | null>(null);
+  const [hfHubToken, setHfHubToken] = useState('');
+  const [hfHubTokenPersisted, setHfHubTokenPersisted] = useState('');
+  const [hfTokenSaving, setHfTokenSaving] = useState(false);
+  const [hfTokenErr, setHfTokenErr] = useState<string | null>(null);
+  const [hfTokenOk, setHfTokenOk] = useState<string | null>(null);
+  const [mcpEnabled, setMcpEnabled] = useState(true);
+  const [bioMaxFold, setBioMaxFold] = useState('400');
+  const [bioMaxAnalyze, setBioMaxAnalyze] = useState('10000');
+  const [bioEsmfoldModel, setBioEsmfoldModel] = useState('facebook/esmfold_v1');
+  const [bioArtifactsDir, setBioArtifactsDir] = useState('');
+  const [bioSettingsSaving, setBioSettingsSaving] = useState(false);
+  const [bioSettingsErr, setBioSettingsErr] = useState<string | null>(null);
+  const [bioSettingsOk, setBioSettingsOk] = useState<string | null>(null);
+
+  const refreshDomainPacks = async () => {
+    setPacksLoading(true);
+    setPacksErr(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const rows = await api.fetchPacks();
+      setDomainPacks(rows);
+    } catch (e) {
+      setPacksErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPacksLoading(false);
+    }
+  };
+
+  const mergeSettingsPut = async (patch: (cfg: Record<string, unknown>) => Record<string, unknown>) => {
+    const r = await fetch(`${hubHttp}/api/settings`);
+    if (!r.ok) {
+      throw new Error(await r.text());
+    }
+    const cfg = (await r.json()) as Record<string, unknown>;
+    const put = await fetch(`${hubHttp}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch(cfg)),
+    });
+    if (!put.ok) {
+      throw new Error(await put.text());
+    }
+  };
+
+  const handlePackToggle = async (packId: string, enabled: boolean) => {
+    setPacksSaving(packId);
+    setPacksErr(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const rows = await api.setPackEnabled(packId, enabled);
+      setDomainPacks(rows);
+      const [agentList, channelList] = await Promise.all([
+        api.fetchAgents(),
+        api.fetchChannels(),
+      ]);
+      setAgents(agentList);
+      setChannels(channelList);
+      if (enabled) {
+        if (!layoutSettings.sidebarAgentsVisible) {
+          await updateLayoutSettings({ sidebarAgentsVisible: true });
+        }
+        const revealPatch = patchRevealActiveAgentsInSidebar(
+          useSettingsStore.getState().settings,
+          agentList,
+          channelList
+        );
+        if (revealPatch) {
+          await updateSettings(revealPatch);
+        }
+      }
+    } catch (e) {
+      setPacksErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPacksSaving(null);
+    }
+  };
+
+  const refreshGoogleMeetNotesStatus = async () => {
+    setGoogleMeetNotesLoading(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const [status, appConfig] = await Promise.all([
+        api.getGoogleMeetNotesStatus(),
+        api.getGoogleMeetNotesAppConfig().catch(() => null),
+      ]);
+      setGoogleMeetNotes(status);
+      if (appConfig) {
+        setGoogleOAuthForm((prev) => ({
+          ...prev,
+          clientId: appConfig.client_id || prev.clientId,
+          redirectUrl: appConfig.redirect_url || prev.redirectUrl,
+        }));
+        setGoogleOAuthSecretSet(appConfig.secret_set);
+      }
+    } catch (e) {
+      setGoogleMeetNotes({
+        connected: false,
+        oauth_configured: false,
+      });
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to load status',
+        },
+      }));
+    } finally {
+      setGoogleMeetNotesLoading(false);
+    }
+  };
 
   // Load settings when modal opens
   useEffect(() => {
@@ -81,12 +213,131 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setAnthropicForm(integrations.anthropic);
     setGitHubForm(integrations.github);
     setConfluenceForm(integrations.confluence);
+    setGoogleOAuthForm(integrations.googleMeetNotes);
     setOllamaForm(integrations.ollama);
     setLMStudioForm(integrations.lmstudio);
   }, [integrations]);
 
   useEffect(() => {
-    if (!isOpen || activeTab !== 'ai-providers') return;
+    if (!isOpen || activeTab !== 'integrations') return;
+    void refreshGoogleMeetNotesStatus();
+  }, [isOpen, activeTab, hubHttp]);
+
+  const saveGoogleOAuthSettings = async () => {
+    setGoogleMeetNotesBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.saveGoogleMeetNotesAppConfig(
+        googleOAuthForm.clientId,
+        googleOAuthForm.clientSecret,
+        googleOAuthForm.redirectUrl
+      );
+      await updateGoogleMeetNotesSettings(googleOAuthForm);
+      setGoogleOAuthSecretSet(true);
+      setGoogleOAuthForm((prev) => ({ ...prev, clientSecret: '' }));
+      await refreshGoogleMeetNotesStatus();
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: true,
+          message: 'OAuth app credentials saved on the hub.',
+        },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to save OAuth credentials',
+        },
+      }));
+    } finally {
+      setGoogleMeetNotesBusy(false);
+    }
+  };
+
+  const connectGoogleMeetNotes = async () => {
+    setGoogleMeetNotesBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const url = await api.getGoogleMeetNotesAuthURL();
+      openLink(url);
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: true,
+          message: 'Complete sign-in in your browser, then refresh status.',
+        },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Connect failed',
+        },
+      }));
+    } finally {
+      setGoogleMeetNotesBusy(false);
+    }
+  };
+
+  const disconnectGoogleMeetNotes = async () => {
+    setGoogleMeetNotesBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.disconnectGoogleMeetNotes();
+      await refreshGoogleMeetNotesStatus();
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: { success: true, message: 'Disconnected from Google.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Disconnect failed',
+        },
+      }));
+    } finally {
+      setGoogleMeetNotesBusy(false);
+    }
+  };
+
+  const syncGoogleMeetNotesNow = async () => {
+    setGoogleMeetNotesBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const n = await api.syncGoogleMeetNotes();
+      await refreshGoogleMeetNotesStatus();
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: true,
+          message: `Synced ${n} meeting note(s).`,
+        },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        googleMeetNotes: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Sync failed',
+        },
+      }));
+    } finally {
+      setGoogleMeetNotesBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'domain-packs') return;
+    void refreshDomainPacks();
+  }, [isOpen, activeTab, hubHttp]);
+
+  useEffect(() => {
+    if (!isOpen || (activeTab !== 'ai-providers' && activeTab !== 'domain-packs')) return;
     let cancelled = false;
     setCollabRoutingErr(null);
     (async () => {
@@ -103,6 +354,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setCollabAssetsRoot(root);
           setCollabAssetsPersisted(root);
           setCollabAssetsOk(null);
+          const hfTok = typeof cfg.hf?.token === 'string' ? cfg.hf.token : '';
+          const redacted = hfTok.includes('...') || hfTok === '***';
+          setHfHubToken(redacted ? '' : hfTok);
+          setHfHubTokenPersisted(redacted ? '***' : hfTok);
+          setMcpEnabled(cfg.mcp?.enabled !== false);
+          const bio = cfg.mcp?.biology ?? {};
+          setBioMaxFold(String(bio.max_fold_length || 400));
+          setBioMaxAnalyze(String(bio.max_analyze_length || 10000));
+          setBioEsmfoldModel(bio.esmfold_model || 'facebook/esmfold_v1');
+          setBioArtifactsDir(bio.artifacts_dir || '');
         }
       } catch (e) {
         if (!cancelled) {
@@ -189,6 +450,69 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setCollabRoutingErr(e instanceof Error ? e.message : String(e));
     } finally {
       setCollabRoutingSaving(false);
+    }
+  };
+
+  const saveHfHubToken = async () => {
+    setHfTokenSaving(true);
+    setHfTokenErr(null);
+    setHfTokenOk(null);
+    try {
+      const trimmed = hfHubToken.trim();
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        hf: { ...(cfg.hf as object | undefined), token: trimmed },
+      }));
+      setHfHubTokenPersisted(trimmed ? '***' : '');
+      setHfTokenOk(trimmed ? 'Hugging Face token saved.' : 'Cleared hub Hugging Face token.');
+    } catch (e) {
+      setHfTokenErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHfTokenSaving(false);
+    }
+  };
+
+  const saveBioMcpSettings = async () => {
+    setBioSettingsSaving(true);
+    setBioSettingsErr(null);
+    setBioSettingsOk(null);
+    try {
+      const maxFold = parseInt(bioMaxFold, 10);
+      const maxAnalyze = parseInt(bioMaxAnalyze, 10);
+      if (!Number.isFinite(maxFold) || maxFold <= 0 || !Number.isFinite(maxAnalyze) || maxAnalyze <= 0) {
+        throw new Error('Max lengths must be positive integers');
+      }
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        mcp: {
+          ...(cfg.mcp as object | undefined),
+          enabled: mcpEnabled,
+          biology: {
+            esmfold_model: bioEsmfoldModel.trim() || 'facebook/esmfold_v1',
+            max_fold_length: maxFold,
+            max_analyze_length: maxAnalyze,
+            artifacts_dir: bioArtifactsDir.trim(),
+          },
+        },
+      }));
+      setBioSettingsOk('Life sciences tool settings saved. Restart BiologyExpert if it is already running.');
+    } catch (e) {
+      setBioSettingsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBioSettingsSaving(false);
+    }
+  };
+
+  const handleMcpMasterToggle = async (enabled: boolean) => {
+    setMcpEnabled(enabled);
+    try {
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        mcp: { ...(cfg.mcp as object | undefined), enabled },
+      }));
+    } catch (e) {
+      setMcpEnabled(!enabled);
+      setBioSettingsErr(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -524,11 +848,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slack-border">
+        {/* Tabs — horizontal scroll so About stays reachable on narrow modals */}
+        <div className="flex flex-nowrap overflow-x-auto overscroll-x-contain border-b border-slack-border shrink-0">
           <button
             onClick={() => setActiveTab('appearance')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === 'appearance'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
@@ -538,7 +862,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={() => setActiveTab('layout')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === 'layout'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
@@ -548,7 +872,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={() => setActiveTab('chat')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === 'chat'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
@@ -558,7 +882,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={() => setActiveTab('integrations')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === 'integrations'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
@@ -568,7 +892,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </button>
           <button
             onClick={() => setActiveTab('ai-providers')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === 'ai-providers'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
@@ -577,18 +901,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             AI Providers
           </button>
           <button
-            onClick={() => setActiveTab('developer')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'developer'
+            onClick={() => setActiveTab('domain-packs')}
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'domain-packs'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
             }`}
           >
-            Developer
+            Domain packs
           </button>
           <button
             onClick={() => setActiveTab('about')}
-            className={`px-6 py-3 text-sm font-medium transition-colors ${
+            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
               activeTab === 'about'
                 ? 'text-slack-text border-b-2 border-slack-accent'
                 : 'text-slack-textMuted hover:text-slack-text'
@@ -805,10 +1129,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div>
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Hidden from sidebar</h3>
                 <p className="text-sm text-slack-textMuted mb-3">
-                  DM rows, collaborations, or agent shortcuts you hid. Unhide to show them in the sidebar again (nothing is deleted or cancelled).
+                  DM rows, collaborations, or agent shortcuts you hid. They reappear automatically when you open them or when an agent becomes active again (e.g. enabling a domain pack). Use Unhide here anytime (nothing is deleted or cancelled).
                 </p>
                 {(settings.hiddenDmChannelNames?.length ?? 0) === 0 &&
                 (settings.hiddenCollaborationChannelNames?.length ?? 0) === 0 &&
+                (settings.hiddenAgentSidebarKeys?.length ?? 0) === 0 &&
                 (settings.hiddenAgentIdsForSidebar?.length ?? 0) === 0 ? (
                   <p className="text-sm text-slack-textMuted">None. Use × on a row in the sidebar.</p>
                 ) : (
@@ -864,6 +1189,32 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         </div>
                       );
                     })}
+                    {(settings.hiddenAgentSidebarKeys ?? []).map((key) => {
+                      const label = key.includes(':') ? key.slice(key.indexOf(':') + 1) : key;
+                      return (
+                        <div
+                          key={`agk-${key}`}
+                          className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
+                        >
+                          <span className="text-sm text-slack-text truncate">
+                            Agent shortcut: {label}
+                          </span>
+                          <button
+                            type="button"
+                            className="shrink-0 text-xs text-slack-accent hover:underline"
+                            onClick={() =>
+                              void updateSettings({
+                                hiddenAgentSidebarKeys: (settings.hiddenAgentSidebarKeys ?? []).filter(
+                                  (x) => x !== key
+                                ),
+                              })
+                            }
+                          >
+                            Unhide
+                          </button>
+                        </div>
+                      );
+                    })}
                     {(settings.hiddenAgentIdsForSidebar ?? []).map((id) => (
                       <div
                         key={`ag-${id}`}
@@ -875,11 +1226,21 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <button
                           type="button"
                           className="shrink-0 text-xs text-slack-accent hover:underline"
-                          onClick={() =>
+                          onClick={() => {
+                            const agent = agents.find((a) => a.id === id);
                             void updateSettings({
-                              hiddenAgentIdsForSidebar: (settings.hiddenAgentIdsForSidebar ?? []).filter((x) => x !== id),
-                            })
-                          }
+                              hiddenAgentIdsForSidebar: (settings.hiddenAgentIdsForSidebar ?? []).filter(
+                                (x) => x !== id
+                              ),
+                              ...(agent
+                                ? {
+                                    hiddenAgentSidebarKeys: (settings.hiddenAgentSidebarKeys ?? []).filter(
+                                      (k) => k !== agentSidebarHideKey(agent)
+                                    ),
+                                  }
+                                : {}),
+                            });
+                          }}
                         >
                           Unhide
                         </button>
@@ -1072,6 +1433,153 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
               </div>
 
+              {/* Google Meet notes (Assistant) */}
+              <div className="border border-slack-border rounded-lg p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">Google Meet notes</h3>
+                  <button
+                    type="button"
+                    onClick={() => void refreshGoogleMeetNotesStatus()}
+                    disabled={googleMeetNotesLoading}
+                    className="px-3 py-1 text-sm border border-slack-border rounded hover:bg-slack-bgHover text-slack-text"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Sync Gemini meeting notes from Gmail into the Assistant. Create a Google Cloud OAuth
+                  web client, add the redirect URI below, then save your Client ID and Secret.
+                </p>
+                <div className="space-y-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      OAuth Client ID
+                    </label>
+                    <input
+                      type="text"
+                      value={googleOAuthForm.clientId}
+                      onChange={(e) =>
+                        setGoogleOAuthForm((prev) => ({ ...prev, clientId: e.target.value }))
+                      }
+                      placeholder="xxxx.apps.googleusercontent.com"
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      OAuth Client Secret
+                      {googleOAuthSecretSet && !googleOAuthForm.clientSecret && (
+                        <span className="ml-2 text-xs text-green-600">(saved)</span>
+                      )}
+                    </label>
+                    <input
+                      type={showPasswords.googleOAuth ? 'text' : 'password'}
+                      value={googleOAuthForm.clientSecret}
+                      onChange={(e) =>
+                        setGoogleOAuthForm((prev) => ({ ...prev, clientSecret: e.target.value }))
+                      }
+                      placeholder={googleOAuthSecretSet ? 'Leave blank to keep existing secret' : 'Client secret'}
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Redirect URI
+                    </label>
+                    <input
+                      type="text"
+                      value={googleOAuthForm.redirectUrl}
+                      onChange={(e) =>
+                        setGoogleOAuthForm((prev) => ({ ...prev, redirectUrl: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                    />
+                    <p className="text-xs text-slack-textMuted mt-1">
+                      Add this exact URI in Google Cloud Console → Credentials → your OAuth client.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void saveGoogleOAuthSettings()}
+                    disabled={
+                      googleMeetNotesBusy ||
+                      !googleOAuthForm.clientId.trim() ||
+                      (!googleOAuthSecretSet && !googleOAuthForm.clientSecret.trim())
+                    }
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    Save OAuth credentials
+                  </button>
+                </div>
+                {testResults.googleMeetNotes && (
+                  <div
+                    className={`mb-4 p-3 rounded text-sm ${
+                      testResults.googleMeetNotes.success
+                        ? 'bg-green-100 text-green-800 border border-green-200'
+                        : 'bg-red-100 text-red-800 border border-red-200'
+                    }`}
+                  >
+                    {testResults.googleMeetNotes.message}
+                  </div>
+                )}
+                {googleMeetNotesLoading && !googleMeetNotes ? (
+                  <p className="text-sm text-slack-textMuted">Loading status…</p>
+                ) : googleMeetNotes ? (
+                  <div className="space-y-3 text-sm text-slack-text">
+                    <p>
+                      <span className="font-medium">Hub OAuth:</span>{' '}
+                      {googleMeetNotes.oauth_configured ? 'configured' : 'not configured on server'}
+                    </p>
+                    <p>
+                      <span className="font-medium">Account:</span>{' '}
+                      {googleMeetNotes.connected
+                        ? googleMeetNotes.email || 'connected'
+                        : 'not connected'}
+                    </p>
+                    {googleMeetNotes.connected && (
+                      <>
+                        <p>
+                          <span className="font-medium">Stored notes:</span>{' '}
+                          {googleMeetNotes.notes_count ?? 0}
+                        </p>
+                        {googleMeetNotes.last_sync_at && (
+                          <p>
+                            <span className="font-medium">Last sync:</span>{' '}
+                            {new Date(googleMeetNotes.last_sync_at).toLocaleString()}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => void connectGoogleMeetNotes()}
+                    disabled={googleMeetNotesBusy || !googleMeetNotes?.oauth_configured}
+                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    Connect Google
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void syncGoogleMeetNotesNow()}
+                    disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
+                    className="px-4 py-2 border border-slack-border rounded hover:bg-slack-bgHover disabled:opacity-50"
+                  >
+                    Sync now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void disconnectGoogleMeetNotes()}
+                    disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
+                    className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+
               {/* Confluence Settings */}
               <div className="border border-slack-border rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1178,8 +1686,159 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
           )}
 
+          {activeTab === 'domain-packs' && (
+            <div className="space-y-8">
+              <div className="border border-slack-border rounded-lg p-4 bg-slack-bgHover/30 text-sm text-slack-textMuted">
+                <strong className="text-slack-text">Always on:</strong> ChatModerator, Assistant, and CLI agents (Cursor, Gemini, Claude, Copilot) when installed on your PATH. Domain packs add optional in-process specialists and tools below.
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Domain packs</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Turn optional specialist packs on or off. Enabled packs add experts to <strong>New DM</strong>, channel invite, and the agent sidebar.
+                </p>
+                {packsLoading && <p className="text-sm text-slack-textMuted">Loading packs…</p>}
+                {packsErr && <p className="text-sm text-red-600 mb-2">{packsErr}</p>}
+                <div className="space-y-3">
+                  {domainPacks.map((pack) => (
+                    <label
+                      key={pack.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border border-slack-border bg-slack-bgHover/30 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pack.enabled}
+                        disabled={packsSaving === pack.id}
+                        onChange={(e) => void handlePackToggle(pack.id, e.target.checked)}
+                        className="mt-1 rounded border-slack-border"
+                      />
+                      <div>
+                        <div className="text-slack-text font-medium">{pack.title}</div>
+                        <p className="text-xs text-slack-textMuted mt-1">{pack.description}</p>
+                        {pack.enabled && pack.id === 'life-sciences' && pack.expert_label && (
+                          <p className="text-xs text-teal-600 mt-1">
+                            Expert: {pack.expert_label} — install Bio 8B from Model Library when using local Ollama. MCP tools start automatically (no env vars).
+                          </p>
+                        )}
+                        {pack.enabled && pack.id === 'software-development' && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Adds GoExpert, ReactExpert, RustExpert, and other in-process specialists. Pull{' '}
+                            <code className="font-mono bg-slack-bgHover px-1 rounded">qwen2.5-coder:14b</code> from Model Library for local Ollama. Dev MCP tools start with enabled agents.
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {domainPacks.some((p) => p.id === 'life-sciences' && p.enabled) && (
+                <div className="border border-slack-border rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slack-text mb-2">Life sciences tools</h3>
+                  <p className="text-sm text-slack-textMuted mb-4">
+                    Limits for <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">analyze_sequence</code> and{' '}
+                    <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">fold_protein</code> (BiologyExpert MCP).
+                  </p>
+                  <label className="flex items-center gap-3 cursor-pointer mb-4">
+                    <input
+                      type="checkbox"
+                      checked={mcpEnabled}
+                      onChange={(e) => void handleMcpMasterToggle(e.target.checked)}
+                      className="rounded border-slack-border"
+                    />
+                    <span className="text-sm text-slack-text">Enable MCP tool servers (master)</span>
+                  </label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Max fold length (aa)</span>
+                      <input
+                        type="number"
+                        value={bioMaxFold}
+                        onChange={(e) => setBioMaxFold(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Max analyze length</span>
+                      <input
+                        type="number"
+                        value={bioMaxAnalyze}
+                        onChange={(e) => setBioMaxAnalyze(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text"
+                      />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">ESMFold model (Hub id)</span>
+                      <input
+                        type="text"
+                        value={bioEsmfoldModel}
+                        onChange={(e) => setBioEsmfoldModel(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">Artifacts directory (empty = ~/.neural-junkie/bio)</span>
+                      <input
+                        type="text"
+                        value={bioArtifactsDir}
+                        onChange={(e) => setBioArtifactsDir(e.target.value)}
+                        placeholder="~/.neural-junkie/bio"
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void saveBioMcpSettings()}
+                    disabled={bioSettingsSaving}
+                    className="mt-4 px-4 py-2 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    {bioSettingsSaving ? 'Saving…' : 'Save life sciences tools'}
+                  </button>
+                  {bioSettingsErr && <p className="text-sm text-red-600 mt-2">{bioSettingsErr}</p>}
+                  {bioSettingsOk && <p className="text-sm text-green-600 mt-2">{bioSettingsOk}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'ai-providers' && (
             <div className="space-y-8">
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Hugging Face hub token</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Used for gated model downloads, hosted inference, and <strong>ESMFold</strong> structure prediction. You can also add a{' '}
+                  <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">huggingface</code> provider below.
+                </p>
+                {hfHubTokenPersisted === '***' && !hfHubToken && (
+                  <p className="text-xs text-slack-textMuted mb-2">A token is saved on the hub (hidden). Enter a new value to replace it.</p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
+                  <input
+                    type="password"
+                    value={hfHubToken}
+                    onChange={(e) => {
+                      setHfHubToken(e.target.value);
+                      setHfTokenOk(null);
+                    }}
+                    placeholder="hf_…"
+                    disabled={hfTokenSaving}
+                    className="flex-1 px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text font-mono"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveHfHubToken()}
+                    disabled={hfTokenSaving}
+                    className="px-4 py-2 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    {hfTokenSaving ? 'Saving…' : 'Save token'}
+                  </button>
+                </div>
+                {hfTokenErr && <p className="text-sm text-red-600">{hfTokenErr}</p>}
+                {hfTokenOk && <p className="text-sm text-green-600">{hfTokenOk}</p>}
+              </div>
+
               <div className="border border-slack-border rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Collaboration output folder</h3>
                 <p className="text-sm text-slack-textMuted mb-4">
@@ -1530,27 +2189,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </div>
           )}
 
-          {activeTab === 'developer' && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-slack-text mb-2">Developer Tools</h3>
-                <p className="text-slack-textMuted mb-4">
-                  Debug information and development utilities.
-                </p>
-                <div className="space-y-3">
-                  <div className="p-3 bg-slack-bgHover rounded text-sm">
-                    <span className="text-slack-textMuted">Server:</span>
-                    <span className="ml-2 text-slack-text font-mono">{getHubBaseURL()}</span>
-                  </div>
-                  <div className="p-3 bg-slack-bgHover rounded text-sm">
-                    <span className="text-slack-textMuted">WebSocket:</span>
-                    <span className="ml-2 text-slack-text font-mono">{getHubWebSocketURL()}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'about' && (
             <div className="space-y-6">
               {/* App Info */}
@@ -1565,6 +2203,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div>
                     <span className="text-slack-textMuted">License:</span>
                     <span className="ml-2 text-slack-text">{APP_INFO.license}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Hub connection</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="p-3 bg-slack-bgHover rounded">
+                    <span className="text-slack-textMuted">HTTP:</span>
+                    <span className="ml-2 text-slack-text font-mono break-all">{getHubBaseURL()}</span>
+                  </div>
+                  <div className="p-3 bg-slack-bgHover rounded">
+                    <span className="text-slack-textMuted">WebSocket:</span>
+                    <span className="ml-2 text-slack-text font-mono break-all">{getHubWebSocketURL()}</span>
                   </div>
                 </div>
               </div>

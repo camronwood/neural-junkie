@@ -27,12 +27,11 @@ type AssistantAgent struct {
 	stopReminders        chan struct{}
 	reminderMutex        sync.RWMutex
 	config               *AssistantConfig
-	meetingNotesWatcher  *fsnotify.Watcher
-	stopMeetingWatcher   chan struct{}
+	stopGoogleSync       chan struct{}
+	googleSyncStarted    bool
+	googleSyncMu         sync.Mutex
 	emailWatcher         *fsnotify.Watcher
 	stopEmailWatcher     chan struct{}
-	processedFiles       map[string]bool
-	processedFilesMutex  sync.RWMutex
 	processedEmails      map[string]bool
 	processedEmailsMutex sync.RWMutex
 	pendingApprovals     map[string]*PendingApproval
@@ -83,25 +82,25 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 	if storage != nil {
 		if loadedConfig, err := storage.LoadConfig(); err == nil {
 			config = loadedConfig
-			config.MeetingNotesDir = ResolveMeetingNotesDir(config.MeetingNotesDir)
+			NormalizeAssistantConfig(config)
 		}
 	}
 
 	assistant := &AssistantAgent{
-		Agent:              baseAgent,
-		storage:            storage,
-		stopReminders:      make(chan struct{}),
-		config:             config,
-		stopMeetingWatcher: make(chan struct{}),
-		stopEmailWatcher:   make(chan struct{}),
-		processedFiles:     make(map[string]bool),
-		processedEmails:    make(map[string]bool),
+		Agent:            baseAgent,
+		storage:          storage,
+		stopReminders:    make(chan struct{}),
+		config:           config,
+		stopGoogleSync:   make(chan struct{}),
+		stopEmailWatcher: make(chan struct{}),
+		processedEmails:  make(map[string]bool),
 		pendingApprovals:   make(map[string]*PendingApproval),
 	}
 
 	// Ensure deterministic assistant actions are handled before the shared
 	// LLM response path.
 	assistant.Agent.SetMessageInterceptor(assistant.handleDirectAssistantActions)
+	assistant.Agent.SetPromptBuilder(assistant.buildAssistantPrompt)
 
 	return assistant
 }
@@ -111,21 +110,7 @@ func (a *AssistantAgent) Start(ctx context.Context, channel string) error {
 	// Start the reminder monitoring goroutine
 	go a.monitorReminders(ctx)
 
-	// Start meeting notes watcher if enabled
-	if a.config.AutoIngestEnabled {
-		if info, statErr := os.Stat(a.config.MeetingNotesDir); statErr != nil || !info.IsDir() {
-			log.Printf("ℹ️  [Assistant] Meeting notes auto-ingestion unavailable: directory not found (%s)", a.config.MeetingNotesDir)
-		} else {
-			log.Printf("📁 [Assistant] Starting meeting notes watcher for directory: %s", a.config.MeetingNotesDir)
-			if err := a.startMeetingNotesWatcher(ctx); err != nil {
-				log.Printf("ℹ️  [Assistant] Meeting notes watcher unavailable: %v", err)
-			} else {
-				log.Printf("✅ [Assistant] Meeting notes watcher started successfully")
-			}
-		}
-	} else {
-		log.Printf("ℹ️  [Assistant] Meeting notes auto-ingestion is disabled")
-	}
+	a.ensureGoogleMeetNotesSync(ctx)
 
 	// Start email watcher if enabled
 	if a.config.EmailIngestEnabled {
@@ -198,31 +183,23 @@ func (a *AssistantAgent) ShouldRespond(msg *protocol.Message) bool {
 	return false
 }
 
-// GenerateResponse overrides base agent to use assistant-specific prompt
+// GenerateResponse uses the shared agent pipeline (closure shortcut, assistant prompt, history).
 func (a *AssistantAgent) GenerateResponse(ctx context.Context, msg *protocol.Message) (string, error) {
-	var prompt string
-
-	// Check if this is a meeting-related query
-	if a.detectsMeetingQuery(msg) {
-		log.Printf("🔍 [Assistant] Detected meeting query, using enriched context")
-		prompt = a.buildMeetingContextPrompt(msg)
-	} else {
-		prompt = a.buildAssistantPrompt(msg)
+	eff := a.EffectiveAIProvider(ctx, msg)
+	if eff == nil {
+		eff = a.GetAIProvider()
 	}
-
-	history := filterAssistantHistory(a.Context.History[msg.Channel], msg)
-
-	response, err := a.AI.GenerateResponse(ctx, prompt, historyToMessages(history))
-	if err != nil {
-		return "", err
-	}
-
-	return response, nil
+	return a.generateResponse(ctx, msg, eff)
 }
 
 // buildAssistantPrompt creates a specialized prompt for the assistant.
 // Uses the system/user separator so providers can send identity as a system message.
 func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
+	if a.detectsMeetingQuery(msg) {
+		log.Printf("🔍 [Assistant] Detected meeting query, using enriched context")
+		return a.buildMeetingContextPrompt(msg)
+	}
+
 	var prompt strings.Builder
 
 	prompt.WriteString("You are the Assistant, a helpful AI in the Neural Junkie multi-agent collaboration system.\n\n")
@@ -416,6 +393,8 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 	prompt.WriteString("• Acknowledge commands with confirmation\n")
 	prompt.WriteString("• Suggest helpful actions when appropriate\n")
 	prompt.WriteString("• Be conversational and friendly\n")
+	prompt.WriteString("• If the user thanks you or says you already answered, reply in one short sentence only — do NOT repeat facts, numbers, or prior answers\n")
+	prompt.WriteString("• For geography, dates, or live data you cannot verify, say you may be approximate and suggest Maps or an authoritative source\n")
 	prompt.WriteString("• Remember user preferences and context\n")
 	prompt.WriteString("• When asked about meetings, use the available meeting notes to provide accurate information\n")
 	prompt.WriteString("• When asked about system features or how to do things in the chat room, use the SYSTEM COMMANDS and SYSTEM KNOWLEDGE sections above to give accurate answers\n")
@@ -1143,257 +1122,12 @@ func (a *AssistantAgent) parseAbsoluteTime(timeStr string, _ time.Time) (time.Ti
 // Stop gracefully stops the assistant agent
 func (a *AssistantAgent) Stop() {
 	close(a.stopReminders)
-	if a.meetingNotesWatcher != nil {
-		a.meetingNotesWatcher.Close()
-	}
-	close(a.stopMeetingWatcher)
+	close(a.stopGoogleSync)
 	if a.emailWatcher != nil {
 		a.emailWatcher.Close()
 	}
 	close(a.stopEmailWatcher)
 	a.Agent.Stop()
-}
-
-// startMeetingNotesWatcher initializes and starts the file system watcher for meeting notes
-func (a *AssistantAgent) startMeetingNotesWatcher(ctx context.Context) error {
-	log.Printf("🔍 [Assistant] Creating file system watcher...")
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("failed to create watcher: %w", err)
-	}
-
-	a.meetingNotesWatcher = watcher
-
-	// Add the meeting notes directory to the watcher
-	log.Printf("📂 [Assistant] Adding directory to watcher: %s", a.config.MeetingNotesDir)
-	if err := watcher.Add(a.config.MeetingNotesDir); err != nil {
-		return fmt.Errorf("failed to add directory to watcher: %w", err)
-	}
-
-	// Start the watcher goroutine
-	go a.watchMeetingNotes(ctx)
-
-	// Load existing meeting notes on startup
-	log.Printf("📥 [Assistant] Starting ingestion of existing meeting notes...")
-	go a.ingestExistingMeetingNotes(ctx)
-
-	return nil
-}
-
-// watchMeetingNotes monitors the meeting notes directory for changes
-func (a *AssistantAgent) watchMeetingNotes(ctx context.Context) {
-	defer a.meetingNotesWatcher.Close()
-
-	for {
-		select {
-		case event, ok := <-a.meetingNotesWatcher.Events:
-			if !ok {
-				return
-			}
-			a.handleFileEvent(ctx, event)
-		case err, ok := <-a.meetingNotesWatcher.Errors:
-			if !ok {
-				return
-			}
-			log.Printf("Meeting notes watcher error: %v", err)
-		case <-a.stopMeetingWatcher:
-			return
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// handleFileEvent processes file system events for meeting notes
-func (a *AssistantAgent) handleFileEvent(ctx context.Context, event fsnotify.Event) {
-	// Only process markdown files
-	if !strings.HasSuffix(event.Name, ".md") {
-		return
-	}
-
-	// Check if file was created or written
-	if event.Op&fsnotify.Create == fsnotify.Create || event.Op&fsnotify.Write == fsnotify.Write {
-		// Debounce: wait a bit to ensure file is fully written
-		time.Sleep(2 * time.Second)
-
-		// Check if we've already processed this file
-		a.processedFilesMutex.RLock()
-		processed := a.processedFiles[event.Name]
-		a.processedFilesMutex.RUnlock()
-
-		if !processed {
-			go a.processMeetingNote(ctx, event.Name, true)
-		}
-	}
-}
-
-// ingestExistingMeetingNotes loads all existing meeting notes on startup
-func (a *AssistantAgent) ingestExistingMeetingNotes(ctx context.Context) {
-	// Wait a bit for the watcher to be fully initialized
-	time.Sleep(1 * time.Second)
-
-	log.Printf("🔍 [Assistant] Searching for meeting notes in: %s", a.config.MeetingNotesDir)
-	files, err := filepath.Glob(filepath.Join(a.config.MeetingNotesDir, "*.md"))
-	if err != nil {
-		log.Printf("❌ [Assistant] Failed to list meeting notes directory: %v", err)
-		return
-	}
-
-	// Load existing meeting notes from persistent storage to check what's already been processed
-	var processedPaths map[string]bool
-	if a.storage != nil {
-		existingNotes, err := a.storage.LoadMeetingNotes()
-		if err == nil {
-			// Build map of already-processed file paths from storage
-			processedPaths = make(map[string]bool)
-			for _, note := range existingNotes {
-				processedPaths[note.FilePath] = true
-			}
-			log.Printf("📚 [Assistant] Found %d existing meeting notes in storage", len(existingNotes))
-		} else {
-			log.Printf("⚠️  [Assistant] Failed to load existing meeting notes from storage: %v", err)
-			processedPaths = make(map[string]bool) // Empty map if we can't load storage
-		}
-	} else {
-		processedPaths = make(map[string]bool) // Empty map if no storage
-	}
-
-	log.Printf("📄 [Assistant] Found %d markdown files to process", len(files))
-	newFilesCount := 0
-	var ingestedNotes []*MeetingNote
-	for i, file := range files {
-		log.Printf("📝 [Assistant] Checking file %d/%d: %s", i+1, len(files), filepath.Base(file))
-
-		// Check if file has already been processed (either in-memory or in persistent storage)
-		a.processedFilesMutex.RLock()
-		inMemoryProcessed := a.processedFiles[file]
-		a.processedFilesMutex.RUnlock()
-
-		persistentProcessed := processedPaths[file]
-
-		if !inMemoryProcessed && !persistentProcessed {
-			// File is truly new - process it (batch notify after loop to avoid #general flood)
-			log.Printf("🆕 [Assistant] New file detected: %s", filepath.Base(file))
-			if note := a.processMeetingNote(ctx, file, false); note != nil {
-				ingestedNotes = append(ingestedNotes, note)
-			}
-			newFilesCount++
-		} else if persistentProcessed {
-			log.Printf("⏭️  [Assistant] File already in storage: %s", filepath.Base(file))
-			// Mark as processed in memory to avoid re-processing during this session
-			a.processedFilesMutex.Lock()
-			a.processedFiles[file] = true
-			a.processedFilesMutex.Unlock()
-		} else {
-			log.Printf("⏭️  [Assistant] File already processed in memory: %s", filepath.Base(file))
-		}
-	}
-	if len(ingestedNotes) > 0 {
-		a.sendMeetingNotesBatchNotification(ctx, ingestedNotes)
-	}
-	log.Printf("✅ [Assistant] Completed ingestion of existing meeting notes (%d new files processed)", newFilesCount)
-}
-
-// processMeetingNote parses and stores a meeting note file.
-// When notify is true, posts a single chat message (used for live watcher events).
-func (a *AssistantAgent) processMeetingNote(ctx context.Context, filePath string, notify bool) *MeetingNote {
-	log.Printf("🔄 [Assistant] Processing meeting note: %s", filePath)
-
-	// Mark as processed
-	a.processedFilesMutex.Lock()
-	a.processedFiles[filePath] = true
-	a.processedFilesMutex.Unlock()
-
-	// Read the file
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Printf("❌ [Assistant] Failed to read meeting note file %s: %v", filePath, err)
-		return nil
-	}
-
-	log.Printf("📖 [Assistant] Read %d bytes from %s", len(content), filepath.Base(filePath))
-
-	// Parse the meeting note
-	meetingNote, err := a.parseMeetingNote(filePath, string(content))
-	if err != nil {
-		log.Printf("❌ [Assistant] Failed to parse meeting note %s: %v", filePath, err)
-		return nil
-	}
-
-	log.Printf("📋 [Assistant] Parsed meeting note: %s (ID: %s)", meetingNote.Title, meetingNote.ID)
-
-	// Save to storage
-	if a.storage != nil {
-		if err := a.storage.SaveMeetingNote(meetingNote); err != nil {
-			log.Printf("❌ [Assistant] Failed to save meeting note: %v", err)
-			return nil
-		}
-		log.Printf("💾 [Assistant] Saved meeting note to storage: %s", meetingNote.ID)
-	}
-
-	if notify {
-		a.sendMeetingNoteNotification(ctx, meetingNote)
-	}
-	return meetingNote
-}
-
-// parseMeetingNote extracts structured data from a markdown meeting note
-func (a *AssistantAgent) parseMeetingNote(filePath, content string) (*MeetingNote, error) {
-	// Extract meeting date from filename
-	// Format: YYYY-MM-DD_HHMM_*_meeting_notes.md
-	baseName := filepath.Base(filePath)
-	dateRegex := regexp.MustCompile(`(\d{4}-\d{2}-\d{2})_(\d{4})_`)
-	matches := dateRegex.FindStringSubmatch(baseName)
-
-	var meetingDate time.Time
-	if len(matches) >= 3 {
-		dateStr := matches[1] + " " + matches[2]
-		if parsed, err := time.Parse("2006-01-02 1504", dateStr); err == nil {
-			meetingDate = parsed
-		}
-	}
-
-	// Extract title from filename (remove date and _meeting_notes.md)
-	title := baseName
-	if idx := strings.Index(title, "_meeting_notes.md"); idx != -1 {
-		title = title[:idx]
-	}
-	if dateRegex.MatchString(title) {
-		title = dateRegex.ReplaceAllString(title, "")
-		title = strings.TrimPrefix(title, "_")
-	}
-
-	// Use AI to analyze the content and extract structured data
-	summary, attendees, actionItems, topics, err := a.analyzeMeetingContent(content)
-	if err != nil {
-		log.Printf("AI analysis failed, using basic parsing: %v", err)
-		// Fallback to basic parsing
-		summary = a.extractBasicSummary(content)
-		attendees = a.extractBasicAttendees(content)
-		actionItems = a.extractBasicActionItems(content)
-		topics = a.extractBasicTopics(content)
-	}
-
-	// Extract Google Doc link
-	googleDocLink := a.extractGoogleDocLink(content)
-
-	// Create meeting note
-	meetingNote := &MeetingNote{
-		ID:            fmt.Sprintf("meeting_%d", time.Now().UnixNano()),
-		FilePath:      filePath,
-		MeetingDate:   meetingDate,
-		Title:         title,
-		Attendees:     attendees,
-		Summary:       summary,
-		ActionItems:   actionItems,
-		Topics:        topics,
-		GoogleDocLink: googleDocLink,
-		FullContent:   content, // Store the complete markdown content
-		IngestedAt:    time.Now(),
-		CreatedBy:     a.Info.Name,
-	}
-
-	return meetingNote, nil
 }
 
 // analyzeMeetingContent uses AI to extract structured data from meeting content
@@ -1543,14 +1277,6 @@ func (a *AssistantAgent) extractBasicTopics(content string) []string {
 	}
 
 	return topics[:minInt(5, len(topics))] // Limit to 5 topics
-}
-
-// extractGoogleDocLink extracts Google Doc link from content
-func (a *AssistantAgent) extractGoogleDocLink(content string) string {
-	// Look for Google Doc links
-	linkRegex := regexp.MustCompile(`https://docs\.google\.com/document/d/[a-zA-Z0-9_-]+`)
-	matches := linkRegex.FindString(content)
-	return matches
 }
 
 // sendMeetingNoteNotification sends a notification about a new meeting note
@@ -1727,9 +1453,9 @@ func (a *AssistantAgent) GetConfig() *AssistantConfig {
 	return a.config
 }
 
-// ProcessMeetingNote processes a single meeting note file (public method for commands)
-func (a *AssistantAgent) ProcessMeetingNote(ctx context.Context, filePath string) {
-	a.processMeetingNote(ctx, filePath, true)
+// ProcessMeetingNote triggers a Google meet notes sync (legacy name for /ingest-meetings).
+func (a *AssistantAgent) ProcessMeetingNote(ctx context.Context, _ string) {
+	_, _ = a.SyncGoogleMeetNotes(ctx)
 }
 
 // SearchMeetingNotes searches meeting notes by query

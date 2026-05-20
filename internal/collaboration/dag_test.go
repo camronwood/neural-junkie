@@ -85,6 +85,21 @@ func TestFormatDependencyHandoffIncludesOutput(t *testing.T) {
 	}
 }
 
+func TestFormatDependencyHandoffWithLimitTruncates(t *testing.T) {
+	long := strings.Repeat("x", 500)
+	tasks := []CollaborationTask{
+		{ID: "a", Title: "Upstream", AssignedName: "A", Status: TaskCompleted, Output: long},
+		{ID: "b", Title: "Down", Dependencies: []string{"a"}, Status: TaskPending},
+	}
+	handoff := FormatDependencyHandoffWithLimit(tasks[1], tasks, 80)
+	if !strings.Contains(handoff, "truncated") {
+		t.Fatalf("expected truncation marker, got %q", handoff)
+	}
+	if strings.Contains(handoff, strings.Repeat("x", 200)) {
+		t.Fatal("handoff should not include full upstream output")
+	}
+}
+
 func TestSetTasksRejectsInvalidDAG(t *testing.T) {
 	h := newRunbookMockHub()
 	h.addAgent("a1", "A", protocol.AgentTypeBackend, nil)

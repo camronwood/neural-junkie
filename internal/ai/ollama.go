@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -20,22 +21,52 @@ type OllamaProvider struct {
 	Endpoint   string
 	Model      string
 	httpClient *http.Client
+
+	toolsProbeOnce       sync.Once
+	nativeToolsSupported bool
+}
+
+// OllamaTool is a function tool definition for Ollama /api/chat.
+type OllamaTool struct {
+	Type     string             `json:"type"`
+	Function OllamaToolFunction `json:"function"`
+}
+
+// OllamaToolFunction describes one callable tool.
+type OllamaToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// OllamaToolCall is a tool invocation from the assistant.
+type OllamaToolCall struct {
+	Type     string `json:"type"`
+	Function struct {
+		Index     int             `json:"index"`
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
 }
 
 // OllamaRequest represents a request to Ollama API
 type OllamaRequest struct {
-	Model    string          `json:"model"`
-	Messages []OllamaMessage `json:"messages"`
-	Stream   bool            `json:"stream"`
-	Think    *bool           `json:"think,omitempty"`
+	Model    string                 `json:"model"`
+	Messages []OllamaMessage        `json:"messages"`
+	Stream   bool                   `json:"stream"`
+	Think    *bool                  `json:"think,omitempty"`
+	Tools    []OllamaTool           `json:"tools,omitempty"`
+	Options  map[string]interface{} `json:"options,omitempty"`
 }
 
 // OllamaMessage represents a message in Ollama API format
 type OllamaMessage struct {
-	Role     string   `json:"role"`
-	Content  string   `json:"content"`
-	Thinking string   `json:"thinking,omitempty"`
-	Images   []string `json:"images,omitempty"` // base64-encoded raw image bytes (vision models)
+	Role      string           `json:"role"`
+	Content   string           `json:"content"`
+	Thinking  string           `json:"thinking,omitempty"`
+	Images    []string         `json:"images,omitempty"` // base64-encoded raw image bytes (vision models)
+	ToolCalls []OllamaToolCall `json:"tool_calls,omitempty"`
+	ToolName  string           `json:"tool_name,omitempty"`
 }
 
 // OllamaResponse represents a response from Ollama API
@@ -113,11 +144,23 @@ func (o *OllamaProvider) newChatRequest(messages []OllamaMessage, stream bool) O
 		Model:    o.Model,
 		Messages: messages,
 		Stream:   stream,
+		Options:  ollamaChatOptions(o.Model),
 	}
 	if ollamaModelWantsThinking(o.Model) {
 		req.Think = boolPtr(true)
 	}
 	return req
+}
+
+// ollamaChatOptions tunes generation; compact GGUF models need conservative settings.
+func ollamaChatOptions(model string) map[string]interface{} {
+	if ollamaModelLikelyNoNativeTools(model) {
+		return map[string]interface{}{
+			"temperature": 0.7,
+			"num_predict": 512,
+		}
+	}
+	return nil
 }
 
 // GenerateResponse generates a response using Ollama API
@@ -315,12 +358,20 @@ func (o *OllamaProvider) GenerateResponseStream(ctx context.Context, prompt stri
 					ch <- StreamToken{Error: errOllamaReasoningOnly, Done: true}
 					return
 				}
+				if accumulatedContent.Len() == 0 {
+					ch <- StreamToken{Error: errOllamaNoContent, Done: true}
+					return
+				}
 				ch <- StreamToken{Done: true}
 				return
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			ch <- StreamToken{Error: fmt.Errorf("scanner error: %w", err), Done: true}
+			return
+		}
+		if accumulatedContent.Len() == 0 {
+			ch <- StreamToken{Error: errOllamaNoContent, Done: true}
 		}
 	}()
 

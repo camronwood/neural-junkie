@@ -47,7 +47,7 @@ type OllamaConfig struct {
 
 // HFConfig holds Hugging Face Hub download and token defaults.
 type HFConfig struct {
-	// Token is optional; HF_TOKEN env is used when empty.
+	// Token for Hub downloads and biology ESMFold (Settings → AI & providers).
 	Token string `json:"token,omitempty"`
 	// CacheDir overrides HF cache (default ~/.cache/huggingface/hub).
 	CacheDir string `json:"cache_dir,omitempty"`
@@ -72,6 +72,8 @@ type Config struct {
 	Server         ServerConfig         `json:"server"`
 	AI             AIConfig             `json:"ai"`
 	Agents         []AgentConfig        `json:"agents"`
+	Packs          PacksConfig          `json:"packs"`
+	MCP            MCPConfig            `json:"mcp"`
 	Ollama         OllamaConfig         `json:"ollama"`
 	HF             HFConfig             `json:"hf"`
 	Updates        UpdateConfig         `json:"updates"`
@@ -95,21 +97,14 @@ func DefaultConfig() *Config {
 					Type:     "ollama",
 					Name:     "Local Ollama",
 					Endpoint: "http://localhost:11434",
-					Model:    "qwen2.5-coder:14b",
+					Model:    UtilityOllamaModel,
 				},
 			},
 		},
-		Agents: []AgentConfig{
-			{Type: "backend", Name: "GoExpert", Enabled: true},
-			{Type: "frontend", Name: "ReactExpert", Enabled: true},
-			{Type: "devops", Name: "DevOpsPro", Enabled: true},
-			{Type: "database", Name: "SQLMaster", Enabled: true},
-			{Type: "security", Name: "SecurityExpert", Enabled: true},
-			{Type: "rust", Name: "RustExpert", Enabled: true},
-		},
+		Agents: []AgentConfig{},
 		Ollama: OllamaConfig{
 			AutoStart:      true,
-			ModelsToEnsure: []string{"qwen2.5-coder:14b", "qwen2.5:7b"},
+			ModelsToEnsure: []string{UtilityOllamaModel},
 		},
 		Updates: UpdateConfig{
 			AutoCheck: true,
@@ -117,6 +112,8 @@ func DefaultConfig() *Config {
 		Collaboration: CollaborationConfig{
 			SmartRoutingEnabled: false,
 		},
+		Packs: DefaultPacksConfig(),
+		MCP:   DefaultMCPConfig(),
 	}
 }
 
@@ -159,8 +156,21 @@ func Load() (*Config, error) {
 	}
 
 	cfg.migrateIfNeeded(data)
+	cfg.migrateSoftwareDevelopmentPackIfNeeded()
+	cfg.EnsureMCPDefaults()
 	cfg.mergeEnvVars()
+	cfg.SyncAgentsFromPacks()
 	return cfg, nil
+}
+
+// EnsureMCPDefaults fills MCP agent map when missing (full defaults come from migrateIfNeeded when "mcp" is absent).
+func (c *Config) EnsureMCPDefaults() {
+	if c == nil {
+		return
+	}
+	if c.MCP.Agents == nil {
+		c.MCP.Agents = DefaultMCPConfig().Agents
+	}
 }
 
 func (c *Config) Save() error {
@@ -329,9 +339,14 @@ func (c *Config) EnabledAgents() []AgentConfig {
 	defer c.mu.RUnlock()
 	var result []AgentConfig
 	for _, a := range c.Agents {
-		if a.Enabled {
-			result = append(result, a)
+		if !a.Enabled {
+			continue
 		}
+		t := strings.ToLower(strings.TrimSpace(a.Type))
+		if packID := packForAgentType(t); packID != "" && !c.packEnabledLocked(packID) {
+			continue
+		}
+		result = append(result, a)
 	}
 	return result
 }
@@ -341,7 +356,19 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 	if pid == "" {
 		pid = c.AI.DefaultProviderID
 	}
-	return c.GetProvider(pid)
+	p := c.GetProvider(pid)
+	if p == nil {
+		return nil
+	}
+	if a.Type == "biology" && c.IsPackEnabled(PackLifeSciences) {
+		copy := *p
+		m := strings.TrimSpace(copy.Model)
+		if m == "" || m == BioOllamaTag {
+			copy.Model = BioOllamaChatModel
+		}
+		return &copy
+	}
+	return p
 }
 
 // ListProvidersSnapshot returns a copy of configured providers (thread-safe).
@@ -367,6 +394,11 @@ func (c *Config) Redacted() *Config {
 	hf := c.HF
 	updates := c.Updates
 	collab := c.Collaboration
+	packs := c.Packs
+	if packs.Enabled == nil {
+		packs.Enabled = make(map[string]bool)
+	}
+	mcpCfg := c.MCP
 	filePath := c.filePath
 	c.mu.RUnlock()
 
@@ -393,6 +425,8 @@ func (c *Config) Redacted() *Config {
 		Server:        server,
 		AI:            AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
 		Agents:        agents,
+		Packs:         packs,
+		MCP:           mcpCfg,
 		Ollama:        ollama,
 		HF:            redactedHF,
 		Updates:       updates,
@@ -457,6 +491,13 @@ func (c *Config) mergeEnvVars() {
 // Currently checks for the legacy flat ai.* schema and converts to the
 // providers array format.
 func (c *Config) migrateIfNeeded(raw []byte) {
+	var probe struct {
+		MCP *json.RawMessage `json:"mcp"`
+	}
+	if err := json.Unmarshal(raw, &probe); err == nil && probe.MCP == nil {
+		c.MCP = DefaultMCPConfig()
+	}
+
 	var legacy struct {
 		AI struct {
 			DefaultProvider  string `json:"default_provider"`

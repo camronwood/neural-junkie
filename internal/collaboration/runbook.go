@@ -11,10 +11,12 @@ import (
 
 // RunbookUpdatePayload is the body for updating a draft/reviewing runbook.
 type RunbookUpdatePayload struct {
-	Title       string
-	Description string
-	AgentIDs    []string
-	Tasks       []CollaborationTask
+	Title            string
+	Description      string
+	AgentIDs         []string
+	Tasks            []CollaborationTask
+	ExecutionPolicy  *ExecutionPolicy
+	GraphLayout      GraphLayout
 }
 
 // CreateRunbook starts a user-authored collaboration in draft phase (no agent discussion).
@@ -31,6 +33,19 @@ func (cm *CollaborationManager) CreateRunbook(
 	}
 	opts.Source = SourceRunbook
 	opts.SkipDiscussion = true
+	if len(opts.InitialTasks) == 0 {
+		if existing := cm.FindReusableEmptyDraftRunbook(createdBy); existing != nil {
+			updated, err := cm.UpdateRunbook(existing.ID, RunbookUpdatePayload{
+				Description: description,
+				AgentIDs:    agentIDs,
+			})
+			if err != nil {
+				return nil, err
+			}
+			log.Printf("[CollaborationManager] Reusing empty draft runbook %s", existing.ID[:8])
+			return updated, nil
+		}
+	}
 	collab, err := cm.createCollaborationCore(description, agentIDs, channel, createdBy, cfg, opts, PhaseDraft)
 	if err != nil {
 		return nil, err
@@ -58,7 +73,7 @@ func (cm *CollaborationManager) createCollaborationCore(
 
 	active := 0
 	for _, c := range cm.collaborations {
-		if c.Phase != PhaseCompleted && c.Phase != PhaseCancelled {
+		if collaborationCountsAsActive(c) {
 			active++
 		}
 	}
@@ -216,8 +231,8 @@ func (cm *CollaborationManager) UpdateRunbook(collabID string, payload RunbookUp
 	}
 	if payload.Tasks != nil {
 		tasks := payload.Tasks
-		if len(tasks) > MaxTasksPerCollaboration {
-			tasks = tasks[:MaxTasksPerCollaboration]
+		if len(tasks) > maxTasksLimit() {
+			tasks = tasks[:maxTasksLimit()]
 		}
 		for i := range tasks {
 			if tasks[i].ID == "" {
@@ -231,12 +246,19 @@ func (cm *CollaborationManager) UpdateRunbook(collabID string, payload RunbookUp
 				tasks[i].Status = TaskPending
 			}
 			tasks[i].PromptDispatched = false
+			normalizeTaskOnSave(&tasks[i])
 		}
 		NormalizeDependencies(tasks)
 		if err := ValidateDAG(tasks); err != nil {
 			return nil, fmt.Errorf("invalid task graph: %w", err)
 		}
 		c.Tasks = tasks
+	}
+	if payload.ExecutionPolicy != nil {
+		c.ExecutionPolicy = *payload.ExecutionPolicy
+	}
+	if payload.GraphLayout != nil {
+		c.GraphLayout = payload.GraphLayout
 	}
 	c.UpdatedAt = time.Now()
 	return c, nil

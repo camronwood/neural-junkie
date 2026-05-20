@@ -89,9 +89,109 @@ const (
 
 	MaxConcurrentCollaborations = 3
 	MaxTasksPerCollaboration    = 10
+	HardMaxTasksPerCollaboration = 25
 	// MaxExecutionMessages caps agent chat posts during the executing phase.
 	MaxExecutionMessages = 100
 )
+
+// BlockedUpstreamPolicy controls how blocked upstream tasks affect downstream readiness.
+type BlockedUpstreamPolicy string
+
+const (
+	BlockedPolicyBlock      BlockedUpstreamPolicy = "block"
+	BlockedPolicySkipBranch BlockedUpstreamPolicy = "skip_branch"
+	BlockedPolicyFailRun    BlockedUpstreamPolicy = "fail_run"
+)
+
+// TaskKind distinguishes agent chat tasks from hub-executed action steps.
+type TaskKind string
+
+const (
+	TaskKindAgent  TaskKind = "agent"
+	TaskKindAction TaskKind = "action"
+)
+
+// ExecutionPolicy holds collaboration-level orchestration options.
+type ExecutionPolicy struct {
+	MaxConcurrentTasks    int                   `json:"max_concurrent_tasks,omitempty"`
+	MaxExecutionMessages  int                   `json:"max_execution_messages,omitempty"`
+	BlockedUpstreamPolicy BlockedUpstreamPolicy `json:"blocked_upstream_policy,omitempty"`
+	StrictTaskStatus      bool                  `json:"strict_task_status,omitempty"`
+	HandoffMaxChars       int                   `json:"handoff_max_chars,omitempty"`
+}
+
+// Normalized returns defaults for zero fields.
+func (p ExecutionPolicy) Normalized(source CollaborationSource) ExecutionPolicy {
+	out := p
+	if out.BlockedUpstreamPolicy == "" {
+		out.BlockedUpstreamPolicy = BlockedPolicyBlock
+	}
+	if source == SourceRunbook && !out.StrictTaskStatus {
+		// zero value means unset; runbooks default strict
+		out.StrictTaskStatus = true
+	}
+	if out.HandoffMaxChars <= 0 {
+		out.HandoffMaxChars = 2000
+	} else if out.HandoffMaxChars > 32000 {
+		out.HandoffMaxChars = 32000
+	}
+	return out
+}
+
+// MaxExecutionMessagesLimit returns the effective cap for agent messages during execution.
+func (c *Collaboration) MaxExecutionMessagesLimit() int {
+	if c == nil {
+		return MaxExecutionMessages
+	}
+	if c.ExecutionPolicy.MaxExecutionMessages > 0 {
+		return c.ExecutionPolicy.MaxExecutionMessages
+	}
+	return MaxExecutionMessages
+}
+
+// GraphLayoutNode stores a task node's position in the graph editor.
+type GraphLayoutNode struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+// GraphLayout maps task IDs to canvas positions (persisted on collaboration).
+type GraphLayout map[string]GraphLayoutNode
+
+// TaskExecutionOptions configures per-task agent execution.
+type TaskExecutionOptions struct {
+	ProviderID       string   `json:"provider_id,omitempty"`
+	RequiresApproval bool     `json:"requires_approval,omitempty"`
+	MaxRetries       int      `json:"max_retries,omitempty"`
+	TimeoutSeconds   int      `json:"timeout_seconds,omitempty"`
+	ContextPaths     []string `json:"context_paths,omitempty"`
+}
+
+// TaskActionSpec defines a hub-executed action step.
+type TaskActionSpec struct {
+	Type   string                 `json:"type"`
+	Config map[string]interface{} `json:"config,omitempty"`
+}
+
+// EdgeCondition gates an incoming dependency edge.
+type EdgeCondition struct {
+	Mode     string `json:"mode"` // always | on_status | on_output
+	Status   string `json:"status,omitempty"`
+	Contains string `json:"contains,omitempty"`
+	Regex    string `json:"regex,omitempty"`
+}
+
+// DependencyEdge is a conditioned dependency from upstream to this task.
+type DependencyEdge struct {
+	FromTaskID string         `json:"from_task_id"`
+	Condition  *EdgeCondition `json:"condition,omitempty"`
+}
+
+// DependencyGroup expresses OR/AND join semantics over upstream tasks.
+type DependencyGroup struct {
+	Mode    string   `json:"mode"` // all | any
+	TaskIDs []string `json:"task_ids"`
+}
 
 // Normalized returns a copy with all zero-value fields replaced by defaults
 // and all values clamped to hard maximums.
@@ -183,6 +283,45 @@ type Collaboration struct {
 	TasksDispatched bool `json:"tasks_dispatched,omitempty"`
 	// ExecutionMessageCount tracks agent chat posts during the executing phase.
 	ExecutionMessageCount int `json:"execution_message_count,omitempty"`
+	ExecutionPolicy       ExecutionPolicy `json:"execution_policy,omitempty"`
+	GraphLayout           GraphLayout     `json:"graph_layout,omitempty"`
+	DispatchPaused        bool            `json:"dispatch_paused,omitempty"`
+	// PlanningDiscussion is a snapshot of the planning-phase discussion taken when execution starts.
+	PlanningDiscussion *DiscussionSession `json:"planning_discussion,omitempty"`
+	PlanningRecap         string `json:"planning_recap,omitempty"`
+	SessionRecap          string `json:"session_recap,omitempty"`
+	PlanningRecapStatus   string `json:"planning_recap_status,omitempty"` // pending|complete|failed
+	SessionRecapStatus    string `json:"session_recap_status,omitempty"`
+	PlanningRecapAgentID  string `json:"planning_recap_agent_id,omitempty"`
+	SessionRecapAgentID   string `json:"session_recap_agent_id,omitempty"`
+	// AwaitingFinalize is set when all work is done but the final recap has not finished.
+	AwaitingFinalize      bool   `json:"awaiting_finalize,omitempty"`
+	FinalizeReason        string `json:"finalize_reason,omitempty"`
+	FinalizeChannel       string `json:"finalize_channel,omitempty"`
+	FinalizeMarkOpenTasks bool   `json:"finalize_mark_open_tasks,omitempty"`
+}
+
+// Recap status values stored on Collaboration.
+const (
+	RecapStatusPending  = "pending"
+	RecapStatusComplete = "complete"
+	RecapStatusFailed   = "failed"
+)
+
+// RecapKind distinguishes pre-approval vs end-of-session recaps.
+type RecapKind string
+
+const (
+	RecapKindPreApproval RecapKind = "pre_approval"
+	RecapKindFinal       RecapKind = "final"
+)
+
+// EffectiveExecutionPolicy returns normalized execution policy for this collaboration.
+func (c *Collaboration) EffectiveExecutionPolicy() ExecutionPolicy {
+	if c == nil {
+		return ExecutionPolicy{BlockedUpstreamPolicy: BlockedPolicyBlock, HandoffMaxChars: 2000}
+	}
+	return c.ExecutionPolicy.Normalized(c.Source)
 }
 
 // DiscussionBudgetEnforced is true while the plan is still being negotiated
@@ -203,17 +342,32 @@ func (c *Collaboration) DiscussionBudgetEnforced() bool {
 // within a collaboration. Tasks are produced during the planning phase
 // and executed after user approval.
 type CollaborationTask struct {
-	ID           string     `json:"id"`
-	Title        string     `json:"title"`
-	Description  string     `json:"description"`
-	AssignedTo   string     `json:"assigned_to"`
-	AssignedName string     `json:"assigned_name"`
-	Status           TaskStatus `json:"status"`
-	Dependencies     []string   `json:"dependencies,omitempty"`
-	PromptDispatched bool       `json:"prompt_dispatched,omitempty"`
-	Output           string     `json:"output,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID                 string               `json:"id"`
+	Title              string               `json:"title"`
+	Description        string               `json:"description"`
+	AssignedTo         string               `json:"assigned_to"`
+	AssignedName       string               `json:"assigned_name"`
+	Kind               TaskKind             `json:"kind,omitempty"`
+	Action             *TaskActionSpec      `json:"action,omitempty"`
+	Options            *TaskExecutionOptions `json:"options,omitempty"`
+	Status             TaskStatus           `json:"status"`
+	Dependencies       []string             `json:"dependencies,omitempty"`
+	DependencyEdges    []DependencyEdge     `json:"dependency_edges,omitempty"`
+	DependencyGroups   []DependencyGroup    `json:"dependency_groups,omitempty"`
+	PromptDispatched   bool                 `json:"prompt_dispatched,omitempty"`
+	AwaitingApproval   bool                 `json:"awaiting_approval,omitempty"`
+	SkippedDueToBlocked bool                `json:"skipped_due_to_blocked,omitempty"`
+	Output             string               `json:"output,omitempty"`
+	CreatedAt          time.Time            `json:"created_at"`
+	UpdatedAt          time.Time            `json:"updated_at"`
+}
+
+// EffectiveKind returns agent when unset.
+func (t CollaborationTask) EffectiveKind() TaskKind {
+	if t.Kind == "" || t.Kind == TaskKindAgent {
+		return TaskKindAgent
+	}
+	return t.Kind
 }
 
 // DiscussionSession is a bounded multi-agent conversation with

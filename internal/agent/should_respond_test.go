@@ -33,6 +33,7 @@ func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelTyp
 	}
 	return protocol.ChannelTypePublic
 }
+func (shouldRespondTestHub) GetChannelSessionSummary(string) string { return "" }
 
 type shouldRespondTestCollab struct{}
 

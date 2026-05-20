@@ -118,6 +118,53 @@ func TestHandleRunbookParsePlan(t *testing.T) {
 	}
 }
 
+func TestHandleRunbookUpdateExecutionPolicyAndGraphLayout(t *testing.T) {
+	setupRunbookAPITest(t)
+
+	createBody, _ := json.Marshal(map[string]any{
+		"description": "policy",
+		"agent_ids":   []string{"a1", "a2"},
+		"channel":     "general",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
+	rec := httptest.NewRecorder()
+	handleRunbooksRoute(rec, req)
+	var created struct {
+		CollaborationID string `json:"collaboration_id"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &created)
+
+	putBody, _ := json.Marshal(map[string]any{
+		"execution_policy": map[string]any{
+			"max_concurrent_tasks":      2,
+			"strict_task_status":        true,
+			"blocked_upstream_policy":   "skip_branch",
+			"handoff_max_chars":         500,
+		},
+		"graph_layout": map[string]any{
+			"n1": map[string]any{"x": 10.0, "y": 20.0},
+		},
+	})
+	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putRec := httptest.NewRecorder()
+	handleRunbooksRoute(putRec, putReq)
+	if putRec.Code != http.StatusOK {
+		t.Fatalf("put status %d: %s", putRec.Code, putRec.Body.String())
+	}
+
+	var snap collaboration.Collaboration
+	if err := json.Unmarshal(putRec.Body.Bytes(), &snap); err != nil {
+		t.Fatal(err)
+	}
+	pol := snap.EffectiveExecutionPolicy()
+	if pol.MaxConcurrentTasks != 2 || !pol.StrictTaskStatus || pol.BlockedUpstreamPolicy != collaboration.BlockedPolicySkipBranch || pol.HandoffMaxChars != 500 {
+		t.Fatalf("policy = %#v", pol)
+	}
+	if snap.GraphLayout["n1"].X != 10 || snap.GraphLayout["n1"].Y != 20 {
+		t.Fatalf("layout = %#v", snap.GraphLayout)
+	}
+}
+
 func TestHandleRunbookSuggestAssignee(t *testing.T) {
 	setupRunbookAPITest(t)
 

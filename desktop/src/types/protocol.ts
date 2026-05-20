@@ -20,7 +20,8 @@ export type MessageType =
   | 'collaboration_plan'
   | 'collaboration_task'
   | 'collaboration_status'
-  | 'collaboration_discussion';
+  | 'collaboration_discussion'
+  | 'collaboration_recap';
 
 export type AgentType =
   | 'frontend'
@@ -29,6 +30,7 @@ export type AgentType =
   | 'database'
   | 'security'
   | 'rust'
+  | 'biology'
   | 'general'
   | 'repo'
   | 'helper'
@@ -207,6 +209,30 @@ export interface ConfluenceSettings {
   apiToken: string;
 }
 
+/** OAuth app credentials for Google Meet notes (saved on hub + locally). */
+export interface GoogleMeetNotesSettings {
+  clientId: string;
+  clientSecret: string;
+  redirectUrl: string;
+}
+
+/** Hub-stored OAuth app config (secret not returned). */
+export interface GoogleMeetNotesAppConfig {
+  client_id: string;
+  redirect_url: string;
+  secret_set: boolean;
+  configured: boolean;
+}
+
+/** Server-reported Google Meet notes connection (Assistant). */
+export interface GoogleMeetNotesStatus {
+  connected: boolean;
+  email?: string;
+  notes_count?: number;
+  last_sync_at?: string;
+  oauth_configured: boolean;
+}
+
 export interface OllamaSettings {
   endpoint: string;
   defaultModel: string;
@@ -223,6 +249,7 @@ export interface IntegrationSettings {
   anthropic: AnthropicSettings;
   github: GitHubSettings;
   confluence: ConfluenceSettings;
+  googleMeetNotes: GoogleMeetNotesSettings;
   ollama: OllamaSettings;
   lmstudio: LMStudioSettings;
 }
@@ -249,6 +276,8 @@ export function getAgentColor(type: AgentType): string {
       return '#f16a5a'; // Red
     case 'rust':
       return '#dea584'; // Rust orange (official Rust color)
+    case 'biology':
+      return '#14b8a6'; // Teal for life sciences
     case 'moderator':
       return '#3b82f6'; // Blue for moderator
     case 'assistant':
@@ -404,15 +433,71 @@ export interface AssignSuggestion {
   reason: string;
 }
 
+export type TaskKind = 'agent' | 'action';
+
+export type BlockedUpstreamPolicy = 'block' | 'skip_branch' | 'fail_run';
+
+export interface ExecutionPolicy {
+  max_concurrent_tasks?: number;
+  max_execution_messages?: number;
+  blocked_upstream_policy?: BlockedUpstreamPolicy;
+  strict_task_status?: boolean;
+  handoff_max_chars?: number;
+}
+
+export interface GraphLayoutNode {
+  x: number;
+  y: number;
+}
+
+export type GraphLayout = Record<string, GraphLayoutNode>;
+
+export interface TaskExecutionOptions {
+  provider_id?: string;
+  requires_approval?: boolean;
+  max_retries?: number;
+  timeout_seconds?: number;
+  context_paths?: string[];
+}
+
+export interface TaskActionSpec {
+  type: string;
+  config?: Record<string, unknown>;
+}
+
+export interface EdgeCondition {
+  mode: 'always' | 'on_status' | 'on_output';
+  status?: string;
+  contains?: string;
+  regex?: string;
+}
+
+export interface DependencyEdge {
+  from_task_id: string;
+  condition?: EdgeCondition;
+}
+
+export interface DependencyGroup {
+  mode: 'all' | 'any';
+  task_ids: string[];
+}
+
 export interface CollaborationTask {
   id: string;
   title: string;
   description: string;
   assigned_to: string;
   assigned_name: string;
+  kind?: TaskKind;
+  action?: TaskActionSpec;
+  options?: TaskExecutionOptions;
   status: CollaborationTaskStatus;
   dependencies?: string[];
+  dependency_edges?: DependencyEdge[];
+  dependency_groups?: DependencyGroup[];
   prompt_dispatched?: boolean;
+  awaiting_approval?: boolean;
+  skipped_due_to_blocked?: boolean;
   output?: string;
   created_at: string;
   updated_at: string;
@@ -477,6 +562,24 @@ export interface Collaboration {
   working_directory?: string;
   /** True after user confirms workspace setup; until then task prompts are not sent to agents. */
   workspace_acknowledged?: boolean;
+  execution_policy?: ExecutionPolicy;
+  graph_layout?: GraphLayout;
+  dispatch_paused?: boolean;
+  execution_message_count?: number;
+  planning_recap?: string;
+  session_recap?: string;
+  planning_recap_status?: 'pending' | 'complete' | 'failed';
+  session_recap_status?: 'pending' | 'complete' | 'failed';
+  planning_recap_agent_id?: string;
+  session_recap_agent_id?: string;
+}
+
+export interface RunbookTemplate {
+  name: string;
+  title: string;
+  description: string;
+  execution_policy?: ExecutionPolicy;
+  tasks: CollaborationTask[];
 }
 
 export function isCollaborationMessage(message: Message): boolean {
@@ -484,7 +587,8 @@ export function isCollaborationMessage(message: Message): boolean {
     message.type === 'collaboration_plan' ||
     message.type === 'collaboration_task' ||
     message.type === 'collaboration_status' ||
-    message.type === 'collaboration_discussion'
+    message.type === 'collaboration_discussion' ||
+    message.type === 'collaboration_recap'
   );
 }
 

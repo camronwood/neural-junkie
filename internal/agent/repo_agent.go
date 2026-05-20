@@ -515,6 +515,11 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 
 // generateRepoResponse generates a response based on repository knowledge
 func (ra *RepoAgent) generateRepoResponse(ctx context.Context, msg *protocol.Message) (string, error) {
+	if resp, ok := tryConversationalClosure(ra.Agent, msg); ok {
+		log.Printf("[%s] Conversational closure (no LLM): %q", ra.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, nil
+	}
+
 	ra.mu.RLock()
 	index := ra.index
 	ra.mu.RUnlock()
@@ -524,11 +529,7 @@ func (ra *RepoAgent) generateRepoResponse(ctx context.Context, msg *protocol.Mes
 
 	prompt := ra.buildRepoPrompt(msg, index)
 
-	// Get recent conversation history for context
-	history := ra.Context.History[msg.Channel]
-	if len(history) > 10 {
-		history = history[len(history)-10:]
-	}
+	history := historyForGeneration(ra.Context.History[msg.Channel], msg.ID)
 
 	eff := ra.EffectiveAIProvider(ctx, msg)
 	if eff == nil {

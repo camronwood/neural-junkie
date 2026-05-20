@@ -320,7 +320,7 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
               <input
                 value={editing.api_key || ''}
                 onChange={(e) => setEditing({ ...editing, api_key: e.target.value })}
-                placeholder={editing.type === 'huggingface' ? 'HF token (or HF_TOKEN on hub)' : 'API Key'}
+                placeholder={editing.type === 'huggingface' ? 'HF token (or hub token in Settings)' : 'API Key'}
                 type="password"
                 className="col-span-2 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white"
               />

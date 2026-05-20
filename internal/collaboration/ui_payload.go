@@ -37,6 +37,16 @@ type CollaborationUIPayload struct {
 	WorkingDirectory      string               `json:"working_directory,omitempty"`
 	WorkspaceAcknowledged bool                 `json:"workspace_acknowledged,omitempty"`
 	TasksDispatched       bool                 `json:"tasks_dispatched,omitempty"`
+	ExecutionPolicy       ExecutionPolicy      `json:"execution_policy,omitempty"`
+	GraphLayout           GraphLayout          `json:"graph_layout,omitempty"`
+	DispatchPaused        bool                 `json:"dispatch_paused,omitempty"`
+	ExecutionMessageCount int                  `json:"execution_message_count,omitempty"`
+	PlanningRecap         string               `json:"planning_recap,omitempty"`
+	SessionRecap          string               `json:"session_recap,omitempty"`
+	PlanningRecapStatus   string               `json:"planning_recap_status,omitempty"`
+	SessionRecapStatus    string               `json:"session_recap_status,omitempty"`
+	PlanningRecapAgentID  string               `json:"planning_recap_agent_id,omitempty"`
+	SessionRecapAgentID   string               `json:"session_recap_agent_id,omitempty"`
 }
 
 // ToUIPayload returns metadata safe for WebSocket attachment (no discussion.messages).
@@ -60,7 +70,17 @@ func (c *Collaboration) ToUIPayload() *CollaborationUIPayload {
 		WorktreeBranch:        c.WorktreeBranch,
 		WorkingDirectory:      c.WorkingDirectory,
 		WorkspaceAcknowledged: c.WorkspaceAcknowledged,
-		TasksDispatched:       c.TasksDispatched,
+		TasksDispatched:         c.TasksDispatched,
+		ExecutionPolicy:         c.ExecutionPolicy,
+		GraphLayout:             c.GraphLayout,
+		DispatchPaused:          c.DispatchPaused,
+		ExecutionMessageCount:   c.ExecutionMessageCount,
+		PlanningRecap:           c.PlanningRecap,
+		SessionRecap:            c.SessionRecap,
+		PlanningRecapStatus:     c.PlanningRecapStatus,
+		SessionRecapStatus:      c.SessionRecapStatus,
+		PlanningRecapAgentID:    c.PlanningRecapAgentID,
+		SessionRecapAgentID:     c.SessionRecapAgentID,
 	}
 	if c.Plan != nil {
 		planCopy := *c.Plan

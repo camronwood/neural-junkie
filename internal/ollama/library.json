@@ -158,5 +158,23 @@
     "size_hint": "~4.6 GB",
     "icon_key": "granite",
     "publisher": "IBM"
+  },
+  {
+    "name": "koesn/llama3-openbiollm-8b:latest",
+    "title": "OpenBioLLM 8B (Llama 3)",
+    "description": "Recommended local biology chat model. Pulled from Ollama Hub; BiologyExpert uses qwen2.5:7b for MCP tools when this tag lacks tool calling.",
+    "tags": ["biology", "recommended"],
+    "size_hint": "~4.9 GB",
+    "icon_key": "bio",
+    "publisher": "koesn"
+  },
+  {
+    "name": "nj-bio:8b",
+    "title": "Neural Junkie Bio 8B (GGUF import)",
+    "description": "OpenBioLLM-Llama3-8B with Llama 3 chat template. Install via Model Library → Hugging Face GGUF → Import to Ollama.",
+    "tags": ["biology"],
+    "size_hint": "~4.9 GB (Q4)",
+    "icon_key": "bio",
+    "publisher": "OpenBioLLM"
   }
 ]

@@ -115,19 +115,70 @@ func handleHfDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := hfhub.TokenFromConfig(appConfig)
-	err := hfMgr.Download(r.Context(), req.RepoID, req.Filename, token, func(p hfhub.DownloadProgress) {
-		data, _ := json.Marshal(p)
-		fmt.Fprintf(w, "data: %s\n\n", string(data))
-		flusher.Flush()
-	})
-	if err != nil {
+	if err := hfMgr.EnsureDownloadStarted(token, req.RepoID, req.Filename); err != nil {
 		line, _ := json.Marshal(map[string]string{"status": "error", "error": err.Error()})
 		fmt.Fprintf(w, "data: %s\n\n", string(line))
 		flusher.Flush()
 		return
 	}
-	fmt.Fprintf(w, "data: {\"status\":\"success\"}\n\n")
-	flusher.Flush()
+	err := hfMgr.WatchDownload(r.Context(), req.RepoID, req.Filename, func(p hfhub.DownloadProgress) {
+		data, _ := json.Marshal(p)
+		fmt.Fprintf(w, "data: %s\n\n", string(data))
+		flusher.Flush()
+	})
+	if err != nil && err != context.Canceled {
+		line, _ := json.Marshal(map[string]string{"status": "error", "error": err.Error()})
+		fmt.Fprintf(w, "data: %s\n\n", string(line))
+		flusher.Flush()
+		return
+	}
+	if err == nil {
+		fmt.Fprintf(w, "data: {\"status\":\"success\"}\n\n")
+		flusher.Flush()
+	}
+}
+
+func handleHfDownloadStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if hfMgr == nil {
+		http.Error(w, "HF manager not initialized", http.StatusInternalServerError)
+		return
+	}
+	repoID := strings.TrimSpace(r.URL.Query().Get("repo_id"))
+	filename := strings.TrimSpace(r.URL.Query().Get("filename"))
+	if repoID == "" {
+		http.Error(w, "repo_id is required", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if ready, err := hfMgr.FileReady(repoID, filename); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	} else if ready {
+		json.NewEncoder(w).Encode(hfhub.DownloadProgress{Status: "success", RepoID: repoID, Filename: filename, Percent: 100})
+		return
+	}
+	if p, ok := hfMgr.DownloadStatus(repoID, filename); ok {
+		json.NewEncoder(w).Encode(p)
+		return
+	}
+	json.NewEncoder(w).Encode(hfhub.DownloadProgress{Status: "idle", RepoID: repoID, Filename: filename})
+}
+
+func handleHfDownloadsActive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if hfMgr == nil {
+		http.Error(w, "HF manager not initialized", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"downloads": hfMgr.ActiveDownloads()})
 }
 
 func handleHfLocal(w http.ResponseWriter, r *http.Request) {

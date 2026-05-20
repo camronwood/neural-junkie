@@ -24,7 +24,7 @@ type ToolUseRequest struct {
 // ToolUseCallback executes a tool and returns the result text for the model.
 type ToolUseCallback func(ctx context.Context, req ToolUseRequest) (string, error)
 
-// ToolCapableProvider supports Claude tool-use loops.
+// ToolCapableProvider supports tool-use loops (Claude, Ollama, etc.).
 type ToolCapableProvider interface {
 	AIProvider
 	SupportsTools() bool

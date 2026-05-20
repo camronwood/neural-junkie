@@ -156,39 +156,18 @@ func ValidateDAG(tasks []CollaborationTask) error {
 	return nil
 }
 
-// IsTaskReady reports whether all dependencies are completed.
+// IsTaskReady reports whether all dependencies are completed (default block policy).
 func IsTaskReady(task CollaborationTask, tasks []CollaborationTask) bool {
-	if len(task.Dependencies) == 0 {
-		return true
-	}
-	statusByID := make(map[string]TaskStatus, len(tasks))
-	for _, t := range tasks {
-		statusByID[t.ID] = t.Status
-	}
-	for _, depID := range task.Dependencies {
-		if statusByID[depID] != TaskCompleted {
-			return false
-		}
-	}
-	return true
+	c := &Collaboration{Tasks: tasks, ExecutionPolicy: ExecutionPolicy{BlockedUpstreamPolicy: BlockedPolicyBlock}}
+	return IsTaskReadyForCollab(task, c)
 }
 
 // ReadyTasks returns pending tasks that are ready and have not been prompt-dispatched.
 func ReadyTasks(tasks []CollaborationTask) []CollaborationTask {
-	var out []CollaborationTask
-	for _, t := range tasks {
-		if t.Status != TaskPending {
-			continue
-		}
-		if t.PromptDispatched {
-			continue
-		}
-		if !IsTaskReady(t, tasks) {
-			continue
-		}
-		out = append(out, t)
-	}
-	return out
+	return ReadyTasksForCollab(&Collaboration{
+		Tasks:           tasks,
+		ExecutionPolicy: ExecutionPolicy{BlockedUpstreamPolicy: BlockedPolicyBlock},
+	})
 }
 
 // BlockedBy returns titles of incomplete dependency tasks blocking this task.
@@ -229,8 +208,16 @@ func TaskByID(tasks []CollaborationTask, id string) *CollaborationTask {
 
 // FormatDependencyHandoff builds upstream output text for task prompts.
 func FormatDependencyHandoff(task CollaborationTask, tasks []CollaborationTask) string {
+	return FormatDependencyHandoffWithLimit(task, tasks, 2000)
+}
+
+// FormatDependencyHandoffWithLimit builds upstream handoff with a configurable max chars per upstream.
+func FormatDependencyHandoffWithLimit(task CollaborationTask, tasks []CollaborationTask, maxChars int) string {
 	if len(task.Dependencies) == 0 {
 		return ""
+	}
+	if maxChars <= 0 {
+		maxChars = 2000
 	}
 	var b strings.Builder
 	b.WriteString("\n\n**Upstream completed work:**\n")
@@ -248,8 +235,8 @@ func FormatDependencyHandoff(task CollaborationTask, tasks []CollaborationTask) 
 		if out == "" {
 			out = "(no summary recorded)"
 		}
-		if len(out) > 2000 {
-			out = out[:2000] + "\n... (truncated)"
+		if len(out) > maxChars {
+			out = out[:maxChars] + "\n... (truncated)"
 		}
 		b.WriteString(out)
 		b.WriteString("\n")

@@ -51,6 +51,29 @@ func (c *ProviderCache) Evict(id string) {
 	c.mu.Unlock()
 }
 
+// GetForAgent returns a provider for the agent's resolved provider row (per-agent model overrides).
+func (c *ProviderCache) GetForAgent(cfg *config.Config, a config.AgentConfig) (AIProvider, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("provider cache: missing config")
+	}
+	p := cfg.ProviderForAgent(a)
+	if p == nil {
+		return nil, fmt.Errorf("no provider for agent type %q", a.Type)
+	}
+	key := p.ID + "\x00" + p.Model
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if existing, ok := c.items[key]; ok {
+		return existing, nil
+	}
+	prov, err := ProviderFromConfig(p)
+	if err != nil {
+		return nil, err
+	}
+	c.items[key] = prov
+	return prov, nil
+}
+
 // Clear removes all cached providers.
 func (c *ProviderCache) Clear() {
 	if c == nil {

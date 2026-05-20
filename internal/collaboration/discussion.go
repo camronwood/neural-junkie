@@ -54,6 +54,7 @@ func (cm *CollaborationManager) postDiscussionLimitNotice(collabID string) {
 // describing why.
 func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Message) error {
 	var notifyBudget bool
+	var notifyReviewing string
 
 	cm.mu.Lock()
 
@@ -76,11 +77,16 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 	if time.Since(d.StartedAt) > d.Timeout {
 		d.Status = DiscussionTimedOut
 		if c.Phase == PhasePlanning {
-			c.Phase = PhaseReviewing
+			if cm.enterReviewingFromPlanningLocked(c) {
+				notifyReviewing = collabID
+			}
 		}
 		c.UpdatedAt = time.Now()
 		log.Printf("[Discussion %s] Timed out after %v", d.ID[:8], d.Timeout)
 		cm.mu.Unlock()
+		if notifyReviewing != "" && cm.onEnterReviewing != nil {
+			go cm.onEnterReviewing(notifyReviewing)
+		}
 		return fmt.Errorf("discussion timed out")
 	}
 
@@ -93,13 +99,17 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 	if enforced && d.TotalMessageCount >= d.MaxTotalMessages {
 		d.Status = DiscussionBudgetExhausted
 		if c.Phase == PhasePlanning {
-			c.Phase = PhaseReviewing
+			if cm.enterReviewingFromPlanningLocked(c) {
+				notifyReviewing = collabID
+			}
 		}
-		cm.synthesizePlanFromDiscussionLocked(c)
 		c.UpdatedAt = time.Now()
 		log.Printf("[Discussion %s] Budget exhausted (%d/%d messages)", d.ID[:8], d.TotalMessageCount, d.MaxTotalMessages)
 		notifyBudget = true
 		cm.mu.Unlock()
+		if notifyReviewing != "" && cm.onEnterReviewing != nil {
+			go cm.onEnterReviewing(notifyReviewing)
+		}
 		if notifyBudget {
 			cm.postDiscussionLimitNotice(collabID)
 		}
@@ -108,7 +118,9 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 
 	cm.advanceTurn(c)
 	if d.Status != DiscussionActive && c.Phase == PhasePlanning && enforced {
-		c.Phase = PhaseReviewing
+		if cm.enterReviewingFromPlanningLocked(c) {
+			notifyReviewing = collabID
+		}
 	}
 	if enforced && d.Status == DiscussionBudgetExhausted {
 		notifyBudget = true
@@ -116,6 +128,9 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 	c.UpdatedAt = time.Now()
 	cm.mu.Unlock()
 
+	if notifyReviewing != "" && cm.onEnterReviewing != nil {
+		go cm.onEnterReviewing(notifyReviewing)
+	}
 	if notifyBudget {
 		cm.postDiscussionLimitNotice(collabID)
 	}

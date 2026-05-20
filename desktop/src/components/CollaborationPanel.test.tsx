@@ -6,9 +6,20 @@ import type { Collaboration, DiscussionSession, SharedArtifact } from '../types/
 const fullCollabId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const collabPrefix = 'aaaaaaaa';
 
-const { sendMessageMock, confirmReplaceMock } = vi.hoisted(() => ({
+const {
+  sendMessageMock,
+  confirmReplaceMock,
+  collabTaskCompleteMock,
+  collabTaskSkipMock,
+  collabTaskRedispatchMock,
+  collabTaskApproveMock,
+} = vi.hoisted(() => ({
   sendMessageMock: vi.fn().mockResolvedValue({}),
   confirmReplaceMock: vi.fn((_a: unknown, _b: unknown) => true),
+  collabTaskCompleteMock: vi.fn().mockResolvedValue({}),
+  collabTaskSkipMock: vi.fn().mockResolvedValue({}),
+  collabTaskRedispatchMock: vi.fn().mockResolvedValue({}),
+  collabTaskApproveMock: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../stores/chatStore', () => ({
@@ -23,6 +34,10 @@ vi.mock('../stores/chatStore', () => ({
 vi.mock('../api/chatAPI', () => ({
   ChatAPI: class {
     sendMessage = sendMessageMock;
+    collabTaskComplete = collabTaskCompleteMock;
+    collabTaskSkip = collabTaskSkipMock;
+    collabTaskRedispatch = collabTaskRedispatchMock;
+    collabTaskApprove = collabTaskApproveMock;
   },
 }));
 
@@ -80,6 +95,10 @@ afterEach(() => {
 beforeEach(() => {
   sendMessageMock.mockClear();
   confirmReplaceMock.mockClear();
+  collabTaskCompleteMock.mockClear();
+  collabTaskSkipMock.mockClear();
+  collabTaskRedispatchMock.mockClear();
+  collabTaskApproveMock.mockClear();
   confirmReplaceMock.mockReturnValue(true);
 });
 
@@ -107,6 +126,39 @@ describe('CollaborationPanel', () => {
 
     expect(screen.queryByRole('button', { name: 'Resume plan' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel Collaboration' })).toBeInTheDocument();
+  });
+
+  it('disables Resume plan while planning recap is pending', () => {
+    const collab = makeCollaboration({
+      phase: 'reviewing',
+      planning_recap_status: 'pending',
+      planning_recap_agent_id: 'ag1',
+    });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Resume plan' })).toBeDisabled();
+    expect(screen.getByText(/Generating session summary with @RustExpert/i)).toBeInTheDocument();
+  });
+
+  it('shows session summary card when planning_recap is stored', () => {
+    const collab = makeCollaboration({
+      phase: 'reviewing',
+      planning_recap_status: 'complete',
+      planning_recap: '## Summary\n\n- Agreed on approach A',
+    });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+    expect(screen.getByText('Session summary')).toBeInTheDocument();
+    expect(screen.getByText(/Agreed on approach A/)).toBeInTheDocument();
+  });
+
+  it('shows session summary card from session_recap when collaboration completed', () => {
+    const collab = makeCollaboration({
+      phase: 'completed',
+      session_recap_status: 'complete',
+      session_recap: '## Final wrap-up\n\n- Shipped the feature',
+    });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+    expect(screen.getByText('Session summary')).toBeInTheDocument();
+    expect(screen.getByText(/Shipped the feature/)).toBeInTheDocument();
   });
 
   it('sends /resume-plan with 8-char id from reviewing and refreshes after', async () => {
@@ -243,7 +295,7 @@ describe('CollaborationPanel', () => {
     confirmSpy.mockRestore();
   });
 
-  it('mark task done sends /collab-task-done with 1-based index', async () => {
+  it('complete task calls collabTaskComplete REST API', async () => {
     const onAfter = vi.fn().mockResolvedValue(undefined);
     const collab = makeCollaboration({
       phase: 'executing',
@@ -275,17 +327,16 @@ describe('CollaborationPanel', () => {
       <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
     );
 
-    const buttons = screen.getAllByRole('button', { name: 'Mark task done' });
-    expect(buttons).toHaveLength(1);
-    fireEvent.click(buttons[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Complete' }));
 
     await waitFor(() => {
-      expect(sendMessageMock).toHaveBeenCalledWith(
-        'collab-test-channel',
-        `/collab-task-done ${collabPrefix} 1`,
-        expect.objectContaining({ name: 'PanelTester' })
-      );
+      expect(collabTaskCompleteMock).toHaveBeenCalledWith(fullCollabId, 't1');
     });
+    expect(sendMessageMock).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining('/collab-task-done'),
+      expect.anything()
+    );
   });
 
   it('completed phase shows dismiss and hides resume', () => {

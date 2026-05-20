@@ -141,9 +141,11 @@ export function RunbookGraphModal({
             <RunbookTaskInspector
               task={selectedTask}
               taskIndex={selectedIndex}
+              tasks={tasks}
               agents={agents}
               editable={editable}
               onUpdate={updateSelectedTask}
+              onUpdateDependencies={(deps) => updateSelectedTask({ dependencies: deps })}
               onDelete={deleteSelectedTask}
             />
           ) : null}

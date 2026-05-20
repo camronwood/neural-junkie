@@ -89,7 +89,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.11](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.11) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.12](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -186,9 +186,11 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 | **Cursor** | Codebase analysis, code generation, refactoring, shell commands (requires [Cursor CLI](docs/CLI_AGENTS.md)) |
 | **Gemini** | Code generation, code review, multimodal analysis, architecture (requires [Gemini CLI](docs/CLI_AGENTS.md)) |
 
-### Specialist Agents (default: in-process with the hub)
+### Specialist Agents (Software development pack)
 
-By default the hub starts **six** specialists from application config (`Agents` in `~/.neural-junkie/config.json`, seeded from defaults in `internal/config`): **GoExpert**, **ReactExpert**, **DevOpsPro**, **SQLMaster**, **SecurityExpert**, and **RustExpert**. They share the hub’s message path (no separate `go run cmd/agent` required for day-to-day dev).
+When the **Software development** domain pack is enabled (Settings → Domain packs, or the developer setup wizard track), the hub starts **six** in-process specialists: **GoExpert**, **ReactExpert**, **DevOpsPro**, **SQLMaster**, **SecurityExpert**, and **RustExpert**. See [docs/SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md).
+
+Fresh installs default to **pack off** (Moderator, Assistant, and auto-detected CLI agents only). Enable the pack when you want hub-hosted coding specialists.
 
 | Agent | Expertise |
 |-------|-----------|
