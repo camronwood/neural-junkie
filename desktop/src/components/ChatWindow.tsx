@@ -1803,7 +1803,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             await api.clearChannelHistory(name);
             const msgs = await api.fetchMessages(name, 50);
             useChatStore.getState().setMessages(msgs);
-            addToast('Channel history cleared', 'success');
+            addToast({ type: 'success', title: 'Channel history cleared' });
           }}
         />
       )}
