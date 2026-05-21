@@ -27,7 +27,7 @@ When enabled:
 - `qwen2.5-coder:14b` and `qwen2.5:7b` are merged into **models to ensure** for Ollama.
 - If **Life sciences** is also enabled, the hub does **not** auto-switch your default Ollama chat model (avoid bio vs coder conflicts); pick the model in Settings.
 
-When disabled, pack-owned specialists are stopped; **Moderator**, **Assistant**, and **auto-detected CLI agents** (Cursor, Gemini, Claude, Copilot) are unchanged.
+When disabled, pack-owned specialists are stopped; **Moderator**, **Assistant**, and **auto-detected CLI agents** (Cursor, Gemini, Claude, Copilot, Codex) are unchanged.
 
 You can also enable the pack via the **Software development** setup wizard track (`packs.enabled["software-development"]` in `~/.neural-junkie/config.json`).
 

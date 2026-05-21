@@ -2,7 +2,26 @@
 
 CLI Agents are a special agent type that wraps external AI CLI tools as subprocesses, integrating them into the Neural Junkie chat as first-class participants. Instead of calling an HTTP API, the agent invokes a CLI binary, passes the prompt as an argument, and captures the output.
 
-The system is designed to be generic -- any CLI-based AI tool can be integrated -- and currently ships with built-in support for **Cursor**, **Gemini**, **Claude**, and **Copilot** CLI agents.
+The system is designed to be generic -- any CLI-based AI tool can be integrated. On hub start, Neural Junkie scans PATH and auto-joins any installed CLI to `#general`.
+
+### Auto-detected CLI types
+
+| Type key | Binary (primary) | Notes |
+|----------|------------------|--------|
+| `aider` | `aider` | `--yes --message` |
+| `amazonq` | `q` | also tries `amazon-q`; `q chat --no-interactive -y` |
+| `amp` | `amp` | `amp --execute` |
+| `claude` | `claude` | `-p` |
+| `codex` | `codex` | `codex exec` |
+| `copilot` | `copilot` | also `github-copilot-cli`; `-p` on modern CLI |
+| `crush` | `crush` | `crush run` |
+| `cursor` | `agent` | Cursor CLI |
+| `droid` | `droid` | `droid exec --auto high` |
+| `gemini` | `gemini` | `-p` |
+| `kiro` | `kiro-cli` | also `kiro`; `chat --no-interactive` |
+| `opencode` | `opencode` | `-p -q` |
+
+Use `/list-cli-agents` in chat to see which are installed on your machine.
 
 **Domain packs:** CLI agents are **not** tied to the Software development or Life sciences packs. On hub start, `initializeCLIAgents()` scans PATH and auto-joins any installed CLI to `#general`. The **Team chat & productivity** setup wizard track relies on this (Moderator + Assistant + detected CLIs). In-process specialists (GoExpert, etc.) require the [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md).
 
@@ -113,7 +132,7 @@ Because the Cursor CLI runs in the context of a real codebase directory, it can:
 ### Limitations
 
 - **120-second timeout** -- very large tasks may time out
-- **No vision support** -- cannot process images directly (reference file paths instead)
+- **Chat images** -- inline attachments are saved under `.nj-chat-attachments/{message-id}/` in the CLI work directory (`CURSOR_WORK_DIR`, etc.) and referenced in the prompt; the CLI must read those files (no inline base64 in the subprocess)
 - **One codebase** -- operates on `CURSOR_WORK_DIR` only; use repo agents for other projects
 - **Sequential** -- one invocation at a time per agent instance
 - **No streaming** -- the full response is returned after the subprocess completes
@@ -220,6 +239,51 @@ Because the Gemini CLI runs with `--yolo` in the context of a real codebase dire
 
 ---
 
+## GitHub Copilot CLI Agent
+
+The hub looks for the **`copilot`** binary first (current GitHub Copilot CLI), then falls back to legacy **`github-copilot-cli`**.
+
+### Setup
+
+```bash
+brew install copilot-cli
+# or: npm install -g @github/copilot
+```
+
+Verify:
+
+```bash
+which copilot
+```
+
+Non-interactive mode uses `copilot -p "<prompt>"`. Restart the hub after install:
+
+```bash
+make stop && make start-all
+```
+
+---
+
+## OpenAI Codex CLI Agent
+
+The hub auto-detects the **`codex`** binary and invokes `codex exec "<prompt>"`.
+
+### Setup
+
+```bash
+brew install codex
+# or follow https://github.com/openai/codex
+codex login   # if required
+```
+
+Optional work directory:
+
+```bash
+export CODEX_WORK_DIR=/path/to/your/project
+```
+
+---
+
 ## Building Custom CLI Agents
 
 The CLI agent system is generic. You can wrap any CLI tool that accepts a prompt and returns text.
@@ -283,6 +347,15 @@ The provider tries two strategies:
 | `CURSOR_API_KEY` | No | -- | API key for Cursor CLI auth. Falls back to stored credentials. |
 | `CURSOR_WORK_DIR` | No | Server's CWD | Working directory the Cursor agent operates in |
 | `GEMINI_WORK_DIR` | No | Server's CWD | Working directory the Gemini agent operates in |
+| `COPILOT_WORK_DIR` | No | Server's CWD | Working directory the Copilot agent operates in |
+| `CODEX_WORK_DIR` | No | Server's CWD | Working directory the Codex agent operates in |
+| `AIDER_WORK_DIR` | No | Server's CWD | Working directory for Aider |
+| `AMAZONQ_WORK_DIR` | No | Server's CWD | Working directory for Amazon Q (`q`) |
+| `AMP_WORK_DIR` | No | Server's CWD | Working directory for Amp |
+| `CRUSH_WORK_DIR` | No | Server's CWD | Working directory for Crush |
+| `DROID_WORK_DIR` | No | Server's CWD | Working directory for Factory Droid |
+| `KIRO_WORK_DIR` | No | Server's CWD | Working directory for Kiro |
+| `OPENCODE_WORK_DIR` | No | Server's CWD | Working directory for OpenCode |
 
 ## Troubleshooting
 

@@ -125,6 +125,45 @@ type AgentInfo struct {
 	RemovedFrom             []string  `json:"removed_from"`              // List of channels agent was removed from
 	ApprovalMode            string    `json:"approval_mode,omitempty"`   // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
 	CustomRulesMarkdown     string    `json:"custom_rules_markdown,omitempty"`
+	ToolCount               int       `json:"tool_count,omitempty"` // Populated when GET /api/agents?include_tool_counts=true
+}
+
+// AgentToolParam describes one tool input field.
+type AgentToolParam struct {
+	Name        string `json:"name"`
+	Required    bool   `json:"required"`
+	Description string `json:"description,omitempty"`
+}
+
+// AgentToolDefinition is a hub MCP or built-in tool exposed to an agent.
+type AgentToolDefinition struct {
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	Parameters  []AgentToolParam `json:"parameters,omitempty"`
+	Source      string           `json:"source"` // "mcp" | "builtin"
+}
+
+// AgentToolCapabilities reports tools and model routing for one agent.
+type AgentToolCapabilities struct {
+	AgentID              string                `json:"agent_id"`
+	AgentName            string                `json:"agent_name"`
+	AgentType            string                `json:"agent_type"`
+	Tools                []AgentToolDefinition `json:"tools"`
+	ToolCount            int                   `json:"tool_count"`
+	MCPEnabled           bool                  `json:"mcp_enabled"`
+	MCPPort              int                   `json:"mcp_port,omitempty"`
+	ChatModel            string                `json:"chat_model"`
+	ChatProvider         string                `json:"chat_provider"`
+	ChatNativeTools      bool                  `json:"chat_native_tools"`
+	ToolLoopModel        string                `json:"tool_loop_model"`
+	ToolLoopUsesFallback bool                  `json:"tool_loop_uses_fallback"`
+	Notes                []string              `json:"notes,omitempty"`
+}
+
+// ChannelToolsResponse lists tool capabilities for agents in a channel.
+type ChannelToolsResponse struct {
+	Channel string                  `json:"channel"`
+	Agents  []AgentToolCapabilities `json:"agents"`
 }
 
 // ChannelType classifies the purpose of a channel
@@ -147,8 +186,9 @@ type Channel struct {
 	CreatedBy   string      `json:"created_by,omitempty"`
 	Created     time.Time   `json:"created"`
 	Agents      []AgentInfo `json:"agents"`
-	Members     []string    `json:"members,omitempty"` // Explicitly added agent IDs
-	Tags        []string    `json:"tags,omitempty"`
+	Members       []string `json:"members,omitempty"`        // Explicitly added agent IDs
+	HumanMembers  []string `json:"human_members,omitempty"`  // Usernames allowed on private custom channels
+	Tags          []string `json:"tags,omitempty"`
 }
 
 // ThreadMetadata contains metadata about a message thread

@@ -3,7 +3,7 @@ import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
 import { saveCredentials, loadCredentials } from '../utils/secureStorage';
-import { getHubBaseURL } from '../config/hubUrl';
+import { getHubBaseURL, setHubSessionToken } from '../config/hubUrl';
 
 interface LoginScreenProps {
   onConnect: () => void;
@@ -38,6 +38,9 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
           setNameInput(saved.username);
           setChannelInput(saved.channel);
           setServerInput(saved.serverAddr);
+          if (saved.sessionToken) {
+            setHubSessionToken(saved.sessionToken);
+          }
           setRememberMe(true);
           console.log('[LoginScreen] Loaded saved credentials');
         }
@@ -69,6 +72,9 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
         throw new Error('Unable to connect to server');
       }
 
+      const session = await api.createSession(name);
+      setHubSessionToken(session.token);
+
       // Update store
       setUsername(name);
       setChannel(chan);
@@ -76,7 +82,7 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
 
       // Save credentials if Remember Me is checked
       try {
-        await saveCredentials(name, chan, server, rememberMe);
+        await saveCredentials(name, chan, server, rememberMe, session.token);
       } catch (err) {
         console.error('[LoginScreen] Failed to save credentials:', err);
         // Non-fatal error, continue with connection

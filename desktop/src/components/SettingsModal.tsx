@@ -3,8 +3,21 @@ import { shallow } from 'zustand/shallow';
 import { useSettingsStore, type FontSizeScope } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
-import type { AnthropicSettings, GitHubSettings, ConfluenceSettings, OllamaSettings, LMStudioSettings, GoogleMeetNotesSettings, GoogleMeetNotesStatus } from '../types/protocol';
+import type {
+  AnthropicSettings,
+  GitHubSettings,
+  ConfluenceSettings,
+  OllamaSettings,
+  LMStudioSettings,
+  GoogleMeetNotesSettings,
+  GoogleMeetNotesStatus,
+  SlackStatus,
+  SlackBinding,
+  SlackPolicy,
+  SlackConfigResponse,
+} from '../types/protocol';
 import { ChatAPI, type PackStatus } from '../api/chatAPI';
+import { usePacksStore } from '../stores/packsStore';
 import { patchRevealActiveAgentsInSidebar } from '../utils/sidebarVisibility';
 import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
 import { ProviderManager } from './ProviderManager';
@@ -75,6 +88,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [collabSmartRouting, setCollabSmartRouting] = useState(false);
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
+  const [delegationEnabled, setDelegationEnabled] = useState(false);
+  const [delegationSaving, setDelegationSaving] = useState(false);
   const [collabAssetsRoot, setCollabAssetsRoot] = useState('');
   const [collabAssetsPersisted, setCollabAssetsPersisted] = useState('');
   const [collabAssetsSaving, setCollabAssetsSaving] = useState(false);
@@ -83,6 +98,27 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [googleMeetNotes, setGoogleMeetNotes] = useState<GoogleMeetNotesStatus | null>(null);
   const [googleMeetNotesLoading, setGoogleMeetNotesLoading] = useState(false);
   const [googleMeetNotesBusy, setGoogleMeetNotesBusy] = useState(false);
+  const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
+  const [slackConfig, setSlackConfig] = useState<SlackConfigResponse | null>(null);
+  const [slackBindings, setSlackBindings] = useState<SlackBinding[]>([]);
+  const [slackLoading, setSlackLoading] = useState(false);
+  const [slackBusy, setSlackBusy] = useState(false);
+  const [slackForm, setSlackForm] = useState({
+    enabled: false,
+    appToken: '',
+    botToken: '',
+    displayName: 'Camron',
+    defaultPolicy: 'mention_only' as SlackPolicy,
+    clientId: '',
+    clientSecret: '',
+    redirectUrl: `${hubHttp}/api/slack/oauth/callback`,
+  });
+  const [slackBindingForm, setSlackBindingForm] = useState({
+    slackChannelId: '',
+    slackChannelName: '',
+    agentId: '',
+    policy: 'mention_only' as SlackPolicy,
+  });
   const [domainPacks, setDomainPacks] = useState<PackStatus[]>([]);
   const [packsLoading, setPacksLoading] = useState(false);
   const [packsSaving, setPacksSaving] = useState<string | null>(null);
@@ -138,6 +174,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const api = new ChatAPI(hubHttp);
       const rows = await api.setPackEnabled(packId, enabled);
       setDomainPacks(rows);
+      void usePacksStore.getState().fetchPacks();
       const [agentList, channelList] = await Promise.all([
         api.fetchAgents(),
         api.fetchChannels(),
@@ -221,7 +258,181 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   useEffect(() => {
     if (!isOpen || activeTab !== 'integrations') return;
     void refreshGoogleMeetNotesStatus();
+    void refreshSlackIntegration();
   }, [isOpen, activeTab, hubHttp]);
+
+  const refreshSlackIntegration = async () => {
+    setSlackLoading(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const [status, cfg, bindings] = await Promise.all([
+        api.getSlackStatus(),
+        api.getSlackConfig(),
+        api.getSlackBindings(),
+      ]);
+      setSlackStatus(status);
+      setSlackConfig(cfg);
+      setSlackBindings(bindings);
+      setSlackForm((prev) => ({
+        ...prev,
+        enabled: cfg.enabled,
+        displayName: cfg.display_name || 'Camron',
+        defaultPolicy: cfg.default_policy || 'mention_only',
+        clientId: cfg.oauth?.client_id ?? prev.clientId,
+        redirectUrl: cfg.oauth?.redirect_url || `${hubHttp}/api/slack/oauth/callback`,
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to load Slack settings',
+        },
+      }));
+    } finally {
+      setSlackLoading(false);
+    }
+  };
+
+  const saveSlackSettings = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.saveSlackConfig({
+        enabled: slackForm.enabled,
+        app_token: slackForm.appToken || undefined,
+        bot_token: slackForm.botToken || undefined,
+        display_name: slackForm.displayName,
+        default_policy: slackForm.defaultPolicy,
+        client_id: slackForm.clientId || undefined,
+        client_secret: slackForm.clientSecret || undefined,
+        redirect_url: slackForm.redirectUrl || undefined,
+      });
+      await api.restartSlackBridge();
+      setSlackForm((prev) => ({ ...prev, appToken: '', botToken: '', clientSecret: '' }));
+      await refreshSlackIntegration();
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: true, message: 'Slack settings saved and bridge restarted.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to save Slack settings',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const connectSlackOAuth = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const url = await api.getSlackOAuthURL();
+      openLink(url);
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: true,
+          message: 'Complete Slack install in your browser, then save app token and restart.',
+        },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Slack OAuth failed',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const disconnectSlack = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.disconnectSlack();
+      await refreshSlackIntegration();
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: true, message: 'Slack disconnected.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Disconnect failed',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const saveSlackBinding = async () => {
+    if (!slackBindingForm.slackChannelId.trim() || !slackBindingForm.agentId) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: false, message: 'Slack channel ID and agent are required.' },
+      }));
+      return;
+    }
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const agent = agents.find((a) => a.id === slackBindingForm.agentId);
+      await api.saveSlackBinding({
+        slack_channel_id: slackBindingForm.slackChannelId.trim(),
+        slack_channel_name: slackBindingForm.slackChannelName.trim() || undefined,
+        agent_id: slackBindingForm.agentId,
+        agent_name: agent?.name,
+        policy: slackBindingForm.policy,
+        enabled: true,
+      });
+      await refreshSlackIntegration();
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: true, message: 'Channel binding saved.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to save binding',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const deleteSlackBindingRow = async (slackChannelId: string) => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.deleteSlackBinding(slackChannelId);
+      await refreshSlackIntegration();
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to delete binding',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
 
   const saveGoogleOAuthSettings = async () => {
     setGoogleMeetNotesBusy(true);
@@ -349,6 +560,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+          setDelegationEnabled(!!cfg.delegation?.enabled);
           const root =
             typeof cfg.collaboration?.assets_root === 'string' ? cfg.collaboration.assets_root : '';
           setCollabAssetsRoot(root);
@@ -419,6 +631,38 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleScopeChange = (scope: FontSizeScope) => {
     updateFontSizeScope(scope);
+  };
+
+  const handleDelegationToggle = async (enabled: boolean) => {
+    setDelegationSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      const r = await fetch(`${hubHttp}/api/settings`);
+      if (!r.ok) {
+        throw new Error(await r.text());
+      }
+      const cfg = await r.json();
+      const next = {
+        ...cfg,
+        delegation: {
+          ...(cfg.delegation ?? {}),
+          enabled,
+        },
+      };
+      const put = await fetch(`${hubHttp}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!put.ok) {
+        throw new Error(await put.text());
+      }
+      setDelegationEnabled(enabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDelegationSaving(false);
+    }
   };
 
   const handleCollabSmartRoutingToggle = async (enabled: boolean) => {
@@ -1580,6 +1824,249 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
               </div>
 
+              {/* Slack bridge */}
+              <div className="border border-slack-border rounded-lg p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slack-text">Slack</h3>
+                  <button
+                    type="button"
+                    onClick={() => void refreshSlackIntegration()}
+                    disabled={slackLoading}
+                    className="px-3 py-1 text-sm border border-slack-border rounded hover:bg-slack-bgHover text-slack-text"
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Assign one primary agent per Slack channel. Replies post as the bot with display name{' '}
+                  <strong className="text-slack-text">on behalf of you</strong>. Repo/MCP agents are allowed;
+                  file and tool approvals still happen in this app.
+                </p>
+                {testResults.slack && (
+                  <div
+                    className={`mb-4 p-3 rounded text-sm ${
+                      testResults.slack.success
+                        ? 'bg-green-100 text-green-800 border border-green-200'
+                        : 'bg-red-100 text-red-800 border border-red-200'
+                    }`}
+                  >
+                    {testResults.slack.message}
+                  </div>
+                )}
+                <div className="space-y-4 mb-4">
+                  <label className="flex items-center gap-2 text-sm text-slack-text">
+                    <input
+                      type="checkbox"
+                      checked={slackForm.enabled}
+                      onChange={(e) =>
+                        setSlackForm((prev) => ({ ...prev, enabled: e.target.checked }))
+                      }
+                    />
+                    Enable Slack bridge
+                  </label>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      App token (Socket Mode, xapp-…)
+                      {slackConfig?.app_token_set && !slackForm.appToken && (
+                        <span className="ml-2 text-xs text-green-600">(saved)</span>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={slackForm.appToken}
+                      onChange={(e) =>
+                        setSlackForm((prev) => ({ ...prev, appToken: e.target.value }))
+                      }
+                      placeholder={slackConfig?.app_token_set ? 'Leave blank to keep' : 'xapp-…'}
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Bot token (xoxb-…)
+                      {slackConfig?.bot_token_set && !slackForm.botToken && (
+                        <span className="ml-2 text-xs text-green-600">(saved)</span>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={slackForm.botToken}
+                      onChange={(e) =>
+                        setSlackForm((prev) => ({ ...prev, botToken: e.target.value }))
+                      }
+                      placeholder={slackConfig?.bot_token_set ? 'Leave blank to keep' : 'xoxb-…'}
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Display name (on behalf of)
+                    </label>
+                    <input
+                      type="text"
+                      value={slackForm.displayName}
+                      onChange={(e) =>
+                        setSlackForm((prev) => ({ ...prev, displayName: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-2">
+                      Default trigger policy
+                    </label>
+                    <select
+                      value={slackForm.defaultPolicy}
+                      onChange={(e) =>
+                        setSlackForm((prev) => ({
+                          ...prev,
+                          defaultPolicy: e.target.value as SlackPolicy,
+                        }))
+                      }
+                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text"
+                    >
+                      <option value="mention_only">Mention only (@app)</option>
+                      <option value="questions">Questions / requests</option>
+                      <option value="always">Every message</option>
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void saveSlackSettings()}
+                    disabled={slackBusy}
+                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    Save tokens &amp; restart bridge
+                  </button>
+                </div>
+                {slackLoading && !slackStatus ? (
+                  <p className="text-sm text-slack-textMuted">Loading…</p>
+                ) : slackStatus ? (
+                  <div className="space-y-2 text-sm text-slack-text mb-4">
+                    <p>
+                      <span className="font-medium">Bridge:</span>{' '}
+                      {slackStatus.connected ? 'connected' : slackStatus.configured ? 'configured' : 'not configured'}
+                    </p>
+                    {slackStatus.bot_user_id && (
+                      <p>
+                        <span className="font-medium">Bot user:</span> {slackStatus.bot_user_id}
+                      </p>
+                    )}
+                    <p>
+                      <span className="font-medium">Bindings:</span> {slackStatus.bindings_count ?? 0}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => void connectSlackOAuth()}
+                    disabled={slackBusy || !slackConfig?.oauth?.configured}
+                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    OAuth install (bot token)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void disconnectSlack()}
+                    disabled={slackBusy}
+                    className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                <h4 className="text-sm font-semibold text-slack-text mb-2">Channel bindings</h4>
+                <p className="text-xs text-slack-textMuted mb-3">
+                  Slack channel ID (C…) from channel details → About. Invite the bot to the channel first.
+                </p>
+                <div className="grid gap-2 mb-3 sm:grid-cols-2">
+                  <input
+                    type="text"
+                    placeholder="Slack channel ID (C…)"
+                    value={slackBindingForm.slackChannelId}
+                    onChange={(e) =>
+                      setSlackBindingForm((prev) => ({
+                        ...prev,
+                        slackChannelId: e.target.value,
+                      }))
+                    }
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm font-mono"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Channel name (optional)"
+                    value={slackBindingForm.slackChannelName}
+                    onChange={(e) =>
+                      setSlackBindingForm((prev) => ({
+                        ...prev,
+                        slackChannelName: e.target.value,
+                      }))
+                    }
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm"
+                  />
+                  <select
+                    value={slackBindingForm.agentId}
+                    onChange={(e) =>
+                      setSlackBindingForm((prev) => ({ ...prev, agentId: e.target.value }))
+                    }
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm sm:col-span-2"
+                  >
+                    <option value="">Select primary agent…</option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.type})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={slackBindingForm.policy}
+                    onChange={(e) =>
+                      setSlackBindingForm((prev) => ({
+                        ...prev,
+                        policy: e.target.value as SlackPolicy,
+                      }))
+                    }
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm"
+                  >
+                    <option value="mention_only">Mention only</option>
+                    <option value="questions">Questions</option>
+                    <option value="always">Always</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void saveSlackBinding()}
+                    disabled={slackBusy}
+                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    Add / update binding
+                  </button>
+                </div>
+                {slackBindings.length > 0 ? (
+                  <ul className="space-y-2 text-sm">
+                    {slackBindings.map((b) => (
+                      <li
+                        key={b.slack_channel_id}
+                        className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
+                      >
+                        <span className="truncate">
+                          {b.slack_channel_name ? `#${b.slack_channel_name}` : b.slack_channel_id} →{' '}
+                          {b.agent_name || b.agent_id} ({b.policy})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void deleteSlackBindingRow(b.slack_channel_id)}
+                          className="shrink-0 text-xs text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slack-textMuted">No bindings yet.</p>
+                )}
+              </div>
+
               {/* Confluence Settings */}
               <div className="border border-slack-border rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1689,7 +2176,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {activeTab === 'domain-packs' && (
             <div className="space-y-8">
               <div className="border border-slack-border rounded-lg p-4 bg-slack-bgHover/30 text-sm text-slack-textMuted">
-                <strong className="text-slack-text">Always on:</strong> ChatModerator, Assistant, and CLI agents (Cursor, Gemini, Claude, Copilot) when installed on your PATH. Domain packs add optional in-process specialists and tools below.
+                <strong className="text-slack-text">Always on:</strong> ChatModerator, Assistant, and CLI agents (Cursor, Claude, Copilot, Codex, Gemini, Aider, OpenCode, and more) when installed on your PATH. Domain packs add optional in-process specialists and tools below.
               </div>
 
               <div className="border border-slack-border rounded-lg p-6">
@@ -1891,6 +2378,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   collabAssetsRoot.trim() !== collabAssetsPersisted.trim() && (
                     <p className="text-sm text-amber-600">Unsaved changes — Save or tab out of the field.</p>
                   )}
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Agent delegation</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  When enabled, any in-process agent may consult other specialists via the hub (by relevance), then
+                  synthesize one reply. Applies to normal chat and DMs — not collaboration task orchestration.
+                </p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={delegationEnabled}
+                    disabled={delegationSaving}
+                    onChange={(e) => void handleDelegationToggle(e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-slack-text">Enable cross-agent delegation</span>
+                </label>
               </div>
 
               <div className="border border-slack-border rounded-lg p-6">

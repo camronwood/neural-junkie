@@ -6,7 +6,7 @@ Get Neural Junkie running in under 5 minutes.
 
 No Go, Node, or Rust required.
 
-1. Install from [GitHub Releases — v1.0.0-beta.12](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12).
+1. Install from [GitHub Releases — v1.0.0-beta.13](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.13).
 2. Open the app and complete the **setup wizard** — choose **Software development**, **Life sciences**, or **Team chat & productivity** (Ollama local or cloud API key).
 3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and slash commands.
 
@@ -45,7 +45,7 @@ This launches:
 - The **Hub server** on `http://localhost:18765`
 - **Moderator** and **Assistant** (auto-started with the server)
 - **Specialist agents** from enabled **domain packs** in `~/.neural-junkie/config.json` (Software development pack adds six engineering experts when on)
-- **CLI agents** (Cursor, Gemini, Claude, Copilot) when their binaries are on PATH — not pack-gated
+- **CLI agents** (Cursor, Gemini, Claude, Copilot, Codex, Aider, OpenCode, Amazon Q, Crush, Amp, Droid, Kiro, …) when their binaries are on PATH — see [CLI_AGENTS.md](CLI_AGENTS.md) — not pack-gated
 - The **Tauri desktop app**
 
 `make start-all` does **not** run `make agents`; specialists are started inside the hub (`initializeConfiguredAgents`). Use `make agents` only when you intentionally want **separate** `cmd/agent` processes (avoid duplicate agent names versus in-process config).

@@ -17,6 +17,10 @@ Collaboration channels use closure only; they always keep the full collab prompt
 
 Implementation: `internal/agent/turn_intent.go`, wired in `generateResponse` and `generateResponseStreaming`.
 
+## Optional — Agent delegation
+
+When [delegation](DELEGATION.md) is enabled, after intent classification the hub may consult other specialists and inject `=== DELEGATE_RESULTS ===` before the main LLM call. Closure turns skip delegation.
+
 ## Phase B — Hub session summary
 
 For `dm` and `custom` channels the hub maintains a rolling **session summary**:

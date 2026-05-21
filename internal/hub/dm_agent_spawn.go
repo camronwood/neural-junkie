@@ -387,18 +387,20 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 		}
 	}
 
+	resolved, found := agent.ResolveCLI(cfg)
+	if !found {
+		return nil, fmt.Errorf("CLI binary not found on PATH (tried %s): %s", agent.CLIProbeLabel(cfg), cfg.InstallHint)
+	}
+
 	opts := []ai.CLIAgentOption{
-		ai.WithBaseArgs(cfg.BaseArgs),
+		ai.WithBaseArgs(resolved.BaseArgs),
 		ai.WithModel(cfg.ModelName),
 	}
-	provider := ai.NewCLIAgentProvider(cfg.Command, workDir, cfg.ProviderName, opts...)
+	provider := ai.NewCLIAgentProvider(resolved.Command, workDir, cfg.ProviderName, opts...)
 	for _, envKey := range cfg.EnvVars {
 		if val := os.Getenv(envKey); val != "" {
 			provider.Env[envKey] = val
 		}
-	}
-	if !provider.IsCLIInstalled() {
-		return nil, fmt.Errorf("CLI binary %q not found on PATH: %s", cfg.Command, cfg.InstallHint)
 	}
 
 	name := protocol.NormalizeAgentName(displayName)

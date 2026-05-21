@@ -521,7 +521,7 @@ func TestTransitionToExecutingDoesNotCancelExecutingInOtherChannel(t *testing.T)
 		t.Fatalf("TransitionToExecuting general: %v", err)
 	}
 
-	other, err := cm.CreateCollaboration("other", []string{"a1", "a2"}, "project-alpha", "user", collaboration.DiscussionConfig{})
+	other, err := cm.CreateCollaboration("other", []string{"a1", "a2"}, "team-ops", "user", collaboration.DiscussionConfig{})
 	if err != nil {
 		t.Fatalf("CreateCollaboration other channel: %v", err)
 	}

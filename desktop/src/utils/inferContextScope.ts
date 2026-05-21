@@ -120,6 +120,6 @@ export function resolveContextScope(input: InferContextScopeInput): InferContext
 export function channelNameToKind(channel: string, channelType?: string): ChannelKind {
   if (channelType === 'collaboration' || channel.startsWith('collab-')) return 'collaboration';
   if (channelType === 'dm' || channel.startsWith('dm-')) return 'dm';
-  if (channel === 'general' || channel.startsWith('project-')) return 'general';
+  if (channel === 'general') return 'general';
   return 'other';
 }

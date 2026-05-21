@@ -441,6 +441,14 @@ export function ChannelSidebar({
             style={{ backgroundColor: getAgentColor(agent.type) }}
           />
           <span className="truncate">{agent.name}</span>
+          {agent.tool_count != null && agent.tool_count > 0 && (
+            <span
+              className="text-[10px] px-1 rounded bg-white/10 text-white/70 shrink-0"
+              title={`${agent.tool_count} hub tool(s)`}
+            >
+              {agent.tool_count}
+            </span>
+          )}
           {isHiddenShortcut && (
             <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
           )}

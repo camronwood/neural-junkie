@@ -47,13 +47,26 @@ MCP tool servers are controlled from **Settings → AI & providers** and persist
 
 **Software development pack:** enabling the pack starts backend, DevOps, and database MCP servers when those specialists are enabled. See [SOFTWARE_DEVELOPMENT_PACK.md](SOFTWARE_DEVELOPMENT_PACK.md).
 
+## Discovering tools
+
+| Method | What it shows |
+|--------|----------------|
+| **Agent ℹ️** (My Agents or agent list) | Chat model, tool-loop model (e.g. qwen fallback for OpenBio), each MCP tool with parameters and example prompts |
+| **Tool count badge** | Sidebar agent shortcuts and My Agents list show `N tools` when the specialist is running |
+| **`/tools-list`** | MCP tools for every agent **in the current channel** only |
+| **HTTP API** | `GET /api/agent-tools?agent_id=…`, `GET /api/channel-tools?channel=…`, `GET /api/agents?include_tool_counts=true` |
+
+CLI agents (Cursor, Gemini, Claude CLI) use external toolsets; the UI notes that instead of listing hub MCP tools.
+
 ## Available Tools
 
 ### BiologyExpert (Life sciences)
 
+- `summarize_scan_summary(path)` — QC summary for Phoenix-style scan summary folders (`imageMetadata.json` + well TIFFs)
+
 **Tools:**
 - `analyze_sequence(sequence)` — DNA/RNA/protein validation and summary
-- `fold_protein(sequence)` — ESMFold via Hugging Face (hub token in Settings)
+- `fold_protein(sequence)` — ESMFold via HF Inference (`router.huggingface.co/hf-inference`; hub token in Settings)
 
 See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
 

@@ -60,7 +60,7 @@ func foldProteinSequence(ctx context.Context, raw string) (string, error) {
 	}
 
 	model := esmfoldModel()
-	url := fmt.Sprintf("https://api-inference.huggingface.co/models/%s", model)
+	url := hfhub.InferenceModelURL(model)
 
 	body, _ := json.Marshal(map[string]string{"inputs": seq})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -82,7 +82,15 @@ func foldProteinSequence(ctx context.Context, raw string) (string, error) {
 		return "", err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("ESMFold API status %d: %s", resp.StatusCode, truncate(string(pdbBytes), 500))
+		body := truncate(string(pdbBytes), 500)
+		if resp.StatusCode == http.StatusBadRequest && strings.Contains(body, "not supported") {
+			return "", fmt.Errorf(
+				"ESMFold (%s) is not available on Hugging Face serverless inference (hf-inference). "+
+					"Deploy via HF Inference Endpoints or run ESMFold locally. API response: %s",
+				model, body,
+			)
+		}
+		return "", fmt.Errorf("ESMFold API %s status %d: %s", url, resp.StatusCode, body)
 	}
 	if len(pdbBytes) < 20 || !bytes.Contains(pdbBytes, []byte("ATOM")) {
 		return "", fmt.Errorf("unexpected ESMFold response (not PDB); %s", truncate(string(pdbBytes), 200))

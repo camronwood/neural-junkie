@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useEditorStore } from '../stores/editorStore';
+import { usePacksStore } from '../stores/packsStore';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
@@ -10,7 +11,18 @@ import { open } from '@tauri-apps/api/dialog';
 import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
 import { setWorkspaceFileDragData } from '../utils/workspaceFileDrag';
 import { resolveEditorImageSrc } from '../utils/chatImageSrc';
+import {
+  isScanSummaryDirListing,
+  isScanSummaryMetadataPath,
+  isScanSummaryWellPath,
+  isScanSummaryWorkspaceRoot,
+  parseScanSummaryMetadata,
+  scanSummaryDirForFilePath,
+  scanSummaryDirFromMetadataPath,
+  SCAN_SUMMARY_METADATA_FILE,
+} from '../utils/scanSummary';
 import { ViewportContextMenu } from './ViewportContextMenu';
+import { devLog } from '../utils/devLog';
 
 interface FileExplorerPanelProps {
   onClose: () => void;
@@ -46,7 +58,10 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile } = useEditorStore();
+  const { openFile, openScanSummary } = useEditorStore();
+  const lifeSciencesEnabled = usePacksStore(
+    (s) => s.packs.find((p) => p.id === 'life-sciences')?.enabled === true
+  );
   const { addToast } = useToastStore();
 
   // Resize state
@@ -84,14 +99,15 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
   // Load workspaces on mount
   useEffect(() => {
-    console.log('FileExplorerPanel: Loading workspaces...');
+    devLog('FileExplorerPanel: Loading workspaces...');
     loadWorkspaces();
+    void usePacksStore.getState().fetchPacks();
   }, [loadWorkspaces]);
 
   // Load files when workspace changes
   useEffect(() => {
     if (activeWorkspaceId) {
-      console.log('FileExplorerPanel: Loading files for workspace:', activeWorkspaceId);
+      devLog('FileExplorerPanel: Loading files for workspace:', activeWorkspaceId);
       loadFiles(activeWorkspaceId);
     }
   }, [activeWorkspaceId, loadFiles]);
@@ -196,6 +212,59 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
   };
 
+  const openScanSummaryAtPath = async (
+    workspaceId: string,
+    summaryDir: string,
+    initialWell?: string
+  ) => {
+    if (!lifeSciencesEnabled) {
+      addToast({
+        type: 'info',
+        title: 'Life sciences pack',
+        message: 'Enable Life sciences in Settings → Domain packs to open scan summaries.',
+      });
+      return;
+    }
+    const metaPath = summaryDir
+      ? `${summaryDir.replace(/[/\\]+$/, '')}/${SCAN_SUMMARY_METADATA_FILE}`
+      : SCAN_SUMMARY_METADATA_FILE;
+    try {
+      const raw = await api.fetchFileContent(workspaceId, metaPath);
+      if (!raw || typeof raw !== 'string') {
+        throw new Error('Empty metadata response from hub');
+      }
+      const data = parseScanSummaryMetadata(raw);
+      openScanSummary(workspaceId, summaryDir, data, initialWell);
+      if (onFileOpen) {
+        onFileOpen();
+      }
+      addToast({
+        type: 'success',
+        title: 'Scan summary',
+        message: initialWell ? `Opened well ${initialWell}` : 'Opened plate viewer',
+      });
+    } catch (error) {
+      console.error('Failed to open scan summary:', error);
+      const message = error instanceof Error ? error.message : 'Failed to open scan summary';
+      setError(message);
+      addToast({ type: 'error', title: 'Scan summary', message });
+    }
+  };
+
+  const tryOpenScanSummaryFile = async (
+    workspaceId: string,
+    filePath: string
+  ): Promise<boolean> => {
+    if (!lifeSciencesEnabled) return false;
+    const summaryDir = scanSummaryDirForFilePath(filePath);
+    const isMetadata = isScanSummaryMetadataPath(filePath);
+    const isWell = isScanSummaryWellPath(filePath);
+    if (!isMetadata && !isWell) return false;
+    const initialWell = isWell ? (filePath.split(/[/\\]/).pop() ?? 'A1') : undefined;
+    await openScanSummaryAtPath(workspaceId, summaryDir, initialWell);
+    return true;
+  };
+
   const handleFileClick = async (file: FileNode) => {
     // Add null check for file.path to prevent crashes
     if (!file.path) {
@@ -205,7 +274,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
     
     if (file.is_dir) {
-      console.log('Toggling directory:', file.path, 'current expanded:', !!expandedPaths[file.path]);
+      devLog('Toggling directory:', file.path, 'current expanded:', !!expandedPaths[file.path]);
       const wasExpanded = !!expandedPaths[file.path];
       toggleExpanded(file.path);
       
@@ -214,7 +283,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
         const activeWorkspace = getActiveWorkspace();
         if (activeWorkspace) {
           try {
-            console.log('Loading directory contents for:', file.path);
+            devLog('Loading directory contents for:', file.path);
             await loadFiles(activeWorkspace.id, file.path);
           } catch (error) {
             console.error('Failed to load directory contents:', error);
@@ -225,11 +294,18 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
       
       setSelectedPath(file.path);
     } else {
-      // Open file in editor
       const activeWorkspace = getActiveWorkspace();
       if (activeWorkspace) {
+        const opened = await tryOpenScanSummaryFile(activeWorkspace.id, file.path);
+        if (opened) {
+          setSelectedPath(file.path);
+          return;
+        }
+      }
+      // Open file in editor
+      if (activeWorkspace) {
         try {
-          console.log('Opening file:', file.path, 'in workspace:', activeWorkspace.id);
+          devLog('Opening file:', file.path, 'in workspace:', activeWorkspace.id);
           if (isImagePreviewPath(file.path)) {
             const absolutePath = workspaceAbsolutePath(activeWorkspace.path, file.path);
             const imageSrc = await resolveEditorImageSrc({
@@ -244,7 +320,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           } else {
             const content = await api.fetchFileContent(activeWorkspace.id, file.path);
             const language = getLanguageFromPath(file.path);
-            console.log('File content loaded, opening in editor...');
+            devLog('File content loaded, opening in editor...');
             openFile(activeWorkspace.id, file.path, content, language);
           }
           // Auto-open the editor panel when a file is opened
@@ -459,9 +535,68 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     return languageMap[ext || ''] || 'plaintext';
   };
 
+  const findFileNode = (nodes: FileNode[], path: string): FileNode | undefined => {
+    for (const node of nodes) {
+      if (node.path === path) return node;
+      if (node.children?.length) {
+        const found = findFileNode(node.children, path);
+        if (found) return found;
+      }
+    }
+    return undefined;
+  };
+
+  const isScanSummaryFolder = (file: FileNode): boolean => {
+    if (!file.is_dir) return false;
+    if (file.children?.length && isScanSummaryDirListing(file.children)) {
+      return true;
+    }
+    return /-summary$/i.test(file.name) || /-summary$/i.test(file.path);
+  };
+
+  const contextMenuIsScanSummary = (): boolean => {
+    if (!contextMenu || !activeWorkspaceId) return false;
+    if (isScanSummaryMetadataPath(contextMenu.path) || isScanSummaryWellPath(contextMenu.path)) {
+      return true;
+    }
+    if (!contextMenu.isDir) return false;
+    const tree = fileTree[activeWorkspaceId] ?? [];
+    if (!contextMenu.path || contextMenu.path === '/' || contextMenu.path === '.') {
+      return isScanSummaryWorkspaceRoot(tree);
+    }
+    const node = findFileNode(tree, contextMenu.path);
+    if (node) return isScanSummaryFolder(node);
+    return /-summary$/i.test(contextMenu.path);
+  };
+
+  const handleOpenScanSummaryFromMenu = async () => {
+    if (!contextMenu || !activeWorkspaceId) return;
+    let summaryDir = '';
+    let initialWell: string | undefined;
+    if (isScanSummaryWellPath(contextMenu.path)) {
+      summaryDir = scanSummaryDirForFilePath(contextMenu.path);
+      initialWell = contextMenu.path.split(/[/\\]/).pop();
+    } else if (isScanSummaryMetadataPath(contextMenu.path)) {
+      summaryDir = scanSummaryDirFromMetadataPath(contextMenu.path);
+    } else if (contextMenu.isDir) {
+      summaryDir =
+        !contextMenu.path || contextMenu.path === '/' || contextMenu.path === '.'
+          ? ''
+          : contextMenu.path;
+    }
+    await openScanSummaryAtPath(activeWorkspaceId, summaryDir, initialWell);
+    closeContextMenu();
+  };
+
   const renderFileIcon = (file: FileNode) => {
     if (file.is_dir) {
+      if (isScanSummaryFolder(file)) {
+        return expandedPaths[file.path] ? '🔬' : '🔬';
+      }
       return expandedPaths[file.path] ? '📂' : '📁';
+    }
+    if (isScanSummaryMetadataPath(file.path) || isScanSummaryWellPath(file.path)) {
+      return '🔬';
     }
     
     // Add null check for file.path to prevent crashes
@@ -504,9 +639,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           onContextMenu={(e) => handleContextMenu(e, file)}
           title={file.is_dir ? undefined : 'Drag to chat to attach as context'}
         >
-          <span className="text-sm">
-            {file.is_dir ? (expandedPaths[file.path] ? '📂' : '📁') : renderFileIcon(file)}
-          </span>
+          <span className="text-sm">{renderFileIcon(file)}</span>
           <span className="text-sm truncate flex-1">{file.name}</span>
           {file.is_dir && (
             <span className="text-xs text-slack-textMuted">
@@ -524,6 +657,8 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
   };
 
   const files = activeWorkspaceId ? (fileTree[activeWorkspaceId] || []) : [];
+  const activeIsScanSummaryRoot =
+    lifeSciencesEnabled && activeWorkspaceId != null && isScanSummaryWorkspaceRoot(files);
 
   return (
     <div 
@@ -569,6 +704,18 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           </button>
         </div>
       </div>
+
+      {activeIsScanSummaryRoot && activeWorkspaceId && (
+        <div className="px-4 py-2 border-b border-slack-border bg-slack-bg">
+          <button
+            type="button"
+            onClick={() => void openScanSummaryAtPath(activeWorkspaceId, '')}
+            className="w-full px-3 py-1.5 text-xs font-medium rounded bg-slack-accent/20 text-slack-accent hover:bg-slack-accent hover:text-white transition-colors"
+          >
+            Open scan summary
+          </button>
+        </div>
+      )}
 
       {/* Workspace Tabs */}
       <div className="px-4 py-2 border-b border-slack-border bg-slack-bgHover">
@@ -701,6 +848,15 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           y={contextMenu.y}
           onClose={closeContextMenu}
         >
+          {lifeSciencesEnabled && contextMenuIsScanSummary() && (
+              <button
+                onClick={handleOpenScanSummaryFromMenu}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                🔬 Open scan summary
+              </button>
+            )}
+
           {/* Show Preview Markdown option for .md files */}
           {!contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.md') && (
             <button

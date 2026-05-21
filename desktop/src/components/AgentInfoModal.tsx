@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
-import type { AgentInfo } from '../types/protocol';
+import type { AgentInfo, AgentToolCapabilities } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
 import { ChatAPI } from '../api/chatAPI';
+
+const TOOL_EXAMPLE_PROMPTS: Record<string, string> = {
+  analyze_sequence: 'Analyze this peptide: MKTAYIAKQRQISFVK',
+  fold_protein: 'Fold MKTAY and tell me where the PDB was written.',
+  generate_image: 'Generate an image of a cell diagram for a lab notebook.',
+  analyze_go_code: 'Run static analysis on ./cmd/server',
+  run_go_tests: 'Run tests for ./internal/agent/...',
+};
 
 interface AgentInfoModalProps {
   agent: AgentInfo | undefined;
@@ -40,6 +48,9 @@ export function AgentInfoModal({
   const [rulesDraft, setRulesDraft] = useState('');
   const [savingRules, setSavingRules] = useState(false);
   const [rulesError, setRulesError] = useState<string | null>(null);
+  const [toolCaps, setToolCaps] = useState<AgentToolCapabilities | null>(null);
+  const [toolsLoading, setToolsLoading] = useState(false);
+  const [toolsError, setToolsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (agent && agent.type !== 'loading') {
@@ -47,6 +58,39 @@ export function AgentInfoModal({
       setRulesError(null);
     }
   }, [agent]);
+
+  const isCLIAgent =
+    agent?.type === 'cli' ||
+    (typeof agent?.ai_provider === 'string' && agent.ai_provider.endsWith('-cli'));
+
+  useEffect(() => {
+    if (!isOpen || !agent || agent.type === 'loading' || isCLIAgent) {
+      setToolCaps(null);
+      setToolsError(null);
+      return;
+    }
+    let cancelled = false;
+    setToolsLoading(true);
+    setToolsError(null);
+    const api = new ChatAPI(serverAddr);
+    api
+      .fetchAgentTools(agent.id)
+      .then((cap) => {
+        if (!cancelled) setToolCaps(cap);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setToolCaps(null);
+          setToolsError(e instanceof Error ? e.message : 'Failed to load tools');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setToolsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, agent?.id, agent?.type, isCLIAgent, serverAddr]);
 
   // Handle escape key
   useEffect(() => {
@@ -103,9 +147,9 @@ export function AgentInfoModal({
       />
       
       {/* Modal */}
-      <div className="relative bg-slack-bg border border-slack-border rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
+      <div className="relative flex flex-col bg-slack-bg border border-slack-border rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slack-border">
+        <div className="flex shrink-0 items-center justify-between p-6 border-b border-slack-border">
           <div className="flex items-center gap-3">
             <div
               className={`w-3 h-3 rounded-full ${
@@ -138,7 +182,7 @@ export function AgentInfoModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6 max-h-[calc(90vh-120px)] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
           {/* Basic Info */}
           <div className="space-y-4">
             <div>
@@ -281,6 +325,95 @@ export function AgentInfoModal({
               </div>
             )}
 
+            {/* Tools & models */}
+            <div>
+              <h3 className="text-sm font-medium text-slack-textMuted mb-2">Tools &amp; models</h3>
+              {isCLIAgent ? (
+                <p className="text-sm text-slack-textMuted">
+                  CLI agents use their host toolset (files, shell, etc.), not hub MCP tools. Use Tool
+                  Approval Mode above to control confirmations.
+                </p>
+              ) : toolsLoading ? (
+                <p className="text-sm text-slack-textMuted">Loading tools…</p>
+              ) : toolsError ? (
+                <p className="text-sm text-red-400">{toolsError}</p>
+              ) : toolCaps ? (
+                <div className="space-y-3 text-sm">
+                  <div className="rounded border border-slack-border bg-slack-bgHover p-3 space-y-1">
+                    <div>
+                      <span className="text-slack-textMuted">Chat model: </span>
+                      <span className="text-slack-text font-mono text-xs">
+                        {toolCaps.chat_provider} / {toolCaps.chat_model}
+                      </span>
+                      {toolCaps.chat_native_tools ? (
+                        <span className="ml-2 text-xs text-green-500">native tools</span>
+                      ) : (
+                        <span className="ml-2 text-xs text-slack-textMuted">no native tools</span>
+                      )}
+                    </div>
+                    {toolCaps.tool_loop_model && (
+                      <div>
+                        <span className="text-slack-textMuted">Tool loop: </span>
+                        <span className="text-slack-text font-mono text-xs">{toolCaps.tool_loop_model}</span>
+                        {toolCaps.tool_loop_uses_fallback && (
+                          <span className="ml-2 text-xs text-amber-500">fallback</span>
+                        )}
+                      </div>
+                    )}
+                    {toolCaps.mcp_enabled && toolCaps.mcp_port ? (
+                      <div className="text-xs text-slack-textMuted">
+                        MCP server: localhost:{toolCaps.mcp_port}
+                      </div>
+                    ) : null}
+                  </div>
+                  {(toolCaps.tools ?? []).length === 0 ? (
+                    <p className="text-slack-textMuted">
+                      No hub tools registered. Enable a domain pack and MCP in Settings, or run{' '}
+                      <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">/tools-list</code>{' '}
+                      in a channel with this agent.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {(toolCaps.tools ?? []).map((tool) => (
+                        <li
+                          key={tool.name}
+                          className="rounded border border-slack-border bg-slack-bgHover p-2"
+                        >
+                          <div className="font-mono text-xs text-slack-accent">
+                            {tool.name}
+                            {tool.parameters && tool.parameters.length > 0 && (
+                              <span className="text-slack-textMuted">
+                                ({tool.parameters.map((p) => p.name).join(', ')})
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slack-textMuted mt-1">{tool.description}</p>
+                          {TOOL_EXAMPLE_PROMPTS[tool.name] && (
+                            <p className="text-xs text-slack-text mt-1 italic">
+                              Try: &ldquo;{TOOL_EXAMPLE_PROMPTS[tool.name]}&rdquo;
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {toolCaps.notes && toolCaps.notes.length > 0 && (
+                    <ul className="text-xs text-slack-textMuted list-disc pl-4 space-y-1">
+                      {toolCaps.notes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-xs text-slack-textMuted">
+                    In chat, use <code className="font-mono bg-slack-bgHover px-1 rounded">/tools-list</code>{' '}
+                    to see tools for all agents in the current channel.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-slack-textMuted">No tool information available.</p>
+              )}
+            </div>
+
             {/* Expertise */}
             {agent.expertise && agent.expertise.length > 0 && (
               <div>
@@ -379,7 +512,7 @@ export function AgentInfoModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-slack-border bg-slack-bgHover">
+        <div className="shrink-0 p-6 border-t border-slack-border bg-slack-bgHover">
           <div className="flex justify-between items-center gap-3">
             <div className="flex gap-2">
               {/* Export Button - only for repo and helper agents */}

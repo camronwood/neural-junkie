@@ -550,6 +550,111 @@ async fn read_prompt_attachment_paths(paths: Vec<String>) -> Result<Vec<PromptAt
     Ok(out)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct DecodedWellImage {
+    mime: String,
+    content_base64: String,
+}
+
+fn decoding_result_to_samples(result: tiff::decoder::DecodingResult) -> Vec<f64> {
+    match result {
+        tiff::decoder::DecodingResult::U8(v) => v.into_iter().map(|x| x as f64 / 255.0).collect(),
+        tiff::decoder::DecodingResult::U16(v) => {
+            v.into_iter().map(|x| x as f64 / 65535.0).collect()
+        }
+        tiff::decoder::DecodingResult::U32(v) => {
+            let max = v.iter().copied().max().unwrap_or(1) as f64;
+            let denom = if max > 0.0 { max } else { 1.0 };
+            v.into_iter().map(|x| x as f64 / denom).collect()
+        }
+        tiff::decoder::DecodingResult::I8(v) => {
+            v.into_iter().map(|x| (x as i32 - i8::MIN as i32) as f64 / 255.0).collect()
+        }
+        tiff::decoder::DecodingResult::I16(v) => {
+            v.into_iter()
+                .map(|x| (x as i32 - i16::MIN as i32) as f64 / 65535.0)
+                .collect()
+        }
+        tiff::decoder::DecodingResult::I32(v) => {
+            let max = v.iter().map(|&x| x as i64).max().unwrap_or(1) as f64;
+            let denom = if max > 0.0 { max } else { 1.0 };
+            v.into_iter().map(|x| x as f64 / denom).collect()
+        }
+        tiff::decoder::DecodingResult::U64(v) => {
+            let max = v.iter().copied().max().unwrap_or(1) as f64;
+            let denom = if max > 0.0 { max } else { 1.0 };
+            v.into_iter().map(|x| x as f64 / denom).collect()
+        }
+        tiff::decoder::DecodingResult::I64(v) => {
+            let max = v.iter().map(|&x| x as i128).max().unwrap_or(1) as f64;
+            let denom = if max > 0.0 { max } else { 1.0 };
+            v.into_iter().map(|x| x as f64 / denom).collect()
+        }
+        tiff::decoder::DecodingResult::F32(v) => v.into_iter().map(|x| x as f64).collect(),
+        tiff::decoder::DecodingResult::F64(v) => v,
+    }
+}
+
+#[tauri::command]
+fn decode_scan_well_tiff(absolute_path: String) -> Result<DecodedWellImage, String> {
+    use image::ImageEncoder;
+
+    let data = std::fs::read(&absolute_path)
+        .map_err(|e| format!("read {}: {}", absolute_path, e))?;
+    let mut decoder = tiff::decoder::Decoder::new(std::io::Cursor::new(&data))
+        .map_err(|e| format!("TIFF decoder: {}", e))?;
+    let (w, h) = decoder
+        .dimensions()
+        .map_err(|e| format!("TIFF dimensions: {}", e))?;
+    let decoded = decoder
+        .read_image()
+        .map_err(|e| format!("decode TIFF: {}", e))?;
+    let samples = decoding_result_to_samples(decoded);
+    let expected = (w as usize) * (h as usize);
+    if samples.len() < expected {
+        return Err(format!(
+            "TIFF sample count {} < {}x{}",
+            samples.len(),
+            w,
+            h
+        ));
+    }
+    let mut min_v = f64::MAX;
+    let mut max_v = f64::MIN;
+    for &v in &samples[..expected] {
+        if v < min_v {
+            min_v = v;
+        }
+        if v > max_v {
+            max_v = v;
+        }
+    }
+    if max_v <= min_v {
+        max_v = min_v + 1.0;
+    }
+    let scale = 255.0 / (max_v - min_v);
+    let mut gray = image::GrayImage::new(w, h);
+    for y in 0..h {
+        for x in 0..w {
+            let idx = (y as usize) * (w as usize) + (x as usize);
+            let v = samples[idx];
+            let n = ((v - min_v) * scale).round().clamp(0.0, 255.0) as u8;
+            gray.put_pixel(x, y, image::Luma([n]));
+        }
+    }
+    let mut png_buf = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png_buf)
+        .write_image(gray.as_raw(), w, h, image::ExtendedColorType::L8)
+        .map_err(|e| format!("encode PNG: {}", e))?;
+    Ok(DecodedWellImage {
+        mime: "image/png".to_string(),
+        content_base64: base64::Engine::encode(
+            &base64::engine::general_purpose::STANDARD,
+            &png_buf,
+        ),
+    })
+}
+
 #[tauri::command]
 async fn open_markdown_preview(
     workspace_id: String,
@@ -663,6 +768,59 @@ async fn get_server_status() -> Result<bool, String> {
     Ok(SIDECAR_READY.load(Ordering::Relaxed))
 }
 
+fn machine_credential_key() -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let home = dirs::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "/".to_string());
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "user".to_string());
+    let mut hasher = Sha256::new();
+    hasher.update(b"neural-junkie-credential-v1:");
+    hasher.update(home.as_bytes());
+    hasher.update(user.as_bytes());
+    hasher.finalize().into()
+}
+
+/// Encrypt a JSON credential blob for storage in Tauri plugin-store (machine-bound).
+#[tauri::command]
+fn encrypt_credential_blob(plaintext: String) -> Result<String, String> {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{Aes256Gcm, Nonce};
+    use rand::RngCore;
+    let key = machine_credential_key();
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let mut out = nonce_bytes.to_vec();
+    out.extend(ciphertext);
+    Ok(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, out))
+}
+
+/// Decrypt a blob produced by encrypt_credential_blob.
+#[tauri::command]
+fn decrypt_credential_blob(blob: String) -> Result<String, String> {
+    use aes_gcm::aead::{Aead, KeyInit};
+    use aes_gcm::{Aes256Gcm, Nonce};
+    let raw = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, blob.trim())
+        .map_err(|e| e.to_string())?;
+    if raw.len() < 13 {
+        return Err("ciphertext too short".into());
+    }
+    let key = machine_credential_key();
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| e.to_string())?;
+    let nonce = Nonce::from_slice(&raw[..12]);
+    let plain = cipher
+        .decrypt(nonce, &raw[12..])
+        .map_err(|e| format!("decrypt failed: {}", e))?;
+    String::from_utf8(plain).map_err(|e| e.to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -726,6 +884,7 @@ fn main() {
             write_pty_session,
             resize_pty_session,
             close_pty_session,
+            decode_scan_well_tiff,
             open_markdown_preview,
             open_browser_window,
             close_browser_window,
@@ -735,7 +894,9 @@ fn main() {
             update_browser_position,
             navigate_embedded_browser,
             destroy_embedded_browser,
-            get_server_status
+            get_server_status,
+            encrypt_credential_blob,
+            decrypt_credential_blob
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

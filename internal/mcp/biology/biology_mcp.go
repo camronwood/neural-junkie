@@ -64,6 +64,13 @@ func (b *BiologyMCP) registerTools() {
 		nil,
 	), b.handleFoldProtein)
 
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"summarize_scan_summary",
+		"Summarize a Phoenix-style scan summary folder (imageMetadata.json + well TIFFs): well counts, analyte spot distribution, and QC flags. Path may be the summary directory or imageMetadata.json.",
+		mcp.CreateStringInputSchema("path", "Absolute or workspace path to scan summary directory or imageMetadata.json"),
+		nil,
+	), b.handleSummarizeScanSummary)
+
 	log.Printf("Registered %d Biology MCP tools", len(b.mcpServer.ListTools()))
 }
 
@@ -75,6 +82,18 @@ func (b *BiologyMCP) handleAnalyzeSequence(ctx context.Context, request mcpgo.Ca
 	out, err := analyzeSequenceText(seq)
 	if err != nil {
 		return mcp.HandleToolError(err, "analyze_sequence"), nil
+	}
+	return mcp.HandleToolSuccess(out), nil
+}
+
+func (b *BiologyMCP) handleSummarizeScanSummary(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
+		return mcp.HandleToolError(err, "summarize_scan_summary"), nil
+	}
+	path := request.GetString("path", "")
+	out, err := summarizeScanSummaryPath(path)
+	if err != nil {
+		return mcp.HandleToolError(err, "summarize_scan_summary"), nil
 	}
 	return mcp.HandleToolSuccess(out), nil
 }

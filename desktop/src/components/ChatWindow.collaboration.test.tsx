@@ -38,6 +38,9 @@ const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock, addToastMoc
     deleteChannel: vi.fn(),
     markAssistantTaskDone: vi.fn(),
     dismissAssistantReminder: vi.fn(),
+    fetchWorkspaces: vi.fn().mockResolvedValue([]),
+    fetchFileContent: vi.fn().mockResolvedValue(''),
+    fetchFiles: vi.fn().mockResolvedValue([]),
   };
   const wsHarness = {
     lastOpts: null as null | {
@@ -67,6 +70,9 @@ vi.mock('../api/chatAPI', () => ({
     deleteChannel = apiHarness.deleteChannel;
     markAssistantTaskDone = apiHarness.markAssistantTaskDone;
     dismissAssistantReminder = apiHarness.dismissAssistantReminder;
+    fetchWorkspaces = apiHarness.fetchWorkspaces;
+    fetchFileContent = apiHarness.fetchFileContent;
+    fetchFiles = apiHarness.fetchFiles;
   },
 }));
 

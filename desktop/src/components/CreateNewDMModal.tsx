@@ -7,7 +7,21 @@ const FALLBACK_EXPERT_PRESETS: ExpertPresetOption[] = [{ slug: 'assistant', labe
 const CUSTOM_EXPERT_VALUE = '__custom__';
 
 /** Must stay in sync with `internal/agent/cli_registry.go` ListCLIAgentTypes (sorted). */
-const CLI_TYPES_FALLBACK: readonly string[] = ['claude', 'copilot', 'cursor', 'gemini'];
+/** Fallback when /api/cli-agent-types is unavailable; keep in sync with internal/agent/cli_registry.go */
+const CLI_TYPES_FALLBACK: readonly string[] = [
+  'aider',
+  'amazonq',
+  'amp',
+  'claude',
+  'codex',
+  'copilot',
+  'crush',
+  'cursor',
+  'droid',
+  'gemini',
+  'kiro',
+  'opencode',
+];
 
 type RuntimeTab = 'expert' | 'cli';
 

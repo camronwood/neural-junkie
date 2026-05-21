@@ -13,6 +13,8 @@ Neural Junkie includes a **Life sciences** setup path with a domain-tuned model 
 | **analyze_sequence** | DNA/RNA/protein checks, length, reverse complement |
 | **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |
 | **Sequence review runbook** | Import from Runbook templates |
+| **Scan summary viewer** | Open Phoenix-style exports (`imageMetadata.json` + well TIFFs A1–H12) from the file explorer |
+| **summarize_scan_summary** | BiologyExpert MCP tool for QC stats on a summary folder |
 
 ## Enable the pack
 
@@ -23,6 +25,7 @@ When enabled:
 - **BiologyExpert** is added to configured specialists (hub restarts agents automatically).
 - **Biology / Life sciences** appears in **New DM** and channel expert invite lists.
 - `koesn/llama3-openbiollm-8b:latest`, `qwen2.5:7b`, and optional `nj-bio:8b` are merged into **models to ensure** for Ollama.
+- **Scan summary viewer** — add a workspace folder containing `imageMetadata.json` and extensionless well TIFFs; open the metadata file or use **Open scan summary** in the file explorer context menu.
 
 When disabled, pack-owned agents are stopped and removed from the hub. In-process engineering specialists are controlled by the separate [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md); **Moderator**, **Assistant**, and CLI agents are always available.
 
@@ -72,6 +75,8 @@ Biology MCP starts automatically when the life-sciences pack is on and BiologyEx
 
 OpenBio chat models (`koesn/…`, `nj-bio:8b`) do not expose Ollama **tools** capability. BiologyExpert still runs MCP tools: the hub routes tool loops through **`qwen2.5:7b`** on the same Ollama endpoint while keeping **koesn** (or your configured bio tag) for normal chat replies.
 
+With **[Agent delegation](DELEGATION.md)** enabled, **any** hub agent can consult BiologyExpert (or OpenBio via model consult) for bio-heavy questions and synthesize one reply.
+
 Ensure `qwen2.5:7b` is pulled when using the life-sciences pack.
 
 ## Create BiologyExpert later
@@ -87,6 +92,25 @@ Ensure `qwen2.5:7b` is pulled when using the life-sciences pack.
 - **In silico** structure predictions are not experimental structures.
 - OpenBioLLM and ESMFold outputs may contain errors; validate in the lab.
 
+## Discovering tools
+
+Open **BiologyExpert** via agent **ℹ️** (Tools & models), check the **tool count** badge in the sidebar, or run **`/tools-list`** in a channel where BiologyExpert is a member. See [MCP_INTEGRATION.md](MCP_INTEGRATION.md).
+
+## Scan summary viewer
+
+Phoenix-style **scan summary** exports are folders with:
+
+- `imageMetadata.json` — per-well stage position, FOV, and spot layout (analyte, grid row/column, pixel coordinates)
+- Extensionless well files `A1` … `H12` — 32-bit grayscale TIFF images
+
+With the Life sciences pack enabled:
+
+1. Add the unzipped summary folder as a **workspace** in the file explorer.
+2. Click `imageMetadata.json` or right-click the folder → **Open scan summary**.
+3. Use the plate grid to select wells; the viewer decodes TIFF → PNG and overlays spots by analyte.
+
+BiologyExpert can run **`summarize_scan_summary`** with the folder path (or path to `imageMetadata.json`) for QC markdown (well counts, analyte distribution, wells missing spots).
+
 ## Smoke test checklist
 
 1. Life sciences wizard → Ollama → enable BiologyExpert.
@@ -94,6 +118,8 @@ Ensure `qwen2.5:7b` is pulled when using the life-sciences pack.
 3. DM with BiologyExpert: paste a short peptide → ask to analyze sequence.
 4. Ask to fold the same sequence (HF hub token saved in Settings) → confirm PDB path in reply.
 5. Runbook → **sequence-review** → instantiate with BiologyExpert → start execution.
+6. Add a scan summary folder as a workspace → open viewer → confirm well A1 image and spot overlay.
+7. Ask BiologyExpert to summarize the same folder path → confirm `summarize_scan_summary` output.
 
 ## Out of scope (v1)
 

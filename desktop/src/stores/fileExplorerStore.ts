@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ChatAPI } from '../api/chatAPI';
+import { devLog } from '../utils/devLog';
 import { getHubBaseURL } from '../config/hubUrl';
 
 const api = new ChatAPI(getHubBaseURL());
@@ -121,11 +122,11 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   error: null,
   
   loadWorkspaces: async () => {
-    console.log('FileExplorerStore: Loading workspaces...');
+    devLog('FileExplorerStore: Loading workspaces...');
     set({ loadingWorkspaces: true, error: null });
     try {
       const workspaces = await api.fetchWorkspaces();
-      console.log('FileExplorerStore: Loaded workspaces:', workspaces);
+      devLog('FileExplorerStore: Loaded workspaces:', workspaces);
       set((state) => {
         const activeWorkspaceId = resolveActiveWorkspaceId(workspaces, state.activeWorkspaceId);
         writeStoredActiveWorkspaceId(activeWorkspaceId);
@@ -196,11 +197,11 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   },
   
   loadFiles: async (workspaceId, path = '/') => {
-    console.log('FileExplorerStore: Loading files for workspace:', workspaceId, 'path:', path);
+    devLog('FileExplorerStore: Loading files for workspace:', workspaceId, 'path:', path);
     set({ loadingFiles: true, error: null });
     try {
       const files = await api.fetchFiles(workspaceId, path);
-      console.log('FileExplorerStore: Loaded files:', files);
+      devLog('FileExplorerStore: Loaded files:', files);
       set(state => {
         let updatedFiles: FileNode[];
         
@@ -345,6 +346,6 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   
   setFileExplorerOpen: (open) => {
     // This is handled by the parent component, but we need it for the interface
-    console.log('File explorer open:', open);
+    devLog('File explorer open:', open);
   },
 }));

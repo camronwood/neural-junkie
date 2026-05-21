@@ -110,7 +110,10 @@ test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@echo "🧪 Desktop unit tests (Vitest)..."
 	@cd desktop && npm test
 	@echo ""
-	@echo "✅ Full test pass complete (vet + Go + desktop tsc + Vitest)."
+	@echo "🧪 Desktop coverage summary (Vitest)..."
+	@cd desktop && npm run test:coverage
+	@echo ""
+	@echo "✅ Full test pass complete (vet + Go + desktop tsc + Vitest + coverage)."
 
 demo-messages: ## Send demo messages to test the system
 	@./scripts/demo-messages.sh

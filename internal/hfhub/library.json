@@ -8,6 +8,7 @@
     "icon_key": "qwen",
     "publisher": "Qwen",
     "modes": ["hosted", "local"],
+    "download_repo_id": "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF",
     "files": [
       {
         "filename": "Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf",
@@ -25,6 +26,7 @@
     "icon_key": "qwen",
     "publisher": "Qwen",
     "modes": ["hosted", "local"],
+    "download_repo_id": "bartowski/Qwen2.5-7B-Instruct-GGUF",
     "files": [
       {
         "filename": "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
@@ -107,7 +109,7 @@
     ]
   },
   {
-    "repo_id": "bartowski/deepseek-coder-6.7b-instruct-GGUF",
+    "repo_id": "TheBloke/deepseek-coder-6.7b-instruct-GGUF",
     "title": "DeepSeek Coder 6.7B (GGUF)",
     "description": "Code model at modest size for local Ollama workflows.",
     "tags": ["code"],

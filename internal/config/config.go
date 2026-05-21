@@ -78,6 +78,8 @@ type Config struct {
 	HF             HFConfig             `json:"hf"`
 	Updates        UpdateConfig         `json:"updates"`
 	Collaboration  CollaborationConfig  `json:"collaboration"`
+	Delegation     DelegationConfig     `json:"delegation"`
+	Slack          SlackConfig          `json:"slack"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -112,8 +114,9 @@ func DefaultConfig() *Config {
 		Collaboration: CollaborationConfig{
 			SmartRoutingEnabled: false,
 		},
-		Packs: DefaultPacksConfig(),
-		MCP:   DefaultMCPConfig(),
+		Delegation: DefaultDelegationConfig(),
+		Packs:      DefaultPacksConfig(),
+		MCP:        DefaultMCPConfig(),
 	}
 }
 
@@ -158,6 +161,9 @@ func Load() (*Config, error) {
 	cfg.migrateIfNeeded(data)
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
 	cfg.EnsureMCPDefaults()
+	if err := cfg.DecryptSecretsAfterLoad(); err != nil {
+		return nil, fmt.Errorf("decrypt config secrets: %w", err)
+	}
 	cfg.mergeEnvVars()
 	cfg.SyncAgentsFromPacks()
 	return cfg, nil
@@ -191,20 +197,29 @@ func (c *Config) Save() error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
+	if err := c.EncryptSecretsBeforeSave(); err != nil {
+		return fmt.Errorf("encrypt config secrets: %w", err)
+	}
+
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
+		_ = c.DecryptSecretsAfterLoad()
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
 	tmpFile := fp + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+		_ = c.DecryptSecretsAfterLoad()
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
 	if err := os.Rename(tmpFile, fp); err != nil {
 		os.Remove(tmpFile)
+		_ = c.DecryptSecretsAfterLoad()
 		return fmt.Errorf("failed to save config: %w", err)
 	}
+	_ = os.Chmod(fp, 0o600)
+	_ = c.DecryptSecretsAfterLoad()
 
 	return nil
 }
@@ -394,6 +409,7 @@ func (c *Config) Redacted() *Config {
 	hf := c.HF
 	updates := c.Updates
 	collab := c.Collaboration
+	delegation := c.Delegation.Normalized()
 	packs := c.Packs
 	if packs.Enabled == nil {
 		packs.Enabled = make(map[string]bool)
@@ -431,6 +447,7 @@ func (c *Config) Redacted() *Config {
 		HF:            redactedHF,
 		Updates:       updates,
 		Collaboration: collab,
+		Delegation:    delegation,
 		filePath:      filePath,
 	}
 }
@@ -484,6 +501,19 @@ func (c *Config) mergeEnvVars() {
 				break
 			}
 		}
+	}
+
+	if v := os.Getenv("NEURAL_JUNKIE_SLACK_ENABLED"); v == "1" || strings.EqualFold(v, "true") {
+		c.Slack.Enabled = true
+	}
+	if v := os.Getenv("NEURAL_JUNKIE_SLACK_APP_TOKEN"); v != "" {
+		c.Slack.AppToken = v
+	}
+	if v := os.Getenv("NEURAL_JUNKIE_SLACK_BOT_TOKEN"); v != "" {
+		c.Slack.BotToken = v
+	}
+	if v := os.Getenv("NEURAL_JUNKIE_SLACK_DISPLAY_NAME"); v != "" {
+		c.Slack.DisplayName = v
 	}
 }
 

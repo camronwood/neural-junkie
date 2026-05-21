@@ -48,6 +48,36 @@ export function getHubBaseURL(): string {
   return DEFAULT_HUB_HTTP;
 }
 
+/** Optional hub API token (must match server NEURAL_JUNKIE_HUB_TOKEN). */
+export function getHubAccessToken(): string | undefined {
+  const raw = import.meta.env.VITE_NJ_HUB_TOKEN as string | undefined;
+  const t = raw?.trim();
+  return t || undefined;
+}
+
+/** Headers for authenticated hub mutations when VITE_NJ_HUB_TOKEN is set. */
+export function hubAuthHeaders(): Record<string, string> {
+  const token = getHubAccessToken();
+  if (!token) return {};
+  return { 'X-NJ-Hub-Token': token };
+}
+
+let hubSessionToken: string | null = null;
+
+export function setHubSessionToken(token: string | null): void {
+  hubSessionToken = token?.trim() || null;
+}
+
+export function getHubSessionToken(): string | null {
+  return hubSessionToken;
+}
+
+/** Session from POST /api/auth/session (channel ACL + per-user auth). */
+export function hubSessionHeaders(): Record<string, string> {
+  if (!hubSessionToken) return {};
+  return { 'X-NJ-Session': hubSessionToken };
+}
+
 /** WebSocket URL for the hub (matches getHubBaseURL host/port). */
 export function getHubWebSocketURL(): string {
   try {

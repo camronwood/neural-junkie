@@ -231,7 +231,8 @@ func (m *Manager) downloadOnce(ctx context.Context, repoID, filename, token stri
 	}
 	report(DownloadProgress{Status: "starting", RepoID: repoID, Filename: filename})
 
-	url := fmt.Sprintf("https://huggingface.co/%s/resolve/main/%s", repoID, filename)
+	hubRepo := ResolveDownloadRepoID(entry)
+	url := fmt.Sprintf("https://huggingface.co/%s/resolve/main/%s", hubRepo, filename)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err

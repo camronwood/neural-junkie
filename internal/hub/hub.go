@@ -1695,6 +1695,36 @@ func (h *Hub) DeleteChannel(channelName string) error {
 	return nil
 }
 
+// legacySeedChannels were demo public rooms created on every hub start in early betas.
+var legacySeedChannels = []string{"project-alpha", "project-beta"}
+
+// RemoveLegacySeedChannels drops built-in demo channels from fresh or restored sessions.
+func (h *Hub) RemoveLegacySeedChannels() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	removed := 0
+	for _, name := range legacySeedChannels {
+		if h.removeChannelUnlocked(name) {
+			removed++
+		}
+	}
+	return removed
+}
+
+func (h *Hub) removeChannelUnlocked(channelName string) bool {
+	if _, ok := h.channels[channelName]; !ok {
+		return false
+	}
+	for _, sub := range h.subscribers[channelName] {
+		close(sub)
+	}
+	delete(h.channels, channelName)
+	delete(h.messages, channelName)
+	delete(h.subscribers, channelName)
+	h.clearChannelContextLocked(channelName)
+	return true
+}
+
 // GetChannelType returns the type of the named channel
 func (h *Hub) GetChannelType(channelName string) protocol.ChannelType {
 	h.mu.RLock()

@@ -19,8 +19,9 @@ type CatalogFile struct {
 
 // LibraryModel is one row in the in-app HF model library.
 type LibraryModel struct {
-	RepoID      string        `json:"repo_id"`
-	Title       string        `json:"title"`
+	RepoID          string        `json:"repo_id"`
+	DownloadRepoID  string        `json:"download_repo_id,omitempty"` // Hub repo for GGUF when different from hosted repo_id
+	Title           string        `json:"title"`
 	Description string        `json:"description"`
 	Tags        []string      `json:"tags"`
 	SizeHint    string        `json:"size_hint,omitempty"`
@@ -75,4 +76,16 @@ func ResolveDownloadFilename(entry *LibraryModel, filename string) (string, erro
 		return "", fmt.Errorf("filename is required")
 	}
 	return entry.Files[0].Filename, nil
+}
+
+// ResolveDownloadRepoID returns the Hub repo used for resolve/main GGUF downloads.
+// Catalog repo_id is kept for hosted inference and on-disk cache keys.
+func ResolveDownloadRepoID(entry *LibraryModel) string {
+	if entry == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(entry.DownloadRepoID); id != "" {
+		return id
+	}
+	return entry.RepoID
 }

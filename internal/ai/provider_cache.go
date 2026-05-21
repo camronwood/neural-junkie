@@ -74,6 +74,25 @@ func (c *ProviderCache) GetForAgent(cfg *config.Config, a config.AgentConfig) (A
 	return prov, nil
 }
 
+// GetForProviderRow returns a cached provider for an explicit provider row (e.g. delegation consult overrides).
+func (c *ProviderCache) GetForProviderRow(cfg *config.Config, p *config.ProviderConfig) (AIProvider, error) {
+	if cfg == nil || p == nil {
+		return nil, fmt.Errorf("provider cache: missing config or provider row")
+	}
+	key := p.ID + "\x00" + p.Model + "\x00deleg"
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if existing, ok := c.items[key]; ok {
+		return existing, nil
+	}
+	prov, err := ProviderFromConfig(p)
+	if err != nil {
+		return nil, err
+	}
+	c.items[key] = prov
+	return prov, nil
+}
+
 // Clear removes all cached providers.
 func (c *ProviderCache) Clear() {
 	if c == nil {

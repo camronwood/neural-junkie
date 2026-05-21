@@ -48,4 +48,8 @@ desktop/node_modules/
 
 # Runtime session data / agent backups
 .neural-junkie/
+.nj-chat-attachments/
+
+# Local Go module cache (sandbox / CI)
+.gomodcache/
 

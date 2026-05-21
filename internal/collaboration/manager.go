@@ -33,6 +33,8 @@ type CollaborationManager struct {
 	collaborations map[string]*Collaboration // id -> collaboration
 	assetsRootFn   func() string             // parent dir for per-collab sandboxes; optional
 	onEnterReviewing func(collabID string)   // optional; hub dispatches pre-approval recap
+	// reconcileMissingLogged suppresses repeated "no live hub agent" warnings per collab+name.
+	reconcileMissingLogged map[string]struct{}
 	mu             sync.RWMutex
 }
 
@@ -47,8 +49,9 @@ func (cm *CollaborationManager) SetOnEnterReviewing(fn func(collabID string)) {
 // NewCollaborationManager creates a new manager attached to the hub.
 func NewCollaborationManager(hub HubInterface) *CollaborationManager {
 	return &CollaborationManager{
-		hub:            hub,
-		collaborations: make(map[string]*Collaboration),
+		hub:                    hub,
+		collaborations:         make(map[string]*Collaboration),
+		reconcileMissingLogged: make(map[string]struct{}),
 	}
 }
 
@@ -1143,8 +1146,15 @@ func (cm *CollaborationManager) ReconcileRestoredAgentIDs() {
 			}
 			reg := cm.hub.FindLiveAgentByDisplayName(ag.AgentName, ag.AgentType)
 			if reg == nil {
-				log.Printf("[CollaborationManager] reconcile: no live hub agent for participant @%s (%s) in collab %s",
-					ag.AgentName, ag.AgentType, shortCollabID(c.ID))
+				key := shortCollabID(c.ID) + "|" + ag.AgentName + "|" + string(ag.AgentType)
+				if _, seen := cm.reconcileMissingLogged[key]; !seen {
+					if cm.reconcileMissingLogged == nil {
+						cm.reconcileMissingLogged = make(map[string]struct{})
+					}
+					cm.reconcileMissingLogged[key] = struct{}{}
+					log.Printf("[CollaborationManager] reconcile: no live hub agent for participant @%s (%s) in collab %s",
+						ag.AgentName, ag.AgentType, shortCollabID(c.ID))
+				}
 				continue
 			}
 			old := ag.AgentID

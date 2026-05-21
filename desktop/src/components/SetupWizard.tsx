@@ -257,7 +257,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               >
                 <div className="font-medium text-white">Team chat &amp; productivity</div>
                 <div className="text-xs text-gray-400">
-                  ChatModerator, Assistant, and auto-detected CLI tools (Cursor, Gemini, Claude, Copilot) when installed.
+                  ChatModerator, Assistant, and auto-detected CLI tools when their binaries are on your PATH.
                   Enable the Software development pack later for in-process coding specialists.
                 </div>
               </button>
@@ -398,7 +398,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                   <strong className="text-white">ChatModerator</strong> is always on with the hub (commands and chat help).
                 </p>
                 <p>
-                  <strong className="text-white">CLI agents</strong> (Cursor, Gemini, Claude, Copilot) auto-join #general when their binaries are on your PATH.
+                  <strong className="text-white">CLI agents</strong> auto-join #general when their binaries are on your PATH (see /list-cli-agents).
                 </p>
                 <p>Toggle Assistant below. Coding specialists (GoExpert, RustExpert, …) are available later via Settings → Domain packs → Software development.</p>
               </div>

@@ -6,6 +6,24 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.13] - 2026-05-21
+
+### Added
+- **CLI agent auto-detection (12 types)** — Cursor, Gemini, Claude, Copilot (modern `copilot` + legacy `github-copilot-cli`), Codex, Aider, OpenCode, Amazon Q (`q`), Crush, Amp, Factory Droid, and Kiro; PATH resolution with per-binary invoke args. See [docs/CLI_AGENTS.md](CLI_AGENTS.md).
+- **Local-first security** — default hub bind `127.0.0.1`, restricted CORS, optional hub token, session tokens (`POST /api/auth/session`), channel ACL hooks, HTTP rate limits, encrypted config secrets and Tauri credential blobs. See [docs/SECURITY.md](SECURITY.md).
+- **Scan summary viewer** — desktop viewer for plate/scan summary JSON with well navigation and TIFF preview (`ScanSummaryViewer`, hub scan-summary API).
+- **Slack integration** — OAuth, channel bindings, config API, and hub handlers. See [docs/SLACK_INTEGRATION.md](SLACK_INTEGRATION.md).
+- **Agent delegation** — consult/delegate flow between agents. See [docs/DELEGATION.md](DELEGATION.md).
+- **Marketing** — beta.13 ads (`assets/neural-junkie-*-beta13-ad-1080.png`); `./scripts/compose-beta13-ads.sh`; [docs/marketing/BETA13-ADS.md](marketing/BETA13-ADS.md).
+
+### Fixed
+- **Desktop hub API** — `hubFetch` no longer recursed into itself (blocked auto-login and all authenticated hub calls after security pass).
+- **Hub startup logs** — WebSocket/Web UI URLs display `localhost:port` correctly when bound to loopback.
+- **Tests & UX** — Vitest coverage target, scan-summary and editor store tests, collab reconcile log dedupe, dev-only `devLog`, ChatWindow test mocks.
+
+### Changed
+- **Collaboration manager** — reconcile warnings logged once per missing participant (less startup noise).
+
 ## [1.0.0-beta.12] - 2026-05-20
 
 ### Added

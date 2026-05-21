@@ -265,6 +265,14 @@ export function AgentList({
                       <span className="font-medium text-slack-text text-sm truncate block" title={agent.name || 'Unknown Agent'}>
                         {agent.name || agent.id || 'Unknown Agent'}
                       </span>
+                      {agent.tool_count != null && agent.tool_count > 0 && (
+                        <span
+                          className="inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded bg-slack-bgHover text-slack-textMuted border border-slack-border"
+                          title={`${agent.tool_count} hub tool(s) — open ℹ️ for details`}
+                        >
+                          {agent.tool_count} tool{agent.tool_count !== 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                     
                     {/* Info Icon - Always Visible */}

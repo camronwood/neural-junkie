@@ -328,7 +328,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
     try {
       await api.removeAgent(channel, agentName, { name: username, type: 'human' });
       setInfoAgentId(null);
-      const fresh = await api.fetchAgents();
+      const fresh = await api.fetchAgents({ includeToolCounts: true });
       useChatStore.getState().setAgents(fresh);
       addToast({
         type: 'success',
@@ -364,7 +364,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       await api.deleteAgent(channel, agentName, { name: username, type: 'human' });
       setInfoAgentId(null);
       const [freshAgents, freshMyAgents] = await Promise.all([
-        api.fetchAgents(),
+        api.fetchAgents({ includeToolCounts: true }),
         api.fetchMyAgents().catch(() => []),
       ]);
       useChatStore.getState().setAgents(freshAgents);
@@ -426,7 +426,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       setCachedInfoAgent(null);
       const freshMyAgents = await api.fetchMyAgents();
       setMyAgents(freshMyAgents);
-      const freshAgents = await api.fetchAgents();
+      const freshAgents = await api.fetchAgents({ includeToolCounts: true });
       useChatStore.getState().setAgents(freshAgents);
       addToast({
         type: 'success',
@@ -773,6 +773,14 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </button>
+                        {'tool_count' in agent && (agent as AgentInfo).tool_count != null && (agent as AgentInfo).tool_count! > 0 && (
+                          <span
+                            className="px-2 py-0.5 text-[10px] rounded bg-slack-bgHover text-slack-textMuted border border-slack-border"
+                            title="Hub MCP tools — open ℹ️ for details"
+                          >
+                            {(agent as AgentInfo).tool_count} tool{(agent as AgentInfo).tool_count !== 1 ? 's' : ''}
+                          </span>
+                        )}
                         <span className="px-3 py-1 text-xs rounded bg-slack-bg text-slack-textMuted border border-slack-border">
                           online
                         </span>
@@ -844,7 +852,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
             onApprovalModeChange={handleApprovalModeChange}
             onAfterRulesSaved={async () => {
               try {
-                const fresh = await api.fetchAgents();
+                const fresh = await api.fetchAgents({ includeToolCounts: true });
                 useChatStore.getState().setAgents(fresh);
               } catch (e) {
                 console.error('Failed to refresh agents after rules save:', e);

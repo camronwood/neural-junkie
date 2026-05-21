@@ -41,7 +41,7 @@ func PackCatalog() []DomainPack {
 		{
 			ID:          PackLifeSciences,
 			Title:       "Life sciences",
-			Description: "OpenBioLLM chat (koesn), BiologyExpert, sequence analysis and ESMFold structure prediction (research use only).",
+			Description: "OpenBioLLM chat (koesn), BiologyExpert, sequence analysis, ESMFold structure prediction, and scan summary viewer for plate assay exports (research use only).",
 			ExpertSlug:  "biology",
 			ExpertLabel: "Biology / Life sciences",
 			OllamaModel: BioOllamaChatModel,

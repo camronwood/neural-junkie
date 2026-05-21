@@ -3,6 +3,7 @@ import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { usePacksStore } from '../stores/packsStore';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
@@ -23,6 +24,7 @@ import {
 } from '../utils/hubDataAccess';
 import { HubDataAccessModal } from './HubDataAccessModal';
 import { shouldSendChannelJoinMessage } from '../utils/joinMessage';
+import { devLog } from '../utils/devLog';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
 import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
@@ -201,6 +203,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     collaborationsByIDRef.current = collaborationsByID;
   }, [collaborationsByID]);
 
+  useEffect(() => {
+    void usePacksStore.getState().fetchPacks();
+  }, []);
+
   const [workspaceContextMode, setWorkspaceContextMode] = useState<WorkspaceContextMode>(() =>
     loadWorkspaceContextMode()
   );
@@ -296,7 +302,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Load agents function
   const loadAgents = useCallback(async () => {
     try {
-      const agentList = await api.fetchAgents();
+      const agentList = await api.fetchAgents({ includeToolCounts: true });
       useChatStore.getState().setAgents(agentList);
 
       // Remove agents from loading state if they're now active
@@ -912,12 +918,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
     },
     onConnect: () => {
-      console.log('Connected to chat');
+      devLog('Connected to chat');
       useChatStore.getState().setConnectionStatus('connected');
       loadInitialData();
     },
     onDisconnect: () => {
-      console.log('Disconnected from chat');
+      devLog('Disconnected from chat');
       useChatStore.getState().setConnectionStatus('disconnected');
     },
     onError: (error) => {

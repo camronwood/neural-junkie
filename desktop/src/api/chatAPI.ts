@@ -1,5 +1,11 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate } from '../types/protocol';
-import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackStatus, SlackBinding, SlackPolicy, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import {
+  getHubBaseURL,
+  hubAuthHeaders,
+  hubSessionHeaders,
+  normalizeHubBaseURL,
+  setHubSessionToken,
+} from '../config/hubUrl';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -31,10 +37,46 @@ export class ChatAPI {
     this.baseURL = normalizeHubBaseURL(serverAddr);
   }
 
+  /** JSON + hub token + session for authenticated hub calls. */
+  private hubHeaders(extra?: Record<string, string>): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      ...hubAuthHeaders(),
+      ...hubSessionHeaders(),
+      ...extra,
+    };
+  }
+
+  /** Hub fetch with auth headers on every request. */
+  private hubFetch(path: string, init?: RequestInit): Promise<Response> {
+    const extra = (init?.headers as Record<string, string> | undefined) ?? {};
+    const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
+    return fetch(url, {
+      ...init,
+      headers: { ...this.hubHeaders(), ...extra },
+    });
+  }
+
+  /** Create or refresh a hub user session (channel ACL). */
+  async createSession(username: string): Promise<{ token: string; username: string }> {
+    const response = await this.hubFetch('/api/auth/session', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to create session: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { token: string; username: string };
+    if (data.token) {
+      setHubSessionToken(data.token);
+    }
+    return data;
+  }
+
   // Fetch existing messages for a channel
   async fetchMessages(channel: string, limit: number = 50): Promise<Message[]> {
-    const response = await fetch(
-      `${this.baseURL}/api/messages?channel=${encodeURIComponent(channel)}&limit=${limit}`
+    const response = await this.hubFetch(
+      `/api/messages?channel=${encodeURIComponent(channel)}&limit=${limit}`
     );
     
     if (!response.ok) {
@@ -54,7 +96,7 @@ export class ChatAPI {
       params.set('include_terminal', 'true');
     }
     const query = params.toString();
-    const response = await fetch(`${this.baseURL}/api/collaborations${query ? `?${query}` : ''}`);
+    const response = await this.hubFetch(`/api/collaborations${query ? `?${query}` : ''}`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch collaborations: ${response.statusText}`);
@@ -67,9 +109,8 @@ export class ChatAPI {
   async readHubDataAccess(
     targets: Array<{ kind: 'file' | 'directory'; relative_path: string }>
   ): Promise<{ root: string; entries: unknown[] }> {
-    const response = await fetch(`${this.baseURL}/api/hub-data/read`, {
+    const response = await this.hubFetch(`/api/hub-data/read`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targets }),
     });
     if (!response.ok) {
@@ -95,7 +136,7 @@ export class ChatAPI {
     if (sourceRepoPath?.trim()) {
       body.source_repo_path = sourceRepoPath.trim();
     }
-    const response = await fetch(`${this.baseURL}/api/collaboration-workspace-ack`, {
+    const response = await this.hubFetch(`/api/collaboration-workspace-ack`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -115,7 +156,7 @@ export class ChatAPI {
     execution_mode?: string;
     source_repo_path?: string;
   }): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
-    const response = await fetch(`${this.baseURL}/api/runbooks`, {
+    const response = await this.hubFetch(`/api/runbooks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -137,7 +178,7 @@ export class ChatAPI {
       graph_layout?: GraphLayout;
     }
   ): Promise<Collaboration> {
-    const response = await fetch(`${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}`, {
+    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -149,7 +190,7 @@ export class ChatAPI {
   }
 
   async getRunbook(collabId: string): Promise<Collaboration> {
-    const response = await fetch(`${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}`);
+    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}`);
     if (!response.ok) {
       throw new Error(await response.text() || response.statusText);
     }
@@ -161,8 +202,7 @@ export class ChatAPI {
     title: string,
     description: string
   ): Promise<AssignSuggestion | null> {
-    const response = await fetch(
-      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/suggest-assignee`,
+    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/suggest-assignee`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,8 +220,7 @@ export class ChatAPI {
   }
 
   async parseRunbookPlan(collabId: string, markdown: string): Promise<CollaborationTask[]> {
-    const response = await fetch(
-      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/parse-plan`,
+    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/parse-plan`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -196,8 +235,7 @@ export class ChatAPI {
   }
 
   async submitRunbook(collabId: string): Promise<Collaboration> {
-    const response = await fetch(
-      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/submit`,
+    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/submit`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -207,8 +245,7 @@ export class ChatAPI {
   }
 
   async startRunbook(collabId: string): Promise<Collaboration> {
-    const response = await fetch(
-      `${this.baseURL}/api/runbooks/${encodeURIComponent(collabId)}/start`,
+    const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/start`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -218,7 +255,7 @@ export class ChatAPI {
   }
 
   async listRunbookTemplates(): Promise<RunbookTemplate[]> {
-    const response = await fetch(`${this.baseURL}/api/runbook-templates`);
+    const response = await this.hubFetch(`/api/runbook-templates`);
     if (!response.ok) {
       throw new Error(await response.text() || response.statusText);
     }
@@ -229,8 +266,7 @@ export class ChatAPI {
     templateName: string,
     body: { channel: string; created_by: string; agent_ids: string[] }
   ): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
-    const response = await fetch(
-      `${this.baseURL}/api/runbook-templates/${encodeURIComponent(templateName)}/instantiate`,
+    const response = await this.hubFetch(`/api/runbook-templates/${encodeURIComponent(templateName)}/instantiate`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -256,8 +292,7 @@ export class ChatAPI {
   }
 
   async collabTaskReassign(collabId: string, taskId: string, agentId: string): Promise<Collaboration> {
-    const response = await fetch(
-      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/reassign`,
+    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/reassign`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -271,8 +306,7 @@ export class ChatAPI {
   }
 
   async collabPause(collabId: string): Promise<Collaboration> {
-    const response = await fetch(
-      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/pause`,
+    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/pause`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -282,8 +316,7 @@ export class ChatAPI {
   }
 
   async collabResume(collabId: string): Promise<Collaboration> {
-    const response = await fetch(
-      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/resume`,
+    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/resume`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -293,8 +326,7 @@ export class ChatAPI {
   }
 
   private async collabTaskPost(collabId: string, taskId: string, action: string): Promise<Collaboration> {
-    const response = await fetch(
-      `${this.baseURL}/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
+    const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
       { method: 'POST' }
     );
     if (!response.ok) {
@@ -323,11 +355,8 @@ export class ChatAPI {
       body.metadata = credentials;
     }
 
-    const response = await fetch(`${this.baseURL}/api/send`, {
+    const response = await this.hubFetch(`/api/send`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify(body),
     });
 
@@ -347,8 +376,13 @@ export class ChatAPI {
   }
 
   // Fetch list of active agents
-  async fetchAgents(): Promise<AgentInfo[]> {
-    const response = await fetch(`${this.baseURL}/api/agents`);
+  async fetchAgents(options?: { includeToolCounts?: boolean }): Promise<AgentInfo[]> {
+    const params = new URLSearchParams();
+    if (options?.includeToolCounts) {
+      params.set('include_tool_counts', 'true');
+    }
+    const qs = params.toString();
+    const response = await this.hubFetch(`/api/agents${qs ? `?${qs}` : ''}`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch agents: ${response.statusText}`);
@@ -360,9 +394,29 @@ export class ChatAPI {
     return agents;
   }
 
+  async fetchAgentTools(agentId: string): Promise<AgentToolCapabilities> {
+    const response = await this.hubFetch(`/api/agent-tools?agent_id=${encodeURIComponent(agentId)}`
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to fetch agent tools: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchChannelTools(channel: string): Promise<ChannelToolsResponse> {
+    const response = await this.hubFetch(`/api/channel-tools?channel=${encodeURIComponent(channel)}`
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(detail.trim() || `Failed to fetch channel tools: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   // Fetch list of channels
   async fetchChannels(): Promise<Channel[]> {
-    const response = await fetch(`${this.baseURL}/api/channels`);
+    const response = await this.hubFetch(`/api/channels`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch channels: ${response.statusText}`);
@@ -377,7 +431,7 @@ export class ChatAPI {
       return this.commandsCache;
     }
 
-    const response = await fetch(`${this.baseURL}/api/commands`);
+    const response = await this.hubFetch(`/api/commands`);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch commands: ${response.statusText}`);
@@ -397,7 +451,7 @@ export class ChatAPI {
       params.set('channel', channel);
     }
     const query = params.toString();
-    const response = await fetch(`${this.baseURL}/api/assistant/state${query ? `?${query}` : ''}`);
+    const response = await this.hubFetch(`/api/assistant/state${query ? `?${query}` : ''}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch assistant state: ${response.statusText}`);
     }
@@ -405,7 +459,7 @@ export class ChatAPI {
   }
 
   async markAssistantTaskDone(taskID: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/assistant/task-done`, {
+    const response = await this.hubFetch(`/api/assistant/task-done`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id: taskID }),
@@ -416,7 +470,7 @@ export class ChatAPI {
   }
 
   async dismissAssistantReminder(reminderID: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/assistant/reminder-dismiss`, {
+    const response = await this.hubFetch(`/api/assistant/reminder-dismiss`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reminder_id: reminderID }),
@@ -427,7 +481,7 @@ export class ChatAPI {
   }
 
   async getGoogleMeetNotesAppConfig(): Promise<GoogleMeetNotesAppConfig> {
-    const response = await fetch(`${this.baseURL}/api/assistant/google/config`);
+    const response = await this.hubFetch(`/api/assistant/google/config`);
     if (!response.ok) {
       throw new Error(`Failed to fetch Google OAuth config: ${response.statusText}`);
     }
@@ -439,7 +493,7 @@ export class ChatAPI {
     clientSecret: string,
     redirectUrl?: string
   ): Promise<GoogleMeetNotesAppConfig> {
-    const response = await fetch(`${this.baseURL}/api/assistant/google/config`, {
+    const response = await this.hubFetch(`/api/assistant/google/config`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -456,7 +510,7 @@ export class ChatAPI {
   }
 
   async getGoogleMeetNotesStatus(): Promise<GoogleMeetNotesStatus> {
-    const response = await fetch(`${this.baseURL}/api/assistant/google/status`);
+    const response = await this.hubFetch(`/api/assistant/google/status`);
     if (!response.ok) {
       throw new Error(`Failed to fetch Google meet notes status: ${response.statusText}`);
     }
@@ -464,7 +518,7 @@ export class ChatAPI {
   }
 
   async getGoogleMeetNotesAuthURL(): Promise<string> {
-    const response = await fetch(`${this.baseURL}/api/assistant/google/auth?json=1`);
+    const response = await this.hubFetch(`/api/assistant/google/auth?json=1`);
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || `Failed to get auth URL: ${response.statusText}`);
@@ -473,7 +527,7 @@ export class ChatAPI {
   }
 
   async disconnectGoogleMeetNotes(): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/assistant/google/disconnect`, {
+    const response = await this.hubFetch(`/api/assistant/google/disconnect`, {
       method: 'POST',
     });
     if (!response.ok) {
@@ -483,7 +537,7 @@ export class ChatAPI {
   }
 
   async syncGoogleMeetNotes(): Promise<number> {
-    const response = await fetch(`${this.baseURL}/api/assistant/google/sync`, {
+    const response = await this.hubFetch(`/api/assistant/google/sync`, {
       method: 'POST',
     });
     const data = await response.json();
@@ -491,6 +545,120 @@ export class ChatAPI {
       throw new Error(data.error || `Sync failed: ${response.statusText}`);
     }
     return data.ingested ?? 0;
+  }
+
+  async getSlackConfig(): Promise<SlackConfigResponse> {
+    const response = await this.hubFetch(`/api/slack/config`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Slack config: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async saveSlackConfig(body: {
+    enabled?: boolean;
+    app_token?: string;
+    bot_token?: string;
+    display_name?: string;
+    display_icon_url?: string;
+    default_policy?: SlackPolicy;
+    client_id?: string;
+    client_secret?: string;
+    redirect_url?: string;
+  }): Promise<{ status: string }> {
+    const response = await this.hubFetch(`/api/slack/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to save Slack config: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  async getSlackStatus(): Promise<SlackStatus> {
+    const response = await this.hubFetch(`/api/slack/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Slack status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getSlackBindings(): Promise<SlackBinding[]> {
+    const response = await this.hubFetch(`/api/slack/bindings`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Slack bindings: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async saveSlackBinding(binding: {
+    slack_channel_id: string;
+    slack_channel_name?: string;
+    agent_id: string;
+    agent_name?: string;
+    policy?: SlackPolicy;
+    enabled?: boolean;
+  }): Promise<SlackBinding> {
+    const response = await this.hubFetch(`/api/slack/bindings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(binding),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to save Slack binding: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  async deleteSlackBinding(slackChannelId: string): Promise<void> {
+    const response = await this.hubFetch(`/api/slack/bindings?slack_channel_id=${encodeURIComponent(slackChannelId)}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Failed to delete binding: ${response.statusText}`);
+    }
+  }
+
+  async getSlackOAuthURL(): Promise<string> {
+    const response = await this.hubFetch(`/api/slack/oauth/start?json=1`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to get Slack OAuth URL: ${response.statusText}`);
+    }
+    return data.url;
+  }
+
+  async disconnectSlack(): Promise<void> {
+    const response = await this.hubFetch(`/api/slack/disconnect`, { method: 'POST' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Slack disconnect failed: ${response.statusText}`);
+    }
+  }
+
+  async restartSlackBridge(): Promise<void> {
+    const response = await this.hubFetch(`/api/slack/restart`, { method: 'POST' });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Slack restart failed: ${response.statusText}`);
+    }
+  }
+
+  async slackTestPost(slackChannelId: string, text?: string): Promise<void> {
+    const response = await this.hubFetch(`/api/slack/test-post`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slack_channel_id: slackChannelId, text: text ?? '' }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Slack test post failed: ${response.statusText}`);
+    }
   }
 
   // Create a new channel
@@ -501,7 +669,7 @@ export class ChatAPI {
     members: string[] = [],
     createdBy: string = ''
   ): Promise<Channel> {
-    const response = await fetch(`${this.baseURL}/api/channels/create`, {
+    const response = await this.hubFetch(`/api/channels/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description, type, members, created_by: createdBy }),
@@ -544,7 +712,7 @@ export class ChatAPI {
       body.work_dir = payload.work_dir ?? '';
     }
 
-    const response = await fetch(`${this.baseURL}/api/channels/create-dm-agent`, {
+    const response = await this.hubFetch(`/api/channels/create-dm-agent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -560,7 +728,7 @@ export class ChatAPI {
 
   /** CLI agent registry keys and whether each binary appears on the server PATH. */
   async fetchCliAgentTypes(): Promise<{ types: string[]; installed: Record<string, boolean> }> {
-    const response = await fetch(`${this.baseURL}/api/cli-agent-types`);
+    const response = await this.hubFetch(`/api/cli-agent-types`);
     if (!response.ok) {
       throw new Error(`Failed to fetch CLI agent types: ${response.status} ${response.statusText}`);
     }
@@ -583,7 +751,7 @@ export class ChatAPI {
 
   // Delete a channel
   async clearChannelHistory(name: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/channels/clear-history`, {
+    const response = await this.hubFetch(`/api/channels/clear-history`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -596,7 +764,7 @@ export class ChatAPI {
   }
 
   async deleteChannel(name: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/channels/delete`, {
+    const response = await this.hubFetch(`/api/channels/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
@@ -609,8 +777,7 @@ export class ChatAPI {
 
   // Add agents to a channel
   async addAgentsToChannel(channelName: string, agentIds: string[]): Promise<void> {
-    const response = await fetch(
-      `${this.baseURL}/api/channels/agents?channel=${encodeURIComponent(channelName)}`,
+    const response = await this.hubFetch(`/api/channels/agents?channel=${encodeURIComponent(channelName)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -625,8 +792,7 @@ export class ChatAPI {
 
   // Remove an agent from a channel
   async removeAgentFromChannel(channelName: string, agentId: string): Promise<void> {
-    const response = await fetch(
-      `${this.baseURL}/api/channels/agents?channel=${encodeURIComponent(channelName)}&agent_id=${encodeURIComponent(agentId)}`,
+    const response = await this.hubFetch(`/api/channels/agents?channel=${encodeURIComponent(channelName)}&agent_id=${encodeURIComponent(agentId)}`,
       { method: 'DELETE' }
     );
 
@@ -638,7 +804,7 @@ export class ChatAPI {
   // Test server connection
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseURL}/api/channels`);
+      const response = await this.hubFetch(`/api/channels`);
       return response.ok;
     } catch (error) {
       return false;
@@ -659,8 +825,7 @@ export class ChatAPI {
 
   // Fetch messages from a thread
   async fetchThreadMessages(threadId: string, limit: number = 50): Promise<Message[]> {
-    const response = await fetch(
-      `${this.baseURL}/api/threads/${encodeURIComponent(threadId)}/messages?limit=${limit}`
+    const response = await this.hubFetch(`/api/threads/${encodeURIComponent(threadId)}/messages?limit=${limit}`
     );
     
     if (!response.ok) {
@@ -687,8 +852,7 @@ export class ChatAPI {
       body.metadata = metadata;
     }
 
-    const response = await fetch(
-      `${this.baseURL}/api/threads/${encodeURIComponent(threadId)}/reply`,
+    const response = await this.hubFetch(`/api/threads/${encodeURIComponent(threadId)}/reply`,
       {
         method: 'POST',
         headers: {
@@ -705,8 +869,7 @@ export class ChatAPI {
 
   // Fetch thread metadata
   async fetchThreadMetadata(threadId: string): Promise<ThreadMetadata> {
-    const response = await fetch(
-      `${this.baseURL}/api/threads/${encodeURIComponent(threadId)}/metadata`
+    const response = await this.hubFetch(`/api/threads/${encodeURIComponent(threadId)}/metadata`
     );
     
     if (!response.ok) {
@@ -718,7 +881,7 @@ export class ChatAPI {
 
   // Fetch my agents
   async fetchMyAgents(): Promise<CachedAgentInfo[]> {
-    const response = await fetch(`${this.baseURL}/api/my-agents`);
+    const response = await this.hubFetch(`/api/my-agents`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch my agents: ${response.statusText}`);
@@ -734,7 +897,7 @@ export class ChatAPI {
     name: string;
     path?: string;
   }): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/my-agents`, {
+    const response = await this.hubFetch(`/api/my-agents`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -749,7 +912,7 @@ export class ChatAPI {
 
   // Fetch removed agents
   async fetchRemovedAgents(): Promise<AgentInfo[]> {
-    const response = await fetch(`${this.baseURL}/api/removed-agents`);
+    const response = await this.hubFetch(`/api/removed-agents`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch removed agents: ${response.statusText}`);
@@ -808,7 +971,7 @@ export class ChatAPI {
         ai_hub_endpoint: aiHubEndpoint,
       };
 
-      const response = await fetch(`${this.baseURL}/api/test-anthropic-connection`, {
+      const response = await this.hubFetch(`/api/test-anthropic-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -838,7 +1001,7 @@ export class ChatAPI {
         github_token: personalAccessToken,
       };
 
-      const response = await fetch(`${this.baseURL}/api/test-github-connection`, {
+      const response = await this.hubFetch(`/api/test-github-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -872,7 +1035,7 @@ export class ChatAPI {
         },
       };
 
-      const response = await fetch(`${this.baseURL}/api/test-confluence-connection`, {
+      const response = await this.hubFetch(`/api/test-confluence-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -903,7 +1066,7 @@ export class ChatAPI {
         model,
       };
 
-      const response = await fetch(`${this.baseURL}/api/test-ollama-connection`, {
+      const response = await this.hubFetch(`/api/test-ollama-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -928,7 +1091,7 @@ export class ChatAPI {
 
   // Switch agent provider
   async switchAgentProvider(agentId: string, provider: string, model: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/agents/${agentId}/provider`, {
+    const response = await this.hubFetch(`/api/agents/${agentId}/provider`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -943,7 +1106,7 @@ export class ChatAPI {
 
   // Switch all agents to same provider
   async switchAllAgentProviders(provider: string, model: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/agents/switch-all-providers`, {
+    const response = await this.hubFetch(`/api/agents/switch-all-providers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -958,7 +1121,7 @@ export class ChatAPI {
 
   // Get Ollama status
   async fetchOllamaStatus(): Promise<{ running: boolean; endpoint: string; error?: string }> {
-    const response = await fetch(`${this.baseURL}/api/ollama/status`);
+    const response = await this.hubFetch(`/api/ollama/status`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch Ollama status: ${response.statusText}`);
@@ -969,8 +1132,10 @@ export class ChatAPI {
 
   // Get available Ollama models
   async fetchOllamaModels(endpoint?: string): Promise<string[]> {
-    const url = endpoint ? `${this.baseURL}/api/ollama/models?endpoint=${encodeURIComponent(endpoint)}` : `${this.baseURL}/api/ollama/models`;
-    const response = await fetch(url);
+    const path = endpoint
+      ? `/api/ollama/models?endpoint=${encodeURIComponent(endpoint)}`
+      : '/api/ollama/models';
+    const response = await this.hubFetch(path);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch Ollama models: ${response.statusText}`);
@@ -988,7 +1153,7 @@ export class ChatAPI {
         model,
       };
 
-      const response = await fetch(`${this.baseURL}/api/test-lmstudio-connection`, {
+      const response = await this.hubFetch(`/api/test-lmstudio-connection`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1013,7 +1178,7 @@ export class ChatAPI {
 
   // Get LM Studio status
   async fetchLMStudioStatus(): Promise<{ running: boolean; endpoint: string; error?: string }> {
-    const response = await fetch(`${this.baseURL}/api/lmstudio/status`);
+    const response = await this.hubFetch(`/api/lmstudio/status`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch LM Studio status: ${response.statusText}`);
@@ -1024,8 +1189,10 @@ export class ChatAPI {
 
   // Get available LM Studio models
   async fetchLMStudioModels(endpoint?: string): Promise<string[]> {
-    const url = endpoint ? `${this.baseURL}/api/lmstudio/models?endpoint=${encodeURIComponent(endpoint)}` : `${this.baseURL}/api/lmstudio/models`;
-    const response = await fetch(url);
+    const path = endpoint
+      ? `/api/lmstudio/models?endpoint=${encodeURIComponent(endpoint)}`
+      : '/api/lmstudio/models';
+    const response = await this.hubFetch(path);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch LM Studio models: ${response.statusText}`);
@@ -1045,7 +1212,7 @@ export class ChatAPI {
       files?: { filename: string; quant?: string }[];
     }[]
   > {
-    const response = await fetch(`${this.baseURL}/api/hf/catalog`);
+    const response = await this.hubFetch(`/api/hf/catalog`);
     if (!response.ok) {
       throw new Error(`Failed to fetch HF catalog: ${response.statusText}`);
     }
@@ -1057,7 +1224,7 @@ export class ChatAPI {
     router_reachable: boolean;
     cache_dir?: string;
   }> {
-    const response = await fetch(`${this.baseURL}/api/hf/status`);
+    const response = await this.hubFetch(`/api/hf/status`);
     if (!response.ok) {
       throw new Error(`Failed to fetch HF status: ${response.statusText}`);
     }
@@ -1067,7 +1234,7 @@ export class ChatAPI {
   async fetchProviders(): Promise<
     { id: string; type: string; name: string; model?: string; endpoint?: string }[]
   > {
-    const response = await fetch(`${this.baseURL}/api/providers`);
+    const response = await this.hubFetch(`/api/providers`);
     if (!response.ok) {
       throw new Error(`Failed to fetch providers: ${response.statusText}`);
     }
@@ -1099,7 +1266,7 @@ export class ChatAPI {
 
   // Workspace API methods
   async fetchWorkspaces(): Promise<any[]> {
-    const response = await fetch(`${this.baseURL}/api/workspaces`);
+    const response = await this.hubFetch(`/api/workspaces`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch workspaces: ${response.statusText}`);
@@ -1109,7 +1276,7 @@ export class ChatAPI {
   }
 
   async addWorkspace(name: string, path: string): Promise<any> {
-    const response = await fetch(`${this.baseURL}/api/workspaces`, {
+    const response = await this.hubFetch(`/api/workspaces`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1125,7 +1292,7 @@ export class ChatAPI {
   }
 
   async removeWorkspace(workspaceId: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/workspaces?id=${encodeURIComponent(workspaceId)}`, {
+    const response = await this.hubFetch(`/api/workspaces?id=${encodeURIComponent(workspaceId)}`, {
       method: 'DELETE',
     });
 
@@ -1136,8 +1303,7 @@ export class ChatAPI {
 
   // File system API methods
   async fetchFiles(workspaceId: string, path: string = '/'): Promise<any[]> {
-    const response = await fetch(
-      `${this.baseURL}/api/files?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`
+    const response = await this.hubFetch(`/api/files?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`
     );
     
     if (!response.ok) {
@@ -1148,8 +1314,7 @@ export class ChatAPI {
   }
 
   async fetchFileContent(workspaceId: string, path: string): Promise<string> {
-    const response = await fetch(
-      `${this.baseURL}/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`
+    const response = await this.hubFetch(`/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`
     );
     
     if (!response.ok) {
@@ -1161,9 +1326,33 @@ export class ChatAPI {
   }
 
   /** Load a workspace image as a data URL (for editor preview in browser dev). */
+  async fetchScanSummaryWellImage(
+    workspaceId: string,
+    summaryDir: string,
+    well: string
+  ): Promise<string> {
+    const params = new URLSearchParams({
+      workspace: workspaceId,
+      dir: summaryDir,
+      well,
+    });
+    const response = await this.hubFetch(`/api/scan-summary/well-image?${params.toString()}`
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to load well image: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { mime?: string; content_base64?: string };
+    const b64 = data.content_base64 ?? '';
+    if (!b64) {
+      throw new Error('Empty well image payload from hub');
+    }
+    const mime = data.mime || 'image/png';
+    return `data:${mime};base64,${b64}`;
+  }
+
   async fetchWorkspaceImageDataUrl(workspaceId: string, path: string): Promise<string> {
-    const response = await fetch(
-      `${this.baseURL}/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}&binary=1`
+    const response = await this.hubFetch(`/api/file-content?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}&binary=1`
     );
     if (!response.ok) {
       throw new Error(`Failed to load image: ${response.statusText}`);
@@ -1178,7 +1367,7 @@ export class ChatAPI {
   }
 
   async saveFileContent(workspaceId: string, path: string, content: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/file-content`, {
+    const response = await this.hubFetch(`/api/file-content`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1196,7 +1385,7 @@ export class ChatAPI {
   }
 
   async createFile(workspaceId: string, path: string, content: string = ''): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/file-create`, {
+    const response = await this.hubFetch(`/api/file-create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1214,7 +1403,7 @@ export class ChatAPI {
   }
 
   async renameFile(workspaceId: string, oldPath: string, newPath: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/file-rename`, {
+    const response = await this.hubFetch(`/api/file-rename`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1232,8 +1421,7 @@ export class ChatAPI {
   }
 
   async deleteFile(workspaceId: string, path: string): Promise<void> {
-    const response = await fetch(
-      `${this.baseURL}/api/file-delete?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`,
+    const response = await this.hubFetch(`/api/file-delete?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`,
       {
         method: 'DELETE',
       }
@@ -1246,7 +1434,7 @@ export class ChatAPI {
 
   // Git operations API methods (stubs for now)
   async getGitStatus(workspaceId: string): Promise<any> {
-    const response = await fetch(`${this.baseURL}/api/git-status?workspace=${encodeURIComponent(workspaceId)}`, {
+    const response = await this.hubFetch(`/api/git-status?workspace=${encodeURIComponent(workspaceId)}`, {
       method: 'POST',
     });
 
@@ -1258,8 +1446,7 @@ export class ChatAPI {
   }
 
   async getGitDiff(workspaceId: string, path: string): Promise<string> {
-    const response = await fetch(
-      `${this.baseURL}/api/git-diff?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`,
+    const response = await this.hubFetch(`/api/git-diff?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`,
       {
         method: 'POST',
       }
@@ -1274,7 +1461,7 @@ export class ChatAPI {
   }
 
   async commitChanges(workspaceId: string, message: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/git-commit`, {
+    const response = await this.hubFetch(`/api/git-commit`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1291,7 +1478,7 @@ export class ChatAPI {
   }
 
   async pushChanges(workspaceId: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/git-push`, {
+    const response = await this.hubFetch(`/api/git-push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1307,7 +1494,7 @@ export class ChatAPI {
   }
 
   async pullChanges(workspaceId: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/git-pull`, {
+    const response = await this.hubFetch(`/api/git-pull`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1325,7 +1512,7 @@ export class ChatAPI {
   // Tool approval API methods
 
   async approveToolCall(approvalId: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/tool-approvals/approve/${approvalId}`, {
+    const response = await this.hubFetch(`/api/tool-approvals/approve/${approvalId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -1336,7 +1523,7 @@ export class ChatAPI {
   }
 
   async rejectToolCall(approvalId: string, reason: string = 'User rejected'): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/tool-approvals/reject/${approvalId}`, {
+    const response = await this.hubFetch(`/api/tool-approvals/reject/${approvalId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
@@ -1348,7 +1535,7 @@ export class ChatAPI {
   }
 
   async setAgentApprovalMode(agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo'): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/agents/${agentId}/approval-mode`, {
+    const response = await this.hubFetch(`/api/agents/${agentId}/approval-mode`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode }),
@@ -1360,7 +1547,7 @@ export class ChatAPI {
   }
 
   async setAgentCustomRulesMarkdown(agentId: string, markdown: string): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/agents/${encodeURIComponent(agentId)}/rules`, {
+    const response = await this.hubFetch(`/api/agents/${encodeURIComponent(agentId)}/rules`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ markdown }),
@@ -1381,7 +1568,7 @@ export class ChatAPI {
     targetPath?: string;
     userId?: string;
   }): Promise<FileChange> {
-    const response = await fetch(`${this.baseURL}/api/file-changes/propose-from-message`, {
+    const response = await this.hubFetch(`/api/file-changes/propose-from-message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1405,8 +1592,7 @@ export class ChatAPI {
 
   // List pending file changes
   async listPendingFileChanges(userId: string = 'default'): Promise<FileChange[]> {
-    const response = await fetch(
-      `${this.baseURL}/api/file-changes?user_id=${encodeURIComponent(userId)}`
+    const response = await this.hubFetch(`/api/file-changes?user_id=${encodeURIComponent(userId)}`
     );
     
     if (!response.ok) {
@@ -1418,7 +1604,7 @@ export class ChatAPI {
 
   // Approve a file change
   async approveFileChange(changeId: string, userId: string = 'default'): Promise<FileChange> {
-    const response = await fetch(`${this.baseURL}/api/file-changes/approve/${changeId}?user_id=${encodeURIComponent(userId)}`, {
+    const response = await this.hubFetch(`/api/file-changes/approve/${changeId}?user_id=${encodeURIComponent(userId)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1434,7 +1620,7 @@ export class ChatAPI {
 
   // Reject a file change
   async rejectFileChange(changeId: string, reason: string = 'No reason provided', userId: string = 'default'): Promise<FileChange> {
-    const response = await fetch(`${this.baseURL}/api/file-changes/reject/${changeId}`, {
+    const response = await this.hubFetch(`/api/file-changes/reject/${changeId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1454,7 +1640,7 @@ export class ChatAPI {
 
   // Get file change diff
   async getFileDiff(changeId: string): Promise<FileChangeDiff> {
-    const response = await fetch(`${this.baseURL}/api/file-changes/${changeId}`);
+    const response = await this.hubFetch(`/api/file-changes/${changeId}`);
     
     if (!response.ok) {
       throw new Error(`Failed to get file diff: ${response.statusText}`);
@@ -1464,7 +1650,7 @@ export class ChatAPI {
   }
 
   async fetchPacks(): Promise<PackStatus[]> {
-    const response = await fetch(`${this.baseURL}/api/packs`);
+    const response = await this.hubFetch(`/api/packs`);
     if (!response.ok) {
       throw new Error(`Failed to fetch packs: ${response.statusText}`);
     }
@@ -1472,7 +1658,7 @@ export class ChatAPI {
   }
 
   async setPackEnabled(packId: string, enabled: boolean): Promise<PackStatus[]> {
-    const response = await fetch(`${this.baseURL}/api/packs/${encodeURIComponent(packId)}`, {
+    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
@@ -1486,7 +1672,7 @@ export class ChatAPI {
   }
 
   async fetchExpertPresets(): Promise<ExpertPresetOption[]> {
-    const response = await fetch(`${this.baseURL}/api/expert-presets`);
+    const response = await this.hubFetch(`/api/expert-presets`);
     if (!response.ok) {
       throw new Error(`Failed to fetch expert presets: ${response.statusText}`);
     }
@@ -1494,7 +1680,7 @@ export class ChatAPI {
   }
 
   async restartConfiguredAgents(): Promise<void> {
-    const response = await fetch(`${this.baseURL}/api/agents/restart`, { method: 'POST' });
+    const response = await this.hubFetch(`/api/agents/restart`, { method: 'POST' });
     if (!response.ok) {
       throw new Error(`Failed to restart agents: ${response.statusText}`);
     }

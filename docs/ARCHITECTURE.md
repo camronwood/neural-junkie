@@ -335,15 +335,15 @@ func (p *MyProvider) GetModel() string { return "my-model" }
 
 ## Security Considerations
 
-**Current state (prototype):**
-- No authentication or authorization
-- CORS allows all origins
-- No rate limiting
-- API keys stored in env files (not committed)
+See **[SECURITY.md](SECURITY.md)** for the full threat model, environment variables, and production checklist.
 
-**For production, add:**
-- JWT/API key auth for all endpoints
-- Channel-level access control
-- Rate limiting per agent and per endpoint
-- Input validation and sanitization
-- Encrypted secret storage
+**Local-first defaults (current):**
+- Hub binds **127.0.0.1:18765** unless `NEURAL_JUNKIE_LISTEN_ALL=1`
+- Sensitive APIs require loopback or `NEURAL_JUNKIE_HUB_TOKEN`
+- CORS restricted to local dev origins (not `*`) unless `NEURAL_JUNKIE_CORS_ANY=1`
+- Workspace and hub-data paths use containment checks; chat markdown uses DOMPurify
+
+**Still missing for internet-facing deploys:**
+- Per-user auth and channel ACLs
+- Rate limiting
+- Encrypted credential storage at rest

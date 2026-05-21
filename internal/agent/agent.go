@@ -68,6 +68,10 @@ type Agent struct {
 	collabTaskReplyMu sync.Mutex
 	collabTaskReplyAt map[string]time.Time
 
+	// lastDelegationConsulted holds specialist names consulted on the previous turn (for metadata).
+	delegationMu              sync.Mutex
+	lastDelegationConsulted   []string
+
 	// Optional pre-processing hook for specialized agents. When set and it
 	// returns true, the message is considered fully handled and the base
 	// response pipeline is skipped.
@@ -570,6 +574,12 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		}
 		responseMsg.Metadata["reasoning_text"] = reasoningText
 	}
+	if consulted := a.TakeDelegationConsulted(); len(consulted) > 0 {
+		if responseMsg.Metadata == nil {
+			responseMsg.Metadata = make(map[string]interface{})
+		}
+		responseMsg.Metadata["delegation_consulted"] = consulted
+	}
 	responseMsg.ReplyTo = msg.ID
 
 	// If responding to a thread message, keep it in the thread
@@ -861,7 +871,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 
-	if len(protocol.ExtractUserImages(msg)) > 0 && !a.Info.SupportsVision {
+	if len(protocol.ExtractUserImages(msg)) > 0 && !a.Info.SupportsVision && !a.isCLIAgent() {
 		return false
 	}
 
@@ -1377,6 +1387,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	includedFiles := collectIncludedFilePaths(msg)
 
 	prompt := a.buildPromptForIntent(msg, intent)
+	prompt = a.appendDelegationContext(ctx, msg, prompt)
 
 	// Auto-detect and load file paths referenced in the user's message.
 	wsPath := a.resolveWorkspacePath(msg)
@@ -1419,6 +1430,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 
 	history := a.conversationHistoryForIntent(msg, intent)
 
+	prompt = a.augmentPromptWithCLIImages(msg, prompt)
+
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
 		approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
@@ -1432,7 +1445,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
-	if len(a.agentToolDefinitions()) > 0 && providerSupportsNativeTools(eff) {
+	if len(a.agentToolDefinitions()) > 0 {
 		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 	}
 	response, err := eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
@@ -1467,6 +1480,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	prompt := a.buildPromptForIntent(msg, intent)
+	prompt = a.appendDelegationContext(ctx, msg, prompt)
 
 	includedFiles := collectIncludedFilePaths(msg)
 
@@ -1485,7 +1499,8 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 
 	scannedLoaded := 0
 	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
-		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
+		basePrompt := a.buildPromptForIntent(msg, intent)
+		existingContextSize := len(prompt) - len(basePrompt)
 		if existingContextSize < maxScanChars/2 {
 			scannedFiles, loadedCount, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
 			if scanErr != nil {
@@ -1513,6 +1528,8 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 
+	prompt = a.augmentPromptWithCLIImages(msg, prompt)
+
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
 		if mp, ok := eff.(ai.MultimodalProvider); ok {
@@ -1532,7 +1549,8 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	// Tool loop (MCP / image generation) uses batch API; stream the final answer as one chunk.
-	if len(a.agentToolDefinitions()) > 0 && providerSupportsNativeTools(eff) {
+	// Run whenever tools exist — generateWithAgentTools falls back to qwen when the chat model (e.g. koesn) lacks native tools.
+	if len(a.agentToolDefinitions()) > 0 {
 		text, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 		if err != nil {
 			return "", "", "", err
@@ -1908,7 +1926,11 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("1. Provide expert advice grounded in your domain expertise.\n")
 		system.WriteString("2. When the user shares code or files, you MUST analyze the ACTUAL code provided -- never give generic advice.\n")
 		system.WriteString("3. Reference specific file paths, function names, and line numbers when discussing code.\n")
-		system.WriteString("4. Do NOT @mention other agents unless the user explicitly asks for collaboration.\n")
+		if dc := a.getDelegationClient(); dc != nil && dc.DelegationEnabled() {
+			system.WriteString("4. The hub may attach DELEGATE_RESULTS from other specialists; synthesize them into your answer. Do not @mention peers for handoff.\n")
+		} else {
+			system.WriteString("4. Do NOT @mention other agents unless the user explicitly asks for collaboration.\n")
+		}
 		system.WriteString("5. Only respond to the user's question -- do not respond to other agents' responses.\n")
 		system.WriteString("6. Ask clarifying questions when the request is ambiguous.\n")
 		system.WriteString("7. CRITICAL: If asked to review, analyze, or explain code but NO code and NO workspace context appear below, ")
@@ -2015,6 +2037,7 @@ Provide a concrete fix or mitigation for each issue.`
 	case protocol.AgentTypeBiology:
 		return `You are a life-sciences research assistant (not a clinician).
 - Use analyze_sequence and fold_protein tools for sequences and structures; do not invent PDB files or assay results.
+- For Phoenix-style scan summary exports (folder with imageMetadata.json and extensionless well TIFFs A1–H12), use summarize_scan_summary for QC stats; users can open the folder in Neural Junkie file explorer with the Life sciences pack for the plate viewer.
 - Clearly label in silico predictions vs wet-lab experimental needs.
 - For protocols, include controls, replicates, and safety considerations.
 - Refuse medical diagnosis or treatment advice; research and education only.
@@ -2401,11 +2424,6 @@ func (a *Agent) createZipFile(sourceDir, zipPath string) error {
 	// This is a simplified implementation
 	// In a real implementation, you'd use a proper ZIP library
 	return nil // Placeholder - would implement actual ZIP creation
-}
-
-func providerSupportsNativeTools(eff ai.AIProvider) bool {
-	tp, ok := eff.(ai.ToolCapableProvider)
-	return ok && tp.SupportsTools()
 }
 
 // historyToMessages converts protocol messages to a simpler format

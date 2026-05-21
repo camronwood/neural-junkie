@@ -159,6 +159,9 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/list-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
 			return ch.handleListAgents(ctx, msg)
 		},
+		"/tools-list": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
+			return ch.handleToolsList(ctx, msg)
+		},
 		"/list-confluence-agents": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
 			return ch.handleListConfluenceAgents(ctx, msg)
 		},
@@ -917,7 +920,8 @@ func (ch *CommandHandler) handleHelp(ctx context.Context, msg *protocol.Message)
 		"• `/delete-agent <name>` - Delete an agent permanently\n" +
 		"• `/pause-agent <name>` - Pause an agent (stops responding)\n" +
 		"• `/unpause-agent <name>` - Resume a paused agent\n" +
-		"• `/list-agents` - List all agents in the channel\n\n" +
+		"• `/list-agents` - List all agents in the channel\n" +
+		"• `/tools-list` - List MCP tools available to agents in this channel\n\n" +
 		"**MCP Exports:**\n" +
 		"• `/export-agent-mcp <name>` - Export an agent to MCP format\n" +
 		"• `/list-exports` - List all exported agents\n" +
@@ -3124,23 +3128,24 @@ func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protoco
 		}
 	}
 
+	resolved, found := agent.ResolveCLI(cfg)
+	if !found {
+		return ch.systemResponse(msg.Channel,
+			fmt.Sprintf("CLI not found on PATH (tried: %s).\n\n%s", agent.CLIProbeLabel(cfg), cfg.InstallHint)), nil
+	}
+
 	// Create provider
 	opts := []ai.CLIAgentOption{
-		ai.WithBaseArgs(cfg.BaseArgs),
+		ai.WithBaseArgs(resolved.BaseArgs),
 		ai.WithModel(cfg.ModelName),
 	}
-	provider := ai.NewCLIAgentProvider(cfg.Command, workDir, cfg.ProviderName, opts...)
+	provider := ai.NewCLIAgentProvider(resolved.Command, workDir, cfg.ProviderName, opts...)
 
 	// Forward configured env vars
 	for _, envKey := range cfg.EnvVars {
 		if val := os.Getenv(envKey); val != "" {
 			provider.Env[envKey] = val
 		}
-	}
-
-	if !provider.IsCLIInstalled() {
-		return ch.systemResponse(msg.Channel,
-			fmt.Sprintf("CLI binary `%s` not found on PATH.\n\n%s", cfg.Command, cfg.InstallHint)), nil
 	}
 
 	// Resolve name
@@ -3209,7 +3214,7 @@ func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protoco
 			"**Work Dir:** %s\n"+
 			"**Expertise:** %s\n\n"+
 			"Mention with `@%s` to ask questions.",
-			cliType, name, cfg.ProviderName, cfg.Command, workDir, expertiseStr, name)), nil
+			cliType, name, cfg.ProviderName, resolved.Command, workDir, expertiseStr, name)), nil
 }
 
 func (ch *CommandHandler) handleListCLIAgents(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
@@ -3218,16 +3223,17 @@ func (ch *CommandHandler) handleListCLIAgents(ctx context.Context, msg *protocol
 
 	for _, t := range types {
 		cfg, _ := agent.GetCLIAgentConfig(t)
-		provider := ai.NewCLIAgentProvider(cfg.Command, ".", cfg.ProviderName)
-		installed := provider.IsCLIInstalled()
+		resolved, found := agent.ResolveCLI(cfg)
 
 		status := "not installed"
-		if installed {
+		binaryLabel := agent.CLIProbeLabel(cfg)
+		if found {
 			status = "installed"
+			binaryLabel = resolved.Command
 		}
 
 		lines = append(lines, fmt.Sprintf("- **%s** (`%s`) -- %s\n  %s",
-			t, cfg.Command, status, cfg.InstallHint))
+			t, binaryLabel, status, cfg.InstallHint))
 	}
 
 	// Show currently running CLI agents
@@ -3456,6 +3462,12 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		{
 			Name:        "/list-agents",
 			Description: "List all agents (active, available, removed)",
+			Category:    "Agent Management",
+			Arguments:   []protocol.CommandArgument{},
+		},
+		{
+			Name:        "/tools-list",
+			Description: "List hub MCP tools for agents in the current channel",
 			Category:    "Agent Management",
 			Arguments:   []protocol.CommandArgument{},
 		},
@@ -3798,7 +3810,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── CLI Agents ────────────────────────────────────────────────
 		{
 			Name:        "/create-cli-agent",
-			Description: "Create a CLI proxy agent (Cursor, Gemini, Claude, Copilot)",
+			Description: "Create a CLI proxy agent (see /list-cli-agents for types)",
 			Category:    "CLI Agents",
 			Arguments: []protocol.CommandArgument{
 				{Name: "type", Description: "CLI agent type", Type: "string", Required: true, Options: agent.ListCLIAgentTypes()},

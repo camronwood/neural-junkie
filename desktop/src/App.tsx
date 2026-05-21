@@ -12,6 +12,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from './stores/chatStore';
 import { loadCredentials } from './utils/secureStorage';
+import { setHubSessionToken } from './config/hubUrl';
 import { ChatAPI } from './api/chatAPI';
 import { getHubBaseURL } from './config/hubUrl';
 
@@ -93,6 +94,14 @@ function App() {
         const api = new ChatAPI(savedCredentials.serverAddr);
         const connected = await api.testConnection();
         if (connected) {
+          try {
+            const session = await api.createSession(savedCredentials.username);
+            setHubSessionToken(session.token);
+          } catch {
+            if (savedCredentials.sessionToken) {
+              setHubSessionToken(savedCredentials.sessionToken);
+            }
+          }
           setUsername(savedCredentials.username);
           setChannel(savedCredentials.channel);
           setServerAddr(savedCredentials.serverAddr);

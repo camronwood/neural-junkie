@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
+import type { ScanSummaryData } from '../utils/scanSummary';
+import { isScanSummaryWellPath, SCAN_SUMMARY_METADATA_FILE } from '../utils/scanSummary';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'image';
+export type EditorTabViewMode = 'text' | 'image' | 'scan-summary';
 
 export interface EditorTab {
   id: string;
@@ -19,11 +21,18 @@ export interface EditorTab {
   viewMode?: EditorTabViewMode;
   /** Tauri asset URL or path for image preview tabs. */
   imageSrc?: string;
+  /** Relative path to scan summary directory (parent of imageMetadata.json). */
+  scanSummaryDir?: string;
+  scanSummaryData?: ScanSummaryData;
+  /** Well to select when the scan summary viewer opens. */
+  scanSummaryInitialWell?: string;
 }
 
 export interface OpenFileOptions {
   viewMode?: EditorTabViewMode;
   imageSrc?: string;
+  scanSummaryDir?: string;
+  scanSummaryData?: ScanSummaryData;
 }
 
 interface EditorState {
@@ -42,6 +51,12 @@ interface EditorState {
     content: string,
     language?: string,
     options?: OpenFileOptions
+  ) => void;
+  openScanSummary: (
+    workspaceId: string,
+    summaryDir: string,
+    data: ScanSummaryData,
+    initialWell?: string
   ) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
@@ -90,14 +105,65 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'scan-summary' ? undefined : language,
       viewMode,
       imageSrc,
+      scanSummaryDir: options?.scanSummaryDir,
+      scanSummaryData: options?.scanSummaryData,
     };
     
     set({
       tabs: [...state.tabs, newTab],
       activeTabId: newTab.id,
+    });
+  },
+
+  openScanSummary: (workspaceId, summaryDir, data, initialWell) => {
+    const state = get();
+    const path = summaryDir
+      ? `${summaryDir.replace(/\/$/, '')}/${SCAN_SUMMARY_METADATA_FILE}`
+      : SCAN_SUMMARY_METADATA_FILE;
+    const existingTab = state.tabs.find(
+      (t) => t.workspaceId === workspaceId && t.viewMode === 'scan-summary' && t.scanSummaryDir === summaryDir
+    );
+    if (existingTab) {
+      set({
+        activeTabId: existingTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === existingTab.id
+            ? { ...t, scanSummaryData: data, scanSummaryInitialWell: initialWell ?? t.scanSummaryInitialWell }
+            : t
+        ),
+      });
+      return;
+    }
+    // Replace a text tab for the same metadata file if the user opened JSON by mistake.
+    const staleTextTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'text' &&
+        (t.path === path ||
+          t.path.endsWith(`/${SCAN_SUMMARY_METADATA_FILE}`) ||
+          (initialWell != null && isScanSummaryWellPath(t.path)))
+    );
+    const tabId =
+      staleTextTab?.id ?? `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path,
+      content: '',
+      isDirty: false,
+      viewMode: 'scan-summary',
+      scanSummaryDir: summaryDir,
+      scanSummaryData: data,
+      scanSummaryInitialWell: initialWell,
+    };
+    set({
+      tabs: staleTextTab
+        ? state.tabs.map((t) => (t.id === staleTextTab.id ? newTab : t))
+        : [...state.tabs, newTab],
+      activeTabId: tabId,
     });
   },
   
@@ -136,7 +202,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab;
-        if (tab.viewMode === 'image') return tab;
+        if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary') return tab;
         if (tab.content === content) return tab;
         return { ...tab, content, isDirty: true };
       }),
@@ -167,7 +233,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const tab = state.getTabById(tabId);
     if (!tab) return false;
-    if (tab.viewMode === 'image') return true;
+    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary') return true;
 
     set({ saving: true, error: null });
     
@@ -195,7 +261,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   
   saveAllTabs: async () => {
     const state = get();
-    const dirtyTabs = state.tabs.filter(tab => tab.isDirty && tab.viewMode !== 'image');
+    const dirtyTabs = state.tabs.filter(
+      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary'
+    );
     
     if (dirtyTabs.length === 0) return true;
     
@@ -231,7 +299,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    if (tab.viewMode === 'image') {
+    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary') {
       set(current => ({
         tabs: current.tabs.map(t =>
           t.id === tab.id
@@ -311,7 +379,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   
   getTabByPath: (workspaceId, path) => {
     const state = get();
-    return state.tabs.find(tab => tab.workspaceId === workspaceId && tab.path === path) || null;
+    const matches = state.tabs.filter(
+      (tab) => tab.workspaceId === workspaceId && tab.path === path
+    );
+    if (matches.length === 0) return null;
+    return matches.find((t) => t.viewMode === 'scan-summary') ?? matches[0];
   },
   
   hasUnsavedChanges: () => {

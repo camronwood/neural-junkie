@@ -37,6 +37,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
+	"github.com/camronwood/neural-junkie/internal/scansummary"
 	"github.com/gorilla/websocket"
 )
 
@@ -51,16 +52,13 @@ var (
 	serverStartTime     time.Time
 	ollamaMgr           *ollamaManager.Manager
 	globalProviderCache *ai.ProviderCache
+	apiRateLimiter      = hub.NewRateLimiter()
 )
 
 // CORS middleware to allow requests from Tauri dev server
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Allow requests from Tauri dev server (port 1420) and other origins
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		// Note: do not send Access-Control-Allow-Credentials with wildcard Origin (invalid CORS pairing).
+	return hub.RateLimitMiddleware(apiRateLimiter, func(w http.ResponseWriter, r *http.Request) {
+		setCORSHeaders(w, r)
 
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {
@@ -69,7 +67,7 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		next(w, r)
-	}
+	})
 }
 
 // checkWebSocketOrigin restricts browser WebSocket hijacking (CSWSH). Non-browser clients often omit Origin.
@@ -122,13 +120,8 @@ func main() {
 	}
 	syncMCPFromConfig()
 
-	// Override addr flag from config if not explicitly set via CLI
-	if appConfig.Server.Port != 0 {
-		defaultAddr := fmt.Sprintf(":%d", appConfig.Server.Port)
-		if *addr == ":18765" {
-			*addr = defaultAddr
-		}
-	}
+	// Resolve bind address (loopback by default; see docs/SECURITY.md)
+	*addr = resolveListenAddr(*addr, appConfig)
 
 	chatHub = hub.NewHub()
 	chatHub.SetCollaborationAssetsRootResolver(func() string {
@@ -170,9 +163,10 @@ func main() {
 		log.Fatal("Failed to initialize workspace manager:", err)
 	}
 
-	// Create some default channels (general is already created by NewHub)
-	chatHub.CreateChannel("project-alpha", "Project Alpha development", "alpha")
-	chatHub.CreateChannel("project-beta", "Project Beta development", "beta")
+	// Drop legacy demo channels (project-alpha / project-beta) from restored sessions.
+	if n := chatHub.RemoveLegacySeedChannels(); n > 0 {
+		log.Printf("🧹 Removed %d legacy seed channel(s) (project-alpha, project-beta)", n)
+	}
 
 	// Initialize and start moderator agent
 	initializeModeratorAgent()
@@ -196,6 +190,10 @@ func main() {
 
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
+
+	slackBridgeCtx, stopSlackBridgeCtx := context.WithCancel(context.Background())
+	defer stopSlackBridgeCtx()
+
 	if sessionRestored {
 		rebindRuntimeAgentsToRestoredDMs()
 		// Restored collabs keep tasks/assignees; ListCollaborationSnapshots only
@@ -211,11 +209,13 @@ func main() {
 	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(handleCreateDMAgent))
 	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
 	http.HandleFunc("/api/channels/join", corsMiddleware(handleJoinChannel))
-	http.HandleFunc("/api/channels/delete", corsMiddleware(handleDeleteChannel))
-	http.HandleFunc("/api/channels/clear-history", corsMiddleware(handleClearChannelHistory))
+	http.HandleFunc("/api/channels/delete", corsMiddleware(localOnly(handleDeleteChannel)))
+	http.HandleFunc("/api/channels/clear-history", corsMiddleware(localOnly(handleClearChannelHistory)))
 	http.HandleFunc("/api/channels/agents", corsMiddleware(handleChannelAgentsManage))
 	http.HandleFunc("/api/agent-channels", corsMiddleware(handleAgentChannels))
 	http.HandleFunc("/api/agents", corsMiddleware(handleAgentsRoute))
+	http.HandleFunc("/api/agent-tools", corsMiddleware(handleAgentTools))
+	http.HandleFunc("/api/channel-tools", corsMiddleware(handleChannelTools))
 	http.HandleFunc("/api/my-agents", corsMiddleware(handleMyAgents))
 	http.HandleFunc("/api/cached-agents", corsMiddleware(handleCachedAgents)) // Keep for backwards compatibility
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
@@ -227,9 +227,10 @@ func main() {
 	http.HandleFunc("/api/runbooks/", corsMiddleware(handleRunbooksRoute))
 	http.HandleFunc("/api/runbook-templates", corsMiddleware(handleRunbookTemplatesRoute))
 	http.HandleFunc("/api/runbook-templates/", corsMiddleware(handleRunbookTemplatesRoute))
-	http.HandleFunc("/api/hub-data/read", corsMiddleware(handleHubDataRead))
-	http.HandleFunc("/api/send", corsMiddleware(handleSendMessage))
-	http.HandleFunc("/api/broadcast", corsMiddleware(handleBroadcastDirect))
+	http.HandleFunc("/api/auth/session", corsMiddleware(handleAuthSession))
+	http.HandleFunc("/api/hub-data/read", corsMiddleware(localOnly(handleHubDataRead)))
+	http.HandleFunc("/api/send", corsMiddleware(localOnly(handleSendMessage)))
+	http.HandleFunc("/api/broadcast", corsMiddleware(localOnly(handleBroadcastDirect)))
 	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
 	http.HandleFunc("/api/import", corsMiddleware(handleImport))
 	http.HandleFunc("/api/export", corsMiddleware(handleExport))
@@ -251,12 +252,13 @@ func main() {
 	}
 
 	// File system API endpoints
-	http.HandleFunc("/api/workspaces", corsMiddleware(handleWorkspaces))
+	http.HandleFunc("/api/workspaces", corsMiddleware(localOnly(handleWorkspaces)))
 	http.HandleFunc("/api/files", corsMiddleware(handleFiles))
 	http.HandleFunc("/api/file-content", corsMiddleware(handleFileContent))
-	http.HandleFunc("/api/file-create", corsMiddleware(handleFileCreate))
-	http.HandleFunc("/api/file-rename", corsMiddleware(handleFileRename))
-	http.HandleFunc("/api/file-delete", corsMiddleware(handleFileDelete))
+	http.HandleFunc("/api/file-create", corsMiddleware(localOnly(handleFileCreate)))
+	http.HandleFunc("/api/file-rename", corsMiddleware(localOnly(handleFileRename)))
+	http.HandleFunc("/api/file-delete", corsMiddleware(localOnly(handleFileDelete)))
+	http.HandleFunc("/api/scan-summary/well-image", corsMiddleware(handleScanSummaryWellImage))
 	http.HandleFunc("/api/git-status", corsMiddleware(handleGitStatus))
 	http.HandleFunc("/api/git-diff", corsMiddleware(handleGitDiff))
 	http.HandleFunc("/api/git-commit", corsMiddleware(handleGitCommit))
@@ -265,9 +267,9 @@ func main() {
 
 	// File change API endpoints
 	http.HandleFunc("/api/file-changes", corsMiddleware(handleFileChanges))
-	http.HandleFunc("/api/file-changes/propose-from-message", corsMiddleware(handleProposeFileChangeFromMessage))
-	http.HandleFunc("/api/file-changes/approve/", corsMiddleware(handleApproveFileChange))
-	http.HandleFunc("/api/file-changes/reject/", corsMiddleware(handleRejectFileChange))
+	http.HandleFunc("/api/file-changes/propose-from-message", corsMiddleware(localOnly(handleProposeFileChangeFromMessage)))
+	http.HandleFunc("/api/file-changes/approve/", corsMiddleware(localOnly(handleApproveFileChange)))
+	http.HandleFunc("/api/file-changes/reject/", corsMiddleware(localOnly(handleRejectFileChange)))
 	http.HandleFunc("/api/file-changes/", corsMiddleware(handleFileChangeDiff))
 
 	// AI Provider API endpoints
@@ -326,9 +328,19 @@ func main() {
 	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(handleAssistantGoogleDisconnect))
 	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
 
+	http.HandleFunc("/api/slack/status", corsMiddleware(handleSlackStatus))
+	http.HandleFunc("/api/slack/config", corsMiddleware(handleSlackConfig))
+	http.HandleFunc("/api/slack/bindings", corsMiddleware(handleSlackBindings))
+	http.HandleFunc("/api/slack/test-post", corsMiddleware(handleSlackTestPost))
+	http.HandleFunc("/api/slack/oauth/start", corsMiddleware(handleSlackOAuthStart))
+	http.HandleFunc("/api/slack/oauth/callback", corsMiddleware(handleSlackOAuthCallback))
+	http.HandleFunc("/api/slack/disconnect", corsMiddleware(handleSlackDisconnect))
+	http.HandleFunc("/api/slack/restart", corsMiddleware(handleSlackRestart))
+
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))
 		http.HandleFunc("/api/debug/channel-context", corsMiddleware(handleDebugChannelContext))
+		http.HandleFunc("/api/debug/delegation-resolve", corsMiddleware(handleDebugDelegationResolve))
 		pprofAddr := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PPROF_ADDR"))
 		if pprofAddr == "" {
 			pprofAddr = "127.0.0.1:6060"
@@ -347,9 +359,13 @@ func main() {
 	http.HandleFunc("/", corsMiddleware(handleHome))
 
 	log.Printf("Chat Hub Server starting on %s", *addr)
-	log.Printf("WebSocket endpoint: ws://localhost%s/ws", *addr)
-	log.Printf("Web UI: http://localhost%s", *addr)
-	log.Printf("CORS enabled for all origins")
+	log.Printf("WebSocket endpoint: ws://%s/ws", hubPublicHost(*addr))
+	log.Printf("Web UI: http://%s", hubPublicHost(*addr))
+	if os.Getenv("NEURAL_JUNKIE_CORS_ANY") == "1" {
+		log.Printf("CORS: wildcard mode (NEURAL_JUNKIE_CORS_ANY=1)")
+	} else {
+		log.Printf("CORS: restricted to local dev origins (set NEURAL_JUNKIE_CORS_ANY=1 to allow all)")
+	}
 
 	// Periodic session save (every 2 minutes), cancellable for clean shutdown.
 	sessionSaverCtx, stopSessionSaver := context.WithCancel(context.Background())
@@ -392,11 +408,18 @@ func main() {
 	// Graceful shutdown: save session on SIGINT/SIGTERM
 	server := &http.Server{Addr: *addr}
 	go func() {
+		// Outbound bridge uses WebSocket to localhost; start after the hub is listening.
+		time.Sleep(300 * time.Millisecond)
+		startSlackBridge(slackBridgeCtx)
+	}()
+	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 		<-sigCh
 
 		stopSessionSaver()
+		stopSlackBridgeCtx()
+		stopSlackBridge()
 		sessionSaverWG.Wait()
 		log.Println("🛑 Shutdown signal received, saving session...")
 		if err := chatHub.SaveSessionToFile(sessionPath); err != nil {
@@ -1294,11 +1317,16 @@ func handleCLIAgentTypes(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
+		resolved, ok := agent.ResolveCLI(cfg)
+		if !ok {
+			installed[t] = false
+			continue
+		}
 		opts := []ai.CLIAgentOption{
-			ai.WithBaseArgs(cfg.BaseArgs),
+			ai.WithBaseArgs(resolved.BaseArgs),
 			ai.WithModel(cfg.ModelName),
 		}
-		p := ai.NewCLIAgentProvider(cfg.Command, ".", cfg.ProviderName, opts...)
+		p := ai.NewCLIAgentProvider(resolved.Command, ".", cfg.ProviderName, opts...)
 		installed[t] = p.IsCLIInstalled()
 	}
 
@@ -1322,8 +1350,69 @@ func handleAgentsRoute(w http.ResponseWriter, r *http.Request) {
 
 func handleGetAgents(w http.ResponseWriter, r *http.Request) {
 	agents := chatHub.ListAgents()
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_tool_counts")), "true") {
+		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok && ch != nil {
+			for i := range agents {
+				if agents[i] != nil {
+					agents[i].ToolCount = ch.ToolCountForAgent(agents[i].ID)
+				}
+			}
+		}
+	}
 
 	json.NewEncoder(w).Encode(agents)
+}
+
+func handleAgentTools(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
+	if agentID == "" {
+		http.Error(w, "agent_id query parameter required", http.StatusBadRequest)
+		return
+	}
+	ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler)
+	if !ok || ch == nil {
+		http.Error(w, "command handler unavailable", http.StatusInternalServerError)
+		return
+	}
+	cap, err := ch.GetAgentToolCapabilities(agentID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(cap)
+}
+
+func handleChannelTools(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	if channel == "" {
+		http.Error(w, "channel query parameter required", http.StatusBadRequest)
+		return
+	}
+	ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler)
+	if !ok || ch == nil {
+		http.Error(w, "command handler unavailable", http.StatusInternalServerError)
+		return
+	}
+	resp, err := ch.ListChannelToolCapabilities(channel)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
@@ -1479,6 +1568,9 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 	if channel == "" {
 		channel = "general"
 	}
+	if !ensureChannelReadAccess(w, r, channel) {
+		return
+	}
 
 	messages, err := chatHub.GetMessages(channel, 50)
 	if err != nil {
@@ -1559,6 +1651,9 @@ func handleBroadcastDirect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, msg.Channel); !ok {
+		return
+	}
 
 	chatHub.BroadcastDirect(msg.Channel, &msg)
 	w.WriteHeader(http.StatusNoContent)
@@ -1589,6 +1684,9 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Try to parse as full message (agents send this)
 	if err := json.Unmarshal(body, &fullMsg); err == nil && fullMsg.ID != "" {
+		if _, ok := ensureMutationAccess(w, r, fullMsg.Channel); !ok {
+			return
+		}
 		// This is a full message from an agent, use it directly
 		if err := chatHub.SendMessage(&fullMsg); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1618,6 +1716,9 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, req.Channel); !ok {
+		return
+	}
 
 	msgType := protocol.MessageType(req.Type)
 	if msgType == "" {
@@ -1626,7 +1727,8 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 
 	senderID, senderName, senderType := defaultHumanSender()
 
-	if req.From != nil {
+	// Ignore client-supplied sender unless a hub token is configured (prevents browser/extension spoofing on loopback).
+	if req.From != nil && hub.HubTokenConfigured() {
 		if req.From.ID != "" {
 			senderID = req.From.ID
 		}
@@ -1979,7 +2081,13 @@ func initializeCLIAgents() {
 }
 
 func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
-	log.Printf("🤖 Checking for %s CLI agent (%s)...", cfg.DefaultName, cfg.Command)
+	log.Printf("🤖 Checking for %s CLI agent (%s)...", cfg.DefaultName, agent.CLIProbeLabel(cfg))
+
+	resolved, found := agent.ResolveCLI(cfg)
+	if !found {
+		log.Printf("ℹ️  %s CLI (%s) not found on PATH — skipping. %s", cfg.DefaultName, agent.CLIProbeLabel(cfg), cfg.InstallHint)
+		return
+	}
 
 	workDir := defaultWorkDir
 	if cfg.WorkDirEnv != "" {
@@ -1989,7 +2097,7 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 	}
 
 	opts := []ai.CLIAgentOption{
-		ai.WithBaseArgs(cfg.BaseArgs),
+		ai.WithBaseArgs(resolved.BaseArgs),
 		ai.WithModel(cfg.ModelName),
 	}
 	if cfg.Type == "gemini" {
@@ -2009,7 +2117,7 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 		_ = os.Setenv("GEMINI_MODEL", model)
 		opts = append(opts, ai.WithEnv("GEMINI_MODEL", model))
 	}
-	provider := ai.NewCLIAgentProvider(cfg.Command, workDir, cfg.ProviderName, opts...)
+	provider := ai.NewCLIAgentProvider(resolved.Command, workDir, cfg.ProviderName, opts...)
 
 	// Forward configured env vars
 	for _, envKey := range cfg.EnvVars {
@@ -2018,12 +2126,7 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 		}
 	}
 
-	if !provider.IsCLIInstalled() {
-		log.Printf("ℹ️  %s CLI ('%s') not found on PATH — skipping. %s", cfg.DefaultName, cfg.Command, cfg.InstallHint)
-		return
-	}
-
-	log.Printf("✅ %s CLI binary found, initializing agent...", cfg.DefaultName)
+	log.Printf("✅ %s CLI binary found (%s), initializing agent...", cfg.DefaultName, resolved.Command)
 
 	// Auto-register as a provider in the config so it appears in Settings > AI Providers
 	if existing := appConfig.GetProvider(cfg.ProviderName); existing == nil {
@@ -2110,7 +2213,7 @@ func configureGeminiApprovalHook() {
 		log.Printf("⚠️  Could not resolve absolute path for tool-approval-hook: %v", errAbs)
 		return
 	}
-	serverURL := fmt.Sprintf("http://localhost%s", *addr)
+	serverURL := fmt.Sprintf("http://%s", hubPublicHost(*addr))
 	hookCommand := fmt.Sprintf("%s --server %s --agent Gemini --agent-id gemini-cli --mode interactive", hookBinAbs, serverURL)
 
 	// Read existing settings or start fresh
@@ -2484,6 +2587,47 @@ func handleDebugHubMemory(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleDebugDelegationResolve(w http.ResponseWriter, r *http.Request) {
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") != "1" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	fromName := strings.TrimSpace(r.URL.Query().Get("from"))
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if fromName == "" || q == "" {
+		http.Error(w, "from and q query parameters required", http.StatusBadRequest)
+		return
+	}
+	ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler)
+	if !ok || ch == nil {
+		http.Error(w, "command handler unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	var fromInfo protocol.AgentInfo
+	for _, ag := range chatHub.ListAgents() {
+		if ag != nil && strings.EqualFold(ag.Name, fromName) {
+			fromInfo = *ag
+			break
+		}
+	}
+	if fromInfo.ID == "" {
+		http.Error(w, "agent not found: "+fromName, http.StatusNotFound)
+		return
+	}
+	candidates := ch.ResolveConsultants(fromInfo, q)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"from":        fromInfo.Name,
+		"question":    q,
+		"enabled":     ch.DelegationEnabled(),
+		"candidates":  candidates,
+	})
+}
+
 func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") != "1" {
 		http.NotFound(w, r)
@@ -2563,6 +2707,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.HF = incoming.HF
 		appConfig.Updates = incoming.Updates
 		appConfig.Collaboration = incoming.Collaboration
+		appConfig.Delegation = incoming.Delegation.Normalized()
 		if incoming.Packs.Enabled != nil {
 			appConfig.Packs = incoming.Packs
 		}
@@ -3154,6 +3299,11 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if scansummary.ValidateWellID(filepath.Base(path)) && scansummary.IsTIFF(content) {
+			http.Error(w, "well TIFF: open via scan summary viewer (Life sciences pack)", http.StatusUnsupportedMediaType)
+			return
+		}
+
 		if r.URL.Query().Get("binary") == "1" || isWorkspaceImageFile(path) {
 			mimeType := mime.TypeByExtension(filepath.Ext(path))
 			if mimeType == "" {
@@ -3171,6 +3321,9 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 			"content": string(content),
 		})
 	case "POST":
+		if !hub.RequireHubAccess(w, r) {
+			return
+		}
 		var req struct {
 			WorkspaceID string `json:"workspace_id"`
 			Path        string `json:"path"`

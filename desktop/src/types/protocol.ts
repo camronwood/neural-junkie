@@ -71,6 +71,42 @@ export interface AgentInfo {
   approval_mode?: 'interactive' | 'auto_edit' | 'yolo';
   /** User-defined markdown instructions merged into this agent's system prompt (server-persisted). */
   custom_rules_markdown?: string;
+  /** Hub MCP + built-in tool count (when fetched with include_tool_counts). */
+  tool_count?: number;
+}
+
+export interface AgentToolParam {
+  name: string;
+  required: boolean;
+  description?: string;
+}
+
+export interface AgentToolDefinition {
+  name: string;
+  description: string;
+  parameters?: AgentToolParam[];
+  source: 'mcp' | 'builtin';
+}
+
+export interface AgentToolCapabilities {
+  agent_id: string;
+  agent_name: string;
+  agent_type: string;
+  tools: AgentToolDefinition[];
+  tool_count: number;
+  mcp_enabled: boolean;
+  mcp_port?: number;
+  chat_model: string;
+  chat_provider: string;
+  chat_native_tools: boolean;
+  tool_loop_model: string;
+  tool_loop_uses_fallback: boolean;
+  notes?: string[];
+}
+
+export interface ChannelToolsResponse {
+  channel: string;
+  agents: AgentToolCapabilities[];
 }
 
 export interface Message {
@@ -121,6 +157,7 @@ export interface Channel {
   created: string; // ISO date string
   agents: AgentInfo[];
   members?: string[]; // Explicitly added agent IDs
+  human_members?: string[]; // Usernames allowed on private custom channels
   tags?: string[];
 }
 
@@ -231,6 +268,48 @@ export interface GoogleMeetNotesStatus {
   notes_count?: number;
   last_sync_at?: string;
   oauth_configured: boolean;
+}
+
+export type SlackPolicy = 'mention_only' | 'questions' | 'always';
+
+export interface SlackConfigResponse {
+  enabled: boolean;
+  display_name: string;
+  display_icon_url?: string;
+  default_policy: SlackPolicy;
+  bot_token_set: boolean;
+  app_token_set: boolean;
+  oauth?: {
+    client_id: string;
+    redirect_url: string;
+    secret_set: boolean;
+    configured: boolean;
+  };
+}
+
+export interface SlackStatus {
+  enabled: boolean;
+  configured: boolean;
+  connected?: boolean;
+  token_set?: boolean;
+  oauth_configured?: boolean;
+  bot_user_id?: string;
+  team_id?: string;
+  bindings_count?: number;
+  display_name?: string;
+}
+
+export interface SlackBinding {
+  id?: string;
+  workspace_id: string;
+  slack_channel_id: string;
+  slack_channel_name?: string;
+  nj_channel: string;
+  agent_id: string;
+  agent_name?: string;
+  policy: SlackPolicy;
+  reply_in_thread: boolean;
+  enabled: boolean;
 }
 
 export interface OllamaSettings {

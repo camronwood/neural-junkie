@@ -62,7 +62,7 @@ export function renderMarkdown(
       ],
       ALLOWED_ATTR: [
         'href', 'title', 'alt', 'src', 'width', 'height',
-        'class', 'id', 'style',
+        'class', 'id',
         'target', 'rel',
         'data-mermaid-placeholder',
       ],

@@ -6,6 +6,7 @@ import { useToastStore } from '../stores/toastStore';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
+import { ScanSummaryViewer } from './ScanSummaryViewer';
 
 function tabLabel(tab: EditorTab): string {
   const path = tab.path ?? '';
@@ -90,6 +91,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   editorRef.current = editor;
 
   const isImageTab = activeTab?.viewMode === 'image';
+  const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
 
   useEffect(() => {
     if (!activeTabId) {
@@ -138,7 +140,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -215,7 +217,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -309,6 +311,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
+    if (tab.viewMode === 'scan-summary') return '🔬';
     const ext = (tab.path ?? '').split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
@@ -388,9 +391,9 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
           )}
           <button
             onClick={() => void handleSave()}
-            disabled={saving || !activeTab || isImageTab}
+            disabled={saving || !activeTab || isImageTab || isScanSummaryTab}
             className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
-            title={isImageTab ? 'Preview only' : 'Save current file (Cmd+S)'}
+            title={isImageTab || isScanSummaryTab ? 'Preview only' : 'Save current file (Cmd+S)'}
           >
             Save
           </button>
@@ -446,7 +449,14 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
       <div className="flex-1 min-h-0">
         {activeTab ? (
-          activeTab.viewMode === 'image' ? (
+          activeTab.viewMode === 'scan-summary' && activeTab.scanSummaryData != null ? (
+            <ScanSummaryViewer
+              workspaceId={activeTab.workspaceId}
+              summaryDir={activeTab.scanSummaryDir ?? ''}
+              data={activeTab.scanSummaryData}
+              initialWell={activeTab.scanSummaryInitialWell ?? 'A1'}
+            />
+          ) : activeTab.viewMode === 'image' ? (
             activeTab.imageSrc ? (
               <EditorImagePreview
                 src={activeTab.imageSrc}
@@ -483,15 +493,17 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
         <div className="px-4 py-2 border-t border-slack-border bg-slack-bgHover text-xs text-slack-textMuted flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span>{activeTab.path}</span>
-            {isImageTab ? (
-              <span className="px-2 py-1 bg-slack-bg rounded text-xs">Preview only</span>
+            {isImageTab || isScanSummaryTab ? (
+              <span className="px-2 py-1 bg-slack-bg rounded text-xs">
+                {isScanSummaryTab ? 'Scan summary' : 'Preview only'}
+              </span>
             ) : (
               activeTab.language && (
                 <span className="px-2 py-1 bg-slack-bg rounded text-xs">{activeTab.language}</span>
               )
             )}
           </div>
-          {!isImageTab && (
+          {!isImageTab && !isScanSummaryTab && (
             <div className="flex items-center gap-2">
               {saving && <span className="text-yellow-500">Saving...</span>}
               <button
