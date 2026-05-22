@@ -14,6 +14,7 @@
 | `assets/neural-junkie-nondev-experts-ad-1080.png` | 2×2 persona grid + Assistant strip (like `context-scope`) | Custom experts / DMs |
 | `assets/neural-junkie-nondev-collaborate-ad-1080.png` | Split column + hex cluster + quote card (like `oss-contributors` / timeline) | Multi-agent planning |
 | `assets/neural-junkie-nondev-second-opinion-ad-1080.png` | Two-column: tab chaos vs one thread mock | Second LLM check without a new tab — see [SECOND-OPINION-AD.md](SECOND-OPINION-AD.md) |
+| `assets/neural-junkie-slack-ad-nondev-1080.png` | Slack thread mock + helper picker (beta.13 script) | AI in the Slack channels your team already uses |
 
 **Honest constraint (use in replies, not on the image):** Neural Junkie uses **API keys and/or local models** (Ollama, LM Studio, etc.), not consumer ChatGPT Plus / Claude Pro logins. Position as “unify your AI stack,” not “import your subscriptions.”
 
@@ -80,6 +81,26 @@
 > Neural Junkie: bounded agent discussion → shared plan → your approval → parallel tasks. No codebase required for planning-only workflows.
 >
 > Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+
+---
+
+## Ad 4 — Slack for teams (`slack-nondev`, beta.13)
+
+**Regenerate:** `./scripts/compose-beta13-ads.sh slack-nondev`
+
+**Headline on image:** Ask in Slack. Get answers in the thread. One-click setup.
+
+**X / LinkedIn:**
+
+> Your team already lives in **Slack**. Neural Junkie lets you **Connect Slack** in Settings, pick a channel like `#team-help`, and assign an AI helper — writing coach, planning buddy, or Assistant — so questions get answered **in the thread**, not in another browser tab.
+>
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.13
+
+**LinkedIn (longer):**
+
+> No new app for colleagues to learn. You run Neural Junkie on your computer, connect your workspace once, and choose which AI helps in each Slack channel. They @mention the bot or just ask in the channel; replies show up where everyone can see them.
+>
+> Pair with the dev-focused Slack ad when posting to mixed audiences: technical readers get “any agent as your bot”; everyone else gets “ask in Slack, get answers in the thread.”
 
 ---
 

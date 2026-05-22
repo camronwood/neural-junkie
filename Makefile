@@ -1,4 +1,12 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync
+
+# Bundled Neural Junkie Slack app (maintainer: ../scripts/slack-creds-to-vendor.sh)
+SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
+ifneq (,$(wildcard $(SLACK_VENDOR_JSON)))
+SERVER_GO_TAGS := -tags=slackvendor
+else
+SERVER_GO_TAGS :=
+endif
 
 help: ## Show this help
 	@echo "Neural Junkie - Multi-Agent Collaboration System"
@@ -12,9 +20,20 @@ help: ## Show this help
 docs: ## Show documentation guide
 	@cat DOCS.md
 
+slack-vendor-json: ## Generate gitignored vendor/oauth.json from ../scripts/.slack-creds
+	@bash ../scripts/slack-creds-to-vendor.sh
+
+slack-vendor-check: ## Fail if vendor/oauth.json is missing (release / CI)
+	@test -f $(SLACK_VENDOR_JSON) || (echo "❌ Missing $(SLACK_VENDOR_JSON) — run: make slack-vendor-json" >&2; exit 1)
+	@echo "✅ $(SLACK_VENDOR_JSON) present"
+
+gallery-sync: ## Copy ads/screenshots to docs/media/gallery and rebuild manifest
+	@chmod +x ./scripts/sync-gallery.sh
+	@./scripts/sync-gallery.sh
+
 build: ## Build all binaries
-	@echo "🔨 Building server..."
-	@go build -o bin/server ./cmd/server
+	@echo "🔨 Building server... $(if $(SERVER_GO_TAGS),[Slack vendor embedded],)"
+	@go build $(SERVER_GO_TAGS) -o bin/server ./cmd/server
 	@echo "🔨 Building agent runner..."
 	@go build -o bin/agent cmd/agent/main.go
 	@echo "🔨 Building CLI..."
@@ -26,16 +45,16 @@ build: ## Build all binaries
 	@echo "💡 For GUI, run: make gui-build"
 
 run-server: ## Start the chat hub server
-	@echo "🚀 Starting chat hub server on http://localhost:18765"
-	@go run ./cmd/server
+	@echo "🚀 Starting chat hub server on http://localhost:18765 $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@go run $(SERVER_GO_TAGS) ./cmd/server
 
 server: setup-env ## Start server with environment loaded
-	@echo "🚀 Starting chat hub server with environment from env.local..."
-	@bash -c 'source load-env.sh && go run ./cmd/server'
+	@echo "🚀 Starting chat hub server with environment from env.local... $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@bash -c 'source load-env.sh && go run $(SERVER_GO_TAGS) ./cmd/server'
 
 server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hub-memory); logs to /tmp/nj-hub.log
-	@echo "🔧 Starting debug hub → /tmp/nj-hub.log  (pprof: http://127.0.0.1:6060/debug/pprof/)"
-	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+	@echo "🔧 Starting debug hub → /tmp/nj-hub.log  (pprof: http://127.0.0.1:6060/debug/pprof/) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
@@ -179,6 +198,7 @@ stop: ## Stop all running processes (server, agents, GUI)
 		lsof -ti :18765 2>/dev/null | xargs kill -9 2>/dev/null || true'
 	@lsof -ti :1420 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@pkill -f "go run ./cmd/server" 2>/dev/null || pkill -f "cmd/server/main.go" 2>/dev/null || true
+	@pkill -x server 2>/dev/null || pkill -f "$(CURDIR)/bin/server" 2>/dev/null || true
 	@pkill -f "cmd/agent/main.go" 2>/dev/null || true
 	@pkill -f "tauri dev" 2>/dev/null || true
 	@pkill -f "Neural Junkie" 2>/dev/null || true
@@ -193,7 +213,7 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo ""
 	@echo "🚀 Starting server with fresh state..."
 	@echo "   (Specialist agents are started in-process by the server via config)"
-	@bash -c 'source load-env.sh && go run ./cmd/server > /tmp/chat-server.log 2>&1 &'
+	@bash -c 'source load-env.sh && go run $(SERVER_GO_TAGS) ./cmd/server > /tmp/chat-server.log 2>&1 &'
 	@sleep 3
 	@echo ""
 	@echo "✅ System refreshed! All processes restarted with clean state."
@@ -208,7 +228,8 @@ start-all: setup-env ## Start server and all agents with environment loaded
 		PORT="$${SERVER_PORT:-18765}"; \
 		echo "🚀 Starting complete Neural Junkie system..."; \
 		echo "   (Specialist agents are started in-process by the server via config)"; \
-		go run ./cmd/server & \
+		if [ -f "$(SLACK_VENDOR_JSON)" ]; then echo "   Slack: bundled NJ app (vendor/oauth.json → Connect Slack enabled)"; fi; \
+		go run $(SERVER_GO_TAGS) ./cmd/server & \
 		echo "⏳ Waiting for hub at http://localhost:$${PORT}/api/health ..."; \
 		ok=0; for i in $$(seq 1 60); do \
 			if curl -sf "http://localhost:$${PORT}/api/health" | grep -q "\"status\":\"ok\""; then ok=1; break; fi; \
@@ -302,22 +323,22 @@ SIDECAR_DIR := desktop/src-tauri/binaries
 build-server-mac-arm: ## Cross-compile server for macOS Apple Silicon
 	@echo "🔨 Building server for macOS arm64..."
 	@mkdir -p $(SIDECAR_DIR)
-	@GOOS=darwin GOARCH=arm64 go build -o $(SIDECAR_DIR)/nj-server-aarch64-apple-darwin ./cmd/server
+	@GOOS=darwin GOARCH=arm64 go build $(SERVER_GO_TAGS) -o $(SIDECAR_DIR)/nj-server-aarch64-apple-darwin ./cmd/server
 
 build-server-mac-intel: ## Cross-compile server for macOS Intel
 	@echo "🔨 Building server for macOS amd64..."
 	@mkdir -p $(SIDECAR_DIR)
-	@GOOS=darwin GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-apple-darwin ./cmd/server
+	@GOOS=darwin GOARCH=amd64 go build $(SERVER_GO_TAGS) -o $(SIDECAR_DIR)/nj-server-x86_64-apple-darwin ./cmd/server
 
 build-server-linux: ## Cross-compile server for Linux x86_64
 	@echo "🔨 Building server for Linux amd64..."
 	@mkdir -p $(SIDECAR_DIR)
-	@GOOS=linux GOARCH=amd64 go build -o $(SIDECAR_DIR)/nj-server-x86_64-unknown-linux-gnu ./cmd/server
+	@GOOS=linux GOARCH=amd64 go build $(SERVER_GO_TAGS) -o $(SIDECAR_DIR)/nj-server-x86_64-unknown-linux-gnu ./cmd/server
 
 build-sidecar: ## Build server sidecar for current platform
-	@echo "🔨 Building server sidecar for current platform..."
+	@echo "🔨 Building server sidecar for current platform... $(if $(SERVER_GO_TAGS),[Slack vendor],)"
 	@mkdir -p $(SIDECAR_DIR)
-	@go build -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) ./cmd/server
+	@go build $(SERVER_GO_TAGS) -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) ./cmd/server
 
 bundle-mac: build-server-mac-arm ## Build production desktop app for macOS
 	@echo "📦 Building macOS bundle..."

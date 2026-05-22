@@ -156,6 +156,9 @@ type Hub struct {
 	channelSummaryGen        ChannelSummaryGenerator
 	channelSummaryModel      string
 
+	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
+	channelHolds map[string]ChannelHold
+
 	mu sync.RWMutex
 }
 
@@ -172,6 +175,7 @@ func NewHub() *Hub {
 		threadSubscribers:   make(map[string][]chan *protocol.Message),
 		removedAgents:            make(map[string]*protocol.AgentInfo),
 		channelContext:           make(map[string]*ChannelContextState),
+		channelHolds:             make(map[string]ChannelHold),
 		channelSummaryRefreshGen: make(map[string]uint64),
 	}
 
@@ -534,6 +538,11 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
+	// Human message clears channel hold (user interject / resume).
+	if msg != nil && protocol.IsUserLikeSender(msg.From) && msg.Channel != "" && h.IsChannelHeld(msg.Channel) {
+		h.SetChannelHold(msg.Channel, false, "")
+		h.broadcastChannelHold(msg.Channel, false)
+	}
 	if err := h.enforceExecutionMessageBudget(msg); err != nil {
 		return err
 	}

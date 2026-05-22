@@ -556,3 +556,18 @@ input {
   border-left-color: #60a5fa;
 }
 
+/* Settings → Integrations: readable text on dark fields (browser default is black) */
+.nj-settings-integrations input:not([type='checkbox']),
+.nj-settings-integrations select,
+.nj-settings-integrations textarea {
+  color: #d1d2d3;
+}
+.nj-settings-integrations input::placeholder,
+.nj-settings-integrations textarea::placeholder {
+  color: #8b8d90;
+}
+.nj-settings-integrations select option {
+  color: #d1d2d3;
+  background-color: #1a1d21;
+}
+

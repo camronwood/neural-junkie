@@ -14,6 +14,11 @@ func ApplyBinding(ctx context.Context, hub HubClient, ensure AgentEnsurer, b Bin
 	if b.AgentID == "" {
 		return fmt.Errorf("agent_id required")
 	}
+	resolvedID, err := hub.ResolveAgentID(b.AgentID, b.AgentName)
+	if err != nil {
+		return err
+	}
+	b.AgentID = resolvedID
 	if b.NJChannel == "" {
 		b.NJChannel = NJChannelName(b.SlackChannelID)
 	}
@@ -38,6 +43,7 @@ func ApplyBinding(ctx context.Context, hub HubClient, ensure AgentEnsurer, b Bin
 
 // ApplyAllBindings reapplies every enabled binding (e.g. on bridge start).
 func ApplyAllBindings(ctx context.Context, hub HubClient, ensure AgentEnsurer, store *BindingStore) error {
+	ReconcileBindingAgentIDs(store, hub)
 	for _, b := range store.List() {
 		if !b.Enabled {
 			continue
@@ -47,6 +53,26 @@ func ApplyAllBindings(ctx context.Context, hub HubClient, ensure AgentEnsurer, s
 		}
 	}
 	return nil
+}
+
+// ReconcileBindingAgentIDs updates stored agent_id when the hub restarted and UUIDs rotated.
+func ReconcileBindingAgentIDs(store *BindingStore, hub HubClient) {
+	for _, b := range store.List() {
+		if !b.Enabled {
+			continue
+		}
+		resolved, err := hub.ResolveAgentID(b.AgentID, b.AgentName)
+		if err != nil || resolved == b.AgentID {
+			continue
+		}
+		updated := b
+		updated.AgentID = resolved
+		if _, err := store.Upsert(updated); err != nil {
+			log.Printf("[slack] reconcile binding %s agent: %v", b.SlackChannelID, err)
+			continue
+		}
+		log.Printf("[slack] binding %s agent_id reconciled to %s (%s)", b.SlackChannelID, resolved, b.AgentName)
+	}
 }
 
 // NewBindingFromRequest builds a binding with defaults from config.

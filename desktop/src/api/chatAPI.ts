@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackStatus, SlackBinding, SlackPolicy, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
 import {
   getHubBaseURL,
   hubAuthHeaders,
@@ -325,6 +325,21 @@ export class ChatAPI {
     return response.json();
   }
 
+  /** Cursor-style Stop: pause agents on a channel until the user sends a message. */
+  async channelInterject(channel: string, heldBy?: string): Promise<{ channel: string; held: boolean }> {
+    const response = await this.hubFetch(
+      `/api/channels/${encodeURIComponent(channel)}/interject`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ held_by: heldBy ?? '' }),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
   private async collabTaskPost(collabId: string, taskId: string, action: string): Promise<Collaboration> {
     const response = await this.hubFetch(`/api/collaborations/${encodeURIComponent(collabId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
       { method: 'POST' }
@@ -586,12 +601,31 @@ export class ChatAPI {
     return response.json();
   }
 
+  async getSlackConnection(): Promise<SlackConnectionResponse> {
+    const response = await this.hubFetch(`/api/slack/connection`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Slack connection: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   async getSlackBindings(): Promise<SlackBinding[]> {
     const response = await this.hubFetch(`/api/slack/bindings`);
     if (!response.ok) {
       throw new Error(`Failed to fetch Slack bindings: ${response.statusText}`);
     }
     return response.json();
+  }
+
+  async getSlackChannels(): Promise<SlackChannelInfo[]> {
+    const response = await this.hubFetch(`/api/slack/channels`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        typeof data?.error === 'string' ? data.error : `Failed to list Slack channels: ${response.statusText}`
+      );
+    }
+    return Array.isArray(data) ? data : [];
   }
 
   async saveSlackBinding(binding: {

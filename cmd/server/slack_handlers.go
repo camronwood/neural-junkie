@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/camronwood/neural-junkie/internal/config"
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	slackapi "github.com/slack-go/slack"
 )
 
 var slackBridge *slackint.Bridge
@@ -62,10 +62,13 @@ func handleSlackStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	pubOAuth := slackint.PublicOAuthFromResolved(&appConfig.Slack)
 	resp := map[string]interface{}{
 		"enabled":          appConfig != nil && appConfig.Slack.Enabled,
 		"configured":       appConfig != nil && appConfig.Slack.SlackReady(),
-		"oauth_configured": slackint.PublicOAuthFromDir().Configured,
+		"oauth_configured": pubOAuth.Configured,
+		"connect_ready":    pubOAuth.ConnectReady,
+		"oauth_source":     pubOAuth.OAuthSource,
 		"token_set":        appConfig != nil && appConfig.Slack.BotToken != "" && appConfig.Slack.AppToken != "",
 	}
 	if slackBridge != nil {
@@ -80,13 +83,14 @@ func handleSlackConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		pub := map[string]interface{}{
-			"enabled":         appConfig.Slack.Enabled,
-			"display_name":    appConfig.Slack.DisplayName,
+			"enabled":          appConfig.Slack.Enabled,
+			"display_name":     appConfig.Slack.DisplayName,
 			"display_icon_url": appConfig.Slack.DisplayIconURL,
-			"default_policy":  appConfig.Slack.EffectiveDefaultPolicy(),
-			"bot_token_set":   appConfig.Slack.BotToken != "",
-			"app_token_set":   appConfig.Slack.AppToken != "",
-			"oauth":           slackint.PublicOAuthFromDir(),
+			"default_policy":   appConfig.Slack.EffectiveDefaultPolicy(),
+			"bot_token_set":    appConfig.Slack.BotToken != "",
+			"app_token_set":    appConfig.Slack.AppToken != "",
+			"connect_ready":    slackint.OAuthReady(&appConfig.Slack),
+			"oauth":            slackint.PublicOAuthFromResolved(&appConfig.Slack),
 		}
 		writeJSON(w, http.StatusOK, pub)
 	case http.MethodPut, http.MethodPost:
@@ -171,6 +175,12 @@ func handleSlackBindings(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "slack_channel_id and agent_id required"})
 			return
 		}
+		if slackBridge != nil {
+			if err := slackint.ValidateChannel(slackBridge.API(), body.SlackChannelID); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+		}
 		teamID := ""
 		if slackBridge != nil {
 			teamID = slackBridge.TeamID()
@@ -241,6 +251,10 @@ func handleSlackTestPost(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "slack_channel_id required"})
 		return
 	}
+	if err := slackint.ValidateChannel(slackBridge.API(), body.SlackChannelID); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
 	if err := slackBridge.PostTestMessage(body.SlackChannelID, body.Text); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -253,15 +267,15 @@ func handleSlackOAuthStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	oauth, err := slackint.LoadOAuthApp()
-	if err != nil || oauth == nil || oauth.ClientID == "" {
+	oauth, _ := slackint.ResolveOAuthApp(&appConfig.Slack)
+	if oauth == nil || oauth.ClientID == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "Slack OAuth app not configured. Set client_id and secret in Settings → Slack.",
+			"error": "Slack OAuth is not available. Rebuild with vendor credentials or configure Advanced OAuth.",
 		})
 		return
 	}
 	state := newOAuthState()
-	scopes := "app_mentions:read,channels:history,groups:history,chat:write,chat:write.customize,users:read"
+	scopes := "app_mentions:read,channels:history,groups:history,channels:read,groups:read,chat:write,chat:write.customize,users:read"
 	u, _ := url.Parse("https://slack.com/oauth/v2/authorize")
 	q := u.Query()
 	q.Set("client_id", oauth.ClientID)
@@ -294,8 +308,8 @@ func handleSlackOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing code", http.StatusBadRequest)
 		return
 	}
-	oauth, err := slackint.LoadOAuthApp()
-	if err != nil || oauth == nil {
+	oauth, _ := slackint.ResolveOAuthApp(&appConfig.Slack)
+	if oauth == nil {
 		http.Error(w, "OAuth app not configured", http.StatusBadRequest)
 		return
 	}
@@ -311,11 +325,7 @@ func handleSlackOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(resp.Body)
-	var result struct {
-		OK          bool   `json:"ok"`
-		Error       string `json:"error"`
-		AccessToken string `json:"access_token"`
-	}
+	var result slackint.OAuthV2AccessResponse
 	if err := json.Unmarshal(data, &result); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -326,10 +336,24 @@ func handleSlackOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	appConfig.Slack.BotToken = result.AccessToken
 	appConfig.Slack.Enabled = true
+	if appToken, src := slackint.ResolveAppToken(&appConfig.Slack); appToken != "" && strings.TrimSpace(appConfig.Slack.AppToken) == "" {
+		appConfig.Slack.AppToken = appToken
+		log.Printf("[slack] applied app token from %s after OAuth", src)
+	}
+	_ = slackint.SaveSlackInstall(&slackint.SlackInstallMetadata{
+		TeamID:    result.Team.ID,
+		TeamName:  result.Team.Name,
+		BotUserID: result.BotUserID,
+	})
 	_ = appConfig.Save()
+	stopSlackBridge()
+	startSlackBridge(slackBridgeCtx)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<html><body><p>Slack connected. You can close this window and return to Neural Junkie.</p>
-<script>setTimeout(function(){window.close();},1500);</script></body></html>`)
+<script>
+try { if (window.opener) window.opener.postMessage({ type: 'nj-slack-connected' }, '*'); } catch (e) {}
+setTimeout(function(){window.close();},1500);
+</script></body></html>`)
 }
 
 func handleSlackDisconnect(w http.ResponseWriter, r *http.Request) {
@@ -339,10 +363,39 @@ func handleSlackDisconnect(w http.ResponseWriter, r *http.Request) {
 	}
 	stopSlackBridge()
 	appConfig.Slack.BotToken = ""
-	appConfig.Slack.AppToken = ""
 	appConfig.Slack.Enabled = false
+	_ = slackint.ClearSlackInstall()
 	_ = appConfig.Save()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "disconnected"})
+}
+
+func handleSlackConnection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	pub := slackint.PublicOAuthFromResolved(&appConfig.Slack)
+	install, _ := slackint.LoadSlackInstall()
+	bridgeConnected := false
+	if slackBridge != nil {
+		st := slackBridge.Status()
+		if v, ok := st["connected"].(bool); ok {
+			bridgeConnected = v
+		}
+	}
+	teamID, teamName := "", ""
+	if install != nil {
+		teamID, teamName = install.TeamID, install.TeamName
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"oauth_ready":      pub.ConnectReady,
+		"oauth_source":     pub.OAuthSource,
+		"bot_token_set":    appConfig.Slack.BotToken != "",
+		"app_token_set":    appConfig.Slack.AppToken != "",
+		"bridge_connected": bridgeConnected,
+		"team_id":          teamID,
+		"team_name":        teamName,
+	})
 }
 
 func handleSlackRestart(w http.ResponseWriter, r *http.Request) {
@@ -351,8 +404,57 @@ func handleSlackRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stopSlackBridge()
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	startSlackBridge(ctx)
+	startSlackBridge(slackBridgeCtx)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "restarted"})
+}
+
+func handleSlackDiagnose(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if appConfig == nil {
+		writeJSON(w, http.StatusOK, slackint.DiagnoseResult{
+			Recommendations: []string{"Hub config not loaded"},
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, slackint.Diagnose(appConfig))
+}
+
+func slackAPIClient() *slackapi.Client {
+	if slackBridge != nil {
+		return slackBridge.API()
+	}
+	if appConfig != nil && appConfig.Slack.SlackReady() {
+		return slackapi.New(
+			appConfig.Slack.BotToken,
+			slackapi.OptionAppLevelToken(appConfig.Slack.AppToken),
+		)
+	}
+	return nil
+}
+
+func handleSlackChannels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	api := slackAPIClient()
+	if api == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error": "Slack not configured — save tokens and restart the bridge first",
+		})
+		return
+	}
+	channels, err := slackint.ListChannels(api)
+	if err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "missing_scope") {
+			msg = "missing_scope: add Bot scopes channels:read and groups:read, reinstall the app, then refresh"
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": msg})
+		return
+	}
+	writeJSON(w, http.StatusOK, channels)
 }

@@ -67,6 +67,7 @@ func (m *mockHubClientIntegration) BroadcastDirect(channelName string, msg *prot
 func (m *mockHubClientIntegration) GetAgentChannels(agentID string) []string { return []string{"general"} }
 func (m *mockHubClientIntegration) GetChannelType(channelName string) protocol.ChannelType { return protocol.ChannelTypePublic }
 func (m *mockHubClientIntegration) GetChannelSessionSummary(channel string) string         { return "" }
+func (m *mockHubClientIntegration) IsChannelHeld(channel string) bool                     { return false }
 func (m *mockHubClientIntegration) ImageGenerationEnabled() bool                            { return false }
 func (m *mockHubClientIntegration) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil

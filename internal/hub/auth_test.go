@@ -16,6 +16,17 @@ func TestCanUserAccessDMChannel(t *testing.T) {
 	}
 }
 
+func TestCanUserAccessSlackMirrorChannel(t *testing.T) {
+	h := NewHub()
+	h.CreateChannelWithType("slack:C01234", "Slack: #test", "", "custom", "slack-bridge")
+	if !h.CanUserAccessChannel("Camron", "slack:C01234") {
+		t.Fatal("any user should access slack mirror channel")
+	}
+	if !h.CanUserAccessChannel("eve", "slack:C01234") {
+		t.Fatal("slack mirror channel is not private to creator")
+	}
+}
+
 func TestCanUserAccessPrivateCustomChannel(t *testing.T) {
 	h := NewHub()
 	ch := h.CreateChannelWithType("secret-proj", "x", "", "custom", "alice")

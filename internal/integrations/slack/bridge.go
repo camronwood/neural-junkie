@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
-	"time"
+	"sync/atomic"
 
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
-	"github.com/gorilla/websocket"
 	slackapi "github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
@@ -31,9 +31,12 @@ type Bridge struct {
 
 	mu          sync.Mutex
 	outbound    map[string]context.CancelFunc
-	wsURL       string
 	displayName string
 	iconURL     string
+
+	socketConnected atomic.Bool
+	seenInbound     sync.Map // channelID:slackTS → struct{}, dedupe duplicate Socket Mode events
+	userNames       sync.Map // slack user id → cachedSlackUser (display + handle)
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -54,19 +57,6 @@ func NewBridge(cfg *config.Config, hub HubClient, ensure AgentEnsurer) (*Bridge,
 	}
 	api := slackapi.New(cfg.Slack.BotToken, slackapi.OptionAppLevelToken(cfg.Slack.AppToken))
 	socket := socketmode.New(api)
-	host := cfg.Server.Host
-	if host == "" {
-		host = "localhost"
-	}
-	port := cfg.Server.Port
-	if port == 0 {
-		port = 18765
-	}
-	wsScheme := "ws"
-	if host != "localhost" && host != "127.0.0.1" {
-		wsScheme = "ws"
-	}
-	wsURL := fmt.Sprintf("%s://%s:%d/ws", wsScheme, host, port)
 
 	return &Bridge{
 		cfg:         cfg,
@@ -77,7 +67,6 @@ func NewBridge(cfg *config.Config, hub HubClient, ensure AgentEnsurer) (*Bridge,
 		api:         api,
 		socket:      socket,
 		outbound:    make(map[string]context.CancelFunc),
-		wsURL:       wsURL,
 		displayName: cfg.Slack.EffectiveDisplayName(),
 		iconURL:     cfg.Slack.DisplayIconURL,
 	}, nil
@@ -101,6 +90,11 @@ func (b *Bridge) BotUserID() string {
 // TeamID returns the workspace team id.
 func (b *Bridge) TeamID() string {
 	return b.teamID
+}
+
+// API returns the Slack Web API client.
+func (b *Bridge) API() *slackapi.Client {
+	return b.api
 }
 
 // ApplyBinding applies a single binding to the hub.
@@ -192,20 +186,52 @@ func (b *Bridge) handleSocketEvent(ctx context.Context, evt socketmode.Event) {
 			return
 		}
 		b.handleEventsAPI(ctx, eventsAPI)
-	case socketmode.EventTypeConnecting, socketmode.EventTypeConnectionError:
-		log.Printf("[slack] socket mode: %s", evt.Type)
+	case socketmode.EventTypeConnected:
+		b.socketConnected.Store(true)
+		log.Printf("[slack] socket mode: connected")
+	case socketmode.EventTypeConnecting:
+		b.socketConnected.Store(false)
+		log.Printf("[slack] socket mode: connecting")
+	case socketmode.EventTypeConnectionError:
+		b.socketConnected.Store(false)
+		if ce, ok := evt.Data.(*slackapi.ConnectionErrorEvent); ok && ce != nil {
+			log.Printf("[slack] socket mode: connection_error (attempt %d, retry in %s): %v",
+				ce.Attempt, ce.Backoff, ce.ErrorObj)
+		} else {
+			log.Printf("[slack] socket mode: connection_error")
+		}
+	case socketmode.EventTypeDisconnect:
+		b.socketConnected.Store(false)
+		log.Printf("[slack] socket mode: disconnected")
 	}
 }
 
 func (b *Bridge) handleEventsAPI(ctx context.Context, event slackevents.EventsAPIEvent) {
-	switch event.InnerEvent.Type {
+	innerType := string(event.InnerEvent.Type)
+	switch innerType {
 	case string(slackevents.Message):
 		if m, ok := event.InnerEvent.Data.(*slackevents.MessageEvent); ok {
+			if InboundDebugEnabled() {
+				log.Printf("[slack] event message channel=%s user=%s subtype=%q text_len=%d",
+					m.Channel, m.User, m.SubType, len(strings.TrimSpace(m.Text)))
+			}
 			b.handleMessage(ctx, m, false)
+			return
+		}
+		if InboundDebugEnabled() {
+			log.Printf("[slack] event message: inner data type %T", event.InnerEvent.Data)
 		}
 	case string(slackevents.AppMention):
 		if m, ok := event.InnerEvent.Data.(*slackevents.AppMentionEvent); ok {
+			if InboundDebugEnabled() {
+				log.Printf("[slack] event app_mention channel=%s", m.Channel)
+			}
 			b.handleAppMention(ctx, m)
+			return
+		}
+	default:
+		if InboundDebugEnabled() && innerType != "" {
+			log.Printf("[slack] unhandled event type %q (subscribe in Slack → Event Subscriptions?)", innerType)
 		}
 	}
 }
@@ -242,84 +268,111 @@ func (b *Bridge) handleMessage(ctx context.Context, m *slackevents.MessageEvent,
 
 func (b *Bridge) processInbound(ctx context.Context, in InboundInput) {
 	if ShouldIgnoreInbound(in, b.botUserID) {
+		if InboundDebugEnabled() {
+			log.Printf("[slack] inbound ignored channel=%s (bot/subtype/empty)", in.ChannelID)
+		}
 		return
 	}
 	binding, ok := b.bindings.GetBySlackChannel(in.ChannelID)
 	if !ok {
+		if InboundDebugEnabled() {
+			log.Printf("[slack] inbound ignored channel=%s (no binding; bound ids: %s)",
+				in.ChannelID, b.boundSlackChannelIDs())
+		}
 		return
 	}
 	if !ShouldTriggerAgent(in, binding, b.botUserID) {
+		if InboundDebugEnabled() {
+			log.Printf("[slack] inbound ignored channel=%s (policy %s)", in.ChannelID, binding.Policy)
+		}
 		return
 	}
-	if in.UserName == "" && in.UserID != "" {
-		if u, err := b.api.GetUserInfo(in.UserID); err == nil && u != nil {
-			in.UserName = u.RealName
-			if in.UserName == "" {
-				in.UserName = u.Name
+	if in.SlackTS != "" {
+		dedupeKey := in.ChannelID + ":" + in.SlackTS
+		if _, loaded := b.seenInbound.LoadOrStore(dedupeKey, struct{}{}); loaded {
+			if InboundDebugEnabled() {
+				log.Printf("[slack] inbound dedupe channel=%s ts=%s", in.ChannelID, in.SlackTS)
 			}
+			return
 		}
 	}
-	if in.UserName == "" {
-		in.UserName = "Slack User"
+	active := *binding
+	if resolved, err := b.hub.ResolveAgentID(active.AgentID, active.AgentName); err == nil {
+		active.AgentID = resolved
+	} else if InboundDebugEnabled() {
+		log.Printf("[slack] inbound agent resolve: %v", err)
 	}
-	msg := BuildHubMessage(in, binding, b.threads, b.botUserID)
+	b.resolveInboundUserIdentity(&in)
+	msg := BuildHubMessage(in, &active, b.threads, b.botUserID)
 	if err := b.hub.SendMessage(msg); err != nil {
 		log.Printf("[slack] SendMessage: %v", err)
 		return
 	}
+	agentShort := active.AgentID
+	if len(agentShort) > 8 {
+		agentShort = agentShort[:8]
+	}
+	log.Printf("[slack] inbound → hub %s from %s (agent %s)", active.NJChannel, in.UserName, agentShort)
+	if msg.ID != "" && in.SlackTS != "" {
+		_ = b.threads.RegisterNJMessageSlackTS(msg.ID, in.SlackTS)
+	}
+	parentTS := in.SlackTS
+	if in.ThreadTS != "" {
+		parentTS = in.ThreadTS
+	}
+	_ = b.threads.RegisterChannelParent(in.ChannelID, parentTS)
 	if msg.IsThreadReply && msg.ThreadID == in.ThreadTS {
 		_ = b.threads.RegisterInboundRoot(in.ChannelID, in.ThreadTS, msg.ThreadID)
 	}
 }
 
 func (b *Bridge) runOutbound(ctx context.Context, njChannel string) {
-	u := b.wsURL + "?channel=" + njChannel
-	dialer := websocket.Dialer{}
-	conn, _, err := dialer.DialContext(ctx, u, nil)
+	sub, err := b.hub.Subscribe(njChannel)
 	if err != nil {
-		log.Printf("[slack] outbound ws %s: %v", njChannel, err)
+		log.Printf("[slack] outbound subscribe %s: %v", njChannel, err)
 		return
 	}
-	defer conn.Close()
-	log.Printf("[slack] outbound listening on %s", njChannel)
+	defer b.hub.Unsubscribe(njChannel, sub)
+	log.Printf("[slack] outbound listening on %s (hub subscribe)", njChannel)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-		}
-		var msg protocol.Message
-		if err := conn.ReadJSON(&msg); err != nil {
-			if ctx.Err() != nil {
+		case msg, ok := <-sub:
+			if !ok {
 				return
 			}
-			log.Printf("[slack] outbound read %s: %v", njChannel, err)
-			time.Sleep(2 * time.Second)
-			return
+			if msg == nil {
+				continue
+			}
+			binding, ok := b.bindings.GetByNJChannel(njChannel)
+			if !ok {
+				continue
+			}
+			if !ShouldPostToSlack(msg, binding) {
+				continue
+			}
+			text := FormatSlackText(msg)
+			threadTS := ThreadTSForOutbound(msg, b.threads, binding)
+			username := OutboundSlackUsername(msg, binding, b.displayName)
+			b.postSlack(binding.SlackChannelID, text, threadTS, username, *msg)
 		}
-		binding, ok := b.bindings.GetByNJChannel(njChannel)
-		if !ok {
-			continue
-		}
-		if !ShouldPostToSlack(&msg, binding) {
-			continue
-		}
-		text := FormatSlackText(&msg)
-		threadTS := ThreadTSForOutbound(&msg, b.threads, binding)
-		b.postSlack(binding.SlackChannelID, text, threadTS, msg)
 	}
 }
 
-func (b *Bridge) postSlack(channelID, text, threadTS string, hubMsg protocol.Message) {
+func (b *Bridge) postSlack(channelID, text, threadTS, username string, hubMsg protocol.Message) {
 	opts := []slackapi.MsgOption{
 		slackapi.MsgOptionText(text, false),
 	}
 	if threadTS != "" {
 		opts = append(opts, slackapi.MsgOptionTS(threadTS))
 	}
-	if b.displayName != "" {
-		opts = append(opts, slackapi.MsgOptionUsername(b.displayName))
+	if username == "" {
+		username = b.displayName
+	}
+	if username != "" {
+		opts = append(opts, slackapi.MsgOptionUsername(username))
 	}
 	if b.iconURL != "" {
 		opts = append(opts, slackapi.MsgOptionIconURL(b.iconURL))
@@ -328,6 +381,9 @@ func (b *Bridge) postSlack(channelID, text, threadTS string, hubMsg protocol.Mes
 	if err != nil {
 		log.Printf("[slack] postMessage: %v", err)
 		return
+	}
+	if hubMsg.ID != "" && ts != "" {
+		_ = b.threads.RegisterNJMessageSlackTS(hubMsg.ID, ts)
 	}
 	tid := hubMsg.GetThreadID()
 	if tid == "" {
@@ -362,15 +418,26 @@ func (b *Bridge) ReloadBindings(ctx context.Context) error {
 	return nil
 }
 
+func (b *Bridge) boundSlackChannelIDs() string {
+	var ids []string
+	for _, binding := range b.bindings.List() {
+		if binding.Enabled {
+			ids = append(ids, binding.SlackChannelID)
+		}
+	}
+	return strings.Join(ids, ", ")
+}
+
 // Status returns connection metadata for the API.
 func (b *Bridge) Status() map[string]interface{} {
 	return map[string]interface{}{
-		"enabled":        b.cfg.Slack.Enabled,
-		"connected":      b.botUserID != "",
-		"bot_user_id":    b.botUserID,
-		"team_id":        b.teamID,
-		"bindings_count": len(b.bindings.List()),
-		"display_name":   b.displayName,
+		"enabled":          b.cfg.Slack.Enabled,
+		"connected":      b.botUserID != "" && b.socketConnected.Load(),
+		"socket_connected": b.socketConnected.Load(),
+		"bot_user_id":      b.botUserID,
+		"team_id":          b.teamID,
+		"bindings_count":   len(b.bindings.List()),
+		"display_name":     b.displayName,
 	}
 }
 

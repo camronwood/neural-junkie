@@ -200,9 +200,12 @@ export interface AssistantStateResponse {
 }
 
 export interface ThinkingStatusMetadata {
-  thinking_status: 'started' | 'completed' | 'error';
+  thinking_status: 'started' | 'completed' | 'error' | 'aborted';
   question_id: string;
 }
+
+/** Ephemeral agent_status: channel agents paused until user sends a message. */
+export const METADATA_CHANNEL_HOLD = 'channel_hold';
 
 export interface ThinkingAgent {
   id: string;
@@ -279,12 +282,25 @@ export interface SlackConfigResponse {
   default_policy: SlackPolicy;
   bot_token_set: boolean;
   app_token_set: boolean;
+  connect_ready?: boolean;
   oauth?: {
     client_id: string;
     redirect_url: string;
     secret_set: boolean;
     configured: boolean;
+    connect_ready?: boolean;
+    oauth_source?: string;
   };
+}
+
+export interface SlackConnectionResponse {
+  oauth_ready: boolean;
+  oauth_source: string;
+  bot_token_set: boolean;
+  app_token_set: boolean;
+  bridge_connected: boolean;
+  team_id?: string;
+  team_name?: string;
 }
 
 export interface SlackStatus {
@@ -297,6 +313,13 @@ export interface SlackStatus {
   team_id?: string;
   bindings_count?: number;
   display_name?: string;
+}
+
+export interface SlackChannelInfo {
+  id: string;
+  name: string;
+  is_private: boolean;
+  is_member: boolean;
 }
 
 export interface SlackBinding {

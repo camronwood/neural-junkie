@@ -112,4 +112,41 @@ func TestBuildHubMessageMentions(t *testing.T) {
 	if msg.Metadata["source"] != "slack" {
 		t.Fatalf("metadata: %v", msg.Metadata)
 	}
+	if msg.Metadata["slack_user_display_name"] != "Camron" {
+		t.Fatalf("display name: %v", msg.Metadata["slack_user_display_name"])
+	}
+	if msg.Metadata["slack_app_mention"] != true {
+		t.Fatalf("expected slack_app_mention metadata")
+	}
+	if msg.Metadata["slack_route_agent_id"] != "agent-1" {
+		t.Fatalf("route agent: %v", msg.Metadata["slack_route_agent_id"])
+	}
+}
+
+func TestBuildHubMessageAlwaysRoutesWithoutMentions(t *testing.T) {
+	b := &Binding{
+		Enabled:   true,
+		NJChannel: "slack:C1",
+		AgentID:   "agent-1",
+		Policy:    config.SlackPolicyAlways,
+	}
+	threads, _ := NewThreadMap()
+	in := InboundInput{
+		ChannelID:      "C1",
+		UserID:         "U1",
+		UserName:       "Camron Wood (@cannonwood)",
+		SlackUsername:  "cannonwood",
+		Text:           "thanks",
+		SlackTS:        "1.0",
+	}
+	msg := BuildHubMessage(in, b, threads, "B1")
+	if len(msg.Mentions) != 0 {
+		t.Fatalf("always policy should not set mentions for plain text: %v", msg.Mentions)
+	}
+	if msg.Metadata["slack_route_agent_id"] != "agent-1" {
+		t.Fatalf("route agent: %v", msg.Metadata["slack_route_agent_id"])
+	}
+	if msg.Metadata["slack_app_mention"] == true {
+		t.Fatal("plain text should not be slack_app_mention")
+	}
 }

@@ -3301,6 +3301,19 @@ func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 }
 
+// AbortRuntimeAgentsOnChannel cancels in-flight generations for runtime agents on channel.
+func (ch *CommandHandler) AbortRuntimeAgentsOnChannel(channel string) {
+	if ch == nil || channel == "" {
+		return
+	}
+	for _, ra := range ch.runtimeAgents {
+		if ra == nil {
+			continue
+		}
+		ra.AbortChannel(channel)
+	}
+}
+
 // StopAndUnregisterRuntimeAgent stops an in-process specialist and drops it from runtime tracking.
 func (ch *CommandHandler) StopAndUnregisterRuntimeAgent(agentID string) {
 	if ch == nil || agentID == "" {

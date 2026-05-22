@@ -23,8 +23,9 @@
       <nav class="nav-actions" aria-label="Primary">
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.13">Download beta.13</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">Download beta.14</a>
       </nav>
     </div>
   </header>
@@ -35,11 +36,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.13">v1.0.0-beta.13</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">v1.0.0-beta.14</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-14">1.0.0-beta.14</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-13">1.0.0-beta.13</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-12">1.0.0-beta.12</a>
@@ -78,6 +81,23 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-14" class="release-version-heading">1.0.0-beta.14 <span class="release-date">— 2026-05-22</span></h2>
+
+      <p><strong>Slack Connect and marketing gallery.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">GitHub Releases</a>. Slack: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">SLACK_INTEGRATION.md</a>. Gallery: <a href="gallery/index.html">gallery/index.html</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Slack Connect</strong> — bundled OAuth app, loopback install, Simple/Advanced Settings, <code>/api/slack/connection</code>, channel list API.</li>
+        <li><strong>Slack threading</strong> — two-way sync with thread parent map; Slack user display names on inbound.</li>
+        <li><strong>Site gallery</strong> — <code>docs/gallery/</code> + <code>make gallery-sync</code> for ads and screenshots.</li>
+        <li><strong>Slack ads</strong> — dev, non-dev, and models marketing PNGs.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Makefile</strong> — auto <code>slackvendor</code> tag when maintainer <code>vendor/oauth.json</code> exists.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-13" class="release-version-heading">1.0.0-beta.13 <span class="release-date">— 2026-05-21</span></h2>
 
       <p><strong>CLI agents, local-first security, scan summaries, and Slack.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.13">GitHub Releases</a>. CLI: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CLI_AGENTS.md">CLI_AGENTS.md</a>. Security: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SECURITY.md">SECURITY.md</a>. Slack: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">SLACK_INTEGRATION.md</a>.</p>

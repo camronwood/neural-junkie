@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gallery — Neural Junkie</title>
+  <meta name="description" content="Marketing ads, product screenshots, and feature visuals for Neural Junkie." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/gallery.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="../features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap gallery-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · Gallery
+    </nav>
+    <header class="gallery-hero">
+      <h1>Ads &amp; screenshots</h1>
+      <p class="gallery-hero-lead">
+        Marketing art and product shots for Neural Junkie — including Slack integration, CLI agents, and desktop workspace. Filter by category or open any image full size.
+      </p>
+    </header>
+
+    <div class="gallery-toolbar">
+      <div class="gallery-filter" role="group" aria-label="Filter gallery">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="ads" aria-pressed="false">Ads</button>
+        <button type="button" data-filter="screenshots" aria-pressed="false">Screenshots</button>
+        <button type="button" data-filter="misc" aria-pressed="false">Misc</button>
+        <button type="button" data-filter="slack" aria-pressed="false">Slack</button>
+      </div>
+      <span class="gallery-meta" id="gallery-count">Loading…</span>
+    </div>
+
+    <div class="gallery-grid" id="gallery-grid" aria-live="polite"></div>
+
+    <aside class="gallery-how" aria-label="How to add images">
+      <strong>Add images to this gallery</strong> — drop PNG/JPG under
+      <code>docs/media/gallery/ads/</code> or <code>screenshots/</code>, then run
+      <code>./scripts/sync-gallery.sh</code> and commit. See
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/media/gallery/README.md">docs/media/gallery/README.md</a>.
+    </aside>
+  </main>
+
+  <div class="gallery-lightbox" id="lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Image preview">
+    <button type="button" class="gallery-lightbox-close" id="lightbox-close" aria-label="Close">×</button>
+    <button type="button" class="gallery-lightbox-nav gallery-lightbox-prev" id="lightbox-prev" aria-label="Previous image">‹</button>
+    <img id="lightbox-img" src="" alt="" />
+    <button type="button" class="gallery-lightbox-nav gallery-lightbox-next" id="lightbox-next" aria-label="Next image">›</button>
+    <div class="gallery-lightbox-cap">
+      <strong id="lightbox-title"></strong>
+      <p id="lightbox-caption"></p>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — gallery · <span id="gallery-updated"></span></p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const grid = document.getElementById("gallery-grid");
+      const countEl = document.getElementById("gallery-count");
+      const updatedEl = document.getElementById("gallery-updated");
+      const filterBtns = document.querySelectorAll(".gallery-filter button");
+      const lightbox = document.getElementById("lightbox");
+      const lightboxImg = document.getElementById("lightbox-img");
+      const lightboxTitle = document.getElementById("lightbox-title");
+      const lightboxCaption = document.getElementById("lightbox-caption");
+      let items = [];
+      let visible = [];
+      let lightboxIndex = 0;
+      let activeFilter = "all";
+
+      function matchesFilter(item) {
+        if (activeFilter === "all") return true;
+        if (activeFilter === "slack") {
+          return (item.tags || []).includes("slack") || (item.filename || "").toLowerCase().includes("slack");
+        }
+        return item.category === activeFilter;
+      }
+
+      function render() {
+        visible = items.filter(matchesFilter);
+        countEl.textContent = visible.length + " image" + (visible.length === 1 ? "" : "s");
+        grid.innerHTML = "";
+        if (!visible.length) {
+          grid.innerHTML = '<p class="gallery-empty">No images in this category yet.</p>';
+          return;
+        }
+        visible.forEach((item, index) => {
+          const fig = document.createElement("figure");
+          fig.className = "gallery-card";
+          fig.tabIndex = 0;
+          const tags = (item.tags || []).slice(0, 4).join(" · ");
+          fig.innerHTML =
+            '<img src="' + item.src + '" alt="' + (item.title || "") + '" loading="lazy" decoding="async" />' +
+            "<figcaption><strong>" + (item.title || item.filename) + "</strong>" +
+            (tags ? '<span class="gallery-tags">' + tags + "</span>" : "") +
+            "</figcaption>";
+          fig.addEventListener("click", () => openLightbox(index));
+          fig.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openLightbox(index);
+            }
+          });
+          grid.appendChild(fig);
+        });
+      }
+
+      function openLightbox(index) {
+        lightboxIndex = index;
+        const item = visible[index];
+        lightboxImg.src = item.src;
+        lightboxImg.alt = item.title || "";
+        lightboxTitle.textContent = item.title || "";
+        lightboxCaption.textContent = item.caption || item.category || "";
+        lightbox.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+      }
+
+      function closeLightbox() {
+        lightbox.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+        lightboxImg.src = "";
+      }
+
+      function stepLightbox(delta) {
+        if (!visible.length) return;
+        lightboxIndex = (lightboxIndex + delta + visible.length) % visible.length;
+        openLightbox(lightboxIndex);
+      }
+
+      document.getElementById("lightbox-close").addEventListener("click", closeLightbox);
+      document.getElementById("lightbox-prev").addEventListener("click", () => stepLightbox(-1));
+      document.getElementById("lightbox-next").addEventListener("click", () => stepLightbox(1));
+      lightbox.addEventListener("click", (e) => {
+        if (e.target === lightbox) closeLightbox();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (lightbox.getAttribute("aria-hidden") === "true") return;
+        if (e.key === "Escape") closeLightbox();
+        if (e.key === "ArrowLeft") stepLightbox(-1);
+        if (e.key === "ArrowRight") stepLightbox(1);
+      });
+
+      filterBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          activeFilter = btn.getAttribute("data-filter");
+          filterBtns.forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+          render();
+        });
+      });
+
+      fetch("manifest.json")
+        .then((r) => {
+          if (!r.ok) throw new Error(r.statusText);
+          return r.json();
+        })
+        .then((data) => {
+          items = data.items || [];
+          if (data.updated && updatedEl) {
+            updatedEl.textContent = "updated " + data.updated.slice(0, 10);
+          }
+          render();
+        })
+        .catch((err) => {
+          grid.innerHTML =
+            '<p class="gallery-empty">Could not load manifest.json. Run <code>./scripts/sync-gallery.sh</code>.</p>';
+          countEl.textContent = "Error";
+          console.error(err);
+        });
+    })();
+  </script>
+</body>
+</html>

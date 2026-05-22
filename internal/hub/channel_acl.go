@@ -33,6 +33,10 @@ func (h *Hub) CanUserAccessChannel(username, channelName string) bool {
 		}
 		return true
 	case protocol.ChannelTypeCustom:
+		// Slack mirror channels (slack:C…) are open to all local users; bridge owns creation.
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(ch.Name)), "slack:") {
+			return true
+		}
 		if ch.CreatedBy == "" {
 			return true
 		}

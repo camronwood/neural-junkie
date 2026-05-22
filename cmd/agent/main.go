@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,15 +31,37 @@ var (
 )
 
 type httpHubClient struct {
-	baseURL string
-	client  *http.Client
+	baseURL     string
+	client      *http.Client
+	holdMu      sync.RWMutex
+	channelHeld map[string]bool
 }
 
 func newHTTPHubClient(baseURL string) *httpHubClient {
 	return &httpHubClient{
-		baseURL: baseURL,
-		client:  &http.Client{Timeout: 10 * time.Second},
+		baseURL:     baseURL,
+		client:      &http.Client{Timeout: 10 * time.Second},
+		channelHeld: make(map[string]bool),
 	}
+}
+
+func (h *httpHubClient) setChannelHeld(channel string, held bool) {
+	h.holdMu.Lock()
+	defer h.holdMu.Unlock()
+	if h.channelHeld == nil {
+		h.channelHeld = make(map[string]bool)
+	}
+	if held {
+		h.channelHeld[channel] = true
+	} else {
+		delete(h.channelHeld, channel)
+	}
+}
+
+func (h *httpHubClient) IsChannelHeld(channel string) bool {
+	h.holdMu.RLock()
+	defer h.holdMu.RUnlock()
+	return h.channelHeld[channel]
 }
 
 func (h *httpHubClient) SendMessage(msg *protocol.Message) error {
@@ -97,6 +120,11 @@ func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, e
 				}
 				// Only mark seen when we actually deliver; otherwise a message that
 				// fails the timestamp gate would be dropped forever on the next poll.
+				if msg.Type == protocol.MessageTypeAgentStatus && msg.Metadata != nil {
+					if v, ok := msg.Metadata[protocol.MetadataChannelHold].(bool); ok {
+						h.setChannelHeld(channelName, v)
+					}
+				}
 				if msg.Timestamp.After(lastCheck) {
 					seenMessages[msg.ID] = true
 					ch <- msg

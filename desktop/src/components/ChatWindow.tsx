@@ -16,6 +16,7 @@ import {
 } from '../utils/outboundChatMetadata';
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { WorkspaceContextMode } from '../constants/promptMetadata';
+import { METADATA_CHANNEL_HOLD } from '../types/protocol';
 import { GRANTED_HUB_DATA_ACCESS_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
@@ -137,6 +138,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     },
     shallow
   );
+
+  const channelHeld = useChatStore((s) => s.channelHeld.get(s.channel) === true, shallow);
+
+  const hasStreamingOnChannel = useChatStore(
+    (s) => {
+      const ch = s.channel;
+      return Object.values(s.streamingMessages).some((m) => (m.channel || ch) === ch);
+    },
+    shallow
+  );
+
+  const showAgentStop = thinkingAgentsForChannel.length > 0 || hasStreamingOnChannel;
 
   const myAgentsPanelOpen = useChatStore((s) => s.myAgentsPanelOpen);
   const setMyAgentsPanelOpen = useChatStore((s) => s.setMyAgentsPanelOpen);
@@ -739,6 +752,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
       // Handle all agent_status messages - never add them to chat
       if (message.type === 'agent_status') {
+        const msgChannel = message.channel || activeChannel;
         if (message.metadata?.history_resync === true) {
           const ch = message.channel || channel;
           try {
@@ -757,13 +771,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         // Handle thinking status -> typing indicator
         if (message.metadata?.thinking_status) {
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
-          const msgChannel = message.channel || activeChannel;
-          
           if (thinkingStatus === 'started') {
             st.addThinkingAgent(msgChannel, message.from.id, message.from.name, message.from.type);
-          } else if (thinkingStatus === 'completed' || thinkingStatus === 'error') {
+          } else if (
+            thinkingStatus === 'completed' ||
+            thinkingStatus === 'error' ||
+            thinkingStatus === 'aborted'
+          ) {
             st.removeThinkingAgent(msgChannel, message.from.id);
           }
+        }
+
+        if (message.metadata && METADATA_CHANNEL_HOLD in message.metadata) {
+          const held = message.metadata[METADATA_CHANNEL_HOLD] === true;
+          st.setChannelHold(msgChannel, held);
         }
         
         // Handle status updates - update agent info immediately
@@ -993,8 +1014,40 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [api, channel, username, workspaceContextMode, activeChannelMeta?.type]
   );
 
+  const handleChannelInterject = useCallback(async () => {
+    try {
+      await api.channelInterject(channel, username);
+      const st = useChatStore.getState();
+      st.setChannelHold(channel, true);
+      st.clearThinkingAgents(channel);
+      st.stopAllStreamsForChannel(channel);
+    } catch (error) {
+      console.error('Channel interject failed:', error);
+      addToast({
+        type: 'error',
+        title: 'Stop failed',
+        message: error instanceof Error ? error.message : 'Could not stop agents.',
+      });
+    }
+  }, [api, channel, username, addToast]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !showAgentStop) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      void handleChannelInterject();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showAgentStop, handleChannelInterject]);
+
   const dispatchMessage = useCallback(
     async (content: string, metadata?: Record<string, unknown>) => {
+      useChatStore.getState().setChannelHold(channel, false);
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
         message: content,
@@ -1573,8 +1626,21 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         <MessageList key={channel} searchQuery={messageSearchQuery} />
 
         <div className="flex-shrink-0">
-          <TypingIndicator agents={thinkingAgentsForChannel} />
+          <TypingIndicator
+            agents={thinkingAgentsForChannel}
+            showStop={showAgentStop}
+            onStop={() => void handleChannelInterject()}
+          />
         </div>
+
+        {channelHeld && (
+          <div
+            className="mx-3 mb-1 px-3 py-2 rounded-md text-sm border border-amber-700/50 bg-amber-950/40 text-amber-100"
+            role="status"
+          >
+            Agents paused — send a message to continue.
+          </div>
+        )}
 
         {/* Input */}
         <RichTextInput

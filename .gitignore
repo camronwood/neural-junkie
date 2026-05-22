@@ -33,6 +33,9 @@ Thumbs.db
 .env.local
 env.local
 
+# Bundled Slack OAuth (release builds only; copy from vendor/oauth.json.example)
+internal/integrations/slack/vendor/oauth.json
+
 # Desktop build artifacts
 desktop/dist/
 desktop/src-tauri/target/

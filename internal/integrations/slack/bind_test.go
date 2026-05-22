@@ -22,6 +22,12 @@ func (m *mockHub) Subscribe(channelName string) (chan *protocol.Message, error) 
 	return make(chan *protocol.Message), nil
 }
 
+func (m *mockHub) Unsubscribe(channelName string, ch chan *protocol.Message) {}
+
+func (m *mockHub) ResolveAgentID(agentID, agentName string) (string, error) {
+	return agentID, nil
+}
+
 func (m *mockHub) GetChannel(name string) (*protocol.Channel, error) {
 	if ch, ok := m.channels[name]; ok {
 		return ch, nil

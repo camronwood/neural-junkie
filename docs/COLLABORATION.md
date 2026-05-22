@@ -75,6 +75,14 @@ Desktop collaboration panel and REST:
 - `POST .../skip`, `.../redispatch`, `.../reassign`, `.../approve`
 - `POST /api/collaborations/:id/pause` / `resume` — pause dispatch without cancelling
 
+### Stop vs pause dispatch vs `/pause-agent`
+
+| Control | Where | Effect |
+|---------|--------|--------|
+| **Stop** (typing bar) | Any channel while agents are thinking/streaming | Cancels in-flight generations, holds the channel until you send a message (`POST /api/channels/:channel/interject`) |
+| **Pause dispatch** | Collaboration panel (executing) | Stops new task waves only; agents already replying continue |
+| **`/pause-agent`** | Slash command | Marks an agent paused in the roster; does not abort an active LLM call |
+
 See [RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md) for **action** task types (HTTP, webhook, web search, SMS).
 
 ### Runbook HTTP API

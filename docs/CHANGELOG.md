@@ -6,6 +6,21 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.14] - 2026-05-22
+
+### Added
+- **Slack Connect (local-first)** — bundled NJ Slack app credentials (`-tags slackvendor`), loopback OAuth, `GET /api/slack/connection`, Simple vs Advanced Settings UI, channel picker, install metadata. See [docs/SLACK_INTEGRATION.md](SLACK_INTEGRATION.md).
+- **Slack bridge polish** — inbound user display names, policy routing without fake @mentions, NJ→Slack threading via channel parent map, human outbound to Slack, `GET /api/slack/channels`, diagnose endpoint.
+- **Marketing gallery** — [docs/gallery/](gallery/) with ads and screenshots; `./scripts/sync-gallery.sh` and `make gallery-sync`.
+- **Slack marketing ads** — dev, non-dev, and models variants (`assets/neural-junkie-slack-ad-*.png`); updated `compose-beta13-ads.sh` variants.
+
+### Changed
+- **Makefile** — `start-all` / `server` use `-tags slackvendor` when `vendor/oauth.json` exists; `slack-vendor-json` and `gallery-sync` targets.
+- **Slack disconnect** — clears bot token and install metadata; keeps bundled app token.
+
+### Fixed
+- **Slack OAuth** — redirect URL derived from hub listen port; auto-restart bridge after OAuth.
+
 ## [1.0.0-beta.13] - 2026-05-21
 
 ### Added

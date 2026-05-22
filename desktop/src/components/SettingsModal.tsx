@@ -13,8 +13,10 @@ import type {
   GoogleMeetNotesStatus,
   SlackStatus,
   SlackBinding,
+  SlackChannelInfo,
   SlackPolicy,
   SlackConfigResponse,
+  SlackConnectionResponse,
 } from '../types/protocol';
 import { ChatAPI, type PackStatus } from '../api/chatAPI';
 import { usePacksStore } from '../stores/packsStore';
@@ -119,6 +121,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     agentId: '',
     policy: 'mention_only' as SlackPolicy,
   });
+  const [slackChannels, setSlackChannels] = useState<SlackChannelInfo[]>([]);
+  const [slackChannelsLoading, setSlackChannelsLoading] = useState(false);
+  const [slackChannelsError, setSlackChannelsError] = useState<string | null>(null);
+  const [slackConnection, setSlackConnection] = useState<SlackConnectionResponse | null>(null);
+  const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
   const [domainPacks, setDomainPacks] = useState<PackStatus[]>([]);
   const [packsLoading, setPacksLoading] = useState(false);
   const [packsSaving, setPacksSaving] = useState<string | null>(null);
@@ -261,18 +268,46 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     void refreshSlackIntegration();
   }, [isOpen, activeTab, hubHttp]);
 
+  const loadSlackChannels = async () => {
+    setSlackChannelsLoading(true);
+    setSlackChannelsError(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const channels = await api.getSlackChannels();
+      const member = channels.filter((c) => c.is_member);
+      const sorted = [...member].sort((a, b) => a.name.localeCompare(b.name));
+      setSlackChannels(sorted);
+      if (sorted.length === 0 && channels.length > 0) {
+        setSlackChannelsError('No channels listed — invite the bot with /invite @YourBot first.');
+      }
+    } catch (e) {
+      setSlackChannels([]);
+      setSlackChannelsError(e instanceof Error ? e.message : 'Failed to load Slack channels');
+    } finally {
+      setSlackChannelsLoading(false);
+    }
+  };
+
   const refreshSlackIntegration = async () => {
     setSlackLoading(true);
     try {
       const api = new ChatAPI(hubHttp);
-      const [status, cfg, bindings] = await Promise.all([
+      const [status, cfg, bindings, connection] = await Promise.all([
         api.getSlackStatus(),
         api.getSlackConfig(),
         api.getSlackBindings(),
+        api.getSlackConnection(),
       ]);
       setSlackStatus(status);
       setSlackConfig(cfg);
       setSlackBindings(bindings);
+      setSlackConnection(connection);
+      if (status.configured && (status.connected || cfg.bot_token_set)) {
+        void loadSlackChannels();
+      } else {
+        setSlackChannels([]);
+        setSlackChannelsError(null);
+      }
       setSlackForm((prev) => ({
         ...prev,
         enabled: cfg.enabled,
@@ -328,6 +363,40 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const pollSlackConnectionAfterOAuth = async (api: ChatAPI) => {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const conn = await api.getSlackConnection();
+        setSlackConnection(conn);
+        if (conn.bot_token_set) {
+          await api.restartSlackBridge();
+          await refreshSlackIntegration();
+          setTestResults((prev) => ({
+            ...prev,
+            slack: {
+              success: true,
+              message: conn.team_name
+                ? `Connected to ${conn.team_name}. Bridge is starting.`
+                : 'Slack connected. Bridge is starting.',
+            },
+          }));
+          return;
+        }
+      } catch {
+        /* keep polling */
+      }
+    }
+    setTestResults((prev) => ({
+      ...prev,
+      slack: {
+        success: false,
+        message: 'OAuth window closed or timed out. Click Refresh or try Connect Slack again.',
+      },
+    }));
+  };
+
   const connectSlackOAuth = async () => {
     setSlackBusy(true);
     try {
@@ -338,15 +407,43 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         ...prev,
         slack: {
           success: true,
-          message: 'Complete Slack install in your browser, then save app token and restart.',
+          message: 'Complete Slack authorization in your browser…',
         },
       }));
+      void pollSlackConnectionAfterOAuth(api);
     } catch (e) {
       setTestResults((prev) => ({
         ...prev,
         slack: {
           success: false,
           message: e instanceof Error ? e.message : 'Slack OAuth failed',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const saveSlackDisplaySettings = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.saveSlackConfig({
+        enabled: slackForm.enabled,
+        display_name: slackForm.displayName,
+        default_policy: slackForm.defaultPolicy,
+      });
+      await refreshSlackIntegration();
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: true, message: 'Slack display settings saved.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to save Slack settings',
         },
       }));
     } finally {
@@ -1497,7 +1594,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           )}
 
           {activeTab === 'integrations' && (
-            <div className="space-y-8">
+            <div className="space-y-8 nj-settings-integrations text-slack-text">
               {/* Anthropic Settings */}
               <div className="border border-slack-border rounded-lg p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -1809,7 +1906,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     type="button"
                     onClick={() => void syncGoogleMeetNotesNow()}
                     disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
-                    className="px-4 py-2 border border-slack-border rounded hover:bg-slack-bgHover disabled:opacity-50"
+                    className="px-4 py-2 border border-slack-border rounded hover:bg-slack-bgHover text-slack-text disabled:opacity-50"
                   >
                     Sync now
                   </button>
@@ -1838,9 +1935,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </button>
                 </div>
                 <p className="text-sm text-slack-textMuted mb-4">
-                  Assign one primary agent per Slack channel. Replies post as the bot with display name{' '}
-                  <strong className="text-slack-text">on behalf of you</strong>. Repo/MCP agents are allowed;
-                  file and tool approvals still happen in this app.
+                  Connect your workspace with one click. Assign one primary agent per Slack channel. Replies post as
+                  the bot with display name <strong className="text-slack-text">on behalf of you</strong>.
                 </p>
                 {testResults.slack && (
                   <div
@@ -1853,6 +1949,54 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {testResults.slack.message}
                   </div>
                 )}
+                {slackLoading && !slackStatus ? (
+                  <p className="text-sm text-slack-textMuted mb-4">Loading…</p>
+                ) : (
+                  <div className="space-y-2 text-sm text-slack-text mb-4 p-3 bg-slack-bgHover rounded border border-slack-border">
+                    <p>
+                      <span className="font-medium">Workspace:</span>{' '}
+                      {slackConnection?.team_name ||
+                        (slackConfig?.bot_token_set ? 'connected' : 'not connected')}
+                    </p>
+                    <p>
+                      <span className="font-medium">Bridge:</span>{' '}
+                      {slackConnection?.bridge_connected
+                        ? 'connected'
+                        : slackStatus?.configured
+                          ? 'configured (starting…)'
+                          : 'not connected'}
+                    </p>
+                    {slackStatus?.bot_user_id && (
+                      <p>
+                        <span className="font-medium">Bot user:</span> {slackStatus.bot_user_id}
+                      </p>
+                    )}
+                    <p>
+                      <span className="font-medium">Bindings:</span> {slackStatus?.bindings_count ?? 0}
+                    </p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => void connectSlackOAuth()}
+                    disabled={
+                      slackBusy ||
+                      !(slackConfig?.connect_ready ?? slackConfig?.oauth?.connect_ready)
+                    }
+                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    Connect Slack
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void disconnectSlack()}
+                    disabled={slackBusy || !slackConfig?.bot_token_set}
+                    className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Disconnect
+                  </button>
+                </div>
                 <div className="space-y-4 mb-4">
                   <label className="flex items-center gap-2 text-sm text-slack-text">
                     <input
@@ -1864,40 +2008,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     />
                     Enable Slack bridge
                   </label>
-                  <div>
-                    <label className="block text-sm font-medium text-slack-text mb-2">
-                      App token (Socket Mode, xapp-…)
-                      {slackConfig?.app_token_set && !slackForm.appToken && (
-                        <span className="ml-2 text-xs text-green-600">(saved)</span>
-                      )}
-                    </label>
-                    <input
-                      type="password"
-                      value={slackForm.appToken}
-                      onChange={(e) =>
-                        setSlackForm((prev) => ({ ...prev, appToken: e.target.value }))
-                      }
-                      placeholder={slackConfig?.app_token_set ? 'Leave blank to keep' : 'xapp-…'}
-                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slack-text mb-2">
-                      Bot token (xoxb-…)
-                      {slackConfig?.bot_token_set && !slackForm.botToken && (
-                        <span className="ml-2 text-xs text-green-600">(saved)</span>
-                      )}
-                    </label>
-                    <input
-                      type="password"
-                      value={slackForm.botToken}
-                      onChange={(e) =>
-                        setSlackForm((prev) => ({ ...prev, botToken: e.target.value }))
-                      }
-                      placeholder={slackConfig?.bot_token_set ? 'Leave blank to keep' : 'xoxb-…'}
-                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
-                    />
-                  </div>
                   <div>
                     <label className="block text-sm font-medium text-slack-text mb-2">
                       Display name (on behalf of)
@@ -1932,57 +2042,177 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </div>
                   <button
                     type="button"
-                    onClick={() => void saveSlackSettings()}
+                    onClick={() => void saveSlackDisplaySettings()}
                     disabled={slackBusy}
-                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                    className="w-full px-4 py-2 border border-slack-border rounded hover:bg-slack-bgHover text-slack-text disabled:opacity-50"
                   >
-                    Save tokens &amp; restart bridge
+                    Save display settings
                   </button>
                 </div>
-                {slackLoading && !slackStatus ? (
-                  <p className="text-sm text-slack-textMuted">Loading…</p>
-                ) : slackStatus ? (
-                  <div className="space-y-2 text-sm text-slack-text mb-4">
-                    <p>
-                      <span className="font-medium">Bridge:</span>{' '}
-                      {slackStatus.connected ? 'connected' : slackStatus.configured ? 'configured' : 'not configured'}
+                <details
+                  className="mb-6 border border-slack-border rounded-lg"
+                  open={slackAdvancedOpen}
+                  onToggle={(e) => setSlackAdvancedOpen((e.target as HTMLDetailsElement).open)}
+                >
+                  <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slack-text hover:bg-slack-bgHover rounded-lg">
+                    Advanced (bring your own Slack app)
+                  </summary>
+                  <div className="px-4 pb-4 space-y-4 border-t border-slack-border pt-4">
+                    <p className="text-xs text-slack-textMuted">
+                      Paste tokens or configure a custom OAuth app. See{' '}
+                      <a
+                        href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md"
+                        className="text-slack-accent hover:underline"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        SLACK_INTEGRATION.md
+                      </a>{' '}
+                      for enterprise / BYO setup.
                     </p>
-                    {slackStatus.bot_user_id && (
-                      <p>
-                        <span className="font-medium">Bot user:</span> {slackStatus.bot_user_id}
-                      </p>
-                    )}
-                    <p>
-                      <span className="font-medium">Bindings:</span> {slackStatus.bindings_count ?? 0}
-                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        App token (Socket Mode, xapp-…)
+                        {slackConfig?.app_token_set && !slackForm.appToken && (
+                          <span className="ml-2 text-xs text-green-600">(saved)</span>
+                        )}
+                      </label>
+                      <input
+                        type="password"
+                        value={slackForm.appToken}
+                        onChange={(e) =>
+                          setSlackForm((prev) => ({ ...prev, appToken: e.target.value }))
+                        }
+                        placeholder={slackConfig?.app_token_set ? 'Leave blank to keep' : 'xapp-…'}
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        Bot token (xoxb-…)
+                        {slackConfig?.bot_token_set && !slackForm.botToken && (
+                          <span className="ml-2 text-xs text-green-600">(saved)</span>
+                        )}
+                      </label>
+                      <input
+                        type="password"
+                        value={slackForm.botToken}
+                        onChange={(e) =>
+                          setSlackForm((prev) => ({ ...prev, botToken: e.target.value }))
+                        }
+                        placeholder={slackConfig?.bot_token_set ? 'Leave blank to keep' : 'xoxb-…'}
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        OAuth client ID
+                      </label>
+                      <input
+                        type="text"
+                        value={slackForm.clientId}
+                        onChange={(e) =>
+                          setSlackForm((prev) => ({ ...prev, clientId: e.target.value }))
+                        }
+                        placeholder={slackConfig?.oauth?.client_id || 'Slack app client ID'}
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        OAuth client secret
+                        {slackConfig?.oauth?.secret_set && !slackForm.clientSecret && (
+                          <span className="ml-2 text-xs text-green-600">(saved)</span>
+                        )}
+                      </label>
+                      <input
+                        type="password"
+                        value={slackForm.clientSecret}
+                        onChange={(e) =>
+                          setSlackForm((prev) => ({ ...prev, clientSecret: e.target.value }))
+                        }
+                        placeholder="Leave blank to keep existing secret"
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        OAuth redirect URI
+                      </label>
+                      <input
+                        type="text"
+                        value={slackForm.redirectUrl}
+                        onChange={(e) =>
+                          setSlackForm((prev) => ({ ...prev, redirectUrl: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void saveSlackSettings()}
+                      disabled={slackBusy}
+                      className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                    >
+                      Save advanced tokens &amp; restart bridge
+                    </button>
                   </div>
-                ) : null}
-                <div className="flex flex-wrap gap-2 mb-6">
-                  <button
-                    type="button"
-                    onClick={() => void connectSlackOAuth()}
-                    disabled={slackBusy || !slackConfig?.oauth?.configured}
-                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
-                  >
-                    OAuth install (bot token)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void disconnectSlack()}
-                    disabled={slackBusy}
-                    className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Disconnect
-                  </button>
-                </div>
+                </details>
                 <h4 className="text-sm font-semibold text-slack-text mb-2">Channel bindings</h4>
                 <p className="text-xs text-slack-textMuted mb-3">
-                  Slack channel ID (C…) from channel details → About. Invite the bot to the channel first.
+                  Pick a channel the bot is in, or paste a channel ID (C…) from Slack → channel → About.
                 </p>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => void loadSlackChannels()}
+                    disabled={slackChannelsLoading || !slackStatus?.configured}
+                    className="px-3 py-1 text-xs border border-slack-border rounded hover:bg-slack-bgHover text-slack-text disabled:opacity-50"
+                  >
+                    {slackChannelsLoading ? 'Loading channels…' : 'Load Slack channels'}
+                  </button>
+                  {slackChannels.length > 0 && (
+                    <span className="text-xs text-slack-textMuted">
+                      {slackChannels.length} channel{slackChannels.length === 1 ? '' : 's'} (bot is a member)
+                    </span>
+                  )}
+                </div>
+                {slackChannelsError && (
+                  <p className="text-xs text-amber-400 mb-2">{slackChannelsError}</p>
+                )}
                 <div className="grid gap-2 mb-3 sm:grid-cols-2">
+                  <select
+                    value={
+                      slackChannels.some((c) => c.id === slackBindingForm.slackChannelId)
+                        ? slackBindingForm.slackChannelId
+                        : ''
+                    }
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const ch = slackChannels.find((c) => c.id === id);
+                      setSlackBindingForm((prev) => ({
+                        ...prev,
+                        slackChannelId: id,
+                        slackChannelName: ch?.name ?? prev.slackChannelName,
+                      }));
+                    }}
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text sm:col-span-2"
+                  >
+                    <option value="" className="bg-slack-bg text-slack-text">
+                      {slackChannels.length > 0
+                        ? 'Select a Slack channel…'
+                        : 'Load channels or paste ID below'}
+                    </option>
+                    {slackChannels.map((c) => (
+                      <option key={c.id} value={c.id} className="bg-slack-bg text-slack-text">
+                        {c.is_private ? '🔒 ' : '#'}
+                        {c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
                   <input
                     type="text"
-                    placeholder="Slack channel ID (C…)"
+                    placeholder="Or paste channel ID (C…)"
                     value={slackBindingForm.slackChannelId}
                     onChange={(e) =>
                       setSlackBindingForm((prev) => ({
@@ -1990,11 +2220,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         slackChannelId: e.target.value,
                       }))
                     }
-                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm font-mono"
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm font-mono text-slack-text sm:col-span-2"
                   />
                   <input
                     type="text"
-                    placeholder="Channel name (optional)"
+                    placeholder="Display label (optional)"
                     value={slackBindingForm.slackChannelName}
                     onChange={(e) =>
                       setSlackBindingForm((prev) => ({
@@ -2002,18 +2232,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         slackChannelName: e.target.value,
                       }))
                     }
-                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm"
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
                   />
                   <select
                     value={slackBindingForm.agentId}
                     onChange={(e) =>
                       setSlackBindingForm((prev) => ({ ...prev, agentId: e.target.value }))
                     }
-                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm sm:col-span-2"
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
                   >
-                    <option value="">Select primary agent…</option>
+                    <option value="" className="bg-slack-bg text-slack-text">
+                      Select primary agent…
+                    </option>
                     {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
+                      <option key={a.id} value={a.id} className="bg-slack-bg text-slack-text">
                         {a.name} ({a.type})
                       </option>
                     ))}
@@ -2026,29 +2258,35 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         policy: e.target.value as SlackPolicy,
                       }))
                     }
-                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm"
+                    className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text"
                   >
-                    <option value="mention_only">Mention only</option>
-                    <option value="questions">Questions</option>
-                    <option value="always">Always</option>
+                    <option value="mention_only" className="bg-slack-bg text-slack-text">
+                      Mention only
+                    </option>
+                    <option value="questions" className="bg-slack-bg text-slack-text">
+                      Questions
+                    </option>
+                    <option value="always" className="bg-slack-bg text-slack-text">
+                      Always
+                    </option>
                   </select>
                   <button
                     type="button"
                     onClick={() => void saveSlackBinding()}
                     disabled={slackBusy}
-                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50 sm:col-span-2"
                   >
                     Add / update binding
                   </button>
                 </div>
                 {slackBindings.length > 0 ? (
-                  <ul className="space-y-2 text-sm">
+                  <ul className="space-y-2 text-sm text-slack-text">
                     {slackBindings.map((b) => (
                       <li
                         key={b.slack_channel_id}
                         className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
                       >
-                        <span className="truncate">
+                        <span className="truncate text-slack-text">
                           {b.slack_channel_name ? `#${b.slack_channel_name}` : b.slack_channel_id} →{' '}
                           {b.agent_name || b.agent_id} ({b.policy})
                         </span>

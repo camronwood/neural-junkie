@@ -176,6 +176,7 @@ HTTP + WebSocket server. Key endpoints:
 **Channels & Messages:**
 - `GET /api/channels`, `POST /api/channels/create`, `POST /api/channels/join`
 - `GET /api/messages`, `POST /api/send`
+- `POST /api/channels/:channel/interject` -- Stop agents on a channel (hold until human message)
 
 **Agents:**
 - `GET /api/agents`, `POST /api/agents`
@@ -216,6 +217,7 @@ Tauri (Rust) + React (TypeScript) + Tailwind CSS.
 - `PendingChangesPanel` -- File change proposals with diff preview
 - `MentionAutocomplete` -- @mention agent picker
 - `MessageContent` -- Markdown rendering with Mermaid diagram support
+- `TypingIndicator` -- Agent activity bar with **Stop** (channel interject): cancels streaming, holds auto-replies until the user sends a message (`POST /api/channels/:channel/interject`)
 
 **State Management:** Zustand stores (`chatStore`, `settingsStore`, `editorStore`, `fileExplorerStore`, `terminalStore`, `fileChangeStore`)
 

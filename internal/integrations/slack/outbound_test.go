@@ -39,6 +39,34 @@ func TestShouldPostToSlack(t *testing.T) {
 	if ShouldPostToSlack(system, b) {
 		t.Fatal("expected system message skipped")
 	}
+	human := protocol.NewMessage(protocol.MessageTypeChat, "slack:C1", protocol.AgentInfo{
+		ID:   "human-camron",
+		Name: "Camron Wood",
+		Type: "human",
+	}, "reply from NJ")
+	if !ShouldPostToSlack(human, b) {
+		t.Fatal("expected NJ human chat to post")
+	}
+	slackEcho := protocol.NewMessage(protocol.MessageTypeChat, "slack:C1", protocol.AgentInfo{
+		ID:   "slack:U1",
+		Name: "Camron Wood",
+		Type: protocol.AgentTypeGeneral,
+	}, "from slack")
+	if ShouldPostToSlack(slackEcho, b) {
+		t.Fatal("expected slack identity echo skipped")
+	}
+}
+
+func TestOutboundSlackUsername(t *testing.T) {
+	b := &Binding{AgentID: "agent-1"}
+	agent := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:C1", protocol.AgentInfo{ID: "agent-1", Name: "Assistant"}, "hi")
+	if got := OutboundSlackUsername(agent, b, "Neural Junkie"); got != "Assistant" {
+		t.Fatalf("agent username: %q", got)
+	}
+	human := protocol.NewMessage(protocol.MessageTypeChat, "slack:C1", protocol.AgentInfo{ID: "human-c", Name: "Camron Wood", Type: "human"}, "hi")
+	if got := OutboundSlackUsername(human, b, "Neural Junkie"); got != "Camron Wood" {
+		t.Fatalf("human username: %q", got)
+	}
 }
 
 func TestFormatSlackText(t *testing.T) {
@@ -79,5 +107,25 @@ func TestThreadTSForOutbound(t *testing.T) {
 	noThread := &Binding{ReplyInThread: false}
 	if got := ThreadTSForOutbound(msg, threads, noThread); got != "" {
 		t.Fatalf("expected empty when reply_in_thread false, got %q", got)
+	}
+	threads.njMessageTS = map[string]string{"parent-msg": "5555.0001"}
+	reply := protocol.NewMessage(protocol.MessageTypeChat, "slack:C1", protocol.AgentInfo{ID: "human-x", Name: "Camron", Type: "human"}, "reply")
+	reply.ReplyTo = "parent-msg"
+	bReply := &Binding{ReplyInThread: false}
+	if got := ThreadTSForOutbound(reply, threads, bReply); got != "5555.0001" {
+		t.Fatalf("reply_to thread ts: got %q", got)
+	}
+}
+
+func TestThreadTSForOutboundChannelParent(t *testing.T) {
+	threads := &ThreadMap{
+		channelParent: map[string]string{"C0B5": "1716384000.000100"},
+	}
+	b := &Binding{SlackChannelID: "C0B5", ReplyInThread: true}
+	human := protocol.NewMessage(protocol.MessageTypeChat, "slack:C0B5", protocol.AgentInfo{
+		ID: "camron", Name: "Camron", Type: "human",
+	}, "from NJ")
+	if got := ThreadTSForOutbound(human, threads, b); got != "1716384000.000100" {
+		t.Fatalf("channel parent thread ts: got %q", got)
 	}
 }

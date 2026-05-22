@@ -140,6 +140,7 @@ func (hubStub) GetCommandHandler() CommandHandlerInterface            { return n
 func (hubStub) GetAgentChannels(string) []string                      { return nil }
 func (hubStub) GetChannelType(string) protocol.ChannelType            { return protocol.ChannelTypePublic }
 func (hubStub) GetChannelSessionSummary(string) string                { return "" }
+func (hubStub) IsChannelHeld(string) bool                               { return false }
 func (hubStub) ImageGenerationEnabled() bool                          { return false }
 func (hubStub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil

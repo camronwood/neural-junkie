@@ -80,6 +80,13 @@ const (
 	ThinkingStatusStarted   ThinkingStatus = "started"
 	ThinkingStatusCompleted ThinkingStatus = "completed"
 	ThinkingStatusError     ThinkingStatus = "error"
+	ThinkingStatusAborted   ThinkingStatus = "aborted"
+)
+
+// Channel control metadata keys (agent_status broadcasts).
+const (
+	MetadataChannelHold         = "channel_hold"
+	MetadataChannelInterjectAbort = "channel_interject_abort"
 )
 
 // Message represents a message in the chat room

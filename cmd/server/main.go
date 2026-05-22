@@ -28,6 +28,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
+	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/mcp"
@@ -53,6 +54,8 @@ var (
 	ollamaMgr           *ollamaManager.Manager
 	globalProviderCache *ai.ProviderCache
 	apiRateLimiter      = hub.NewRateLimiter()
+	slackBridgeCtx      context.Context
+	stopSlackBridgeCtx  context.CancelFunc
 )
 
 // CORS middleware to allow requests from Tauri dev server
@@ -122,7 +125,15 @@ func main() {
 
 	// Resolve bind address (loopback by default; see docs/SECURITY.md)
 	*addr = resolveListenAddr(*addr, appConfig)
-
+	hubListenHost := hubPublicHost(*addr)
+	slackint.SetHubPublicBaseURL("http://" + hubListenHost)
+	if slackint.SeedBundledAppToken(&appConfig.Slack) {
+		if err := appConfig.Save(); err != nil {
+			log.Printf("[slack] save bundled app token: %v", err)
+		} else {
+			log.Println("[slack] seeded Socket Mode app token from bundled credentials")
+		}
+	}
 	chatHub = hub.NewHub()
 	chatHub.SetCollaborationAssetsRootResolver(func() string {
 		return config.CollabAssetsRoot(appConfig)
@@ -191,7 +202,7 @@ func main() {
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
 
-	slackBridgeCtx, stopSlackBridgeCtx := context.WithCancel(context.Background())
+	slackBridgeCtx, stopSlackBridgeCtx = context.WithCancel(context.Background())
 	defer stopSlackBridgeCtx()
 
 	if sessionRestored {
@@ -212,6 +223,7 @@ func main() {
 	http.HandleFunc("/api/channels/delete", corsMiddleware(localOnly(handleDeleteChannel)))
 	http.HandleFunc("/api/channels/clear-history", corsMiddleware(localOnly(handleClearChannelHistory)))
 	http.HandleFunc("/api/channels/agents", corsMiddleware(handleChannelAgentsManage))
+	http.HandleFunc("/api/channels/", corsMiddleware(localOnly(handleChannelInterjectRoute)))
 	http.HandleFunc("/api/agent-channels", corsMiddleware(handleAgentChannels))
 	http.HandleFunc("/api/agents", corsMiddleware(handleAgentsRoute))
 	http.HandleFunc("/api/agent-tools", corsMiddleware(handleAgentTools))
@@ -329,6 +341,7 @@ func main() {
 	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
 
 	http.HandleFunc("/api/slack/status", corsMiddleware(handleSlackStatus))
+	http.HandleFunc("/api/slack/connection", corsMiddleware(handleSlackConnection))
 	http.HandleFunc("/api/slack/config", corsMiddleware(handleSlackConfig))
 	http.HandleFunc("/api/slack/bindings", corsMiddleware(handleSlackBindings))
 	http.HandleFunc("/api/slack/test-post", corsMiddleware(handleSlackTestPost))
@@ -336,6 +349,8 @@ func main() {
 	http.HandleFunc("/api/slack/oauth/callback", corsMiddleware(handleSlackOAuthCallback))
 	http.HandleFunc("/api/slack/disconnect", corsMiddleware(handleSlackDisconnect))
 	http.HandleFunc("/api/slack/restart", corsMiddleware(handleSlackRestart))
+	http.HandleFunc("/api/slack/channels", corsMiddleware(handleSlackChannels))
+	http.HandleFunc("/api/slack/diagnose", corsMiddleware(handleSlackDiagnose))
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))

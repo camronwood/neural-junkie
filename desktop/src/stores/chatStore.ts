@@ -59,6 +59,9 @@ export interface ChatState {
   
   // Streaming messages (in-flight token-by-token responses)
   streamingMessages: Record<string, Message>;
+
+  /** User Stop / interject — agents paused until next human message. */
+  channelHeld: Map<string, boolean>;
   
   // Actions
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -111,6 +114,9 @@ export interface ChatState {
   // Streaming actions
   appendStreamDelta: (msg: Message) => void;
   finalizeStream: (streamId: string) => void;
+  setChannelHold: (channelName: string, held: boolean) => void;
+  isChannelHeld: (channelName: string) => boolean;
+  stopAllStreamsForChannel: (channelName: string) => void;
   
   // Provider switching actions
   switchAgentProvider: (agentId: string, provider: string, model: string) => Promise<void>;
@@ -160,6 +166,7 @@ const initialState = {
   removedAgents: [],
   loadingAgents: new Set<string>(),
   streamingMessages: {} as Record<string, Message>,
+  channelHeld: new Map<string, boolean>(),
 };
 
 export const useChatStore = create<ChatState>((set, get) => {
@@ -555,6 +562,29 @@ export const useChatStore = create<ChatState>((set, get) => {
     scheduleStreamFlush();
   },
 
+  setChannelHold: (channelName, held) =>
+    set((state) => {
+      const next = new Map(state.channelHeld);
+      if (held) {
+        next.set(channelName, true);
+      } else {
+        next.delete(channelName);
+      }
+      return { channelHeld: next };
+    }),
+
+  isChannelHeld: (channelName) => get().channelHeld.get(channelName) === true,
+
+  stopAllStreamsForChannel: (channelName) => {
+    const { streamingMessages, channel: activeChannel, finalizeStream: fin } = get();
+    for (const [id, msg] of Object.entries(streamingMessages)) {
+      const ch = msg.channel || activeChannel;
+      if (ch === channelName) {
+        fin(id);
+      }
+    }
+  },
+
   finalizeStream: (streamId) => {
     if (streamFlushRaf.current !== 0) {
       if (typeof cancelAnimationFrame !== 'undefined') {
@@ -651,6 +681,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       channelMessages: new Map<string, Message[]>(),
       unreadChannels: new Set<string>(),
       streamingMessages: {},
+      channelHeld: new Map<string, boolean>(),
     });
   },
   
@@ -664,6 +695,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     channelMessages: new Map<string, Message[]>(),
     unreadChannels: new Set<string>(),
     streamingMessages: {},
+    channelHeld: new Map<string, boolean>(),
   });
   },
 };

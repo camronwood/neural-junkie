@@ -12,7 +12,8 @@ type InboundInput struct {
 	WorkspaceID    string
 	ChannelID      string
 	UserID         string
-	UserName       string
+	UserName       string // NJ display label (resolved from Slack profile)
+	SlackUsername  string // workspace @handle without @
 	Text           string
 	SlackTS        string
 	ThreadTS       string
@@ -104,19 +105,31 @@ func BuildHubMessage(in InboundInput, b *Binding, threads *ThreadMap, botUserID 
 	msg.Metadata["slack_channel_id"] = in.ChannelID
 	msg.Metadata["slack_ts"] = in.SlackTS
 	msg.Metadata["slack_user_id"] = in.UserID
+	if in.UserName != "" {
+		msg.Metadata[protocol.SlackMetaUserDisplayName] = in.UserName
+	}
+	if in.SlackUsername != "" {
+		msg.Metadata[protocol.SlackMetaUsername] = in.SlackUsername
+	}
 	if in.ThreadTS != "" {
 		msg.Metadata["slack_thread_ts"] = in.ThreadTS
 	}
 
-	if ShouldMentionAgent(in, b, botUserID) {
+	// Route to the bound agent (policy: always / questions / @bot) without filling
+	// msg.Mentions — that field is for real @mentions in the NJ UI.
+	if ShouldRouteToAgent(in, b, botUserID) {
+		msg.Metadata[protocol.SlackMetaRouteAgentID] = b.AgentID
+	}
+	if IsSlackAppMention(in, b, botUserID) {
+		msg.Metadata[protocol.SlackMetaAppMention] = true
 		msg.Mentions = []string{b.AgentID}
 	}
 
 	return msg
 }
 
-// ShouldMentionAgent sets explicit agent mention for hub routing.
-func ShouldMentionAgent(in InboundInput, b *Binding, botUserID string) bool {
+// ShouldRouteToAgent decides whether the bound agent should handle this Slack line.
+func ShouldRouteToAgent(in InboundInput, b *Binding, botUserID string) bool {
 	if in.IsAppMention {
 		return true
 	}
@@ -128,6 +141,17 @@ func ShouldMentionAgent(in InboundInput, b *Binding, botUserID string) bool {
 	default:
 		return in.IsAppMention
 	}
+}
+
+// IsSlackAppMention is true when the user @mentioned the Slack app (not policy-only routing).
+func IsSlackAppMention(in InboundInput, b *Binding, botUserID string) bool {
+	if in.IsAppMention {
+		return true
+	}
+	if b != nil && b.Policy == config.SlackPolicyMentionOnly {
+		return botUserID != "" && strings.Contains(in.Text, "<@"+botUserID+">")
+	}
+	return false
 }
 
 // StripBotMention removes leading bot mention from display content.

@@ -22,8 +22,9 @@ func TestOAuthAppSaveLoadPublic(t *testing.T) {
 	if loaded.ClientSecret != "secret" {
 		t.Fatal("secret mismatch")
 	}
-	pub := PublicOAuthFromDir()
-	if !pub.Configured || !pub.SecretSet || pub.ClientID != "cid" {
+	SetHubPublicBaseURL("http://localhost:18765")
+	pub := PublicOAuthFromResolved(nil)
+	if !pub.Configured || !pub.SecretSet || pub.ClientID != "cid" || pub.OAuthSource != string(OAuthSourceUser) {
 		t.Fatalf("%+v", pub)
 	}
 	p, err := oauthAppPath()

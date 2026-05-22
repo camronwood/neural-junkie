@@ -68,6 +68,10 @@ type Agent struct {
 	collabTaskReplyMu sync.Mutex
 	collabTaskReplyAt map[string]time.Time
 
+	// activeGens tracks in-flight generation cancel funcs per channel (interject/stop).
+	activeGenMu sync.Mutex
+	activeGens  map[string]map[string]context.CancelFunc // channel -> genID -> cancel
+
 	// lastDelegationConsulted holds specialist names consulted on the previous turn (for metadata).
 	delegationMu              sync.Mutex
 	lastDelegationConsulted   []string
@@ -101,6 +105,8 @@ type HubClient interface {
 	GetAgentChannels(agentID string) []string
 	GetChannelType(channelName string) protocol.ChannelType
 	GetChannelSessionSummary(channel string) string
+	// IsChannelHeld is true when the user has interjected (agents should not start new turns).
+	IsChannelHeld(channel string) bool
 	// Image generation (hub OpenAI Images API when OPENAI_API_KEY is set).
 	ImageGenerationEnabled() bool
 	GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error
@@ -205,6 +211,7 @@ func NewAgent(agentType protocol.AgentType, name string, expertise []string, aiP
 		msgCh:             make(chan *protocol.Message, 100),
 		respondedMessages: make(map[string]bool),
 		activeChannels:    make(map[string]context.CancelFunc),
+		activeGens:        make(map[string]map[string]context.CancelFunc),
 		WorkspacePath:     os.Getenv("WORKSPACE_PATH"),
 	}
 
@@ -236,6 +243,7 @@ func NewAgentWithProvider(agentType protocol.AgentType, name string, expertise [
 		msgCh:             make(chan *protocol.Message, 100),
 		respondedMessages: make(map[string]bool),
 		activeChannels:    make(map[string]context.CancelFunc),
+		activeGens:        make(map[string]map[string]context.CancelFunc),
 	}
 
 	// Set vision capability in Info
@@ -408,6 +416,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Handle agent status messages for provider/model updates
 	if msg.Type == protocol.MessageTypeAgentStatus {
 		if msg.Metadata != nil {
+			if v, ok := msg.Metadata[protocol.MetadataChannelInterjectAbort].(bool); ok && v && msg.Channel != "" {
+				a.AbortChannel(msg.Channel)
+				return
+			}
+			if _, ok := msg.Metadata[protocol.MetadataChannelHold]; ok && msg.Channel != "" {
+				return
+			}
 			if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
 				if old := a.Context.History[msg.Channel]; len(old) > 0 {
 					for _, m := range old {
@@ -466,6 +481,10 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Add to history first (so we have context for decision)
 	a.addToHistory(msg)
 
+	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
+		return
+	}
+
 	// Decide if we should respond BEFORE marking as responded
 	// This allows other agents to process the message if we don't respond
 	if !a.shouldRespond(msg) {
@@ -496,25 +515,35 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Send thinking status
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusStarted)
 
+	genCtx, genCancel := context.WithCancel(ctx)
+	genID := a.registerGenCancel(msg.Channel, genCancel)
+	defer a.unregisterGenCancel(msg.Channel, genID)
+
 	// Try streaming path first, fall back to batch
 	var response string
 	var streamMsgID string
 	var reasoningText string
 	var err error
 
-	eff := a.EffectiveAIProvider(ctx, msg)
+	eff := a.EffectiveAIProvider(genCtx, msg)
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
 	if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
-		response, streamMsgID, reasoningText, err = a.generateResponseStreaming(ctx, msg, eff)
+		response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff)
 	} else {
 		log.Printf("[%s] 📝 Generating response (batch)...", a.Info.Name)
-		response, err = a.generateResponse(ctx, msg, eff)
+		response, err = a.generateResponse(genCtx, msg, eff)
 	}
 
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			log.Printf("[%s] Generation cancelled (interject)", a.Info.Name)
+			clearResponded()
+			a.sendThinkingStatus(msg, protocol.ThinkingStatusAborted)
+			return
+		}
 		log.Printf("[%s] Error generating response: %v", a.Info.Name, err)
 		clearResponded()
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
@@ -688,6 +717,9 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 	if source == nil || a.Collab == nil || !a.Collab.IsActive(collabID) {
 		return
 	}
+	if a.Hub != nil && a.Hub.IsChannelHeld(source.Channel) {
+		return
+	}
 
 	nextAgentID, err := a.Collab.GetCurrentTurnAgent(collabID)
 	if err != nil || strings.TrimSpace(nextAgentID) == "" || nextAgentID == a.Info.ID {
@@ -767,6 +799,59 @@ func collaborationWorkingDirectoryForMessage(a *Agent, msg *protocol.Message) st
 	return a.Collab.GetCollaborationWorkingDirectory(cid)
 }
 
+// registerGenCancel tracks a cancellable generation for channel interject.
+func (a *Agent) registerGenCancel(channel string, cancel context.CancelFunc) string {
+	genID := uuid.New().String()
+	a.activeGenMu.Lock()
+	defer a.activeGenMu.Unlock()
+	if a.activeGens == nil {
+		a.activeGens = make(map[string]map[string]context.CancelFunc)
+	}
+	if a.activeGens[channel] == nil {
+		a.activeGens[channel] = make(map[string]context.CancelFunc)
+	}
+	a.activeGens[channel][genID] = cancel
+	return genID
+}
+
+func (a *Agent) unregisterGenCancel(channel, genID string) {
+	a.activeGenMu.Lock()
+	defer a.activeGenMu.Unlock()
+	if chGens, ok := a.activeGens[channel]; ok {
+		delete(chGens, genID)
+		if len(chGens) == 0 {
+			delete(a.activeGens, channel)
+		}
+	}
+}
+
+// RegisterGenCancelForTest registers an active generation cancel func (tests only).
+func RegisterGenCancelForTest(a *Agent, channel string, cancel context.CancelFunc) string {
+	return a.registerGenCancel(channel, cancel)
+}
+
+// ActiveGenCount returns the number of in-flight generations on a channel (tests only).
+func ActiveGenCountForTest(a *Agent, channel string) int {
+	a.activeGenMu.Lock()
+	defer a.activeGenMu.Unlock()
+	return len(a.activeGens[channel])
+}
+
+// AbortChannel cancels all in-flight generations on a channel (user Stop / interject).
+func (a *Agent) AbortChannel(channel string) {
+	a.activeGenMu.Lock()
+	chGens := a.activeGens[channel]
+	cancels := make([]context.CancelFunc, 0, len(chGens))
+	for _, c := range chGens {
+		cancels = append(cancels, c)
+	}
+	delete(a.activeGens, channel)
+	a.activeGenMu.Unlock()
+	for _, c := range cancels {
+		c()
+	}
+}
+
 // sendThinkingStatus sends an agent_status message indicating thinking state
 func (a *Agent) sendThinkingStatus(originalMsg *protocol.Message, status protocol.ThinkingStatus) {
 	statusMsg := protocol.NewMessage(
@@ -775,6 +860,9 @@ func (a *Agent) sendThinkingStatus(originalMsg *protocol.Message, status protoco
 		a.Info,
 		"", // Empty content for status messages
 	)
+	if statusMsg.Metadata == nil {
+		statusMsg.Metadata = make(map[string]interface{})
+	}
 	statusMsg.Metadata["thinking_status"] = string(status)
 	statusMsg.Metadata["question_id"] = originalMsg.ID
 
@@ -866,6 +954,14 @@ func (a *Agent) collabTaskRateLimitOK(collabID, taskID string) bool {
 
 // shouldRespond determines if the agent should respond to a message
 func (a *Agent) shouldRespond(msg *protocol.Message) bool {
+	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
+		return false
+	}
+	// Slack bridge policy routing (e.g. always → Assistant on every line).
+	if routed := msg.SlackRoutedAgentID(); routed != "" {
+		return routed == a.Info.ID
+	}
+
 	// Never respond to commands - let the command handler process them
 	if len(msg.Content) > 0 && msg.Content[0] == '/' {
 		return false
@@ -1535,7 +1631,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if mp, ok := eff.(ai.MultimodalProvider); ok {
 			tokenCh, err := mp.GenerateMultimodalStream(approvalCtx, prompt, imgs, historyToMessages(history))
 			if err == nil {
-				return a.collectStreamTokens(msg, streamMsgID, tokenCh)
+				return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 			}
 			log.Printf("[%s] Multimodal stream failed (%v), falling back to batch multimodal", a.Info.Name, err)
 			text, err := mp.GenerateMultimodal(approvalCtx, prompt, imgs, historyToMessages(history))
@@ -1559,7 +1655,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		tokenCh <- ai.StreamToken{Content: text}
 		tokenCh <- ai.StreamToken{Done: true}
 		close(tokenCh)
-		return a.collectStreamTokens(msg, streamMsgID, tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
 
 	sp, ok := eff.(ai.StreamingProvider)
@@ -1588,7 +1684,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if err != nil {
 			return "", "", "", err
 		}
-		text, id, reasoning, err := a.collectStreamTokens(msg, streamMsgID, tokenCh)
+		text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 		if err != nil {
 			lastErr = err
 			if errors.Is(err, ai.ErrOllamaNoContent) && attempt+1 < maxAttempts {
@@ -1611,7 +1707,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 				fbPrompt := a.buildCompactOllamaPrompt(msg)
 				tokenCh, err := fbSP.GenerateResponseStream(approvalCtx, fbPrompt, nil)
 				if err == nil {
-					text, id, reasoning, err := a.collectStreamTokens(msg, streamMsgID, tokenCh)
+					text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 					if err == nil && strings.TrimSpace(text) != "" && !looksLikeOllamaPromptLeak(text) {
 						return text, id, reasoning, nil
 					}
@@ -1630,62 +1726,86 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 }
 
 // collectStreamTokens drains a stream channel, broadcasts deltas, emits stream_end, and returns full text.
-func (a *Agent) collectStreamTokens(msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken) (string, string, string, error) {
+func (a *Agent) collectStreamTokens(ctx context.Context, msg *protocol.Message, streamMsgID string, tokenCh <-chan ai.StreamToken) (string, string, string, error) {
 	var fullResponse strings.Builder
 	var fullReasoning strings.Builder
 	var streamErr error
-	for token := range tokenCh {
-		if token.Error != nil {
-			if fullResponse.Len() > 0 || fullReasoning.Len() > 0 {
-				streamErr = token.Error
-				break
-			}
-			return "", "", "", token.Error
-		}
-		if token.Thinking != "" {
-			fullReasoning.WriteString(token.Thinking)
-			delta := protocol.NewMessage(
-				protocol.MessageTypeStreamDelta,
-				msg.Channel,
-				a.Info,
-				"",
-			)
-			delta.ID = streamMsgID
-			delta.ReplyTo = msg.ID
-			if delta.Metadata == nil {
-				delta.Metadata = make(map[string]interface{})
-			}
-			delta.Metadata["reasoning_delta"] = true
-			delta.Metadata["reasoning_append"] = token.Thinking
-			if msg.IsInThread() {
-				delta.ThreadID = msg.ThreadID
-				delta.IsThreadReply = true
-			}
-			a.Hub.BroadcastDirect(msg.Channel, delta)
-		}
-		if token.Content != "" {
-			fullResponse.WriteString(token.Content)
 
-			delta := protocol.NewMessage(
-				protocol.MessageTypeStreamDelta,
-				msg.Channel,
-				a.Info,
-				token.Content,
-			)
-			delta.ID = streamMsgID
-			delta.ReplyTo = msg.ID
-			if msg.IsInThread() {
-				delta.ThreadID = msg.ThreadID
-				delta.IsThreadReply = true
+	for {
+		select {
+		case <-ctx.Done():
+			streamErr = ctx.Err()
+			goto finishStream
+		case token, ok := <-tokenCh:
+			if !ok {
+				goto finishStream
 			}
-			a.Hub.BroadcastDirect(msg.Channel, delta)
-		}
-		if token.Done {
-			break
+			if token.Error != nil {
+				if fullResponse.Len() > 0 || fullReasoning.Len() > 0 {
+					streamErr = token.Error
+					goto finishStream
+				}
+				return "", "", "", token.Error
+			}
+			if token.Thinking != "" {
+				fullReasoning.WriteString(token.Thinking)
+				delta := protocol.NewMessage(
+					protocol.MessageTypeStreamDelta,
+					msg.Channel,
+					a.Info,
+					"",
+				)
+				delta.ID = streamMsgID
+				delta.ReplyTo = msg.ID
+				if delta.Metadata == nil {
+					delta.Metadata = make(map[string]interface{})
+				}
+				delta.Metadata["reasoning_delta"] = true
+				delta.Metadata["reasoning_append"] = token.Thinking
+				if msg.IsInThread() {
+					delta.ThreadID = msg.ThreadID
+					delta.IsThreadReply = true
+				}
+				a.Hub.BroadcastDirect(msg.Channel, delta)
+			}
+			if token.Content != "" {
+				fullResponse.WriteString(token.Content)
+				delta := protocol.NewMessage(
+					protocol.MessageTypeStreamDelta,
+					msg.Channel,
+					a.Info,
+					token.Content,
+				)
+				delta.ID = streamMsgID
+				delta.ReplyTo = msg.ID
+				if msg.IsInThread() {
+					delta.ThreadID = msg.ThreadID
+					delta.IsThreadReply = true
+				}
+				a.Hub.BroadcastDirect(msg.Channel, delta)
+			}
+			if token.Done {
+				goto finishStream
+			}
 		}
 	}
 
+finishStream:
 	if streamErr != nil {
+		if errors.Is(streamErr, context.Canceled) {
+			if fullResponse.Len() > 0 {
+				fullResponse.WriteString("\n\n[stopped]")
+			}
+			endMsg := protocol.NewMessage(protocol.MessageTypeStreamEnd, msg.Channel, a.Info, "")
+			endMsg.ID = streamMsgID
+			endMsg.ReplyTo = msg.ID
+			if msg.IsInThread() {
+				endMsg.ThreadID = msg.ThreadID
+				endMsg.IsThreadReply = true
+			}
+			a.Hub.BroadcastDirect(msg.Channel, endMsg)
+			return "", "", "", context.Canceled
+		}
 		log.Printf("[%s] Stream error with partial content (%d bytes): %v", a.Info.Name, fullResponse.Len(), streamErr)
 		fullResponse.WriteString("\n\n[")
 		fullResponse.WriteString(truncationLabelForError(streamErr))

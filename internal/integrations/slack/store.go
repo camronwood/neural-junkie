@@ -89,22 +89,74 @@ func SaveOAuthApp(c *OAuthAppCredentials) error {
 
 // PublicOAuthConfig is returned to the desktop (no secret).
 type PublicOAuthConfig struct {
-	ClientID    string `json:"client_id"`
-	RedirectURL string `json:"redirect_url"`
-	SecretSet   bool   `json:"secret_set"`
-	Configured  bool   `json:"configured"`
+	ClientID     string `json:"client_id"`
+	RedirectURL  string `json:"redirect_url"`
+	SecretSet    bool   `json:"secret_set"`
+	Configured   bool   `json:"configured"`
+	ConnectReady bool   `json:"connect_ready"`
+	OAuthSource  string `json:"oauth_source,omitempty"`
 }
 
-// PublicOAuthFromDir builds API-safe OAuth config.
-func PublicOAuthFromDir() PublicOAuthConfig {
-	c, _ := LoadOAuthApp()
-	if c == nil || c.ClientID == "" {
-		return PublicOAuthConfig{}
+// SlackInstallMetadata is persisted after OAuth (non-secret workspace info).
+type SlackInstallMetadata struct {
+	TeamID    string `json:"team_id,omitempty"`
+	TeamName  string `json:"team_name,omitempty"`
+	BotUserID string `json:"bot_user_id,omitempty"`
+}
+
+func installPath() (string, error) {
+	dir, err := BaseDir()
+	if err != nil {
+		return "", err
 	}
-	return PublicOAuthConfig{
-		ClientID:    c.ClientID,
-		RedirectURL: c.RedirectURL,
-		SecretSet:   c.ClientSecret != "",
-		Configured:  true,
+	return filepath.Join(dir, "install.json"), nil
+}
+
+// LoadSlackInstall reads workspace metadata from a prior OAuth install.
+func LoadSlackInstall() (*SlackInstallMetadata, error) {
+	p, err := installPath()
+	if err != nil {
+		return nil, err
 	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var m SlackInstallMetadata
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// SaveSlackInstall persists workspace metadata after OAuth.
+func SaveSlackInstall(m *SlackInstallMetadata) error {
+	if m == nil {
+		return fmt.Errorf("nil install metadata")
+	}
+	p, err := installPath()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(p, data, 0600)
+}
+
+// ClearSlackInstall removes install metadata on disconnect.
+func ClearSlackInstall() error {
+	p, err := installPath()
+	if err != nil {
+		return err
+	}
+	err = os.Remove(p)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }

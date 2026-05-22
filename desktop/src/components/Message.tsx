@@ -147,6 +147,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
   const suggestsFileChange = shouldShowProposeAction(message);
   const canShowProposeButton = suggestsFileChange && !isStreaming;
   const reasoningText = getReasoningText(message.metadata as Record<string, unknown> | undefined);
+  const senderName = slackSenderDisplayName(message);
 
   // Parse command output from metadata if present
   let commandOutput: CommandOutputType | null = null;
@@ -249,7 +250,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
           className="font-semibold"
           style={{ color: isSystem ? undefined : agentColor }}
         >
-          {message.from.name}
+          {senderName}
         </span>
         {message.from.type && (
           <span className="text-xs px-2 py-0.5 rounded bg-slack-bgHover text-slack-textMuted">
@@ -270,6 +271,14 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
             title={canRetry ? 'The operation can usually be retried.' : 'The operation likely needs configuration changes.'}
           >
             error: {errorMeta.error_code}
+          </span>
+        )}
+        {message.metadata?.slack_app_mention === true && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-purple-500/15 text-purple-400"
+            title="This line @mentioned the Slack app"
+          >
+            Slack @mention
           </span>
         )}
         {message.metadata?.workspace_context && (
@@ -363,6 +372,21 @@ export const Message = memo(MessageImpl, (prev, next) => {
     prev.onOpenThread === next.onOpenThread
   );
 });
+
+function slackSenderDisplayName(message: MessageType): string {
+  const meta = message.metadata as Record<string, unknown> | undefined;
+  const fromName = message.from?.name?.trim() ?? '';
+  const slackLabel =
+    typeof meta?.slack_user_display_name === 'string'
+      ? meta.slack_user_display_name.trim()
+      : '';
+  if (slackLabel) return slackLabel;
+  if (fromName && fromName !== 'Slack User') return fromName;
+  const handle =
+    typeof meta?.slack_username === 'string' ? meta.slack_username.trim() : '';
+  if (handle) return `@${handle}`;
+  return fromName || 'Slack User';
+}
 
 function shouldShowProposeAction(message: MessageType): boolean {
   if (message.type !== 'chat') return false;
