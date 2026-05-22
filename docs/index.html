@@ -79,71 +79,15 @@
       <div class="wrap">
         <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-05-22">v1.0.0-beta.16</time></p>
         <nav class="flagship-jump" aria-label="Jump to flagship features">
-          <a href="#domain-packs">📦 Domain packs</a>
           <a href="#slack-connect">⎘ Slack Connect</a>
           <a href="#multi-agent-collaboration">🤝 Collaboration</a>
           <a href="#model-app-store">🛍 Model App Store</a>
+          <a href="#domain-packs">📦 Domain packs</a>
         </nav>
       </div>
     </div>
 
-    <section class="feature-spotlight" id="domain-packs" aria-labelledby="domain-packs-heading">
-      <div class="wrap feature-spotlight-inner">
-        <div class="feature-spotlight-copy">
-          <p class="feature-spotlight-kicker">Domain packs</p>
-          <h2 id="domain-packs-heading">One pack at a time — engineering or life sciences</h2>
-          <p class="feature-spotlight-lead">
-            Turn on a <strong>domain pack</strong> in Settings to load the right specialists, models, and tools. Only <strong>Software development</strong> or <strong>Life sciences</strong> can be active — the hub migrates cleanly if both were on. Chat and orchestration stay primary; packs add depth without forcing a new layout.
-          </p>
-          <div class="packs-grid" role="list">
-            <article class="pack-card pack-card--dev" role="listitem">
-              <h3 class="pack-card-title">Software development</h3>
-              <p class="pack-card-blurb">Six engineering specialists (Go, React, DevOps, SQL, security, Rust), dev MCP tools, and <strong>IDE v2</strong> when the pack is on.</p>
-              <ul class="feature-list feature-list--tight">
-                <li><strong>Git SCM</strong> — stage, unstage, diff viewer, commit from the app.</li>
-                <li><strong>⌘P / ⌘⇧O</strong> — quick open files and jump to symbols.</li>
-                <li><strong>Problems + ⌘K</strong> — TS/JS diagnostics; fast edit with inline hunks.</li>
-              </ul>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Dev pack guide</a>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V2.md">IDE v2</a>
-            </article>
-            <article class="pack-card pack-card--bio" role="listitem">
-              <h3 class="pack-card-title">Life sciences</h3>
-              <p class="pack-card-blurb"><strong>BiologyExpert</strong>, OpenBioLLM, sequence tools, protein folding, and scan-summary QC for plate readers.</p>
-              <ul class="feature-list feature-list--tight">
-                <li><strong>Bio MCP</strong> — <code>analyze_sequence</code>, <code>fold_protein</code>, runbooks.</li>
-                <li><strong>Scan summary viewer</strong> — well TIFF preview from <code>imageMetadata.json</code>.</li>
-                <li><strong>Models</strong> — OpenBioLLM 8B + tool runner wired on enable.</li>
-              </ul>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences guide</a>
-            </article>
-          </div>
-          <p class="packs-exclusive"><strong>Exclusive:</strong> enable one pack in <strong>Settings → Domain packs</strong>. Moderator, Assistant, and CLI agents stay available either way.</p>
-        </div>
-        <figure class="feature-spotlight-visual">
-          <div class="spotlight-art spotlight-art--packs" role="img" aria-label="Two domain pack tiles: Software development and Life sciences, one active at a time">
-            <div class="spotlight-art__packs">
-              <div class="spotlight-art__pack spotlight-art__pack--on">
-                <span class="spotlight-art__pack-label">Software dev</span>
-                <span class="spotlight-art__pack-line"></span>
-                <span class="spotlight-art__pack-line spotlight-art__pack-line--short"></span>
-                <span class="spotlight-art__pack-tag">IDE · Git · ⌘K</span>
-              </div>
-              <span class="spotlight-art__pack-or" aria-hidden="true">or</span>
-              <div class="spotlight-art__pack">
-                <span class="spotlight-art__pack-label">Life sciences</span>
-                <span class="spotlight-art__pack-line"></span>
-                <span class="spotlight-art__pack-line spotlight-art__pack-line--short"></span>
-                <span class="spotlight-art__pack-tag">Bio · Scan QC</span>
-              </div>
-            </div>
-          </div>
-          <figcaption>Pick the pack that matches your work — specialists and tools follow.</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section class="feature-spotlight feature-spotlight--alt" id="slack-connect" aria-labelledby="slack-connect-heading">
+    <section class="feature-spotlight" id="slack-connect" aria-labelledby="slack-connect-heading">
       <div class="wrap feature-spotlight-inner">
         <div class="feature-spotlight-copy">
           <p class="feature-spotlight-kicker">Slack integration</p>
@@ -273,10 +217,66 @@
       </div>
     </section>
 
+    <section class="feature-spotlight feature-spotlight--alt feature-spotlight--reverse" id="domain-packs" aria-labelledby="domain-packs-heading">
+      <div class="wrap feature-spotlight-inner">
+        <div class="feature-spotlight-copy">
+          <p class="feature-spotlight-kicker">Domain packs</p>
+          <h2 id="domain-packs-heading">One pack at a time — engineering or life sciences</h2>
+          <p class="feature-spotlight-lead">
+            Turn on a <strong>domain pack</strong> in Settings to load the right specialists, models, and tools. Only <strong>Software development</strong> or <strong>Life sciences</strong> can be active — the hub migrates cleanly if both were on. Chat and orchestration stay primary; packs add depth without forcing a new layout.
+          </p>
+          <div class="packs-grid" role="list">
+            <article class="pack-card pack-card--dev" role="listitem">
+              <h3 class="pack-card-title">Software development</h3>
+              <p class="pack-card-blurb">Six engineering specialists (Go, React, DevOps, SQL, security, Rust), dev MCP tools, and <strong>IDE v2</strong> when the pack is on.</p>
+              <ul class="feature-list feature-list--tight">
+                <li><strong>Git SCM</strong> — stage, unstage, diff viewer, commit from the app.</li>
+                <li><strong>⌘P / ⌘⇧O</strong> — quick open files and jump to symbols.</li>
+                <li><strong>Problems + ⌘K</strong> — TS/JS diagnostics; fast edit with inline hunks.</li>
+              </ul>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Dev pack guide</a>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V2.md">IDE v2</a>
+            </article>
+            <article class="pack-card pack-card--bio" role="listitem">
+              <h3 class="pack-card-title">Life sciences</h3>
+              <p class="pack-card-blurb"><strong>BiologyExpert</strong>, OpenBioLLM, sequence tools, protein folding, and scan-summary QC for plate readers.</p>
+              <ul class="feature-list feature-list--tight">
+                <li><strong>Bio MCP</strong> — <code>analyze_sequence</code>, <code>fold_protein</code>, runbooks.</li>
+                <li><strong>Scan summary viewer</strong> — well TIFF preview from <code>imageMetadata.json</code>.</li>
+                <li><strong>Models</strong> — OpenBioLLM 8B + tool runner wired on enable.</li>
+              </ul>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences guide</a>
+            </article>
+          </div>
+          <p class="packs-exclusive"><strong>Exclusive:</strong> enable one pack in <strong>Settings → Domain packs</strong>. Moderator, Assistant, and CLI agents stay available either way.</p>
+        </div>
+        <figure class="feature-spotlight-visual">
+          <div class="spotlight-art spotlight-art--packs" role="img" aria-label="Two domain pack tiles: Software development and Life sciences, one active at a time">
+            <div class="spotlight-art__packs">
+              <div class="spotlight-art__pack spotlight-art__pack--on">
+                <span class="spotlight-art__pack-label">Software dev</span>
+                <span class="spotlight-art__pack-line"></span>
+                <span class="spotlight-art__pack-line spotlight-art__pack-line--short"></span>
+                <span class="spotlight-art__pack-tag">IDE · Git · ⌘K</span>
+              </div>
+              <span class="spotlight-art__pack-or" aria-hidden="true">or</span>
+              <div class="spotlight-art__pack">
+                <span class="spotlight-art__pack-label">Life sciences</span>
+                <span class="spotlight-art__pack-line"></span>
+                <span class="spotlight-art__pack-line spotlight-art__pack-line--short"></span>
+                <span class="spotlight-art__pack-tag">Bio · Scan QC</span>
+              </div>
+            </div>
+          </div>
+          <figcaption>Pick the pack that matches your work — specialists and tools follow.</figcaption>
+        </figure>
+      </div>
+    </section>
+
     <section class="section-alt" aria-labelledby="capabilities-heading">
       <div class="wrap">
         <h2 id="capabilities-heading">Everything else in the workspace</h2>
-        <p class="section-intro">Beyond <a href="#domain-packs">domain packs</a>, <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and the <a href="#model-app-store">Model App Store</a> — the desktop shell, repo workflow, slash commands, and provider wiring that tie it together.</p>
+        <p class="section-intro">Beyond <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, the <a href="#model-app-store">Model App Store</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, repo workflow, slash commands, and provider wiring that tie it together.</p>
         <div class="grid-3 highlights-grid">
           <article class="card">
             <div class="card-icon" aria-hidden="true">🖥️</div>
