@@ -150,6 +150,8 @@ export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration';
 export interface Channel {
   id: string;
   name: string;
+  /** Human label (e.g. Slack #cursor-test); hub name stays in `name`. */
+  display_name?: string;
   description: string;
   project?: string;
   type: ChannelType;
@@ -397,6 +399,16 @@ export function getAgentColor(type: AgentType): string {
 export function isSystemMessage(type: MessageType): boolean {
   return type === 'system_info' || type === 'agent_join' || type === 'agent_leave' || type === 'command_output'
     || type === 'collaboration_status';
+}
+
+/** Hub channel name for a Slack mirror (e.g. slack:C06SNHFGQ5T). */
+export function isSlackMirrorChannel(channel: string): boolean {
+  return channel.startsWith('slack:');
+}
+
+/** Slack mirrors use reply_in_thread; show those replies in the main timeline, not only ThreadPanel. */
+export function showThreadReplyInMainTimeline(channel: string): boolean {
+  return isSlackMirrorChannel(channel);
 }
 
 // Helper to check if a message is a thinking status message

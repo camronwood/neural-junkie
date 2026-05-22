@@ -6,6 +6,17 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.16] - 2026-05-22
+
+### Added
+- **Domain pack exclusivity** — only Software development or Life sciences can be enabled at a time (hub + Settings); migration clears both-on configs (dev pack wins).
+- **IDE v1 (Software development pack)** — Git modal (status, commit, pull, push), workspace file search API, quick open (⌘P), Monaco selection in agent workspace context.
+- **IDE v2 (Software development pack)** — Git stage/unstage + Monaco diff viewer; go to symbol (⌘⇧O); TS/JS diagnostics + Problems panel; optional `gopls check` for Go; inline file-change hunks; fast edit (⌘K). See [IDE_V2.md](IDE_V2.md).
+- **Marketing** — home page Domain packs section; release notes for beta.16.
+
+### Changed
+- Enabling Software development pack applies a one-time layout nudge (file explorer + editor visible).
+
 ## [1.0.0-beta.15] - 2026-05-22
 
 ### Fixed

@@ -2,6 +2,10 @@
 
 Neural Junkie includes a **Life sciences** setup path with a domain-tuned model and **BiologyExpert** agent.
 
+## One pack at a time
+
+Only **one** domain pack can be enabled: Life sciences **or** Software development (not both). Enable this pack from Settings to use biology specialists and lab tools.
+
 ## What you get
 
 | Piece | Description |

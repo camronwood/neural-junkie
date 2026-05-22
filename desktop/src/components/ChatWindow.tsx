@@ -4,6 +4,13 @@ import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { usePacksStore } from '../stores/packsStore';
+import { GitModal } from './GitPanel';
+import { QuickOpenModal } from './QuickOpenModal';
+import { SymbolModal } from './SymbolModal';
+import { ProblemsPanel } from './ProblemsPanel';
+import { FastEditModal } from './FastEditModal';
+import { useEditorStore } from '../stores/editorStore';
+import { getLanguageFromPath } from '../utils/editorLanguage';
 import { useToastStore } from '../stores/toastStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
@@ -60,6 +67,7 @@ import {
   FilesIcon,
   EditorIcon,
   TerminalIcon,
+  GitIcon,
   ModelLibraryIcon,
   SettingsIcon,
   LogoutIcon,
@@ -78,7 +86,9 @@ import type {
   ThinkingAgent,
   ThinkingStatusMetadata,
 } from '../types/protocol';
-import { isCollaborationMessage, getCollaborationId } from '../types/protocol';
+import { isCollaborationMessage, getCollaborationId, showThreadReplyInMainTimeline } from '../types/protocol';
+import { findThreadParentMessage } from '../utils/slackThread';
+import { isSlackMirrorChannelName, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import {
@@ -87,6 +97,7 @@ import {
   parseCreateRepoAgentCommand,
 } from '../utils/repoAgentWorkspace';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { getHubBaseURL } from '../config/hubUrl';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
@@ -125,7 +136,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const { openThreadId, parentMessage } = useChatStore(
     (s) => ({
       openThreadId: s.openThreadId,
-      parentMessage: s.openThreadId ? s.messages.find((m) => m.id === s.openThreadId) ?? null : null,
+      parentMessage: s.openThreadId ? findThreadParentMessage(s.messages, s.openThreadId) : null,
     }),
     shallow
   );
@@ -166,7 +177,105 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // State for file explorer and code editor panels
   const [fileExplorerOpen, setFileExplorerOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
-  
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
+  const [symbolModalOpen, setSymbolModalOpen] = useState(false);
+  const [fastEditOpen, setFastEditOpen] = useState(false);
+  const [problemsOpen, setProblemsOpen] = useState(false);
+  const [gitModalOpen, setGitModalOpen] = useState(false);
+
+  const devPackEnabled = usePacksStore((s) => s.softwareDevelopmentEnabled());
+  const fetchPacks = usePacksStore((s) => s.fetchPacks);
+  const { activeWorkspaceId, workspaces: explorerWorkspaces } = useFileExplorerStore(
+    (s) => ({ activeWorkspaceId: s.activeWorkspaceId, workspaces: s.workspaces }),
+    shallow
+  );
+  const openFileInEditor = useEditorStore((s) => s.openFile);
+  const revealLineInEditor = useEditorStore((s) => s.revealLine);
+
+  useEffect(() => {
+    void fetchPacks();
+  }, [fetchPacks]);
+
+  const handleQuickOpenPath = useCallback(
+    async (path: string) => {
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      if (!ws) return;
+      try {
+        const api = new ChatAPI(getHubBaseURL());
+        const content = await api.fetchFileContent(ws.id, path);
+        openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
+        setCodeEditorOpen(true);
+        setFileExplorerOpen(true);
+      } catch (e) {
+        addToast({
+          type: 'error',
+          title: 'Open file',
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+    [activeWorkspaceId, explorerWorkspaces, openFileInEditor, addToast]
+  );
+
+  const handleOpenAtLine = useCallback(
+    async (path: string, line: number) => {
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      if (!ws) return;
+      try {
+        const api = new ChatAPI(getHubBaseURL());
+        const content = await api.fetchFileContent(ws.id, path);
+        openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
+        revealLineInEditor(ws.id, path, line);
+        setCodeEditorOpen(true);
+        setFileExplorerOpen(true);
+      } catch (e) {
+        addToast({
+          type: 'error',
+          title: 'Open symbol',
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+    [
+      activeWorkspaceId,
+      explorerWorkspaces,
+      openFileInEditor,
+      revealLineInEditor,
+      addToast,
+    ]
+  );
+
+  useEffect(() => {
+    if (!devPackEnabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmd = isMac ? e.metaKey : e.ctrlKey;
+      const target = e.target as HTMLElement;
+      const inInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true';
+      if (cmd && e.key === 'p' && !e.shiftKey && !inInput) {
+        e.preventDefault();
+        setQuickOpenOpen(true);
+      }
+      if (cmd && e.shiftKey && (e.key === 'o' || e.key === 'O') && !inInput) {
+        e.preventDefault();
+        setSymbolModalOpen(true);
+      }
+      if (cmd && (e.key === 'k' || e.key === 'K') && codeEditorOpen) {
+        e.preventDefault();
+        setFastEditOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [devPackEnabled, codeEditorOpen]);
+
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
 
@@ -814,17 +923,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
       
       // Handle streaming tokens -- accumulate deltas, finalize on stream_end
+      const streamChannel = message.channel || activeChannel;
+      const streamOnMainTimeline =
+        (!message.channel || message.channel === activeChannel) &&
+        (!message.is_thread_reply || showThreadReplyInMainTimeline(streamChannel));
       if (message.type === 'stream_delta') {
-        if (!message.is_thread_reply) {
-          if (!message.channel || message.channel === activeChannel) {
-            st.appendStreamDelta(message);
-          }
+        if (streamOnMainTimeline) {
+          st.appendStreamDelta(message);
         }
         st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
         return;
       }
       if (message.type === 'stream_end') {
-        if (!message.is_thread_reply && (!message.channel || message.channel === activeChannel)) {
+        if (streamOnMainTimeline) {
           st.finalizeStream(message.id);
         }
         return;
@@ -870,12 +981,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         });
       }
 
-      // Handle thread messages - only update metadata, ThreadPanel's WebSocket will add the actual message
+      // Thread replies: NJ channels use ThreadPanel only; Slack mirrors also show in main timeline.
       if (message.is_thread_reply && message.thread_id) {
+        const threadChannel = message.channel || activeChannel;
         void api
           .fetchThreadMetadata(message.thread_id)
           .then(metadata => useChatStore.getState().updateThreadMetadata(message.thread_id!, metadata))
           .catch(error => console.error('Failed to fetch thread metadata:', error));
+        if (showThreadReplyInMainTimeline(threadChannel)) {
+          if (threadChannel === activeChannel) {
+            st.addMessage(message);
+          } else if (message.channel) {
+            st.addMessageToCache(message.channel, message);
+            st.markChannelUnread(message.channel);
+          }
+        }
+        return;
       } else if (message.channel && message.channel !== activeChannel) {
         // Message belongs to a different channel -- cache it and mark unread
         st.addMessageToCache(message.channel, message);
@@ -1344,9 +1465,21 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             return (
               <>
                 <h1 className="text-sm font-bold text-slack-text">
-                  {isDM ? '@ ' : '# '}{isDM && ch?.agents?.[0] ? ch.agents[0].name : channel}
+                  {isDM
+                    ? `@ ${ch?.agents?.[0]?.name ?? channel}`
+                    : ch && isSlackMirrorChannelName(ch.name)
+                      ? slackChannelDisplayName(ch)
+                      : `# ${channel}`}
                 </h1>
-                {ch?.description && (
+                {ch && isSlackMirrorChannelName(ch.name) && (
+                  <span
+                    className="text-xs text-slack-textMuted hidden sm:inline truncate max-w-[200px] font-mono"
+                    title="Hub channel id"
+                  >
+                    {ch.name}
+                  </span>
+                )}
+                {ch?.description && !isSlackMirrorChannelName(ch.name) && (
                   <span className="text-xs text-slack-textMuted hidden sm:inline truncate max-w-[200px]" title={ch.description}>
                     {ch.description}
                   </span>
@@ -1495,6 +1628,35 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           >
             <EditorIcon className="w-3.5 h-3.5" />
           </button>
+
+          {devPackEnabled && (
+            <button
+              type="button"
+              onClick={() => setProblemsOpen(true)}
+              className="w-7 h-7 bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
+              title="Problems"
+              aria-label="Open problems panel"
+            >
+              <span className="text-xs font-bold">!</span>
+            </button>
+          )}
+
+          {devPackEnabled && (
+            <button
+              type="button"
+              onClick={() => setGitModalOpen((open) => !open)}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 ${
+                gitModalOpen
+                  ? 'bg-orange-500 ring-2 ring-orange-300/60 text-white'
+                  : 'bg-orange-600 hover:bg-orange-500 text-white'
+              }`}
+              title="Git (source control)"
+              aria-label={gitModalOpen ? 'Close git panel' : 'Open git panel'}
+              aria-pressed={gitModalOpen}
+            >
+              <GitIcon className="w-3.5 h-3.5" />
+            </button>
+          )}
           
           <button
             type="button"
@@ -1842,6 +2004,43 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         <TerminalPanel height={panelHeight} />
       </div>
       
+      <GitModal isOpen={gitModalOpen && devPackEnabled} onClose={() => setGitModalOpen(false)} />
+
+      <QuickOpenModal
+        isOpen={quickOpenOpen && devPackEnabled}
+        workspaceId={
+          explorerWorkspaces.find((w) => w.id === activeWorkspaceId)?.id ??
+          explorerWorkspaces[0]?.id
+        }
+        onClose={() => setQuickOpenOpen(false)}
+        onOpenPath={handleQuickOpenPath}
+      />
+
+      <SymbolModal
+        isOpen={symbolModalOpen && devPackEnabled}
+        workspaceId={
+          explorerWorkspaces.find((w) => w.id === activeWorkspaceId)?.id ??
+          explorerWorkspaces[0]?.id
+        }
+        onClose={() => setSymbolModalOpen(false)}
+        onOpenSymbol={handleOpenAtLine}
+      />
+
+      <ProblemsPanel
+        isOpen={problemsOpen && devPackEnabled}
+        onClose={() => setProblemsOpen(false)}
+        onOpenAt={handleOpenAtLine}
+      />
+
+      <FastEditModal
+        isOpen={fastEditOpen && devPackEnabled}
+        workspaceId={
+          explorerWorkspaces.find((w) => w.id === activeWorkspaceId)?.id ??
+          explorerWorkspaces[0]?.id
+        }
+        onClose={() => setFastEditOpen(false)}
+      />
+
       {/* Command Palette */}
       <CommandPalette
         commands={commandDefs}

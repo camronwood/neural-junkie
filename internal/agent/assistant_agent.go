@@ -199,6 +199,10 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 		log.Printf("🔍 [Assistant] Detected meeting query, using enriched context")
 		return a.buildMeetingContextPrompt(msg)
 	}
+	if a.detectsEmailQuery(msg) {
+		log.Printf("🔍 [Assistant] Detected email query, using enriched context")
+		return a.buildEmailContextPrompt(msg)
+	}
 
 	var prompt strings.Builder
 
@@ -240,96 +244,13 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 	prompt.WriteString("• Access and summarize meeting notes from previous meetings\n")
 	prompt.WriteString("• Search through meeting content for specific topics\n")
 	prompt.WriteString("• Provide summaries of recent meetings\n")
-	prompt.WriteString("• Answer questions about meeting discussions and decisions\n\n")
+	prompt.WriteString("• Answer questions about meeting discussions and decisions\n")
+	prompt.WriteString("• Full meeting-note and email context is loaded only when the user asks about meetings or email\n\n")
 
 	prompt.WriteString("**Conversation Summarization:**\n")
 	prompt.WriteString("• Summarize long discussions\n")
 	prompt.WriteString("• Extract action items and decisions\n")
 	prompt.WriteString("• Identify key points and next steps\n\n")
-
-	// Add meeting notes context if available
-	if a.storage != nil {
-		log.Printf("🔍 [Assistant] Attempting to load meeting notes from storage...")
-		meetingNotes, err := a.storage.LoadMeetingNotes()
-		log.Printf("🔍 [Assistant] LoadMeetingNotes result: err=%v, count=%d", err, len(meetingNotes))
-		if err == nil && len(meetingNotes) > 0 {
-			log.Printf("🔍 [Assistant] Loading %d meeting notes for prompt context", len(meetingNotes))
-			prompt.WriteString("=== RECENT MEETING NOTES ===\n")
-			prompt.WriteString(fmt.Sprintf("You have access to %d meeting notes:\n", len(meetingNotes)))
-
-			// Sort by date (most recent first)
-			sort.Slice(meetingNotes, func(i, j int) bool {
-				return meetingNotes[i].MeetingDate.After(meetingNotes[j].MeetingDate)
-			})
-
-			// Show the most recent 3 meetings with full content
-			for i, note := range meetingNotes {
-				if i >= 3 { // Limit to 3 most recent for prompt length
-					break
-				}
-				prompt.WriteString(fmt.Sprintf("\n## Meeting %d: %s\n", i+1, note.Title))
-				prompt.WriteString(fmt.Sprintf("**Date:** %s\n", note.MeetingDate.Format("January 2, 2006")))
-				prompt.WriteString(fmt.Sprintf("**Attendees:** %s\n", strings.Join(note.Attendees, ", ")))
-				prompt.WriteString(fmt.Sprintf("**Summary:** %s\n", note.Summary))
-
-				if len(note.ActionItems) > 0 {
-					prompt.WriteString(fmt.Sprintf("**Action Items:** %s\n", strings.Join(note.ActionItems, ", ")))
-				}
-
-				if len(note.Topics) > 0 {
-					prompt.WriteString(fmt.Sprintf("**Topics:** %s\n", strings.Join(note.Topics, ", ")))
-				}
-
-				prompt.WriteString("\n")
-			}
-
-			prompt.WriteString("CRITICAL: When users ask about meetings, you MUST use this information to provide accurate responses.\n")
-			prompt.WriteString("When they ask about 'my last meeting', refer to the most recent meeting by date.\n\n")
-			log.Printf("📝 [Assistant] Added meeting notes context to prompt (length: %d chars)", len(prompt.String()))
-		} else {
-			log.Printf("⚠️  [Assistant] No meeting notes available for prompt context (error: %v, count: %d)", err, len(meetingNotes))
-		}
-
-		// Add recent emails context (last 7 days by default)
-		log.Printf("🔍 [Assistant] Attempting to load recent emails from storage...")
-		recentEmails, err := a.storage.GetRecentEmails(7) // Last 7 days
-		log.Printf("🔍 [Assistant] GetRecentEmails result: err=%v, count=%d", err, len(recentEmails))
-		if err == nil && len(recentEmails) > 0 {
-			log.Printf("📧 [Assistant] Loading %d recent emails for prompt context", len(recentEmails))
-			prompt.WriteString("=== RECENT EMAILS (Last 7 Days) ===\n")
-			prompt.WriteString(fmt.Sprintf("You have access to %d recent emails:\n", len(recentEmails)))
-
-			// Sort by date (most recent first)
-			sort.Slice(recentEmails, func(i, j int) bool {
-				return recentEmails[i].Date.After(recentEmails[j].Date)
-			})
-
-			// Show the most recent 5 emails with basic info
-			for i, email := range recentEmails {
-				if i >= 5 { // Limit to 5 most recent for prompt length
-					break
-				}
-				prompt.WriteString(fmt.Sprintf("\n## Email %d: %s\n", i+1, email.Subject))
-				prompt.WriteString(fmt.Sprintf("**From:** %s\n", email.From))
-				prompt.WriteString(fmt.Sprintf("**Date:** %s\n", email.Date.Format("January 2, 2006 15:04")))
-
-				// Truncate body for context
-				body := email.Body
-				if len(body) > 200 {
-					body = body[:200] + "..."
-				}
-				prompt.WriteString(fmt.Sprintf("**Content:** %s\n", body))
-				prompt.WriteString("\n")
-			}
-
-			prompt.WriteString("CRITICAL: When users ask about emails, you MUST use this information to provide accurate responses.\n")
-			prompt.WriteString("When they ask about 'my recent emails' or 'emails this week', refer to these emails.\n")
-			prompt.WriteString("For older emails, you can search through the full email history on request.\n\n")
-			log.Printf("📧 [Assistant] Added email context to prompt (length: %d chars)", len(prompt.String()))
-		} else {
-			log.Printf("⚠️  [Assistant] No recent emails available for prompt context (error: %v, count: %d)", err, len(recentEmails))
-		}
-	}
 
 	prompt.WriteString("=== ASSISTANT COMMANDS (your own) ===\n")
 	prompt.WriteString("• /remind <time> <message> - Set a reminder\n")
@@ -1339,24 +1260,55 @@ func (a *AssistantAgent) sendMeetingNotesBatchNotification(ctx context.Context, 
 	a.Hub.SendMessage(msg)
 }
 
-// detectsMeetingQuery determines if a message is asking about meetings
-func (a *AssistantAgent) detectsMeetingQuery(msg *protocol.Message) bool {
-	content := strings.ToLower(msg.Content)
-
+// messageAsksAboutMeetings reports whether the user message is about meeting notes.
+func messageAsksAboutMeetings(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
 	meetingKeywords := []string{
-		"meeting", "notes", "last meeting", "recent meeting",
+		"meeting", "last meeting", "recent meeting",
 		"summarize notes", "meeting summary", "meeting notes",
 		"what happened in", "discussed in", "decided in",
 		"action items from", "follow up from", "next steps from",
 	}
-
 	for _, keyword := range meetingKeywords {
-		if strings.Contains(content, keyword) {
+		if strings.Contains(lower, keyword) {
 			return true
 		}
 	}
-
+	if strings.Contains(lower, "notes") && (strings.Contains(lower, "today") || strings.Contains(lower, "from")) {
+		return true
+	}
 	return false
+}
+
+// messageAsksAboutEmail reports whether the user message is about recent email.
+func messageAsksAboutEmail(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	emailKeywords := []string{
+		"email", "emails", "inbox", "mail from", "recent mail",
+		"my messages", "unread",
+	}
+	for _, keyword := range emailKeywords {
+		if strings.Contains(lower, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectsMeetingQuery determines if a message is asking about meetings
+func (a *AssistantAgent) detectsMeetingQuery(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	return messageAsksAboutMeetings(msg.Content)
+}
+
+// detectsEmailQuery determines if a message is asking about email.
+func (a *AssistantAgent) detectsEmailQuery(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	return messageAsksAboutEmail(msg.Content)
 }
 
 // buildMeetingContextPrompt creates an enriched prompt with full meeting content
@@ -1437,6 +1389,42 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n\n", msg.From.Name, msg.Content))
 	prompt.WriteString("Provide a helpful response based on the meeting information:")
 
+	return prompt.String()
+}
+
+// buildEmailContextPrompt creates a prompt with recent email content when the user asks about mail.
+func (a *AssistantAgent) buildEmailContextPrompt(msg *protocol.Message) string {
+	if a.storage == nil {
+		return a.buildAssistantPrompt(msg)
+	}
+	recentEmails, err := a.storage.GetRecentEmails(7)
+	if err != nil || len(recentEmails) == 0 {
+		log.Printf("⚠️  [Assistant] No recent emails available for context")
+		return a.buildAssistantPrompt(msg)
+	}
+
+	sort.Slice(recentEmails, func(i, j int) bool {
+		return recentEmails[i].Date.After(recentEmails[j].Date)
+	})
+
+	var prompt strings.Builder
+	prompt.WriteString("You are the Assistant in Neural Junkie.\n\n")
+	prompt.WriteString("=== RECENT EMAILS (Last 7 Days) ===\n")
+	for i, email := range recentEmails {
+		if i >= 5 {
+			break
+		}
+		prompt.WriteString(fmt.Sprintf("\n## Email %d: %s\n", i+1, email.Subject))
+		prompt.WriteString(fmt.Sprintf("**From:** %s\n", email.From))
+		prompt.WriteString(fmt.Sprintf("**Date:** %s\n", email.Date.Format("January 2, 2006 15:04")))
+		body := email.Body
+		if len(body) > 400 {
+			body = body[:400] + "..."
+		}
+		prompt.WriteString(fmt.Sprintf("**Content:** %s\n", body))
+	}
+	prompt.WriteString("\nUse this information to answer the user's email question.\n\n")
+	prompt.WriteString(fmt.Sprintf("User message from %s:\n%s\n", msg.From.Name, msg.Content))
 	return prompt.String()
 }
 

@@ -160,6 +160,7 @@ func Load() (*Config, error) {
 
 	cfg.migrateIfNeeded(data)
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
+	cfg.MigrateExclusiveDomainPacks()
 	cfg.EnsureMCPDefaults()
 	if err := cfg.DecryptSecretsAfterLoad(); err != nil {
 		return nil, fmt.Errorf("decrypt config secrets: %w", err)

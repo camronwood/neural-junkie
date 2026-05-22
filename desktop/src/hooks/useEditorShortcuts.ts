@@ -2,6 +2,7 @@ import { useEffect, useCallback } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { usePacksStore } from '../stores/packsStore';
 
 export function useEditorShortcuts() {
   const { saveTab, saveAllTabs, closeTab, activeTabId, tabs } = useEditorStore(
@@ -60,11 +61,8 @@ export function useEditorShortcuts() {
       return;
     }
 
-    // Cmd+P / Ctrl+P - Quick file search (placeholder)
-    if (cmdKey && event.key === 'p' && !event.shiftKey) {
-      event.preventDefault();
-      // TODO: Implement quick file search modal
-      console.log('Quick file search - not implemented yet');
+    // Cmd+P quick open is handled globally in ChatWindow when software-development pack is on.
+    if (cmdKey && event.key === 'p' && !event.shiftKey && usePacksStore.getState().softwareDevelopmentEnabled()) {
       return;
     }
 

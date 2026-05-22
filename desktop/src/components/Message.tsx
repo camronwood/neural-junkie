@@ -17,6 +17,8 @@ import { useFileChangeStore } from '../stores/fileChangeStore';
 import { useToastStore } from '../stores/toastStore';
 import { useChatStore } from '../stores/chatStore';
 import { USER_IMAGES_METADATA_KEY } from '../constants/promptMetadata';
+import { slackThreadOpenId } from '../utils/slackThread';
+import { generatedImageSrc } from '../utils/chatImageSrc';
 
 function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
   const raw = metadata?.[USER_IMAGES_METADATA_KEY];
@@ -94,22 +96,22 @@ function MessageReasoningBlock({
 }
 
 function MessageGeneratedImage({ metadata }: { metadata?: Record<string, unknown> }) {
-  const g = metadata?.generated_image as Record<string, unknown> | undefined;
-  if (!g) return null;
-  if (g.data_redacted === true) {
-    return (
-      <span className="text-xs px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-slack-textMuted mb-2 inline-block">
-        Generated image (redacted in history)
-      </span>
-    );
+  const src = generatedImageSrc(metadata);
+  if (!src) {
+    const g = metadata?.generated_image as Record<string, unknown> | undefined;
+    if (g?.data_redacted === true) {
+      return (
+        <span className="text-xs px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-slack-textMuted mb-2 inline-block">
+          Generated image (redacted in history)
+        </span>
+      );
+    }
+    return null;
   }
-  const mime = String(g.mime || 'image/png');
-  const data = String(g.data || '');
-  if (!data) return null;
   return (
     <div className="mb-2">
       <img
-        src={`data:${mime};base64,${data}`}
+        src={src}
         className="max-h-48 rounded border border-slack-border object-contain bg-slack-bgHover"
         alt="Generated"
       />
@@ -121,10 +123,14 @@ interface MessageProps {
   message: MessageType;
   threadMetadata?: ThreadMetadata;
   onOpenThread?: (threadId: string) => void;
+  channelName?: string;
   isStreaming?: boolean;
 }
 
-function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: MessageProps) {
+function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStreaming }: MessageProps) {
+  const threadOpenId = channelName
+    ? slackThreadOpenId(message, channelName)
+    : message.id;
   const [proposing, setProposing] = useState(false);
   const isSystem = isSystemMessage(message.type);
   const isCommandOutput = message.type === 'command_output';
@@ -235,7 +241,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
       {!isSystem && !message.is_thread_reply && onOpenThread && (
         <div className="absolute top-2 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onOpenThread(message.id)}
+            onClick={() => onOpenThread(threadOpenId)}
             className="px-2 py-1 text-xs bg-white border border-slack-border rounded shadow-sm hover:shadow-md transition-all text-gray-700 hover:text-slack-link"
             title="Reply in thread"
           >
@@ -347,7 +353,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, isStreaming }: Mes
       {!message.is_thread_reply && threadMetadata && threadMetadata.reply_count > 0 && (
         <div className="mt-2 pt-2 border-t border-slack-border">
           <button
-            onClick={() => onOpenThread?.(message.id)}
+            onClick={() => onOpenThread?.(threadOpenId)}
             className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:underline transition-colors"
           >
             <span className="font-semibold">

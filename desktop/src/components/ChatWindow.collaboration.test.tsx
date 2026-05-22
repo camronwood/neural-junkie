@@ -116,6 +116,38 @@ vi.mock('../stores/toastStore', () => ({
     sel({ addToast: addToastMock }),
 }));
 
+vi.mock('../stores/packsStore', () => {
+  const packState = {
+    packs: [],
+    fetchPacks: vi.fn().mockResolvedValue(undefined),
+    softwareDevelopmentEnabled: () => false,
+    lifeSciencesEnabled: () => false,
+  };
+  return {
+    usePacksStore: Object.assign(
+      (sel: (s: typeof packState) => unknown) => sel(packState),
+      { getState: () => packState }
+    ),
+  };
+});
+
+const editorMock = {
+  tabs: [] as unknown[],
+  activeTabId: null as string | null,
+  activeSelection: null,
+  openFile: vi.fn(),
+  revealLine: vi.fn(),
+};
+vi.mock('../stores/editorStore', () => ({
+  useEditorStore: (sel: (s: typeof editorMock) => unknown) => sel(editorMock),
+}));
+
+vi.mock('./GitPanel', () => ({ GitModal: () => null, GitPanel: () => null }));
+vi.mock('./QuickOpenModal', () => ({ QuickOpenModal: () => null }));
+vi.mock('./SymbolModal', () => ({ SymbolModal: () => null }));
+vi.mock('./ProblemsPanel', () => ({ ProblemsPanel: () => null }));
+vi.mock('./FastEditModal', () => ({ FastEditModal: () => null }));
+
 vi.mock('../utils/collaborationConfirm', () => ({
   confirmStartCollaborationWhileExecuting: (executing: unknown) => confirmStartMock(executing) as boolean,
   confirmReplaceCollaborationExecution: (executing: unknown, incoming: unknown) =>

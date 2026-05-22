@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn as create } from 'zustand/traditional';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { ScanSummaryData } from '../utils/scanSummary';
@@ -35,11 +35,21 @@ export interface OpenFileOptions {
   scanSummaryData?: ScanSummaryData;
 }
 
+export interface EditorSelectionContext {
+  startLine: number;
+  endLine: number;
+  text: string;
+}
+
 interface EditorState {
   // Open tabs
   tabs: EditorTab[];
   activeTabId: string | null;
-  
+  /** Non-empty selection in the active Monaco editor (for dev-pack agent context). */
+  activeSelection: EditorSelectionContext | null;
+  /** Jump-to-line request consumed by CodeEditorPanel. */
+  revealRequest: { workspaceId: string; path: string; line: number } | null;
+
   // Loading and error states
   saving: boolean;
   error: string | null;
@@ -62,6 +72,9 @@ interface EditorState {
   setActiveTab: (tabId: string) => void;
   updateTabContent: (tabId: string, content: string) => void;
   updateTabCursor: (tabId: string, position: { line: number; column: number }) => void;
+  setActiveSelection: (selection: EditorSelectionContext | null) => void;
+  revealLine: (workspaceId: string, path: string, line: number) => void;
+  clearRevealRequest: () => void;
   markTabDirty: (tabId: string, isDirty: boolean) => void;
   saveTab: (tabId: string) => Promise<boolean>;
   saveAllTabs: () => Promise<boolean>;
@@ -82,6 +95,8 @@ interface EditorState {
 export const useEditorStore = create<EditorState>((set, get) => ({
   tabs: [],
   activeTabId: null,
+  activeSelection: null,
+  revealRequest: null,
   saving: false,
   error: null,
   
@@ -217,6 +232,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           : tab
       ),
     }));
+  },
+
+  setActiveSelection: (selection) => {
+    set({ activeSelection: selection });
+  },
+
+  revealLine: (workspaceId, path, line) => {
+    set({ revealRequest: { workspaceId, path, line: Math.max(1, line) } });
+  },
+
+  clearRevealRequest: () => {
+    set({ revealRequest: null });
   },
   
   markTabDirty: (tabId, isDirty) => {

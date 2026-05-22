@@ -2,10 +2,16 @@
 
 Neural Junkie includes an optional **Software development** domain pack for in-process engineering specialists, dev MCP tools, and Qwen Coder models.
 
+## One pack at a time
+
+Only **one** domain pack can be enabled: Software development **or** Life sciences (not both). The hub enforces this when you toggle packs in Settings.
+
 ## What you get
 
 | Piece | Description |
 |-------|-------------|
+| **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
+| **IDE v2** (dev pack only) | Stage/unstage + diff viewer; go to symbol (⌘⇧O); Problems panel; inline hunks; fast edit (⌘K). See [IDE_V2.md](IDE_V2.md) |
 | **Qwen Coder 14B** | `qwen2.5-coder:14b` — recommended Ollama model for specialists |
 | **Utility tier** | `qwen2.5:7b` — merged into `models_to_ensure` for background tasks |
 | **GoExpert** | Backend / Go, APIs, microservices |

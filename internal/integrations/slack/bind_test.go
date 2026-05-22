@@ -50,6 +50,20 @@ func (m *mockHub) CreateChannelWithType(name, description, project string, chann
 	return ch
 }
 
+func (m *mockHub) SetChannelDisplay(name, displayName, description string) error {
+	ch, err := m.GetChannel(name)
+	if err != nil {
+		return err
+	}
+	if displayName != "" {
+		ch.DisplayName = displayName
+	}
+	if description != "" {
+		ch.Description = description
+	}
+	return nil
+}
+
 func (m *mockHub) AddAgentToChannel(agentID, channelName string) error {
 	m.addAgentCalls = append(m.addAgentCalls, struct{ agentID, channel string }{agentID, channelName})
 	return nil

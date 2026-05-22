@@ -23,13 +23,14 @@ func ApplyBinding(ctx context.Context, hub HubClient, ensure AgentEnsurer, b Bin
 		b.NJChannel = NJChannelName(b.SlackChannelID)
 	}
 	if _, err := hub.GetChannel(b.NJChannel); err != nil {
-		desc := "Slack bridge"
-		if b.SlackChannelName != "" {
-			desc = "Slack: #" + b.SlackChannelName
+		desc := SlackChannelDescription(b.SlackChannelName)
+		ch := hub.CreateChannelWithType(b.NJChannel, desc, "", protocol.ChannelTypeCustom, "slack-bridge")
+		if ch != nil && b.SlackChannelName != "" {
+			ch.DisplayName = FormatSlackChannelDisplayName(b.SlackChannelName)
 		}
-		hub.CreateChannelWithType(b.NJChannel, desc, "", protocol.ChannelTypeCustom, "slack-bridge")
 		log.Printf("[slack] created hub channel %s", b.NJChannel)
 	}
+	SyncChannelDisplay(hub, b)
 	if err := hub.AddAgentToChannel(b.AgentID, b.NJChannel); err != nil {
 		return fmt.Errorf("add agent to channel: %w", err)
 	}

@@ -153,6 +153,50 @@ func TestSpecialistShouldBeRunningPackOffOverridesConfig(t *testing.T) {
 	}
 }
 
+func TestSetPackEnabledExclusiveDev(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Packs = DefaultPacksConfig()
+	cfg.Packs.Enabled[PackLifeSciences] = true
+	if err := cfg.SetPackEnabled(PackSoftwareDevelopment, true); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsPackEnabled(PackSoftwareDevelopment) {
+		t.Fatal("expected dev pack on")
+	}
+	if cfg.IsPackEnabled(PackLifeSciences) {
+		t.Fatal("expected life-sciences off when dev enabled")
+	}
+}
+
+func TestSetPackEnabledExclusiveBio(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Packs = DefaultPacksConfig()
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	if err := cfg.SetPackEnabled(PackLifeSciences, true); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsPackEnabled(PackLifeSciences) {
+		t.Fatal("expected life-sciences on")
+	}
+	if cfg.IsPackEnabled(PackSoftwareDevelopment) {
+		t.Fatal("expected dev pack off when life-sciences enabled")
+	}
+}
+
+func TestMigrateExclusiveDomainPacksBothOn(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Packs = DefaultPacksConfig()
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	cfg.Packs.Enabled[PackLifeSciences] = true
+	cfg.MigrateExclusiveDomainPacks()
+	if !cfg.IsPackEnabled(PackSoftwareDevelopment) {
+		t.Fatal("expected dev pack to remain on")
+	}
+	if cfg.IsPackEnabled(PackLifeSciences) {
+		t.Fatal("expected life-sciences disabled after migration")
+	}
+}
+
 func TestDefaultConfigNoDevAgents(t *testing.T) {
 	cfg := DefaultConfig()
 	if len(cfg.Agents) != 0 {

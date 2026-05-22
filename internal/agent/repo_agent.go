@@ -119,9 +119,7 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 	cacheKey, err := ra.storage.GetCacheKeyForPath(ra.repoPath)
 	if err != nil {
 		log.Printf("[%s] Failed to generate cache key: %v", ra.Info.Name, err)
-		ra.Info.IndexingStatus = string(protocol.IndexingStatusError)
-		ra.Info.IndexProgress = 0
-		ra.updateAgentStatus()
+		ra.setIndexingState(string(protocol.IndexingStatusError), 0)
 		return
 	}
 
@@ -149,8 +147,7 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 				// Index is stale, do incremental update
 				log.Printf("[%s] Cached index is stale (%s), performing incremental update...", ra.Info.Name, reason)
 				ra.sendStatusMessage(fmt.Sprintf("🔄 Cache stale (%s), performing incremental update...", reason))
-				ra.Info.IndexingStatus = string(protocol.IndexingStatusReindexing)
-				ra.updateAgentStatus()
+				ra.setIndexingState(string(protocol.IndexingStatusReindexing), ra.indexProgressLocked())
 				index, err = analyzer.IncrementalAnalyze(ctx, ra.repoPath, cachedIndex)
 				if err != nil {
 					log.Printf("[%s] Incremental analysis failed: %v, falling back to full analysis", ra.Info.Name, err)
@@ -173,9 +170,7 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 		index, err = analyzer.AnalyzeRepository(ctx, ra.repoPath)
 		if err != nil {
 			log.Printf("[%s] Indexing failed: %v", ra.Info.Name, err)
-			ra.Info.IndexingStatus = string(protocol.IndexingStatusError)
-			ra.Info.IndexProgress = 0
-			ra.updateAgentStatus()
+			ra.setIndexingState(string(protocol.IndexingStatusError), 0)
 			ra.sendStatusMessage(fmt.Sprintf("❌ Indexing failed: %v", err))
 			return
 		}
@@ -196,6 +191,7 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 		log.Printf("[%s] Failed to save metadata: %v", ra.Info.Name, err)
 	}
 
+	expertise := ra.buildExpertise()
 	ra.mu.Lock()
 	ra.index = index
 	ra.isIndexing = false
@@ -205,11 +201,10 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 	}
 	ra.Info.IndexingStatus = string(protocol.IndexingStatusReady)
 	ra.Info.IndexProgress = 100
+	ra.Info.Expertise = expertise
 	ra.mu.Unlock()
 
-	// Update expertise based on repository (buildExpertise locks internally)
-	ra.Info.Expertise = ra.buildExpertise()
-
+	ra.publishInfoToHub()
 	ra.updateAgentStatus()
 
 	if cacheLoaded {
@@ -314,10 +309,7 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if msg.Type == protocol.MessageTypeAgentStatus && msg.Metadata != nil {
 		if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
 			if hist, err := ra.Hub.GetMessages(msg.Channel, 20); err == nil {
-				if ra.Context.History == nil {
-					ra.Context.History = make(map[string][]*protocol.Message)
-				}
-				ra.Context.History[msg.Channel] = hist
+				ra.replaceChannelHistory(msg.Channel, hist)
 			}
 			return
 		}
@@ -529,7 +521,7 @@ func (ra *RepoAgent) generateRepoResponse(ctx context.Context, msg *protocol.Mes
 
 	prompt := ra.buildRepoPrompt(msg, index)
 
-	history := historyForGeneration(ra.Context.History[msg.Channel], msg.ID)
+	history := historyForGeneration(ra.channelHistory(msg.Channel), msg.ID)
 
 	eff := ra.EffectiveAIProvider(ctx, msg)
 	if eff == nil {
@@ -666,37 +658,71 @@ func (ra *RepoAgent) buildExpertise() []string {
 	return expertise
 }
 
+func (ra *RepoAgent) indexProgressLocked() int {
+	ra.mu.RLock()
+	p := ra.Info.IndexProgress
+	ra.mu.RUnlock()
+	return p
+}
+
+func (ra *RepoAgent) setIndexingState(status string, progress int) {
+	ra.mu.Lock()
+	ra.Info.IndexingStatus = status
+	ra.Info.IndexProgress = progress
+	ra.mu.Unlock()
+	ra.publishInfoToHub()
+	ra.updateAgentStatus()
+}
+
+func (ra *RepoAgent) publishInfoToHub() {
+	ra.mu.RLock()
+	info := ra.Info
+	ra.mu.RUnlock()
+	type registrationSync interface {
+		SyncAgentRegistration(agentID string, info protocol.AgentInfo) error
+	}
+	if sh, ok := ra.Hub.(registrationSync); ok {
+		_ = sh.SyncAgentRegistration(info.ID, info)
+	}
+}
+
 // updateIndexProgress updates the indexing progress and notifies the hub
 func (ra *RepoAgent) updateIndexProgress(progress int, message string) {
+	ra.mu.Lock()
 	ra.Info.IndexProgress = progress
+	ra.mu.Unlock()
+	ra.publishInfoToHub()
 	ra.updateAgentStatus()
 	log.Printf("[%s] Indexing: %d%% - %s", ra.Info.Name, progress, message)
 }
 
 // updateAgentStatus notifies the hub about agent status changes
 func (ra *RepoAgent) updateAgentStatus() {
-	// Send status update message to the hub
-	if ra.Context.CurrentChannel == "" {
+	ra.mu.RLock()
+	channel := ra.Context.CurrentChannel
+	if channel == "" {
+		ra.mu.RUnlock()
 		return
 	}
+	info := ra.Info
+	ra.mu.RUnlock()
 
 	statusMsg := protocol.NewMessage(
 		protocol.MessageTypeAgentStatus,
-		ra.Context.CurrentChannel,
-		ra.Info,
+		channel,
+		info,
 		fmt.Sprintf("Status: %s - %s (%d%%)",
-			ra.Info.IndexingStatus,
-			ra.getStatusDescription(),
-			ra.Info.IndexProgress),
+			info.IndexingStatus,
+			statusDescription(info.IndexingStatus),
+			info.IndexProgress),
 	)
 
-	// Add status metadata
-	statusMsg.Metadata["indexing_status"] = ra.Info.IndexingStatus
-	statusMsg.Metadata["index_progress"] = ra.Info.IndexProgress
-	statusMsg.Metadata["status"] = ra.Info.Status
+	statusMsg.Metadata["indexing_status"] = info.IndexingStatus
+	statusMsg.Metadata["index_progress"] = info.IndexProgress
+	statusMsg.Metadata["status"] = info.Status
 
 	if err := ra.Hub.SendMessage(statusMsg); err != nil {
-		log.Printf("[%s] Failed to send status update: %v", ra.Info.Name, err)
+		log.Printf("[%s] Failed to send status update: %v", info.Name, err)
 	}
 }
 
@@ -718,9 +744,8 @@ func (ra *RepoAgent) sendStatusMessage(message string) {
 	}
 }
 
-// getStatusDescription returns a human-readable status description
-func (ra *RepoAgent) getStatusDescription() string {
-	switch protocol.IndexingStatus(ra.Info.IndexingStatus) {
+func statusDescription(indexingStatus string) string {
+	switch protocol.IndexingStatus(indexingStatus) {
 	case protocol.IndexingStatusIndexing:
 		return "Analyzing repository"
 	case protocol.IndexingStatusReindexing:

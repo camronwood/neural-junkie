@@ -5,6 +5,7 @@ import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { parseDMDisplayName } from '../utils/dmChannelDisplay';
+import { channelSidebarLabel, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
 import {
   agentSidebarHideKey,
   isAgentShownInSidebar,
@@ -269,7 +270,8 @@ export function ChannelSidebar({
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
     const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
-    const displayName = ch.type === 'collaboration' ? collaborationChannelLabel(ch) : ch.name;
+    const displayName = channelSidebarLabel(ch, collaborationChannelLabel);
+    const isSlackMirror = isSlackMirrorChannelName(ch.name);
     const rowClass = `flex-1 min-w-0 text-left px-2 py-1 rounded text-sm flex items-center transition-colors ${
       isActive
         ? 'bg-slack-accent text-white font-semibold'
@@ -287,9 +289,15 @@ export function ChannelSidebar({
           type="button"
           onClick={() => onSwitchChannel(ch.name)}
           className={rowClass}
-          title={isCollab ? `${displayName} (${ch.name})` : (ch.description || ch.name)}
+          title={
+            isCollab
+              ? `${displayName} (${ch.name})`
+              : isSlackMirror
+                ? `${displayName} (${ch.name})`
+                : (ch.description || ch.name)
+          }
         >
-          <span className="mr-1 opacity-60">{isCollab ? '🤝' : '#'}</span>
+          <span className="mr-1 opacity-60">{isCollab ? '🤝' : isSlackMirror ? '⎘' : '#'}</span>
           <span className="truncate">{displayName}</span>
           {isHiddenCollabRow && (
             <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>

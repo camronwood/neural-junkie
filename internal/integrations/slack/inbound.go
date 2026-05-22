@@ -75,9 +75,13 @@ func BuildHubMessage(in InboundInput, b *Binding, threads *ThreadMap, botUserID 
 	content := StripBotMention(strings.TrimSpace(in.Text), botUserID)
 	threadID, replyTo, isThread := threads.ResolveInbound(in.ChannelID, in.SlackTS, in.ThreadTS)
 	if isThread && threadID == in.ThreadTS {
-		// First thread reply: parent ts becomes NJ thread root id placeholder until stored.
-		threadID = in.ThreadTS
-		replyTo = in.ThreadTS
+		// Prefer NJ parent message id when the parent was mirrored from Slack earlier.
+		if parentNJ := threads.NJMessageForSlackTS(in.ThreadTS); parentNJ != "" {
+			threadID = parentNJ
+		} else {
+			threadID = in.ThreadTS
+		}
+		replyTo = in.SlackTS
 	}
 
 	from := protocol.AgentInfo{

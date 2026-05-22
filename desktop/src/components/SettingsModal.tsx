@@ -19,7 +19,7 @@ import type {
   SlackConnectionResponse,
 } from '../types/protocol';
 import { ChatAPI, type PackStatus } from '../api/chatAPI';
-import { usePacksStore } from '../stores/packsStore';
+import { usePacksStore, PACK_SOFTWARE_DEVELOPMENT } from '../stores/packsStore';
 import { patchRevealActiveAgentsInSidebar } from '../utils/sidebarVisibility';
 import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
 import { ProviderManager } from './ProviderManager';
@@ -192,6 +192,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         if (!layoutSettings.sidebarAgentsVisible) {
           await updateLayoutSettings({ sidebarAgentsVisible: true });
         }
+        if (
+          packId === PACK_SOFTWARE_DEVELOPMENT &&
+          !layoutSettings.devPackLayoutNudgeApplied
+        ) {
+          await updateLayoutSettings({
+            filesPanelVisible: true,
+            editorPanelVisible: true,
+            devPackLayoutNudgeApplied: true,
+          });
+        }
         const revealPatch = patchRevealActiveAgentsInSidebar(
           useSettingsStore.getState().settings,
           agentList,
@@ -308,14 +318,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setSlackChannels([]);
         setSlackChannelsError(null);
       }
+      const defaultPolicy = (cfg.default_policy || 'mention_only') as SlackPolicy;
       setSlackForm((prev) => ({
         ...prev,
         enabled: cfg.enabled,
         displayName: cfg.display_name || 'Camron',
-        defaultPolicy: cfg.default_policy || 'mention_only',
+        defaultPolicy,
         clientId: cfg.oauth?.client_id ?? prev.clientId,
         redirectUrl: cfg.oauth?.redirect_url || `${hubHttp}/api/slack/oauth/callback`,
       }));
+      // New binding form: default to hub slack.default_policy (often "always"), not hardcoded mention_only.
+      setSlackBindingForm((prev) =>
+        prev.slackChannelId.trim() ? prev : { ...prev, policy: defaultPolicy }
+      );
     } catch (e) {
       setTestResults((prev) => ({
         ...prev,
@@ -495,6 +510,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         enabled: true,
       });
       await refreshSlackIntegration();
+      const channelList = await api.fetchChannels();
+      setChannels(channelList);
       setTestResults((prev) => ({
         ...prev,
         slack: { success: true, message: 'Channel binding saved.' },
@@ -518,6 +535,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const api = new ChatAPI(hubHttp);
       await api.deleteSlackBinding(slackChannelId);
       await refreshSlackIntegration();
+      const channelList = await api.fetchChannels();
+      setChannels(channelList);
     } catch (e) {
       setTestResults((prev) => ({
         ...prev,
@@ -2194,6 +2213,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         ...prev,
                         slackChannelId: id,
                         slackChannelName: ch?.name ?? prev.slackChannelName,
+                        policy: slackForm.defaultPolicy,
                       }));
                     }}
                     className="px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text sm:col-span-2"
@@ -2286,10 +2306,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         key={b.slack_channel_id}
                         className="flex items-center justify-between gap-2 p-2 bg-slack-bgHover rounded border border-slack-border"
                       >
-                        <span className="truncate text-slack-text">
+                        <button
+                          type="button"
+                          className="truncate text-left text-slack-text hover:underline"
+                          title="Load into form to edit policy or agent"
+                          onClick={() =>
+                            setSlackBindingForm({
+                              slackChannelId: b.slack_channel_id,
+                              slackChannelName: b.slack_channel_name || '',
+                              agentId: b.agent_id,
+                              policy: b.policy,
+                            })
+                          }
+                        >
                           {b.slack_channel_name ? `#${b.slack_channel_name}` : b.slack_channel_id} →{' '}
                           {b.agent_name || b.agent_id} ({b.policy})
-                        </span>
+                        </button>
                         <button
                           type="button"
                           onClick={() => void deleteSlackBindingRow(b.slack_channel_id)}
@@ -2420,7 +2452,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div className="border border-slack-border rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Domain packs</h3>
                 <p className="text-sm text-slack-textMuted mb-4">
-                  Turn optional specialist packs on or off. Enabled packs add experts to <strong>New DM</strong>, channel invite, and the agent sidebar.
+                  <strong>One domain pack at a time</strong> — Software development or Life sciences. Enabling one turns the other off.
+                  Enabled packs add experts to <strong>New DM</strong>, channel invite, and the agent sidebar.
                 </p>
                 {packsLoading && <p className="text-sm text-slack-textMuted">Loading packs…</p>}
                 {packsErr && <p className="text-sm text-red-600 mb-2">{packsErr}</p>}
@@ -2447,7 +2480,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         )}
                         {pack.enabled && pack.id === 'software-development' && (
                           <p className="text-xs text-blue-600 mt-1">
-                            Adds GoExpert, ReactExpert, RustExpert, and other in-process specialists. Pull{' '}
+                            Adds GoExpert, ReactExpert, RustExpert, and other in-process specialists; IDE features (Git panel, quick open, editor selection context). Pull{' '}
                             <code className="font-mono bg-slack-bgHover px-1 rounded">qwen2.5-coder:14b</code> from Model Library for local Ollama. Dev MCP tools start with enabled agents.
                           </p>
                         )}

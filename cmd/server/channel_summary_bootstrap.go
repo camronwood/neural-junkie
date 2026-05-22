@@ -13,9 +13,14 @@ import (
 )
 
 const sessionSummarySystemPrompt = `You summarize a short chat channel session for an AI agent's context.
-Write 4-8 bullet points covering: user goals, key facts stated, decisions, and open questions.
+Write 3-6 bullet points covering:
+- The user's current goal (latest unanswered ask)
+- Key facts still needed for that goal
+- Open questions only (unresolved)
+Do NOT restate answered questions, copy assistant reply text, or list code the assistant already gave.
+Omit topics the user has not mentioned in the last two user messages unless still explicitly open.
 Be factual; do not invent details not present in the transcript.
-Keep under 400 words. Plain text only.`
+Keep under 250 words. Plain text only.`
 
 func initChannelSummaryGenerator(cfg *config.Config, h *hub.Hub) {
 	if cfg == nil || h == nil {

@@ -54,7 +54,7 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		}
 	}
 
-	if userAsksAboutPromptContext(content) {
+	if userAsksAboutPromptContext(content) || userAsksAboutModelIdentity(content) {
 		return IntentMeta
 	}
 
@@ -69,7 +69,7 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 }
 
 func (a *Agent) classifyTurnIntentForMessage(msg *protocol.Message) TurnIntent {
-	history := a.Context.History[msg.Channel]
+	history := a.channelHistory(msg.Channel)
 	return classifyTurnIntent(msg, a.effectiveChannelType(msg.Channel), a.Info.ID, history)
 }
 
@@ -88,7 +88,8 @@ func (a *Agent) sessionSummaryBlock(channel string) string {
 	var b strings.Builder
 	b.WriteString("=== SESSION SUMMARY ===\n")
 	b.WriteString(summary)
-	b.WriteString("\nAnswer the user's latest message. Do not repeat facts from the summary unless they ask again.\n\n")
+	b.WriteString("\nAnswer ONLY the user's latest message. ")
+	b.WriteString("Do not re-answer earlier questions or repeat assistant replies from the summary.\n\n")
 	return b.String()
 }
 
@@ -107,7 +108,15 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 		specialty = a.Info.Expertise[0]
 	}
 	fmt.Fprintf(&b, "You are %s, a %s specialist in a multi-agent chat.\n\n", a.Info.Name, specialty)
-	if block := a.sessionSummaryBlock(msg.Channel); block != "" {
+	if a.Info.Type == protocol.AgentTypeAssistant {
+		fmt.Fprintf(&b, "You are powered by the %q model via the %q provider.\n", a.Info.AIModel, a.Info.AIProvider)
+		if userAsksAboutModelIdentity(msg.Content) {
+			b.WriteString("If asked about your model, state only the model and provider above.\n\n")
+		} else {
+			b.WriteString("\n")
+		}
+	}
+	if block := a.sessionSummaryBlock(msg.Channel); block != "" && !userAsksAboutModelIdentity(msg.Content) {
 		b.WriteString(block)
 	}
 	b.WriteString("Respond briefly and naturally to the user's latest message only.\n")
@@ -125,6 +134,15 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) s
 	case IntentLowSignal, IntentMeta:
 		return a.buildMinimalPrompt(msg)
 	default:
+		// Meeting/email turns need enriched prompts even on small Ollama models.
+		if a.Info.Type == protocol.AgentTypeAssistant &&
+			(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content)) &&
+			a.customPromptBuilder != nil {
+			return a.injectSessionSummary(a.customPromptBuilder(msg), msg)
+		}
+		if a.useCompactAssistantOllamaPrompt(msg) {
+			return a.injectSessionSummary(a.buildCompactAssistantOllamaPrompt(msg), msg)
+		}
 		if a.customPromptBuilder != nil {
 			return a.injectSessionSummary(a.customPromptBuilder(msg), msg)
 		}
@@ -135,10 +153,13 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) s
 func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnIntent) []*protocol.Message {
 	hasSummary := a.sessionSummaryBlock(msg.Channel) != ""
 	max := maxHistoryForIntent(intent, hasSummary)
-	raw := a.Context.History[msg.Channel]
+	raw := a.channelHistory(msg.Channel)
 	var base []*protocol.Message
 	if a.Info.Type == protocol.AgentTypeAssistant {
 		base = filterAssistantHistory(raw, msg)
+		if a.useCompactAssistantOllamaPrompt(msg) {
+			base = recentUserHistoryOnly(base, max)
+		}
 	} else {
 		base = historyForGeneration(raw, msg.ID)
 	}
@@ -170,7 +191,7 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 	if intent == IntentLowSignal || intent == IntentMeta {
 		return false
 	}
-	if a.useCompactOllamaPrompt(msg) {
+	if a.useOllamaContextGuardrails(msg) {
 		return false
 	}
 	return true

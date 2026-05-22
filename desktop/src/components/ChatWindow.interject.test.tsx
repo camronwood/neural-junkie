@@ -104,12 +104,37 @@ vi.mock('../stores/toastStore', () => ({
     sel({ addToast: addToastMock }),
 }));
 
-vi.mock('../stores/packsStore', () => ({
-  usePacksStore: Object.assign(
-    () => ({ packs: [], fetchPacks: vi.fn() }),
-    { getState: () => ({ packs: [], fetchPacks: vi.fn() }) }
-  ),
+vi.mock('../stores/packsStore', () => {
+  const packState = {
+    packs: [],
+    fetchPacks: vi.fn().mockResolvedValue(undefined),
+    softwareDevelopmentEnabled: () => false,
+    lifeSciencesEnabled: () => false,
+  };
+  return {
+    usePacksStore: Object.assign(
+      (sel: (s: typeof packState) => unknown) => sel(packState),
+      { getState: () => packState }
+    ),
+  };
+});
+
+const editorMock = {
+  tabs: [] as unknown[],
+  activeTabId: null as string | null,
+  activeSelection: null,
+  openFile: vi.fn(),
+  revealLine: vi.fn(),
+};
+vi.mock('../stores/editorStore', () => ({
+  useEditorStore: (sel: (s: typeof editorMock) => unknown) => sel(editorMock),
 }));
+
+vi.mock('./GitPanel', () => ({ GitModal: () => null, GitPanel: () => null }));
+vi.mock('./QuickOpenModal', () => ({ QuickOpenModal: () => null }));
+vi.mock('./SymbolModal', () => ({ SymbolModal: () => null }));
+vi.mock('./ProblemsPanel', () => ({ ProblemsPanel: () => null }));
+vi.mock('./FastEditModal', () => ({ FastEditModal: () => null }));
 
 vi.mock('../hooks/useSidebarAutoUnhide', () => ({ useSidebarAutoUnhide: vi.fn() }));
 
@@ -132,11 +157,16 @@ vi.mock('./TaskManagementPanel', () => ({ TaskManagementPanel: () => null }));
 vi.mock('./CollaborationWorkspaceGate', () => ({ CollaborationWorkspaceGate: () => null }));
 vi.mock('./HubDataAccessModal', () => ({ HubDataAccessModal: () => null }));
 vi.mock('./RichTextInput', () => ({
-  RichTextInput: ({ onSend }: { onSend: (c: string) => void }) => (
-    <button type="button" onClick={() => onSend('user resume')}>
-      send-test
-    </button>
-  ),
+  RichTextInput: React.forwardRef(function MockRichTextInput(
+    { onSend }: { onSend: (c: string) => void },
+    _ref: React.Ref<HTMLTextAreaElement>
+  ) {
+    return (
+      <button type="button" onClick={() => onSend('user resume')}>
+        send-test
+      </button>
+    );
+  }),
 }));
 
 function seedStore() {

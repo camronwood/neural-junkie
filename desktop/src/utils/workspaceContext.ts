@@ -12,6 +12,9 @@ export interface OpenFileContext {
   language: string;
   content: string;
   is_active: boolean;
+  selection_start_line?: number;
+  selection_end_line?: number;
+  selected_text?: string;
 }
 
 /**

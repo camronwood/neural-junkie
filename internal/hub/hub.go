@@ -283,6 +283,23 @@ func (h *Hub) SetChannelDescription(name, description string) error {
 	return nil
 }
 
+// SetChannelDisplay updates display_name and description (e.g. Slack mirror labels).
+func (h *Hub) SetChannelDisplay(name, displayName, description string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	ch, ok := h.channels[name]
+	if !ok {
+		return fmt.Errorf("channel %s not found", name)
+	}
+	if dn := strings.TrimSpace(displayName); dn != "" {
+		ch.DisplayName = dn
+	}
+	if desc := strings.TrimSpace(description); desc != "" {
+		ch.Description = desc
+	}
+	return nil
+}
+
 // inferChannelTypeForName fixes DM classification when legacy snapshots omitted
 // "type" or stored the wrong value — the UI sidebar keys off type === dm.
 func inferChannelTypeForName(name string, t protocol.ChannelType) protocol.ChannelType {
@@ -393,14 +410,17 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 		log.Printf("Removed duplicate agent registration: %s (old id %s)", oldAgent.Name, id[:8])
 	}
 
-	// Register the new agent
-	enrichAgentImageGeneration(agent)
-	h.agents[agent.ID] = agent
+	// Register a hub-owned copy so in-process agents can mutate local Info
+	// and publish via SyncAgentRegistration without racing hub readers.
+	stored := new(protocol.AgentInfo)
+	*stored = *agent
+	enrichAgentImageGeneration(stored)
 	if h.agentRulesStore != nil {
-		if md, ok := h.agentRulesStore.Get(agent.ID); ok {
-			agent.CustomRulesMarkdown = md
+		if md, ok := h.agentRulesStore.Get(stored.ID); ok {
+			stored.CustomRulesMarkdown = md
 		}
 	}
+	h.agents[stored.ID] = stored
 	h.mu.Unlock()
 
 	if h.collabManager != nil {
@@ -1362,6 +1382,23 @@ func (h *Hub) syncAgentInfoCopiesInChannelsLocked(agentID string, ag *protocol.A
 	}
 }
 
+// SyncAgentRegistration copies the latest agent fields into the hub registry.
+// Repo and Confluence agents mutate Info in-process; call this after those updates
+// so ListAgents/GetAgent readers do not race with background indexing.
+func (h *Hub) SyncAgentRegistration(agentID string, info protocol.AgentInfo) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	ag, ok := h.agents[agentID]
+	if !ok {
+		return fmt.Errorf("agent %s not found", agentID)
+	}
+	*ag = info
+	enrichAgentImageGeneration(ag)
+	h.syncAgentInfoCopiesInChannelsLocked(agentID, ag)
+	return nil
+}
+
 // ListAgents returns all registered agents
 func (h *Hub) ListAgents() []*protocol.AgentInfo {
 	h.mu.RLock()
@@ -1369,7 +1406,11 @@ func (h *Hub) ListAgents() []*protocol.AgentInfo {
 
 	agents := make([]*protocol.AgentInfo, 0, len(h.agents))
 	for _, agent := range h.agents {
-		agents = append(agents, agent)
+		if agent == nil {
+			continue
+		}
+		cloned := *agent
+		agents = append(agents, &cloned)
 	}
 
 	return agents

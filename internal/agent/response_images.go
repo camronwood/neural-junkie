@@ -1,0 +1,204 @@
+package agent
+
+import (
+	"context"
+	"encoding/base64"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/protocol"
+)
+
+const maxResponseImageBytes = 8 * 1024 * 1024
+
+// absoluteImagePathRE matches Unix paths anywhere (handles markdown **/path** and backticks).
+var absoluteImagePathRE = regexp.MustCompile(`(?i)(/[\w./\-~]+\.(?:png|jpe?g|gif|webp))`)
+
+// relativeImagePathRE matches filenames when the hub can resolve them under CLI work dirs.
+var relativeImagePathRE = regexp.MustCompile(`(?i)(?:^|[\s"'(])([\w./\-]+\.(?:png|jpe?g|gif|webp))`)
+
+// AttachGeneratedImageFromResponse scans agent text for local image files and sets generated_image metadata.
+// Returns true when an image was attached.
+func AttachGeneratedImageFromResponse(msg *protocol.Message, searchDirs ...string) bool {
+	if msg == nil {
+		return false
+	}
+	if _, ok := msg.Metadata["generated_image"]; ok {
+		return true
+	}
+	for _, p := range extractImagePathsFromText(msg.Content) {
+		resolved := resolveExistingImagePath(p, searchDirs)
+		if resolved == "" {
+			continue
+		}
+		b, mime, err := readLocalImage(resolved)
+		if err != nil {
+			log.Printf("[agent] skip image %s: %v", resolved, err)
+			continue
+		}
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]interface{})
+		}
+		msg.Metadata["generated_image"] = map[string]interface{}{
+			"mime": mime,
+			"data": base64.StdEncoding.EncodeToString(b),
+			"path": resolved,
+		}
+		log.Printf("[agent] attached generated_image from %s (%d bytes)", resolved, len(b))
+		return true
+	}
+	return false
+}
+
+// extractImagePathsFromText finds image file paths in agent prose (markdown-safe).
+func extractImagePathsFromText(content string) []string {
+	content = stripMarkdownForImageScan(content)
+	seen := make(map[string]struct{})
+	var out []string
+	add := func(p string) {
+		p = strings.TrimSpace(strings.Trim(p, `"'`+"`"))
+		if p == "" {
+			return
+		}
+		if strings.HasPrefix(p, "~/") {
+			if home, err := os.UserHomeDir(); err == nil {
+				p = filepath.Join(home, strings.TrimPrefix(p, "~/"))
+			}
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	for _, m := range absoluteImagePathRE.FindAllString(content, -1) {
+		add(m)
+	}
+	for _, raw := range relativeImagePathRE.FindAllStringSubmatch(content, -1) {
+		if len(raw) >= 2 {
+			add(raw[1])
+		}
+	}
+	return out
+}
+
+func stripMarkdownForImageScan(s string) string {
+	s = strings.ReplaceAll(s, "**", " ")
+	s = strings.ReplaceAll(s, "__", " ")
+	s = strings.ReplaceAll(s, "`", " ")
+	return s
+}
+
+func resolveExistingImagePath(p string, searchDirs []string) string {
+	if filepath.IsAbs(p) {
+		if fileExists(p) {
+			return filepath.Clean(p)
+		}
+		return ""
+	}
+	candidates := []string{p}
+	for _, dir := range searchDirs {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		candidates = append(candidates, filepath.Join(dir, p))
+	}
+	for _, c := range candidates {
+		c = filepath.Clean(c)
+		if fileExists(c) {
+			return c
+		}
+	}
+	return ""
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+func readLocalImage(path string) ([]byte, string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(b) == 0 {
+		return nil, "", fmt.Errorf("empty file")
+	}
+	if len(b) > maxResponseImageBytes {
+		return nil, "", fmt.Errorf("image exceeds %d bytes", maxResponseImageBytes)
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return b, "image/jpeg", nil
+	case ".gif":
+		return b, "image/gif", nil
+	case ".webp":
+		return b, "image/webp", nil
+	default:
+		return b, "image/png", nil
+	}
+}
+
+// UserRequestsGeneratedImage is a lightweight heuristic for image-generation asks.
+func UserRequestsGeneratedImage(content string) bool {
+	c := strings.ToLower(strings.TrimSpace(content))
+	if c == "" {
+		return false
+	}
+	phrases := []string{
+		"make it an image", "make this an image", "as an image", "as a png",
+		"generate an image", "generate a image", "create an image", "draw me",
+		"draw a ", "show me a diagram", "quick diagram",
+	}
+	for _, p := range phrases {
+		if strings.Contains(c, p) {
+			return true
+		}
+	}
+	hasNoun := strings.Contains(c, "image") || strings.Contains(c, "diagram") || strings.Contains(c, "png")
+	hasVerb := strings.Contains(c, "make") || strings.Contains(c, "generate") || strings.Contains(c, "create") ||
+		strings.Contains(c, "draw") || strings.Contains(c, "show")
+	return hasNoun && hasVerb
+}
+
+// ImagePromptFromMessage strips mentions and returns a prompt suitable for hub image generation.
+func ImagePromptFromMessage(content string) string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "A clear technical diagram."
+	}
+	// Drop leading @mentions
+	for strings.HasPrefix(content, "@") {
+		if i := strings.IndexByte(content, ' '); i > 0 {
+			content = strings.TrimSpace(content[i+1:])
+		} else {
+			break
+		}
+	}
+	if len(content) > 900 {
+		content = content[:900]
+	}
+	return content
+}
+
+// MaybePostHubGeneratedImageForCLI posts a hub-generated image when the user asked for one
+// and the CLI response did not attach a local file.
+func (a *Agent) MaybePostHubGeneratedImageForCLI(msg *protocol.Message, responseHasImage bool) {
+	if !a.isCLIAgent() || responseHasImage || msg == nil || a.Hub == nil {
+		return
+	}
+	if !a.Hub.ImageGenerationEnabled() || !UserRequestsGeneratedImage(msg.Content) {
+		return
+	}
+	prompt := ImagePromptFromMessage(msg.Content)
+	if err := a.Hub.GenerateAndPostImage(context.Background(), msg.Channel, a.Info, prompt, ""); err != nil {
+		log.Printf("[%s] hub image fallback: %v", a.Info.Name, err)
+	}
+}

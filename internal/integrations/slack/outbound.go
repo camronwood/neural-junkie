@@ -21,7 +21,7 @@ func ShouldPostToSlack(msg *protocol.Message, binding *Binding) bool {
 	}
 	switch msg.Type {
 	case protocol.MessageTypeAnswer, protocol.MessageTypeChat, protocol.MessageTypeQuestion:
-		if strings.TrimSpace(msg.Content) == "" {
+		if strings.TrimSpace(msg.Content) == "" && ExtractGeneratedImage(msg) == nil {
 			return false
 		}
 	case protocol.MessageTypeFileChange, protocol.MessageTypeToolApproval:

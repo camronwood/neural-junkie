@@ -316,7 +316,7 @@ func (m *ModeratorAgent) GenerateResponse(ctx context.Context, msg *protocol.Mes
 	prompt := m.buildModeratorPrompt(msg)
 
 	// Get recent conversation history for context
-	history := m.Context.History[msg.Channel]
+	history := m.channelHistory(msg.Channel)
 	if len(history) > 10 {
 		history = history[len(history)-10:]
 	}

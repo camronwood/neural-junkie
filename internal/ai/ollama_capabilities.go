@@ -17,6 +17,18 @@ type ollamaShowResponse struct {
 // OllamaBiologyFallbackModel is used when nj-bio returns empty replies (must be pulled in Ollama).
 const OllamaBiologyFallbackModel = "qwen2.5:7b"
 
+// OllamaSmallChatModel reports local models that need short prompts and user-only history.
+func OllamaSmallChatModel(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if m == "" {
+		return false
+	}
+	if strings.Contains(m, "qwen2.5:7b") || strings.HasSuffix(m, ":7b") && strings.Contains(m, "qwen") {
+		return true
+	}
+	return ollamaModelLikelyNoNativeTools(model)
+}
+
 // OllamaModelPrefersCompactPrompt reports models that need a short system prompt (e.g. nj-bio GGUF).
 func OllamaModelPrefersCompactPrompt(model string) bool {
 	return ollamaModelLikelyNoNativeTools(model)

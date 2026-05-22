@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,18 +18,20 @@ import (
 
 // Mock hub client for repository agent testing
 type mockHubClientRepo struct {
+	mu           sync.Mutex
 	sentMessages []*protocol.Message
 	subscribers  []chan *protocol.Message
 }
 
 func (m *mockHubClientRepo) SendMessage(msg *protocol.Message) error {
+	m.mu.Lock()
 	m.sentMessages = append(m.sentMessages, msg)
-	// Broadcast to all subscribers
-	for _, subCh := range m.subscribers {
+	subs := append([]chan *protocol.Message(nil), m.subscribers...)
+	m.mu.Unlock()
+	for _, subCh := range subs {
 		select {
 		case subCh <- msg:
 		default:
-			// Skip if channel is full
 		}
 	}
 	return nil
@@ -36,8 +39,18 @@ func (m *mockHubClientRepo) SendMessage(msg *protocol.Message) error {
 
 func (m *mockHubClientRepo) Subscribe(channelName string) (chan *protocol.Message, error) {
 	subCh := make(chan *protocol.Message, 100)
+	m.mu.Lock()
 	m.subscribers = append(m.subscribers, subCh)
+	m.mu.Unlock()
 	return subCh, nil
+}
+
+func (m *mockHubClientRepo) GetSentMessages() []*protocol.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]*protocol.Message, len(m.sentMessages))
+	copy(out, m.sentMessages)
+	return out
 }
 
 func (m *mockHubClientRepo) GetMessages(channelName string, limit int) ([]*protocol.Message, error) {
@@ -566,7 +579,7 @@ This is a test repository for testing the repository agent.`,
 
 	// Check if agent responded
 	chatResponses := 0
-	for _, sentMsg := range hub.sentMessages {
+	for _, sentMsg := range hub.GetSentMessages() {
 		if sentMsg.Type == protocol.MessageTypeChat {
 			chatResponses++
 		}

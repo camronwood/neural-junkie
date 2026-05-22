@@ -232,6 +232,7 @@ func main() {
 	http.HandleFunc("/api/cached-agents", corsMiddleware(handleCachedAgents)) // Keep for backwards compatibility
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
+	http.HandleFunc("/api/local-image", corsMiddleware(localOnly(handleLocalImage)))
 	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
 	http.HandleFunc("/api/collaborations/", corsMiddleware(handleCollaborationsSubRoute))
 	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(handleCollaborationWorkspaceAck))
@@ -276,6 +277,13 @@ func main() {
 	http.HandleFunc("/api/git-commit", corsMiddleware(handleGitCommit))
 	http.HandleFunc("/api/git-push", corsMiddleware(handleGitPush))
 	http.HandleFunc("/api/git-pull", corsMiddleware(handleGitPull))
+	http.HandleFunc("/api/git-file-sides", corsMiddleware(handleGitFileSides))
+	http.HandleFunc("/api/git-add", corsMiddleware(handleGitAdd))
+	http.HandleFunc("/api/git-reset", corsMiddleware(handleGitReset))
+	http.HandleFunc("/api/workspaces/files/search", corsMiddleware(handleWorkspaceFileSearch))
+	http.HandleFunc("/api/workspaces/symbols/search", corsMiddleware(handleWorkspaceSymbolSearch))
+	http.HandleFunc("/api/dev/fast-edit", corsMiddleware(handleDevFastEdit))
+	http.HandleFunc("/api/lsp/go/diagnostics", corsMiddleware(handleLSPGoDiagnostics))
 
 	// File change API endpoints
 	http.HandleFunc("/api/file-changes", corsMiddleware(handleFileChanges))
@@ -1171,6 +1179,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 func handleChannels(w http.ResponseWriter, r *http.Request) {
 	channels := chatHub.ListChannels()
+	if store, err := slackint.NewBindingStore(); err == nil {
+		slackint.EnrichChannelsFromBindings(channels, store)
+	}
 
 	// Optional type filter
 	typeFilter := r.URL.Query().Get("type")
@@ -3507,27 +3518,6 @@ func handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
-// Git operations handlers (stubs for now)
-func handleGitStatus(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Git operations not yet implemented", http.StatusNotImplemented)
-}
-
-func handleGitDiff(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Git operations not yet implemented", http.StatusNotImplemented)
-}
-
-func handleGitCommit(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Git operations not yet implemented", http.StatusNotImplemented)
-}
-
-func handleGitPush(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Git operations not yet implemented", http.StatusNotImplemented)
-}
-
-func handleGitPull(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Git operations not yet implemented", http.StatusNotImplemented)
 }
 
 // File change API handlers

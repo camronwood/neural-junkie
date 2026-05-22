@@ -1,8 +1,9 @@
-import { create } from 'zustand';
+import { createWithEqualityFn as create } from 'zustand/traditional';
 import { ChatAPI, type PackStatus } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 
-const PACK_LIFE_SCIENCES = 'life-sciences';
+export const PACK_LIFE_SCIENCES = 'life-sciences';
+export const PACK_SOFTWARE_DEVELOPMENT = 'software-development';
 
 interface PacksState {
   packs: PackStatus[];
@@ -10,6 +11,7 @@ interface PacksState {
   error: string | null;
   fetchPacks: () => Promise<void>;
   lifeSciencesEnabled: () => boolean;
+  softwareDevelopmentEnabled: () => boolean;
 }
 
 export const usePacksStore = create<PacksState>((set, get) => ({
@@ -31,6 +33,11 @@ export const usePacksStore = create<PacksState>((set, get) => ({
 
   lifeSciencesEnabled: () => {
     const pack = get().packs.find((p) => p.id === PACK_LIFE_SCIENCES);
+    return pack?.enabled === true;
+  },
+
+  softwareDevelopmentEnabled: () => {
+    const pack = get().packs.find((p) => p.id === PACK_SOFTWARE_DEVELOPMENT);
     return pack?.enabled === true;
   },
 }));

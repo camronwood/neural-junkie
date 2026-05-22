@@ -2322,7 +2322,7 @@ dependencies = [
 
 [[package]]
 name = "neural-junkie"
-version = "1.0.0-beta.14"
+version = "1.0.0-beta.15"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

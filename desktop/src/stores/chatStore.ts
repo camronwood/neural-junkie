@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn as create } from 'zustand/traditional';
 import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
 import {
   channelTimelineAllowsEmptyContent,

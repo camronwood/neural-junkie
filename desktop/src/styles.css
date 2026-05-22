@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* IDE v2 inline diff hunks (Monaco decorations) */
+.nj-inline-added {
+  background: rgba(46, 160, 67, 0.2);
+}
+.nj-inline-removed {
+  background: rgba(248, 81, 73, 0.2);
+}
+.nj-glyph-added {
+  background: #2ea043;
+  border-radius: 2px;
+  margin-left: 2px;
+}
+.nj-glyph-removed {
+  background: #f85149;
+  border-radius: 2px;
+  margin-left: 2px;
+}
+
 /* Global Styles */
 * {
   margin: 0;

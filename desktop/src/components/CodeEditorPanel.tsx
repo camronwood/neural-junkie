@@ -4,6 +4,10 @@ import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
+import { useInlinePendingHunks, useMonacoDiagnostics } from '../hooks/useInlinePendingHunks';
+import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
@@ -89,6 +93,50 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   const editorListenersRef = useRef<Array<{ dispose(): void }>>([]);
   const editorRef = useRef(editor);
   editorRef.current = editor;
+  const revealRequest = useEditorStore((s) => s.revealRequest);
+  const clearRevealRequest = useEditorStore((s) => s.clearRevealRequest);
+
+  useMonacoDiagnostics(editor, monacoRef.current, activeTab?.path, activeTab?.language);
+  useInlinePendingHunks(editor, monacoRef.current, activeTabId);
+
+  useEffect(() => {
+    if (!editor || !revealRequest || !activeTab) return;
+    if (
+      revealRequest.workspaceId !== activeTab.workspaceId ||
+      revealRequest.path !== activeTab.path
+    ) {
+      return;
+    }
+    editor.revealLineInCenter(revealRequest.line);
+    editor.setPosition({ lineNumber: revealRequest.line, column: 1 });
+    clearRevealRequest();
+  }, [editor, revealRequest, activeTab, clearRevealRequest]);
+
+  useEffect(() => {
+    if (!activeTab?.workspaceId || activeTab.language !== 'go') return;
+    let cancelled = false;
+    const api = new ChatAPI(getHubBaseURL());
+    void api.getGoLSPDiagnostics(activeTab.workspaceId).then((items) => {
+      if (cancelled) return;
+      for (const d of items) {
+        if (d.path === activeTab.path) {
+          useDiagnosticsStore.getState().setForPath(d.path, [
+            ...(useDiagnosticsStore.getState().byPath[d.path] ?? []),
+            {
+              path: d.path,
+              line: d.line,
+              column: d.column,
+              message: d.message,
+              severity: d.severity === 'warning' ? 'warning' : 'error',
+            },
+          ]);
+        }
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab?.workspaceId, activeTab?.path, activeTab?.language]);
 
   const isImageTab = activeTab?.viewMode === 'image';
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
@@ -277,6 +325,26 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
       upd(id, next);
     });
     editorListenersRef.current.push(subContent);
+
+    const subSelection = ed.onDidChangeCursorSelection(() => {
+      const sel = ed.getSelection();
+      const model = ed.getModel();
+      if (!sel || !model || sel.isEmpty()) {
+        useEditorStore.getState().setActiveSelection(null);
+        return;
+      }
+      const text = model.getValueInRange(sel);
+      if (!text.trim()) {
+        useEditorStore.getState().setActiveSelection(null);
+        return;
+      }
+      useEditorStore.getState().setActiveSelection({
+        startLine: sel.startLineNumber,
+        endLine: sel.endLineNumber,
+        text: text.length > 2048 ? text.slice(0, 2048) : text,
+      });
+    });
+    editorListenersRef.current.push(subSelection);
   };
 
   const handleSaveAll = async () => {

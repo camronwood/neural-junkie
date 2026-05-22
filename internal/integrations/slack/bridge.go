@@ -282,9 +282,8 @@ func (b *Bridge) processInbound(ctx context.Context, in InboundInput) {
 		return
 	}
 	if !ShouldTriggerAgent(in, binding, b.botUserID) {
-		if InboundDebugEnabled() {
-			log.Printf("[slack] inbound ignored channel=%s (policy %s)", in.ChannelID, binding.Policy)
-		}
+		log.Printf("[slack] inbound ignored channel=%s (policy %q — use always, or @mention the bot / app_mention)",
+			in.ChannelID, binding.Policy)
 		return
 	}
 	if in.SlackTS != "" {
@@ -321,8 +320,12 @@ func (b *Bridge) processInbound(ctx context.Context, in InboundInput) {
 		parentTS = in.ThreadTS
 	}
 	_ = b.threads.RegisterChannelParent(in.ChannelID, parentTS)
-	if msg.IsThreadReply && msg.ThreadID == in.ThreadTS {
-		_ = b.threads.RegisterInboundRoot(in.ChannelID, in.ThreadTS, msg.ThreadID)
+	if msg.IsThreadReply && in.ThreadTS != "" {
+		rootID := msg.ThreadID
+		if rootID == "" {
+			rootID = in.ThreadTS
+		}
+		_ = b.threads.RegisterInboundRoot(in.ChannelID, in.ThreadTS, rootID)
 	}
 }
 
@@ -356,33 +359,54 @@ func (b *Bridge) runOutbound(ctx context.Context, njChannel string) {
 			text := FormatSlackText(msg)
 			threadTS := ThreadTSForOutbound(msg, b.threads, binding)
 			username := OutboundSlackUsername(msg, binding, b.displayName)
-			b.postSlack(binding.SlackChannelID, text, threadTS, username, *msg)
+			b.postSlack(binding.SlackChannelID, text, threadTS, username, msg)
 		}
 	}
 }
 
-func (b *Bridge) postSlack(channelID, text, threadTS, username string, hubMsg protocol.Message) {
-	opts := []slackapi.MsgOption{
-		slackapi.MsgOptionText(text, false),
-	}
-	if threadTS != "" {
-		opts = append(opts, slackapi.MsgOptionTS(threadTS))
-	}
-	if username == "" {
-		username = b.displayName
-	}
-	if username != "" {
-		opts = append(opts, slackapi.MsgOptionUsername(username))
-	}
-	if b.iconURL != "" {
-		opts = append(opts, slackapi.MsgOptionIconURL(b.iconURL))
-	}
-	_, ts, err := b.api.PostMessage(channelID, opts...)
-	if err != nil {
-		log.Printf("[slack] postMessage: %v", err)
+func (b *Bridge) postSlack(channelID, text, threadTS, username string, hubMsg *protocol.Message) {
+	if hubMsg == nil {
 		return
 	}
-	if hubMsg.ID != "" && ts != "" {
+	if strings.TrimSpace(text) != "" {
+		opts := []slackapi.MsgOption{
+			slackapi.MsgOptionText(text, false),
+		}
+		if threadTS != "" {
+			opts = append(opts, slackapi.MsgOptionTS(threadTS))
+		}
+		if username == "" {
+			username = b.displayName
+		}
+		if username != "" {
+			opts = append(opts, slackapi.MsgOptionUsername(username))
+		}
+		if b.iconURL != "" {
+			opts = append(opts, slackapi.MsgOptionIconURL(b.iconURL))
+		}
+		_, ts, err := b.api.PostMessage(channelID, opts...)
+		if err != nil {
+			log.Printf("[slack] postMessage: %v", err)
+		} else {
+			b.registerOutboundSlackTS(hubMsg, ts)
+		}
+	}
+	if img := ExtractGeneratedImage(hubMsg); img != nil {
+		title := strings.TrimSpace(hubMsg.From.Name)
+		if title == "" {
+			title = "Generated image"
+		}
+		if err := UploadGeneratedImage(b.api, channelID, threadTS, title, img); err != nil {
+			log.Printf("[slack] upload image: %v", err)
+		}
+	}
+}
+
+func (b *Bridge) registerOutboundSlackTS(hubMsg *protocol.Message, ts string) {
+	if hubMsg == nil || ts == "" {
+		return
+	}
+	if hubMsg.ID != "" {
 		_ = b.threads.RegisterNJMessageSlackTS(hubMsg.ID, ts)
 	}
 	tid := hubMsg.GetThreadID()

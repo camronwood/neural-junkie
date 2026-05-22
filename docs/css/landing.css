@@ -839,6 +839,128 @@ section h2 {
   }
 }
 
+/* —— Domain packs —— */
+.packs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 1rem;
+}
+
+@media (max-width: 720px) {
+  .packs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pack-card {
+  padding: 1rem 1.1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.pack-card--dev {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.08);
+}
+
+.pack-card--bio {
+  border-color: rgba(34, 197, 94, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.08);
+}
+
+.pack-card-title {
+  font-size: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.pack-card-blurb {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.65rem;
+}
+
+.pack-card .btn-sm {
+  margin-top: 0.5rem;
+  margin-right: 0.35rem;
+}
+
+.packs-exclusive {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.spotlight-art--packs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spotlight-art__packs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 260px;
+}
+
+.spotlight-art__pack {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.spotlight-art__pack--on {
+  border-color: rgba(233, 69, 96, 0.5);
+  box-shadow: 0 0 20px rgba(233, 69, 96, 0.15);
+}
+
+.spotlight-art__pack-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.spotlight-art__pack--on .spotlight-art__pack-label {
+  color: var(--accent);
+}
+
+.spotlight-art__pack-line {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  margin-bottom: 0.35rem;
+}
+
+.spotlight-art__pack-line--short {
+  width: 65%;
+}
+
+.spotlight-art__pack-tag {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.65rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--text-muted);
+}
+
+.spotlight-art__pack-or {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
 /* —— Model app store grid —— */
 .spotlight-art--models {
   display: flex;

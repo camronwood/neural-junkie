@@ -78,3 +78,16 @@ func ValidateChannel(api *slackapi.Client, channelID string) error {
 	}
 	return err
 }
+
+// ResolveChannelName returns the Slack channel name (without #) for a channel ID, or "" on failure.
+func ResolveChannelName(api *slackapi.Client, channelID string) string {
+	channelID = strings.TrimSpace(channelID)
+	if api == nil || channelID == "" {
+		return ""
+	}
+	ch, err := api.GetConversationInfo(&slackapi.GetConversationInfoInput{ChannelID: channelID})
+	if err != nil || ch == nil {
+		return ""
+	}
+	return strings.TrimSpace(ch.Name)
+}

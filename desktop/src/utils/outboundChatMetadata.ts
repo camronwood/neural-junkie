@@ -1,5 +1,6 @@
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { usePacksStore } from '../stores/packsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import {
   CONTEXT_SCOPE_KEY,
@@ -69,10 +70,27 @@ export function trimWorkspaceContext(
         if (active) files = [active];
       }
     }
-    base.open_files = files.map((tab) => ({
-      ...tab,
-      content: tab.content.substring(0, scope === 'focus' ? 10000 : 10000),
-    }));
+    const devPack = usePacksStore.getState().softwareDevelopmentEnabled();
+    const sel = devPack ? useEditorStore.getState().activeSelection : null;
+    const activePath = activeTabPath ?? files.find((t) => t.is_active)?.path;
+    base.open_files = files.map((tab) => {
+      const row = {
+        ...tab,
+        content: tab.content.substring(0, scope === 'focus' ? 10000 : 10000),
+      };
+      if (
+        devPack &&
+        sel &&
+        activePath &&
+        tab.path === activePath &&
+        tab.is_active
+      ) {
+        row.selection_start_line = sel.startLine;
+        row.selection_end_line = sel.endLine;
+        row.selected_text = sel.text;
+      }
+      return row;
+    });
   }
   return base;
 }

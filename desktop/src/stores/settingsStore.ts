@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn as create } from 'zustand/traditional';
 import { Store } from '@tauri-apps/plugin-store';
 import { ChatAPI } from '../api/chatAPI';
 
@@ -71,6 +71,8 @@ export interface LayoutSettings {
   pendingChangesPanelVisible: boolean;
   /** When false, agent shortcuts under Direct Messages are hidden (existing DM rows stay). */
   sidebarAgentsVisible: boolean;
+  /** True after one-time files+editor layout nudge when software-development pack is enabled. */
+  devPackLayoutNudgeApplied?: boolean;
 }
 
 interface SettingsState {

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn as create } from 'zustand/traditional';
 import { ChatAPI } from '../api/chatAPI';
 import { devLog } from '../utils/devLog';
 import { getHubBaseURL } from '../config/hubUrl';

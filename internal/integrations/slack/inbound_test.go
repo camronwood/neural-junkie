@@ -69,6 +69,25 @@ func TestStripBotMention(t *testing.T) {
 	}
 }
 
+func TestBuildHubMessageThreadParentNJID(t *testing.T) {
+	b := &Binding{Enabled: true, NJChannel: "slack:C1", AgentID: "a1", Policy: config.SlackPolicyAlways}
+	tm := &ThreadMap{
+		njMessageTS: map[string]string{"parent-nj": "10.0"},
+	}
+	in := InboundInput{
+		ChannelID: "C1",
+		UserID:    "U1",
+		UserName:  "Camron",
+		Text:      "follow up",
+		SlackTS:   "10.1",
+		ThreadTS:  "10.0",
+	}
+	msg := BuildHubMessage(in, b, tm, "")
+	if !msg.IsThreadReply || msg.ThreadID != "parent-nj" {
+		t.Fatalf("thread id: got %q isReply=%v", msg.ThreadID, msg.IsThreadReply)
+	}
+}
+
 func TestBuildHubMessageThread(t *testing.T) {
 	b := &Binding{Enabled: true, NJChannel: "slack:C1", AgentID: "a1", Policy: config.SlackPolicyAlways}
 	tm := &ThreadMap{

@@ -1479,19 +1479,57 @@ export class ChatAPI {
     return response.json();
   }
 
-  async getGitDiff(workspaceId: string, path: string): Promise<string> {
-    const response = await this.hubFetch(`/api/git-diff?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`,
-      {
-        method: 'POST',
-      }
-    );
-
+  async getGitDiff(workspaceId: string, path: string, staged = false): Promise<string> {
+    const params = new URLSearchParams({
+      workspace: workspaceId,
+      path,
+    });
+    if (staged) params.set('staged', 'true');
+    const response = await this.hubFetch(`/api/git-diff?${params}`, { method: 'POST' });
     if (!response.ok) {
       throw new Error(`Failed to get git diff: ${response.statusText}`);
     }
-    
     const data = await response.json();
     return data.diff;
+  }
+
+  async getGitFileSides(
+    workspaceId: string,
+    path: string,
+    staged: boolean
+  ): Promise<{ original: string; modified: string }> {
+    const params = new URLSearchParams({
+      workspace: workspaceId,
+      path,
+    });
+    if (staged) params.set('staged', 'true');
+    const response = await this.hubFetch(`/api/git-file-sides?${params}`, { method: 'GET' });
+    if (!response.ok) {
+      throw new Error(`Failed to get file sides: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async gitAdd(workspaceId: string, paths: string[]): Promise<void> {
+    const response = await this.hubFetch('/api/git-add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId, paths }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to stage: ${response.statusText}`);
+    }
+  }
+
+  async gitReset(workspaceId: string, paths: string[]): Promise<void> {
+    const response = await this.hubFetch('/api/git-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId, paths }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to unstage: ${response.statusText}`);
+    }
   }
 
   async commitChanges(workspaceId: string, message: string): Promise<void> {
@@ -1541,6 +1579,111 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(`Failed to pull changes: ${response.statusText}`);
     }
+  }
+
+  async searchWorkspaceFiles(
+    workspaceId: string,
+    query: string,
+    limit = 50
+  ): Promise<string[]> {
+    const params = new URLSearchParams({
+      workspace: workspaceId,
+      q: query,
+      limit: String(limit),
+    });
+    const response = await this.hubFetch(`/api/workspaces/files/search?${params}`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to search files: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { paths?: string[] };
+    return data.paths ?? [];
+  }
+
+  async searchWorkspaceSymbols(
+    workspaceId: string,
+    query: string,
+    limit = 50
+  ): Promise<
+    Array<{ name: string; path: string; line: number; kind: string; language: string }>
+  > {
+    const params = new URLSearchParams({
+      workspace: workspaceId,
+      q: query,
+      limit: String(limit),
+    });
+    const response = await this.hubFetch(`/api/workspaces/symbols/search?${params}`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to search symbols: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { symbols?: Array<{
+      name: string;
+      path: string;
+      line: number;
+      kind: string;
+      language: string;
+    }> };
+    return data.symbols ?? [];
+  }
+
+  async devFastEdit(params: {
+    workspaceId: string;
+    path?: string;
+    instruction: string;
+    selection?: string;
+    agentType?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{
+    response: string;
+    proposed: boolean;
+    change_id?: string;
+    agent?: string;
+    agent_type?: string;
+  }> {
+    const response = await this.hubFetch('/api/dev/fast-edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspace_id: params.workspaceId,
+        path: params.path,
+        instruction: params.instruction,
+        selection: params.selection,
+        agent_type: params.agentType,
+        metadata: params.metadata,
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Fast edit failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getGoLSPDiagnostics(
+    workspaceId: string
+  ): Promise<
+    Array<{ path: string; line: number; column: number; message: string; severity: string }>
+  > {
+    const params = new URLSearchParams({ workspace: workspaceId });
+    const response = await this.hubFetch(`/api/lsp/go/diagnostics?${params}`, {
+      method: 'GET',
+    });
+    if (!response.ok) {
+      return [];
+    }
+    const data = (await response.json()) as {
+      diagnostics?: Array<{
+        path: string;
+        line: number;
+        column: number;
+        message: string;
+        severity: string;
+      }>;
+    };
+    return data.diagnostics ?? [];
   }
 
   // Tool approval API methods

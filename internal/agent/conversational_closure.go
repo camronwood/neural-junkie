@@ -121,7 +121,7 @@ func tryConversationalClosure(a *Agent, msg *protocol.Message) (string, bool) {
 		return "", false
 	}
 
-	history := a.Context.History[msg.Channel]
+	history := a.channelHistory(msg.Channel)
 	if kind == ClosureBriefAck && !recentAgentAnsweredInChannel(history, a.Info.ID) {
 		return "", false
 	}
@@ -135,7 +135,7 @@ func tryConversationalClosure(a *Agent, msg *protocol.Message) (string, bool) {
 
 // conversationHistoryForGeneration returns LLM history rows for the current message.
 func (a *Agent) conversationHistoryForGeneration(msg *protocol.Message) []*protocol.Message {
-	raw := a.Context.History[msg.Channel]
+	raw := a.channelHistory(msg.Channel)
 	if a.Info.Type == protocol.AgentTypeAssistant {
 		return filterAssistantHistory(raw, msg)
 	}

@@ -31,7 +31,9 @@ DEFAULT_HUB = os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765").
 SMOKE_CHANNEL = "collab-smoke"
 POLL_SECS = 90
 POLL_INTERVAL = 1.0
+EXECUTING_WAIT_SECS = 30
 MAX_CONCURRENT_COLLABS = 3
+FALLBACK_AGENTS = "@Assistant @Cursor"
 
 
 def hub_request(base: str, method: str, path: str, body: dict | None = None) -> tuple[int, Any]:
@@ -77,6 +79,41 @@ def find_collab(collabs: list, collab_id: str) -> dict | None:
         if isinstance(c, dict) and c.get("id") == collab_id:
             return c
     return None
+
+
+def discover_collab_agents(base: str) -> str:
+    """Pick agent mentions from the live hub (or NJ_COLLAB_SMOKE_AGENTS)."""
+    env = os.environ.get("NJ_COLLAB_SMOKE_AGENTS", "").strip()
+    if env:
+        return env
+    code, data = hub_request(base, "GET", "/api/agents")
+    if code != 200 or not isinstance(data, list):
+        return FALLBACK_AGENTS
+    picks: list[str] = []
+    for a in data:
+        if not isinstance(a, dict):
+            continue
+        if a.get("is_paused"):
+            continue
+        if (a.get("type") or "").lower() == "moderator":
+            continue
+        name = (a.get("name") or "").strip()
+        if not name:
+            continue
+        mention = f"@{name}"
+        if mention not in picks:
+            picks.append(mention)
+        if len(picks) >= 2:
+            break
+    return " ".join(picks) if len(picks) >= 2 else FALLBACK_AGENTS
+
+
+def fetch_collab(base: str, channel: str, collab_id: str) -> dict | None:
+    q = urllib.parse.urlencode({"channel": channel, "include_terminal": "true"})
+    code, data = hub_request(base, "GET", f"/api/collaborations?{q}")
+    if code != 200 or not isinstance(data, list):
+        return None
+    return find_collab(data, collab_id)
 
 
 def list_active_collaborations(base: str) -> list[dict]:
@@ -196,8 +233,24 @@ def wait_phase(base: str, channel: str, collab_id: str, want: str, timeout: floa
     return False
 
 
-def run_live(base: str, agents: str, channel: str) -> int:
-    print(f"collab-smoke (live): hub={base} channel={channel}")
+def wait_planning_recap_ready(base: str, channel: str, collab_id: str, timeout: float) -> bool:
+    """Wait until planning recap is complete or failed (/approve-plan requires not pending)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        collab = fetch_collab(base, channel, collab_id)
+        if collab is None:
+            return False
+        status = (collab.get("planning_recap_status") or "").strip().lower()
+        if status in ("complete", "failed"):
+            return True
+        time.sleep(POLL_INTERVAL)
+    return False
+
+
+def run_live(base: str, agents: str | None, channel: str) -> int:
+    if not agents:
+        agents = discover_collab_agents(base)
+    print(f"collab-smoke (live): hub={base} channel={channel} agents={agents}")
     code, health = hub_request(base, "GET", "/api/health")
     if code != 200:
         print(f"FAIL: hub not healthy at {base} (status {code})", file=sys.stderr)
@@ -251,33 +304,47 @@ def run_live(base: str, agents: str, channel: str) -> int:
     print(f"  polling for reviewing (up to {POLL_SECS}s; agents must discuss)...")
     if wait_phase(base, collab_ch, collab_id, "reviewing", POLL_SECS):
         print("  ✓ phase reviewing")
-        code, _ = hub_request(
-            base,
-            "POST",
-            "/api/send",
-            {
-                "channel": collab_ch,
-                "content": f"/approve-plan {collab_id[:8]}",
-                "type": "question",
-                "from": {"name": "CollabSmoke", "type": "human"},
-            },
-        )
-        if code == 200 and wait_phase(base, collab_ch, collab_id, "executing", 10):
-            print("  ✓ phase executing")
-            ack_code, _ = hub_request(
+        print(f"  polling for planning recap (up to {POLL_SECS}s; required before /approve-plan)...")
+        if not wait_planning_recap_ready(base, collab_ch, collab_id, POLL_SECS):
+            err = last_system_error(base, collab_ch)
+            print("  ✗ planning recap still pending", file=sys.stderr)
+            if err:
+                print(f"  hub: {err}", file=sys.stderr)
+            steps_ok = False
+        else:
+            collab = fetch_collab(base, collab_ch, collab_id)
+            recap_st = (collab or {}).get("planning_recap_status", "")
+            print(f"  ✓ planning recap ready ({recap_st})")
+            code, _ = hub_request(
                 base,
                 "POST",
-                "/api/collaboration-workspace-ack",
-                {"collaboration_id": collab_id},
+                "/api/send",
+                {
+                    "channel": collab_ch,
+                    "content": f"/approve-plan {collab_id[:8]}",
+                    "type": "question",
+                    "from": {"name": "CollabSmoke", "type": "human"},
+                },
             )
-            if ack_code == 204:
-                print("  ✓ workspace ack")
+            if code == 200 and wait_phase(base, collab_ch, collab_id, "executing", EXECUTING_WAIT_SECS):
+                print("  ✓ phase executing")
+                ack_code, _ = hub_request(
+                    base,
+                    "POST",
+                    "/api/collaboration-workspace-ack",
+                    {"collaboration_id": collab_id},
+                )
+                if ack_code == 204:
+                    print("  ✓ workspace ack")
+                else:
+                    print(f"  ✗ workspace ack failed ({ack_code})", file=sys.stderr)
+                    steps_ok = False
             else:
-                print(f"  ✗ workspace ack failed ({ack_code})", file=sys.stderr)
+                err = last_system_error(base, collab_ch)
+                print("  ✗ approve-plan or executing phase", file=sys.stderr)
+                if err:
+                    print(f"  hub: {err}", file=sys.stderr)
                 steps_ok = False
-        else:
-            print("  ✗ approve-plan or executing phase", file=sys.stderr)
-            steps_ok = False
     else:
         print(
             "  ⚠ still not reviewing — agents may be offline; run in-process: make collab-smoke",
@@ -319,8 +386,8 @@ def main() -> int:
     p.add_argument("--hub", default=DEFAULT_HUB, help="Hub base URL for --live")
     p.add_argument(
         "--agents",
-        default="@RustExpert @SecurityExpert",
-        help="Agent mentions for /collaborate (live mode)",
+        default=None,
+        help="Agent mentions for /collaborate (live; default: discover from GET /api/agents)",
     )
     p.add_argument(
         "--channel",
@@ -329,7 +396,8 @@ def main() -> int:
     )
     args = p.parse_args()
     if args.live:
-        return run_live(args.hub.rstrip("/"), args.agents.strip(), args.channel.strip())
+        agents = args.agents.strip() if args.agents else None
+        return run_live(args.hub.rstrip("/"), agents, args.channel.strip())
     return run_go_smoke()
 
 

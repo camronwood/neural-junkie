@@ -128,7 +128,7 @@ echo ""
 
 # Test 5: Check recent messages
 echo -e "${BLUE}Test 5: Retrieving recent messages...${NC}"
-MESSAGES=$(curl -s http://localhost:18765/api/channels/general/messages?limit=10)
+MESSAGES=$(curl -sf "http://localhost:18765/api/messages?channel=general&limit=10")
 
 if [ $? -eq 0 ]; then
     MESSAGE_COUNT=$(echo "$MESSAGES" | jq '. | length' 2>/dev/null || echo "0")
@@ -136,25 +136,35 @@ if [ $? -eq 0 ]; then
     
     if [ "$MESSAGE_COUNT" -gt "0" ]; then
         echo -e "${BLUE}  Last message:${NC}"
-        echo "$MESSAGES" | jq '.[0] | {from: .from.name, content: .content}' 2>/dev/null || echo "  (Could not parse)"
+        echo "$MESSAGES" | jq '.[-1] | {from: .from.name, content: .content}' 2>/dev/null || echo "  (Could not parse)"
     fi
 else
     echo -e "${RED}✗ Failed to retrieve messages${NC}"
+    exit 1
 fi
 echo ""
 
 # Test 6: Run Go tests
 echo -e "${BLUE}Test 6: Running Go unit tests...${NC}"
-if go test ./test/gui_test.go -v 2>&1 | grep -E "PASS|FAIL"; then
-    echo -e "${GREEN}✓ Go tests completed${NC}"
+if go test ./test -run TestMessageSending -count=1 -v 2>&1 | tee /tmp/nj-message-test.log | grep -E "^(--- |PASS|FAIL|ok )"; then
+    if grep -q "^--- FAIL" /tmp/nj-message-test.log; then
+        echo -e "${RED}✗ Go tests failed${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Go tests passed${NC}"
 else
-    echo -e "${YELLOW}⚠️  Some tests may have failed (check output above)${NC}"
+    echo -e "${RED}✗ Go tests failed${NC}"
+    exit 1
 fi
 echo ""
 
 # Test 7: Performance test
 echo -e "${BLUE}Test 7: Running performance benchmark...${NC}"
-go test ./test/gui_test.go -bench=BenchmarkMessageSending -benchtime=1s 2>&1 | grep -E "Benchmark|ns/op" || true
+if go test ./test -run '^$' -bench=BenchmarkMessageSending -benchtime=1s -count=1 2>&1 | grep -E "Benchmark|ns/op"; then
+    echo -e "${GREEN}✓ Benchmark complete${NC}"
+else
+    echo -e "${YELLOW}⚠️  Benchmark skipped or failed${NC}"
+fi
 echo ""
 
 # Summary

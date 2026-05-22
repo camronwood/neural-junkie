@@ -62,3 +62,21 @@ export function resolveChatImageSrc(raw: string): string {
   if (src.startsWith('file://')) return src;
   return path;
 }
+
+/** Src for hub `generated_image` metadata (inline base64, Tauri path, or local hub file API). */
+export function generatedImageSrc(meta: Record<string, unknown> | undefined): string | null {
+  if (!meta) return null;
+  const g = meta.generated_image as Record<string, unknown> | undefined;
+  if (!g) return null;
+  const mime = String(g.mime || 'image/png');
+  const data = String(g.data || '');
+  if (data && g.data_redacted !== true) {
+    return `data:${mime};base64,${data}`;
+  }
+  const path = typeof g.path === 'string' ? g.path.trim() : '';
+  if (!path) return null;
+  if (isTauriShell()) {
+    return resolveChatImageSrc(path);
+  }
+  return `${getHubBaseURL()}/api/local-image?path=${encodeURIComponent(path)}`;
+}

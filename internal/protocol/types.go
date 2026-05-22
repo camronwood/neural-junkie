@@ -187,6 +187,7 @@ const (
 type Channel struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
+	DisplayName string      `json:"display_name,omitempty"` // Human label (e.g. Slack #cursor-test); Name stays the hub id
 	Description string      `json:"description"`
 	Project     string      `json:"project,omitempty"`
 	Type        ChannelType `json:"type"`

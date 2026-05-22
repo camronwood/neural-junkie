@@ -173,6 +173,21 @@ func (t *ThreadMap) SlackTSForNJMessage(njMessageID string) string {
 	return t.njMessageTS[njMessageID]
 }
 
+// NJMessageForSlackTS returns the NJ message id for a Slack message ts, if known.
+func (t *ThreadMap) NJMessageForSlackTS(slackTS string) string {
+	if slackTS == "" {
+		return ""
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	for njID, ts := range t.njMessageTS {
+		if ts == slackTS {
+			return njID
+		}
+	}
+	return ""
+}
+
 // RegisterOutbound records the Slack ts of an agent reply for future threading.
 func (t *ThreadMap) RegisterOutbound(njThreadID, slackTS string) error {
 	if njThreadID == "" || slackTS == "" {

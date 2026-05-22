@@ -57,6 +57,16 @@ func stopSlackBridge() {
 	}
 }
 
+// slackBindingContext returns a long-lived context for agent channel subscriptions.
+// HTTP request contexts must not be used — they cancel when the handler returns and
+// stop agents from receiving Slack mirror channel messages.
+func slackBindingContext() context.Context {
+	if slackBridgeCtx != nil {
+		return slackBridgeCtx
+	}
+	return context.Background()
+}
+
 func handleSlackStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -175,6 +185,9 @@ func handleSlackBindings(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "slack_channel_id and agent_id required"})
 			return
 		}
+		if strings.TrimSpace(body.SlackChannelName) == "" && slackBridge != nil {
+			body.SlackChannelName = slackint.ResolveChannelName(slackBridge.API(), body.SlackChannelID)
+		}
 		if slackBridge != nil {
 			if err := slackint.ValidateChannel(slackBridge.API(), body.SlackChannelID); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -202,7 +215,7 @@ func handleSlackBindings(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
-		ctx := r.Context()
+		ctx := slackBindingContext()
 		if slackBridge != nil {
 			_ = slackBridge.ApplyBinding(ctx, saved)
 			_ = slackBridge.ReloadBindings(ctx)
@@ -222,7 +235,7 @@ func handleSlackBindings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if slackBridge != nil {
-			_ = slackBridge.ReloadBindings(r.Context())
+			_ = slackBridge.ReloadBindings(slackBindingContext())
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 	default:

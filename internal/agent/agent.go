@@ -56,6 +56,7 @@ type Agent struct {
 	// Multi-channel support
 	activeChannels map[string]context.CancelFunc // channel name -> cancel func for its listener
 	channelMu      sync.Mutex
+	contextMu      sync.RWMutex // protects Context.History map and slices
 
 	// When true, Start does not run discoverChannels (no polling of Hub.GetAgentChannels).
 	// Dedicated DM instances use this so they only listen on channels passed to Start/AddChannel.
@@ -288,9 +289,9 @@ func (a *Agent) StartMultiChannel(ctx context.Context, channels []string) error 
 // AddChannel subscribes the agent to an additional channel dynamically
 func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	a.channelMu.Lock()
-	if _, exists := a.activeChannels[channel]; exists {
-		a.channelMu.Unlock()
-		return nil // already listening
+	if cancel, exists := a.activeChannels[channel]; exists {
+		cancel()
+		delete(a.activeChannels, channel)
 	}
 
 	subCh, err := a.Hub.Subscribe(channel)
@@ -301,11 +302,12 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 
 	history, err := a.Hub.GetMessages(channel, 20)
 	if err == nil {
-		a.Context.History[channel] = history
+		a.replaceChannelHistory(channel, history)
 	}
 
-	chCtx, cancel := context.WithCancel(ctx)
-	a.activeChannels[channel] = cancel
+	// Listener lifetime must not follow short-lived caller contexts (e.g. HTTP handlers).
+	listenerCtx, listenerCancel := context.WithCancel(context.Background())
+	a.activeChannels[channel] = listenerCancel
 	a.channelMu.Unlock()
 
 	log.Printf("[%s] Agent listening on channel: %s", a.Info.Name, channel)
@@ -313,13 +315,13 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	// Check history for any unanswered messages (handles the race where a
 	// message arrived between channel creation and agent subscription).
 	if history != nil {
-		go a.processUnrespondedHistory(ctx, channel, history)
+		go a.processUnrespondedHistory(listenerCtx, channel, history)
 	}
 
 	go func() {
 		for {
 			select {
-			case <-chCtx.Done():
+			case <-listenerCtx.Done():
 				return
 			case <-a.stopCh:
 				return
@@ -327,7 +329,7 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 				if msg == nil {
 					return
 				}
-				a.handleMessage(ctx, msg)
+				a.handleMessage(listenerCtx, msg)
 			}
 		}
 	}()
@@ -424,7 +426,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 				return
 			}
 			if v, ok := msg.Metadata["history_resync"].(bool); ok && v && msg.Channel != "" {
-				if old := a.Context.History[msg.Channel]; len(old) > 0 {
+				if old := a.channelHistory(msg.Channel); len(old) > 0 {
 					for _, m := range old {
 						if m != nil && m.ID != "" {
 							delete(a.respondedMessages, m.ID)
@@ -432,10 +434,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 					}
 				}
 				if hist, err := a.Hub.GetMessages(msg.Channel, 20); err == nil {
-					if a.Context.History == nil {
-						a.Context.History = make(map[string][]*protocol.Message)
-					}
-					a.Context.History[msg.Channel] = hist
+					a.replaceChannelHistory(msg.Channel, hist)
 				}
 				return
 			}
@@ -625,7 +624,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if msg.ReplyTo != "" {
 		handledReviewMetadata := false
 		// Look for the message being replied to
-		for _, histMsg := range a.Context.History[msg.Channel] {
+		for _, histMsg := range a.channelHistory(msg.Channel) {
 			if histMsg.ID == msg.ReplyTo {
 				// Check if it's from another agent (review scenario)
 				isFromAgent := histMsg.From.Type == protocol.AgentTypeFrontend ||
@@ -692,6 +691,15 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		log.Printf("[%s] 🔧 Detected %d command suggestions", a.Info.Name, len(suggestions))
 	}
 
+	responseHasImage := false
+	if a.isCLIAgent() {
+		workDir := a.resolveCLIWorkDir(msg)
+		responseHasImage = AttachGeneratedImageFromResponse(responseMsg, workDir)
+		if responseHasImage {
+			log.Printf("[%s] 🖼️ Attached generated image from CLI response path", a.Info.Name)
+		}
+	}
+
 	log.Printf("[%s] 📤 Sending response msg ID %s (replying to %s)...", a.Info.Name, responseMsg.ID[:8], msg.ID[:8])
 	if err := a.Hub.SendMessage(responseMsg); err != nil {
 		log.Printf("[%s] Error sending message: %v", a.Info.Name, err)
@@ -699,6 +707,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		return
 	}
 	log.Printf("[%s] ✅ Response sent successfully!", a.Info.Name)
+	a.MaybePostHubGeneratedImageForCLI(msg, responseHasImage)
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
 	// Record the response in the collaboration discussion and check consensus
@@ -1133,7 +1142,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 
 				// Find the message being replied to
 				var repliedToMsg *protocol.Message
-				for _, histMsg := range a.Context.History[msg.Channel] {
+				for _, histMsg := range a.channelHistory(msg.Channel) {
 					if histMsg.ID == msg.ReplyTo {
 						repliedToMsg = histMsg
 						break
@@ -1549,6 +1558,20 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		return "", err
 	}
 
+	if a.useOllamaContextGuardrails(msg) &&
+		(looksLikeOllamaPromptLeak(response) || looksLikeContextStackEcho(msg, response)) {
+		retryPrompt := a.buildUltraCompactOllamaPrompt(msg)
+		if a.useCompactAssistantOllamaPrompt(msg) {
+			retryPrompt = a.buildUltraCompactAssistantOllamaPrompt(msg)
+		}
+		retry, err2 := eff.GenerateResponse(approvalCtx, retryPrompt, nil)
+		if err2 == nil && strings.TrimSpace(retry) != "" &&
+			!looksLikeOllamaPromptLeak(retry) && !looksLikeContextStackEcho(msg, retry) {
+			log.Printf("[%s] Ollama context-stack echo; used compact retry", a.Info.Name)
+			return retry, nil
+		}
+	}
+
 	return response, nil
 }
 
@@ -1664,15 +1687,19 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	maxAttempts := 1
-	if a.useCompactOllamaPrompt(msg) {
+	if a.useOllamaContextGuardrails(msg) {
 		maxAttempts = 3
 	}
 	var lastErr error
 	attemptPrompt := prompt
 	streamProvider := eff
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if attempt > 0 && a.useCompactOllamaPrompt(msg) {
-			attemptPrompt = a.buildUltraCompactOllamaPrompt(msg)
+		if attempt > 0 && a.useOllamaContextGuardrails(msg) {
+			if a.useCompactAssistantOllamaPrompt(msg) {
+				attemptPrompt = a.buildUltraCompactAssistantOllamaPrompt(msg)
+			} else {
+				attemptPrompt = a.buildUltraCompactOllamaPrompt(msg)
+			}
 			history = nil
 			log.Printf("[%s] Retrying Ollama stream (attempt %d/%d, prompt %d bytes)", a.Info.Name, attempt+1, maxAttempts, len(attemptPrompt))
 		}
@@ -1692,14 +1719,14 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			}
 			break
 		}
-		if looksLikeOllamaPromptLeak(text) && attempt+1 < maxAttempts {
-			log.Printf("[%s] Ollama reply looked like prompt echo; retrying", a.Info.Name)
+		if (looksLikeOllamaPromptLeak(text) || looksLikeContextStackEcho(msg, text)) && attempt+1 < maxAttempts {
+			log.Printf("[%s] Ollama reply looked like prompt/context echo; retrying", a.Info.Name)
 			continue
 		}
 		return text, id, reasoning, nil
 	}
 
-	if a.useCompactOllamaPrompt(msg) && errors.Is(lastErr, ai.ErrOllamaNoContent) {
+	if a.useOllamaContextGuardrails(msg) && errors.Is(lastErr, ai.ErrOllamaNoContent) {
 		if fb := ollamaFallbackProvider(eff, ai.OllamaBiologyFallbackModel); fb != nil {
 			log.Printf("[%s] nj-bio returned empty; trying fallback model %q", a.Info.Name, ai.OllamaBiologyFallbackModel)
 			fbSP, ok := fb.(ai.StreamingProvider)
@@ -2089,7 +2116,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	isReview := false
 	var reviewedMessage *protocol.Message
 	if msg.ReplyTo != "" {
-		for _, histMsg := range a.Context.History[msg.Channel] {
+		for _, histMsg := range a.channelHistory(msg.Channel) {
 			if histMsg.ID == msg.ReplyTo {
 				reviewedMessage = histMsg
 				if histMsg.From.Type == protocol.AgentTypeFrontend ||
@@ -2282,10 +2309,53 @@ func getResponseLengthGuidance(content string) string {
 	return "Be concise but complete. Use 2-5 sentences for simple questions; expand with specifics when the question warrants deeper analysis."
 }
 
+// channelHistory returns a copy of stored history for a channel.
+func (a *Agent) channelHistory(channel string) []*protocol.Message {
+	a.contextMu.RLock()
+	defer a.contextMu.RUnlock()
+	src := a.Context.History[channel]
+	if len(src) == 0 {
+		return nil
+	}
+	out := make([]*protocol.Message, len(src))
+	copy(out, src)
+	return out
+}
+
+func (a *Agent) replaceChannelHistory(channel string, hist []*protocol.Message) {
+	a.contextMu.Lock()
+	defer a.contextMu.Unlock()
+	if a.Context.History == nil {
+		a.Context.History = make(map[string][]*protocol.Message)
+	}
+	if len(hist) == 0 {
+		delete(a.Context.History, channel)
+		return
+	}
+	cp := make([]*protocol.Message, len(hist))
+	copy(cp, hist)
+	a.Context.History[channel] = cp
+}
+
+func (a *Agent) historyChannelNames() []string {
+	a.contextMu.RLock()
+	defer a.contextMu.RUnlock()
+	names := make([]string, 0, len(a.Context.History))
+	for ch := range a.Context.History {
+		names = append(names, ch)
+	}
+	return names
+}
+
 // addToHistory adds a message to the conversation history
 func (a *Agent) addToHistory(msg *protocol.Message) {
 	if msg == nil {
 		return
+	}
+	a.contextMu.Lock()
+	defer a.contextMu.Unlock()
+	if a.Context.History == nil {
+		a.Context.History = make(map[string][]*protocol.Message)
 	}
 	history := a.Context.History[msg.Channel]
 	if msg.ID != "" {
@@ -2298,12 +2368,9 @@ func (a *Agent) addToHistory(msg *protocol.Message) {
 		}
 	}
 	history = append(history, msg)
-
-	// Trim history if too long
 	if len(history) > a.Context.MaxHistory {
 		history = history[len(history)-a.Context.MaxHistory:]
 	}
-
 	a.Context.History[msg.Channel] = history
 }
 
@@ -2385,7 +2452,7 @@ Please analyze this design mockup and provide a comprehensive style guide with w
 
 Provide the output in a structured format with clear sections for CSS, HTML, and documentation.`
 
-	history := historyForGeneration(a.Context.History[msg.Channel], msg.ID)
+	history := historyForGeneration(a.channelHistory(msg.Channel), msg.ID)
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	var response string
@@ -3064,7 +3131,7 @@ func (a *Agent) latestWorkspaceContext(channel string) (interface{}, bool) {
 			return wc, true
 		}
 	}
-	for ch := range a.Context.History {
+	for _, ch := range a.historyChannelNames() {
 		if ch == channel || ch == "general" {
 			continue
 		}
@@ -3076,7 +3143,7 @@ func (a *Agent) latestWorkspaceContext(channel string) (interface{}, bool) {
 }
 
 func (a *Agent) latestWorkspaceContextForChannel(channel string) (interface{}, bool) {
-	history := a.Context.History[channel]
+	history := a.channelHistory(channel)
 	for i := len(history) - 1; i >= 0; i-- {
 		if history[i] == nil || history[i].Metadata == nil {
 			continue

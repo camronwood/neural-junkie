@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback, forwardRef } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { Message as MessageType } from '../types/protocol';
+import { showThreadReplyInMainTimeline } from '../types/protocol';
+import { slackThreadMetadataLookup } from '../utils/slackThread';
 import { channelTimelineAllowsEmptyContent } from '../types/protocol';
 import { isHumanJoinAnnouncement } from '../utils/joinMessage';
 import { Message } from './Message';
@@ -50,8 +52,9 @@ interface MessageListProps {
 }
 
 export function MessageList({ searchQuery = '' }: MessageListProps) {
-  const { messages, threadMetadata, streamingMessages, openThread } = useChatStore(
+  const { channel, messages, threadMetadata, streamingMessages, openThread } = useChatStore(
     (s) => ({
+      channel: s.channel,
       messages: s.messages,
       threadMetadata: s.threadMetadata,
       streamingMessages: s.streamingMessages,
@@ -59,6 +62,7 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     }),
     shallow
   );
+  const slackMirrorTimeline = showThreadReplyInMainTimeline(channel);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const lastRenderCountRef = useRef(0);
@@ -72,7 +76,7 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
 
   const channelMessages = useMemo(() => {
     const filtered = messages.filter((m) => {
-      if (m.is_thread_reply) return false;
+      if (m.is_thread_reply && !slackMirrorTimeline) return false;
       if (!m.content?.trim() && !channelTimelineAllowsEmptyContent(m.type)) return false;
       if (!normalizedSearchQuery) return true;
       const content = m.content?.toLowerCase() || '';
@@ -93,8 +97,13 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
       }
       deduped.push(m);
     }
+    deduped.sort((a, b) => {
+      const ta = Date.parse(a.timestamp) || 0;
+      const tb = Date.parse(b.timestamp) || 0;
+      return ta - tb;
+    });
     return deduped;
-  }, [messages, normalizedSearchQuery]);
+  }, [messages, normalizedSearchQuery, slackMirrorTimeline]);
 
   const activeStreams = useMemo(() => Object.values(streamingMessages), [streamingMessages]);
 
@@ -220,14 +229,15 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
         return (
           <Message
             message={row.message}
-            threadMetadata={threadMetadata.get(row.message.id)}
+            threadMetadata={slackThreadMetadataLookup(threadMetadata, row.message, channel)}
             onOpenThread={openThread}
+            channelName={channel}
           />
         );
       }
-      return <Message message={row.message} onOpenThread={openThread} isStreaming />;
+      return <Message message={row.message} onOpenThread={openThread} channelName={channel} isStreaming />;
     },
-    [threadMetadata, openThread]
+    [threadMetadata, openThread, channel]
   );
 
   const virtuosoComponents = useMemo(

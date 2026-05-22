@@ -397,6 +397,19 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 					"\n### %s (%s)%s\n```%s\n%s\n```\n",
 					filePath, lang, activeMarker, lang, numberedContent,
 				))
+				if isActive {
+					if start, ok := fm["selection_start_line"].(float64); ok {
+						if end, ok2 := fm["selection_end_line"].(float64); ok2 {
+							selText, _ := fm["selected_text"].(string)
+							if strings.TrimSpace(selText) != "" {
+								prompt.WriteString(fmt.Sprintf(
+									"\nUser selection in %s (lines %d–%d):\n```\n%s\n```\n",
+									filePath, int(start), int(end), strings.TrimSpace(selText),
+								))
+							}
+						}
+					}
+				}
 			}
 		}
 	}

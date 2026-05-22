@@ -18,6 +18,7 @@ type HubClient interface {
 	CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel
 	AddAgentToChannel(agentID, channelName string) error
 	ResolveAgentID(agentID, agentName string) (string, error)
+	SetChannelDisplay(name, displayName, description string) error
 }
 
 // AgentEnsurer starts an agent listening on a channel.
@@ -50,6 +51,10 @@ func (a HubAdapter) CreateChannelWithType(name, description, project string, cha
 
 func (a HubAdapter) AddAgentToChannel(agentID, channelName string) error {
 	return a.H.AddAgentToChannel(agentID, channelName)
+}
+
+func (a HubAdapter) SetChannelDisplay(name, displayName, description string) error {
+	return a.H.SetChannelDisplay(name, displayName, description)
 }
 
 func (a HubAdapter) ResolveAgentID(agentID, agentName string) (string, error) {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,21 +18,22 @@ import (
 
 // Mock hub client for integration testing
 type mockHubClientIntegration struct {
+	mu           sync.Mutex
 	sentMessages []*protocol.Message
 	subscribers  []chan *protocol.Message
 	channels     map[string][]*protocol.Message
 }
 
 func (m *mockHubClientIntegration) SendMessage(msg *protocol.Message) error {
+	m.mu.Lock()
 	m.sentMessages = append(m.sentMessages, msg)
 	m.channels[msg.Channel] = append(m.channels[msg.Channel], msg)
-
-	// Broadcast to all subscribers
-	for _, subCh := range m.subscribers {
+	subs := append([]chan *protocol.Message(nil), m.subscribers...)
+	m.mu.Unlock()
+	for _, subCh := range subs {
 		select {
 		case subCh <- msg:
 		default:
-			// Skip if channel is full
 		}
 	}
 	return nil
@@ -39,12 +41,16 @@ func (m *mockHubClientIntegration) SendMessage(msg *protocol.Message) error {
 
 func (m *mockHubClientIntegration) Subscribe(channelName string) (chan *protocol.Message, error) {
 	subCh := make(chan *protocol.Message, 100)
+	m.mu.Lock()
 	m.subscribers = append(m.subscribers, subCh)
+	m.mu.Unlock()
 	return subCh, nil
 }
 
 func (m *mockHubClientIntegration) GetMessages(channelName string, limit int) ([]*protocol.Message, error) {
-	messages := m.channels[channelName]
+	m.mu.Lock()
+	messages := append([]*protocol.Message(nil), m.channels[channelName]...)
+	m.mu.Unlock()
 	if len(messages) > limit {
 		return messages[len(messages)-limit:], nil
 	}

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn as create } from 'zustand/traditional';
 import type { FileChange, FileChangeDiff } from '../types/protocol';
 import { ChatAPI } from '../api/chatAPI';
 import { useFileExplorerStore } from './fileExplorerStore';

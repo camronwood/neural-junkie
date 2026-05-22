@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,27 +24,30 @@ func filterChatMessages(messages []*protocol.Message) []*protocol.Message {
 
 // Mock hub client for testing with proper message broadcasting
 type mockHubClientReview struct {
+	mu           sync.Mutex
 	sentMessages []*protocol.Message
 	subscribers  []chan *protocol.Message
 }
 
 func (m *mockHubClientReview) SendMessage(msg *protocol.Message) error {
+	m.mu.Lock()
 	m.sentMessages = append(m.sentMessages, msg)
-	// Broadcast to all subscribers
-	for _, subCh := range m.subscribers {
+	subs := append([]chan *protocol.Message(nil), m.subscribers...)
+	m.mu.Unlock()
+	for _, subCh := range subs {
 		select {
 		case subCh <- msg:
 		default:
-			// Skip if channel is full
 		}
 	}
 	return nil
 }
 
 func (m *mockHubClientReview) Subscribe(channelName string) (chan *protocol.Message, error) {
-	// Create a new channel for each subscriber
 	subCh := make(chan *protocol.Message, 100)
+	m.mu.Lock()
 	m.subscribers = append(m.subscribers, subCh)
+	m.mu.Unlock()
 	return subCh, nil
 }
 
@@ -81,13 +85,23 @@ func (m *mockHubClientReview) GenerateAndPostImage(context.Context, string, prot
 
 // Helper function to broadcast a message to all subscribers
 func (m *mockHubClientReview) BroadcastMessage(msg *protocol.Message) {
-	for _, subCh := range m.subscribers {
+	m.mu.Lock()
+	subs := append([]chan *protocol.Message(nil), m.subscribers...)
+	m.mu.Unlock()
+	for _, subCh := range subs {
 		select {
 		case subCh <- msg:
 		default:
-			// Skip if channel is full
 		}
 	}
+}
+
+func (m *mockHubClientReview) GetSentMessages() []*protocol.Message {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]*protocol.Message, len(m.sentMessages))
+	copy(out, m.sentMessages)
+	return out
 }
 
 // TestAgentReview tests basic agent review functionality
@@ -144,7 +158,7 @@ func TestAgentReview(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Backend agent should have responded (filter out thinking status messages)
-	chatResponses := filterChatMessages(hub.sentMessages)
+	chatResponses := filterChatMessages(hub.GetSentMessages())
 	if len(chatResponses) != 1 {
 		t.Fatalf("Expected 1 chat response from backend agent, got %d", len(chatResponses))
 	}
@@ -182,7 +196,7 @@ func TestAgentReview(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Security agent should have responded with a review (filter out thinking status messages)
-	chatResponses = filterChatMessages(hub.sentMessages)
+	chatResponses = filterChatMessages(hub.GetSentMessages())
 	if len(chatResponses) != 2 {
 		t.Fatalf("Expected 2 total chat responses, got %d", len(chatResponses))
 	}
@@ -278,7 +292,7 @@ func TestReviewDepthLimit(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Agent A responds
-	agentAResponse := hub.sentMessages[0]
+	agentAResponse := hub.GetSentMessages()[0]
 	t.Logf("Agent A responded")
 
 	// Simulate all agents receiving Agent A's response (for history)
@@ -300,7 +314,7 @@ func TestReviewDepthLimit(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Agent B should respond (depth 1) (filter out thinking status messages)
-	chatResponses := filterChatMessages(hub.sentMessages)
+	chatResponses := filterChatMessages(hub.GetSentMessages())
 	if len(chatResponses) != 2 {
 		t.Fatalf("Expected 2 chat responses, got %d", len(chatResponses))
 	}
@@ -405,7 +419,7 @@ func TestReviewWithoutReplyTo(t *testing.T) {
 	// Agent B SHOULD respond to user mention (normal response, not a review)
 	// But since AgentA's message was from another agent and the user mention
 	// doesn't have ReplyTo, Agent B will respond in normal mode, not review mode
-	chatResponses := filterChatMessages(hub.sentMessages)
+	chatResponses := filterChatMessages(hub.GetSentMessages())
 	if len(chatResponses) != 1 {
 		t.Errorf("Expected Agent B to respond to user mention, got %d chat messages", len(chatResponses))
 	}

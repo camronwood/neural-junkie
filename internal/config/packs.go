@@ -104,7 +104,20 @@ func (c *Config) IsPackEnabled(packID string) bool {
 	return c.Packs.Enabled[packID]
 }
 
+// otherDomainPackID returns the mutually exclusive domain pack, or "" if unknown.
+func otherDomainPackID(packID string) string {
+	switch packID {
+	case PackLifeSciences:
+		return PackSoftwareDevelopment
+	case PackSoftwareDevelopment:
+		return PackLifeSciences
+	default:
+		return ""
+	}
+}
+
 // SetPackEnabled updates pack toggle and syncs agents/models.
+// Enabling one domain pack disables the other (one pack at a time).
 func (c *Config) SetPackEnabled(packID string, enabled bool) error {
 	pack := PackByID(packID)
 	if pack == nil {
@@ -115,9 +128,30 @@ func (c *Config) SetPackEnabled(packID string, enabled bool) error {
 		c.Packs.Enabled = make(map[string]bool)
 	}
 	c.Packs.Enabled[packID] = enabled
+	if enabled {
+		if other := otherDomainPackID(packID); other != "" {
+			c.Packs.Enabled[other] = false
+		}
+	}
 	c.mu.Unlock()
 	c.SyncAgentsFromPacks()
 	return nil
+}
+
+// MigrateExclusiveDomainPacks ensures at most one domain pack is enabled.
+// If both are on, software-development wins (life-sciences is turned off).
+func (c *Config) MigrateExclusiveDomainPacks() {
+	if c == nil {
+		return
+	}
+	if c.Packs.Enabled == nil {
+		c.Packs = DefaultPacksConfig()
+	}
+	devOn := c.Packs.Enabled[PackSoftwareDevelopment]
+	bioOn := c.Packs.Enabled[PackLifeSciences]
+	if devOn && bioOn {
+		c.Packs.Enabled[PackLifeSciences] = false
+	}
 }
 
 // SyncAgentsFromPacks merges enabled pack agents into cfg.Agents and updates models_to_ensure.

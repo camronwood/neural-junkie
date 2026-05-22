@@ -137,8 +137,8 @@ func (cm *CollaborationManager) GetCollaboration(id string) (*Collaboration, err
 // can safely attach/publish state without mutating manager-owned data.
 func (cm *CollaborationManager) GetCollaborationSnapshot(id string) (*Collaboration, error) {
 	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	c, ok := cm.collaborations[id]
-	cm.mu.RUnlock()
 	if !ok {
 		return nil, fmt.Errorf("collaboration %s not found", id)
 	}
@@ -259,7 +259,7 @@ func (cm *CollaborationManager) ListSnapshots(channel string, includeTerminal bo
 			log.Printf("[CollaborationManager] ListSnapshots EnsureExecutionTasks for %s: %v", shortCollabID(c.ID), err)
 			continue
 		}
-		cloned, err := cloneCollaboration(c)
+		cloned, err := cm.GetCollaborationSnapshot(c.ID)
 		if err != nil {
 			log.Printf("[CollaborationManager] Failed to clone collaboration %s for list: %v", shortCollabID(c.ID), err)
 			continue
