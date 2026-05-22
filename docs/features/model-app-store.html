@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Model App Store — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie Model App Store: toolbar model library for Ollama and Hugging Face — browse, install, and assign models to agents without leaving the desktop." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html#model-app-store">Home section</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Model App Store
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Model App Store</h1>
+      <p class="feature-deep-lead">Browse, install, and wire up models like apps — without juggling terminals. Open the toolbar <strong>Model library</strong> (⇧⌘M or <code>/nj-open-model-library</code>) for a curated grid of <strong>Ollama</strong> and <strong>Hugging Face</strong> entries, then <strong>Use for agents</strong> when a model is ready.</p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="../media/gallery/ads/neural-junkie-local-ai-tokens-ad-1080.png"
+        alt="Model App Store: install local and cloud models for Neural Junkie agents"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2>App-store UX in the desktop</h2>
+      <p>The model library is a first-class surface — not buried in advanced settings. Each catalog tile shows a clear primary action (install, download, or use). Open a detail page when you need the full flow: progress, delete, import to Ollama, or assign to a specific agent.</p>
+
+      <h2>Ollama catalog</h2>
+      <ul>
+        <li>Curated list via <code>GET /api/ollama/catalog</code> embedded with the hub.</li>
+        <li>Install with streaming progress; remove models you no longer need.</li>
+        <li><strong>Use for agents</strong> sets the Ollama provider model and agent assignments in one step.</li>
+      </ul>
+
+      <h2>Hugging Face catalog</h2>
+      <ul>
+        <li><strong>Hosted</strong> — route agents through the HF Inference Router when you have <code>HF_TOKEN</code> or a provider key.</li>
+        <li><strong>Download</strong> — pull GGUF artifacts with SSE progress, then <strong>Import to Ollama</strong> for local runs.</li>
+        <li>Create DM experts against a registry provider or a <code>huggingface</code> repo id from the same UI.</li>
+      </ul>
+
+      <h2>Where settings still live</h2>
+      <p><strong>Settings → AI Providers</strong> is for the provider registry, API keys, and Ollama endpoint — not day-to-day model shopping. Day-to-day install/browse happens in the Model library toolbar entry.</p>
+
+      <h2>Mix local and cloud</h2>
+      <p>Keep high-volume agents on local Ollama (qwen2.5-coder, Llama, vision-capable tags where listed) and burst review-heavy personas to Claude or OpenAI-compatible APIs. Per-agent provider routing stays independent of the catalog you picked in the store.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="providers-mcp-packaging.html">Providers, MCP &amp; packaging</a> — full provider matrix and MCP export.</li>
+          <li><a href="../release-notes.html">Release notes</a> — app-store model library and HF integration milestones.</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/USER_VALUE_GUIDE.md">User value guide</a> — operator-oriented overview.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="slack-connect.html">Slack Connect <span>Team channels ↔ hub</span></a>
+        <a href="multi-agent-collaboration.html">Multi-agent collaboration <span><code>/collaborate</code></span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Keys, export, sidecar</span></a>
+        <a href="desktop-workspace.html">Desktop workspace <span>Toolbar &amp; palette</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>
