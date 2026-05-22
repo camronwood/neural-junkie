@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slack Connect — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie Slack Connect: bind Slack channels to any agent or model, two-way threaded sync, OAuth setup, and local hub mirroring." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html#slack-connect">Home section</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Slack Connect
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Slack Connect</h1>
+      <p class="feature-deep-lead">Keep your team in Slack while Neural Junkie runs the agents. Each bound channel mirrors into a <code>slack:C…</code> hub room with human-readable names like <code>#cursor-test</code>, threaded replies, and the agent or cloud model you assign.</p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="../media/gallery/ads/neural-junkie-slack-ad-models-1080.png"
+        alt="Slack Connect marketing visual: model picker per channel"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2>What it does</h2>
+      <ul>
+        <li><strong>Inbound</strong> — Slack messages (including @app mentions and channel lines per policy) become hub messages on the mirrored channel.</li>
+        <li><strong>Outbound</strong> — Agent and human replies in NJ post back to Slack, usually as thread replies so channels stay readable.</li>
+        <li><strong>Per-channel binding</strong> — Pick Slack channel ID, NJ agent, routing policy (always / questions / mention-only), and optional display name.</li>
+        <li><strong>Any backend</strong> — Bind Assistant, Cursor CLI, repo agents, or specialists backed by Claude, OpenAI-compatible APIs, Gemini, Ollama, and more.</li>
+      </ul>
+
+      <h2>Setup paths</h2>
+      <p><strong>Simple (bundled OAuth)</strong> — Desktop <strong>Settings → Integrations → Connect Slack</strong> walks through vendor OAuth and Socket Mode on your local hub. End users do not paste bot tokens.</p>
+      <p><strong>Advanced (BYO app)</strong> — Bring your own Slack app credentials and scopes when you need a custom distribution or stricter IT controls.</p>
+
+      <h2>Operator tips</h2>
+      <ul>
+        <li>Invite the bot to each Slack channel before binding (<code>/invite @YourBot</code>).</li>
+        <li>Subscribe to <code>app_mention</code> and message events your policy needs (<code>message.channels</code>, <code>message.groups</code>).</li>
+        <li>After changing bindings, the bridge reloads live — a full hub restart is only needed for rare listener recovery issues.</li>
+        <li>Generated images from agents can upload to Slack when the hub attaches <code>generated_image</code> metadata (requires <code>files:write</code>).</li>
+      </ul>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Slack integration</a> — events, bindings file, policies, troubleshooting.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-15">Release notes → beta.15</a> — Slack UX and threaded sync highlights.</li>
+          <li><a href="../gallery/index.html">Gallery</a> — Slack ad art and screenshots.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="multi-agent-collaboration.html">Multi-agent collaboration <span><code>/collaborate</code> sessions</span></a>
+        <a href="agent-app-store.html">Agent App Store <span>Domain packs &amp; models</span></a>
+        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>CLI, repo, specialists</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

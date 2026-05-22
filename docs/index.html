@@ -34,7 +34,7 @@
         Neural Junkie
       </a>
       <nav class="nav-actions" aria-label="Primary">
-        <a class="btn btn-ghost" href="#latest-feature">What’s new</a>
+        <a class="btn btn-ghost" href="#flagship-features">Features</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
@@ -57,7 +57,7 @@
           <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15">Download for macOS / Windows / Linux</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">5-minute quick start</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie#quick-start-from-source">Build from source</a>
-          <a class="btn btn-ghost" href="#latest-feature">What’s new</a>
+          <a class="btn btn-ghost" href="#flagship-features">Features</a>
           <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
           <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
         </div>
@@ -75,36 +75,119 @@
       </div>
     </div>
 
-    <section class="latest-feature" id="latest-feature" aria-labelledby="latest-feature-heading">
-      <div class="wrap latest-feature-inner">
-        <div class="latest-feature-copy">
-          <p class="latest-feature-kicker">Open beta · <time datetime="2026-05-22">v1.0.0-beta.15</time></p>
-          <h2 id="latest-feature-heading">Connect Slack — any agent or model</h2>
-          <p class="latest-feature-lead"><strong>v1.0.0-beta.15</strong> ships <strong>one-click Slack Connect</strong> on your local hub: bind a channel to Assistant, Cursor, repo experts, or route to <strong>Claude, GPT, Gemini, Ollama</strong>, and more. Replies stay in Slack threads; no token paste for end users. Also: <strong>12 CLI agents</strong> auto-detected, security hardening, scan summaries, and a <a href="gallery/index.html">marketing gallery</a> on the site.</p>
-          <ul class="feature-list feature-list--tight latest-feature-list">
-            <li><strong>Slack Connect</strong> — Settings → Connect Slack; channel picker; Simple vs Advanced BYO app.</li>
-            <li><strong>Any backend</strong> — per-channel agent + model; inbound/outbound sync with threading.</li>
-            <li><strong>Gallery</strong> — <a href="gallery/index.html">ads &amp; screenshots</a> for posts and release notes.</li>
+    <div class="flagship-jump-wrap" id="flagship-features">
+      <div class="wrap">
+        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-05-22">v1.0.0-beta.15</time></p>
+        <nav class="flagship-jump" aria-label="Jump to flagship features">
+          <a href="#slack-connect">⎘ Slack Connect</a>
+          <a href="#multi-agent-collaboration">🤝 Collaboration</a>
+          <a href="#agent-app-store">🛍 Agent App Store</a>
+        </nav>
+      </div>
+    </div>
+
+    <section class="feature-spotlight" id="slack-connect" aria-labelledby="slack-connect-heading">
+      <div class="wrap feature-spotlight-inner">
+        <div class="feature-spotlight-copy">
+          <p class="feature-spotlight-kicker">Slack integration</p>
+          <h2 id="slack-connect-heading">Your team stays in Slack. Agents stay in sync.</h2>
+          <p class="feature-spotlight-lead">
+            <strong>Slack Connect</strong> mirrors bound channels into Neural Junkie with <strong>two-way threading</strong>: @mentions and channel lines route to the agent you choose — Cursor, Assistant, repo experts, or any configured <strong>Claude / GPT / Gemini / Ollama</strong> backend. Bind with a channel picker; OAuth ships bundled for simple setup.
+          </p>
+          <ul class="feature-list feature-list--tight">
+            <li><strong>Per-channel policy</strong> — always-on, questions-only, or @mention routing.</li>
+            <li><strong>Real names in NJ</strong> — Slack channels show as <code>#cursor-test</code>, not opaque IDs.</li>
+            <li><strong>Images &amp; threads</strong> — agent file paths and generated art can post back to Slack threads.</li>
           </ul>
-          <div class="latest-feature-actions">
-            <a class="btn btn-primary" href="release-notes.html#v1-0-0-beta-14">Beta.14 release notes</a>
-            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Slack setup</a>
-            <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
+          <div class="feature-spotlight-actions">
+            <a class="btn btn-primary" href="features/slack-connect.html">Slack deep dive →</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Setup guide</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-15">Beta.15 notes</a>
           </div>
         </div>
-        <aside class="latest-feature-aside" aria-label="Related capability">
-          <p class="latest-feature-aside-label">Also in beta.12</p>
-          <p class="latest-feature-aside-title">Domain packs &amp; session memory</p>
-          <p class="latest-feature-aside-text">Dev or life sciences packs, DM session summaries, and runbook HTTP action steps.</p>
-          <a class="btn btn-ghost btn-sm" href="release-notes.html#v1-0-0-beta-12">Beta.12 notes →</a>
-        </aside>
+        <figure class="feature-spotlight-visual">
+          <img
+            src="media/gallery/ads/neural-junkie-slack-ad-models-1080.png"
+            alt="Slack Connect: pick Claude, GPT, Ollama, or other models per Slack channel"
+            width="1080"
+            height="1080"
+            loading="lazy"
+            decoding="async"
+          />
+          <figcaption>Any model or agent per Slack channel — local hub, team-visible replies.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="feature-spotlight feature-spotlight--alt feature-spotlight--reverse" id="multi-agent-collaboration" aria-labelledby="collab-heading">
+      <div class="wrap feature-spotlight-inner">
+        <div class="feature-spotlight-copy">
+          <p class="feature-spotlight-kicker">Multi-agent collaboration</p>
+          <h2 id="collab-heading">Run structured agent projects, not endless @mention chains</h2>
+          <p class="feature-spotlight-lead">
+            <code>/collaborate</code> turns a goal into a <strong>bounded session</strong>: shared plan, review rounds, human approval, then execution with per-agent tasks, an <strong>on-disk sandbox</strong>, and explicit <strong>workspace confirmation</strong> before agents touch your tree. Optional <strong>smart routing</strong> picks the right provider for execution tasks only.
+          </p>
+          <ul class="feature-list feature-list--tight">
+            <li><strong>Phases you control</strong> — planning → review → approve → execute with visible status.</li>
+            <li><strong>Runbooks &amp; HTTP actions</strong> — wire automations when plans need more than chat.</li>
+            <li><strong>Desktop collaboration UI</strong> — task board, plan history, and channel scoped to the session.</li>
+          </ul>
+          <div class="feature-spotlight-actions">
+            <a class="btn btn-primary" href="features/multi-agent-collaboration.html">Collaboration deep dive →</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration docs</a>
+          </div>
+        </div>
+        <figure class="feature-spotlight-visual">
+          <img
+            src="media/gallery/ads/neural-junkie-collaboration-ad-1080.png"
+            alt="Multi-agent collaboration: shared plan, review, and execution in Neural Junkie"
+            width="1080"
+            height="1080"
+            loading="lazy"
+            decoding="async"
+          />
+          <figcaption>Planning, review, approval, and task handoffs — one collaboration channel.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="feature-spotlight" id="agent-app-store" aria-labelledby="app-store-heading">
+      <div class="wrap feature-spotlight-inner">
+        <div class="feature-spotlight-copy">
+          <p class="feature-spotlight-kicker">Agent App Store</p>
+          <h2 id="app-store-heading">Install specialist packs and models like apps</h2>
+          <p class="feature-spotlight-lead">
+            The in-app <strong>Agent App Store</strong> is <strong>Settings → Domain packs</strong> plus the <strong>Model Library</strong>: toggle software-development or life-sciences expert packs, pull Ollama models, and assign them to agents without leaving the desktop. Specialists, MCP tools, and sidebar shortcuts appear when a pack is on — no separate services to babysit.
+          </p>
+          <ul class="feature-list feature-list--tight">
+            <li><strong>Domain packs</strong> — engineering six-pack or life-sciences expert + biology MCP tools.</li>
+            <li><strong>Model Library</strong> — curated Ollama catalog with one-click install and “Use for agents”.</li>
+            <li><strong>Always-on core</strong> — Moderator, Assistant, and auto-detected CLI agents regardless of packs.</li>
+          </ul>
+          <div class="feature-spotlight-actions">
+            <a class="btn btn-primary" href="features/agent-app-store.html">App Store deep dive →</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Software pack</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences pack</a>
+          </div>
+        </div>
+        <figure class="feature-spotlight-visual">
+          <img
+            src="media/gallery/ads/neural-junkie-domain-packs-ad-1080.png"
+            alt="Agent App Store: enable domain packs and assign specialists in Neural Junkie"
+            width="1080"
+            height="1080"
+            loading="lazy"
+            decoding="async"
+          />
+          <figcaption>Turn packs on once — experts, tools, and DM shortcuts show up in the app.</figcaption>
+        </figure>
       </div>
     </section>
 
     <section class="section-alt" aria-labelledby="capabilities-heading">
       <div class="wrap">
-        <h2 id="capabilities-heading">What you get</h2>
-        <p class="section-intro">One control room for agents that know your stack, your repo, and your wiki — not a single generic chat window.</p>
+        <h2 id="capabilities-heading">Everything else in the workspace</h2>
+        <p class="section-intro">Beyond <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and the <a href="#agent-app-store">Agent App Store</a> — the desktop shell, repo workflow, slash commands, and provider wiring that tie it together.</p>
         <div class="grid-3 highlights-grid">
           <article class="card">
             <div class="card-icon" aria-hidden="true">🖥️</div>
@@ -132,8 +215,8 @@
           </article>
           <article class="card">
             <div class="card-icon" aria-hidden="true">🤝</div>
-            <h3>Bounded multi-agent collaboration</h3>
-            <p><code>/collaborate</code> drives structured planning, review, and execution with shared plans, task handoffs, and approval gates — plus an <strong>on-disk sandbox</strong> and <strong>explicit workspace confirmation</strong> before agents receive execution tasks. Optional <strong>smart routing</strong> can pick among your providers for those execution tasks only.</p>
+            <h3>Multi-agent collaboration</h3>
+            <p><code>/collaborate</code> sessions with plans, review, sandbox execution, and optional smart routing — featured on the <a href="#multi-agent-collaboration">home page</a>.</p>
             <p class="card-cta"><a class="card-link" href="features/multi-agent-collaboration.html">Deep dive →</a></p>
           </article>
           <article class="card">
@@ -248,7 +331,10 @@
           <span class="doc-strip-label">Learn more in the repo:</span>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">Getting started</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
-          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration</a>
+          <a class="btn btn-ghost btn-sm" href="features/slack-connect.html">Slack Connect</a>
+          <a class="btn btn-ghost btn-sm" href="features/multi-agent-collaboration.html">Collaboration</a>
+          <a class="btn btn-ghost btn-sm" href="features/agent-app-store.html">Agent App Store</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Slack (repo)</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/REPO_AGENTS.md">Repo agents</a>
           <a class="btn btn-ghost btn-sm" href="features/index.html">Feature guides (site)</a>
           <a class="btn btn-ghost btn-sm" href="release-notes.html">Release notes</a>
