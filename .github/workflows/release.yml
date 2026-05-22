@@ -63,11 +63,18 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
+      - name: Write Slack vendor OAuth (Connect Slack in installers)
+        env:
+          SLACK_VENDOR_CLIENT_ID: ${{ secrets.SLACK_VENDOR_CLIENT_ID }}
+          SLACK_VENDOR_CLIENT_SECRET: ${{ secrets.SLACK_VENDOR_CLIENT_SECRET }}
+          SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
+        run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=darwin GOARCH=arm64 go build -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
-          GOOS=darwin GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
+          GOOS=darwin GOARCH=arm64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
+          GOOS=darwin GOARCH=amd64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
 
       - name: Build frontend
         working-directory: desktop
@@ -119,11 +126,19 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Write Slack vendor OAuth (Connect Slack in installers)
+        shell: bash
+        env:
+          SLACK_VENDOR_CLIENT_ID: ${{ secrets.SLACK_VENDOR_CLIENT_ID }}
+          SLACK_VENDOR_CLIENT_SECRET: ${{ secrets.SLACK_VENDOR_CLIENT_SECRET }}
+          SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
+        run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
+
       - name: Cross-compile Go server
         shell: bash
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=windows GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
+          GOOS=windows GOARCH=amd64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
 
       - name: Build frontend and Tauri
         working-directory: desktop
@@ -174,10 +189,17 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Write Slack vendor OAuth (Connect Slack in installers)
+        env:
+          SLACK_VENDOR_CLIENT_ID: ${{ secrets.SLACK_VENDOR_CLIENT_ID }}
+          SLACK_VENDOR_CLIENT_SECRET: ${{ secrets.SLACK_VENDOR_CLIENT_SECRET }}
+          SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
+        run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=linux GOARCH=amd64 go build -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
+          GOOS=linux GOARCH=amd64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
 
       - name: Build frontend and Tauri
         working-directory: desktop

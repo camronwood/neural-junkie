@@ -77,6 +77,34 @@ go build -tags slackvendor -o bin/server ./cmd/server
 
 Template (placeholders only, committed): `internal/integrations/slack/vendor/oauth.json.example`
 
+### GitHub Actions (public installers)
+
+Tagged releases (`.github/workflows/release.yml`) embed the real NJ Slack app so **Connect Slack** works for downloaders:
+
+1. Add repository secrets (**Settings → Secrets and variables → Actions**):
+   - `SLACK_VENDOR_CLIENT_ID`
+   - `SLACK_VENDOR_CLIENT_SECRET`
+   - `SLACK_VENDOR_APP_TOKEN` (`xapp-…`, scope `connections:write`)
+
+2. From your maintainer creds file (same values as `scripts/.slack-creds`):
+
+```bash
+cd neural-junkie
+./scripts/slack-creds-to-github-secrets.sh   # optional helper; requires gh auth
+```
+
+Or set manually:
+
+```bash
+gh secret set SLACK_VENDOR_CLIENT_ID --repo camronwood/neural-junkie
+gh secret set SLACK_VENDOR_CLIENT_SECRET --repo camronwood/neural-junkie
+gh secret set SLACK_VENDOR_APP_TOKEN --repo camronwood/neural-junkie
+```
+
+3. Push a new tag (e.g. `v1.0.0-beta.15`) or re-run the Release workflow on an existing tag after secrets exist.
+
+CI runs `scripts/ci-write-slack-vendor-oauth.sh` then `go build -tags slackvendor` on each platform. The generated `vendor/oauth.json` never leaves the runner.
+
 Dev builds without `slackvendor` use the example embed (placeholders ignored), plus env vars:
 
 - `NEURAL_JUNKIE_SLACK_CLIENT_ID`
@@ -121,6 +149,7 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
 - [ ] Event subscriptions: `message.channels`, `message.groups`, `app_mention`
 - [ ] Reinstall app to workspace after scope changes
 - [ ] `vendor/oauth.json` generated locally; `go build -tags slackvendor` for release artifacts
+- [ ] GitHub Actions secrets `SLACK_VENDOR_*` set; release workflow builds with `-tags slackvendor`
 
 ## Hub configuration (Advanced / dev)
 
