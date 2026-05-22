@@ -25,7 +25,7 @@
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">Download beta.14</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15">Download beta.14</a>
       </nav>
     </div>
   </header>
@@ -36,11 +36,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">v1.0.0-beta.14</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15">v1.0.0-beta.15</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-15">1.0.0-beta.15</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-14">1.0.0-beta.14</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-13">1.0.0-beta.13</a>
@@ -81,6 +83,15 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-15" class="release-version-heading">1.0.0-beta.15 <span class="release-date">— 2026-05-22</span></h2>
+
+      <p><strong>Connect Slack on public installers.</strong> Release CI embeds the NJ Slack app (<code>-tags slackvendor</code>). Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15">GitHub Releases</a>. Prefer beta.14 only if you already downloaded it — use beta.15 for one-click Slack Connect.</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Release builds</strong> — GitHub Actions secrets <code>SLACK_VENDOR_*</code> + <code>scripts/ci-write-slack-vendor-oauth.sh</code> so downloaded apps enable <strong>Connect Slack</strong> without Advanced token paste.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-14" class="release-version-heading">1.0.0-beta.14 <span class="release-date">— 2026-05-22</span></h2>
 
       <p><strong>Slack Connect and marketing gallery.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.14">GitHub Releases</a>. Slack: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">SLACK_INTEGRATION.md</a>. Gallery: <a href="gallery/index.html">gallery/index.html</a>.</p>

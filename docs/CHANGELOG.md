@@ -6,6 +6,11 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.15] - 2026-05-22
+
+### Fixed
+- **Release installers: Connect Slack** — GitHub Actions writes `vendor/oauth.json` from `SLACK_VENDOR_*` secrets and builds `nj-server` with `-tags slackvendor` so public downloads get one-click Slack Connect (beta.14 CI builds lacked bundled OAuth).
+
 ## [1.0.0-beta.14] - 2026-05-22
 
 ### Added

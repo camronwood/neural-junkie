@@ -30,7 +30,7 @@ PANEL_EDGE = (48, 58, 88)
 PINK = (199, 125, 255)
 GREEN = (72, 199, 142)
 BLUE = (100, 180, 255)
-VERSION = "v1.0.0-beta.14"
+VERSION = "v1.0.0-beta.15"
 
 
 def font(bold: bool, size: int, mono: bool = False):
