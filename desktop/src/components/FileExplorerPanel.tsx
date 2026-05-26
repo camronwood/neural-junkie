@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useEditorStore } from '../stores/editorStore';
 import { usePacksStore } from '../stores/packsStore';
@@ -26,7 +26,10 @@ import {
   SCAN_SUMMARY_METADATA_FILE,
 } from '../utils/scanSummary';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
+import { workspacesForTabBar } from '../utils/workspaceOrder';
 import { ViewportContextMenu } from './ViewportContextMenu';
+import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
+import { WorkspaceTabBar } from './WorkspaceTabBar';
 import { devLog } from '../utils/devLog';
 
 interface FileExplorerPanelProps {
@@ -90,6 +93,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
   // State for adding new workspace
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
+  const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspacePath, setNewWorkspacePath] = useState('');
 
@@ -671,6 +675,11 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
   const files = activeWorkspaceId ? (fileTree[activeWorkspaceId] || []) : [];
   const activeIsScanSummaryRoot =
     lifeSciencesEnabled && activeWorkspaceId != null && isScanSummaryWorkspaceRoot(files);
+  const workspaceSwitcherOverflow = useMemo(
+    () => workspacesForTabBar(workspaces, activeWorkspaceId).overflowCount,
+    [workspaces, activeWorkspaceId]
+  );
+  const canSwitchWorkspaces = workspaces.length > 1;
 
   return (
     <div 
@@ -696,6 +705,21 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
       <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between bg-slack-bgHover">
         <h2 className="font-bold text-slack-text">Files</h2>
         <div className="flex items-center gap-2">
+          {canSwitchWorkspaces && (
+            <button
+              type="button"
+              onClick={() => setShowWorkspaceSwitcher(true)}
+              className="text-slack-textMuted hover:text-slack-text transition-colors flex-shrink-0 px-1 py-0.5 text-xs font-medium"
+              title="All workspaces"
+              aria-label={
+                workspaceSwitcherOverflow > 0
+                  ? `All workspaces, ${workspaceSwitcherOverflow} not shown in tabs`
+                  : 'All workspaces'
+              }
+            >
+              {workspaceSwitcherOverflow > 0 ? `... +${workspaceSwitcherOverflow}` : '...'}
+            </button>
+          )}
           <button
             onClick={() => setShowAddWorkspace(true)}
             className="text-slack-textMuted hover:text-slack-text transition-colors"
@@ -731,35 +755,12 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
       {/* Workspace Tabs */}
       <div className="px-4 py-2 border-b border-slack-border bg-slack-bgHover">
-        <div className="flex gap-1 overflow-x-auto">
-          {workspaces.map((workspace) => (
-            <div
-              key={workspace.id}
-              onClick={() => setActiveWorkspace(workspace.id)}
-              className={`group flex items-center gap-1 px-3 py-1 text-xs rounded transition-colors whitespace-nowrap cursor-pointer ${
-                activeWorkspaceId === workspace.id
-                  ? 'bg-slack-accent text-white'
-                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
-              }`}
-              title={workspace.path}
-            >
-              <span>{workspace.name}</span>
-              <button
-                onClick={(e) => handleRemoveWorkspace(e, workspace.id, workspace.name)}
-                className={`ml-1 p-0.5 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity ${
-                  activeWorkspaceId === workspace.id
-                    ? 'hover:bg-white/20'
-                    : 'hover:bg-slack-border'
-                }`}
-                title={`Remove ${workspace.name}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
+        <WorkspaceTabBar
+          workspaces={workspaces}
+          activeWorkspaceId={activeWorkspaceId}
+          onSelect={setActiveWorkspace}
+          onRemove={handleRemoveWorkspace}
+        />
       </div>
 
       {/* File Tree */}
@@ -793,6 +794,14 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           </div>
         )}
       </div>
+
+      <WorkspaceSwitcherModal
+        isOpen={showWorkspaceSwitcher}
+        onClose={() => setShowWorkspaceSwitcher(false)}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelect={setActiveWorkspace}
+      />
 
       {/* Add Workspace Modal */}
       {showAddWorkspace && (
