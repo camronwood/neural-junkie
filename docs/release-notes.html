@@ -25,7 +25,7 @@
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">Download beta.16</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">Download beta.17</a>
       </nav>
     </div>
   </header>
@@ -36,11 +36,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">v1.0.0-beta.16</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">v1.0.0-beta.17</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-17">1.0.0-beta.17</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-16">1.0.0-beta.16</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-15">1.0.0-beta.15</a>
@@ -85,6 +87,27 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-17" class="release-version-heading">1.0.0-beta.17 <span class="release-date">— 2026-05-26</span></h2>
+
+      <p><strong>Workspace switching, Assistant context, Connect Google, and macOS signing.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">GitHub Releases</a>. This release replaces beta.16 macOS artifacts with ad-hoc signed bundles verified in CI, and it ships the newest workspace and Assistant upgrades.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Workspace quick switcher</strong> — tab bar plus searchable modal; filter workspaces by name, path, or branch and switch with keyboard controls.</li>
+        <li><strong>Assistant workspace grounding</strong> — scoped workspace metadata includes open-file focus, selected text, file tree hints, and scan-summary context when workspace sharing is enabled.</li>
+        <li><strong>Google Meet notes</strong> — release builds can include bundled Google OAuth credentials so Connect Google no longer requires pasted client credentials for the standard path.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Assistant meeting context</strong> — meeting-note startup is quieter and follow-up answers can use synced meeting notes more directly.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>macOS installers</strong> — Tauri bundles are ad-hoc signed and verified before upload, replacing the broken beta.16 macOS downloads.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-16" class="release-version-heading">1.0.0-beta.16 <span class="release-date">— 2026-05-22</span></h2>
 
       <p><strong>Domain packs and IDE v2.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">GitHub Releases</a>. Enable <strong>Software development</strong> or <strong>Life sciences</strong> (one at a time) in Settings. Dev pack adds IDE v2: Git stage/unstage, symbol search, Problems panel, inline hunks, and ⌘K fast edit. See <a href="index.html#domain-packs">marketing: Domain packs</a>, <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V2.md">IDE_V2.md</a>.</p>

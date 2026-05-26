@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Neural Junkie — Multi-agent AI for developers</title>
-  <meta name="description" content="Neural Junkie — native desktop + Go hub for multi-agent AI: repo &amp; Confluence experts, a command palette with 50+ actions, file-change approvals, bounded collaboration with optional per-task provider routing, curated Ollama model library, Ollama/Claude/OpenAI-compatible providers, MCP export, and a Slack-style workspace with palette, editor, and threads." />
+  <meta name="description" content="Neural Junkie — native desktop + Go hub for multi-agent AI: repo &amp; Confluence experts, workspace tabs and quick switcher, Assistant meeting context, file-change approvals, bounded collaboration, curated model library, MCP export, and a Slack-style workspace." />
   <meta property="og:title" content="Neural Junkie — Multi-agent AI for developers" />
   <meta property="og:description" content="Orchestrate specialists, repo agents, and docs-aware agents from one Tauri app. Command palette, threaded chat, approve file edits, run /collaborate plans, and wire your own models — open source, early access." />
   <meta property="og:type" content="website" />
@@ -22,8 +22,8 @@
 
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
-      <strong>v1.0.0-beta.16 available</strong>
-      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">Download installers</a> for macOS, Windows, and Linux — <strong>Domain packs</strong> (Software development IDE or Life sciences), <strong>IDE v2</strong> (Git SCM, symbols, Problems, fast edit), plus Slack Connect and <a href="gallery/index.html">gallery</a>. Or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
+      <strong>v1.0.0-beta.17 available</strong>
+      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">Download installers</a> for macOS, Windows, and Linux — workspace quick switching, Assistant meeting context, Connect Google, ad-hoc signed macOS bundles, plus Domain packs and IDE v2. Or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
     </div>
   </div>
 
@@ -38,7 +38,7 @@
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
-        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">Download</a>
+        <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">Download</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">Quick start</a>
         <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
       </nav>
@@ -48,13 +48,13 @@
   <main id="main">
     <section class="hero">
       <div class="wrap">
-        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.16</p>
+        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.17</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
           <strong>Neural Junkie</strong> is a native desktop app and Go hub for <strong>multi-agent orchestration</strong> — specialized agents for your stack, repo-aware context, command palette workflows, and workflows that actually ship. <strong>Open beta:</strong> install on macOS, Windows, or Linux — no clone required.
         </p>
         <div class="hero-cta">
-          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">Download for macOS / Windows / Linux</a>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">Download for macOS / Windows / Linux</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">5-minute quick start</a>
           <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie#quick-start-from-source">Build from source</a>
           <a class="btn btn-ghost" href="#flagship-features">Features</a>
@@ -77,7 +77,7 @@
 
     <div class="flagship-jump-wrap" id="flagship-features">
       <div class="wrap">
-        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-05-22">v1.0.0-beta.16</time></p>
+        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-05-26">v1.0.0-beta.17</time></p>
         <nav class="flagship-jump" aria-label="Jump to flagship features">
           <a href="#slack-connect">⎘ Slack Connect</a>
           <a href="#multi-agent-collaboration">🤝 Collaboration</a>
@@ -281,7 +281,7 @@
           <article class="card">
             <div class="card-icon" aria-hidden="true">🖥️</div>
             <h3>Native desktop workspace</h3>
-            <p>Tauri + React app with channels, DMs, threads, and a searchable <strong>command palette</strong>. Toggle a file tree, code editor, terminal output, pending changes, and <strong>My Agents</strong> without leaving the thread.</p>
+            <p>Tauri + React app with channels, DMs, threads, workspace tabs, a searchable <strong>workspace switcher</strong>, and a command palette. Toggle files, code, terminal output, pending changes, and <strong>My Agents</strong> without leaving the thread.</p>
             <p class="card-cta"><a class="card-link" href="features/desktop-workspace.html">Deep dive →</a></p>
           </article>
           <article class="card">
@@ -299,7 +299,7 @@
           <article class="card">
             <div class="card-icon" aria-hidden="true">✏️</div>
             <h3>Repo-aware file workflow</h3>
-            <p>Agents can <strong>propose edits</strong>; you approve or reject with <strong>diff preview</strong>. Workspaces keep the hub tied to the tree you are actually shipping.</p>
+            <p>Agents can <strong>propose edits</strong>; you approve or reject with <strong>diff preview</strong>. Workspaces keep the hub tied to the tree you are actually shipping, with quick switching for multi-repo work.</p>
             <p class="card-cta"><a class="card-link" href="features/file-changes-workspaces.html">Deep dive →</a></p>
           </article>
           <article class="card">
@@ -388,14 +388,14 @@
               <li><strong>@mentions</strong> by agent name or type so the right specialist answers.</li>
               <li><strong>Threads</strong> for side discussions without spamming the channel.</li>
               <li><strong>Agent review</strong> — pull a second opinion by @mentioning another agent in a thread reply.</li>
-              <li><strong>Meeting &amp; assistant flows</strong> — reminders, tasks, notes, and ingest/search helpers for long-running work.</li>
+              <li><strong>Meeting &amp; assistant flows</strong> — reminders, tasks, notes, Google Meet ingest, and workspace-grounded follow-ups for long-running work.</li>
             </ul>
           </div>
           <div class="workflow-block">
             <h3 class="workflow-title">Always-on helpers</h3>
             <ul class="feature-list feature-list--tight">
               <li><strong>Moderator</strong> — command help, product guidance, and a safety net when questions sit unanswered.</li>
-              <li><strong>Assistant</strong> — tasks, reminders, notes, and meeting-oriented commands.</li>
+              <li><strong>Assistant</strong> — tasks, reminders, notes, meeting-oriented commands, and scoped workspace context when you opt in.</li>
               <li><strong>First-run setup wizard</strong> — get providers and agents configured without reading a novel first.</li>
               <li><strong>Tool approvals</strong> — gate risky agent tool use where your stack requires it.</li>
             </ul>
@@ -438,11 +438,11 @@
         <p class="section-intro">Tagged desktop builds and major hub milestones. Install artifacts and checksums are attached to each <a href="https://github.com/camronwood/neural-junkie/releases">GitHub release</a>.</p>
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
-          <p class="release-landing-version"><strong>v1.0.0-beta.16</strong> <time datetime="2026-05-22">May 22, 2026</time></p>
-          <p class="release-landing-summary">Domain packs (exclusive Software development or Life sciences), IDE v2 (Git SCM, symbols, Problems, fast edit), and pack docs on the marketing site.</p>
+          <p class="release-landing-version"><strong>v1.0.0-beta.17</strong> <time datetime="2026-05-26">May 26, 2026</time></p>
+          <p class="release-landing-summary">Workspace quick switcher, Assistant workspace and meeting context, Connect Google for release builds, and ad-hoc signed macOS bundles verified in CI.</p>
           <p class="release-landing-actions">
-            <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">Download v1.0.0-beta.16</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-16">Release notes</a>
+            <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">Download v1.0.0-beta.17</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-17">Release notes</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
           </p>
         </div>
@@ -453,8 +453,8 @@
       <div class="wrap">
         <div class="cta-band">
           <h2 id="cta-heading">Download the beta</h2>
-          <p>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
-          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.16">Get v1.0.0-beta.16</a>
+          <p>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
+          <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17">Get v1.0.0-beta.17</a>
         </div>
       </div>
     </section>
@@ -464,7 +464,7 @@
     <div class="wrap">
       <p>
         <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
-        — open source (MIT per README) · v1.0.0-beta.16 open beta
+        — open source (MIT per README) · v1.0.0-beta.17 open beta
       </p>
     </div>
   </footer>

@@ -89,7 +89,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.15](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.17](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -100,7 +100,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 The Go hub is bundled as a Tauri sidecar — you do **not** need Go installed to run the desktop app.
 
-**macOS:** Builds are unsigned; use **Right-click → Open** the first time if Gatekeeper warns.
+**macOS:** Builds are ad-hoc signed but not notarized; use **Right-click → Open** the first time if Gatekeeper warns.
 
 **Windows:** Install [Ollama](https://ollama.com) manually or use a cloud API key in the setup wizard (in-app Ollama install is macOS/Linux only).
 

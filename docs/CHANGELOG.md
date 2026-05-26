@@ -6,8 +6,18 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.17] - 2026-05-26
+
+### Added
+- **Workspace quick switcher** — workspace tabs and searchable switcher make multi-repo work easier; filter by name, path, or branch and jump with keyboard controls.
+- **Assistant workspace grounding** — user messages carry scoped workspace metadata, open-file focus, active selections, and scan-summary context when sharing is enabled.
+- **Google Meet notes in release builds** — Connect Google can use bundled vendor OAuth credentials from CI (`-tags googlevendor`); custom Google Cloud clients moved to Advanced.
+
 ### Changed
-- **Google Meet notes** — Connect Google no longer requires users to paste OAuth client credentials in release builds; custom Google Cloud clients moved to Advanced. See [docs/GOOGLE_MEET_NOTES.md](GOOGLE_MEET_NOTES.md).
+- **Assistant meeting context** — meeting-note ingestion is quieter on startup and better grounded for follow-up questions. See [docs/GOOGLE_MEET_NOTES.md](GOOGLE_MEET_NOTES.md).
+
+### Fixed
+- **macOS installers** — Tauri bundles are ad-hoc signed in CI and verified before upload so beta.16's broken macOS artifacts are replaced by a fresh release.
 
 ## [1.0.0-beta.16] - 2026-05-22
 

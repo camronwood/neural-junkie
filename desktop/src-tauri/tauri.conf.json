@@ -86,7 +86,10 @@
       ],
       "externalBin": [
         "binaries/nj-server"
-      ]
+      ],
+      "macOS": {
+        "signingIdentity": "-"
+      }
     },
     "security": {
       "csp": null

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>File changes &amp; workspaces — Neural Junkie</title>
-  <meta name="description" content="Neural Junkie file change workflow: agent proposals, diff preview, approve or reject, and workspace-scoped file APIs." />
+  <meta name="description" content="Neural Junkie file change workflow: agent proposals, diff preview, approve or reject, quick workspace switching, and workspace-scoped file APIs." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -34,7 +34,7 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Repo-aware file workflow</h1>
-      <p class="feature-deep-lead">Agents propose edits; humans stay in control. Workspaces anchor the hub to real trees on disk so proposals always resolve to something you can open in the editor.</p>
+      <p class="feature-deep-lead">Agents propose edits; humans stay in control. Workspaces anchor the hub to real trees on disk, and quick switching keeps multi-repo work explicit.</p>
     </header>
 
     <article class="feature-prose">
@@ -45,7 +45,7 @@
       <p>Actions such as listing file changes, approving files, and rejecting files are available from the palette. Their slash-form equivalents still work for remote automation and share the same backend state.</p>
 
       <h2>Workspaces</h2>
-      <p>Workspaces are first-class objects in the hub: add paths, list roots, and route file APIs relative to a chosen workspace. That keeps multi-repo or monorepo layouts explicit instead of silently assuming a single cwd.</p>
+      <p>Workspaces are first-class objects in the hub: add paths, list roots, and route file APIs relative to a chosen workspace. The desktop shows workspace tabs and a searchable switcher, so multi-repo or monorepo layouts stay explicit instead of silently assuming a single cwd.</p>
 
       <h2>Safety properties</h2>
       <p>Paths are checked for containment within the configured workspace root before reads or writes. Combined with human approval, this is the guardrail between “agent suggested” and “agent mutated production.”</p>

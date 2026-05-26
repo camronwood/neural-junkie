@@ -37,7 +37,7 @@ jobs:
             | **Windows** | `.msi` installer (or `.exe` setup) |
             | **Linux** | `.AppImage` and/or `.deb` |
 
-            **macOS:** Unsigned build — if Gatekeeper blocks the app, right-click → **Open**, or allow in **System Settings → Privacy & Security**.
+            **macOS:** Builds are ad-hoc signed but not notarized; first launch may still require right-click → **Open**, or allow in **System Settings → Privacy & Security**.
 
             **Windows:** Install [Ollama](https://ollama.com) manually or use a cloud API key in the setup wizard (in-app Ollama install is macOS/Linux only).
 
@@ -92,6 +92,9 @@ jobs:
         working-directory: desktop
         run: npx tauri build --target aarch64-apple-darwin
 
+      - name: Verify Apple Silicon app signature
+        run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app
+
       - name: Upload Apple Silicon assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -105,6 +108,9 @@ jobs:
       - name: Build Tauri (Intel)
         working-directory: desktop
         run: npx tauri build --target x86_64-apple-darwin
+
+      - name: Verify Intel macOS app signature
+        run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app
 
       - name: Upload Intel macOS assets
         env:
