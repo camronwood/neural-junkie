@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  attachmentsFromWorkspaceRefs,
   attachmentsFromFileList,
   inferLanguageFromPath,
   isBinaryPath,
@@ -14,6 +15,7 @@ describe('promptAttachments', () => {
 
   it('skips binary extensions', () => {
     expect(isBinaryPath('photo.png')).toBe(true);
+    expect(isBinaryPath('well.tiff')).toBe(true);
     expect(isBinaryPath('src/main.rs')).toBe(false);
   });
 
@@ -34,5 +36,10 @@ describe('promptAttachments', () => {
     expect(out[0].path).toBe('main.go');
     expect(out[0].language).toBe('go');
     expect(out[0].content).toContain('package main');
+  });
+
+  it('does not try to attach scan-summary well TIFFs as text', async () => {
+    const out = await attachmentsFromWorkspaceRefs([{ workspaceId: 'ws-1', path: 'run/A1' }], []);
+    expect(out).toEqual([]);
   });
 });

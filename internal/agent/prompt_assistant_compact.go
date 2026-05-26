@@ -78,6 +78,9 @@ func looksLikeContextStackEcho(msg *protocol.Message, text string) bool {
 	if msg == nil {
 		return false
 	}
+	if msg.From.ID != "" && (messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content)) {
+		return false
+	}
 	t := strings.TrimSpace(text)
 	q := strings.ToLower(strings.TrimSpace(msg.Content))
 

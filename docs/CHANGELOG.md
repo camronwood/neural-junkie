@@ -6,6 +6,9 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Changed
+- **Google Meet notes** — Connect Google no longer requires users to paste OAuth client credentials in release builds; custom Google Cloud clients moved to Advanced. See [docs/GOOGLE_MEET_NOTES.md](GOOGLE_MEET_NOTES.md).
+
 ## [1.0.0-beta.16] - 2026-05-22
 
 ### Added
@@ -325,7 +328,7 @@ First packaged release -- Neural Junkie ships as a single distributable desktop 
 ### Added -- Desktop App
 - **Tauri + React desktop app** replacing the old Fyne GUI
 - Slack-inspired UI with dark theme and modern styling
-- **Command Palette** -- searchable slash-command UI with guided argument forms (`/` trigger or toolbar button)
+- **Command Palette** -- searchable command UI with guided argument forms (toolbar button, with slash-form command transport compatibility)
 - **File Explorer Panel** -- browse and open workspace files
 - **Code Editor Panel** -- view and edit code from the app
 - **Terminal Panel** -- embedded terminal output

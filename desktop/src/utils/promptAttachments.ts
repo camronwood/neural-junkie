@@ -1,6 +1,7 @@
 import type { PromptAttachmentPayload } from '../constants/promptMetadata';
 import type { WorkspaceFileDragPayload } from './workspaceFileDrag';
 import { isImagePreviewPath } from './editorFileKind';
+import { isScanSummaryWellPath } from './scanSummary';
 
 export const MAX_ATTACH_BYTES = 80_000;
 export const MAX_ATTACH_COUNT = 12;
@@ -9,8 +10,8 @@ export const MAX_ATTACH_TOTAL = 350_000;
 const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
 
 const BINARY_EXT = new Set([
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp', 'zip', 'tar', 'gz', 'pdf', 'mp4', 'mp3', 'wav',
-  'exe', 'dll', 'so', 'dylib', 'woff', 'woff2', 'ttf', 'eot', 'gguf', 'bin',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'svg', 'bmp', 'tif', 'tiff', 'zip', 'tar', 'gz', 'pdf', 'mp4',
+  'mp3', 'wav', 'exe', 'dll', 'so', 'dylib', 'woff', 'woff2', 'ttf', 'eot', 'gguf', 'bin',
 ]);
 
 const LANG_BY_EXT: Record<string, string> = {
@@ -139,7 +140,7 @@ export async function attachmentsFromWorkspaceRefs(
   const api = new ChatAPI(getHubBaseURL());
   const added: PromptAttachmentPayload[] = [];
   for (const ref of refs) {
-    if (isImagePreviewPath(ref.path) || isBinaryPath(ref.path)) continue;
+    if (isScanSummaryWellPath(ref.path) || isImagePreviewPath(ref.path) || isBinaryPath(ref.path)) continue;
     try {
       const content = await api.fetchFileContent(ref.workspaceId, ref.path);
       added.push({

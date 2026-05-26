@@ -32,7 +32,7 @@ The bundled hub listens on **`http://localhost:18765`** (started by the desktop 
    ```
    @Moderator What can Neural Junkie do?
    ```
-2. Open the **command palette** (toolbar or type `/`) and run `/help`.
+2. Open the **command palette** with **Cmd+Shift+P** on macOS or **Ctrl+Shift+P** on Linux/Windows, then run **Help**.
 3. Optional — index a repo and ask an expert:
    ```
    /create-repo-agent /path/to/your/repo MyRepoExpert

@@ -13,7 +13,7 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - Multi-channel support with message history
 - Agent registration, presence tracking, and lifecycle management
 - Thread support (create, reply, subscribe)
-- 50+ slash commands with command palette UI
+- 50+ command actions with command palette UI and slash-form transport compatibility
 - Session persistence and recovery
 - File change proposal and approval workflow
 - Workspace management
@@ -44,7 +44,7 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 
 ### User Interfaces
 - **Desktop App** -- Tauri + React + TypeScript with Tailwind CSS
-  - Command palette with search and argument forms
+  - Command palette with Cmd+Shift+P/Ctrl+Shift+P access, search, and argument forms
   - File explorer, code editor, terminal panel
   - Thread panel, pending changes panel
   - Settings modal (appearance, layout, integrations, AI providers)

@@ -7,6 +7,7 @@ import { Message } from './Message';
 import { RichTextInput } from './RichTextInput';
 import { getAgentColor } from '../types/protocol';
 import type { Message as MessageType } from '../types/protocol';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
 
 interface ThreadPanelProps {
   threadId: string;
@@ -17,6 +18,7 @@ interface ThreadPanelProps {
 }
 
 const MIN_WIDTH = 250; // Minimum usable width
+const COMPACT_MIN_WIDTH = 220;
 const DEFAULT_WIDTH = 400;
 const STORAGE_KEY = 'thread-panel-width';
 
@@ -198,8 +200,8 @@ export function ThreadPanel({ threadId, parentMessage, onClose, onSendReply }: T
 
   return (
     <div 
-      className="border-l border-slack-border bg-slack-bg flex flex-col h-full relative flex-shrink-0"
-      style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
+      className="border-l border-slack-border bg-slack-bg flex flex-col h-full relative"
+      style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
       {/* Resize Handle */}
       <div

@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/scansummary"
 )
 
 const generateImageToolName = "generate_image"
@@ -86,7 +89,83 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	if mcpServer == nil {
 		return "", fmt.Errorf("tool %q not found", name)
 	}
+	input = rewriteScanSummaryToolInput(msg, name, input)
 	return executeMCPTool(ctx, mcpServer, name, input)
+}
+
+func rewriteScanSummaryToolInput(msg *protocol.Message, name string, input json.RawMessage) json.RawMessage {
+	if name != "summarize_scan_summary" {
+		return input
+	}
+	sharedPath, ok := sharedScanSummaryPath(msg)
+	if !ok || !scanSummaryPathExists(sharedPath) {
+		return input
+	}
+
+	var args map[string]interface{}
+	if len(input) > 0 {
+		_ = json.Unmarshal(input, &args)
+	}
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+	current, _ := args["path"].(string)
+	if strings.TrimSpace(current) != "" && scanSummaryPathExists(current) {
+		return input
+	}
+	args["path"] = sharedPath
+	out, err := json.Marshal(args)
+	if err != nil {
+		return input
+	}
+	return out
+}
+
+func sharedScanSummaryPath(msg *protocol.Message) (string, bool) {
+	if msg == nil || msg.Metadata == nil {
+		return "", false
+	}
+	raw, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return "", false
+	}
+	ctxMap, ok := raw.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	workspacePath, _ := ctxMap["workspace_path"].(string)
+	workspacePath = strings.TrimSpace(workspacePath)
+	if workspacePath == "" {
+		return "", false
+	}
+
+	summaryDir := ""
+	if scan, ok := ctxMap["scan_summary"].(map[string]interface{}); ok {
+		summaryDir, _ = scan["summary_dir"].(string)
+	}
+	summaryDir = strings.TrimSpace(summaryDir)
+	if summaryDir == "" {
+		return workspacePath, true
+	}
+	if filepath.IsAbs(summaryDir) {
+		return summaryDir, true
+	}
+	return filepath.Join(workspacePath, summaryDir), true
+}
+
+func scanSummaryPathExists(path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false
+	}
+	dir, err := scansummary.ResolveSummaryDir(path)
+	if err != nil {
+		return false
+	}
+	if _, err := os.Stat(filepath.Join(dir, scansummary.MetadataFileName)); err != nil {
+		return false
+	}
+	return true
 }
 
 // generateWithAgentTools runs Claude tool-use for MCP and/or image generation tools.

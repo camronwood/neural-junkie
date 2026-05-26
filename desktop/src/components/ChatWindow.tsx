@@ -1322,7 +1322,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   };
 
   // Ensure command definitions are loaded, fetching them if needed
-  const ensureCommandDefs = async (forceRefresh: boolean = false) => {
+  const ensureCommandDefs = useCallback(async (forceRefresh: boolean = false) => {
     if (!forceRefresh && commandDefs.length > 0) return;
     try {
       const defs = await api.fetchCommands(forceRefresh);
@@ -1331,7 +1331,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to load command definitions:', err);
       setCommandDefs(withClientPaletteCommands([]));
     }
-  };
+  }, [api, commandDefs.length]);
 
   // Handle command executed from command palette
   const handleCommandExecute = async (commandString: string) => {
@@ -1358,19 +1358,26 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   };
 
-  // Handle slash trigger from input
-  const handleSlashTrigger = async (query: string) => {
-    await ensureCommandDefs(true);
-    setCommandPaletteFilter(query);
-    setCommandPaletteOpen(true);
-  };
-
   // Open command palette from toolbar button
-  const openCommandPalette = async () => {
+  const openCommandPalette = useCallback(async () => {
     await ensureCommandDefs(true);
     setCommandPaletteFilter('');
     setCommandPaletteOpen(true);
-  };
+  }, [ensureCommandDefs]);
+
+  useEffect(() => {
+    const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmd = isMac ? e.metaKey : e.ctrlKey;
+      if (!cmd || !e.shiftKey || e.key.toLowerCase() !== 'p') return;
+      e.preventDefault();
+      e.stopPropagation();
+      void openCommandPalette();
+    };
+
+    window.addEventListener('keydown', handleCommandPaletteShortcut, true);
+    return () => window.removeEventListener('keydown', handleCommandPaletteShortcut, true);
+  }, [openCommandPalette]);
 
   const handleLogout = async () => {
     try {
@@ -1532,10 +1539,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             type="button"
             onClick={openCommandPalette}
             className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
-            title="Command palette"
-            aria-label="Open command palette"
+            title="Command palette (Cmd+Shift+P / Ctrl+Shift+P)"
+            aria-label="Open command palette with Cmd+Shift+P or Ctrl+Shift+P"
           >
-            /
+            P
           </button>
 
           <button
@@ -1720,7 +1727,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-w-0 overflow-hidden">
         {/* Channel Sidebar */}
         {channelSidebarOpen && (
           <ChannelSidebar
@@ -1752,7 +1759,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         {/* Main Chat Area - always flex-grow to fill remaining space */}
         <div 
-          className="flex flex-col flex-1 min-h-0 min-w-[300px] transition-all duration-300 ease-in-out relative overflow-hidden"
+          className="flex flex-col flex-1 min-h-0 min-w-[220px] sm:min-w-[260px] transition-all duration-300 ease-in-out relative overflow-hidden"
         >
 
         {isClosedCollaborationChannel && collaborationForChannel && (
@@ -1817,7 +1824,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           }
           agents={agents}
           ref={inputRef}
-          onSlashTrigger={handleSlashTrigger}
           onDraftChange={setComposerDraft}
         />
 

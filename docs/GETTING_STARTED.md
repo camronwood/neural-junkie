@@ -8,7 +8,7 @@ No Go, Node, or Rust required.
 
 1. Install from [GitHub Releases — v1.0.0-beta.15](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.15).
 2. Open the app and complete the **setup wizard** — choose **Software development**, **Life sciences**, or **Team chat & productivity** (Ollama local or cloud API key).
-3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and slash commands.
+3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and command palette usage.
 
 The desktop app bundles the Go hub as a sidecar and starts it automatically.
 
@@ -149,11 +149,13 @@ go run cmd/agent/main.go --type backend --name "Go Expert" --mock=true
 
 ### Command Palette
 
-Type `/` in the chat input or click the **`/`** button in the toolbar to open the command palette. It provides:
-- Searchable list of all 50+ slash commands
+Press **Cmd+Shift+P** on macOS or **Ctrl+Shift+P** on Linux/Windows, or click the command palette button in the toolbar. It provides:
+- Searchable list of all command actions
 - Organized by category (Repo Agents, Provider, etc.)
 - Guided forms for commands that take arguments
 - Keyboard navigation (arrow keys + Enter)
+
+Typed `/...` commands still work as a compatibility path and for automation-oriented examples, but the palette is the primary desktop workflow.
 
 ### @Mentions
 

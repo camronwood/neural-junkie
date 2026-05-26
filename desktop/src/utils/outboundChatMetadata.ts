@@ -2,6 +2,7 @@ import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { usePacksStore } from '../stores/packsStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import type { EditorTab } from '../stores/editorStore';
 import {
   CONTEXT_SCOPE_KEY,
   CONTEXT_SCOPE_REASON_KEY,
@@ -10,7 +11,7 @@ import {
   USER_RULES_METADATA_KEY,
 } from '../constants/promptMetadata';
 import { buildFileTreeString } from './workspaceContext';
-import type { WorkspaceContext } from './workspaceContext';
+import type { ScanSummaryContext, WorkspaceContext } from './workspaceContext';
 import { channelNameToKind, resolveContextScope, type ChannelKind } from './inferContextScope';
 
 const FILE_PATH_RE =
@@ -38,6 +39,47 @@ function pathMatchesRef(tabPath: string, ref: string): boolean {
   return base != null && tabPath.endsWith('/' + base);
 }
 
+function buildScanSummaryContext(tab: EditorTab | undefined): ScanSummaryContext | undefined {
+  if (!tab || tab.viewMode !== 'scan-summary' || !tab.scanSummaryData) return undefined;
+  const activeWellId =
+    tab.scanSummaryInitialWell && tab.scanSummaryData.byWell.has(tab.scanSummaryInitialWell)
+      ? tab.scanSummaryInitialWell
+      : tab.scanSummaryData.metadata[0]?.imageName;
+  const activeWell = activeWellId ? tab.scanSummaryData.byWell.get(activeWellId) : undefined;
+  const analytes = Array.from(
+    new Set(
+      tab.scanSummaryData.metadata.flatMap((well) =>
+        well.spots.map((spot) => spot.analyte).filter(Boolean)
+      )
+    )
+  ).sort();
+
+  return {
+    summary_dir: tab.scanSummaryDir ?? '',
+    wells_count: tab.scanSummaryData.metadata.length,
+    analytes,
+    active_well: activeWell
+      ? {
+          well: activeWell.imageName,
+          time: activeWell.time,
+          fov_size_x_um: activeWell.fovSizeXUm,
+          fov_size_y_um: activeWell.fovSizeYUm,
+          z_stage_position_um: activeWell.zStagePositionUm,
+          spot_count: activeWell.spots.length,
+          spots: activeWell.spots.slice(0, 64).map((spot) => ({
+            analyte: spot.analyte,
+            row: spot.row,
+            column: spot.column,
+            x_px: spot.x_px,
+            y_px: spot.y_px,
+          })),
+        }
+      : undefined,
+    note:
+      'Phoenix scan summary metadata was shared. Well image pixels are not included unless an image is explicitly attached.',
+  };
+}
+
 export function trimWorkspaceContext(
   scope: ContextScope,
   full: WorkspaceContext,
@@ -50,6 +92,7 @@ export function trimWorkspaceContext(
     workspace_path: full.workspace_path,
     file_tree: '',
     open_files: [],
+    scan_summary: full.scan_summary,
   };
   if (scope === 'hint') return base;
   if (scope === 'outline' || scope === 'focus' || scope === 'full') {
@@ -101,6 +144,7 @@ function loadFullWorkspaceContext(): WorkspaceContext {
   const { workspaces, activeWorkspaceId, fileTree } = useFileExplorerStore.getState();
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) ?? workspaces[0];
   const nodes = activeWorkspace ? (fileTree[activeWorkspace.id] ?? []) : [];
+  const activeTab = editorTabs.find((tab) => tab.id === activeTabId);
 
   return {
     workspace_name: activeWorkspace?.name ?? '',
@@ -111,7 +155,10 @@ function loadFullWorkspaceContext(): WorkspaceContext {
       language: tab.language ?? 'text',
       content: tab.content.substring(0, 10000),
       is_active: tab.id === activeTabId,
+      view_mode: tab.viewMode,
+      scan_summary_dir: tab.scanSummaryDir,
     })),
+    scan_summary: buildScanSummaryContext(activeTab),
   };
 }
 

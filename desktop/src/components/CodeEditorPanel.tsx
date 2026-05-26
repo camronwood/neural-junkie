@@ -11,6 +11,7 @@ import { getHubBaseURL } from '../config/hubUrl';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
 
 function tabLabel(tab: EditorTab): string {
   const path = tab.path ?? '';
@@ -24,6 +25,7 @@ interface CodeEditorPanelProps {
 }
 
 const MIN_WIDTH = 300;
+const COMPACT_MIN_WIDTH = 220;
 const DEFAULT_WIDTH = 600;
 const STORAGE_KEY = 'code-editor-panel-width';
 
@@ -423,8 +425,8 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   return (
     <div
-      className="border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left flex-shrink-0"
-      style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
+      className="border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left"
+      style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
       <div
         className="absolute right-0 top-0 bottom-0 cursor-col-resize z-[100] group"

@@ -12,6 +12,7 @@ import {
   isAgentShortcutHidden,
   isDmChannelVisibleInSidebar,
 } from '../utils/sidebarVisibility';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
 
 interface ChannelSidebarProps {
   channels: Channel[];
@@ -25,6 +26,7 @@ interface ChannelSidebarProps {
 }
 
 const MIN_WIDTH = 180;
+const COMPACT_MIN_WIDTH = 140;
 const DEFAULT_WIDTH = 220;
 const STORAGE_KEY = 'channel-sidebar-width';
 
@@ -481,8 +483,8 @@ export function ChannelSidebar({
   return (
     <div
       ref={sidebarRef}
-      className="relative flex-shrink-0 bg-[#1a1d21] border-r border-slack-border flex flex-col overflow-hidden select-none"
-      style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
+      className="relative bg-[#1a1d21] border-r border-slack-border flex flex-col overflow-hidden select-none"
+      style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
       {/* Header */}
       <div className="px-3 py-2 border-b border-white/10">

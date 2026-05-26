@@ -17,7 +17,9 @@ func userRequestsEditorDocumentReview(content string) bool {
 		"review", "reivew", "proofread", "look at this", "look at the",
 		"take a look", "in my editor", "in the editor", "open document",
 		"document open", "file open", "active file", "active tab",
-		"what's open", "whats open", "can you read",
+		"what's open", "whats open", "can you read", "can you see",
+		"see the file", "see files", "see any issues", "image i have open",
+		"file i have open", "have open",
 	}
 	for _, m := range markers {
 		if strings.Contains(lower, m) {
@@ -43,22 +45,40 @@ func workspaceContextHasOpenFiles(msg *protocol.Message) bool {
 	return ok && len(files) > 0
 }
 
-// appendAssistantWorkspaceReviewGuidance steers the assistant to use shared editor
-// context for document/code review instead of claiming it has no file access.
-func appendAssistantWorkspaceReviewGuidance(prompt *strings.Builder, msg *protocol.Message) {
+func workspaceContextHasScanSummary(msg *protocol.Message) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	raw, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return false
+	}
+	ctxMap, ok := raw.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	scan, ok := ctxMap["scan_summary"].(map[string]interface{})
+	return ok && len(scan) > 0
+}
+
+// appendWorkspaceReviewGuidance steers any agent to use shared editor context
+// precisely instead of claiming it cannot access files that were shared.
+func appendWorkspaceReviewGuidance(prompt *strings.Builder, msg *protocol.Message) {
 	if msg == nil {
 		return
 	}
 	scope := ResolveContextScope(msg)
 	reviewIntent := userRequestsEditorDocumentReview(msg.Content)
 	hasFiles := workspaceContextHasOpenFiles(msg)
+	hasScanSummary := workspaceContextHasScanSummary(msg)
 
 	switch {
-	case (scope == ContextScopeFocus || scope == ContextScopeFull) && (reviewIntent || hasFiles):
+	case (scope == ContextScopeFocus || scope == ContextScopeFull) && (reviewIntent || hasFiles || hasScanSummary):
 		prompt.WriteString("\n=== DOCUMENT / CODE REVIEW (this turn) ===\n")
-		prompt.WriteString("The user shared workspace context including open editor files (see WORKSPACE CONTEXT). ")
-		prompt.WriteString("When they ask to review a document, RFC, or code, answer using those file contents and line numbers. ")
-		prompt.WriteString("Do NOT say you cannot access their editor or files.\n\n")
+		prompt.WriteString("The user shared workspace context (see WORKSPACE CONTEXT). ")
+		prompt.WriteString("When they ask whether you can see files, answer by naming exactly what is visible: project name/path, file tree, open file metadata, file contents, scan-summary metadata, or attached images. ")
+		prompt.WriteString("Do NOT say you cannot access their editor or files when workspace_context is present. ")
+		prompt.WriteString("If an open file has empty content or image pixels were not attached, say that specifically and ask for the missing file/image rather than denying all file access.\n\n")
 	case scope == ContextScopeHint && reviewIntent:
 		prompt.WriteString("\n=== EDITOR CONTEXT (limited) ===\n")
 		prompt.WriteString("The user asked to review something in their editor, but only a project hint was shared (no file bodies). ")

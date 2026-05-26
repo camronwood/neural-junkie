@@ -74,8 +74,8 @@ type Agent struct {
 	activeGens  map[string]map[string]context.CancelFunc // channel -> genID -> cancel
 
 	// lastDelegationConsulted holds specialist names consulted on the previous turn (for metadata).
-	delegationMu              sync.Mutex
-	lastDelegationConsulted   []string
+	delegationMu            sync.Mutex
+	lastDelegationConsulted []string
 
 	// Optional pre-processing hook for specialized agents. When set and it
 	// returns true, the message is considered fully handled and the base
@@ -1713,6 +1713,12 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 		text, id, reasoning, err := a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 		if err != nil {
+			if strings.TrimSpace(text) != "" &&
+				a.Info.Type == protocol.AgentTypeAssistant &&
+				(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content)) {
+				log.Printf("[%s] Keeping partial grounded Assistant stream for meeting/email query despite stream error: %v", a.Info.Name, err)
+				return text, id, reasoning, nil
+			}
 			lastErr = err
 			if errors.Is(err, ai.ErrOllamaNoContent) && attempt+1 < maxAttempts {
 				continue
@@ -2148,6 +2154,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContextForChannel(&user, msg, a.effectiveChannelType(msg.Channel))
+	appendWorkspaceReviewGuidance(&user, msg)
 	AppendGrantedHubDataAccess(&user, msg)
 
 	// Adaptive response length based on intent

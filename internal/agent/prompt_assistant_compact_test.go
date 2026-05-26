@@ -69,6 +69,24 @@ func TestLooksLikeContextStackEcho_modelQuestionWithCode(t *testing.T) {
 	}
 }
 
+func TestLooksLikeContextStackEcho_MeetingAnswerNotRetried(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general",
+		protocol.AgentInfo{ID: "u", Name: "Camron"}, "do you see the PHOENIX TEAM MEETING notes from today?")
+	reply := `Yes, I found the PHOENIX TEAM MEETING notes from May 19.
+
+Summary:
+- Calculation methodology updates
+- Infrastructure architectural improvements
+- Reader deployment strategy
+
+Action items:
+- Revise official system documentation
+- Update reader task worker refactor project story details`
+	if looksLikeContextStackEcho(msg, reply) {
+		t.Fatal("meeting-note answers should not trigger compact retry")
+	}
+}
+
 func TestMessageAsksAboutMeetings_andEmail(t *testing.T) {
 	if !messageAsksAboutMeetings("do you have meeting notes from today?") {
 		t.Fatal("expected meeting query")

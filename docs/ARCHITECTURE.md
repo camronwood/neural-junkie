@@ -84,7 +84,7 @@ type Hub struct {
 
 ### Command Handler (`internal/hub/commands.go`)
 
-Processes 50+ slash commands organized by category. Each command is defined with metadata (name, description, category, arguments with types) exposed via `GET /api/commands` for the command palette.
+Processes 50+ command actions organized by category. Each command is defined with metadata (name, description, category, arguments with types) exposed via `GET /api/commands` for the desktop command palette. Slash-form command strings remain the hub transport for compatibility.
 
 Categories: Repository Agents, Confluence, Agent Management, MCP Export, Provider, Files & Workspace, Meetings, Assistant, Design, Collaboration, Connection Tests, Help.
 
@@ -207,7 +207,7 @@ Tauri (Rust) + React (TypeScript) + Tailwind CSS.
 
 **Key Components:**
 - `ChatWindow` -- Main chat interface with message list, rich text input, toolbar
-- `CommandPalette` -- Searchable slash-command UI with argument forms
+- `CommandPalette` -- Searchable command UI with Cmd+Shift+P/Ctrl+Shift+P access and argument forms
 - `SettingsModal` -- Appearance, Layout, Integrations, AI Providers, Developer, About
 - `AgentList` -- Active agents with status indicators
 - `FileExplorerPanel` -- Workspace file browser
@@ -234,7 +234,7 @@ User sends message
 Hub receives via WebSocket/HTTP
     │
     ├── Parse @mentions
-    ├── Detect slash commands → CommandHandler
+    ├── Detect slash-form command strings → CommandHandler
     ├── Detect file paths → auto-create repo agent (if enabled)
     │
     ▼

@@ -169,7 +169,7 @@ export function CommandPalette({
                 type="text"
                 value={query}
                 onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
-                placeholder="Search commands..."
+                placeholder="Search actions and commands..."
                 className="w-full bg-transparent text-sm text-slack-text placeholder-slack-textMuted focus:outline-none"
                 autoComplete="off"
                 spellCheck={false}
@@ -220,7 +220,8 @@ export function CommandPalette({
             </div>
 
             {/* Footer hint */}
-            <div className="px-4 py-2 border-t border-slack-border text-[11px] text-slack-textMuted flex gap-4">
+            <div className="px-4 py-2 border-t border-slack-border text-[11px] text-slack-textMuted flex flex-wrap gap-3">
+              <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">Cmd/Ctrl+Shift+P</kbd> open</span>
               <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">↑↓</kbd> navigate</span>
               <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">↵</kbd> select</span>
               <span><kbd className="px-1 py-0.5 bg-slack-bgHover rounded text-xs">esc</kbd> close</span>

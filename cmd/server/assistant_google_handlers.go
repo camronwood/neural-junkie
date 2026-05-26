@@ -129,11 +129,14 @@ func handleAssistantGoogleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	connected, email, lastSync, count, oauthConfigured, _ := a.GoogleMeetNotesStatus(r.Context())
+	appConfig := meetnotes.PublicAppConfigFromDir(a.MeetNotesBaseDir())
 	resp := map[string]interface{}{
 		"connected":        connected,
 		"email":            email,
 		"notes_count":      count,
 		"oauth_configured": oauthConfigured,
+		"connect_ready":    appConfig.ConnectReady,
+		"oauth_source":     appConfig.OAuthSource,
 	}
 	if lastSync != nil {
 		resp["last_sync_at"] = lastSync.Format(time.RFC3339)
@@ -149,7 +152,7 @@ func handleAssistantGoogleAuth(w http.ResponseWriter, r *http.Request) {
 	baseDir := meetnotesBaseDir()
 	if !meetnotes.OAuthConfigured(baseDir) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "Google OAuth app credentials not configured. Add Client ID and Secret in Settings → Integrations → Google Meet notes.",
+			"error": "Google OAuth is not available. Configure Advanced Google OAuth or use a release build with bundled credentials.",
 		})
 		return
 	}

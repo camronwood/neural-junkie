@@ -73,16 +73,10 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 	}
 
 	// Load config
-	config := &AssistantConfig{
-		Timezone:        "UTC",
-		DefaultChannel:  "general",
-		ReminderAdvance: 15,
-		Keywords:        []string{"meeting", "deadline", "review", "deploy", "release"},
-	}
+	config := DefaultAssistantConfig()
 	if storage != nil {
 		if loadedConfig, err := storage.LoadConfig(); err == nil {
 			config = loadedConfig
-			NormalizeAssistantConfig(config)
 		}
 	}
 
@@ -94,7 +88,7 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		stopGoogleSync:   make(chan struct{}),
 		stopEmailWatcher: make(chan struct{}),
 		processedEmails:  make(map[string]bool),
-		pendingApprovals:   make(map[string]*PendingApproval),
+		pendingApprovals: make(map[string]*PendingApproval),
 	}
 
 	// Ensure deterministic assistant actions are handled before the shared
@@ -104,6 +98,8 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 
 	return assistant
 }
+
+var assistantPromptNow = time.Now
 
 // Start begins the assistant's message processing loop with reminder monitoring
 func (a *AssistantAgent) Start(ctx context.Context, channel string) error {
@@ -140,8 +136,11 @@ func (a *AssistantAgent) ProcessMessage(ctx context.Context, msg *protocol.Messa
 		return
 	}
 
-	// Check for proactive suggestions based on conversation content
-	a.checkProactiveSuggestions(ctx, msg)
+	// Direct meeting-note questions already use the grounded meeting prompt below.
+	// Do not also send proactive context, or the UI can show two contradictory replies.
+	if !a.detectsMeetingQuery(msg) {
+		a.checkProactiveSuggestions(ctx, msg)
+	}
 
 	// Let base agent handle the rest
 	a.Agent.handleMessage(ctx, msg)
@@ -329,7 +328,7 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContext(&prompt, msg)
-	appendAssistantWorkspaceReviewGuidance(&prompt, msg)
+	appendWorkspaceReviewGuidance(&prompt, msg)
 
 	AppendPromptAttachments(&prompt, msg)
 	AppendGrantedHubDataAccess(&prompt, msg)
@@ -1324,10 +1323,10 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 		return a.buildAssistantPrompt(msg)
 	}
 
-	// Sort by date (most recent first)
-	sort.Slice(meetingNotes, func(i, j int) bool {
-		return meetingNotes[i].MeetingDate.After(meetingNotes[j].MeetingDate)
-	})
+	now := assistantPromptTime(a.config)
+	todayQuery := meetingQueryAsksAboutToday(msg.Content)
+	todayNotes := meetingNotesOnDate(meetingNotes, now)
+	selectedNotes, matched := selectMeetingNotesForPrompt(meetingNotes, msg.Content, 3)
 
 	var prompt strings.Builder
 
@@ -1339,13 +1338,29 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	prompt.WriteString("You also serve as a knowledgeable guide to the Neural Junkie system itself. ")
 	prompt.WriteString("You are friendly, proactive, and always ready to help.\n\n")
 
-	prompt.WriteString("=== MEETING NOTES CONTEXT ===\n")
-	prompt.WriteString("The user is asking about meeting notes. You have access to detailed meeting information:\n\n")
+	prompt.WriteString("=== CURRENT DATE/TIME ===\n")
+	prompt.WriteString(fmt.Sprintf("Current date: %s\n", now.Format("Monday, January 2, 2006")))
+	prompt.WriteString(fmt.Sprintf("Current time: %s\n", now.Format("15:04 MST")))
+	prompt.WriteString("Interpret relative date phrases such as \"today\", \"yesterday\", and \"last meeting\" using this date/time. Do not invent a different current date.\n\n")
 
-	// Include the most recent 1-2 meetings with full content
-	meetingsToInclude := minInt(2, len(meetingNotes))
-	for i := 0; i < meetingsToInclude; i++ {
-		note := meetingNotes[i]
+	prompt.WriteString("=== MEETING NOTES CONTEXT ===\n")
+	prompt.WriteString("The user is asking about synced meeting notes. You have access to the meeting notes listed below from Assistant storage.\n")
+	prompt.WriteString("If notes are listed here, do not say you cannot access meeting notes, files, or prior meetings.\n")
+	prompt.WriteString("For questions like \"do you see/have <meeting>\", answer yes/no first, then summarize what was found.\n")
+	if todayQuery {
+		if len(todayNotes) > 0 {
+			prompt.WriteString(fmt.Sprintf("The user asked about today's meeting notes. Some synced meeting notes are dated today (%s); only call a listed note today's note when its Date matches today.\n", now.Format("January 2, 2006")))
+		} else {
+			prompt.WriteString(fmt.Sprintf("The user asked about today's meeting notes. No synced meeting notes are dated today (%s). The notes listed below are older context; do not describe them as today's notes.\n", now.Format("January 2, 2006")))
+		}
+	}
+	if matched {
+		prompt.WriteString("These are the best matching synced notes for the user's query:\n\n")
+	} else {
+		prompt.WriteString("No exact title/content match was found, so the most recent synced notes are included for context:\n\n")
+	}
+
+	for i, note := range selectedNotes {
 		prompt.WriteString(fmt.Sprintf("**Meeting %d: %s**\n", i+1, note.Title))
 		prompt.WriteString(fmt.Sprintf("**Date:** %s\n", note.MeetingDate.Format("Jan 2, 2006 15:04")))
 		prompt.WriteString(fmt.Sprintf("**Attendees:** %s\n", strings.Join(note.Attendees, ", ")))
@@ -1368,8 +1383,13 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 			}
 		}
 
-		// Include full content for the most recent meeting
-		if i == 0 && note.FullContent != "" {
+		if note.GoogleDocLink != "" {
+			prompt.WriteString(fmt.Sprintf("**Google Doc:** %s\n", note.GoogleDocLink))
+		}
+
+		// Include full content for the best match/recent note. Additional notes keep
+		// compact metadata to avoid drowning smaller local models.
+		if i == 0 && strings.TrimSpace(note.FullContent) != "" {
 			prompt.WriteString("**Full Meeting Content:**\n")
 			prompt.WriteString(note.FullContent)
 			prompt.WriteString("\n")
@@ -1390,6 +1410,196 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 	prompt.WriteString("Provide a helpful response based on the meeting information:")
 
 	return prompt.String()
+}
+
+func selectMeetingNotesForPrompt(notes []*MeetingNote, query string, limit int) ([]*MeetingNote, bool) {
+	if limit <= 0 || len(notes) == 0 {
+		return nil, false
+	}
+
+	sorted := append([]*MeetingNote(nil), notes...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return sorted[i].MeetingDate.After(sorted[j].MeetingDate)
+	})
+
+	tokens := meetingQueryTokens(query)
+	type scoredNote struct {
+		note      *MeetingNote
+		score     int
+		titleHits int
+	}
+	var scored []scoredNote
+	for _, note := range sorted {
+		score, titleHits := scoreMeetingNoteForQuery(note, query, tokens)
+		if score > 0 {
+			scored = append(scored, scoredNote{note: note, score: score, titleHits: titleHits})
+		}
+	}
+	if len(scored) == 0 {
+		return sorted[:minInt(limit, len(sorted))], false
+	}
+	sort.SliceStable(scored, func(i, j int) bool {
+		if scored[i].titleHits != scored[j].titleHits {
+			return scored[i].titleHits > scored[j].titleHits
+		}
+		if scored[i].titleHits > 0 && !scored[i].note.MeetingDate.Equal(scored[j].note.MeetingDate) {
+			return scored[i].note.MeetingDate.After(scored[j].note.MeetingDate)
+		}
+		if scored[i].score != scored[j].score {
+			return scored[i].score > scored[j].score
+		}
+		return scored[i].note.MeetingDate.After(scored[j].note.MeetingDate)
+	})
+
+	out := make([]*MeetingNote, 0, minInt(limit, len(scored)))
+	for _, item := range scored {
+		out = append(out, item.note)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, true
+}
+
+func assistantPromptTime(config *AssistantConfig) time.Time {
+	now := assistantPromptNow()
+	location := time.Local
+	if config != nil && strings.TrimSpace(config.Timezone) != "" {
+		if loaded, err := time.LoadLocation(config.Timezone); err == nil {
+			location = loaded
+		}
+	}
+	return now.In(location)
+}
+
+func meetingQueryAsksAboutToday(query string) bool {
+	for _, field := range strings.Fields(normalizeMeetingSearchText(query)) {
+		if field == "today" {
+			return true
+		}
+	}
+	return false
+}
+
+func meetingNotesOnDate(notes []*MeetingNote, target time.Time) []*MeetingNote {
+	if len(notes) == 0 {
+		return nil
+	}
+	location := target.Location()
+	var matches []*MeetingNote
+	for _, note := range notes {
+		if note == nil {
+			continue
+		}
+		noteDate := note.MeetingDate.In(location)
+		if noteDate.Year() == target.Year() && noteDate.YearDay() == target.YearDay() {
+			matches = append(matches, note)
+		}
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		return matches[i].MeetingDate.After(matches[j].MeetingDate)
+	})
+	return matches
+}
+
+func scoreMeetingNoteForQuery(note *MeetingNote, query string, tokens []string) (int, int) {
+	if note == nil {
+		return 0, 0
+	}
+	queryNorm := normalizeMeetingSearchText(query)
+	titleNorm := normalizeMeetingSearchText(note.Title)
+	score := 0
+	titleHits := 0
+	if titleNorm != "" && strings.Contains(queryNorm, titleNorm) {
+		score += 200
+	}
+
+	summaryNorm := normalizeMeetingSearchText(note.Summary)
+	fullNorm := normalizeMeetingSearchText(note.FullContent)
+	for _, tok := range tokens {
+		if containsMeetingToken(titleNorm, tok) {
+			titleHits++
+			score += 30
+		}
+		if containsMeetingToken(summaryNorm, tok) {
+			score += 8
+		}
+		if containsMeetingToken(fullNorm, tok) {
+			score += 4
+		}
+		for _, topic := range note.Topics {
+			if containsMeetingToken(normalizeMeetingSearchText(topic), tok) {
+				score += 12
+			}
+		}
+		for _, action := range note.ActionItems {
+			if containsMeetingToken(normalizeMeetingSearchText(action), tok) {
+				score += 10
+			}
+		}
+		for _, attendee := range note.Attendees {
+			if containsMeetingToken(normalizeMeetingSearchText(attendee), tok) {
+				score += 10
+			}
+		}
+	}
+	return score, titleHits
+}
+
+func meetingQueryTokens(query string) []string {
+	normalized := normalizeMeetingSearchText(query)
+	if normalized == "" {
+		return nil
+	}
+	stop := map[string]bool{
+		"a": true, "about": true, "an": true, "and": true, "any": true, "are": true,
+		"can": true, "could": true, "do": true, "does": true, "for": true, "from": true,
+		"have": true, "i": true, "in": true, "is": true, "it": true, "me": true,
+		"meeting": true, "meetings": true, "note": true, "notes": true, "of": true,
+		"on": true, "please": true, "see": true, "that": true, "the": true,
+		"this": true, "today": true, "was": true, "we": true, "what": true, "with": true,
+		"you": true,
+	}
+	seen := map[string]bool{}
+	var tokens []string
+	for _, tok := range strings.Fields(normalized) {
+		if len(tok) < 3 || stop[tok] || seen[tok] {
+			continue
+		}
+		seen[tok] = true
+		tokens = append(tokens, tok)
+	}
+	return tokens
+}
+
+func normalizeMeetingSearchText(s string) string {
+	lower := strings.ToLower(s)
+	var b strings.Builder
+	lastSpace := true
+	for _, r := range lower {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			lastSpace = false
+			continue
+		}
+		if !lastSpace {
+			b.WriteByte(' ')
+			lastSpace = true
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func containsMeetingToken(normalized, token string) bool {
+	if normalized == "" || token == "" {
+		return false
+	}
+	for _, field := range strings.Fields(normalized) {
+		if field == token {
+			return true
+		}
+	}
+	return false
 }
 
 // buildEmailContextPrompt creates a prompt with recent email content when the user asks about mail.

@@ -127,6 +127,47 @@ interface MessageProps {
   isStreaming?: boolean;
 }
 
+function hasUserImages(metadata?: Record<string, unknown>): boolean {
+  const raw = metadata?.[USER_IMAGES_METADATA_KEY];
+  return Array.isArray(raw) && raw.length > 0;
+}
+
+function workspaceContextBadge(metadata?: Record<string, unknown>): { label: string; title: string } | null {
+  const raw = metadata?.workspace_context;
+  if (!raw || typeof raw !== 'object') return null;
+  const ctx = raw as Record<string, unknown>;
+  const openFiles = Array.isArray(ctx.open_files) ? ctx.open_files : [];
+  const hasScanSummary = !!ctx.scan_summary && typeof ctx.scan_summary === 'object';
+  const hasFileContents = openFiles.some((entry) => {
+    if (!entry || typeof entry !== 'object') return false;
+    const content = (entry as Record<string, unknown>).content;
+    return typeof content === 'string' && content.trim().length > 0;
+  });
+
+  if (hasScanSummary) {
+    return {
+      label: 'scan summary shared',
+      title: 'This message included compact Phoenix scan-summary metadata. Well image pixels are not included unless an image is attached.',
+    };
+  }
+  if (hasFileContents) {
+    return {
+      label: 'file contents shared',
+      title: 'This message included open file contents from the workspace.',
+    };
+  }
+  if (openFiles.length > 0) {
+    return {
+      label: 'file metadata shared',
+      title: 'This message included open file names/metadata, but no file body text.',
+    };
+  }
+  return {
+    label: 'workspace shared',
+    title: 'This message included workspace name/path and possibly a file tree, but no open file bodies.',
+  };
+}
+
 function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStreaming }: MessageProps) {
   const threadOpenId = channelName
     ? slackThreadOpenId(message, channelName)
@@ -154,6 +195,8 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const canShowProposeButton = suggestsFileChange && !isStreaming;
   const reasoningText = getReasoningText(message.metadata as Record<string, unknown> | undefined);
   const senderName = slackSenderDisplayName(message);
+  const sharedContextBadge = workspaceContextBadge(message.metadata as Record<string, unknown> | undefined);
+  const imageAttached = hasUserImages(message.metadata as Record<string, unknown> | undefined);
 
   // Parse command output from metadata if present
   let commandOutput: CommandOutputType | null = null;
@@ -287,15 +330,23 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             Slack @mention
           </span>
         )}
-        {message.metadata?.workspace_context && (
+        {imageAttached && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400"
+            title="This message included image pixels as an attachment."
+          >
+            image attached
+          </span>
+        )}
+        {sharedContextBadge && (
           <span
             className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-purple-500/15 text-purple-400"
-            title="This message included workspace files"
+            title={sharedContextBadge.title}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
               <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
             </svg>
-            files shared
+            {sharedContextBadge.label}
           </span>
         )}
       </div>

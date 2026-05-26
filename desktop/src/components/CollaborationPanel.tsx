@@ -10,6 +10,7 @@ import type {
 } from '../types/protocol';
 import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
 import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
 
 interface CollaborationPanelProps {
@@ -235,7 +236,7 @@ export function CollaborationPanel({
 
   return (
     <div className="collaboration-panel" style={{
-      width: 380,
+      ...shrinkablePanelStyle(380, 240),
       borderLeft: '1px solid var(--border-color, #333)',
       display: 'flex',
       flexDirection: 'column',

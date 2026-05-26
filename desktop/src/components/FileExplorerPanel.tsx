@@ -9,7 +9,11 @@ import type { FileNode } from '../stores/fileExplorerStore';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import { isImagePreviewPath, workspaceAbsolutePath } from '../utils/editorFileKind';
-import { setWorkspaceFileDragData } from '../utils/workspaceFileDrag';
+import {
+  dispatchWorkspaceFileDropEventAtPoint,
+  scheduleWorkspaceFileDragClear,
+  setWorkspaceFileDragData,
+} from '../utils/workspaceFileDrag';
 import { resolveEditorImageSrc } from '../utils/chatImageSrc';
 import {
   isScanSummaryDirListing,
@@ -21,6 +25,7 @@ import {
   scanSummaryDirFromMetadataPath,
   SCAN_SUMMARY_METADATA_FILE,
 } from '../utils/scanSummary';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { ViewportContextMenu } from './ViewportContextMenu';
 import { devLog } from '../utils/devLog';
 
@@ -30,6 +35,7 @@ interface FileExplorerPanelProps {
 }
 
 const MIN_WIDTH = 200; // Minimum usable width
+const COMPACT_MIN_WIDTH = 160;
 const DEFAULT_WIDTH = 300;
 const STORAGE_KEY = 'file-explorer-panel-width';
 
@@ -345,6 +351,11 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     });
   };
 
+  const handleFileDragEnd = (e: React.DragEvent) => {
+    dispatchWorkspaceFileDropEventAtPoint(e.clientX, e.clientY);
+    scheduleWorkspaceFileDragClear();
+  };
+
   const handleContextMenu = (e: React.MouseEvent, file: FileNode) => {
     e.preventDefault();
     setContextMenu({
@@ -635,6 +646,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           draggable={!file.is_dir}
           onDragStart={(e) => handleFileDragStart(e, file)}
+          onDragEnd={handleFileDragEnd}
           onClick={() => handleFileClick(file)}
           onContextMenu={(e) => handleContextMenu(e, file)}
           title={file.is_dir ? undefined : 'Drag to chat to attach as context'}
@@ -662,8 +674,8 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
   return (
     <div 
-      className="border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left flex-shrink-0"
-      style={{ width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
+      className="border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left"
+      style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
         {/* Resize Handle */}
         <div

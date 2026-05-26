@@ -12,6 +12,7 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 | Repo indexing agents | [REPO_AGENTS.md](docs/REPO_AGENTS.md) |
 | Confluence agents | [CONFLUENCE_AGENTS.md](docs/CONFLUENCE_AGENTS.md) |
 | Assistant (tasks, reminders, meetings) | [ASSISTANT_AGENT.md](docs/ASSISTANT_AGENT.md) |
+| Google Meet notes | [GOOGLE_MEET_NOTES.md](docs/GOOGLE_MEET_NOTES.md) |
 | Moderator | [MODERATOR_AGENT.md](docs/MODERATOR_AGENT.md) |
 | MCP tool servers | [MCP_INTEGRATION.md](docs/MCP_INTEGRATION.md) |
 | MCP export/import | [MCP_EXPORTS.md](docs/MCP_EXPORTS.md) |

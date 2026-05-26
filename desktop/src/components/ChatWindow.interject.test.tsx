@@ -188,6 +188,7 @@ describe('ChatWindow channel interject', () => {
     seedStore();
     apiHarness.channelInterject.mockClear();
     apiHarness.sendMessage.mockClear();
+    apiHarness.fetchCommands.mockClear();
     addToastMock.mockClear();
   });
 
@@ -248,6 +249,21 @@ describe('ChatWindow channel interject', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Stop agents' })).toBeNull();
+    });
+  });
+
+  it('opens the command palette with Cmd/Ctrl+Shift+P', async () => {
+    render(<ChatWindow />);
+
+    await waitFor(() => {
+      expect(apiHarness.fetchCommands).toHaveBeenCalled();
+    });
+    apiHarness.fetchCommands.mockClear();
+
+    fireEvent.keyDown(window, { key: 'P', metaKey: true, ctrlKey: true, shiftKey: true });
+
+    await waitFor(() => {
+      expect(apiHarness.fetchCommands).toHaveBeenCalledWith(true);
     });
   });
 });

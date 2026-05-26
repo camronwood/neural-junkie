@@ -70,11 +70,17 @@ jobs:
           SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
         run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
 
+      - name: Write Google vendor OAuth (Connect Google in installers)
+        env:
+          GOOGLE_VENDOR_CLIENT_ID: ${{ secrets.GOOGLE_VENDOR_CLIENT_ID }}
+          GOOGLE_VENDOR_CLIENT_SECRET: ${{ secrets.GOOGLE_VENDOR_CLIENT_SECRET }}
+        run: chmod +x scripts/ci-write-google-vendor-oauth.sh && ./scripts/ci-write-google-vendor-oauth.sh
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=darwin GOARCH=arm64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
-          GOOS=darwin GOARCH=amd64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
+          GOOS=darwin GOARCH=arm64 go build -tags "slackvendor googlevendor" -o desktop/src-tauri/binaries/nj-server-aarch64-apple-darwin ./cmd/server
+          GOOS=darwin GOARCH=amd64 go build -tags "slackvendor googlevendor" -o desktop/src-tauri/binaries/nj-server-x86_64-apple-darwin ./cmd/server
 
       - name: Build frontend
         working-directory: desktop
@@ -134,11 +140,18 @@ jobs:
           SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
         run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
 
+      - name: Write Google vendor OAuth (Connect Google in installers)
+        shell: bash
+        env:
+          GOOGLE_VENDOR_CLIENT_ID: ${{ secrets.GOOGLE_VENDOR_CLIENT_ID }}
+          GOOGLE_VENDOR_CLIENT_SECRET: ${{ secrets.GOOGLE_VENDOR_CLIENT_SECRET }}
+        run: chmod +x scripts/ci-write-google-vendor-oauth.sh && ./scripts/ci-write-google-vendor-oauth.sh
+
       - name: Cross-compile Go server
         shell: bash
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=windows GOARCH=amd64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
+          GOOS=windows GOARCH=amd64 go build -tags "slackvendor googlevendor" -o desktop/src-tauri/binaries/nj-server-x86_64-pc-windows-msvc.exe ./cmd/server
 
       - name: Build frontend and Tauri
         working-directory: desktop
@@ -196,10 +209,16 @@ jobs:
           SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
         run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
 
+      - name: Write Google vendor OAuth (Connect Google in installers)
+        env:
+          GOOGLE_VENDOR_CLIENT_ID: ${{ secrets.GOOGLE_VENDOR_CLIENT_ID }}
+          GOOGLE_VENDOR_CLIENT_SECRET: ${{ secrets.GOOGLE_VENDOR_CLIENT_SECRET }}
+        run: chmod +x scripts/ci-write-google-vendor-oauth.sh && ./scripts/ci-write-google-vendor-oauth.sh
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
-          GOOS=linux GOARCH=amd64 go build -tags slackvendor -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
+          GOOS=linux GOARCH=amd64 go build -tags "slackvendor googlevendor" -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
 
       - name: Build frontend and Tauri
         working-directory: desktop

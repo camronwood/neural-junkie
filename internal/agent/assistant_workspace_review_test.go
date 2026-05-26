@@ -16,7 +16,7 @@ func TestUserRequestsEditorDocumentReview(t *testing.T) {
 	}
 }
 
-func TestAppendAssistantWorkspaceReviewGuidance_FocusWithFiles(t *testing.T) {
+func TestAppendWorkspaceReviewGuidance_FocusWithFiles(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-camron-assistant", protocol.AgentInfo{Name: "Camron"}, "please review the open doc")
 	msg.Metadata = map[string]interface{}{
 		MetadataContextScope: ContextScopeFocus,
@@ -30,7 +30,7 @@ func TestAppendAssistantWorkspaceReviewGuidance_FocusWithFiles(t *testing.T) {
 		},
 	}
 	var b strings.Builder
-	appendAssistantWorkspaceReviewGuidance(&b, msg)
+	appendWorkspaceReviewGuidance(&b, msg)
 	out := b.String()
 	if !strings.Contains(out, "DOCUMENT / CODE REVIEW") {
 		t.Fatalf("expected review guidance, got %q", out)
@@ -40,7 +40,7 @@ func TestAppendAssistantWorkspaceReviewGuidance_FocusWithFiles(t *testing.T) {
 	}
 }
 
-func TestAppendAssistantWorkspaceReviewGuidance_HintWithoutFiles(t *testing.T) {
+func TestAppendWorkspaceReviewGuidance_HintWithoutFiles(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general", protocol.AgentInfo{Name: "Camron"}, "review what's in my editor")
 	msg.Metadata = map[string]interface{}{
 		MetadataContextScope: ContextScopeHint,
@@ -50,9 +50,37 @@ func TestAppendAssistantWorkspaceReviewGuidance_HintWithoutFiles(t *testing.T) {
 		},
 	}
 	var b strings.Builder
-	appendAssistantWorkspaceReviewGuidance(&b, msg)
+	appendWorkspaceReviewGuidance(&b, msg)
 	out := b.String()
 	if !strings.Contains(out, "EDITOR CONTEXT (limited)") {
 		t.Fatalf("expected limited hint guidance, got %q", out)
+	}
+}
+
+func TestAppendWorkspaceReviewGuidance_BiologyCanSeeFileQuestion(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-camron-biologyexpert", protocol.AgentInfo{Name: "Camron"}, "can you see the file I have open in the editor?")
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope: ContextScopeFocus,
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "scan",
+			"open_files": []interface{}{
+				map[string]interface{}{
+					"path": "imageMetadata.json", "language": "text", "content": "", "is_active": true,
+				},
+			},
+			"scan_summary": map[string]interface{}{
+				"summary_dir": "",
+				"wells_count": float64(96),
+			},
+		},
+	}
+	var b strings.Builder
+	appendWorkspaceReviewGuidance(&b, msg)
+	out := b.String()
+	if !strings.Contains(out, "naming exactly what is visible") {
+		t.Fatalf("expected precise visibility guidance, got %q", out)
+	}
+	if !strings.Contains(out, "image pixels were not attached") {
+		t.Fatalf("expected image pixel caveat, got %q", out)
 	}
 }

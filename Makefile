@@ -2,8 +2,16 @@
 
 # Bundled Neural Junkie Slack app (maintainer: ../scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
+GOOGLE_VENDOR_JSON := internal/google/meetnotes/vendor/oauth.json
+SERVER_GO_BUILD_TAGS :=
 ifneq (,$(wildcard $(SLACK_VENDOR_JSON)))
-SERVER_GO_TAGS := -tags=slackvendor
+SERVER_GO_BUILD_TAGS += slackvendor
+endif
+ifneq (,$(wildcard $(GOOGLE_VENDOR_JSON)))
+SERVER_GO_BUILD_TAGS += googlevendor
+endif
+ifneq (,$(strip $(SERVER_GO_BUILD_TAGS)))
+SERVER_GO_TAGS := -tags="$(strip $(SERVER_GO_BUILD_TAGS))"
 else
 SERVER_GO_TAGS :=
 endif

@@ -367,6 +367,7 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	if path, ok := ctxMap["workspace_path"].(string); ok && path != "" {
 		prompt.WriteString(fmt.Sprintf("Path: %s\n", path))
 	}
+	appendScanSummaryContext(prompt, ctxMap)
 
 	includeTree := scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull
 	if includeTree {
@@ -415,6 +416,66 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	}
 
 	prompt.WriteString("=== END WORKSPACE CONTEXT ===\n\n")
+}
+
+func appendScanSummaryContext(prompt *strings.Builder, ctxMap map[string]interface{}) {
+	raw, ok := ctxMap["scan_summary"]
+	if !ok || raw == nil {
+		return
+	}
+	scan, ok := raw.(map[string]interface{})
+	if !ok {
+		return
+	}
+	prompt.WriteString("\nPhoenix scan summary context:\n")
+	if dir, ok := scan["summary_dir"].(string); ok && dir != "" {
+		prompt.WriteString(fmt.Sprintf("- Summary directory: %s\n", dir))
+	}
+	if count, ok := scan["wells_count"].(float64); ok {
+		prompt.WriteString(fmt.Sprintf("- Wells with metadata: %d\n", int(count)))
+	}
+	if analytes, ok := scan["analytes"].([]interface{}); ok && len(analytes) > 0 {
+		names := make([]string, 0, len(analytes))
+		for _, a := range analytes {
+			if s, ok := a.(string); ok && strings.TrimSpace(s) != "" {
+				names = append(names, s)
+			}
+		}
+		if len(names) > 0 {
+			prompt.WriteString(fmt.Sprintf("- Analytes/controls: %s\n", strings.Join(names, ", ")))
+		}
+	}
+	if note, ok := scan["note"].(string); ok && note != "" {
+		prompt.WriteString(fmt.Sprintf("- Note: %s\n", note))
+	}
+	if active, ok := scan["active_well"].(map[string]interface{}); ok && len(active) > 0 {
+		well, _ := active["well"].(string)
+		if well != "" {
+			prompt.WriteString(fmt.Sprintf("- Active well: %s", well))
+			if spotCount, ok := active["spot_count"].(float64); ok {
+				prompt.WriteString(fmt.Sprintf(" (%d spots)", int(spotCount)))
+			}
+			if t, ok := active["time"].(string); ok && t != "" {
+				prompt.WriteString(fmt.Sprintf(", acquired %s", t))
+			}
+			prompt.WriteString("\n")
+		}
+		if spots, ok := active["spots"].([]interface{}); ok && len(spots) > 0 {
+			prompt.WriteString("  Active well spot layout (first 64):\n")
+			for _, rawSpot := range spots {
+				spot, ok := rawSpot.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				analyte, _ := spot["analyte"].(string)
+				row, _ := spot["row"].(string)
+				col, _ := spot["column"].(string)
+				x, _ := spot["x_px"].(float64)
+				y, _ := spot["y_px"].(float64)
+				prompt.WriteString(fmt.Sprintf("  - %s r%s c%s at (%.0f, %.0f)\n", analyte, row, col, x, y))
+			}
+		}
+	}
 }
 
 // addLineNumbers prepends each line with its 1-based line number.

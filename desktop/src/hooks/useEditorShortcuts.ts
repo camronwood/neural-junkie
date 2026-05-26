@@ -66,14 +66,6 @@ export function useEditorShortcuts() {
       return;
     }
 
-    // Cmd+Shift+P / Ctrl+Shift+P - Command palette (placeholder)
-    if (cmdKey && event.key === 'P' && event.shiftKey) {
-      event.preventDefault();
-      // TODO: Implement command palette
-      console.log('Command palette - not implemented yet');
-      return;
-    }
-
     // Cmd+B / Ctrl+B - Toggle file explorer
     if (cmdKey && event.key === 'b' && !event.shiftKey) {
       event.preventDefault();

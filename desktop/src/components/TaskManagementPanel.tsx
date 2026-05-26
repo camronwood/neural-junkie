@@ -7,6 +7,7 @@ import type {
   CollaborationTaskStatus,
 } from '../types/protocol';
 import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
 
 type TaskViewMode = 'by_agent' | 'by_collaboration';
 type StatusFilter = 'all' | CollaborationTaskStatus;
@@ -213,7 +214,7 @@ export function TaskManagementPanel({
   return (
     <div
       style={{
-        width: 430,
+        ...shrinkablePanelStyle(430, 260),
         borderLeft: '1px solid var(--border-color, #333)',
         display: 'flex',
         flexDirection: 'column',

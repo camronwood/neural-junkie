@@ -28,9 +28,9 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
-	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/mcp/resources"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
@@ -150,21 +150,36 @@ func main() {
 
 	sessionPath := hub.DefaultSessionPath()
 	log.Printf("💾 Session will be saved to: %s", sessionPath)
-	if fi, err := os.Stat(sessionPath); err == nil {
+	restoreLastSession := os.Getenv("NEURAL_JUNKIE_RESTORE_LAST_SESSION") == "1"
+	if !restoreLastSession {
+		if fi, err := os.Stat(sessionPath); err == nil {
+			log.Printf("🧹 Resetting previous session on startup: removing %s (%.1f MiB)", sessionPath, float64(fi.Size())/(1024*1024))
+			if err := os.Remove(sessionPath); err != nil {
+				log.Printf("⚠️  Failed to remove previous session file %s: %v", sessionPath, err)
+			}
+		} else if !os.IsNotExist(err) {
+			log.Printf("⚠️  Failed to stat previous session file %s: %v", sessionPath, err)
+		}
+		log.Printf("💾 Previous session restore is disabled by default; starting with a fresh session (set NEURAL_JUNKIE_RESTORE_LAST_SESSION=1 to restore once)")
+	} else if fi, err := os.Stat(sessionPath); err == nil {
 		log.Printf("💾 Session file on disk: %.1f MiB", float64(fi.Size())/(1024*1024))
 		if fi.Size() > 200*1024*1024 {
-			log.Printf("⚠️  Session file is very large; consider archiving %s or set NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1 once to start fresh", sessionPath)
+			log.Printf("⚠️  Session file is very large; consider archiving %s or unset NEURAL_JUNKIE_RESTORE_LAST_SESSION to start fresh", sessionPath)
 		}
+	} else if !os.IsNotExist(err) {
+		log.Printf("⚠️  Failed to stat session file %s: %v", sessionPath, err)
 	}
 	sessionRestored := false
-	if os.Getenv("NEURAL_JUNKIE_SKIP_SESSION_RESTORE") == "1" {
-		log.Printf("⚠️  NEURAL_JUNKIE_SKIP_SESSION_RESTORE: not loading last-session.json (hub starts with default channels only)")
-	} else if err := chatHub.LoadSessionFromFile(sessionPath); err != nil {
-		log.Printf("⚠️  Failed to restore previous session: %v", err)
-	} else {
-		sessionRestored = true
-		if n := chatHub.PruneMessagesOlderThan(24 * time.Hour); n > 0 {
-			log.Printf("🧹 Pruned %d message(s) older than 24h after session restore", n)
+	if restoreLastSession {
+		if os.Getenv("NEURAL_JUNKIE_SKIP_SESSION_RESTORE") == "1" {
+			log.Printf("⚠️  NEURAL_JUNKIE_SKIP_SESSION_RESTORE: not loading last-session.json (hub starts with default channels only)")
+		} else if err := chatHub.LoadSessionFromFile(sessionPath); err != nil {
+			log.Printf("⚠️  Failed to restore previous session: %v", err)
+		} else {
+			sessionRestored = true
+			if n := chatHub.PruneMessagesOlderThan(24 * time.Hour); n > 0 {
+				log.Printf("🧹 Pruned %d message(s) older than 24h after session restore", n)
+			}
 		}
 	}
 
@@ -2647,10 +2662,10 @@ func handleDebugDelegationResolve(w http.ResponseWriter, r *http.Request) {
 	candidates := ch.ResolveConsultants(fromInfo, q)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"from":        fromInfo.Name,
-		"question":    q,
-		"enabled":     ch.DelegationEnabled(),
-		"candidates":  candidates,
+		"from":       fromInfo.Name,
+		"question":   q,
+		"enabled":    ch.DelegationEnabled(),
+		"candidates": candidates,
 	})
 }
 
@@ -3086,13 +3101,13 @@ func handleExports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type exportJSON struct {
-		Name           string  `json:"name"`
-		Type           string  `json:"type"`
-		ResourceCount  int     `json:"resourceCount"`
-		PromptCount    int     `json:"promptCount"`
-		FileSize       int64   `json:"fileSize"`
-		Description    string  `json:"description,omitempty"`
-		ExportPath     string  `json:"exportPath,omitempty"`
+		Name          string `json:"name"`
+		Type          string `json:"type"`
+		ResourceCount int    `json:"resourceCount"`
+		PromptCount   int    `json:"promptCount"`
+		FileSize      int64  `json:"fileSize"`
+		Description   string `json:"description,omitempty"`
+		ExportPath    string `json:"exportPath,omitempty"`
 	}
 
 	out := make([]exportJSON, 0, len(exports))
@@ -3337,7 +3352,7 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"mime":            mimeType,
+				"mime":           mimeType,
 				"content_base64": base64.StdEncoding.EncodeToString(content),
 			})
 			return

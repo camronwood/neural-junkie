@@ -13,6 +13,16 @@ import (
 
 const appConfigFileName = "google_oauth_app.json"
 
+// OAuthSource describes where Google OAuth app credentials were resolved from.
+type OAuthSource string
+
+const (
+	OAuthSourceNone   OAuthSource = "none"
+	OAuthSourceEnv    OAuthSource = "env"
+	OAuthSourceVendor OAuthSource = "vendor"
+	OAuthSourceConfig OAuthSource = "config"
+)
+
 // AppOAuthCredentials holds the Google Cloud OAuth client (app) credentials.
 type AppOAuthCredentials struct {
 	ClientID     string `json:"client_id"`
@@ -64,8 +74,14 @@ func SaveAppCredentials(baseDir string, creds *AppOAuthCredentials) error {
 	return os.WriteFile(filepath.Join(baseDir, appConfigFileName), data, 0600)
 }
 
-// ResolveAppCredentials returns credentials from env (override) or saved file.
+// ResolveAppCredentials returns credentials from env, bundled vendor config, or saved file.
 func ResolveAppCredentials(baseDir string) (*AppOAuthCredentials, error) {
+	creds, _, err := ResolveAppCredentialsWithSource(baseDir)
+	return creds, err
+}
+
+// ResolveAppCredentialsWithSource returns credentials plus their source.
+func ResolveAppCredentialsWithSource(baseDir string) (*AppOAuthCredentials, OAuthSource, error) {
 	clientID := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_GOOGLE_OAUTH_CLIENT_ID"))
 	clientSecret := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_GOOGLE_OAUTH_CLIENT_SECRET"))
 	if clientID != "" && clientSecret != "" {
@@ -77,19 +93,22 @@ func ResolveAppCredentials(baseDir string) (*AppOAuthCredentials, error) {
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
-		}, nil
+		}, OAuthSourceEnv, nil
+	}
+	if creds, ok := oauthFromBundledVendor(); ok {
+		return creds, OAuthSourceVendor, nil
 	}
 	fileCreds, err := LoadAppCredentials(baseDir)
 	if err != nil {
-		return nil, err
+		return nil, OAuthSourceNone, err
 	}
 	if fileCreds == nil || fileCreds.ClientID == "" || fileCreds.ClientSecret == "" {
-		return nil, fmt.Errorf("google oauth app credentials not configured")
+		return nil, OAuthSourceNone, fmt.Errorf("google oauth app credentials not configured")
 	}
 	if fileCreds.RedirectURL == "" {
 		fileCreds.RedirectURL = defaultRedirectURL
 	}
-	return fileCreds, nil
+	return fileCreds, OAuthSourceConfig, nil
 }
 
 func (c *AppOAuthCredentials) oauth2Config() *oauth2.Config {
@@ -108,18 +127,20 @@ func (c *AppOAuthCredentials) oauth2Config() *oauth2.Config {
 
 // PublicAppConfig is safe to return to clients (no secret).
 type PublicAppConfig struct {
-	ClientID    string `json:"client_id"`
-	RedirectURL string `json:"redirect_url"`
-	SecretSet   bool   `json:"secret_set"`
-	Configured  bool   `json:"configured"`
+	ClientID     string `json:"client_id"`
+	RedirectURL  string `json:"redirect_url"`
+	SecretSet    bool   `json:"secret_set"`
+	Configured   bool   `json:"configured"`
+	ConnectReady bool   `json:"connect_ready"`
+	OAuthSource  string `json:"oauth_source,omitempty"`
 }
 
 // PublicAppConfigFromDir returns non-sensitive OAuth app settings for the UI.
 func PublicAppConfigFromDir(baseDir string) PublicAppConfig {
-	creds, err := ResolveAppCredentials(baseDir)
+	creds, src, err := ResolveAppCredentialsWithSource(baseDir)
 	if err != nil || creds == nil {
 		fileOnly, _ := LoadAppCredentials(baseDir)
-		out := PublicAppConfig{RedirectURL: defaultRedirectURL}
+		out := PublicAppConfig{RedirectURL: defaultRedirectURL, OAuthSource: string(OAuthSourceNone)}
 		if fileOnly != nil {
 			out.ClientID = fileOnly.ClientID
 			if fileOnly.RedirectURL != "" {
@@ -127,13 +148,18 @@ func PublicAppConfigFromDir(baseDir string) PublicAppConfig {
 			}
 			out.SecretSet = fileOnly.ClientSecret != ""
 			out.Configured = fileOnly.ClientID != "" && fileOnly.ClientSecret != ""
+			if out.Configured {
+				out.OAuthSource = string(OAuthSourceConfig)
+			}
 		}
 		return out
 	}
 	return PublicAppConfig{
-		ClientID:    creds.ClientID,
-		RedirectURL: creds.RedirectURL,
-		SecretSet:   creds.ClientSecret != "",
-		Configured:  true,
+		ClientID:     creds.ClientID,
+		RedirectURL:  creds.RedirectURL,
+		SecretSet:    creds.ClientSecret != "",
+		Configured:   true,
+		ConnectReady: true,
+		OAuthSource:  string(src),
 	}
 }

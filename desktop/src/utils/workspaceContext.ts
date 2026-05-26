@@ -5,6 +5,7 @@ export interface WorkspaceContext {
   workspace_path: string;
   file_tree: string;
   open_files: OpenFileContext[];
+  scan_summary?: ScanSummaryContext;
 }
 
 export interface OpenFileContext {
@@ -12,9 +13,37 @@ export interface OpenFileContext {
   language: string;
   content: string;
   is_active: boolean;
+  view_mode?: string;
+  scan_summary_dir?: string;
   selection_start_line?: number;
   selection_end_line?: number;
   selected_text?: string;
+}
+
+export interface ScanSummarySpotContext {
+  analyte: string;
+  row: string;
+  column: string;
+  x_px: number;
+  y_px: number;
+}
+
+export interface ScanSummaryWellContext {
+  well: string;
+  time?: string;
+  fov_size_x_um?: number;
+  fov_size_y_um?: number;
+  z_stage_position_um?: number;
+  spot_count: number;
+  spots: ScanSummarySpotContext[];
+}
+
+export interface ScanSummaryContext {
+  summary_dir: string;
+  wells_count: number;
+  analytes: string[];
+  active_well?: ScanSummaryWellContext;
+  note: string;
 }
 
 /**

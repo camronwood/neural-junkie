@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Slash commands — Neural Junkie</title>
-  <meta name="description" content="Neural Junkie slash commands: 50+ operations, categories, command palette with forms, and hub API metadata." />
+  <title>Command palette — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie command palette: 50+ operations, categories, guided forms, and hub API metadata." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -30,16 +30,16 @@
 
   <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
     <nav class="breadcrumb" aria-label="Breadcrumb">
-      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Slash commands
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Command palette
     </nav>
     <header class="feature-deep-hero">
-      <h1>50+ slash commands, one palette</h1>
-      <p class="feature-deep-lead">Slash commands are the contract between humans and the hub: agent CRUD, repo and Confluence operations, provider switches, file-change workflows, meetings, collaboration, and diagnostics.</p>
+      <h1>50+ command actions, one palette</h1>
+      <p class="feature-deep-lead">The command palette is the primary desktop surface for agent CRUD, repo and Confluence operations, provider switches, file-change workflows, meetings, collaboration, and diagnostics.</p>
     </header>
 
     <article class="feature-prose">
       <h2>Two surfaces, same definitions</h2>
-      <p>Commands work from chat (type <code>/</code> plus the name) and from the desktop palette. Both paths hit the same handler stack in the Go hub, so behavior never diverges between “keyboard native” and “click native” users.</p>
+      <p>Commands are opened from the desktop palette with <strong>Cmd+Shift+P</strong> on macOS or <strong>Ctrl+Shift+P</strong> on Linux/Windows. Slash-form command strings still route through the same Go hub handlers for compatibility and automation-oriented examples.</p>
 
       <h2>What the palette adds</h2>
       <p>The palette calls <code>GET /api/commands</code> for structured metadata: categories, descriptions, argument names, types, and defaults. Long-running or parameterized commands open inline forms instead of forcing you to memorize positional arguments.</p>
@@ -73,7 +73,7 @@
       <div class="feature-nav-grid">
         <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
         <a href="agents-and-experts.html">Agents &amp; experts <span>Specialists, repo &amp; Confluence</span></a>
-        <a href="slash-commands.html" aria-current="page">Slash commands <span>50+ commands</span></a>
+        <a href="slash-commands.html" aria-current="page">Command palette <span>50+ actions</span></a>
         <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
         <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; handoffs</span></a>
         <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Models &amp; export</span></a>

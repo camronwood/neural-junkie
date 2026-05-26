@@ -84,7 +84,7 @@ type Meeting struct {
 type MeetingNote struct {
 	ID             string      `json:"id"`
 	FilePath       string      `json:"file_path,omitempty"` // legacy markdown path
-	Source         string      `json:"source,omitempty"`  // "google"
+	Source         string      `json:"source,omitempty"`    // "google"
 	GmailMessageID string      `json:"gmail_message_id,omitempty"`
 	GoogleDocID    string      `json:"google_doc_id,omitempty"`
 	MeetingDate    time.Time   `json:"meeting_date"`
@@ -102,17 +102,17 @@ type MeetingNote struct {
 
 // AssistantConfig holds configuration for the assistant
 type AssistantConfig struct {
-	Timezone                 string   `json:"timezone"`
-	DefaultChannel           string   `json:"default_channel"`
-	ReminderAdvance          int      `json:"reminder_advance"`
-	Keywords                 []string `json:"keywords"`
-	GoogleMeetNotesEnabled   bool     `json:"google_meet_notes_enabled"`
-	GoogleSyncIntervalMinutes int     `json:"google_sync_interval_minutes"`
-	GoogleSenderEmail        string   `json:"google_sender_email"`
-	GoogleBackfillDays       int      `json:"google_backfill_days"`
-	EmailDir                 string   `json:"email_dir"`
-	EmailIngestEnabled       bool     `json:"email_ingest_enabled"`
-	ProactiveAssistance      bool     `json:"proactive_assistance"`
+	Timezone                  string   `json:"timezone"`
+	DefaultChannel            string   `json:"default_channel"`
+	ReminderAdvance           int      `json:"reminder_advance"`
+	Keywords                  []string `json:"keywords"`
+	GoogleMeetNotesEnabled    bool     `json:"google_meet_notes_enabled"`
+	GoogleSyncIntervalMinutes int      `json:"google_sync_interval_minutes"`
+	GoogleSenderEmail         string   `json:"google_sender_email"`
+	GoogleBackfillDays        int      `json:"google_backfill_days"`
+	EmailDir                  string   `json:"email_dir"`
+	EmailIngestEnabled        bool     `json:"email_ingest_enabled"`
+	ProactiveAssistance       bool     `json:"proactive_assistance"`
 }
 
 // NewAssistantStorage creates a new storage manager
@@ -223,12 +223,13 @@ func (s *AssistantStorage) LoadConfig() (*AssistantConfig, error) {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	var config AssistantConfig
+	config := DefaultAssistantConfig()
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	return &config, nil
+	NormalizeAssistantConfig(config)
+	return config, nil
 }
 
 // SaveReminder saves a reminder

@@ -30,6 +30,7 @@ The Assistant Agent is a comprehensive personal assistant that auto-loads with t
 - **Recurring meetings**: Set up recurring events
 - **Upcoming notifications**: Get notified of upcoming meetings
 - **Calendar integration**: Basic scheduling capabilities
+- **Google Meet notes**: Connect Google to sync Gemini meeting notes from Gmail. See [GOOGLE_MEET_NOTES.md](GOOGLE_MEET_NOTES.md).
 
 ### 📄 Conversation Summarization
 - **Automatic summarization**: Summarize long discussions on request

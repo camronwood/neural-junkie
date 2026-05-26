@@ -30,4 +30,23 @@ describe('trimWorkspaceContext', () => {
     expect(trimmed?.open_files).toEqual([]);
     expect(trimmed?.workspace_name).toBe('sandbox');
   });
+
+  it('preserves compact scan-summary context when trimming', () => {
+    const trimmed = trimWorkspaceContext(
+      'focus',
+      {
+        ...full,
+        scan_summary: {
+          summary_dir: 'scan-1',
+          wells_count: 96,
+          analytes: ['IL-6'],
+          note: 'metadata only',
+        },
+      },
+      'do you see issues with the image I have open?',
+      '/proj/rfc.md'
+    );
+    expect(trimmed?.scan_summary?.summary_dir).toBe('scan-1');
+    expect(trimmed?.scan_summary?.note).toContain('metadata');
+  });
 });

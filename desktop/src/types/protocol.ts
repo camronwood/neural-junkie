@@ -264,6 +264,8 @@ export interface GoogleMeetNotesAppConfig {
   redirect_url: string;
   secret_set: boolean;
   configured: boolean;
+  connect_ready?: boolean;
+  oauth_source?: string;
 }
 
 /** Server-reported Google Meet notes connection (Assistant). */
@@ -273,6 +275,8 @@ export interface GoogleMeetNotesStatus {
   notes_count?: number;
   last_sync_at?: string;
   oauth_configured: boolean;
+  connect_ready?: boolean;
+  oauth_source?: string;
 }
 
 export type SlackPolicy = 'mention_only' | 'questions' | 'always';

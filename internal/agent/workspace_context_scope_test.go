@@ -48,11 +48,11 @@ func TestAppendWorkspaceContext_ScopeTiers(t *testing.T) {
 	}
 
 	cases := []struct {
-		scope      string
-		wantTree   bool
-		wantFiles  bool
-		wantHint   bool
-		wantEmpty  bool
+		scope     string
+		wantTree  bool
+		wantFiles bool
+		wantHint  bool
+		wantEmpty bool
 	}{
 		{ContextScopeNone, false, false, false, true},
 		{ContextScopeHint, false, false, true, false},
@@ -90,5 +90,37 @@ func TestAppendWorkspaceContext_ScopeTiers(t *testing.T) {
 				t.Fatalf("wantFiles=%v files in output=%v", tc.wantFiles, strings.Contains(out, "Open files"))
 			}
 		})
+	}
+}
+
+func TestAppendWorkspaceContext_ScanSummary(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-camron-biologyexpert", protocol.AgentInfo{Name: "u"}, "review the scan")
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope: ContextScopeFocus,
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "scan",
+			"workspace_path": "/scan",
+			"scan_summary": map[string]interface{}{
+				"summary_dir": "run-summary",
+				"wells_count": float64(96),
+				"analytes":    []interface{}{"IL-6", "TNF-alpha"},
+				"note":        "metadata only; no pixels",
+				"active_well": map[string]interface{}{
+					"well":       "A1",
+					"spot_count": float64(2),
+					"spots": []interface{}{
+						map[string]interface{}{"analyte": "IL-6", "row": "1", "column": "1", "x_px": float64(49), "y_px": float64(50)},
+					},
+				},
+			},
+		},
+	}
+	var b strings.Builder
+	AppendWorkspaceContext(&b, msg)
+	out := b.String()
+	for _, want := range []string{"Phoenix scan summary context", "Wells with metadata: 96", "IL-6, TNF-alpha", "Active well: A1"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in output:\n%s", want, out)
+		}
 	}
 }

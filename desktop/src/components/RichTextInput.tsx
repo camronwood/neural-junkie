@@ -19,13 +19,25 @@ import {
   attachmentsFromAbsolutePaths,
   attachmentsFromFileList,
   attachmentsFromWorkspaceRefs,
+  isBinaryPath,
   isImageFile,
   isTauriRuntime,
 } from '../utils/promptAttachments';
 import { isImagePreviewPath } from '../utils/editorFileKind';
-import { parseWorkspaceFileDrag, WORKSPACE_FILE_DRAG_MIME } from '../utils/workspaceFileDrag';
+import { isScanSummaryWellPath, scanSummaryDirForFilePath } from '../utils/scanSummary';
+import { resolveScanSummaryWellImageSrc } from '../utils/scanSummaryImage';
+import {
+  clearWorkspaceFileDragData,
+  parseWorkspaceFileDrag,
+  setActiveWorkspaceFileDropZone,
+  WORKSPACE_FILE_DROP_EVENT,
+  WORKSPACE_FILE_DROPZONE_ATTR,
+  WORKSPACE_FILE_DRAG_MIME,
+  type WorkspaceFileDragPayload,
+} from '../utils/workspaceFileDrag';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
 
 interface RichTextInputProps {
   onSend: (message: string, metadata?: Record<string, unknown>) => void;
@@ -33,7 +45,6 @@ interface RichTextInputProps {
   placeholder?: string;
   agents?: AgentInfo[];
   onInsertMention?: (name: string) => void;
-  onSlashTrigger?: (query: string) => void;
   /** Fired when the composer text changes (for context-scope preview). */
   onDraftChange?: (text: string) => void;
 }
@@ -73,7 +84,6 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       placeholder = 'Type your message here...',
       agents = [],
       onInsertMention,
-      onSlashTrigger,
       onDraftChange,
     },
     ref
@@ -91,10 +101,12 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
     const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [pendingAttachments, setPendingAttachments] = useState<PromptAttachmentPayload[]>([]);
+    const [attachError, setAttachError] = useState<string | null>(null);
     const [dragActive, setDragActive] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     const attachInputRef = useRef<HTMLInputElement>(null);
+    const dropZoneRef = useRef<HTMLDivElement>(null);
     const sendingRef = useRef(false);
     const dropZoneDepthRef = useRef(0);
 
@@ -125,17 +137,6 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
       setShowMentionMenu(false);
     }, [message]);
-
-    const prevMessageRef = useRef('');
-    useEffect(() => {
-      if (!onSlashTrigger) return;
-      const prev = prevMessageRef.current;
-      prevMessageRef.current = message;
-
-      if (message.startsWith('/') && !prev.startsWith('/')) {
-        onSlashTrigger(message.substring(1));
-      }
-    }, [message, onSlashTrigger]);
 
     const filteredAgents = agents.filter((agent) =>
       agent.name.toLowerCase().includes(mentionQuery.toLowerCase())
@@ -230,6 +231,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
     const addImageFromWorkspace = async (workspaceId: string, path: string) => {
       try {
+        setAttachError(null);
         const api = new ChatAPI(getHubBaseURL());
         const dataUrl = await api.fetchWorkspaceImageDataUrl(workspaceId, path);
         const res = await fetch(dataUrl);
@@ -238,21 +240,60 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         addImageFile(new File([blob], name, { type: blob.type || 'image/png' }));
       } catch (e) {
         console.error('[addImageFromWorkspace]', path, e);
+        setAttachError(`Could not attach ${displayPath(path)}.`);
+      }
+    };
+
+    const addScanSummaryWellImageFromWorkspace = async (workspaceId: string, path: string) => {
+      try {
+        setAttachError(null);
+        const workspace = useFileExplorerStore.getState().workspaces.find((w) => w.id === workspaceId);
+        if (!workspace?.path) {
+          throw new Error('Workspace path is unavailable');
+        }
+        const summaryDir = scanSummaryDirForFilePath(path);
+        const well = path.split(/[/\\]/).pop() || path;
+        const dataUrl = await resolveScanSummaryWellImageSrc({
+          workspaceId,
+          workspacePath: workspace.path,
+          summaryDir,
+          wellId: well,
+        });
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        addImageFile(new File([blob], `${well}.png`, { type: blob.type || 'image/png' }));
+      } catch (e) {
+        console.error('[addScanSummaryWellImageFromWorkspace]', path, e);
+        setAttachError(`Could not attach scan image ${displayPath(path)}.`);
+      }
+    };
+
+    const ingestWorkspaceRefs = async (workspaceRefs: WorkspaceFileDragPayload[]) => {
+      const textRefs: WorkspaceFileDragPayload[] = [];
+      for (const ref of workspaceRefs) {
+        if (isScanSummaryWellPath(ref.path)) {
+          await addScanSummaryWellImageFromWorkspace(ref.workspaceId, ref.path);
+        } else if (isImagePreviewPath(ref.path)) {
+          await addImageFromWorkspace(ref.workspaceId, ref.path);
+        } else if (isBinaryPath(ref.path)) {
+          setAttachError(`Cannot attach binary file ${displayPath(ref.path)} as text.`);
+        } else {
+          textRefs.push(ref);
+        }
+      }
+      if (textRefs.length > 0) {
+        setAttachError(null);
+        setPendingAttachments((prev) => {
+          void attachmentsFromWorkspaceRefs(textRefs, prev).then(setPendingAttachments);
+          return prev;
+        });
       }
     };
 
     const ingestDataTransfer = async (dataTransfer: DataTransfer) => {
       const workspaceRefs = parseWorkspaceFileDrag(dataTransfer);
       if (workspaceRefs.length > 0) {
-        for (const ref of workspaceRefs) {
-          if (isImagePreviewPath(ref.path)) {
-            await addImageFromWorkspace(ref.workspaceId, ref.path);
-          }
-        }
-        setPendingAttachments((prev) => {
-          void attachmentsFromWorkspaceRefs(workspaceRefs, prev).then(setPendingAttachments);
-          return prev;
-        });
+        await ingestWorkspaceRefs(workspaceRefs);
         return;
       }
       await ingestDroppedFiles(dataTransfer.files);
@@ -305,6 +346,21 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         cancelled = true;
         unsubs.forEach((u) => u());
       };
+    }, []);
+
+    useEffect(() => {
+      const node = dropZoneRef.current;
+      if (!node) return;
+      const onWorkspaceFileDrop = (event: Event) => {
+        const payload = (event as CustomEvent<{ payload?: WorkspaceFileDragPayload }>).detail?.payload;
+        if (!payload) return;
+        setDragActive(false);
+        dropZoneDepthRef.current = 0;
+        setActiveWorkspaceFileDropZone(null);
+        void ingestWorkspaceRefs([payload]).finally(clearWorkspaceFileDragData);
+      };
+      node.addEventListener(WORKSPACE_FILE_DROP_EVENT, onWorkspaceFileDrop);
+      return () => node.removeEventListener(WORKSPACE_FILE_DROP_EVENT, onWorkspaceFileDrop);
     }, []);
 
     const handleAnalyzeDesign = async () => {
@@ -431,6 +487,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           clearInput: () => {
             updateMessage('');
             setPendingAttachments([]);
+            setAttachError(null);
             clearPendingImages();
           },
           insertMentionText: (agentName: string) => {
@@ -459,12 +516,15 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
 
     return (
       <div
+        ref={dropZoneRef}
+        {...{ [WORKSPACE_FILE_DROPZONE_ATTR]: 'true' }}
         className={`relative flex flex-col gap-2 p-4 border-t border-slack-border bg-slack-bg rich-text-input ${
           dragActive ? 'ring-2 ring-slack-accent ring-inset' : ''
         }`}
         onDragEnter={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          setActiveWorkspaceFileDropZone(e.currentTarget);
           dropZoneDepthRef.current += 1;
           setDragActive(true);
         }}
@@ -472,6 +532,9 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           e.preventDefault();
           e.stopPropagation();
           dropZoneDepthRef.current = Math.max(0, dropZoneDepthRef.current - 1);
+          if (dropZoneDepthRef.current === 0) {
+            setActiveWorkspaceFileDropZone(null);
+          }
           if (dropZoneDepthRef.current === 0 && !isTauriRuntime()) {
             setDragActive(false);
           }
@@ -479,6 +542,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          setActiveWorkspaceFileDropZone(e.currentTarget);
           if (e.dataTransfer.types.includes(WORKSPACE_FILE_DRAG_MIME)) {
             e.dataTransfer.dropEffect = 'copy';
           }
@@ -488,7 +552,8 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           e.stopPropagation();
           dropZoneDepthRef.current = 0;
           setDragActive(false);
-          void ingestDataTransfer(e.dataTransfer);
+          setActiveWorkspaceFileDropZone(null);
+          void ingestDataTransfer(e.dataTransfer).finally(clearWorkspaceFileDragData);
         }}
       >
         {dragActive && (
@@ -562,6 +627,12 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {attachError && (
+          <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/60 rounded px-2 py-1">
+            {attachError}
           </div>
         )}
 

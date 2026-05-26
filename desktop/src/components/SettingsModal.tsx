@@ -100,6 +100,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [googleMeetNotes, setGoogleMeetNotes] = useState<GoogleMeetNotesStatus | null>(null);
   const [googleMeetNotesLoading, setGoogleMeetNotesLoading] = useState(false);
   const [googleMeetNotesBusy, setGoogleMeetNotesBusy] = useState(false);
+  const [googleAdvancedOpen, setGoogleAdvancedOpen] = useState(false);
   const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
   const [slackConfig, setSlackConfig] = useState<SlackConfigResponse | null>(null);
   const [slackBindings, setSlackBindings] = useState<SlackBinding[]>([]);
@@ -226,7 +227,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         api.getGoogleMeetNotesStatus(),
         api.getGoogleMeetNotesAppConfig().catch(() => null),
       ]);
-      setGoogleMeetNotes(status);
+      setGoogleMeetNotes({
+        ...status,
+        connect_ready: status.connect_ready ?? appConfig?.connect_ready ?? appConfig?.configured ?? false,
+        oauth_source: status.oauth_source ?? appConfig?.oauth_source,
+        oauth_configured: status.oauth_configured || appConfig?.configured === true,
+      });
       if (appConfig) {
         setGoogleOAuthForm((prev) => ({
           ...prev,
@@ -657,6 +663,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setGoogleMeetNotesBusy(false);
     }
   };
+
+  const googleOAuthSourceLabel = (source?: string) => {
+    switch (source) {
+      case 'vendor':
+        return 'Using Neural Junkie Google app';
+      case 'env':
+        return 'Using environment Google OAuth config';
+      case 'config':
+        return 'Using custom Google OAuth client';
+      default:
+        return 'Google OAuth unavailable';
+    }
+  };
+
+  const googleConnectReady =
+    googleMeetNotes?.connect_ready ?? googleMeetNotes?.oauth_configured ?? false;
 
   useEffect(() => {
     if (!isOpen || activeTab !== 'domain-packs') return;
@@ -1807,69 +1829,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </button>
                 </div>
                 <p className="text-sm text-slack-textMuted mb-4">
-                  Sync Gemini meeting notes from Gmail into the Assistant. Create a Google Cloud OAuth
-                  web client, add the redirect URI below, then save your Client ID and Secret.
+                  Connect your Google account to sync Gemini meeting notes from Gmail into Assistant.
                 </p>
-                <div className="space-y-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slack-text mb-2">
-                      OAuth Client ID
-                    </label>
-                    <input
-                      type="text"
-                      value={googleOAuthForm.clientId}
-                      onChange={(e) =>
-                        setGoogleOAuthForm((prev) => ({ ...prev, clientId: e.target.value }))
-                      }
-                      placeholder="xxxx.apps.googleusercontent.com"
-                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slack-text mb-2">
-                      OAuth Client Secret
-                      {googleOAuthSecretSet && !googleOAuthForm.clientSecret && (
-                        <span className="ml-2 text-xs text-green-600">(saved)</span>
-                      )}
-                    </label>
-                    <input
-                      type={showPasswords.googleOAuth ? 'text' : 'password'}
-                      value={googleOAuthForm.clientSecret}
-                      onChange={(e) =>
-                        setGoogleOAuthForm((prev) => ({ ...prev, clientSecret: e.target.value }))
-                      }
-                      placeholder={googleOAuthSecretSet ? 'Leave blank to keep existing secret' : 'Client secret'}
-                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slack-text mb-2">
-                      Redirect URI
-                    </label>
-                    <input
-                      type="text"
-                      value={googleOAuthForm.redirectUrl}
-                      onChange={(e) =>
-                        setGoogleOAuthForm((prev) => ({ ...prev, redirectUrl: e.target.value }))
-                      }
-                      className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs focus:outline-none focus:ring-2 focus:ring-slack-accent"
-                    />
-                    <p className="text-xs text-slack-textMuted mt-1">
-                      Add this exact URI in Google Cloud Console → Credentials → your OAuth client.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void saveGoogleOAuthSettings()}
-                    disabled={
-                      googleMeetNotesBusy ||
-                      !googleOAuthForm.clientId.trim() ||
-                      (!googleOAuthSecretSet && !googleOAuthForm.clientSecret.trim())
-                    }
-                    className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
-                  >
-                    Save OAuth credentials
-                  </button>
+                <div
+                  className={`mb-4 rounded border p-3 text-sm ${
+                    googleConnectReady
+                      ? 'border-green-200 bg-green-50 text-green-800'
+                      : 'border-yellow-200 bg-yellow-50 text-yellow-800'
+                  }`}
+                >
+                  {googleOAuthSourceLabel(googleMeetNotes?.oauth_source)}
+                  {!googleConnectReady && (
+                    <span className="block mt-1">
+                      Use a release build with bundled credentials, set env vars, or configure
+                      Advanced Google OAuth.
+                    </span>
+                  )}
                 </div>
                 {testResults.googleMeetNotes && (
                   <div
@@ -1882,14 +1857,36 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {testResults.googleMeetNotes.message}
                   </div>
                 )}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => void connectGoogleMeetNotes()}
+                    disabled={googleMeetNotesBusy || !googleConnectReady}
+                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    Connect Google
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void syncGoogleMeetNotesNow()}
+                    disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
+                    className="px-4 py-2 border border-slack-border rounded hover:bg-slack-bgHover text-slack-text disabled:opacity-50"
+                  >
+                    Sync now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void disconnectGoogleMeetNotes()}
+                    disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
+                    className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Disconnect
+                  </button>
+                </div>
                 {googleMeetNotesLoading && !googleMeetNotes ? (
                   <p className="text-sm text-slack-textMuted">Loading status…</p>
                 ) : googleMeetNotes ? (
                   <div className="space-y-3 text-sm text-slack-text">
-                    <p>
-                      <span className="font-medium">Hub OAuth:</span>{' '}
-                      {googleMeetNotes.oauth_configured ? 'configured' : 'not configured on server'}
-                    </p>
                     <p>
                       <span className="font-medium">Account:</span>{' '}
                       {googleMeetNotes.connected
@@ -1912,32 +1909,83 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     )}
                   </div>
                 ) : null}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => void connectGoogleMeetNotes()}
-                    disabled={googleMeetNotesBusy || !googleMeetNotes?.oauth_configured}
-                    className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
-                  >
-                    Connect Google
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void syncGoogleMeetNotesNow()}
-                    disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
-                    className="px-4 py-2 border border-slack-border rounded hover:bg-slack-bgHover text-slack-text disabled:opacity-50"
-                  >
-                    Sync now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void disconnectGoogleMeetNotes()}
-                    disabled={googleMeetNotesBusy || !googleMeetNotes?.connected}
-                    className="px-4 py-2 text-red-600 border border-red-300 rounded hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Disconnect
-                  </button>
-                </div>
+                <details
+                  open={googleAdvancedOpen}
+                  onToggle={(e) => setGoogleAdvancedOpen(e.currentTarget.open)}
+                  className="mt-4 border border-slack-border rounded-lg p-4"
+                >
+                  <summary className="cursor-pointer text-sm font-medium text-slack-text">
+                    Advanced (bring your own Google OAuth client)
+                  </summary>
+                  <div className="space-y-4 mt-4">
+                    <p className="text-sm text-slack-textMuted">
+                      Create a Google Cloud OAuth web client, add the redirect URI below, then save
+                      your Client ID and Secret.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        OAuth Client ID
+                      </label>
+                      <input
+                        type="text"
+                        value={googleOAuthForm.clientId}
+                        onChange={(e) =>
+                          setGoogleOAuthForm((prev) => ({ ...prev, clientId: e.target.value }))
+                        }
+                        placeholder="xxxx.apps.googleusercontent.com"
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        OAuth Client Secret
+                        {googleOAuthSecretSet && !googleOAuthForm.clientSecret && (
+                          <span className="ml-2 text-xs text-green-600">(saved)</span>
+                        )}
+                      </label>
+                      <input
+                        type={showPasswords.googleOAuth ? 'text' : 'password'}
+                        value={googleOAuthForm.clientSecret}
+                        onChange={(e) =>
+                          setGoogleOAuthForm((prev) => ({ ...prev, clientSecret: e.target.value }))
+                        }
+                        placeholder={
+                          googleOAuthSecretSet ? 'Leave blank to keep existing secret' : 'Client secret'
+                        }
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-2">
+                        Redirect URI
+                      </label>
+                      <input
+                        type="text"
+                        value={googleOAuthForm.redirectUrl}
+                        onChange={(e) =>
+                          setGoogleOAuthForm((prev) => ({ ...prev, redirectUrl: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text font-mono text-xs focus:outline-none focus:ring-2 focus:ring-slack-accent"
+                      />
+                      <p className="text-xs text-slack-textMuted mt-1">
+                        Add this exact URI in Google Cloud Console → Credentials → your OAuth
+                        client.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void saveGoogleOAuthSettings()}
+                      disabled={
+                        googleMeetNotesBusy ||
+                        !googleOAuthForm.clientId.trim() ||
+                        (!googleOAuthSecretSet && !googleOAuthForm.clientSecret.trim())
+                      }
+                      className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                    >
+                      Save OAuth credentials
+                    </button>
+                  </div>
+                </details>
               </div>
 
               {/* Slack bridge */}
