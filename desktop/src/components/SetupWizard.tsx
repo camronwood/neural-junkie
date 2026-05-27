@@ -400,7 +400,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                 <p>
                   <strong className="text-white">CLI agents</strong> auto-join #general when their binaries are on your PATH (see /list-cli-agents).
                 </p>
-                <p>Toggle Assistant below. Coding specialists (GoExpert, RustExpert, …) are available later via Settings → Domain packs → Software development.</p>
+                <p>Toggle Assistant below. Coding specialists (BackendEngineer, CodeReviewer, …) are available later via Settings → Domain packs → Software development.</p>
               </div>
             ) : wizardTrack === 'developer' ? (
               <p className="text-sm text-gray-400 text-center">

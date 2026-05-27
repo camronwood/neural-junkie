@@ -41,7 +41,10 @@ func ApplyCollaborationTaskMetadataOnReply(responseMsg *protocol.Message, source
 
 // CollaborationExecutionTaskStatusInstructions returns prompt text for execution-phase task reporting.
 func CollaborationExecutionTaskStatusInstructions() string {
-	return "When your assigned task is finished, include a line: TASK_STATUS: completed (and a one-line summary).\n" +
-		"If blocked, include TASK_STATUS: blocked and explain why.\n" +
-		"Do not leave work marked pending if it is done.\n"
+	return "Execution replies must produce work, not plan discussion.\n" +
+		"When the task requires a document or code change, emit [FILE_CHANGE] with paths relative to the project root (under collabs/<collab-id>/ when a deliverables folder is set).\n" +
+		"Shell commands belong in ```bash blocks only when they are real commands (not bare filenames like findings.md).\n" +
+		"When your assigned task is finished, end with: TASK_STATUS: completed — plus a one-line summary of what you shipped (files, paths, conclusions).\n" +
+		"If blocked, use TASK_STATUS: blocked and explain why.\n" +
+		"Do not leave work marked pending if it is done; chat-only summaries do not complete the task.\n"
 }

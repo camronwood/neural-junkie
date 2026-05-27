@@ -60,7 +60,7 @@ var (
 
 // CORS middleware to allow requests from Tauri dev server
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return hub.RateLimitMiddleware(apiRateLimiter, func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		setCORSHeaders(w, r)
 
 		// Handle preflight requests
@@ -69,8 +69,8 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		next(w, r)
-	})
+		hub.RateLimitMiddleware(apiRateLimiter, next)(w, r)
+	}
 }
 
 // checkWebSocketOrigin restricts browser WebSocket hijacking (CSWSH). Non-browser clients often omit Origin.
@@ -1801,6 +1801,10 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	// Preserve reply-to if provided
 	if req.ReplyTo != "" {
 		msg.ReplyTo = req.ReplyTo
+	} else if req.Metadata != nil {
+		if rt, ok := req.Metadata["reply_to"].(string); ok && strings.TrimSpace(rt) != "" {
+			msg.ReplyTo = strings.TrimSpace(rt)
+		}
 	}
 
 	// Copy metadata from the request (workspace_context, credentials, etc.)

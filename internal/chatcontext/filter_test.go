@@ -13,10 +13,46 @@ func TestOmitFromLLMHistory_systemInfo(t *testing.T) {
 	}
 }
 
+func TestOmitFromLLMHistory_systemCollaborationDiscussion(t *testing.T) {
+	m := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"c",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration Started",
+	)
+	if !OmitFromLLMHistory(m) {
+		t.Fatal("expected system-authored collaboration prompt omitted")
+	}
+}
+
 func TestOmitFromLLMHistory_userChatKept(t *testing.T) {
 	m := protocol.NewMessage(protocol.MessageTypeChat, "c", protocol.AgentInfo{ID: "u", Name: "User"}, "hello")
 	if OmitFromLLMHistory(m) {
 		t.Fatal("expected user chat kept")
+	}
+}
+
+func TestOmitFromLLMHistory_commandOutputWithContentKept(t *testing.T) {
+	m := protocol.NewMessage(
+		protocol.MessageTypeCommandOutput,
+		"c",
+		protocol.AgentInfo{ID: "terminal", Name: "Terminal", Type: protocol.AgentTypeGeneral},
+		"Command: `ls`\nExit code: 0",
+	)
+	if OmitFromLLMHistory(m) {
+		t.Fatal("expected command_output with content kept for LLM history")
+	}
+}
+
+func TestOmitFromLLMHistory_commandOutputEmptyOmitted(t *testing.T) {
+	m := protocol.NewMessage(
+		protocol.MessageTypeCommandOutput,
+		"c",
+		protocol.AgentInfo{ID: "terminal", Name: "Terminal", Type: protocol.AgentTypeGeneral},
+		"",
+	)
+	if !OmitFromLLMHistory(m) {
+		t.Fatal("expected empty command_output omitted")
 	}
 }
 

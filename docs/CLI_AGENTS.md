@@ -23,7 +23,7 @@ The system is designed to be generic -- any CLI-based AI tool can be integrated.
 
 Use `/list-cli-agents` in chat to see which are installed on your machine.
 
-**Domain packs:** CLI agents are **not** tied to the Software development or Life sciences packs. On hub start, `initializeCLIAgents()` scans PATH and auto-joins any installed CLI to `#general`. The **Team chat & productivity** setup wizard track relies on this (Moderator + Assistant + detected CLIs). In-process specialists (GoExpert, etc.) require the [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md).
+**Domain packs:** CLI agents are **not** tied to the Software development or Life sciences packs. On hub start, `initializeCLIAgents()` scans PATH and auto-joins any installed CLI to `#general`. The **Team chat & productivity** setup wizard track relies on this (Moderator + Assistant + detected CLIs). In-process specialists (BackendEngineer, CodeReviewer, etc.) require the [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md).
 
 ## Cursor CLI Agent
 

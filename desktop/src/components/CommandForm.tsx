@@ -1,22 +1,83 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import type { CommandDefinition, CommandArgument, AgentInfo } from '../types/protocol';
+import type {
+  AssistantTask,
+  Channel,
+  Collaboration,
+  CommandDefinition,
+  CommandArgument,
+  AgentInfo,
+  FileChange,
+} from '../types/protocol';
 import type { ChatAPI } from '../api/chatAPI';
 import { isTauriRuntime } from '../utils/promptAttachments';
 
 const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
 
+interface CommandSelectOption {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
+
 interface CommandFormProps {
   command: CommandDefinition;
   agents: AgentInfo[];
+  channels?: Channel[];
+  collaborations?: Collaboration[];
+  assistantTasks?: AssistantTask[];
+  pendingChanges?: FileChange[];
   api?: ChatAPI;
   onSubmit: (commandString: string) => void;
   onBack: () => void;
 }
 
-export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandFormProps) {
+function shorten(value: string, max = 48): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1)}…`;
+}
+
+function matchesIdPrefix(id: string, value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  return id.toLowerCase().startsWith(normalized);
+}
+
+function isCollaborationArg(arg: CommandArgument): boolean {
+  const name = arg.name.toLowerCase();
+  return arg.type === 'collaboration-id' || name === 'collab-id' || name === 'collaboration-id';
+}
+
+function isChannelArg(arg: CommandArgument): boolean {
+  const name = arg.name.toLowerCase();
+  return arg.type === 'channel-name' || name === 'channel' || name === 'channel-name';
+}
+
+function isAssistantTaskArg(arg: CommandArgument): boolean {
+  const name = arg.name.toLowerCase();
+  return arg.type === 'assistant-task-id' || name === 'task-id';
+}
+
+function isFileChangeArg(arg: CommandArgument): boolean {
+  const name = arg.name.toLowerCase();
+  return arg.type === 'file-change-id' || name === 'change-id';
+}
+
+export function CommandForm({
+  command,
+  agents,
+  channels = [],
+  collaborations = [],
+  assistantTasks = [],
+  pendingChanges = [],
+  api,
+  onSubmit,
+  onBack,
+}: CommandFormProps) {
   const isCollaborateCommand = command.name === '/collaborate';
   const [collabRounds, setCollabRounds] = useState('');
   const [collabMessages, setCollabMessages] = useState('');
+  const [allowAgentAdds, setAllowAgentAdds] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const arg of command.arguments) {
@@ -95,6 +156,16 @@ export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandF
     setValues(prev => ({ ...prev, [name]: value }));
   };
 
+  const updateArgValue = (arg: CommandArgument, value: string) => {
+    setValues(prev => {
+      const next = { ...prev, [arg.name]: value };
+      if (command.name === '/collab-task-done' && isCollaborationArg(arg)) {
+        next.task = '';
+      }
+      return next;
+    });
+  };
+
   const handleProviderChange = (argName: string, value: string) => {
     setValue(argName, value);
     if (modelArg) {
@@ -144,6 +215,9 @@ export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandF
       if (m !== '') {
         if (!/^\d+$/.test(m)) return;
         flags.push('--messages', m);
+      }
+      if (allowAgentAdds) {
+        flags.push('--allow-agent-adds');
       }
       onSubmit([command.name, ...flags, ...mentions, description].join(' '));
       return;
@@ -195,8 +269,142 @@ export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandF
   const fieldClass =
     'w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent';
 
+  const collaborationOptions = useMemo<CommandSelectOption[]>(
+    () =>
+      collaborations.map((collab) => {
+        const shortId = collab.id.slice(0, 8);
+        const title = collab.title?.trim() || collab.description?.trim() || 'Untitled collaboration';
+        return {
+          value: shortId,
+          label: `${shorten(title, 44)} (${collab.phase}, ${shortId})`,
+        };
+      }),
+    [collaborations]
+  );
+
+  const channelOptions = useMemo<CommandSelectOption[]>(
+    () =>
+      channels.map((ch) => ({
+        value: ch.name,
+        label: ch.display_name?.trim()
+          ? `${ch.display_name} (${ch.name})`
+          : `${ch.name} (${ch.type})`,
+      })),
+    [channels]
+  );
+
+  const assistantTaskOptions = useMemo<CommandSelectOption[]>(
+    () =>
+      assistantTasks
+        .filter(task => task.status !== 'done')
+        .map(task => ({
+          value: task.id,
+          label: `${shorten(task.title, 48)} (${task.status}, ${task.id.slice(0, 8)})`,
+        })),
+    [assistantTasks]
+  );
+
+  const fileChangeOptions = useMemo<CommandSelectOption[]>(
+    () =>
+      pendingChanges
+        .filter(change => change.status === 'pending')
+        .map(change => ({
+          value: change.id,
+          label: `${change.operation} ${shorten(change.file_path || change.new_path || change.old_path || change.id, 42)} (${change.id.slice(0, 8)})`,
+        })),
+    [pendingChanges]
+  );
+
+  const selectedCollaborationForTask = useMemo(() => {
+    const selected = values['collab-id'] || values['collaboration-id'] || '';
+    if (!selected) return null;
+    return collaborations.find(collab => matchesIdPrefix(collab.id, selected)) ?? null;
+  }, [collaborations, values]);
+
+  const taskOptionsForSelectedCollaboration = useMemo<CommandSelectOption[]>(
+    () =>
+      (selectedCollaborationForTask?.tasks ?? [])
+        .map((task, index) => ({
+          value: String(index + 1),
+          label: `#${index + 1}: ${shorten(task.title, 44)} (${task.status})`,
+        })),
+    [selectedCollaborationForTask]
+  );
+
+  const knownSelectConfig = (arg: CommandArgument): { placeholder: string; options: CommandSelectOption[]; disabled?: boolean } | null => {
+    if (command.name === '/collab-task-done' && arg.name.toLowerCase() === 'task') {
+      return {
+        placeholder: selectedCollaborationForTask
+          ? 'Select collaboration task...'
+          : 'Select collaboration first...',
+        options: taskOptionsForSelectedCollaboration,
+        disabled: !selectedCollaborationForTask,
+      };
+    }
+
+    if (isCollaborationArg(arg)) {
+      return {
+        placeholder: arg.required ? 'Select collaboration...' : 'All collaborations (optional)',
+        options: collaborationOptions,
+      };
+    }
+
+    if (isChannelArg(arg)) {
+      return {
+        placeholder: 'Select channel...',
+        options: channelOptions,
+      };
+    }
+
+    if (isAssistantTaskArg(arg)) {
+      return {
+        placeholder: 'Select task...',
+        options: assistantTaskOptions,
+      };
+    }
+
+    if (isFileChangeArg(arg)) {
+      return {
+        placeholder: 'Select file change...',
+        options: fileChangeOptions,
+      };
+    }
+
+    if (arg.options?.length) {
+      return {
+        placeholder: arg.required ? `Select ${arg.name}...` : `${arg.name} (optional)`,
+        options: arg.options.map(opt => ({ value: opt, label: opt })),
+      };
+    }
+
+    return null;
+  };
+
+  const renderKnownSelect = (
+    arg: CommandArgument,
+    config: { placeholder: string; options: CommandSelectOption[]; disabled?: boolean },
+    refProp: { ref?: React.Ref<any> }
+  ) => (
+    <select
+      id={`cmd-arg-${arg.name}`}
+      value={values[arg.name]}
+      onChange={e => updateArgValue(arg, e.target.value)}
+      disabled={config.disabled || (arg.required && config.options.length === 0)}
+      className={fieldClass}
+      {...refProp}
+    >
+      <option value="">{config.placeholder}</option>
+      {config.options.map(opt => (
+        <option key={opt.value} value={opt.value} disabled={opt.disabled}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+
   const renderField = (arg: CommandArgument, idx: number) => {
-    const refProp = idx === 0 ? { ref: firstInputRef as React.Ref<any> } : {};
+    const refProp: { ref?: React.Ref<any> } =
+      idx === 0 ? { ref: firstInputRef as React.Ref<any> } : {};
     const id = `cmd-arg-${arg.name}`;
 
     switch (arg.type) {
@@ -300,12 +508,18 @@ export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandF
       }
 
       default:
+        {
+          const selectConfig = knownSelectConfig(arg);
+          if (selectConfig) {
+            return renderKnownSelect(arg, selectConfig, refProp);
+          }
+        }
         return (
           <input
             id={id}
             type="text"
             value={values[arg.name]}
-            onChange={e => setValue(arg.name, e.target.value)}
+            onChange={e => updateArgValue(arg, e.target.value)}
             placeholder={arg.description}
             className={`${fieldClass} placeholder-slack-textMuted`}
             {...refProp}
@@ -414,6 +628,20 @@ export function CommandForm({ command, agents, api, onSubmit, onBack }: CommandF
                 )}
               </div>
             </div>
+            <label className="flex items-start gap-3 rounded border border-slack-border bg-slack-bgHover px-3 py-2 text-sm text-slack-text">
+              <input
+                type="checkbox"
+                checked={allowAgentAdds}
+                onChange={e => setAllowAgentAdds(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-medium">Allow agent expansion requests</span>
+                <span className="block text-xs text-slack-textMuted">
+                  Agents may suggest adding other agents. You approve each request before anyone joins.
+                </span>
+              </span>
+            </label>
           </>
         ) : (
           command.arguments.map((arg, idx) => (

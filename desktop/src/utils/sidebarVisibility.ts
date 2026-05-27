@@ -14,6 +14,22 @@ export function isAgentShortcutHidden(settings: Settings, agent: AgentInfo): boo
   return keys.includes(agentSidebarHideKey(agent)) || legacyIds.includes(agent.id);
 }
 
+export function isAgentShortcutDeleted(settings: Settings, agent: AgentInfo): boolean {
+  const keys = settings.deletedAgentSidebarKeys ?? [];
+  const legacyIds = settings.deletedAgentIdsForSidebar ?? [];
+  return keys.includes(agentSidebarHideKey(agent)) || legacyIds.includes(agent.id);
+}
+
+export function isSidebarChannelDeleted(settings: Settings, ch: Channel): boolean {
+  if (ch.type === 'dm') {
+    return (settings.deletedDmChannelNames ?? []).includes(ch.name);
+  }
+  if (ch.type === 'collaboration') {
+    return (settings.deletedCollaborationChannelNames ?? []).includes(ch.name);
+  }
+  return false;
+}
+
 /** Agents eligible for DM shortcut rows (matches hub runbook pool: active or idle, not paused/removed). */
 export function isAgentShownInSidebar(agent: AgentInfo): boolean {
   if (agent.is_paused || agent.status === 'removed') return false;

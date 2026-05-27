@@ -325,6 +325,14 @@ export class ChatAPI {
     return response.json();
   }
 
+  async approveCollabParticipantRequest(collabId: string, agentId: string): Promise<Collaboration> {
+    return this.collabParticipantRequestPost(collabId, agentId, 'approve');
+  }
+
+  async denyCollabParticipantRequest(collabId: string, agentId: string): Promise<Collaboration> {
+    return this.collabParticipantRequestPost(collabId, agentId, 'deny');
+  }
+
   /** Cursor-style Stop: pause agents on a channel until the user sends a message. */
   async channelInterject(channel: string, heldBy?: string): Promise<{ channel: string; held: boolean }> {
     const response = await this.hubFetch(
@@ -350,6 +358,17 @@ export class ChatAPI {
     return response.json();
   }
 
+  private async collabParticipantRequestPost(collabId: string, agentId: string, action: 'approve' | 'deny'): Promise<Collaboration> {
+    const response = await this.hubFetch(
+      `/api/collaborations/${encodeURIComponent(collabId)}/participant-requests/${encodeURIComponent(agentId)}/${action}`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
   // Send a message to the server
   async sendMessage(
     channel: string,
@@ -367,7 +386,11 @@ export class ChatAPI {
 
     // Add credentials to metadata if provided
     if (credentials) {
-      body.metadata = credentials;
+      body.metadata = { ...credentials };
+      const replyTo = credentials.reply_to;
+      if (typeof replyTo === 'string' && replyTo.trim()) {
+        body.reply_to = replyTo.trim();
+      }
     }
 
     const response = await this.hubFetch(`/api/send`, {

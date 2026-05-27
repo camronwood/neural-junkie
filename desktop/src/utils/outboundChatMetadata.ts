@@ -17,6 +17,18 @@ import { channelNameToKind, resolveContextScope, type ChannelKind } from './infe
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
 
+/** True when the path is a Neural Junkie collaboration sandbox or review folder. */
+export function isCollabSandboxPath(workspacePath: string): boolean {
+  const normalized = (workspacePath ?? '').replace(/\\/g, '/').trim();
+  if (!normalized) return false;
+  return /\/\.neural-junkie\/collaborations(\/|$)/.test(normalized);
+}
+
+/** True for /collaborate slash commands (with optional flags before @mentions). */
+export function isCollaborateCommand(message: string): boolean {
+  return /^\s*\/collaborate\b/i.test((message ?? '').trim());
+}
+
 function detectFilePaths(text: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -203,7 +215,11 @@ export function buildHumanOutboundMetadata(options: {
     )?.path;
     const trimmed = trimWorkspaceContext(scope, full, message, activePath);
     if (trimmed) {
-      meta.workspace_context = trimmed;
+      const skipCollabSandbox =
+        isCollaborateCommand(message) && isCollabSandboxPath(trimmed.workspace_path);
+      if (!skipCollabSandbox) {
+        meta.workspace_context = trimmed;
+      }
     }
   }
 

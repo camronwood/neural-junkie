@@ -301,8 +301,8 @@ func TestTransitionToExecutingAutoCancelsOtherExecutingInSameChannel(t *testing.
 	if gotFirst.Phase != collaboration.PhaseCancelled {
 		t.Fatalf("expected first collaboration cancelled, got phase %s", gotFirst.Phase)
 	}
-	if gotFirst.Discussion == nil || gotFirst.Discussion.Status != collaboration.DiscussionCancelled {
-		t.Fatalf("expected first discussion cancelled, got %+v", gotFirst.Discussion)
+	if gotFirst.Discussion != nil {
+		t.Fatalf("expected no active discussion on cancelled collab, got %+v", gotFirst.Discussion)
 	}
 
 	gotSecond, err := cm.GetCollaboration(second.ID)
@@ -977,7 +977,7 @@ func TestFinalizeCollaborationForceMarksOpenTasks(t *testing.T) {
 	if c.Phase != collaboration.PhaseCompleted {
 		t.Fatalf("phase %s", c.Phase)
 	}
-	if c.Discussion == nil || c.Discussion.Status != collaboration.DiscussionConverged {
+	if c.Discussion != nil && c.Discussion.Status != collaboration.DiscussionConverged {
 		t.Fatalf("discussion status %+v", c.Discussion)
 	}
 	for _, task := range c.Tasks {
@@ -1317,7 +1317,7 @@ func TestSuggestRole(t *testing.T) {
 	}
 }
 
-func TestExecutionPhaseDiscussionIgnoresBudget(t *testing.T) {
+func TestExecutionPhaseHasNoActiveDiscussion(t *testing.T) {
 	hub := newMockCollabHub()
 	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
 	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
@@ -1331,6 +1331,10 @@ func TestExecutionPhaseDiscussionIgnoresBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCollaboration: %v", err)
 	}
+	_ = cm.RecordMessage(collab.ID, protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion, "general",
+		protocol.AgentInfo{ID: "a1", Name: "Agent1", Type: protocol.AgentTypeBackend}, "planning line",
+	))
 	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
 		t.Fatalf("TransitionToReviewing: %v", err)
 	}
@@ -1341,29 +1345,22 @@ func TestExecutionPhaseDiscussionIgnoresBudget(t *testing.T) {
 		t.Fatalf("TransitionToExecuting: %v", err)
 	}
 
-	for i := 0; i < 12; i++ {
-		agentID := "a1"
-		if i%2 == 1 {
-			agentID = "a2"
-		}
-		msg := protocol.NewMessage(
-			protocol.MessageTypeCollabDiscussion,
-			"general",
-			protocol.AgentInfo{ID: agentID, Name: "x", Type: protocol.AgentTypeBackend},
-			"execution chatter",
-		)
-		if err := cm.RecordMessage(collab.ID, msg); err != nil {
-			t.Fatalf("RecordMessage %d: %v", i, err)
-		}
-	}
-
 	got, err := cm.GetCollaboration(collab.ID)
 	if err != nil {
 		t.Fatalf("GetCollaboration: %v", err)
 	}
-	if got.Discussion.Status != collaboration.DiscussionActive {
-		t.Fatalf("expected active discussion during execution, got %s (counts %d/%d)",
-			got.Discussion.Status, got.Discussion.TotalMessageCount, got.Discussion.MaxTotalMessages)
+	if got.Discussion != nil {
+		t.Fatalf("execution is task-driven; expected no discussion session, got %+v", got.Discussion)
+	}
+	if got.PlanningDiscussion == nil || len(got.PlanningDiscussion.Messages) == 0 {
+		t.Fatal("expected planning discussion archived")
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion, "general",
+		protocol.AgentInfo{ID: "a1", Name: "x", Type: protocol.AgentTypeBackend}, "execution chatter",
+	)
+	if err := cm.RecordMessage(collab.ID, msg); err == nil {
+		t.Fatal("expected RecordMessage to fail without active discussion during execution")
 	}
 }
 

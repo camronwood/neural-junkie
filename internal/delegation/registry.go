@@ -52,9 +52,9 @@ func RelevanceScore(info protocol.AgentInfo, question string) int {
 func typeKeywords(t protocol.AgentType) []string {
 	switch t {
 	case protocol.AgentTypeFrontend:
-		return []string{"ui", "frontend", "react", "vue", "angular", "css", "html", "component", "user", "interface"}
+		return []string{"ui", "frontend", "web", "desktop", "css", "html", "component", "user", "interface", "accessibility", "design"}
 	case protocol.AgentTypeBackend:
-		return []string{"api", "backend", "server", "endpoint", "service", "database", "business", "logic", "go", "golang"}
+		return []string{"api", "backend", "server", "endpoint", "service", "business", "logic", "integration", "cache", "queue"}
 	case protocol.AgentTypeDevOps:
 		return []string{"deploy", "deployment", "ci/cd", "docker", "kubernetes", "infrastructure", "monitoring",
 			"aws", "azure", "gcp", "cloud", "terraform", "ansible", "pipeline", "ecs", "eks", "lambda"}
@@ -66,6 +66,10 @@ func typeKeywords(t protocol.AgentType) []string {
 			"iam", "ssl", "tls", "cors", "csrf", "rbac", "jwt", "oauth2", "secrets"}
 	case protocol.AgentTypeRust:
 		return []string{"rust", "cargo", "tokio", "ownership", "borrowing", "lifetime", "trait", "async", "unsafe", "wasm", "serde", "crate"}
+	case protocol.AgentTypeArchitecture:
+		return []string{"architecture", "architect", "system", "design", "scalability", "reliability", "tradeoff", "migration", "boundary", "integration"}
+	case protocol.AgentTypeCodeReview:
+		return []string{"review", "code", "correctness", "maintainability", "testing", "refactor", "regression", "readability", "quality"}
 	case protocol.AgentTypeBiology:
 		return []string{"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr",
 			"enzyme", "mutation", "pathway", "cell", "lab", "protocol", "peptide", "amino", "fold", "esm"}

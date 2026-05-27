@@ -48,7 +48,7 @@
 
 **X / LinkedIn:**
 
-> You don’t need `@RustExpert` to use Neural Junkie.
+> You don’t need `@CodeReviewer` to use Neural Junkie.
 >
 > Create a **writing coach**, **trip planner**, or **budget buddy** in a private DM — your API keys or local Ollama, plus Assistant for tasks, notes, and `/summarize`.
 >

@@ -182,11 +182,8 @@ func TestRunbookExecutionQAParticipantsAreTaskAssigneesOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TransitionToExecuting: %v", err)
 	}
-	if out.Discussion == nil {
-		t.Fatal("expected execution discussion")
-	}
-	if len(out.Discussion.Participants) != 1 || out.Discussion.Participants[0] != "r1" {
-		t.Fatalf("participants = %#v, want [r1] only", out.Discussion.Participants)
+	if out.Discussion != nil {
+		t.Fatal("runbook execution is task-driven; expected no active discussion session")
 	}
 }
 

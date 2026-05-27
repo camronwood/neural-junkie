@@ -25,6 +25,9 @@ func OmitFromLLMHistory(m *protocol.Message) bool {
 	if m == nil {
 		return true
 	}
+	if m.IsFromSystem() {
+		return true
+	}
 	switch m.Type {
 	case protocol.MessageTypeSystemInfo,
 		protocol.MessageTypeAgentJoin,
@@ -33,7 +36,6 @@ func OmitFromLLMHistory(m *protocol.Message) bool {
 		protocol.MessageTypeStreamDelta,
 		protocol.MessageTypeStreamEnd,
 		protocol.MessageTypeToolApproval,
-		protocol.MessageTypeCommandOutput,
 		protocol.MessageTypeCommandSuggestion,
 		protocol.MessageTypeContextShare,
 		protocol.MessageTypeRequestHelp,
@@ -43,6 +45,10 @@ func OmitFromLLMHistory(m *protocol.Message) bool {
 		protocol.MessageTypeCollabTask,
 		protocol.MessageTypeCollabStatus:
 		return true
+	}
+
+	if m.Type == protocol.MessageTypeCommandOutput {
+		return strings.TrimSpace(m.Content) == ""
 	}
 
 	if protocol.IsUserLikeSender(m.From) {

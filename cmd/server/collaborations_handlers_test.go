@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func createExecutingRunbookForCollabAPI(t *testing.T) (collabID, taskID string) {
@@ -85,6 +86,47 @@ func TestHandleCollabTaskCompleteDispatchesWave(t *testing.T) {
 	}
 	if t2 == nil || !t2.PromptDispatched {
 		t.Fatal("t2 should be dispatched after t1 complete via API")
+	}
+}
+
+func TestHandleCollabParticipantRequestApprove(t *testing.T) {
+	h := setupRunbookAPITest(t)
+	a3 := &protocol.AgentInfo{ID: "a3", Name: "Claude", Type: protocol.AgentTypeCLI, Status: "active"}
+	if err := h.RegisterAgent(a3); err != nil {
+		t.Fatal(err)
+	}
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration(
+		"participant request",
+		[]string{"a1", "a2"},
+		"general",
+		"tester",
+		collaboration.DiscussionConfig{},
+		collaboration.CreateOptions{AllowAgentParticipantRequests: true},
+	)
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	if _, err := cm.RequestParticipantAdds(collab.ID, "a1", "RustExpert", []string{"a3"}); err != nil {
+		t.Fatalf("request participant: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collab.ID+"/participant-requests/a3/approve", nil)
+	rec := httptest.NewRecorder()
+	handleCollaborationsSubRoute(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve status %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var snap collaboration.Collaboration
+	if err := json.Unmarshal(rec.Body.Bytes(), &snap); err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.PendingParticipantRequests) != 0 {
+		t.Fatalf("expected pending request cleared, got %+v", snap.PendingParticipantRequests)
+	}
+	if !cm.IsParticipant(collab.ID, "a3") {
+		t.Fatal("expected Claude to be added after approval")
 	}
 }
 

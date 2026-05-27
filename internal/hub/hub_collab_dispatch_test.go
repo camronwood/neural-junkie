@@ -67,6 +67,154 @@ func TestAttachCollaborationDataDoesNotDispatchTasks(t *testing.T) {
 	}
 }
 
+func TestSendMessageInCollabChannelInheritsCollaborationMetadata(t *testing.T) {
+	h := NewHub()
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "Gemini", Type: protocol.AgentTypeCLI, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("plan", []string{"a1", "a2"}, "general", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	chName := "collab-" + collab.ID
+	h.CreateChannelWithType(chName, "collab", "general", protocol.ChannelTypeCollaboration, "tester")
+	if err := cm.BindCollaborationChannel(collab.ID, chName); err != nil {
+		t.Fatalf("bind channel: %v", err)
+	}
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		chName,
+		protocol.AgentInfo{ID: "human-camronwood", Name: "camronwood", Type: protocol.AgentTypeGeneral},
+		"@Gemini please resume the plan",
+	)
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("send message: %v", err)
+	}
+
+	msgs, err := h.GetMessages(chName, 10)
+	if err != nil {
+		t.Fatalf("get messages: %v", err)
+	}
+	var stored *protocol.Message
+	for _, m := range msgs {
+		if m.ID == msg.ID {
+			stored = m
+			break
+		}
+	}
+	if stored == nil {
+		t.Fatal("expected message stored in collaboration channel")
+	}
+	if got := stored.GetCollaborationID(); got != collab.ID {
+		t.Fatalf("expected inherited collaboration id %q, got %q", collab.ID, got)
+	}
+	if got := stored.GetCollaborationPhase(); got != string(collaboration.PhasePlanning) {
+		t.Fatalf("expected inherited phase %q, got %q", collaboration.PhasePlanning, got)
+	}
+}
+
+func TestAgentMentionDoesNotAutoAddParticipantByDefault(t *testing.T) {
+	h := NewHub()
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "Gemini", Type: protocol.AgentTypeCLI, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	a3 := &protocol.AgentInfo{ID: "a3", Name: "Claude", Type: protocol.AgentTypeCLI, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+	_ = h.RegisterAgent(a3)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("plan", []string{"a1", "a2"}, "general", "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	chName := "collab-" + collab.ID
+	h.CreateChannelWithType(chName, "collab", "general", protocol.ChannelTypeCollaboration, "tester")
+	if err := cm.BindCollaborationChannel(collab.ID, chName); err != nil {
+		t.Fatal(err)
+	}
+	_ = h.AddAgentToChannel("a1", chName)
+	_ = h.AddAgentToChannel("a2", chName)
+
+	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a1, "@Claude should review this too")
+	msg.SetCollaborationID(collab.ID)
+	msg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	snap, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if len(snap.Agents) != 2 {
+		t.Fatalf("expected no auto-add, got agents: %+v", snap.Agents)
+	}
+	if len(snap.PendingParticipantRequests) != 0 {
+		t.Fatalf("expected no pending requests by default, got %+v", snap.PendingParticipantRequests)
+	}
+}
+
+func TestAgentMentionCreatesParticipantRequestWhenEnabled(t *testing.T) {
+	h := NewHub()
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "Gemini", Type: protocol.AgentTypeCLI, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	a3 := &protocol.AgentInfo{ID: "a3", Name: "Claude", Type: protocol.AgentTypeCLI, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+	_ = h.RegisterAgent(a3)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration(
+		"plan",
+		[]string{"a1", "a2"},
+		"general",
+		"tester",
+		collaboration.DiscussionConfig{},
+		collaboration.CreateOptions{AllowAgentParticipantRequests: true},
+	)
+	if err != nil {
+		t.Fatalf("create collaboration: %v", err)
+	}
+	chName := "collab-" + collab.ID
+	h.CreateChannelWithType(chName, "collab", "general", protocol.ChannelTypeCollaboration, "tester")
+	if err := cm.BindCollaborationChannel(collab.ID, chName); err != nil {
+		t.Fatal(err)
+	}
+	_ = h.AddAgentToChannel("a1", chName)
+	_ = h.AddAgentToChannel("a2", chName)
+
+	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a1, "@Claude should review this too")
+	msg.SetCollaborationID(collab.ID)
+	msg.SetCollaborationPhase(string(collaboration.PhasePlanning))
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	snap, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if len(snap.Agents) != 2 {
+		t.Fatalf("expected request without auto-add, got agents: %+v", snap.Agents)
+	}
+	if len(snap.PendingParticipantRequests) != 1 {
+		t.Fatalf("expected one pending request, got %+v", snap.PendingParticipantRequests)
+	}
+	if snap.PendingParticipantRequests[0].AgentID != "a3" {
+		t.Fatalf("expected pending Claude request, got %+v", snap.PendingParticipantRequests[0])
+	}
+
+	approved, err := h.ApproveCollaborationParticipantRequest(collab.ID, "a3")
+	if err != nil {
+		t.Fatalf("approve request: %v", err)
+	}
+	if len(approved.PendingParticipantRequests) != 0 {
+		t.Fatalf("expected pending request cleared, got %+v", approved.PendingParticipantRequests)
+	}
+	if !cm.IsParticipant(collab.ID, "a3") {
+		t.Fatal("expected approved agent to become participant")
+	}
+}
+
 func TestDispatchCollabTaskMessagesSkipsWhenAlreadyDispatched(t *testing.T) {
 	h := NewHub()
 	chName := "test-collab-skip"

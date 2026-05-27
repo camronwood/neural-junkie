@@ -4,7 +4,9 @@ import type { AgentInfo, Channel } from '../types/protocol';
 import { agentSidebarHideKey } from './dmChannelDisplay';
 import {
   isAgentShortcutHidden,
+  isAgentShortcutDeleted,
   isDmChannelVisibleInSidebar,
+  isSidebarChannelDeleted,
   patchRevealActiveAgentsInSidebar,
   patchRevealSidebarItems,
   patchUnhideAgentShortcutsOnActivation,
@@ -43,6 +45,36 @@ describe('isAgentShortcutHidden', () => {
     expect(isAgentShortcutHidden(baseSettings, a)).toBe(true);
     expect(isAgentShortcutHidden(baseSettings, agent('new-uuid', 'GoExpert', 'active'))).toBe(true);
     expect(isAgentShortcutHidden(baseSettings, agent('x', 'RustExpert', 'active', 'rust'))).toBe(false);
+  });
+});
+
+describe('deleted sidebar entries', () => {
+  it('matches deleted agent shortcuts by stable key and legacy id', () => {
+    const settings: Settings = {
+      ...baseSettings,
+      deletedAgentSidebarKeys: ['backend:GoExpert'],
+      deletedAgentIdsForSidebar: ['legacy-uuid'],
+    };
+    expect(isAgentShortcutDeleted(settings, agent('legacy-uuid', 'Other', 'active'))).toBe(true);
+    expect(isAgentShortcutDeleted(settings, agent('new-uuid', 'GoExpert', 'active'))).toBe(true);
+    expect(isAgentShortcutDeleted(settings, agent('x', 'RustExpert', 'active', 'rust'))).toBe(false);
+  });
+
+  it('matches deleted DM and collaboration channels', () => {
+    const settings: Settings = {
+      ...baseSettings,
+      deletedDmChannelNames: ['dm-u-goexpert'],
+      deletedCollaborationChannelNames: ['collab-abc'],
+    };
+    expect(isSidebarChannelDeleted(settings, dmChannel)).toBe(true);
+    expect(
+      isSidebarChannelDeleted(settings, {
+        id: 'collab-1',
+        name: 'collab-abc',
+        type: 'collaboration',
+        description: 'Hidden collab',
+      })
+    ).toBe(true);
   });
 });
 

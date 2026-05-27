@@ -117,25 +117,65 @@ describe('CollaborationPanel', () => {
     expect(screen.getByText('Rust Architecture & Systems Design')).toBeInTheDocument();
   });
 
-  it('planning phase shows only cancel (no resume) until reviewing or executing', () => {
+  it('planning phase shows disabled submit for review while discussion is active', () => {
     const collab = makeCollaboration({
       phase: 'planning',
       discussion: discussion(),
     });
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
 
-    expect(screen.queryByRole('button', { name: 'Resume plan' })).not.toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Submit for review' });
+    expect(submit).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Approve & start' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel Collaboration' })).toBeInTheDocument();
+    expect(screen.getByText(/unlocks when planning finishes/i)).toBeInTheDocument();
   });
 
-  it('disables Resume plan while planning recap is pending', () => {
+  it('enables submit for review when planning discussion is complete', () => {
+    const collab = makeCollaboration({
+      phase: 'planning',
+      discussion: discussion({ status: 'budget_exhausted', current_round: 3 }),
+    });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Submit for review' })).toBeEnabled();
+  });
+
+  it('sends /submit-plan from planning when discussion is complete', async () => {
+    const onAfter = vi.fn().mockResolvedValue(undefined);
+    const collab = makeCollaboration({
+      phase: 'planning',
+      discussion: discussion({ status: 'converged' }),
+    });
+    render(
+      <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
+    );
+    fireEvent.click(screen.getByTestId('collaboration-submit-for-review'));
+    await waitFor(() => {
+      expect(sendMessageMock).toHaveBeenCalledWith(
+        'collab-test-channel',
+        `/submit-plan ${collabPrefix}`,
+        { name: 'PanelTester', type: 'human' }
+      );
+    });
+    expect(onAfter).toHaveBeenCalled();
+  });
+
+  it('shows waiting for approval banner in reviewing', () => {
+    const collab = makeCollaboration({ phase: 'reviewing' });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+    expect(screen.getByTestId('collaboration-review-banner')).toBeInTheDocument();
+    expect(screen.getByText(/Waiting for your approval/i)).toBeInTheDocument();
+  });
+
+  it('disables Approve & start while planning recap is pending', () => {
     const collab = makeCollaboration({
       phase: 'reviewing',
       planning_recap_status: 'pending',
       planning_recap_agent_id: 'ag1',
     });
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
-    expect(screen.getByRole('button', { name: 'Resume plan' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Approve & start' })).toBeDisabled();
     expect(screen.getByText(/Generating session summary with @RustExpert/i)).toBeInTheDocument();
   });
 
@@ -148,6 +188,19 @@ describe('CollaborationPanel', () => {
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
     expect(screen.getByText('Session summary')).toBeInTheDocument();
     expect(screen.getByText(/Agreed on approach A/)).toBeInTheDocument();
+  });
+
+  it('keeps session summary inside the scrollable panel body', () => {
+    const collab = makeCollaboration({
+      phase: 'reviewing',
+      planning_recap_status: 'complete',
+      planning_recap: '## Summary\n\n- Long recap content',
+    });
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+
+    const scrollBody = screen.getByTestId('collaboration-panel-scroll');
+    const summary = screen.getByTestId('collaboration-session-summary');
+    expect(scrollBody).toContainElement(summary);
   });
 
   it('shows session summary card from session_recap when collaboration completed', () => {
@@ -169,7 +222,7 @@ describe('CollaborationPanel', () => {
       <CollaborationPanel collaboration={collab} onClose={() => {}} onAfterCollaborationCommand={onAfter} />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resume plan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve & start' }));
 
     await waitFor(() => {
       expect(sendMessageMock).toHaveBeenCalledWith(
@@ -188,7 +241,7 @@ describe('CollaborationPanel', () => {
 
     render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resume plan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve & start' }));
 
     await waitFor(() => {
       expect(confirmReplaceMock).toHaveBeenCalled();
@@ -212,7 +265,7 @@ describe('CollaborationPanel', () => {
       />
     );
 
-    expect(screen.getByRole('button', { name: 'Resume plan (stop other run)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve & start (stop other run)' })).toBeInTheDocument();
   });
 
   it('revise is disabled without feedback; sends /revise-plan with trimmed body', async () => {
@@ -402,7 +455,7 @@ describe('CollaborationPanel', () => {
     expect(screen.getByText('Task 1: First')).toBeInTheDocument();
     expect(screen.getByText('Task 2: Second')).toBeInTheDocument();
     expect(screen.getByText('Execution — limits off')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Resume plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-dispatch tasks' })).toBeInTheDocument();
   });
 
   it('shows collab-extend hint when discussion hits budget in reviewing', () => {

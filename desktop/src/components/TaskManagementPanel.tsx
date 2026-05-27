@@ -7,6 +7,7 @@ import type {
   CollaborationTaskStatus,
 } from '../types/protocol';
 import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
+import { collaborationPrimaryActionLabel } from '../utils/collaborationActionLabels';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 
 type TaskViewMode = 'by_agent' | 'by_collaboration';
@@ -537,14 +538,13 @@ function CollaborationRow({
 }) {
   const isTerminal = collaboration.phase === 'completed' || collaboration.phase === 'cancelled';
   const openTaskCount = collaboration.tasks?.filter(t => t.status !== 'completed').length ?? 0;
+  const anotherExecuting =
+    executingCollaboration != null &&
+    executingCollaboration.phase === 'executing' &&
+    executingCollaboration.id !== collaboration.id;
   const resumeLabel =
-    collaboration.phase === 'executing'
-      ? 'Resume plan'
-      : executingCollaboration &&
-          executingCollaboration.phase === 'executing' &&
-          executingCollaboration.id !== collaboration.id
-        ? 'Resume plan (stop other)'
-        : 'Resume plan';
+    collaborationPrimaryActionLabel(collaboration.phase, { anotherCollabExecuting: anotherExecuting }) ??
+    'Resume';
   return (
     <div
       style={{

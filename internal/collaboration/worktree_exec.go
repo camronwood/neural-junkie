@@ -106,12 +106,21 @@ func (cm *CollaborationManager) PlannedWorktreeDirectory(collabID string) (strin
 }
 
 func (cm *CollaborationManager) createSandboxWorkingDir(c *Collaboration, baseDir string) error {
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		return fmt.Errorf("collaboration working directory: mkdir base: %w", err)
-	}
-	workDir := filepath.Join(baseDir, c.ID)
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		return fmt.Errorf("collaboration working directory: mkdir: %w", err)
+	var workDir string
+	var err error
+	if UsesProjectCollabDir(c) {
+		workDir, err = EnsureProjectCollabDir(c.SourceRepoPath, c.ID)
+		if err != nil {
+			return fmt.Errorf("collaboration working directory: %w", err)
+		}
+	} else {
+		if err := os.MkdirAll(baseDir, 0755); err != nil {
+			return fmt.Errorf("collaboration working directory: mkdir base: %w", err)
+		}
+		workDir = filepath.Join(baseDir, c.ID)
+		if err := os.MkdirAll(workDir, 0755); err != nil {
+			return fmt.Errorf("collaboration working directory: mkdir: %w", err)
+		}
 	}
 	absWork, err := filepath.Abs(workDir)
 	if err != nil {

@@ -30,6 +30,8 @@ export type AgentType =
   | 'database'
   | 'security'
   | 'rust'
+  | 'architecture'
+  | 'code-review'
   | 'biology'
   | 'general'
   | 'repo'
@@ -384,6 +386,10 @@ export function getAgentColor(type: AgentType): string {
       return '#f16a5a'; // Red
     case 'rust':
       return '#dea584'; // Rust orange (official Rust color)
+    case 'architecture':
+      return '#8b5cf6'; // Violet
+    case 'code-review':
+      return '#06b6d4'; // Cyan
     case 'biology':
       return '#14b8a6'; // Teal for life sciences
     case 'moderator':
@@ -484,7 +490,12 @@ export type CommandArgType =
   | 'provider'
   | 'model'
   | 'agent-name'
-  | 'repo-agent-name';
+  | 'repo-agent-name'
+  | 'channel-name'
+  | 'collaboration-id'
+  | 'assistant-task-id'
+  | 'file-change-id'
+  | 'collaboration-task';
 
 export interface CommandArgument {
   name: string;
@@ -542,6 +553,15 @@ export interface CollaborationAgent {
   agent_type: AgentType;
   expertise: string[];
   role: string;
+}
+
+export interface ParticipantAddRequest {
+  agent_id: string;
+  agent_name: string;
+  agent_type: AgentType;
+  requested_by_id: string;
+  requested_by_name: string;
+  created_at: string;
 }
 
 export interface AssignSuggestion {
@@ -684,6 +704,8 @@ export interface Collaboration {
   graph_layout?: GraphLayout;
   dispatch_paused?: boolean;
   execution_message_count?: number;
+  allow_agent_participant_requests?: boolean;
+  pending_participant_requests?: ParticipantAddRequest[];
   planning_recap?: string;
   session_recap?: string;
   planning_recap_status?: 'pending' | 'complete' | 'failed';

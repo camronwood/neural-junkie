@@ -714,7 +714,7 @@ static SIDECAR_READY: AtomicBool = AtomicBool::new(false);
 fn dev_hub_health_url() -> String {
     let base = std::env::var("NEURAL_JUNKIE_HUB_URL")
         .or_else(|_| std::env::var("VITE_NJ_HUB_URL"))
-        .unwrap_or_else(|_| "http://localhost:18765".to_string());
+        .unwrap_or_else(|_| "http://127.0.0.1:18765".to_string());
     let base = base.trim_end_matches('/');
     format!("{}/api/health", base)
 }

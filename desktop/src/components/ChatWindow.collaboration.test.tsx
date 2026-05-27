@@ -327,8 +327,8 @@ describe('ChatWindow collaboration wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open task management' }));
     await waitFor(() => expect(screen.getByText('Wire-test collaboration')).toBeInTheDocument());
 
-    const resumeButtons = screen.getAllByRole('button', { name: 'Resume plan' });
-    fireEvent.click(resumeButtons[0]);
+    const approveButtons = screen.getAllByRole('button', { name: 'Approve & start' });
+    fireEvent.click(approveButtons[0]);
 
     await waitFor(() => {
       expect(apiHarness.sendMessage).toHaveBeenCalledWith(

@@ -10,6 +10,16 @@ describe('resolveContextScope', () => {
     expect(resolveContextScope({ message: 'hello', mode: 'always', channelKind: 'general' }).scope).toBe('full');
   });
 
+  it('/collaborate returns outline workspace (tree only)', () => {
+    const r = resolveContextScope({
+      message: '/collaborate @Gemini @Assistant investigate schemas',
+      mode: 'auto',
+      channelKind: 'general',
+    });
+    expect(r.scope).toBe('outline');
+    expect(r.reason).toContain('collaboration');
+  });
+
   it('general AWS question returns none', () => {
     const r = resolveContextScope({
       message: 'What is AWS SSO and how do I use it in our dev account?',

@@ -172,9 +172,17 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 def cmd_analyze(args: argparse.Namespace) -> int:
     debug = SCRIPT_DIR / "debug-collab.py"
-    cmd = [sys.executable, str(debug), "session", "--session", str(Path(args.session).expanduser())]
+    session = Path(args.session).expanduser()
+    cmd = [sys.executable, str(debug), "--session", str(session), "session"]
     cmd.extend(args.extra)
-    return subprocess.call(cmd)
+    rc = subprocess.call(cmd)
+    ws_check = SCRIPT_DIR / "debug-last-session-workspace.py"
+    if ws_check.is_file():
+        print()
+        ws_rc = subprocess.call([sys.executable, str(ws_check), str(session)])
+        if ws_rc != 0 and rc == 0:
+            rc = ws_rc
+    return rc
 
 
 def main() -> int:
@@ -212,7 +220,13 @@ def main() -> int:
     an.add_argument("extra", nargs=argparse.REMAINDER, help="Passed to debug-collab.py")
     an.set_defaults(func=cmd_analyze)
 
-    args = p.parse_args()
+    argv = sys.argv[1:]
+    if "analyze" in argv:
+        idx = argv.index("analyze")
+        args = p.parse_args(argv[: idx + 1])
+        args.extra = argv[idx + 1 :]
+    else:
+        args = p.parse_args(argv)
     if not args.command:
         return cmd_archive(args)
     return args.func(args)

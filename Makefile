@@ -147,51 +147,61 @@ demo-messages: ## Send demo messages to test the system
 
 run-agents: ## Start all agent types
 	@echo "🤖 Starting agents..."
-	@go run cmd/agent/main.go --type frontend --name "React Expert" --channel general &
+	@go run cmd/agent/main.go --type backend --name "BackendEngineer" --channel general &
 	@sleep 2
-	@go run cmd/agent/main.go --type backend --name "Go Master" --channel general &
+	@go run cmd/agent/main.go --type frontend --name "FrontendEngineer" --channel general &
 	@sleep 2
-	@go run cmd/agent/main.go --type devops --name "Cloud Architect" --channel general &
+	@go run cmd/agent/main.go --type devops --name "PlatformEngineer" --channel general &
 	@sleep 2
-	@go run cmd/agent/main.go --type database --name "SQL Expert" --channel general &
+	@go run cmd/agent/main.go --type security --name "SecurityReviewer" --channel general &
 	@sleep 2
-	@go run cmd/agent/main.go --type security --name "InfoSec Pro" --channel general &
+	@go run cmd/agent/main.go --type architecture --name "SoftwareArchitect" --channel general &
+	@sleep 2
+	@go run cmd/agent/main.go --type code-review --name "CodeReviewer" --channel general &
 	@echo "✅ All agents started!"
 
 # Individual agent targets with environment loaded
-agent-backend: setup-env ## Start Go Expert backend agent
-	@echo "🤖 Starting Go Expert (Backend)..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "Go Expert"'
+agent-backend: setup-env ## Start backend engineer agent
+	@echo "🤖 Starting Backend Engineer..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "BackendEngineer"'
 
-agent-frontend: setup-env ## Start React Expert frontend agent
-	@echo "🤖 Starting React Expert (Frontend)..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "React Expert"'
+agent-frontend: setup-env ## Start frontend engineer agent
+	@echo "🤖 Starting Frontend Engineer..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "FrontendEngineer"'
 
-agent-database: setup-env ## Start SQL Master database agent
-	@echo "🤖 Starting SQL Master (Database)..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type database --name "SQL Master"'
+agent-database: setup-env ## Start legacy database specialist agent
+	@echo "🤖 Starting Database Specialist..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type database --name "DatabaseSpecialist"'
 
-agent-security: setup-env ## Start Security Expert agent
-	@echo "🤖 Starting Security Expert..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "Security Expert"'
+agent-security: setup-env ## Start security reviewer agent
+	@echo "🤖 Starting Security Reviewer..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityReviewer"'
 
-agent-devops: setup-env ## Start DevOps Pro agent
-	@echo "🤖 Starting DevOps Pro..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOps Pro"'
+agent-devops: setup-env ## Start platform engineer agent
+	@echo "🤖 Starting Platform Engineer..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "PlatformEngineer"'
+
+agent-architecture: setup-env ## Start software architect agent
+	@echo "🤖 Starting Software Architect..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type architecture --name "SoftwareArchitect"'
+
+agent-code-review: setup-env ## Start code reviewer agent
+	@echo "🤖 Starting Code Reviewer..."
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type code-review --name "CodeReviewer"'
 
 agents: setup-env ## Start all agents with environment loaded
 	@echo "🤖 Starting all agents with environment from env.local..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "GoExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "BackendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 2
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type database --name "SQLMaster" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "FrontendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "PlatformEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "ReactExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "DevOpsPro" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type architecture --name "SoftwareArchitect" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type rust --name "RustExpert" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type code-review --name "CodeReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
 	@echo "✅ All agents started!"
 
 stop: ## Stop all running processes (server, agents, GUI)

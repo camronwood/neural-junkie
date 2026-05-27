@@ -49,6 +49,44 @@ func TestAbortRuntimeAgentsOnChannelCancelsActiveGens(t *testing.T) {
 	}
 }
 
+func TestAbortRuntimeAgentsOnChannelCancelsCLIAgents(t *testing.T) {
+	h := NewHub()
+	handler, ok := h.GetCommandHandler().(*CommandHandler)
+	if !ok || handler == nil {
+		t.Fatal("expected *CommandHandler")
+	}
+
+	cliAgent := agent.NewAgent(
+		protocol.AgentTypeCLI,
+		"Gemini",
+		nil,
+		ai.NewMockProvider(),
+		h,
+	)
+	handler.cliAgents[cliAgent.Info.ID] = cliAgent
+
+	genCtx, genCancel := context.WithCancel(context.Background())
+	defer genCancel()
+	agent.RegisterGenCancelForTest(cliAgent, "cli-abort-ch", genCancel)
+
+	done := make(chan struct{})
+	go func() {
+		<-genCtx.Done()
+		close(done)
+	}()
+
+	handler.AbortRuntimeAgentsOnChannel("cli-abort-ch")
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected CLI agent generation to be canceled")
+	}
+	if agent.ActiveGenCountForTest(cliAgent, "cli-abort-ch") != 0 {
+		t.Fatalf("expected no active CLI gens, got %d", agent.ActiveGenCountForTest(cliAgent, "cli-abort-ch"))
+	}
+}
+
 func TestInterjectChannelSetsHoldAndAbortsRuntimeAgents(t *testing.T) {
 	h := NewHub()
 	h.CreateChannel("interject-runtime", "", "")

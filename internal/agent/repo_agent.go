@@ -429,6 +429,8 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 		msg.From.Type == protocol.AgentTypeBackend ||
 		msg.From.Type == protocol.AgentTypeDatabase ||
 		msg.From.Type == protocol.AgentTypeSecurity ||
+		msg.From.Type == protocol.AgentTypeArchitecture ||
+		msg.From.Type == protocol.AgentTypeCodeReview ||
 		msg.From.Type == protocol.AgentTypeDevOps ||
 		msg.From.Type == protocol.AgentTypeRepo
 

@@ -494,6 +494,8 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'devops': return '#f09348';
       case 'database': return '#fbd837';
       case 'security': return '#f16a5a';
+      case 'architecture': return '#8b5cf6';
+      case 'code-review': return '#06b6d4';
       default: return '#a9b9ba';
     }
   };
@@ -511,6 +513,8 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
       case 'devops': return '🔧';
       case 'database': return '🗄️';
       case 'security': return '🔒';
+      case 'architecture': return '🏗️';
+      case 'code-review': return '🔎';
       default: return '❓';
     }
   };
@@ -601,7 +605,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
           {/* Filter */}
           <div className="flex gap-1 flex-wrap">
             {(activeTab === 'active'
-              ? ['all', 'backend', 'frontend', 'rust', 'devops', 'database', 'security', 'cli', 'assistant', 'moderator']
+              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'code-review', 'rust', 'database', 'cli', 'assistant', 'moderator']
               : ['all', 'repo', 'confluence']
             ).map((type) => (
               <button

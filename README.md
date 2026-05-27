@@ -27,11 +27,12 @@ graph TB
     Core --> SomethingElse[🎯 SomethingElse<br/>Auto-started · Chat commands<br/>User guidance · Safety net]
     Core --> Assistant[📋 Assistant<br/>Reminders · Tasks · Notes<br/>Meeting summaries]
 
-    Core --> GoExpert[⚙️ GoExpert<br/>APIs · Services · Go]
-    Core --> ReactExpert[🎨 ReactExpert<br/>React · UI/UX · CSS]
-    Core --> DevOpsPro[🚀 DevOpsPro<br/>Docker · K8s · CI/CD]
-    Core --> SQLMaster[🗄️ SQLMaster<br/>Schema · Queries · Perf]
-    Core --> SecurityExpert[🔒 SecurityExpert<br/>Auth · Encryption · OWASP]
+    Core --> BackendEngineer[⚙️ BackendEngineer<br/>APIs · Services · Integrations]
+    Core --> FrontendEngineer[🎨 FrontendEngineer<br/>UI · Accessibility · Design systems]
+    Core --> PlatformEngineer[🚀 PlatformEngineer<br/>Deployment · CI/CD · Infrastructure]
+    Core --> SecurityReviewer[🔒 SecurityReviewer<br/>Auth · Encryption · Threat modeling]
+    Core --> SoftwareArchitect[🏗️ SoftwareArchitect<br/>System design · Tradeoffs · Migrations]
+    Core --> CodeReviewer[🔎 CodeReviewer<br/>Correctness · Tests · Regressions]
 
     Core --> RepoAgents[📂 Repo Agents<br/>Codebase indexing · File watch<br/>Project-specific expertise]
     Core --> ConfluenceAgents[📚 Confluence Agents<br/>Space indexing · Doc search<br/>Knowledge Q&A]
@@ -39,11 +40,12 @@ graph TB
     style Core fill:#1a1a2e,stroke:#e94560,color:#fff,stroke-width:2px
     style Moderator fill:#16213e,stroke:#0f3460,color:#fff
     style Assistant fill:#16213e,stroke:#0f3460,color:#fff
-    style GoExpert fill:#0f3460,stroke:#533483,color:#fff
-    style ReactExpert fill:#0f3460,stroke:#533483,color:#fff
-    style DevOpsPro fill:#0f3460,stroke:#533483,color:#fff
-    style SQLMaster fill:#0f3460,stroke:#533483,color:#fff
-    style SecurityExpert fill:#0f3460,stroke:#533483,color:#fff
+    style BackendEngineer fill:#0f3460,stroke:#533483,color:#fff
+    style FrontendEngineer fill:#0f3460,stroke:#533483,color:#fff
+    style PlatformEngineer fill:#0f3460,stroke:#533483,color:#fff
+    style SecurityReviewer fill:#0f3460,stroke:#533483,color:#fff
+    style SoftwareArchitect fill:#0f3460,stroke:#533483,color:#fff
+    style CodeReviewer fill:#0f3460,stroke:#533483,color:#fff
     style RepoAgents fill:#533483,stroke:#e94560,color:#fff
     style ConfluenceAgents fill:#533483,stroke:#e94560,color:#fff
 ```
@@ -51,7 +53,7 @@ graph TB
 ## What's In the Box
 
 - **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
-- **9 Agent Types** -- Frontend, Backend, DevOps, Database, Security, Rust, Repo, Confluence, and Moderator/Assistant (auto-started); plus on-demand **Expert** and **CLI** agents via commands
+- **Agent Types** -- Frontend, Backend, Platform/DevOps, Security, Architecture, Code Review, Repo, Confluence, and Moderator/Assistant (auto-started); plus on-demand **Expert** and **CLI** agents via commands
 - **Dynamic AI Providers** -- Ollama (managed), Claude, LM Studio, and any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)
 - **First-Run Setup Wizard** -- Guided onboarding to configure your AI backend and enable agents
 - **Auto-Updates** -- In-app update notifications with one-click install via Tauri updater
@@ -89,7 +91,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.17](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.18](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.18) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -171,7 +173,7 @@ cp env.example env.local
 
 Switch providers at runtime from the desktop Settings > AI Providers tab, or via slash commands:
 ```
-/switch-provider GoExpert ollama qwen2.5-coder:14b
+/switch-provider BackendEngineer ollama qwen2.5-coder:14b
 /switch-all-providers lmstudio
 ```
 
@@ -188,18 +190,18 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 
 ### Specialist Agents (Software development pack)
 
-When the **Software development** domain pack is enabled (Settings → Domain packs, or the developer setup wizard track), the hub starts **six** in-process specialists: **GoExpert**, **ReactExpert**, **DevOpsPro**, **SQLMaster**, **SecurityExpert**, and **RustExpert**. See [docs/SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md).
+When the **Software development** domain pack is enabled (Settings → Domain packs, or the developer setup wizard track), the hub starts **six** broad in-process specialists: **BackendEngineer**, **FrontendEngineer**, **PlatformEngineer**, **SecurityReviewer**, **SoftwareArchitect**, and **CodeReviewer**. See [docs/SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md).
 
 Fresh installs default to **pack off** (Moderator, Assistant, and auto-detected CLI agents only). Enable the pack when you want hub-hosted coding specialists.
 
 | Agent | Expertise |
 |-------|-----------|
-| **GoExpert** | Go, APIs, microservices, REST/GraphQL/gRPC, caching |
-| **SQLMaster** | PostgreSQL, MySQL, MongoDB, Redis, schema design, query optimization |
-| **SecurityExpert** | Auth, OAuth/JWT, encryption, XSS/CSRF, OWASP, compliance |
-| **ReactExpert** | React, TypeScript, CSS, UI/UX, design analysis, vision-capable |
-| **DevOpsPro** | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform |
-| **RustExpert** | Rust, ownership, lifetimes, async/await, traits, cargo, unsafe, WASM |
+| **BackendEngineer** | APIs, services, integrations, business logic, performance |
+| **FrontendEngineer** | Web/desktop UI, accessibility, design systems, visual QA |
+| **PlatformEngineer** | Deployment, CI/CD, cloud infrastructure, observability |
+| **SecurityReviewer** | Auth, encryption, threat modeling, OWASP, compliance |
+| **SoftwareArchitect** | System design, service boundaries, tradeoffs, migrations |
+| **CodeReviewer** | Correctness, tests, maintainability, regressions |
 
 **Alternate layout:** `make agents` starts the same six roles as **standalone** `cmd/agent` processes (see Makefile). Only use that when you want external processes; if their names match in-process agents, you can get duplicate registrations—disable the in-process copies in config first if you need this split.
 
@@ -209,7 +211,7 @@ Fresh installs default to **pack off** (Moderator, Assistant, and auto-detected 
 |-------|-------------|---------|
 | **Repo Agent** | `/create-repo-agent /path provider` | Indexes a codebase, watches for changes, answers project questions |
 | **Confluence Agent** | `/create-confluence-agent space-key` | Indexes a Confluence space for documentation Q&A |
-| **Expert Agent** | `/create-expert type [name]` | Spin up any specialist on the fly (rust, backend, frontend, devops, database, security) |
+| **Expert Agent** | `/create-expert type [name]` | Spin up any specialist on the fly (backend, frontend, devops, security, architecture, code-review, or a custom slug) |
 
 ## Commands
 

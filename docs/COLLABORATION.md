@@ -32,9 +32,9 @@ Both paths share the same execution engine: dependency-aware waves, workspace ac
 During planning, agents can declare dependencies on task lines:
 
 ```markdown
-- Task 1: @RustExpert - Scaffold CLI
-- Task 2: @SecurityExpert - Threat model
-- Task 3: @GoExpert - Integration tests
+- Task 1: @BackendEngineer - Scaffold API changes
+- Task 2: @SecurityReviewer - Threat model
+- Task 3: @CodeReviewer - Integration tests
   - depends: 1, 2
 ```
 
@@ -102,7 +102,7 @@ See [RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md) for **action** task types (HTTP, we
 ### Start a runbook (user-built DAG)
 
 ```text
-/runbook @RustExpert @SecurityExpert ship the auth refactor
+/runbook @BackendEngineer @SecurityReviewer ship the auth refactor
 ```
 
 Creates a collaboration in **draft** phase. Use the desktop Runbook builder to add tasks and dependencies, then submit and start.
@@ -110,25 +110,25 @@ Creates a collaboration in **draft** phase. Use the desktop Runbook builder to a
 ### Start a collaboration
 
 ```text
-/collaborate @RustExpert @SecurityExpert @Cursor build a CLI tool that encrypts files using AES-256
+/collaborate @SoftwareArchitect @SecurityReviewer @Cursor design a secure file-encryption workflow
 ```
 
 Optional limits (must appear **before** the first `@mention`; omitted values use defaults **3** rounds and **20** agent messages, then the server clamps to hard caps):
 
 ```text
-/collaborate --rounds 5 --messages 40 @RustExpert @SecurityExpert design the auth flow
+/collaborate --rounds 5 --messages 40 @SoftwareArchitect @SecurityReviewer design the auth flow
 ```
 
 Optional: attach a **high-level** view of your open editor workspace (file tree only, no open tab bodies) for repo-wide planning:
 
 ```text
-/collaborate --workspace @RustExpert @SecurityExpert review the layout of this repo
+/collaborate --workspace @SoftwareArchitect @CodeReviewer review the layout of this repo
 ```
 
 Optional: run execution in a **git worktree** (isolated branch + full repo copy) instead of an empty sandbox:
 
 ```text
-/collaborate --worktree --workspace @RustExpert @SecurityExpert refactor the auth middleware
+/collaborate --worktree --workspace @BackendEngineer @SecurityReviewer refactor the auth middleware
 ```
 
 Without `--workspace`, planning uses only the collaboration goal — agents are not given your open project files. This avoids general questions (for example “who is the better Rust programmer?”) being interpreted as questions about whatever repo you had open.
@@ -151,13 +151,21 @@ Creates a collaboration in `planning` phase and starts a bounded discussion.
 
 **Dedicated channel:** On success the hub auto-creates a channel named `collab-<collaboration-uuid>` (type `collaboration`). Seeds, agent discussion, plan updates, and execution tasks for that session are isolated **there**. Your `/collaborate` line stays in the channel where you typed the command (for example `#general`). The desktop app switches to the new room after send and lists it under **Collaborations** in the sidebar; **Open collaboration** in the task panel also jumps to that channel.
 
+### Submit plan for review (end planning early)
+
+```text
+/submit-plan <collab-id>
+```
+
+Moves `planning` → `reviewing` when you are ready (without waiting for consensus or discussion limits). Agent planning discussion stops; a facilitator posts the pre-approval session summary. Desktop: **Submit for review** in the collaboration panel.
+
 ### Approve plan and execute
 
 ```text
 /approve-plan <collab-id>
 ```
 
-Moves collaboration from `reviewing` -> `approved` -> `executing`, creates the on-disk collaboration sandbox, and lists assigned tasks in chat. **Task prompts are not sent to agents until you confirm the workspace** (desktop **Continue** on that channel, or `/ack-collab-workspace <collab-id>`). This keeps execution from racing ahead of the app registering the sandbox as a workspace.
+Moves collaboration from `reviewing` -> `approved` -> `executing`, creates the on-disk collaboration workspace (`collabs/<id>/` under your project when a source workspace is bound), and lists assigned tasks in chat. Desktop: **Approve & start** (same as `/resume-plan` while reviewing). **Task prompts are not sent to agents until you confirm the workspace** (desktop **Continue** on that channel, or `/ack-collab-workspace <collab-id>`). This keeps execution from racing ahead of the app registering the sandbox as a workspace.
 
 ### Confirm collaboration workspace (after approve)
 
@@ -223,7 +231,7 @@ Shows active collaborations or details for one collaboration.
 2. **reviewing**
    - Plan is presented to the user.
    - The **last agent who spoke** in planning delivers a **session summary** recap to you (research-only sessions included).
-   - **`/approve-plan` and Resume plan are blocked** until that recap is posted (or the hub times out and posts a fallback summary).
+   - **`/approve-plan` and Approve & start are blocked** until that recap is posted (or the hub times out and posts a fallback summary).
    - User approves, revises, or cancels.
 3. **approved**
    - Transitional state after `/approve-plan` (before execution starts).

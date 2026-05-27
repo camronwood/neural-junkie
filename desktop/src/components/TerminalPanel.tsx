@@ -1,13 +1,20 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { XTerminal } from './XTerminal';
 import { SuggestionBanner } from './SuggestionBanner';
+import { terminalAPI } from '../api/terminalAPI';
+import { resolveTerminalCwd } from '../utils/terminalCwd';
+import { shellQuote } from '../utils/runTerminalCommand';
+import type { Collaboration } from '../types/protocol';
 
 interface TerminalPanelProps {
   height: number;
+  channel: string;
+  api: import('../api/chatAPI').ChatAPI;
+  collaboration?: Collaboration | null;
 }
 
-export function TerminalPanel({ height }: TerminalPanelProps) {
+export function TerminalPanel({ height, channel, api, collaboration }: TerminalPanelProps) {
   const {
     tabs,
     activeTabId,
@@ -22,9 +29,19 @@ export function TerminalPanel({ height }: TerminalPanelProps) {
   const [isResizing, setIsResizing] = useState(false);
 
   const handleAddTab = useCallback(() => {
-    const tab = createNewTab();
+    const cwd = resolveTerminalCwd({ collaboration: collaboration ?? null });
+    const tab = createNewTab('user', undefined, cwd);
     addTab(tab);
-  }, [addTab]);
+  }, [addTab, collaboration]);
+
+  useEffect(() => {
+    const cwd = resolveTerminalCwd({ collaboration: collaboration ?? null });
+    const store = useTerminalStore.getState();
+    store.alignActiveTabCwd(cwd);
+    if (cwd && cwd !== '~') {
+      void terminalAPI.writePtySession(store.activeTabId, `cd ${shellQuote(cwd)}\n`);
+    }
+  }, [collaboration?.id, collaboration?.source_repo_path, collaboration?.working_directory, collaboration?.phase]);
 
   const handleCloseTab = useCallback(
     (e: React.MouseEvent, tabId: string) => {
@@ -122,6 +139,9 @@ export function TerminalPanel({ height }: TerminalPanelProps) {
         <SuggestionBanner
           suggestions={suggestedCommands}
           activeTabId={activeTabId}
+          channel={channel}
+          api={api}
+          collaboration={collaboration}
         />
       )}
 

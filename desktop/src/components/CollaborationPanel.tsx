@@ -9,6 +9,12 @@ import type {
   CollaborationPhase,
 } from '../types/protocol';
 import { confirmReplaceCollaborationExecution } from '../utils/collaborationConfirm';
+import {
+  canSubmitCollaborationForReview,
+  collaborationPrimaryActionLabel,
+  collaborationPrimaryActionTitle,
+  collaborationSubmitForReviewTitle,
+} from '../utils/collaborationActionLabels';
 import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
@@ -109,6 +115,30 @@ export function CollaborationPanel({
       setIsSubmitting(false);
     }
   };
+
+  const handleSubmitForReview = async () => {
+    setIsSubmitting(true);
+    try {
+      await api.sendMessage(collabChannel, `/submit-plan ${c.id.slice(0, 8)}`, from);
+      await onAfterCollaborationCommand?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const anotherCollabExecuting =
+    executingCollaboration != null &&
+    executingCollaboration.phase === 'executing' &&
+    executingCollaboration.id !== c.id;
+  const primaryActionLabel = collaborationPrimaryActionLabel(c.phase, {
+    anotherCollabExecuting,
+  });
+  const showPrimaryAction =
+    primaryActionLabel != null &&
+    (c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing');
+  const approveBlocked = c.phase === 'reviewing' && planningRecapPending;
+  const submitForReviewEnabled = canSubmitCollaborationForReview(c.phase, c.discussion);
+  const submitForReviewBlocked = c.phase === 'planning' && !submitForReviewEnabled;
 
   const handleRevise = async () => {
     if (!feedback.trim()) return;
@@ -277,7 +307,7 @@ export function CollaborationPanel({
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+      <div data-testid="collaboration-panel-scroll" style={{ flex: 1, overflow: 'auto', padding: 16 }}>
         {/* Title and description */}
         <div style={{ marginBottom: 16 }}>
           {renaming ? (
@@ -376,6 +406,68 @@ export function CollaborationPanel({
             {c.description}
           </p>
         </div>
+
+        {(c.planning_recap || c.session_recap) && (
+          <div
+            data-testid="collaboration-session-summary"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid var(--border-color, #444)',
+              backgroundColor: 'var(--bg-tertiary, #252525)',
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary, #aaa)' }}>
+              Session summary
+            </div>
+            <RichMarkdownView content={c.session_recap || c.planning_recap || ''} compact />
+          </div>
+        )}
+
+        {c.phase === 'reviewing' && (
+          <div
+            data-testid="collaboration-review-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 6 }}>
+              Waiting for your approval
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              Planning is complete. Review the plan and session summary below, then{' '}
+              <strong>Approve &amp; start</strong> to create the collaboration workspace and assign tasks, or{' '}
+              <strong>Revise</strong> to send agents back to planning.
+            </p>
+            {planningRecapPending && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: '#fbbf24' }}>
+                Generating session summary with @{recapFacilitatorName}… Approve unlocks when the recap is posted.
+              </p>
+            )}
+          </div>
+        )}
+
+        {c.phase === 'planning' && (
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary, #aaa)', lineHeight: 1.45 }}>
+            Agents are discussing and refining the plan.{' '}
+            {submitForReviewEnabled ? (
+              <>
+                Planning discussion is complete — use <strong>Submit for review</strong> for the session summary,
+                or wait for automatic transition if consensus already moved you to review.
+              </>
+            ) : (
+              <>
+                <strong>Submit for review</strong> unlocks when planning finishes (consensus, message limit, or round
+                limit). Most collaborations move to review automatically when that happens.
+              </>
+            )}
+          </p>
+        )}
 
         {/* Participants */}
         <div style={{ marginBottom: 16 }}>
@@ -618,40 +710,21 @@ export function CollaborationPanel({
                     </div>
                   )}
                 </>
+              ) : c.phase === 'executing' ? (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  Task-driven execution — agents respond to assigned tasks only (no open planning discussion).
+                </div>
               ) : (
                 <>
                   <div style={{ gridColumn: '1 / -1' }}>Execution — limits off</div>
                   <div style={{ gridColumn: '1 / -1' }}>Messages: {c.discussion.total_message_count}</div>
-                  <div style={{ gridColumn: '1 / -1' }}>Execution Q&A: {c.discussion.status}</div>
+                  <div style={{ gridColumn: '1 / -1' }}>Status: {c.discussion.status}</div>
                 </>
               )}
             </div>
           </div>
         )}
       </div>
-
-      {(c.planning_recap || c.session_recap) && (
-        <div
-          style={{
-            margin: '12px 16px 0',
-            padding: 12,
-            borderRadius: 8,
-            border: '1px solid var(--border-color, #444)',
-            backgroundColor: 'var(--bg-tertiary, #252525)',
-          }}
-        >
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary, #aaa)' }}>
-            Session summary
-          </div>
-          <RichMarkdownView content={c.session_recap || c.planning_recap || ''} />
-        </div>
-      )}
-
-      {planningRecapPending && c.phase === 'reviewing' && (
-        <p style={{ margin: '12px 16px 0', fontSize: 13, color: 'var(--text-secondary, #aaa)' }}>
-          Generating session summary with @{recapFacilitatorName}… Approval unlocks when the recap is posted.
-        </p>
-      )}
 
       {isTerminal && (
         <div style={{
@@ -688,16 +761,34 @@ export function CollaborationPanel({
           borderTop: '1px solid var(--border-color, #333)',
           display: 'flex', flexDirection: 'column', gap: 8,
         }}>
-          {(c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing') && (
+          {c.phase === 'planning' && (
+            <button
+              type="button"
+              data-testid="collaboration-submit-for-review"
+              onClick={() => void handleSubmitForReview()}
+              disabled={isSubmitting || submitForReviewBlocked}
+              title={collaborationSubmitForReviewTitle(c.discussion)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 6,
+                border: 'none',
+                backgroundColor: submitForReviewBlocked ? '#4b5563' : '#3b82f6',
+                color: '#fff',
+                fontWeight: 600,
+                cursor: submitForReviewBlocked ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+                opacity: isSubmitting || submitForReviewBlocked ? 0.6 : 1,
+              }}
+            >
+              Submit for review
+            </button>
+          )}
+          {showPrimaryAction && primaryActionLabel && (
             <button
               type="button"
               onClick={() => void handleResume()}
-              disabled={isSubmitting || (c.phase === 'reviewing' && planningRecapPending)}
-              title={
-                c.phase === 'executing'
-                  ? 'Re-send task prompts for open work (pending, in progress, or blocked)'
-                  : undefined
-              }
+              disabled={isSubmitting || approveBlocked}
+              title={collaborationPrimaryActionTitle(c.phase)}
               style={{
                 padding: '8px 16px',
                 borderRadius: 6,
@@ -707,16 +798,10 @@ export function CollaborationPanel({
                 fontWeight: 500,
                 cursor: 'pointer',
                 fontSize: 13,
-                opacity: isSubmitting ? 0.6 : 1,
+                opacity: isSubmitting || approveBlocked ? 0.6 : 1,
               }}
             >
-              {c.phase === 'executing'
-                ? 'Resume plan'
-                : executingCollaboration &&
-                    executingCollaboration.phase === 'executing' &&
-                    executingCollaboration.id !== c.id
-                  ? 'Resume plan (stop other run)'
-                  : 'Resume plan'}
+              {primaryActionLabel}
             </button>
           )}
           {c.phase === 'reviewing' && (

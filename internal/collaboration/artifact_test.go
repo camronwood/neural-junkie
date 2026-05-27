@@ -1,7 +1,9 @@
 package collaboration
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -82,5 +84,124 @@ func TestExtractTasksFromPlanParsesDependencies(t *testing.T) {
 	}
 	if err := ValidateDAG(tasks); err != nil {
 		t.Fatalf("ValidateDAG: %v", err)
+	}
+}
+
+func TestExtractTasksFromPlanIgnoresBareMentionSummary(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "gemini-1", AgentName: "Gemini", AgentType: protocol.AgentTypeCLI},
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+
+	planContent := `## Plan
+
+@Gemini has proposed a structured plan and should update later tasks.
+- Task 1: @SoftwareArchitect - Investigate existing API definitions
+`
+
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 1 {
+		t.Fatalf("expected only the real task, got %d: %#v", len(tasks), tasks)
+	}
+	if tasks[0].AssignedName != "SoftwareArchitect" {
+		t.Fatalf("expected SoftwareArchitect assignment, got %+v", tasks[0])
+	}
+}
+
+func TestExtractTasksFromPlanIgnoresNumberedPlanSteps(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	planContent := `## Plan
+
+1. @SoftwareArchitect, please begin by reviewing the current API documentation and schema files.
+1. @SoftwareArchitect, please begin by reviewing the current API documentation and schema files located at docs/api/.
+- Task 1: @SoftwareArchitect - Review resource-api JSON schemas and registration
+`
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task from structured line, got %d: %#v", len(tasks), tasks)
+	}
+}
+
+func TestDedupeTasksCollapsesSimilarAssignments(t *testing.T) {
+	now := time.Now()
+	tasks := []CollaborationTask{
+		{ID: "1", Title: "Review API docs and schema files", AssignedTo: "a1", Description: "Review API docs", CreatedAt: now, UpdatedAt: now},
+		{ID: "2", Title: "Review API docs and schema files", AssignedTo: "a1", Description: "Review API docs", CreatedAt: now, UpdatedAt: now},
+		{ID: "3", Title: "Investigate CI", AssignedTo: "a2", Description: "CI", CreatedAt: now, UpdatedAt: now},
+	}
+	out := DedupeTasks(tasks)
+	if len(out) != 2 {
+		t.Fatalf("expected 2 after dedupe, got %d", len(out))
+	}
+}
+
+func TestExtractTasksFromPlanParsesMarkdownNumberedBoldTasks(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+
+	planContent := `## Tasks
+
+1. **Compile industry standards for API schema documentation.** - ` + "`pending`" + ` (@SoftwareArchitect)
+   - **Dependencies**: None
+   - **Milestones**:
+     - Research industry standards
+     - Document findings
+
+2. **Perform code analysis on resource-api JSON registration.** - ` + "`pending`" + ` (@BackendEngineer)
+`
+
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d: %#v", len(tasks), tasks)
+	}
+	if tasks[0].AssignedName != "SoftwareArchitect" {
+		t.Fatalf("task 0 assignee: %+v", tasks[0])
+	}
+	if tasks[0].Title != "Compile industry standards for API schema documentation." {
+		t.Fatalf("task 0 title: %q", tasks[0].Title)
+	}
+	if strings.HasPrefix(strings.ToLower(tasks[0].Title), "task is to") {
+		t.Fatalf("unexpected fragment title: %q", tasks[0].Title)
+	}
+}
+
+func TestExtractTasksFromPlanRejectsWeakFragmentBullets(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	planContent := `## Plan
+
+- task is to compile industry standards and best practices
+- Task 1: @SoftwareArchitect - Investigate resource-api JSON schemas
+`
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d: %#v", len(tasks), tasks)
+	}
+}
+
+func TestExtractTasksFromPlanSanitizesAssetMentionAssignee(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "gemini-1", AgentName: "Gemini", AgentType: protocol.AgentTypeCLI},
+	}
+
+	planContent := `## Plan
+
+- Task 1: @assets/icons/Gemini_Generated_Image_7ofmua7ofmua7ofm.png - Analyze current API definitions
+`
+
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+	if tasks[0].AssignedName != "" || tasks[0].AssignedTo != "" {
+		t.Fatalf("asset path should not resolve as an assignee: %+v", tasks[0])
+	}
+	if tasks[0].Description != "Analyze current API definitions" {
+		t.Fatalf("unexpected sanitized description %q", tasks[0].Description)
 	}
 }

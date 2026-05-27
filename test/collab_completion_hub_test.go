@@ -92,8 +92,11 @@ func TestHubAgentTASKSTATUSCompletesCollaboration(t *testing.T) {
 	if len(got.Tasks) != 1 || got.Tasks[0].Status != collaboration.TaskCompleted {
 		t.Fatalf("expected task completed, got %+v", got.Tasks)
 	}
-	if got.Discussion == nil || got.Discussion.Status != collaboration.DiscussionConverged {
-		t.Fatalf("expected discussion converged, got %+v", got.Discussion)
+	if got.PlanningDiscussion == nil {
+		t.Fatalf("expected archived planning discussion, got nil")
+	}
+	if got.Discussion != nil {
+		t.Fatalf("expected no active discussion after execution, got %+v", got.Discussion)
 	}
 	if !strings.Contains(got.SessionRecap, "Final session summary") {
 		t.Fatalf("expected session_recap stored, got %q", got.SessionRecap)

@@ -88,6 +88,8 @@ export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
       case 'database': return '#9f7aea';
       case 'security': return '#f56565';
       case 'rust': return '#dea584';
+      case 'architecture': return '#8b5cf6';
+      case 'code-review': return '#06b6d4';
       default: return '#a9b9ba';
     }
   };
@@ -103,6 +105,8 @@ export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
       case 'database': return '🗄️';
       case 'security': return '🔒';
       case 'rust': return '🦀';
+      case 'architecture': return '🏗️';
+      case 'code-review': return '🔎';
       default: return '❓';
     }
   };

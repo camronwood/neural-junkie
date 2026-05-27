@@ -33,7 +33,7 @@ Neural Junkie fixes that by giving you:
 
 1. Open a channel or DM.
 2. Ask a question or run a slash command.
-3. Mention the right specialist (`@GoExpert`, `@RustExpert`, etc.) or start a collaboration.
+3. Mention the right specialist (`@BackendEngineer`, `@CodeReviewer`, etc.) or start a collaboration.
 4. Review proposals and approve changes when needed.
 5. Track provider usage in Settings to understand local vs cloud activity.
 
@@ -54,7 +54,7 @@ Neural Junkie fixes that by giving you:
 4. Ask:
    - `@MyRepoExpert summarize the architecture and top risk areas`
 5. Kick off a collaboration for a real task:
-   - `/collaborate @GoExpert @SecurityExpert harden auth middleware`
+   - `/collaborate @BackendEngineer @SecurityReviewer harden auth middleware`
 
 You should immediately get a structured plan, ownership by specialist, and an execution path.
 

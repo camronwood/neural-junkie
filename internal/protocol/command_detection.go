@@ -1,12 +1,21 @@
 package protocol
 
 import (
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var bareFileRefExtensions = map[string]bool{
+	".md": true, ".markdown": true, ".txt": true, ".json": true, ".yaml": true, ".yml": true,
+	".xml": true, ".html": true, ".htm": true, ".csv": true, ".ts": true, ".tsx": true,
+	".js": true, ".jsx": true, ".go": true, ".py": true, ".rs": true, ".java": true,
+	".c": true, ".h": true, ".cpp": true, ".hpp": true, ".sql": true, ".sh": true,
+	".pdf": true, ".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".svg": true,
+}
 
 // CommandDetector detects shell commands in agent responses
 type CommandDetector struct{}
@@ -27,7 +36,7 @@ func (cd *CommandDetector) DetectCommands(content, agentName, messageID string) 
 	for _, match := range matches {
 		if len(match) > 1 {
 			command := strings.TrimSpace(match[1])
-			if command != "" {
+			if command != "" && cd.shouldSuggestCodeBlock(command) {
 				suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
 				suggestions = append(suggestions, suggestion)
 			}
@@ -82,6 +91,59 @@ func (cd *CommandDetector) isShellCommand(command string) bool {
 	return false
 }
 
+// looksLikeBareFileReference matches deliverable paths (e.g. findings.md, collabs/id/out.md)
+// that agents sometimes put in ```bash blocks by mistake.
+func looksLikeBareFileReference(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if strings.Contains(s, "|") || strings.Contains(s, "&&") || strings.Contains(s, ";") {
+		return false
+	}
+	if strings.Contains(s, " ") {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(s))
+	if ext != "" && bareFileRefExtensions[ext] {
+		return true
+	}
+	if strings.Contains(s, "/") {
+		return true
+	}
+	return false
+}
+
+func substantiveCodeBlockLines(command string) []string {
+	var lines []string
+	for _, line := range strings.Split(command, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+// shouldSuggestCodeBlock filters ```bash``` blocks that are only file paths, not commands.
+func (cd *CommandDetector) shouldSuggestCodeBlock(command string) bool {
+	lines := substantiveCodeBlockLines(command)
+	if len(lines) == 0 {
+		return false
+	}
+	for _, line := range lines {
+		if looksLikeBareFileReference(line) {
+			return false
+		}
+	}
+	if len(lines) == 1 {
+		line := lines[0]
+		return cd.isShellCommand(line) || strings.Contains(line, " ")
+	}
+	return true
+}
+
 // createCommandSuggestion creates a command suggestion for a shell command
 func (cd *CommandDetector) createCommandSuggestion(command, agentName, messageID, content string) CommandSuggestion {
 	description := cd.extractDescription(command, content)
@@ -102,11 +164,14 @@ func (cd *CommandDetector) createCommandSuggestion(command, agentName, messageID
 func (cd *CommandDetector) isSafeCommand(command string) bool {
 	// Read-only commands that are generally safe
 	safeCommands := []string{
-		"ls", "pwd", "cat", "head", "tail", "grep", "find", "ps", "top", "htop",
+		"ls", "pwd", "cd ", "cat", "head", "tail", "grep", "find", "file", "tree",
+		"wc", "sort", "uniq", "env", "printenv", "ps", "top", "htop",
 		"df", "du", "who", "whoami", "date", "uptime", "uname", "which", "whereis",
 		"git status", "git log", "git diff", "git show", "git branch", "git tag",
 		"docker ps", "docker images", "docker logs", "kubectl get", "kubectl describe",
 		"aws s3 ls", "aws ec2 describe", "curl -I", "wget --spider",
+		"go test", "go list", "go version", "cargo check", "cargo test", "make test",
+		"python -m pytest", "python -m compileall", "npm test", "npm run",
 	}
 
 	command = strings.TrimSpace(strings.ToLower(command))

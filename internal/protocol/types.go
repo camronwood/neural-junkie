@@ -38,20 +38,22 @@ const (
 type AgentType string
 
 const (
-	AgentTypeFrontend   AgentType = "frontend"
-	AgentTypeBackend    AgentType = "backend"
-	AgentTypeDevOps     AgentType = "devops"
-	AgentTypeDatabase   AgentType = "database"
-	AgentTypeSecurity   AgentType = "security"
-	AgentTypeRust       AgentType = "rust"
-	AgentTypeBiology    AgentType = "biology"
-	AgentTypeGeneral    AgentType = "general"
-	AgentTypeRepo       AgentType = "repo"
-	AgentTypeHelper     AgentType = "helper"     // Custom helper/expert agents
-	AgentTypeModerator  AgentType = "moderator"  // System moderator agent
-	AgentTypeAssistant  AgentType = "assistant"  // Personal assistant agent
-	AgentTypeConfluence AgentType = "confluence" // Confluence documentation agents
-	AgentTypeCLI        AgentType = "cli"        // CLI-backed agents (Cursor, Claude CLI, etc.)
+	AgentTypeFrontend     AgentType = "frontend"
+	AgentTypeBackend      AgentType = "backend"
+	AgentTypeDevOps       AgentType = "devops"
+	AgentTypeDatabase     AgentType = "database"
+	AgentTypeSecurity     AgentType = "security"
+	AgentTypeRust         AgentType = "rust"
+	AgentTypeArchitecture AgentType = "architecture"
+	AgentTypeCodeReview   AgentType = "code-review"
+	AgentTypeBiology      AgentType = "biology"
+	AgentTypeGeneral      AgentType = "general"
+	AgentTypeRepo         AgentType = "repo"
+	AgentTypeHelper       AgentType = "helper"     // Custom helper/expert agents
+	AgentTypeModerator    AgentType = "moderator"  // System moderator agent
+	AgentTypeAssistant    AgentType = "assistant"  // Personal assistant agent
+	AgentTypeConfluence   AgentType = "confluence" // Confluence documentation agents
+	AgentTypeCLI          AgentType = "cli"        // CLI-backed agents (Cursor, Claude CLI, etc.)
 )
 
 // AIProviderType defines the AI provider being used
@@ -85,7 +87,7 @@ const (
 
 // Channel control metadata keys (agent_status broadcasts).
 const (
-	MetadataChannelHold         = "channel_hold"
+	MetadataChannelHold           = "channel_hold"
 	MetadataChannelInterjectAbort = "channel_interject_abort"
 )
 
@@ -185,18 +187,18 @@ const (
 
 // Channel represents a chat channel/room
 type Channel struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	DisplayName string      `json:"display_name,omitempty"` // Human label (e.g. Slack #cursor-test); Name stays the hub id
-	Description string      `json:"description"`
-	Project     string      `json:"project,omitempty"`
-	Type        ChannelType `json:"type"`
-	CreatedBy   string      `json:"created_by,omitempty"`
-	Created     time.Time   `json:"created"`
-	Agents      []AgentInfo `json:"agents"`
-	Members       []string `json:"members,omitempty"`        // Explicitly added agent IDs
-	HumanMembers  []string `json:"human_members,omitempty"`  // Usernames allowed on private custom channels
-	Tags          []string `json:"tags,omitempty"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name"`
+	DisplayName  string      `json:"display_name,omitempty"` // Human label (e.g. Slack #cursor-test); Name stays the hub id
+	Description  string      `json:"description"`
+	Project      string      `json:"project,omitempty"`
+	Type         ChannelType `json:"type"`
+	CreatedBy    string      `json:"created_by,omitempty"`
+	Created      time.Time   `json:"created"`
+	Agents       []AgentInfo `json:"agents"`
+	Members      []string    `json:"members,omitempty"`       // Explicitly added agent IDs
+	HumanMembers []string    `json:"human_members,omitempty"` // Usernames allowed on private custom channels
+	Tags         []string    `json:"tags,omitempty"`
 }
 
 // ThreadMetadata contains metadata about a message thread
@@ -549,7 +551,7 @@ type PendingReview struct {
 type CommandArgument struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
-	Type        string   `json:"type"` // "string", "path", "provider", "model", "agent-name", "repo-agent-name"
+	Type        string   `json:"type"` // "string", "path", "provider", "model", "agent-name", "repo-agent-name", "channel-name", "collaboration-id", "assistant-task-id", "file-change-id", "collaboration-task"
 	Required    bool     `json:"required"`
 	Options     []string `json:"options,omitempty"`
 	Default     string   `json:"default,omitempty"`

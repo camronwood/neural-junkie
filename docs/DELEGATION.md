@@ -68,7 +68,7 @@ See [BIOLOGY_PACK.md](BIOLOGY_PACK.md) for model pulls and disclaimers.
 When `NEURAL_JUNKIE_DEBUG=1`:
 
 ```bash
-curl 'http://localhost:18765/api/debug/delegation-resolve?from=GoExpert&q=analyze+this+peptide+sequence'
+curl 'http://localhost:18765/api/debug/delegation-resolve?from=BackendEngineer&q=review+this+api+change'
 ```
 
 ## Related

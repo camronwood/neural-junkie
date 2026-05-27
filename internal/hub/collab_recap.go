@@ -34,7 +34,7 @@ func (h *Hub) onCollaborationEnterReviewing(collabID string) {
 		return
 	}
 	if snap.PlanningRecapStatus == collaboration.RecapStatusComplete ||
-		snap.PlanningRecapStatus == collaboration.RecapStatusPending {
+		(snap.PlanningRecapStatus == collaboration.RecapStatusPending && snap.PlanningRecapAgentID != "") {
 		return
 	}
 	h.dispatchCollaborationRecap(snap, collaboration.RecapKindPreApproval)
@@ -182,6 +182,7 @@ func (h *Hub) onRecapTimeout(collabID string, kind collaboration.RecapKind) {
 		agentID = snap.PlanningRecapAgentID
 		if fallback != "" {
 			_ = h.collabManager.CompletePlanningRecap(collabID, agentID, fallback)
+			h.persistCollaborationReviewAssets(collabID)
 		} else {
 			h.collabManager.FailPlanningRecap(collabID)
 		}
@@ -190,6 +191,7 @@ func (h *Hub) onRecapTimeout(collabID string, kind collaboration.RecapKind) {
 		agentID = snap.SessionRecapAgentID
 		if fallback != "" {
 			_ = h.collabManager.CompleteSessionRecap(collabID, agentID, fallback)
+			h.persistCollaborationReviewAssets(collabID)
 		} else {
 			h.collabManager.FailSessionRecap(collabID)
 		}
@@ -284,6 +286,7 @@ func (h *Hub) maybeProcessRecapReply(msg *protocol.Message) bool {
 			log.Printf("[CollaborationRecap] CompletePlanningRecap: %v", err)
 			return false
 		}
+		h.persistCollaborationReviewAssets(collabID)
 		h.broadcastPlanningRecapReady(snap, text)
 		return true
 	case collaboration.RecapKindFinal:
@@ -291,6 +294,7 @@ func (h *Hub) maybeProcessRecapReply(msg *protocol.Message) bool {
 			log.Printf("[CollaborationRecap] CompleteSessionRecap: %v", err)
 			return false
 		}
+		h.persistCollaborationReviewAssets(collabID)
 		h.maybeFinalizeAfterRecap(collabID)
 		return true
 	}

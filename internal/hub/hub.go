@@ -20,10 +20,11 @@ import (
 	"github.com/google/uuid"
 )
 
-func collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) map[string]interface{} {
+func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) map[string]interface{} {
 	if snap == nil || strings.TrimSpace(snap.WorkingDirectory) == "" {
 		return nil
 	}
+	workspacePath := strings.TrimSpace(snap.WorkingDirectory)
 	name := strings.TrimSpace(snap.Title)
 	if name == "" {
 		name = "Collaboration"
@@ -32,19 +33,56 @@ func collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) ma
 	if snap.ExecutionMode == collaboration.ExecutionModeWorktree {
 		wsName = fmt.Sprintf("Collab worktree: %s", name)
 	}
+	outputPath := collaboration.PlannedOutputDirectory(snap, "")
 	fileTree := ".  (sandbox — empty until agents create files)\n"
 	if snap.ExecutionMode == collaboration.ExecutionModeWorktree {
-		fileTree = buildOutlineFileTree(snap.WorkingDirectory, 3)
+		fileTree = buildOutlineFileTree(workspacePath, 3)
 		if fileTree == "" {
 			fileTree = ".\n"
 		}
+	} else if sourcePath := strings.TrimSpace(snap.SourceRepoPath); sourcePath != "" {
+		workspacePath = sourcePath
+		wsName = fmt.Sprintf("Source workspace: %s", name)
+		if stored := snap.SourceWorkspaceContext; len(stored) > 0 {
+			if tree, ok := stored["file_tree"].(string); ok && strings.TrimSpace(tree) != "" {
+				fileTree = tree
+			}
+		}
+		if fileTree == ".  (sandbox — empty until agents create files)\n" {
+			fileTree = buildOutlineFileTree(sourcePath, 3)
+			if fileTree == "" {
+				fileTree = ".\n"
+			}
+		}
+	} else if collaboration.UsesProjectCollabDir(snap) {
+		fileTree = ".\n"
+	} else {
+		fileTree = ".  (sandbox — empty until agents create files)\n"
 	}
-	return map[string]interface{}{
+	out := map[string]interface{}{
 		"workspace_name": wsName,
-		"workspace_path": snap.WorkingDirectory,
+		"workspace_path": workspacePath,
 		"file_tree":      fileTree,
 		"open_files":     []interface{}{},
 	}
+	if outputPath != "" && outputPath != workspacePath {
+		out["collaboration_output_path"] = outputPath
+	} else if strings.TrimSpace(snap.WorkingDirectory) != "" && snap.WorkingDirectory != workspacePath {
+		out["collaboration_output_path"] = snap.WorkingDirectory
+	}
+	if h != nil && h.collabManager != nil {
+		if baseDir, err := h.collabManager.CollabAssetsBaseDir(); err == nil && strings.TrimSpace(baseDir) != "" {
+			paths := collaboration.CollabAssetPaths(snap, baseDir)
+			out["review_assets_path"] = paths.Directory
+			out["review_assets_files"] = []string{
+				collaboration.ReviewAssetsPlanFileName,
+				collaboration.ReviewAssetsPlanningSummaryName,
+				collaboration.ReviewAssetsSessionSummaryName,
+				collaboration.ReviewAssetsIndexFileName,
+			}
+		}
+	}
+	return out
 }
 
 // CollaborationCanDispatchTasks is true when collaboration_task messages may be sent.
@@ -165,14 +203,14 @@ type Hub struct {
 // NewHub creates a new chat hub
 func NewHub() *Hub {
 	hub := &Hub{
-		channels:            make(map[string]*protocol.Channel),
-		agents:              make(map[string]*protocol.AgentInfo),
-		messages:            make(map[string][]*protocol.Message),
-		threads:             make(map[string][]*protocol.Message),
-		threadMetadata:      make(map[string]*protocol.ThreadMetadata),
-		threadParentAuthors: make(map[string]string),
-		subscribers:         make(map[string][]chan *protocol.Message),
-		threadSubscribers:   make(map[string][]chan *protocol.Message),
+		channels:                 make(map[string]*protocol.Channel),
+		agents:                   make(map[string]*protocol.AgentInfo),
+		messages:                 make(map[string][]*protocol.Message),
+		threads:                  make(map[string][]*protocol.Message),
+		threadMetadata:           make(map[string]*protocol.ThreadMetadata),
+		threadParentAuthors:      make(map[string]string),
+		subscribers:              make(map[string][]chan *protocol.Message),
+		threadSubscribers:        make(map[string][]chan *protocol.Message),
 		removedAgents:            make(map[string]*protocol.AgentInfo),
 		channelContext:           make(map[string]*ChannelContextState),
 		channelHolds:             make(map[string]ChannelHold),
@@ -558,6 +596,7 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
+	h.inheritCollaborationFromChannel(msg)
 	// Human message clears channel hold (user interject / resume).
 	if msg != nil && protocol.IsUserLikeSender(msg.From) && msg.Channel != "" && h.IsChannelHeld(msg.Channel) {
 		h.SetChannelHold(msg.Channel, false, "")
@@ -588,7 +627,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		agentIDs := h.ResolveMentionsWithValidation(mentionStrings, resolvedMentions, msg.Channel)
 		msg.Mentions = agentIDs
 
-		h.maybeExpandCollaborationParticipants(msg, agentIDs)
+		h.maybeRequestCollaborationParticipants(msg, agentIDs)
 
 		// Send system messages for unresolved mentions (user-authored mentions only).
 		if allowMentionValidationErrors {
@@ -730,6 +769,20 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	return nil
 }
 
+func (h *Hub) inheritCollaborationFromChannel(msg *protocol.Message) {
+	if msg == nil || h.collabManager == nil || msg.GetCollaborationID() != "" {
+		return
+	}
+	snapshot := h.collabManager.GetByChannel(msg.Channel)
+	if snapshot == nil {
+		return
+	}
+	msg.SetCollaborationID(snapshot.ID)
+	if snapshot.Phase != "" {
+		msg.SetCollaborationPhase(string(snapshot.Phase))
+	}
+}
+
 func (h *Hub) shouldParseCollaborationMentions(msg *protocol.Message) bool {
 	if msg == nil || h.collabManager == nil || msg.IsFromSystem() {
 		return false
@@ -754,7 +807,7 @@ func (h *Hub) shouldParseCollaborationMentions(msg *protocol.Message) bool {
 	return snapshot.Phase == collaboration.PhasePlanning || snapshot.Phase == collaboration.PhaseReviewing
 }
 
-func (h *Hub) maybeExpandCollaborationParticipants(msg *protocol.Message, mentionedAgentIDs []string) {
+func (h *Hub) maybeRequestCollaborationParticipants(msg *protocol.Message, mentionedAgentIDs []string) {
 	if msg == nil || h.collabManager == nil || msg.IsFromSystem() {
 		return
 	}
@@ -772,6 +825,9 @@ func (h *Hub) maybeExpandCollaborationParticipants(msg *protocol.Message, mentio
 	if !h.collabManager.IsParticipant(collabID, msg.From.ID) {
 		return
 	}
+	if !snapshot.AllowAgentParticipantRequests {
+		return
+	}
 
 	candidates := make([]string, 0, len(mentionedAgentIDs))
 	for _, agentID := range mentionedAgentIDs {
@@ -784,49 +840,93 @@ func (h *Hub) maybeExpandCollaborationParticipants(msg *protocol.Message, mentio
 		return
 	}
 
-	added, err := h.collabManager.AddParticipants(collabID, candidates)
-	if err != nil || len(added) == 0 {
+	requests, err := h.collabManager.RequestParticipantAdds(collabID, msg.From.ID, msg.From.Name, candidates)
+	if err != nil || len(requests) == 0 {
 		return
 	}
 
-	for _, participant := range added {
-		if err := h.AddAgentToChannel(participant.AgentID, msg.Channel); err != nil {
-			log.Printf("[Collaboration] Failed to add %s to channel %s: %v", participant.AgentName, msg.Channel, err)
-			continue
-		}
-		if h.commandHandler != nil {
-			if err := h.commandHandler.EnsureAgentSubscribedToChannel(context.Background(), participant.AgentID, msg.Channel); err != nil {
-				log.Printf("[Collaboration] Failed to subscribe %s to %s: %v", participant.AgentName, msg.Channel, err)
-			}
-		}
+	for _, req := range requests {
+		h.sendParticipantAddRequestNotice(msg.Channel, collabID, string(snapshot.Phase), req)
 	}
+}
 
-	if h.commandHandler != nil {
-		client := h.NewCollaborationClientAdapter()
-		for _, participant := range added {
-			h.commandHandler.setCollabClientOnAgent(participant.AgentID, participant.AgentName, client)
-		}
-	}
-
-	parts := make([]string, 0, len(added))
-	for _, participant := range added {
-		parts = append(parts, fmt.Sprintf("@%s (%s)", participant.AgentName, participant.Role))
-	}
+func (h *Hub) sendParticipantAddRequestNotice(channel, collabID, phase string, req collaboration.ParticipantAddRequest) {
 	notice := protocol.NewMessage(
 		protocol.MessageTypeCollabStatus,
-		msg.Channel,
+		channel,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		fmt.Sprintf("➕ Added to collaboration `%s`: %s", collabID[:8], strings.Join(parts, ", ")),
+		fmt.Sprintf("➕ @%s wants to add @%s to collaboration `%s`. Approve this in the app to invite them.", req.RequestedByName, req.AgentName, collabID[:8]),
 	)
 	notice.SetCollaborationID(collabID)
-	notice.SetCollaborationPhase(string(snapshot.Phase))
+	notice.SetCollaborationPhase(phase)
 	if notice.Metadata == nil {
 		notice.Metadata = map[string]interface{}{}
 	}
 	notice.Metadata["collab_internal_event"] = true
+	notice.Metadata["event"] = "collab-participant-add-request"
+	notice.Metadata["requested_agent_id"] = req.AgentID
+	notice.Metadata["requested_agent_name"] = req.AgentName
+	notice.Metadata["requested_by_id"] = req.RequestedByID
+	notice.Metadata["requested_by_name"] = req.RequestedByName
 	if err := h.SendMessage(notice); err != nil {
-		log.Printf("[Collaboration] Failed to broadcast participant add notice: %v", err)
+		log.Printf("[Collaboration] Failed to broadcast participant add request: %v", err)
 	}
+}
+
+// ApproveCollaborationParticipantRequest adds a user-approved pending participant.
+func (h *Hub) ApproveCollaborationParticipantRequest(collabID, agentID string) (*collaboration.Collaboration, error) {
+	if h.collabManager == nil {
+		return nil, fmt.Errorf("collaboration manager unavailable")
+	}
+	snap, participant, err := h.collabManager.ApproveParticipantAddRequest(collabID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if snap == nil {
+		return nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if participant != nil {
+		if err := h.AddAgentToChannel(participant.AgentID, snap.Channel); err != nil {
+			return nil, err
+		}
+		if h.commandHandler != nil {
+			if err := h.commandHandler.EnsureAgentSubscribedToChannel(context.Background(), participant.AgentID, snap.Channel); err != nil {
+				log.Printf("[Collaboration] Failed to subscribe %s to %s: %v", participant.AgentName, snap.Channel, err)
+			}
+			h.commandHandler.setCollabClientOnAgent(participant.AgentID, participant.AgentName, h.NewCollaborationClientAdapter())
+		}
+	}
+	if participant != nil {
+		notice := protocol.NewMessage(
+			protocol.MessageTypeCollabStatus,
+			snap.Channel,
+			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+			fmt.Sprintf("➕ Added @%s to collaboration `%s` after user approval.", participant.AgentName, collabID[:8]),
+		)
+		notice.SetCollaborationID(collabID)
+		notice.SetCollaborationPhase(string(snap.Phase))
+		if notice.Metadata == nil {
+			notice.Metadata = map[string]interface{}{}
+		}
+		notice.Metadata["collab_internal_event"] = true
+		h.attachCollaborationData(notice)
+		if err := h.SendMessage(notice); err != nil {
+			log.Printf("[Collaboration] Failed to broadcast participant approval notice: %v", err)
+		}
+	}
+	return h.collabManager.GetCollaborationSnapshot(collabID)
+}
+
+// DenyCollaborationParticipantRequest clears a pending participant add request.
+func (h *Hub) DenyCollaborationParticipantRequest(collabID, agentID string) (*collaboration.Collaboration, error) {
+	if h.collabManager == nil {
+		return nil, fmt.Errorf("collaboration manager unavailable")
+	}
+	snap, err := h.collabManager.DenyParticipantAddRequest(collabID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	return snap, nil
 }
 
 func (h *Hub) processCollaborationLifecycle(msg *protocol.Message) {
@@ -871,6 +971,9 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 
 	collabSnapshot, err := h.collabManager.GetCollaborationSnapshot(collabID)
 	if err != nil || collabSnapshot == nil {
+		return
+	}
+	if collabSnapshot.Phase != collaboration.PhasePlanning {
 		return
 	}
 	if collabSnapshot.Plan != nil && strings.TrimSpace(collabSnapshot.Plan.Content) == strings.TrimSpace(planContent) {
@@ -918,6 +1021,7 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 	if err := h.SendMessage(planMsg); err != nil {
 		log.Printf("[Collaboration] Failed to broadcast plan update message: %v", err)
 	}
+	h.persistCollaborationReviewAssets(collabID)
 }
 
 func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
@@ -1053,6 +1157,7 @@ func (h *Hub) finalizeAndBroadcastCollaboration(collabID, channel, reason string
 		log.Printf("[Collaboration] Failed to finalize collaboration %s: %v", collabID[:8], err)
 		return
 	}
+	h.persistCollaborationReviewAssets(collabID)
 	if channel == "" {
 		channel = c.Channel
 	}
@@ -1966,6 +2071,32 @@ func (h *Hub) GetCollaborationAssetsRoot() string {
 	return dir
 }
 
+func (h *Hub) persistCollaborationReviewAssets(collabID string) {
+	if h == nil || h.collabManager == nil || strings.TrimSpace(collabID) == "" {
+		return
+	}
+	baseDir, err := h.collabManager.CollabAssetsBaseDir()
+	if err != nil {
+		log.Printf("[Collaboration] review assets root for %s: %v", shortCollabID(collabID), err)
+		return
+	}
+	snap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil {
+		log.Printf("[Collaboration] review assets snapshot for %s: %v", shortCollabID(collabID), err)
+		return
+	}
+	if _, err := collaboration.WriteReviewAssets(baseDir, snap); err != nil {
+		log.Printf("[Collaboration] write review assets for %s: %v", shortCollabID(collabID), err)
+	}
+}
+
+func shortCollabID(collabID string) string {
+	if len(collabID) <= 8 {
+		return collabID
+	}
+	return collabID[:8]
+}
+
 // ListCollaborationSnapshots returns collaboration snapshots suitable for UI
 // consumption. Data is deep-copied by the collaboration manager.
 func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) []*collaboration.Collaboration {
@@ -1988,10 +2119,12 @@ func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) [
 }
 
 // RedispatchOpenCollaborationTasksAfterSessionRestore re-sends collaboration_task
-// prompts for executing collaborations that still have open work. Session restore
-// reloads tasks and assignees intact, so EnsureExecutionTasks usually returns false
-// and ListCollaborationSnapshots does not redispatch; agent runtimes still need a
-// fresh task message to continue (same effect as /resume-plan while executing).
+// prompts for executing collaborations that still have open work. It also repairs
+// review-phase recap prompts that were marked pending before a facilitator was
+// assigned. Session restore reloads tasks and assignees intact, so
+// EnsureExecutionTasks usually returns false and ListCollaborationSnapshots does
+// not redispatch; agent runtimes still need a fresh task message to continue
+// (same effect as /resume-plan while executing).
 func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {
 	if h.collabManager == nil {
 		return
@@ -2002,7 +2135,17 @@ func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {
 			t.Status == collaboration.TaskInProgress ||
 			t.Status == collaboration.TaskBlocked
 	}
-	for _, c := range h.collabManager.ListActive() {
+	active := h.collabManager.ListActive()
+	for _, c := range active {
+		if c == nil || c.Phase != collaboration.PhaseReviewing {
+			continue
+		}
+		if c.PlanningRecapStatus == collaboration.RecapStatusPending && c.PlanningRecapAgentID == "" {
+			log.Printf("[Collaboration] Session restore: dispatching missing planning recap for collaboration %s", c.ID[:8])
+			h.onCollaborationEnterReviewing(c.ID)
+		}
+	}
+	for _, c := range active {
 		if c == nil || c.Phase != collaboration.PhaseExecuting {
 			continue
 		}
@@ -2119,8 +2262,20 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			mentionName = "team"
 		}
 		handoffLimit := snap.EffectiveExecutionPolicy().HandoffMaxChars
-		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s\n\nPlease complete this task. You can @mention other collaboration participants if you need their input.",
-			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit))
+		workspaceNote := ""
+		if snap.ExecutionMode != collaboration.ExecutionModeWorktree && strings.TrimSpace(snap.SourceRepoPath) != "" {
+			outDir := collaboration.PlannedOutputDirectory(snap, "")
+			if outDir == "" {
+				outDir = snap.WorkingDirectory
+			}
+			rel := collaboration.ProjectCollabRelPath(snap.ID)
+			workspaceNote = fmt.Sprintf(
+				"\n\n**Project workspace:** `%s` (read/inspect the codebase here).\n**Write deliverables under:** `%s` (absolute: `%s`).\nEmit [FILE_CHANGE] blocks with paths relative to the project root (e.g. `%s/draft.md`).",
+				snap.SourceRepoPath, rel, outDir, rel,
+			)
+		}
+		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s%s\n\nComplete this task now. Ship concrete output ([FILE_CHANGE] and/or findings in the deliverables folder). End your reply with `TASK_STATUS: completed` or `TASK_STATUS: blocked`. @mention others only if blocked.",
+			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit), workspaceNote)
 		taskMsg := protocol.NewMessage(
 			protocol.MessageTypeCollabTask,
 			ch,
@@ -2131,7 +2286,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		taskMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
 		taskMsg.SetTaskID(task.ID)
 		taskMsg.SetTaskStatus(string(task.Status))
-		if ws := collaborationWorkspaceContextSnapshot(snap); ws != nil {
+		if ws := h.collaborationWorkspaceContextSnapshot(snap); ws != nil {
 			if taskMsg.Metadata == nil {
 				taskMsg.Metadata = map[string]interface{}{}
 			}
@@ -2150,11 +2305,22 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			}
 			taskMsg.Metadata["task_provider_id"] = task.Options.ProviderID
 		}
-		if task.Options != nil && len(task.Options.ContextPaths) > 0 {
-			if taskMsg.Metadata == nil {
-				taskMsg.Metadata = map[string]interface{}{}
-			}
-			taskMsg.Metadata["task_context_paths"] = task.Options.ContextPaths
+		var optionPaths []string
+		if task.Options != nil {
+			optionPaths = task.Options.ContextPaths
+		}
+		contextPaths := collaboration.MergeContextPaths(
+			collaboration.InferTaskContextPaths(task, snap.SourceRepoPath),
+			optionPaths,
+		)
+		if taskMsg.Metadata == nil {
+			taskMsg.Metadata = map[string]interface{}{}
+		}
+		if len(contextPaths) > 0 {
+			taskMsg.Metadata["task_context_paths"] = contextPaths
+			taskMsg.Metadata["context_scope"] = "focus"
+		} else if strings.TrimSpace(snap.SourceRepoPath) != "" {
+			taskMsg.Metadata["context_scope"] = "hint"
 		}
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
@@ -2210,6 +2376,25 @@ func (a *collabClientAdapter) GetCollaborationForAgent(agentID string) agent.Col
 	if c == nil {
 		return agent.CollaborationInfo{}
 	}
+	return collaborationInfoForAgent(c, agentID)
+}
+
+func (a *collabClientAdapter) GetCollaboration(collabID, agentID string) agent.CollaborationInfo {
+	collabID = strings.TrimSpace(collabID)
+	if collabID == "" || !a.cm.IsParticipant(collabID, agentID) {
+		return agent.CollaborationInfo{}
+	}
+	c, err := a.cm.GetCollaboration(collabID)
+	if err != nil || c == nil {
+		return agent.CollaborationInfo{}
+	}
+	return collaborationInfoForAgent(c, agentID)
+}
+
+func collaborationInfoForAgent(c *collaboration.Collaboration, agentID string) agent.CollaborationInfo {
+	if c == nil {
+		return agent.CollaborationInfo{}
+	}
 
 	agentRole := ""
 	for _, ag := range c.Agents {
@@ -2237,18 +2422,19 @@ func (a *collabClientAdapter) GetCollaborationForAgent(agentID string) agent.Col
 	}
 
 	return agent.CollaborationInfo{
-		ID:               c.ID,
-		Description:      c.Description,
-		Phase:            string(c.Phase),
-		PlanContent:      planContent,
-		PlanVersion:      planVersion,
-		AgentRole:        agentRole,
-		Agents:           agents,
-		Channel:          c.Channel,
-		ExecutionMode:    string(c.ExecutionMode),
-		SourceRepoPath:   c.SourceRepoPath,
-		WorktreeBranch:   c.WorktreeBranch,
-		WorkingDirectory: c.WorkingDirectory,
+		ID:                     c.ID,
+		Description:            c.Description,
+		Phase:                  string(c.Phase),
+		PlanContent:            planContent,
+		PlanVersion:            planVersion,
+		AgentRole:              agentRole,
+		Agents:                 agents,
+		Channel:                c.Channel,
+		ExecutionMode:          string(c.ExecutionMode),
+		SourceRepoPath:         c.SourceRepoPath,
+		SourceWorkspaceContext: c.SourceWorkspaceContext,
+		WorktreeBranch:         c.WorktreeBranch,
+		WorkingDirectory:       c.WorkingDirectory,
 	}
 }
 
@@ -2501,14 +2687,14 @@ type SessionSaveHealth struct {
 
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
-	Name               string               `json:"name"`
-	Description        string               `json:"description"`
-	Type               protocol.ChannelType `json:"type"`
-	CreatedBy          string               `json:"created_by,omitempty"`
-	Members            []string             `json:"members,omitempty"`
-	Messages           []*protocol.Message  `json:"messages"`
-	SessionSummary     string               `json:"session_summary,omitempty"`
-	SessionSummaryAt   time.Time            `json:"session_summary_at,omitempty"`
+	Name             string               `json:"name"`
+	Description      string               `json:"description"`
+	Type             protocol.ChannelType `json:"type"`
+	CreatedBy        string               `json:"created_by,omitempty"`
+	Members          []string             `json:"members,omitempty"`
+	Messages         []*protocol.Message  `json:"messages"`
+	SessionSummary   string               `json:"session_summary,omitempty"`
+	SessionSummaryAt time.Time            `json:"session_summary_at,omitempty"`
 }
 
 // ThreadSnapshot holds all messages and metadata for a single thread.

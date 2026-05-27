@@ -15,14 +15,16 @@ import (
 
 // Preset expert slugs for engineering specialists (used by /create-expert and DM spawn).
 var presetExpertTypes = map[string]protocol.AgentType{
-	"rust":      protocol.AgentTypeRust,
-	"biology":   protocol.AgentTypeBiology,
-	"backend":   protocol.AgentTypeBackend,
-	"frontend":  protocol.AgentTypeFrontend,
-	"devops":    protocol.AgentTypeDevOps,
-	"database":  protocol.AgentTypeDatabase,
-	"security":  protocol.AgentTypeSecurity,
-	"assistant": protocol.AgentTypeAssistant,
+	"rust":         protocol.AgentTypeRust,
+	"biology":      protocol.AgentTypeBiology,
+	"backend":      protocol.AgentTypeBackend,
+	"frontend":     protocol.AgentTypeFrontend,
+	"devops":       protocol.AgentTypeDevOps,
+	"database":     protocol.AgentTypeDatabase,
+	"security":     protocol.AgentTypeSecurity,
+	"architecture": protocol.AgentTypeArchitecture,
+	"code-review":  protocol.AgentTypeCodeReview,
+	"assistant":    protocol.AgentTypeAssistant,
 }
 
 // ExpertResolveResult describes how to instantiate an expert from a user slug.
@@ -35,11 +37,11 @@ type ExpertResolveResult struct {
 }
 
 var knownExpertProviders = map[string]struct{}{
-	"ollama":       {},
-	"claude":       {},
-	"lmstudio":     {},
-	"huggingface":  {},
-	"hf":           {},
+	"ollama":      {},
+	"claude":      {},
+	"lmstudio":    {},
+	"huggingface": {},
+	"hf":          {},
 }
 
 // normalizeCommandArg trims whitespace and leading/trailing punctuation from a slash-command token.

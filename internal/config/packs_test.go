@@ -82,7 +82,7 @@ func TestSyncAgentsFromPacksSoftwareDevelopment(t *testing.T) {
 func TestSyncAgentsFromPacksSoftwareDevelopmentDisabled(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Packs = DefaultPacksConfig()
-	cfg.Agents = append(cfg.Agents, AgentConfig{Type: "backend", Name: "GoExpert", Enabled: true})
+	cfg.Agents = append(cfg.Agents, AgentConfig{Type: "backend", Name: "BackendEngineer", Enabled: true})
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
 	cfg.SyncAgentsFromPacks()
 
@@ -96,14 +96,24 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	cfg.Packs = DefaultPacksConfig()
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	presets := cfg.AvailableExpertPresets()
-	hasRust := false
+	hasArchitecture := false
+	hasCodeReview := false
 	for _, p := range presets {
-		if p.Slug == "rust" && p.FromPack == PackSoftwareDevelopment {
-			hasRust = true
+		if p.Slug == "architecture" && p.FromPack == PackSoftwareDevelopment {
+			hasArchitecture = true
+		}
+		if p.Slug == "code-review" && p.FromPack == PackSoftwareDevelopment {
+			hasCodeReview = true
+		}
+		if p.Slug == "rust" || p.Slug == "database" {
+			t.Fatalf("legacy preset %q should not appear in software-development pack defaults", p.Slug)
 		}
 	}
-	if !hasRust {
-		t.Fatal("expected rust preset from software-development pack")
+	if !hasArchitecture {
+		t.Fatal("expected architecture preset from software-development pack")
+	}
+	if !hasCodeReview {
+		t.Fatal("expected code-review preset from software-development pack")
 	}
 }
 
@@ -116,12 +126,18 @@ func TestPresetExpertAllowed(t *testing.T) {
 	if cfg.PresetExpertAllowed("rust") {
 		t.Fatal("rust should be blocked when dev pack off")
 	}
+	if cfg.PresetExpertAllowed("code-review") {
+		t.Fatal("code-review should be blocked when dev pack off")
+	}
 	if cfg.PresetExpertAllowed("biology") {
 		t.Fatal("biology should be blocked when life-sciences off")
 	}
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	if !cfg.PresetExpertAllowed("rust") {
-		t.Fatal("rust should be allowed when dev pack on")
+		t.Fatal("legacy rust should be allowed when dev pack on")
+	}
+	if !cfg.PresetExpertAllowed("code-review") {
+		t.Fatal("code-review should be allowed when dev pack on")
 	}
 	if !cfg.PresetExpertAllowed("guitar") {
 		t.Fatal("custom slugs should be allowed")
@@ -131,7 +147,7 @@ func TestPresetExpertAllowed(t *testing.T) {
 func TestMigrateSoftwareDevelopmentPackIfNeeded(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Packs = DefaultPacksConfig()
-	cfg.Agents = []AgentConfig{{Type: "backend", Name: "GoExpert", Enabled: true}}
+	cfg.Agents = []AgentConfig{{Type: "backend", Name: "BackendEngineer", Enabled: true}}
 	delete(cfg.Packs.Enabled, PackSoftwareDevelopment)
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
 	if !cfg.Packs.Enabled[PackSoftwareDevelopment] {
@@ -139,10 +155,21 @@ func TestMigrateSoftwareDevelopmentPackIfNeeded(t *testing.T) {
 	}
 }
 
+func TestMigrateSoftwareDevelopmentPackIfNeededLegacySpecialist(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Packs = DefaultPacksConfig()
+	cfg.Agents = []AgentConfig{{Type: "rust", Name: "RustExpert", Enabled: true}}
+	delete(cfg.Packs.Enabled, PackSoftwareDevelopment)
+	cfg.migrateSoftwareDevelopmentPackIfNeeded()
+	if !cfg.Packs.Enabled[PackSoftwareDevelopment] {
+		t.Fatal("expected legacy rust specialist to enable software-development pack")
+	}
+}
+
 func TestSpecialistShouldBeRunningPackOffOverridesConfig(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Packs = DefaultPacksConfig()
-	cfg.Agents = []AgentConfig{{Type: "backend", Name: "GoExpert", Enabled: true}}
+	cfg.Agents = []AgentConfig{{Type: "backend", Name: "BackendEngineer", Enabled: true}}
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
 	if cfg.SpecialistShouldBeRunning("backend") {
 		t.Fatal("expected backend not running when software-development pack off even if config enabled")
@@ -150,6 +177,20 @@ func TestSpecialistShouldBeRunningPackOffOverridesConfig(t *testing.T) {
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	if !cfg.SpecialistShouldBeRunning("backend") {
 		t.Fatal("expected backend running when pack on and config enabled")
+	}
+}
+
+func TestLegacySpecialistShouldBeRunningPackGated(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Packs = DefaultPacksConfig()
+	cfg.Agents = []AgentConfig{{Type: "database", Name: "DatabaseSpecialist", Enabled: true}}
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
+	if cfg.SpecialistShouldBeRunning("database") {
+		t.Fatal("expected legacy database specialist not running when software-development pack off")
+	}
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	if !cfg.SpecialistShouldBeRunning("database") {
+		t.Fatal("expected legacy database specialist running when pack on and config enabled")
 	}
 }
 

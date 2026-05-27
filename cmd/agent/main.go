@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	agentType  = flag.String("type", "backend", "Agent type (frontend, backend, devops, database, security, rust, repo)")
+	agentType  = flag.String("type", "backend", "Agent type (frontend, backend, devops, security, architecture, code-review, database, rust, biology, repo)")
 	agentName  = flag.String("name", "", "Agent name (optional, will be auto-generated)")
 	channel    = flag.String("channel", "general", "Channel to join")
 	serverAddr = flag.String("server", "http://localhost:18765", "Chat hub server address")
@@ -262,19 +262,21 @@ func main() {
 	// Validate agent type
 	aType := protocol.AgentType(*agentType)
 	validTypes := map[protocol.AgentType]bool{
-		protocol.AgentTypeFrontend:  true,
-		protocol.AgentTypeBackend:   true,
-		protocol.AgentTypeDevOps:    true,
-		protocol.AgentTypeDatabase:  true,
-		protocol.AgentTypeSecurity:  true,
-		protocol.AgentTypeRust:      true,
-		protocol.AgentTypeBiology:   true,
-		protocol.AgentTypeRepo:      true,
-		protocol.AgentTypeAssistant: true,
+		protocol.AgentTypeFrontend:     true,
+		protocol.AgentTypeBackend:      true,
+		protocol.AgentTypeDevOps:       true,
+		protocol.AgentTypeDatabase:     true,
+		protocol.AgentTypeSecurity:     true,
+		protocol.AgentTypeRust:         true,
+		protocol.AgentTypeArchitecture: true,
+		protocol.AgentTypeCodeReview:   true,
+		protocol.AgentTypeBiology:      true,
+		protocol.AgentTypeRepo:         true,
+		protocol.AgentTypeAssistant:    true,
 	}
 
 	if !validTypes[aType] {
-		log.Fatalf("Invalid agent type: %s. Valid types: frontend, backend, devops, database, security, rust, biology, repo, assistant", *agentType)
+		log.Fatalf("Invalid agent type: %s. Valid types: frontend, backend, devops, security, architecture, code-review, database, rust, biology, repo, assistant", *agentType)
 	}
 
 	// Validate repo path for repo agents
@@ -388,13 +390,15 @@ func main() {
 
 func generateAgentName(agentType protocol.AgentType) string {
 	names := map[protocol.AgentType][]string{
-		protocol.AgentTypeFrontend: {"React Specialist", "Vue Expert", "UI/UX Master", "Frontend Guru"},
-		protocol.AgentTypeBackend:  {"API Architect", "Backend Expert", "Microservices Pro", "Go Master"},
-		protocol.AgentTypeDevOps:   {"DevOps Engineer", "Cloud Architect", "Infrastructure Expert", "CI/CD Specialist"},
-		protocol.AgentTypeDatabase: {"Database Expert", "SQL Master", "Data Architect", "Query Optimizer"},
-		protocol.AgentTypeSecurity: {"Security Expert", "InfoSec Specialist", "Cybersecurity Pro", "Auth Master"},
-		protocol.AgentTypeRust:     {"Rust Expert", "Rust Architect", "Cargo Master", "Ownership Guru"},
-		protocol.AgentTypeRepo:     {"Repo Expert", "Code Navigator", "Project Guide", "Codebase Oracle"},
+		protocol.AgentTypeFrontend:     {"Frontend Engineer", "UI Engineer", "Accessibility Reviewer", "Design Systems Partner"},
+		protocol.AgentTypeBackend:      {"Backend Engineer", "API Architect", "Service Designer", "Integration Partner"},
+		protocol.AgentTypeDevOps:       {"Platform Engineer", "Infrastructure Partner", "Deployment Reviewer", "CI/CD Specialist"},
+		protocol.AgentTypeDatabase:     {"Database Specialist", "Data Architect", "Query Optimizer", "Migration Reviewer"},
+		protocol.AgentTypeSecurity:     {"Security Reviewer", "InfoSec Partner", "Threat Modeler", "Auth Reviewer"},
+		protocol.AgentTypeRust:         {"Rust Expert", "Rust Architect", "Cargo Master", "Ownership Guru"},
+		protocol.AgentTypeArchitecture: {"Software Architect", "System Designer", "Architecture Reviewer", "Migration Planner"},
+		protocol.AgentTypeCodeReview:   {"Code Reviewer", "Quality Reviewer", "Regression Reviewer", "Maintainability Reviewer"},
+		protocol.AgentTypeRepo:         {"Repo Expert", "Code Navigator", "Project Guide", "Codebase Oracle"},
 	}
 
 	nameList := names[agentType]

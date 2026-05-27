@@ -69,7 +69,7 @@ Pair with `docs/media/general-experts-guitar.mp4` if you don't have a dedicated 
 | "I already use ChatGPT + Claude in two tabs" | Same habit, one app — shared thread, less re-explaining. Per-expert routing if you use different APIs. |
 | "How is this different from Collaborate?" | **Agent review** = one answer, one checker, 30 seconds. **Collaborate** = several experts debate a plan you approve — launch, vendor pick, annual budget. |
 | "Will the AIs argue forever?" | Review is one level deep, you @mention who checks whom. Collab has turn limits. |
-| "Is this for coding?" | This ad is for **everyday decisions**; devs use the same pattern with @SecurityExpert on @GoExpert. |
+| "Is this for coding?" | This ad is for **everyday decisions**; devs use the same pattern with @SecurityReviewer on @BackendEngineer. |
 
 ---
 

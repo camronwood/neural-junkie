@@ -1,13 +1,19 @@
 import { useState } from 'react';
 import { CommandSuggestion, useTerminalStore } from '../stores/terminalStore';
 import { terminalAPI } from '../api/terminalAPI';
+import { runAgentTerminalCommand } from '../utils/runTerminalCommand';
+import type { ChatAPI } from '../api/chatAPI';
 
 interface SuggestionBannerProps {
   suggestions: CommandSuggestion[];
   activeTabId: string;
+  channel: string;
+  api: ChatAPI;
+  /** When set, safe commands auto-run in this cwd context. */
+  collaboration?: import('../types/protocol').Collaboration | null;
 }
 
-export function SuggestionBanner({ suggestions, activeTabId }: SuggestionBannerProps) {
+export function SuggestionBanner({ suggestions, activeTabId, channel, api, collaboration }: SuggestionBannerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const { removeSuggestedCommand } = useTerminalStore();
 
@@ -15,10 +21,12 @@ export function SuggestionBanner({ suggestions, activeTabId }: SuggestionBannerP
   if (!suggestion) return null;
 
   const handleRun = async () => {
-    const cmd = suggestion.command;
     removeSuggestedCommand(suggestion.id);
-    // Write the command text + Enter into the active PTY so the user sees it execute normally
-    await terminalAPI.writePtySession(activeTabId, cmd + '\n');
+    try {
+      await runAgentTerminalCommand(suggestion, { collaboration, channel, api });
+    } catch {
+      await terminalAPI.writePtySession(activeTabId, suggestion.command + '\n');
+    }
   };
 
   const handleDismiss = () => {

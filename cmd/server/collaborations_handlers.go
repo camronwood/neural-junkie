@@ -39,6 +39,21 @@ func handleCollaborationsSubRoute(w http.ResponseWriter, r *http.Request) {
 		handleCollabPause(w, id, false)
 		return
 	}
+	if len(parts) >= 4 && parts[1] == "participant-requests" {
+		agentID := parts[2]
+		switch parts[3] {
+		case "approve":
+			if r.Method == http.MethodPost {
+				handleCollabParticipantRequest(w, id, agentID, true)
+				return
+			}
+		case "deny":
+			if r.Method == http.MethodPost {
+				handleCollabParticipantRequest(w, id, agentID, false)
+				return
+			}
+		}
+	}
 	if len(parts) >= 4 && parts[1] == "tasks" {
 		taskID := parts[2]
 		switch parts[3] {
@@ -149,6 +164,23 @@ func handleCollabTaskApprove(w http.ResponseWriter, collabID, taskID string) {
 	}
 	chatHub.DispatchReadyCollabTasksForSnapshot(snap, false)
 	snap, _ = cm.GetCollaborationSnapshot(collabID)
+	writeCollabJSON(w, snap)
+}
+
+func handleCollabParticipantRequest(w http.ResponseWriter, collabID, agentID string, approve bool) {
+	var (
+		snap *collaboration.Collaboration
+		err  error
+	)
+	if approve {
+		snap, err = chatHub.ApproveCollaborationParticipantRequest(collabID, agentID)
+	} else {
+		snap, err = chatHub.DenyCollaborationParticipantRequest(collabID, agentID)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	writeCollabJSON(w, snap)
 }
 

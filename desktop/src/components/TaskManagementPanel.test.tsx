@@ -44,7 +44,7 @@ describe('TaskManagementPanel collaboration regressions', () => {
     expect(screen.getByText('Collaborations • 1 tracked')).toBeInTheDocument();
     expect(screen.getByText('Ship collaboration UI fixes')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Resume plan'));
+    fireEvent.click(screen.getByText('Approve & start'));
     await waitFor(() =>
       expect(onCollaborationCommand).toHaveBeenCalledWith('approve', collab.id)
     );

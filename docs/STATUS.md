@@ -21,11 +21,12 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 ### Agent Types (10)
 - **Moderator** -- Auto-started, chat guidance, command help, safety-net timer
 - **Assistant** -- Reminders, tasks, notes, meetings, scheduling (persistent storage)
-- **Frontend** (ReactExpert) -- React, Vue, Angular, TypeScript, CSS, UI/UX, vision
-- **Backend** (GoExpert) -- Go, Node, Python, REST/GraphQL/gRPC, microservices
-- **DevOps** (DevOpsPro) -- Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform
-- **Database** (SQLMaster) -- PostgreSQL, MySQL, MongoDB, Redis, schema, optimization
-- **Security** (SecurityExpert) -- Auth, OAuth/JWT, encryption, OWASP, compliance
+- **Frontend** (FrontendEngineer) -- web/desktop UI, accessibility, design systems, visual QA
+- **Backend** (BackendEngineer) -- APIs, services, integrations, business logic, performance
+- **Platform** (PlatformEngineer) -- deployment, CI/CD, cloud infrastructure, observability
+- **Security** (SecurityReviewer) -- auth, encryption, threat modeling, OWASP, compliance
+- **Architecture** (SoftwareArchitect) -- system design, service boundaries, migrations
+- **Code Review** (CodeReviewer) -- correctness, tests, maintainability, regressions
 - **Repository Expert** -- Codebase indexing, file watching, project-specific Q&A
 - **Confluence Agent** -- Confluence Cloud space indexing and documentation search
 - **Cursor CLI Agent** -- Cursor CLI integration for code analysis

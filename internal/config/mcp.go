@@ -8,8 +8,8 @@ import (
 type MCPConfig struct {
 	// Enabled is the master switch (default true in DefaultConfig).
 	Enabled bool `json:"enabled"`
-	// Agents overrides per agent type (backend, devops, database, biology, …).
-	// Missing keys use defaults: backend/devops/database/biology follow agent enabled; frontend/security off.
+	// Agents overrides per agent type (backend, devops, database, biology, ...).
+	// Missing keys use defaults: backend/devops/biology follow agent enabled; frontend/security off.
 	Agents map[string]bool `json:"agents,omitempty"`
 	// Ports optional per agent type (backend, devops, …).
 	Ports map[string]int `json:"ports,omitempty"`
@@ -38,7 +38,6 @@ func DefaultMCPConfig() MCPConfig {
 		Agents: map[string]bool{
 			"backend":  true,
 			"devops":   true,
-			"database": true,
 			"biology":  true,
 			"frontend": false,
 			"security": false,

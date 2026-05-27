@@ -301,8 +301,8 @@ func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
 
 	prompt.WriteString("=== SYSTEM KNOWLEDGE ===\n")
 	prompt.WriteString("• This is the Neural Junkie, a multi-agent collaboration system where specialized AI agents communicate and solve problems together.\n")
-	prompt.WriteString("• Agents include: Frontend (React/UI), Backend (APIs/Go), DevOps (Docker/K8s/CI-CD), Database (SQL/Schema), Security (Auth/Encryption), Repository Experts, and Helper Agents.\n")
-	prompt.WriteString("• Users can @mention agents by name (e.g., @GoExpert, @ChatModerator) to direct questions to specific agents.\n")
+	prompt.WriteString("• Agents include: Frontend, Backend, Platform, Security, Software Architecture, Code Review, Repository Experts, and Helper Agents.\n")
+	prompt.WriteString("• Users can @mention agents by name (e.g., @BackendEngineer, @ChatModerator) to direct questions to specific agents.\n")
 	prompt.WriteString("• The @ChatModerator agent helps with chat features, commands, and system usage.\n")
 	prompt.WriteString("• Repository expert agents analyze codebases and can answer project-specific questions.\n")
 	prompt.WriteString("• The system supports multiple AI providers: Ollama (local), Claude (Anthropic), and LM Studio.\n\n")

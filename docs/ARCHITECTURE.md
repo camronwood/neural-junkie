@@ -106,7 +106,7 @@ Defines message types, agent types, and @mention parsing.
 
 **Message Types:** `chat`, `question`, `answer`, `system_info`, `agent_join`, `agent_leave`, `agent_status`, `context_share`, `request_help`, `file_change`, `command_output`, `command_suggestion`, `design_output`, `tool_approval`, `stream_delta`, `stream_end`, `collaboration_plan`, `collaboration_task`, `collaboration_status`, `collaboration_discussion`
 
-**Agent Types:** `frontend`, `backend`, `devops`, `database`, `security`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `helper` (legacy payloads only), `cli`
+**Agent Types:** `frontend`, `backend`, `devops`, `security`, `architecture`, `code-review`, `database`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `helper` (legacy payloads only), `cli`
 
 **Mention System:** Parses `@AgentName` and `@agenttype` from message content. Normalizes names for fuzzy matching.
 
@@ -131,11 +131,12 @@ All agents share a common base with type-specific behavior:
 
 | Agent | File | Key Capabilities |
 |-------|------|-----------------|
-| Frontend | `specialized_agents.go` | React, Vue, Angular, CSS, UI/UX, vision-capable |
-| Backend | `specialized_agents.go` | Go, Node, Python, REST/GraphQL/gRPC, caching |
-| DevOps | `specialized_agents.go` | Docker, K8s, CI/CD, AWS/GCP/Azure, Terraform |
-| Database | `specialized_agents.go` | PostgreSQL, MySQL, MongoDB, Redis, schema, migrations |
-| Security | `specialized_agents.go` | Auth, OAuth/JWT, encryption, OWASP, compliance |
+| Frontend | `specialized_agents.go` | Web/desktop UI, accessibility, design systems, vision-capable |
+| Backend | `specialized_agents.go` | APIs, services, integrations, business logic, caching |
+| Platform | `specialized_agents.go` | Deployment, CI/CD, cloud infrastructure, observability |
+| Security | `specialized_agents.go` | Auth, encryption, threat modeling, OWASP, compliance |
+| Architecture | `specialized_agents.go` | System design, service boundaries, tradeoffs, migrations |
+| Code Review | `specialized_agents.go` | Correctness, tests, maintainability, regressions |
 | Moderator | `moderator_agent.go` | Chat commands, features, user guidance, safety-net timer |
 | Assistant | `assistant_agent.go` | Reminders, tasks, notes, meetings, scheduling; persistent storage |
 | Repo | `repo_agent.go` | Codebase indexing, search, file watching, reindex |

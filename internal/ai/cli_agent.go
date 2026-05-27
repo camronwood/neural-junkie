@@ -394,8 +394,20 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	}
 
 	ch := make(chan StreamToken, 64)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-timeoutCtx.Done():
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			_ = stdoutPipe.Close()
+		case <-done:
+		}
+	}()
 	go func() {
 		defer close(ch)
+		defer close(done)
 		defer cancel()
 
 		// Gemini CLI on a PTY often multiplexes stderr, progress UI, and echoed prompts
@@ -412,6 +424,16 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 			raw, readErr := io.ReadAll(stdoutPipe)
 			geminiRawLen = len(raw)
 			if readErr != nil && !errors.Is(readErr, io.EOF) {
+				if timeoutCtx.Err() == context.DeadlineExceeded {
+					ch <- StreamToken{Error: fmt.Errorf("%w after %s", ErrCLIProviderTimeout, c.Timeout), Done: true}
+					_ = cmd.Wait()
+					return
+				}
+				if errors.Is(timeoutCtx.Err(), context.Canceled) {
+					ch <- StreamToken{Error: context.Canceled, Done: true}
+					_ = cmd.Wait()
+					return
+				}
 				ch <- StreamToken{Error: fmt.Errorf("CLI agent stream read error: %w", readErr), Done: true}
 				if cmd.Process != nil {
 					_ = cmd.Process.Kill()

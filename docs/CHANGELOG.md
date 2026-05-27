@@ -6,6 +6,23 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.18] - 2026-05-27
+
+### Added
+- **Collaboration reliability** — `make collab-smoke` / `LIVE=1` exercises planning → review → execute with real hub agents; `debug-collab.py` for live session inspection.
+- **Plan path warnings** — `/approve-plan` surfaces missing task context paths under the bound project repo.
+
+### Changed
+- **Execution task prompts** — assignees are told to ship `[FILE_CHANGE]` deliverables and end with `TASK_STATUS: completed` or `blocked` (chat-only replies do not complete tasks).
+- **`/collaborate --workspace`** — workspace outline metadata is attached only when `--workspace` is passed (not on every outbound desktop message).
+- **Collaboration panel** — phase and snapshot stay in sync while the panel is open (polling + merged hub state).
+
+### Fixed
+- **Multi-collab phase routing** — agents use the message’s collaboration id for phase gating, so a planning collab is not blocked when another collab is executing.
+- **Source workspace binding** — rejects Neural Junkie sandboxes and project `collabs/<uuid>/` deliverable folders; open the git repo root (e.g. Phoenix), not a prior collab output directory.
+- **Task extraction** — parses markdown `## Tasks` numbered bold lines (`1. **Title** (@Agent)`), skips milestone/metadata bullets, and drops weak fragment bullets (`task is to…`, `should perform…`).
+- **Run command detection** — bare paths in ` ```bash ` blocks (e.g. `findings.md`, `collabs/<id>/file.md`) are not offered as shell commands.
+
 ## [1.0.0-beta.17] - 2026-05-26
 
 ### Added

@@ -87,7 +87,7 @@ Start a fresh collaboration:
 ```bash
 curl -s -X POST "http://localhost:18765/api/send" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"unit-testing","content":"/collaborate @RustExpert @ReactExpert run collaboration probe","type":"question","from":{"name":"Camron","type":"human"}}'
+  -d '{"channel":"unit-testing","content":"/collaborate @BackendEngineer @CodeReviewer run collaboration probe","type":"question","from":{"name":"Camron","type":"human"}}'
 ```
 
 Pass criteria in logs:

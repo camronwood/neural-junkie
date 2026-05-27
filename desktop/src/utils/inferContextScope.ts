@@ -81,6 +81,12 @@ function wantsActiveEditorContext(text: string, activeTabPath?: string): boolean
  */
 export function resolveContextScope(input: InferContextScopeInput): InferContextScopeResult {
   const text = (input.message ?? '').trim();
+  if (/^\s*\/collaborate\b/i.test(text)) {
+    return {
+      scope: 'outline',
+      reason: 'collaboration command includes project tree without open-file bodies',
+    };
+  }
   if (input.messageOverride) {
     return { scope: input.messageOverride, reason: 'manual override' };
   }

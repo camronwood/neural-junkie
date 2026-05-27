@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandForm } from './CommandForm';
 import type { ChatAPI } from '../api/chatAPI';
-import type { AgentInfo, CommandDefinition } from '../types/protocol';
+import type { AgentInfo, Collaboration, CommandDefinition } from '../types/protocol';
 
 const createRepoAgentCommand: CommandDefinition = {
   name: '/create-repo-agent',
@@ -121,6 +121,31 @@ describe('CommandForm /collaborate quick select', () => {
       '/collaborate --rounds 6 --messages 35 @RustExpert @ReactExpert Ship the feature'
     );
   });
+
+  it('includes --allow-agent-adds only when expansion requests are enabled', () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <CommandForm
+        command={collaborateCommand}
+        agents={agents}
+        onSubmit={onSubmit}
+        onBack={() => {}}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/prompt/i), {
+      target: { value: 'Plan with optional reviewers' },
+    });
+    fireEvent.click(screen.getByText('RustExpert'));
+    fireEvent.click(screen.getByText('ReactExpert'));
+    fireEvent.click(screen.getByLabelText(/allow agent expansion requests/i));
+    fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      '/collaborate --allow-agent-adds @RustExpert @ReactExpert Plan with optional reviewers'
+    );
+  });
 });
 
 describe('CommandForm path and model fields', () => {
@@ -223,5 +248,161 @@ describe('CommandForm path and model fields', () => {
     expect(screen.getByRole('option', { name: 'Select repo agent...' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /RustExpert/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Claude/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('CommandForm known list dropdowns', () => {
+  it('renders string options from command definitions as a dropdown', () => {
+    const onSubmit = vi.fn();
+    const createExpertCommand: CommandDefinition = {
+      name: '/create-expert',
+      description: 'Create a specialist agent',
+      category: 'Expert Agents',
+      arguments: [
+        {
+          name: 'type',
+          description: 'Expert type',
+          type: 'string',
+          required: true,
+          options: ['backend', 'frontend', 'security'],
+        },
+      ],
+    };
+
+    render(
+      <CommandForm
+        command={createExpertCommand}
+        agents={agents}
+        onSubmit={onSubmit}
+        onBack={() => {}}
+      />
+    );
+
+    expect(screen.getByRole('option', { name: 'backend' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^type/i), { target: { value: 'backend' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
+
+    expect(onSubmit).toHaveBeenCalledWith('/create-expert backend');
+  });
+
+  it('renders collaboration IDs as selectable short IDs', () => {
+    const onSubmit = vi.fn();
+    const resumeCommand: CommandDefinition = {
+      name: '/resume-plan',
+      description: 'Resume a collaboration',
+      category: 'Collaboration',
+      arguments: [
+        {
+          name: 'collab-id',
+          description: 'Collaboration ID',
+          type: 'collaboration-id',
+          required: true,
+        },
+      ],
+    };
+    const collaborations: Collaboration[] = [
+      {
+        id: '11111111-2222-3333-4444-555555555555',
+        title: 'Review migration plan',
+        description: 'Review migration plan',
+        phase: 'reviewing',
+        agents: [],
+        channel: 'collab-11111111',
+        created_by: 'User',
+        created_at: '2026-05-26T00:00:00Z',
+        updated_at: '2026-05-26T00:00:00Z',
+      },
+    ];
+
+    render(
+      <CommandForm
+        command={resumeCommand}
+        agents={agents}
+        collaborations={collaborations}
+        onSubmit={onSubmit}
+        onBack={() => {}}
+      />
+    );
+
+    expect(screen.getByRole('option', { name: /Review migration plan .*11111111/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/collab-id/i), { target: { value: '11111111' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
+
+    expect(onSubmit).toHaveBeenCalledWith('/resume-plan 11111111');
+  });
+
+  it('renders collaboration tasks after a collaboration is selected', () => {
+    const onSubmit = vi.fn();
+    const taskDoneCommand: CommandDefinition = {
+      name: '/collab-task-done',
+      description: 'Mark one collaboration task complete',
+      category: 'Collaboration',
+      arguments: [
+        {
+          name: 'collab-id',
+          description: 'Collaboration ID',
+          type: 'collaboration-id',
+          required: true,
+        },
+        {
+          name: 'task',
+          description: 'Task number',
+          type: 'collaboration-task',
+          required: true,
+        },
+      ],
+    };
+    const collaborations: Collaboration[] = [
+      {
+        id: '11111111-2222-3333-4444-555555555555',
+        title: 'Build dropdowns',
+        description: 'Build dropdowns',
+        phase: 'executing',
+        agents: [],
+        channel: 'collab-11111111',
+        created_by: 'User',
+        created_at: '2026-05-26T00:00:00Z',
+        updated_at: '2026-05-26T00:00:00Z',
+        tasks: [
+          {
+            id: 'task-1',
+            title: 'Wire command form',
+            description: 'Wire command form',
+            assigned_to: 'a1',
+            assigned_name: 'RustExpert',
+            status: 'completed',
+            created_at: '2026-05-26T00:00:00Z',
+            updated_at: '2026-05-26T00:00:00Z',
+          },
+          {
+            id: 'task-2',
+            title: 'Add tests',
+            description: 'Add tests',
+            assigned_to: 'a2',
+            assigned_name: 'ReactExpert',
+            status: 'pending',
+            created_at: '2026-05-26T00:00:00Z',
+            updated_at: '2026-05-26T00:00:00Z',
+          },
+        ],
+      },
+    ];
+
+    render(
+      <CommandForm
+        command={taskDoneCommand}
+        agents={agents}
+        collaborations={collaborations}
+        onSubmit={onSubmit}
+        onBack={() => {}}
+      />
+    );
+
+    expect(screen.getByLabelText(/^task/i)).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/collab-id/i), { target: { value: '11111111' } });
+    fireEvent.change(screen.getByLabelText(/^task/i), { target: { value: '2' } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
+
+    expect(onSubmit).toHaveBeenCalledWith('/collab-task-done 11111111 2');
   });
 });

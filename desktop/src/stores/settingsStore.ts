@@ -17,6 +17,14 @@ export interface Settings {
   hiddenAgentIdsForSidebar?: string[];
   /** Stable agent keys (type:name) hidden from the sidebar shortcut list; survives agent restarts. */
   hiddenAgentSidebarKeys?: string[];
+  /** DM channel names permanently removed from the sidebar. */
+  deletedDmChannelNames?: string[];
+  /** Collaboration channel names permanently removed from the sidebar. */
+  deletedCollaborationChannelNames?: string[];
+  /** Agent IDs permanently removed from the sidebar shortcut list (legacy). */
+  deletedAgentIdsForSidebar?: string[];
+  /** Stable agent keys (type:name) permanently removed from the sidebar shortcut list. */
+  deletedAgentSidebarKeys?: string[];
 }
 
 export interface AnthropicSettings {

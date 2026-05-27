@@ -21,7 +21,7 @@ import type {
 import { ChatAPI, type PackStatus } from '../api/chatAPI';
 import { usePacksStore, PACK_SOFTWARE_DEVELOPMENT } from '../stores/packsStore';
 import { patchRevealActiveAgentsInSidebar } from '../utils/sidebarVisibility';
-import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
+import { agentSidebarHideKey, parseDMDisplayName } from '../utils/dmChannelDisplay';
 import { ProviderManager } from './ProviderManager';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 import { open } from '@tauri-apps/api/dialog';
@@ -980,6 +980,116 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const addUnique = (items: string[] | undefined, value: string): string[] => {
+    const cur = items ?? [];
+    return cur.includes(value) ? cur : [...cur, value];
+  };
+
+  const removeItem = (items: string[] | undefined, value: string): string[] =>
+    (items ?? []).filter((x) => x !== value);
+
+  const findAgentForDmChannel = (channelName: string) => {
+    const ch = channels.find((c) => c.name === channelName);
+    if (!ch) return undefined;
+    const agentId = ch.agents?.[0]?.id ?? ch.members?.[0];
+    return (
+      (agentId ? agents.find((a) => a.id === agentId) : undefined) ??
+      agents.find((a) => a.name.toLowerCase() === parseDMDisplayName(ch).toLowerCase())
+    );
+  };
+
+  const unhideDmChannel = (name: string) => {
+    const agent = findAgentForDmChannel(name);
+    const key = agent ? agentSidebarHideKey(agent) : '';
+    void updateSettings({
+      hiddenDmChannelNames: removeItem(settings.hiddenDmChannelNames, name),
+      deletedDmChannelNames: removeItem(settings.deletedDmChannelNames, name),
+      ...(agent
+        ? {
+            hiddenAgentIdsForSidebar: removeItem(settings.hiddenAgentIdsForSidebar, agent.id),
+            hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
+            deletedAgentIdsForSidebar: removeItem(settings.deletedAgentIdsForSidebar, agent.id),
+            deletedAgentSidebarKeys: removeItem(settings.deletedAgentSidebarKeys, key),
+          }
+        : {}),
+    });
+  };
+
+  const deleteHiddenDmChannel = (name: string) => {
+    const agent = findAgentForDmChannel(name);
+    const key = agent ? agentSidebarHideKey(agent) : '';
+    void updateSettings({
+      hiddenDmChannelNames: removeItem(settings.hiddenDmChannelNames, name),
+      deletedDmChannelNames: addUnique(settings.deletedDmChannelNames, name),
+      ...(agent
+        ? {
+            hiddenAgentIdsForSidebar: removeItem(settings.hiddenAgentIdsForSidebar, agent.id),
+            hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
+            deletedAgentIdsForSidebar: addUnique(settings.deletedAgentIdsForSidebar, agent.id),
+            deletedAgentSidebarKeys: addUnique(settings.deletedAgentSidebarKeys, key),
+          }
+        : {}),
+    });
+  };
+
+  const unhideCollaborationChannel = (name: string) => {
+    void updateSettings({
+      hiddenCollaborationChannelNames: removeItem(settings.hiddenCollaborationChannelNames, name),
+      deletedCollaborationChannelNames: removeItem(settings.deletedCollaborationChannelNames, name),
+    });
+  };
+
+  const deleteHiddenCollaborationChannel = (name: string) => {
+    void updateSettings({
+      hiddenCollaborationChannelNames: removeItem(settings.hiddenCollaborationChannelNames, name),
+      deletedCollaborationChannelNames: addUnique(settings.deletedCollaborationChannelNames, name),
+    });
+  };
+
+  const unhideAgentShortcutKey = (key: string) => {
+    void updateSettings({
+      hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
+      deletedAgentSidebarKeys: removeItem(settings.deletedAgentSidebarKeys, key),
+    });
+  };
+
+  const deleteHiddenAgentShortcutKey = (key: string) => {
+    void updateSettings({
+      hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
+      deletedAgentSidebarKeys: addUnique(settings.deletedAgentSidebarKeys, key),
+    });
+  };
+
+  const unhideAgentShortcutId = (id: string) => {
+    const agent = agents.find((a) => a.id === id);
+    const key = agent ? agentSidebarHideKey(agent) : '';
+    void updateSettings({
+      hiddenAgentIdsForSidebar: removeItem(settings.hiddenAgentIdsForSidebar, id),
+      deletedAgentIdsForSidebar: removeItem(settings.deletedAgentIdsForSidebar, id),
+      ...(agent
+        ? {
+            hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
+            deletedAgentSidebarKeys: removeItem(settings.deletedAgentSidebarKeys, key),
+          }
+        : {}),
+    });
+  };
+
+  const deleteHiddenAgentShortcutId = (id: string) => {
+    const agent = agents.find((a) => a.id === id);
+    const key = agent ? agentSidebarHideKey(agent) : '';
+    void updateSettings({
+      hiddenAgentIdsForSidebar: removeItem(settings.hiddenAgentIdsForSidebar, id),
+      deletedAgentIdsForSidebar: addUnique(settings.deletedAgentIdsForSidebar, id),
+      ...(agent
+        ? {
+            hiddenAgentSidebarKeys: removeItem(settings.hiddenAgentSidebarKeys, key),
+            deletedAgentSidebarKeys: addUnique(settings.deletedAgentSidebarKeys, key),
+          }
+        : {}),
+    });
+  };
+
   // Integration handlers
   const handleAnthropicChange = (field: keyof AnthropicSettings, value: string | boolean) => {
     setAnthropicForm(prev => ({ ...prev, [field]: value }));
@@ -1511,7 +1621,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div>
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Hidden from sidebar</h3>
                 <p className="text-sm text-slack-textMuted mb-3">
-                  DM rows, collaborations, or agent shortcuts you hid. They reappear automatically when you open them or when an agent becomes active again (e.g. enabling a domain pack). Use Unhide here anytime (nothing is deleted or cancelled).
+                  DM rows, collaborations, or agent shortcuts you hid. Use Unhide to restore them, or Delete to keep them off the sidebar permanently.
                 </p>
                 {(settings.hiddenDmChannelNames?.length ?? 0) === 0 &&
                 (settings.hiddenCollaborationChannelNames?.length ?? 0) === 0 &&
@@ -1528,17 +1638,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <span className="text-sm text-slack-text truncate" title={name}>
                           DM: {channels.find((c) => c.name === name)?.description || name}
                         </span>
-                        <button
-                          type="button"
-                          className="shrink-0 text-xs text-slack-accent hover:underline"
-                          onClick={() =>
-                            void updateSettings({
-                              hiddenDmChannelNames: (settings.hiddenDmChannelNames ?? []).filter((n) => n !== name),
-                            })
-                          }
-                        >
-                          Unhide
-                        </button>
+                        <div className="shrink-0 flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="text-xs text-slack-accent hover:underline"
+                            onClick={() => unhideDmChannel(name)}
+                          >
+                            Unhide
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                            onClick={() => deleteHiddenDmChannel(name)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     ))}
                     {(settings.hiddenCollaborationChannelNames ?? []).map((name) => {
@@ -1555,19 +1670,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           <span className="text-sm text-slack-text truncate" title={name}>
                             Collab: {label}
                           </span>
-                          <button
-                            type="button"
-                            className="shrink-0 text-xs text-slack-accent hover:underline"
-                            onClick={() =>
-                              void updateSettings({
-                                hiddenCollaborationChannelNames: (
-                                  settings.hiddenCollaborationChannelNames ?? []
-                                ).filter((n) => n !== name),
-                              })
-                            }
-                          >
-                            Unhide
-                          </button>
+                          <div className="shrink-0 flex items-center gap-3">
+                            <button
+                              type="button"
+                              className="text-xs text-slack-accent hover:underline"
+                              onClick={() => unhideCollaborationChannel(name)}
+                            >
+                              Unhide
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                              onClick={() => deleteHiddenCollaborationChannel(name)}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1581,19 +1699,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           <span className="text-sm text-slack-text truncate">
                             Agent shortcut: {label}
                           </span>
-                          <button
-                            type="button"
-                            className="shrink-0 text-xs text-slack-accent hover:underline"
-                            onClick={() =>
-                              void updateSettings({
-                                hiddenAgentSidebarKeys: (settings.hiddenAgentSidebarKeys ?? []).filter(
-                                  (x) => x !== key
-                                ),
-                              })
-                            }
-                          >
-                            Unhide
-                          </button>
+                          <div className="shrink-0 flex items-center gap-3">
+                            <button
+                              type="button"
+                              className="text-xs text-slack-accent hover:underline"
+                              onClick={() => unhideAgentShortcutKey(key)}
+                            >
+                              Unhide
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                              onClick={() => deleteHiddenAgentShortcutKey(key)}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1605,27 +1726,22 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <span className="text-sm text-slack-text truncate">
                           Agent shortcut: {agents.find((a) => a.id === id)?.name || id}
                         </span>
-                        <button
-                          type="button"
-                          className="shrink-0 text-xs text-slack-accent hover:underline"
-                          onClick={() => {
-                            const agent = agents.find((a) => a.id === id);
-                            void updateSettings({
-                              hiddenAgentIdsForSidebar: (settings.hiddenAgentIdsForSidebar ?? []).filter(
-                                (x) => x !== id
-                              ),
-                              ...(agent
-                                ? {
-                                    hiddenAgentSidebarKeys: (settings.hiddenAgentSidebarKeys ?? []).filter(
-                                      (k) => k !== agentSidebarHideKey(agent)
-                                    ),
-                                  }
-                                : {}),
-                            });
-                          }}
-                        >
-                          Unhide
-                        </button>
+                        <div className="shrink-0 flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="text-xs text-slack-accent hover:underline"
+                            onClick={() => unhideAgentShortcutId(id)}
+                          >
+                            Unhide
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                            onClick={() => deleteHiddenAgentShortcutId(id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2528,7 +2644,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         )}
                         {pack.enabled && pack.id === 'software-development' && (
                           <p className="text-xs text-blue-600 mt-1">
-                            Adds GoExpert, ReactExpert, RustExpert, and other in-process specialists; IDE features (Git panel, quick open, editor selection context). Pull{' '}
+                            Adds BackendEngineer, FrontendEngineer, SoftwareArchitect, CodeReviewer, and other in-process specialists; IDE features (Git panel, quick open, editor selection context). Pull{' '}
                             <code className="font-mono bg-slack-bgHover px-1 rounded">qwen2.5-coder:14b</code> from Model Library for local Ollama. Dev MCP tools start with enabled agents.
                           </p>
                         )}

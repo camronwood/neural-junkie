@@ -29,13 +29,13 @@ type HubInterface interface {
 // CollaborationManager orchestrates multi-agent collaborations
 // from creation through planning, approval, execution, and completion.
 type CollaborationManager struct {
-	hub            HubInterface
-	collaborations map[string]*Collaboration // id -> collaboration
-	assetsRootFn   func() string             // parent dir for per-collab sandboxes; optional
-	onEnterReviewing func(collabID string)   // optional; hub dispatches pre-approval recap
+	hub              HubInterface
+	collaborations   map[string]*Collaboration // id -> collaboration
+	assetsRootFn     func() string             // parent dir for per-collab sandboxes; optional
+	onEnterReviewing func(collabID string)     // optional; hub dispatches pre-approval recap
 	// reconcileMissingLogged suppresses repeated "no live hub agent" warnings per collab+name.
 	reconcileMissingLogged map[string]struct{}
-	mu             sync.RWMutex
+	mu                     sync.RWMutex
 }
 
 // SetOnEnterReviewing registers a callback invoked after a collaboration enters reviewing
@@ -343,6 +343,147 @@ func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []stri
 	return added, nil
 }
 
+// RequestParticipantAdds records agent-suggested participants for explicit user approval.
+func (cm *CollaborationManager) RequestParticipantAdds(collabID, requestedByID, requestedByName string, agentIDs []string) ([]ParticipantAddRequest, error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if !c.AllowAgentParticipantRequests {
+		return nil, nil
+	}
+	if c.Phase != PhasePlanning && c.Phase != PhaseReviewing {
+		return nil, nil
+	}
+
+	existing := make(map[string]struct{}, len(c.Agents))
+	for _, participant := range c.Agents {
+		existing[participant.AgentID] = struct{}{}
+	}
+	pending := make(map[string]struct{}, len(c.PendingParticipantRequests))
+	for _, req := range c.PendingParticipantRequests {
+		pending[req.AgentID] = struct{}{}
+	}
+
+	now := time.Now()
+	created := make([]ParticipantAddRequest, 0, len(agentIDs))
+	for _, id := range agentIDs {
+		if id == "" {
+			continue
+		}
+		if _, already := existing[id]; already {
+			continue
+		}
+		if _, already := pending[id]; already {
+			continue
+		}
+		info, err := cm.hub.GetAgent(id)
+		if err != nil || info == nil {
+			return nil, fmt.Errorf("agent %s not found", id)
+		}
+		req := ParticipantAddRequest{
+			AgentID:         info.ID,
+			AgentName:       info.Name,
+			AgentType:       info.Type,
+			RequestedByID:   requestedByID,
+			RequestedByName: requestedByName,
+			CreatedAt:       now,
+		}
+		c.PendingParticipantRequests = append(c.PendingParticipantRequests, req)
+		pending[id] = struct{}{}
+		created = append(created, req)
+	}
+	if len(created) > 0 {
+		c.UpdatedAt = now
+	}
+	return created, nil
+}
+
+// ApproveParticipantAddRequest adds a pending requested participant and clears the request.
+func (cm *CollaborationManager) ApproveParticipantAddRequest(collabID, agentID string) (*Collaboration, *CollaborationAgent, error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return nil, nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if c.Phase != PhasePlanning && c.Phase != PhaseReviewing {
+		return nil, nil, fmt.Errorf("cannot add participants while collaboration is in %s phase", c.Phase)
+	}
+
+	pendingIdx := -1
+	for i, req := range c.PendingParticipantRequests {
+		if req.AgentID == agentID {
+			pendingIdx = i
+			break
+		}
+	}
+	if pendingIdx < 0 {
+		return nil, nil, fmt.Errorf("participant add request for agent %s not found", agentID)
+	}
+
+	for _, participant := range c.Agents {
+		if participant.AgentID == agentID {
+			c.PendingParticipantRequests = append(c.PendingParticipantRequests[:pendingIdx], c.PendingParticipantRequests[pendingIdx+1:]...)
+			c.UpdatedAt = time.Now()
+			cloned, err := cloneCollaboration(c)
+			return cloned, nil, err
+		}
+	}
+
+	info, err := cm.hub.GetAgent(agentID)
+	if err != nil || info == nil {
+		return nil, nil, fmt.Errorf("agent %s not found", agentID)
+	}
+	participant := CollaborationAgent{
+		AgentID:   info.ID,
+		AgentName: info.Name,
+		AgentType: info.Type,
+		Expertise: info.Expertise,
+		Role:      SuggestRole(info.Type, info.Expertise),
+	}
+	c.Agents = append(c.Agents, participant)
+	if c.Discussion != nil {
+		c.Discussion.Participants = append(c.Discussion.Participants, agentID)
+		if c.Discussion.TurnsThisRound == nil {
+			c.Discussion.TurnsThisRound = make(map[string]int)
+		}
+		if c.Discussion.Consensus == nil {
+			c.Discussion.Consensus = make(map[string]ConsensusState)
+		}
+		c.Discussion.TurnsThisRound[agentID] = 0
+		c.Discussion.Consensus[agentID] = ConsensusUndecided
+	}
+	c.PendingParticipantRequests = append(c.PendingParticipantRequests[:pendingIdx], c.PendingParticipantRequests[pendingIdx+1:]...)
+	c.UpdatedAt = time.Now()
+
+	cloned, err := cloneCollaboration(c)
+	return cloned, &participant, err
+}
+
+// DenyParticipantAddRequest clears a pending participant request without adding the agent.
+func (cm *CollaborationManager) DenyParticipantAddRequest(collabID, agentID string) (*Collaboration, error) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return nil, fmt.Errorf("collaboration %s not found", collabID)
+	}
+	for i, req := range c.PendingParticipantRequests {
+		if req.AgentID == agentID {
+			c.PendingParticipantRequests = append(c.PendingParticipantRequests[:i], c.PendingParticipantRequests[i+1:]...)
+			c.UpdatedAt = time.Now()
+			return cloneCollaboration(c)
+		}
+	}
+	return nil, fmt.Errorf("participant add request for agent %s not found", agentID)
+}
+
 // ApprovePlan transitions a collaboration from reviewing -> approved.
 // If the collaboration is already approved (e.g. a prior TransitionToExecuting failed),
 // this call is a no-op so the hub can retry execution without getting stuck.
@@ -380,8 +521,8 @@ func (cm *CollaborationManager) ApprovePlan(collabID string) (*Collaboration, er
 	}
 }
 
-// TransitionToExecuting moves an approved collaboration into execution
-// and creates a fresh bounded discussion for cross-agent Q&A during execution.
+// TransitionToExecuting moves an approved collaboration into execution.
+// Planning discussion is archived; execution is driven by task prompts only.
 func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collaboration, error) {
 	baseDir, err := cm.collabAssetsBaseDir()
 	if err != nil {
@@ -441,33 +582,10 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 	if c.Discussion != nil && c.PlanningDiscussion == nil {
 		c.PlanningDiscussion = CopyDiscussionSession(c.Discussion)
 	}
+	// Execution is task-driven only — no round-robin "execution Q&A" discussion.
+	c.Discussion = nil
 
-	var participantIDs []string
-	if c.Source == SourceRunbook {
-		participantIDs = runbookExecutionParticipants(c)
-	} else {
-		participantIDs = make([]string, 0, len(c.Agents))
-		for _, a := range c.Agents {
-			participantIDs = append(participantIDs, a.AgentID)
-		}
-	}
-	c.Discussion = &DiscussionSession{
-		ID:                uuid.New().String(),
-		CollaborationID:   collabID,
-		Topic:             "Execution Q&A: " + c.Description,
-		Participants:      participantIDs,
-		MaxRounds:         c.Config.MaxRounds,
-		CurrentRound:      1,
-		TurnBudget:        c.Config.TurnBudget,
-		TotalMessageCount: 0,
-		MaxTotalMessages:  c.Config.MaxTotalMessages,
-		Status:            DiscussionActive,
-		Timeout:           c.Config.Timeout,
-		StartedAt:         now,
-		CurrentTurnIndex:  0,
-		TurnsThisRound:    make(map[string]int),
-		Consensus:         make(map[string]ConsensusState),
-	}
+	EnrichTasksWithContextPaths(c.Tasks, c.SourceRepoPath)
 
 	log.Printf("[CollaborationManager] Collaboration %s transitioned to executing with %d tasks", collabID[:8], len(c.Tasks))
 	return c, nil
@@ -709,6 +827,9 @@ func (cm *CollaborationManager) enterReviewingFromPlanningLocked(c *Collaboratio
 	}
 	cm.synthesizePlanFromDiscussionLocked(c)
 	c.Phase = PhaseReviewing
+	if c.Discussion != nil && c.Discussion.Status == DiscussionActive {
+		c.Discussion.Status = DiscussionConverged
+	}
 	if c.Plan != nil && c.Plan.Status == ArtifactDraft {
 		c.Plan.Status = ArtifactProposed
 	}
@@ -855,6 +976,7 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 	if !ok {
 		return fmt.Errorf("collaboration %s not found", collabID)
 	}
+	tasks = DedupeTasks(tasks)
 	if len(tasks) > maxTasksLimit() {
 		tasks = tasks[:maxTasksLimit()]
 	}
@@ -1048,6 +1170,9 @@ func (cm *CollaborationManager) AgentOutOfTurnMentionAllowed(collabID string) bo
 			return false
 		}
 		return c.Discussion.Status == DiscussionActive
+	case PhaseExecuting:
+		// Coordination during execution is via collaboration_task prompts, not open @mentions.
+		return false
 	default:
 		return true
 	}
@@ -1059,17 +1184,22 @@ func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collab
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
+	var best *Collaboration
 	for _, c := range cm.collaborations {
 		if c.Phase == PhaseCompleted || c.Phase == PhaseCancelled {
 			continue
 		}
 		for _, a := range c.Agents {
-			if a.AgentID == agentID {
-				return c
+			if a.AgentID != agentID {
+				continue
 			}
+			if best == nil || c.UpdatedAt.After(best.UpdatedAt) {
+				best = c
+			}
+			break
 		}
 	}
-	return nil
+	return best
 }
 
 // Len returns the number of collaborations in memory (including terminal).
@@ -1301,6 +1431,10 @@ func SuggestRole(agentType protocol.AgentType, expertise []string) string {
 		return "Security Review & Auth Design"
 	case protocol.AgentTypeRust:
 		return "Rust Architecture & Systems Design"
+	case protocol.AgentTypeArchitecture:
+		return "Software Architecture & System Design"
+	case protocol.AgentTypeCodeReview:
+		return "Code Review & Regression Analysis"
 	case protocol.AgentTypeBiology:
 		return "Molecular Biology & Lab Research"
 	case protocol.AgentTypeBackend:

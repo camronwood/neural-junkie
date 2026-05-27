@@ -87,8 +87,8 @@ const (
 	HardMaxTotalMessages = 50
 	HardMaxTimeout       = 30 * time.Minute
 
-	MaxConcurrentCollaborations = 3
-	MaxTasksPerCollaboration    = 10
+	MaxConcurrentCollaborations  = 3
+	MaxTasksPerCollaboration     = 10
 	HardMaxTasksPerCollaboration = 25
 	// MaxExecutionMessages caps agent chat posts during the executing phase.
 	MaxExecutionMessages = 100
@@ -230,11 +230,13 @@ const (
 
 // CreateOptions configures optional collaboration creation parameters.
 type CreateOptions struct {
-	ExecutionMode  ExecutionMode
-	SourceRepoPath string // absolute git repo root; optional until workspace ack
-	Source         CollaborationSource
-	InitialTasks   []CollaborationTask
-	SkipDiscussion bool
+	ExecutionMode                 ExecutionMode
+	SourceRepoPath                string // absolute git repo root; optional until workspace ack
+	SourceWorkspaceContext        map[string]interface{} // snapshot from desktop outbound metadata
+	Source                        CollaborationSource
+	InitialTasks                  []CollaborationTask
+	SkipDiscussion                bool
+	AllowAgentParticipantRequests bool
 }
 
 // CollaborationAgent pairs an agent identity with its role inside
@@ -245,6 +247,17 @@ type CollaborationAgent struct {
 	AgentType protocol.AgentType `json:"agent_type"`
 	Expertise []string           `json:"expertise"`
 	Role      string             `json:"role"`
+}
+
+// ParticipantAddRequest is an agent-suggested collaboration membership change
+// awaiting explicit user approval.
+type ParticipantAddRequest struct {
+	AgentID         string             `json:"agent_id"`
+	AgentName       string             `json:"agent_name"`
+	AgentType       protocol.AgentType `json:"agent_type"`
+	RequestedByID   string             `json:"requested_by_id"`
+	RequestedByName string             `json:"requested_by_name"`
+	CreatedAt       time.Time          `json:"created_at"`
 }
 
 // Collaboration is the top-level orchestration unit that tracks a
@@ -269,6 +282,9 @@ type Collaboration struct {
 	ExecutionMode ExecutionMode `json:"execution_mode,omitempty"`
 	// SourceRepoPath is the git repository to branch from in worktree mode.
 	SourceRepoPath string `json:"source_repo_path,omitempty"`
+	// SourceWorkspaceContext is a snapshot of the user's active workspace (name, path, file tree)
+	// captured when the collaboration starts, used for planning prompts and message metadata.
+	SourceWorkspaceContext map[string]interface{} `json:"source_workspace_context,omitempty"`
 	// WorktreeBranch is the branch created for worktree execution (e.g. nj/collab-abc12345).
 	WorktreeBranch string `json:"worktree_branch,omitempty"`
 	// WorkingDirectory is an absolute path created when execution starts; agents
@@ -282,23 +298,27 @@ type Collaboration struct {
 	// Prevents re-dispatch on every channel message during execution.
 	TasksDispatched bool `json:"tasks_dispatched,omitempty"`
 	// ExecutionMessageCount tracks agent chat posts during the executing phase.
-	ExecutionMessageCount int `json:"execution_message_count,omitempty"`
+	ExecutionMessageCount int             `json:"execution_message_count,omitempty"`
 	ExecutionPolicy       ExecutionPolicy `json:"execution_policy,omitempty"`
 	GraphLayout           GraphLayout     `json:"graph_layout,omitempty"`
 	DispatchPaused        bool            `json:"dispatch_paused,omitempty"`
 	// PlanningDiscussion is a snapshot of the planning-phase discussion taken when execution starts.
-	PlanningDiscussion *DiscussionSession `json:"planning_discussion,omitempty"`
-	PlanningRecap         string `json:"planning_recap,omitempty"`
-	SessionRecap          string `json:"session_recap,omitempty"`
-	PlanningRecapStatus   string `json:"planning_recap_status,omitempty"` // pending|complete|failed
-	SessionRecapStatus    string `json:"session_recap_status,omitempty"`
-	PlanningRecapAgentID  string `json:"planning_recap_agent_id,omitempty"`
-	SessionRecapAgentID   string `json:"session_recap_agent_id,omitempty"`
+	PlanningDiscussion   *DiscussionSession `json:"planning_discussion,omitempty"`
+	PlanningRecap        string             `json:"planning_recap,omitempty"`
+	SessionRecap         string             `json:"session_recap,omitempty"`
+	PlanningRecapStatus  string             `json:"planning_recap_status,omitempty"` // pending|complete|failed
+	SessionRecapStatus   string             `json:"session_recap_status,omitempty"`
+	PlanningRecapAgentID string             `json:"planning_recap_agent_id,omitempty"`
+	SessionRecapAgentID  string             `json:"session_recap_agent_id,omitempty"`
 	// AwaitingFinalize is set when all work is done but the final recap has not finished.
 	AwaitingFinalize      bool   `json:"awaiting_finalize,omitempty"`
 	FinalizeReason        string `json:"finalize_reason,omitempty"`
 	FinalizeChannel       string `json:"finalize_channel,omitempty"`
 	FinalizeMarkOpenTasks bool   `json:"finalize_mark_open_tasks,omitempty"`
+	// AllowAgentParticipantRequests lets participant agents ask the user to add
+	// another agent. Requests remain pending until the user approves them.
+	AllowAgentParticipantRequests bool                    `json:"allow_agent_participant_requests,omitempty"`
+	PendingParticipantRequests    []ParticipantAddRequest `json:"pending_participant_requests,omitempty"`
 }
 
 // Recap status values stored on Collaboration.
@@ -342,24 +362,24 @@ func (c *Collaboration) DiscussionBudgetEnforced() bool {
 // within a collaboration. Tasks are produced during the planning phase
 // and executed after user approval.
 type CollaborationTask struct {
-	ID                 string               `json:"id"`
-	Title              string               `json:"title"`
-	Description        string               `json:"description"`
-	AssignedTo         string               `json:"assigned_to"`
-	AssignedName       string               `json:"assigned_name"`
-	Kind               TaskKind             `json:"kind,omitempty"`
-	Action             *TaskActionSpec      `json:"action,omitempty"`
-	Options            *TaskExecutionOptions `json:"options,omitempty"`
-	Status             TaskStatus           `json:"status"`
-	Dependencies       []string             `json:"dependencies,omitempty"`
-	DependencyEdges    []DependencyEdge     `json:"dependency_edges,omitempty"`
-	DependencyGroups   []DependencyGroup    `json:"dependency_groups,omitempty"`
-	PromptDispatched   bool                 `json:"prompt_dispatched,omitempty"`
-	AwaitingApproval   bool                 `json:"awaiting_approval,omitempty"`
-	SkippedDueToBlocked bool                `json:"skipped_due_to_blocked,omitempty"`
-	Output             string               `json:"output,omitempty"`
-	CreatedAt          time.Time            `json:"created_at"`
-	UpdatedAt          time.Time            `json:"updated_at"`
+	ID                  string                `json:"id"`
+	Title               string                `json:"title"`
+	Description         string                `json:"description"`
+	AssignedTo          string                `json:"assigned_to"`
+	AssignedName        string                `json:"assigned_name"`
+	Kind                TaskKind              `json:"kind,omitempty"`
+	Action              *TaskActionSpec       `json:"action,omitempty"`
+	Options             *TaskExecutionOptions `json:"options,omitempty"`
+	Status              TaskStatus            `json:"status"`
+	Dependencies        []string              `json:"dependencies,omitempty"`
+	DependencyEdges     []DependencyEdge      `json:"dependency_edges,omitempty"`
+	DependencyGroups    []DependencyGroup     `json:"dependency_groups,omitempty"`
+	PromptDispatched    bool                  `json:"prompt_dispatched,omitempty"`
+	AwaitingApproval    bool                  `json:"awaiting_approval,omitempty"`
+	SkippedDueToBlocked bool                  `json:"skipped_due_to_blocked,omitempty"`
+	Output              string                `json:"output,omitempty"`
+	CreatedAt           time.Time             `json:"created_at"`
+	UpdatedAt           time.Time             `json:"updated_at"`
 }
 
 // EffectiveKind returns agent when unset.

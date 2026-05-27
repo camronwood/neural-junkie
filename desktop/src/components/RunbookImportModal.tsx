@@ -2,8 +2,8 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { isTauriRuntime } from '../utils/promptAttachments';
 
 const PLAN_PLACEHOLDER = `## Plan
-- Task 1: @RustExpert - Build feature
-- Task 2: @SecurityExpert - Review
+- Task 1: @BackendEngineer - Build feature
+- Task 2: @CodeReviewer - Review
   - depends: 1`;
 
 type ImportTab = 'paste' | 'file';

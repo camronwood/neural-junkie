@@ -85,6 +85,12 @@ func (c collabHandoffStub) GetCurrentTurnAgent(string) (string, error) { return 
 func (c collabHandoffStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{ID: "collab-1", Channel: "collab-ch", Phase: "planning"}
 }
+func (c collabHandoffStub) GetCollaboration(collabID, _ string) CollaborationInfo {
+	if collabID == "collab-1" {
+		return CollaborationInfo{ID: "collab-1", Channel: "collab-ch", Phase: "planning"}
+	}
+	return CollaborationInfo{}
+}
 func (c collabHandoffStub) GetCollaborationWorkingDirectory(string) string { return "" }
 func (c collabHandoffStub) RecordMessage(string, *protocol.Message) error  { return nil }
 func (c collabHandoffStub) AnalyzeConsensus(string, *protocol.Message) string {

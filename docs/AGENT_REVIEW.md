@@ -18,8 +18,8 @@ For larger, structured multi-agent work (planning + approval + execution), use t
 
 2. **User asks Agent B to review** (by replying to Agent A's message):
    ```
-   User: @SecurityExpert thoughts on this from a security perspective?
-   SecurityExpert: The approach is solid, but I'd add: ensure you implement...
+   User: @SecurityReviewer thoughts on this from a security perspective?
+   SecurityReviewer: The approach is solid, but I'd add: ensure you implement...
    ```
 
 ### Review vs Collaboration
@@ -45,8 +45,8 @@ For larger, structured multi-agent work (planning + approval + execution), use t
 User: @BackendExpert how should I implement user authentication?
 BackendExpert: Use JWT tokens with a 15-minute expiration...
 
-User: @SecurityExpert agree? [replying to BackendExpert's message]
-SecurityExpert: JWT is good, but I'd also recommend: adding refresh tokens, 
+User: @SecurityReviewer agree? [replying to BackendEngineer's message]
+SecurityReviewer: JWT is good, but I'd also recommend: adding refresh tokens,
   implementing rate limiting on auth endpoints, and using httpOnly cookies...
 ```
 

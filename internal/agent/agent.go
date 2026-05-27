@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/server"
@@ -122,6 +123,8 @@ type CollaborationClient interface {
 	IsActive(collabID string) bool
 	GetCurrentTurnAgent(collabID string) (string, error)
 	GetCollaborationForAgent(agentID string) CollaborationInfo
+	// GetCollaboration returns state for a specific collaboration the agent participates in.
+	GetCollaboration(collabID, agentID string) CollaborationInfo
 	// GetCollaborationWorkingDirectory returns the on-disk sandbox for an executing collaboration.
 	GetCollaborationWorkingDirectory(collabID string) string
 	RecordMessage(collabID string, msg *protocol.Message) error
@@ -143,9 +146,10 @@ type CollaborationInfo struct {
 	Agents           []CollaborationAgentSummary
 	Channel          string
 	ExecutionMode    string // sandbox | worktree
-	SourceRepoPath   string
-	WorktreeBranch   string
-	WorkingDirectory string // collaboration execution root (absolute path)
+	SourceRepoPath         string
+	SourceWorkspaceContext map[string]interface{}
+	WorktreeBranch         string
+	WorkingDirectory       string // collaboration execution root (absolute path)
 }
 
 // CollaborationAgentSummary describes another agent in a collaboration
@@ -631,6 +635,8 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 					histMsg.From.Type == protocol.AgentTypeBackend ||
 					histMsg.From.Type == protocol.AgentTypeDatabase ||
 					histMsg.From.Type == protocol.AgentTypeSecurity ||
+					histMsg.From.Type == protocol.AgentTypeArchitecture ||
+					histMsg.From.Type == protocol.AgentTypeCodeReview ||
 					histMsg.From.Type == protocol.AgentTypeDevOps ||
 					histMsg.From.Type == protocol.AgentTypeRepo ||
 					histMsg.From.Type == protocol.AgentTypeHelper ||
@@ -710,13 +716,16 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	a.MaybePostHubGeneratedImageForCLI(msg, responseHasImage)
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
-	// Record the response in the collaboration discussion and check consensus
+	// Record planning/review discussion turns; execution is task-driven (no round-robin).
 	if collabID := responseMsg.GetCollaborationID(); collabID != "" && a.Collab != nil && msg.Type != protocol.MessageTypeCollabRecap {
-		if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
-			log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+		collabPhase := a.Collab.GetCollaboration(collabID, a.Info.ID).Phase
+		if collabPhase != "executing" {
+			if err := a.Collab.RecordMessage(collabID, responseMsg); err != nil {
+				log.Printf("[%s] Warning: failed to record collaboration message: %v", a.Info.Name, err)
+			}
+			a.Collab.AnalyzeConsensus(collabID, responseMsg)
+			a.promptNextCollaborationTurn(responseMsg, collabID)
 		}
-		a.Collab.AnalyzeConsensus(collabID, responseMsg)
-		a.promptNextCollaborationTurn(responseMsg, collabID)
 	}
 }
 
@@ -740,14 +749,28 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 		return
 	}
 
+	collabInfo := a.Collab.GetCollaboration(collabID, a.Info.ID)
+	if collabInfo.Phase == "reviewing" || collabInfo.Phase == "approved" || collabInfo.Phase == "executing" {
+		return
+	}
+
+	handoffBody := collaborationTurnHandoffBody(collabInfo.Phase)
+	if handoffBody == "" {
+		return
+	}
+
 	turnMsg := protocol.NewMessage(
 		protocol.MessageTypeCollabDiscussion,
 		source.Channel,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		"Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments.",
+		handoffBody,
 	)
 	turnMsg.SetCollaborationID(collabID)
-	if phase := source.GetCollaborationPhase(); phase != "" {
+	phase := collabInfo.Phase
+	if phase == "" {
+		phase = source.GetCollaborationPhase()
+	}
+	if phase != "" {
 		turnMsg.SetCollaborationPhase(phase)
 	}
 	turnMsg.Mentions = []string{nextAgentID}
@@ -755,6 +778,16 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 		turnMsg.Metadata = map[string]interface{}{}
 	}
 	turnMsg.Metadata["collab_internal_event"] = true
+	if messageHasWorkspaceContext(source) {
+		if raw, ok := source.Metadata["workspace_context"]; ok {
+			if ctx, ok := raw.(map[string]interface{}); ok {
+				inheritWorkspaceContextFromCollaboration(turnMsg, ctx)
+			}
+		}
+	} else {
+		info := a.Collab.GetCollaboration(collabID, a.Info.ID)
+		inheritWorkspaceContextFromCollaboration(turnMsg, info.SourceWorkspaceContext)
+	}
 
 	if err := a.Hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[%s] Warning: failed to send collaboration turn handoff: %v", a.Info.Name, err)
@@ -792,7 +825,10 @@ func (a *Agent) getCollaborationContext(msg *protocol.Message) CollaborationInfo
 	if !a.Collab.IsParticipant(collabID, a.Info.ID) {
 		return CollaborationInfo{}
 	}
-	info := a.Collab.GetCollaborationForAgent(a.Info.ID)
+	info := a.Collab.GetCollaboration(collabID, a.Info.ID)
+	if info.ID == "" {
+		return CollaborationInfo{}
+	}
 	info.WorkingDirectory = a.Collab.GetCollaborationWorkingDirectory(collabID)
 	return info
 }
@@ -804,6 +840,13 @@ func collaborationWorkingDirectoryForMessage(a *Agent, msg *protocol.Message) st
 	cid := msg.GetCollaborationID()
 	if cid == "" {
 		return ""
+	}
+	info := a.Collab.GetCollaboration(cid, a.Info.ID)
+	if p := strings.TrimSpace(info.SourceRepoPath); p != "" {
+		return p
+	}
+	if p := strings.TrimSpace(info.WorkingDirectory); p != "" {
+		return p
 	}
 	return a.Collab.GetCollaborationWorkingDirectory(cid)
 }
@@ -908,6 +951,13 @@ func (a *Agent) effectiveChannelType(channel string) protocol.ChannelType {
 
 // taskAssigneeFromMetadata reads task_assigned_to from collaboration_task metadata.
 // JSON decoding can surface non-string types; normalize so assignee routing matches.
+func isHumanCollabSpeaker(msg *protocol.Message) bool {
+	if msg == nil || msg.IsFromSystem() {
+		return false
+	}
+	return msg.From.Type == protocol.AgentTypeGeneral
+}
+
 func taskAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
 	if meta == nil {
 		return "", false
@@ -1008,6 +1058,31 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			}
 		}
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
+			collabPhase := a.Collab.GetCollaboration(collabID, a.Info.ID).Phase
+			if collabPhase == "executing" {
+				if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
+					if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
+						if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID()) {
+							log.Printf("[%s] ⏳ COLLABORATION TASK rate-limited (collab %s)", a.Info.Name, collabID[:8])
+							return false
+						}
+						log.Printf("[%s] ✅ COLLABORATION TASK (assignee metadata) - will respond (collab %s)", a.Info.Name, collabID[:8])
+						return true
+					}
+				}
+				if msg.Type == protocol.MessageTypeCollabRecap && msg.Metadata != nil {
+					if assignee, ok := recapAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
+						log.Printf("[%s] ✅ COLLABORATION RECAP - will respond (collab %s)", a.Info.Name, collabID[:8])
+						return true
+					}
+				}
+				if !msg.IsFromSystem() && msg.IsMentioned(a.Info.ID) && isHumanCollabSpeaker(msg) {
+					log.Printf("[%s] ✅ HUMAN @mention during execution - will respond (collab %s)", a.Info.Name, collabID[:8])
+					return true
+				}
+				log.Printf("[%s] ⏸ execution phase — task prompts only (collab %s)", a.Info.Name, collabID[:8])
+				return false
+			}
 			if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
 				if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {
 					if !a.collabTaskRateLimitOK(collabID, msg.GetTaskID()) {
@@ -1038,6 +1113,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				msg.From.Type == protocol.AgentTypeDatabase ||
 				msg.From.Type == protocol.AgentTypeSecurity ||
 				msg.From.Type == protocol.AgentTypeRust ||
+				msg.From.Type == protocol.AgentTypeArchitecture ||
+				msg.From.Type == protocol.AgentTypeCodeReview ||
 				msg.From.Type == protocol.AgentTypeBiology ||
 				msg.From.Type == protocol.AgentTypeDevOps ||
 				msg.From.Type == protocol.AgentTypeRepo ||
@@ -1076,6 +1153,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeDatabase ||
 			msg.From.Type == protocol.AgentTypeSecurity ||
 			msg.From.Type == protocol.AgentTypeRust ||
+			msg.From.Type == protocol.AgentTypeArchitecture ||
+			msg.From.Type == protocol.AgentTypeCodeReview ||
 			msg.From.Type == protocol.AgentTypeBiology ||
 			msg.From.Type == protocol.AgentTypeDevOps ||
 			msg.From.Type == protocol.AgentTypeRepo ||
@@ -1120,6 +1199,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		msg.From.Type == protocol.AgentTypeDatabase ||
 		msg.From.Type == protocol.AgentTypeSecurity ||
 		msg.From.Type == protocol.AgentTypeRust ||
+		msg.From.Type == protocol.AgentTypeArchitecture ||
+		msg.From.Type == protocol.AgentTypeCodeReview ||
 		msg.From.Type == protocol.AgentTypeBiology ||
 		msg.From.Type == protocol.AgentTypeDevOps ||
 		msg.From.Type == protocol.AgentTypeRepo ||
@@ -1156,6 +1237,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 						repliedToMsg.From.Type == protocol.AgentTypeDatabase ||
 						repliedToMsg.From.Type == protocol.AgentTypeSecurity ||
 						repliedToMsg.From.Type == protocol.AgentTypeRust ||
+						repliedToMsg.From.Type == protocol.AgentTypeArchitecture ||
+						repliedToMsg.From.Type == protocol.AgentTypeCodeReview ||
 						repliedToMsg.From.Type == protocol.AgentTypeBiology ||
 						repliedToMsg.From.Type == protocol.AgentTypeDevOps ||
 						repliedToMsg.From.Type == protocol.AgentTypeRepo ||
@@ -1297,6 +1380,10 @@ func (a *Agent) getTypeKeywords() []string {
 			"iam", "ssl", "tls", "cors", "csrf", "rbac", "jwt", "oauth2", "secrets"}
 	case protocol.AgentTypeRust:
 		return []string{"rust", "cargo", "tokio", "ownership", "borrowing", "lifetime", "trait", "async", "unsafe", "wasm", "serde", "crate"}
+	case protocol.AgentTypeArchitecture:
+		return []string{"architecture", "architect", "system design", "design", "scalability", "reliability", "tradeoff", "migration", "service boundary", "integration"}
+	case protocol.AgentTypeCodeReview:
+		return []string{"review", "code review", "correctness", "maintainability", "testing", "refactor", "regression", "readability", "quality"}
 	case protocol.AgentTypeBiology:
 		return []string{"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr", "enzyme", "mutation", "pathway", "cell", "lab", "protocol"}
 	default:
@@ -1460,6 +1547,8 @@ func isAgentType(t protocol.AgentType) bool {
 		t == protocol.AgentTypeDatabase ||
 		t == protocol.AgentTypeSecurity ||
 		t == protocol.AgentTypeRust ||
+		t == protocol.AgentTypeArchitecture ||
+		t == protocol.AgentTypeCodeReview ||
 		t == protocol.AgentTypeBiology ||
 		t == protocol.AgentTypeDevOps ||
 		t == protocol.AgentTypeRepo ||
@@ -1509,10 +1598,11 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	// Proactively scan the workspace for domain-relevant source files.
-	// This lets specialist agents (RustExpert, GoExpert, etc.) see project
+	// This lets specialist agents (BackendEngineer, CodeReviewer, etc.) see project
 	// code even when the user doesn't mention specific file paths.
 	scannedLoaded := 0
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
+	collabInfo := a.getCollaborationContext(msg)
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
 		if existingContextSize < maxScanChars/2 {
 			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
@@ -1525,7 +1615,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		}
 	}
 
-	if shouldInjectWorkspaceCode(msg.Content) {
+	if shouldInjectWorkspaceCode(msg.Content) && collaborationWorkspaceGroundingLine(msg, collabInfo) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
 		if totalLoaded > 0 {
@@ -1602,6 +1692,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
 
 	includedFiles := collectIncludedFilePaths(msg)
+	collabInfo := a.getCollaborationContext(msg)
 
 	wsPath := a.resolveWorkspacePath(msg)
 	referencedLoaded := 0
@@ -1617,7 +1708,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	scannedLoaded := 0
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		basePrompt := a.buildPromptForIntent(msg, intent)
 		existingContextSize := len(prompt) - len(basePrompt)
 		if existingContextSize < maxScanChars/2 {
@@ -1631,7 +1722,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 	}
 
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && shouldInjectWorkspaceCode(msg.Content) {
+	if shouldInjectWorkspaceCode(msg.Content) && collaborationWorkspaceGroundingLine(msg, collabInfo) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
 		if totalLoaded > 0 {
@@ -1908,6 +1999,22 @@ func collectIncludedFilePaths(msg *protocol.Message) map[string]bool {
 	if msg.Metadata == nil {
 		return paths
 	}
+	if raw, ok := msg.Metadata["task_context_paths"]; ok {
+		switch v := raw.(type) {
+		case []string:
+			for _, p := range v {
+				if p != "" {
+					paths[p] = true
+				}
+			}
+		case []interface{}:
+			for _, item := range v {
+				if p, ok := item.(string); ok && p != "" {
+					paths[p] = true
+				}
+			}
+		}
+	}
 	wsCtx, ok := msg.Metadata["workspace_context"]
 	if !ok {
 		return paths
@@ -2015,7 +2122,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("4. When you agree with the current plan, explicitly say 'I agree' or 'looks good'.\n")
 		system.WriteString("5. When you have concerns, state them clearly with alternatives.\n")
 		system.WriteString("6. Keep responses focused and concise -- this is a bounded discussion.\n")
-		system.WriteString("7. Reference specific file paths, function names, and technical details.\n")
+		system.WriteString("7. Reference specific file paths when they support your point; avoid re-scanning or re-summarizing the whole repo each turn.\n")
+		system.WriteString("8. Answer the collaboration goal and your task first — workspace files are reference material, not the deliverable.\n")
 
 		if msg.Type == protocol.MessageTypeCollabRecap {
 			system.WriteString("\n=== SESSION RECAP (TO USER) ===\n")
@@ -2029,9 +2137,15 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 			system.WriteString("- Task N: @AgentName - description of the task\n")
 			system.WriteString("  - depends: 1, 2   (optional; 1-based task numbers this task waits on)\n")
 			system.WriteString("Consider dependencies between tasks and declare them with depends: lines.\n")
+			appendCollaborationWorkspaceInstructions(&system, collabInfo, a.Info.Type)
+			if !collaborationSkipExtraWorkspaceSection(collabInfo) && !messageHasWorkspaceContext(msg) && len(collabInfo.SourceWorkspaceContext) > 0 {
+				appendWorkspacePromptSection(&system, ContextScopeOutline, collabInfo.SourceWorkspaceContext)
+			}
 		} else if collabInfo.Phase == "executing" {
 			system.WriteString("\n=== EXECUTION PHASE INSTRUCTIONS ===\n")
-			system.WriteString("Focus on completing your assigned tasks. Ask other agents if you need their input.\n")
+			system.WriteString("Execution is task-driven. Do NOT continue open plan discussion or re-summarize the whole repo.\n")
+			system.WriteString("Complete your assigned task: produce concrete deliverables ([FILE_CHANGE] under the collabs folder when files are required).\n")
+			system.WriteString("Only @mention another agent if you are blocked on a specific question; otherwise work from task context paths and the goal.\n")
 			system.WriteString(CollaborationExecutionTaskStatusInstructions())
 			if collabInfo.WorkingDirectory != "" {
 				if collabInfo.ExecutionMode == "worktree" {
@@ -2043,17 +2157,23 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 						system.WriteString(fmt.Sprintf("**Source repo:** %s\n", collabInfo.SourceRepoPath))
 					}
 					system.WriteString("This is a full copy of the project on an isolated branch. Use paths relative to this root; merge the branch from your main checkout when work is done.\n")
+				} else if strings.TrimSpace(collabInfo.SourceRepoPath) != "" {
+					system.WriteString(fmt.Sprintf("\n**Execution directory:** %s\n", collabInfo.WorkingDirectory))
+					system.WriteString(fmt.Sprintf("**Project root (for reading code):** %s\n", collabInfo.SourceRepoPath))
+					if rel := collaboration.ProjectCollabRelPath(collabInfo.ID); rel != "" {
+						system.WriteString(fmt.Sprintf("**Deliverables:** write under `%s/` using [FILE_CHANGE] paths relative to the project root.\n", rel))
+					}
 				} else {
-					system.WriteString(fmt.Sprintf("\n**Execution workspace (shared sandbox):** %s\n", collabInfo.WorkingDirectory))
-					system.WriteString("The desktop app registers this directory as a workspace when execution starts; use it as the root for relative paths and for shell commands in this collaboration.\n")
+					system.WriteString(fmt.Sprintf("\n**Execution workspace:** %s\n", collabInfo.WorkingDirectory))
+					system.WriteString("Use this directory as the root for relative paths and shell commands.\n")
 				}
 			}
+			appendCollaborationWorkspaceInstructions(&system, collabInfo, a.Info.Type)
 			system.WriteString("To actually create or modify files, you MUST emit a [FILE_CHANGE] block (see below). ")
 			system.WriteString("Conversation-only replies do not write to disk.\n")
-			system.WriteString("For shell work, put runnable commands in ```bash fenced blocks``` so the host can surface **Run**; the client runs them with this collaboration's working directory when set.\n")
-			system.WriteString("\n**Workspace scope:** File proposals are applied only under the shared workspace root in WORKSPACE CONTEXT (when present). ")
-			system.WriteString("Use paths relative to that root. If the user wants files under a different directory (e.g. another folder on disk), ")
-			system.WriteString("tell them to add that folder as a workspace in the app and enable workspace sharing so you receive its path here.\n")
+			system.WriteString("For shell work, put runnable commands in ```bash fenced blocks``` so the host can surface **Run**; the client runs them with the project or execution directory when set.\n")
+			system.WriteString("\n**Workspace scope:** File proposals apply under the project root in WORKSPACE CONTEXT. ")
+			system.WriteString("When a deliverables folder is set, write new files there (paths relative to the project root).\n")
 			appendFileChangeMachineBlockDocs(&system)
 		}
 
@@ -2129,6 +2249,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 					histMsg.From.Type == protocol.AgentTypeBackend ||
 					histMsg.From.Type == protocol.AgentTypeDatabase ||
 					histMsg.From.Type == protocol.AgentTypeSecurity ||
+					histMsg.From.Type == protocol.AgentTypeArchitecture ||
+					histMsg.From.Type == protocol.AgentTypeCodeReview ||
 					histMsg.From.Type == protocol.AgentTypeDevOps ||
 					histMsg.From.Type == protocol.AgentTypeRepo ||
 					histMsg.From.Type == protocol.AgentTypeHelper ||
@@ -2213,6 +2335,30 @@ Provide a concrete fix or mitigation for each issue.`
 Reference specific functions, types, and line numbers.
 Show concrete code examples using idiomatic Rust.`
 
+	case protocol.AgentTypeArchitecture:
+		return `When asked to review or design software, focus on:
+- System boundaries, ownership, and coupling
+- Data flow, failure modes, and operational behavior
+- Scalability, reliability, and maintainability tradeoffs
+- Migration paths, backward compatibility, and rollout strategy
+- API contracts and integration points
+- Observability, supportability, and long-term cost
+
+State assumptions, compare meaningful options, and recommend a practical path.
+Reference specific modules, services, or workflows when available.`
+
+	case protocol.AgentTypeCodeReview:
+		return `When asked to review code or a proposed change, focus on:
+- Correctness bugs and behavioral regressions
+- Missing tests or weak test assertions
+- Error handling, edge cases, and resource cleanup
+- Maintainability, readability, and unnecessary complexity
+- API contract changes and compatibility risks
+- Security and performance concerns when they are evident
+
+Lead with findings ordered by severity.
+For each issue, cite the specific file, function, and line number when available, and suggest a concrete fix.`
+
 	case protocol.AgentTypeBackend:
 		return `When asked to review or analyze code, focus on:
 - Error handling patterns (unchecked errors, error wrapping, sentinel errors)
@@ -2232,7 +2378,7 @@ When suggesting improvements, show concrete code examples.`
 - Component architecture (composition, prop drilling, component size)
 - State management (local vs global state, unnecessary re-renders)
 - Accessibility (ARIA attributes, keyboard navigation, screen reader support)
-- Performance (memo/useMemo/useCallback usage, bundle size, lazy loading)
+- Performance (unnecessary renders, bundle size, lazy loading, expensive client work)
 - Security (XSS via dangerouslySetInnerHTML, user input rendering, CSP)
 - Type safety (TypeScript types, proper generics, avoiding 'any')
 - CSS/styling (responsive design, consistent spacing, theme usage)

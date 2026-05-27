@@ -1,6 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { trimWorkspaceContext } from './outboundChatMetadata';
+import {
+  isCollabSandboxPath,
+  isCollaborateCommand,
+  trimWorkspaceContext,
+} from './outboundChatMetadata';
 import type { WorkspaceContext } from './workspaceContext';
+
+describe('isCollabSandboxPath', () => {
+  it('detects collaboration sandboxes under ~/.neural-junkie/collaborations', () => {
+    expect(
+      isCollabSandboxPath(
+        '/Users/me/.neural-junkie/collaborations/71bc548f-da3e-4485-834a-b6fc7ddbfa15'
+      )
+    ).toBe(true);
+    expect(
+      isCollabSandboxPath(
+        '/Users/me/.neural-junkie/collaborations/reviews/3ec2d77e/plan.md'
+      )
+    ).toBe(true);
+  });
+
+  it('allows normal project paths', () => {
+    expect(isCollabSandboxPath('/Users/me/development/sandbox')).toBe(false);
+  });
+});
+
+describe('isCollaborateCommand', () => {
+  it('matches /collaborate with flags', () => {
+    expect(isCollaborateCommand('/collaborate @A @B goal')).toBe(true);
+    expect(isCollaborateCommand('/collaborate --workspace @A @B goal')).toBe(true);
+    expect(isCollaborateCommand('/runbook @A goal')).toBe(false);
+  });
+});
 
 describe('trimWorkspaceContext', () => {
   const full: WorkspaceContext = {

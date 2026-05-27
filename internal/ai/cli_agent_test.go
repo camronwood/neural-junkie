@@ -1,6 +1,11 @@
 package ai
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+)
 
 func TestSanitizeGeminiCLIPromptEcho(t *testing.T) {
 	p := &CLIAgentProvider{ProviderName: "gemini-cli"}
@@ -50,5 +55,33 @@ func TestShouldUsePTYStreaming_GeminiDefaultOff(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_GEMINI_CLI_PTY", "1")
 	if !g.shouldUsePTYStreaming() {
 		t.Fatal("expected PTY on when NEURAL_JUNKIE_GEMINI_CLI_PTY=1")
+	}
+}
+
+func TestGeminiPipeStreamTimeoutDoesNotHang(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_DISABLE_CLI_PTY", "1")
+	p := &CLIAgentProvider{
+		Command:      "sh",
+		BaseArgs:     []string{"-c", "sleep 10 & wait", "_"},
+		Timeout:      50 * time.Millisecond,
+		Env:          map[string]string{},
+		ProviderName: "gemini-cli",
+	}
+
+	tokenCh, err := p.GenerateResponseStream(context.Background(), "hello", nil)
+	if err != nil {
+		t.Fatalf("GenerateResponseStream: %v", err)
+	}
+
+	select {
+	case token, ok := <-tokenCh:
+		if !ok {
+			t.Fatal("stream closed without timeout token")
+		}
+		if !errors.Is(token.Error, ErrCLIProviderTimeout) {
+			t.Fatalf("expected timeout error, got %#v", token.Error)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for CLI stream timeout")
 	}
 }

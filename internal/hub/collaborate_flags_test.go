@@ -59,6 +59,20 @@ func TestParseCollaborateLeadFlags_Worktree(t *testing.T) {
 	}
 }
 
+func TestParseCollaborateLeadFlags_AllowAgentAdds(t *testing.T) {
+	parts := []string{"/collaborate", "--allow-agent-adds", "@a", "@b", "goal"}
+	parsed, tail, err := parseCollaborateLeadFlags(parts)
+	if err != "" {
+		t.Fatalf("unexpected err: %s", err)
+	}
+	if !parsed.AllowAgentParticipantRequests {
+		t.Fatal("expected AllowAgentParticipantRequests")
+	}
+	if len(tail) != 3 || tail[0] != "@a" {
+		t.Fatalf("tail: %#v", tail)
+	}
+}
+
 func TestParseCollaborateLeadFlags_Workspace(t *testing.T) {
 	parts := []string{"/collaborate", "--workspace", "--rounds", "2", "@a", "@b", "goal"}
 	parsed, tail, err := parseCollaborateLeadFlags(parts)

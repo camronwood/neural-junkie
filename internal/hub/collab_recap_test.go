@@ -53,10 +53,10 @@ func TestBuildRecapPrompt_PreApproval(t *testing.T) {
 
 func TestPendingRecapAssignee(t *testing.T) {
 	snap := &collaboration.Collaboration{
-		PlanningRecapStatus: collaboration.RecapStatusPending,
-		PlanningRecapAgentID:  "a1",
-		SessionRecapStatus:    collaboration.RecapStatusPending,
-		SessionRecapAgentID:   "a2",
+		PlanningRecapStatus:  collaboration.RecapStatusPending,
+		PlanningRecapAgentID: "a1",
+		SessionRecapStatus:   collaboration.RecapStatusPending,
+		SessionRecapAgentID:  "a2",
 	}
 	kind, id := pendingRecapAssignee(snap, "a1")
 	if kind != collaboration.RecapKindPreApproval || id != "a1" {
@@ -202,6 +202,68 @@ func TestTransitionToReviewing_DispatchesCollabRecap(t *testing.T) {
 	if after.PlanningRecapStatus != collaboration.RecapStatusPending {
 		t.Fatalf("planning_recap_status=%s", after.PlanningRecapStatus)
 	}
+}
+
+func TestSessionRestoreDispatchesPendingPlanningRecapWithoutAssignee(t *testing.T) {
+	h := NewHub()
+	chName := "recap-pending-unassigned"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	cm.SetOnEnterReviewing(func(string) {})
+	collab, err := cm.CreateCollaboration("pending without assignee", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	discMsg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, chName, *a2, "final planning thought")
+	discMsg.SetCollaborationID(collab.ID)
+	if err := cm.RecordMessage(collab.ID, discMsg); err != nil {
+		t.Fatalf("record discussion: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("reviewing: %v", err)
+	}
+
+	before, err := cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot before recap: %v", err)
+	}
+	if before.PlanningRecapStatus != collaboration.RecapStatusPending {
+		t.Fatalf("planning_recap_status=%s", before.PlanningRecapStatus)
+	}
+	if before.PlanningRecapAgentID != "" {
+		t.Fatalf("expected no recap assignee before dispatch, got %q", before.PlanningRecapAgentID)
+	}
+
+	h.RedispatchOpenCollaborationTasksAfterSessionRestore()
+
+	after, err := cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot after recap: %v", err)
+	}
+	if after.PlanningRecapStatus != collaboration.RecapStatusPending {
+		t.Fatalf("planning_recap_status after dispatch=%s", after.PlanningRecapStatus)
+	}
+	if after.PlanningRecapAgentID != "a2" {
+		t.Fatalf("planning_recap_agent_id=%q want a2", after.PlanningRecapAgentID)
+	}
+
+	msgs, _ := h.GetMessages(chName, 50)
+	for _, m := range msgs {
+		if m != nil && m.Type == protocol.MessageTypeCollabRecap {
+			if assignee, ok := m.Metadata["recap_assignee"].(string); !ok || assignee != "a2" {
+				t.Fatalf("recap_assignee=%v want a2", m.Metadata["recap_assignee"])
+			}
+			return
+		}
+	}
+	t.Fatal("expected collaboration_recap message for pending unassigned recap")
 }
 
 func TestRequestFinalRecap_DefersFinalizeUntilReply(t *testing.T) {

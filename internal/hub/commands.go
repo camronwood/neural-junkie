@@ -247,6 +247,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/collaborate":          ch.handleCollaborate,
 		"/runbook":              ch.handleRunbook,
 		"/approve-plan":         ch.handleApprovePlan,
+		"/submit-plan":          ch.handleSubmitPlan,
 		"/ack-collab-workspace": ch.handleAckCollabWorkspace,
 		"/resume-plan":          ch.handleResumePlan,
 		"/revise-plan":          ch.handleRevisePlan,
@@ -723,7 +724,7 @@ func (ch *CommandHandler) handleListAgents(ctx context.Context, msg *protocol.Me
 		response.WriteString("No agents available.\n\n")
 		response.WriteString("**Create agents:**\n")
 		response.WriteString("• `/create-repo-agent <path>` - Repository expert\n")
-		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (rust, backend, frontend, assistant, ...)\n")
+		response.WriteString("• `/create-expert <type> [name]` - Specialist agent (backend, frontend, architecture, code-review, assistant, ...)\n")
 		response.WriteString("• `/create-confluence-agent <space>` - Confluence expert\n")
 	}
 
@@ -808,15 +809,16 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel,
 			"Usage: `/create-expert <type> [name ...] [provider] [model]`\n\n"+
 				"**Preset types** (curated engineering specialists):\n"+
-				"• `rust`, `backend`, `frontend`, `devops`, `database`, `security`, `biology`, `assistant`\n\n"+
+				"• `backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `biology`, `assistant`\n\n"+
+				"• Legacy explicit slugs also work when the development pack is enabled: `rust`, `database`\n\n"+
 				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`).\n\n"+
 				"The expert is created in a **private DM** with you — it is **not** added to this channel. Invite the agent from the channel member UI when you want help here.\n\n"+
 				"**Examples:**\n"+
 				"```\n"+
-				"/create-expert rust\n"+
-				"/create-expert rust RustGuru\n"+
+				"/create-expert architecture\n"+
+				"/create-expert code-review CodeReviewer\n"+
 				"/create-expert guitar GuitarCoach\n"+
-				"/create-expert backend GoExpert ollama qwen2.5-coder:14b\n"+
+				"/create-expert backend BackendEngineer ollama qwen2.5-coder:14b\n"+
 				"```\n\n"+
 				"Use **spaces** between arguments (not commas)."), nil
 	}
@@ -840,14 +842,16 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	if name == "" {
 		if spec.IsPreset {
 			defaults := map[protocol.AgentType]string{
-				protocol.AgentTypeRust:      "RustExpert",
-				protocol.AgentTypeBackend:   "GoExpert",
-				protocol.AgentTypeFrontend:  "ReactExpert",
-				protocol.AgentTypeDevOps:    "DevOpsPro",
-				protocol.AgentTypeDatabase:  "SQLMaster",
-				protocol.AgentTypeSecurity:  "SecurityExpert",
-				protocol.AgentTypeBiology:   "BiologyExpert",
-				protocol.AgentTypeAssistant: "Assistant",
+				protocol.AgentTypeRust:         "RustExpert",
+				protocol.AgentTypeBackend:      "BackendEngineer",
+				protocol.AgentTypeFrontend:     "FrontendEngineer",
+				protocol.AgentTypeDevOps:       "PlatformEngineer",
+				protocol.AgentTypeDatabase:     "DatabaseSpecialist",
+				protocol.AgentTypeSecurity:     "SecurityReviewer",
+				protocol.AgentTypeArchitecture: "SoftwareArchitect",
+				protocol.AgentTypeCodeReview:   "CodeReviewer",
+				protocol.AgentTypeBiology:      "BiologyExpert",
+				protocol.AgentTypeAssistant:    "Assistant",
 			}
 			name = defaults[spec.AgentType]
 		} else {
@@ -3255,6 +3259,9 @@ func (ch *CommandHandler) handleOpenTerminal(ctx context.Context, msg *protocol.
 	if len(parts) >= 2 {
 		cwd = parts[1]
 	}
+	if strings.TrimSpace(cwd) == "" {
+		cwd = ch.collaborationCwdForChannel(msg.Channel)
+	}
 	agentName := msg.From.Name
 	if msg.From.ID != "" && msg.From.ID != "system" {
 		if a, err := ch.hub.GetAgent(msg.From.ID); err == nil {
@@ -3280,6 +3287,30 @@ func (ch *CommandHandler) handleOpenTerminal(ctx context.Context, msg *protocol.
 		label = fmt.Sprintf("terminal tab at %s", cwd)
 	}
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("Opening %s for **%s**", label, agentName)), nil
+}
+
+// collaborationCwdForChannel returns source repo or sandbox path for a collab channel terminal.
+func (ch *CommandHandler) collaborationCwdForChannel(channel string) string {
+	channel = strings.TrimSpace(channel)
+	if channel == "" || !strings.HasPrefix(channel, "collab-") {
+		return ""
+	}
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ""
+	}
+	for _, c := range cm.ListActive() {
+		if c.Channel != channel {
+			continue
+		}
+		if p := strings.TrimSpace(c.SourceRepoPath); p != "" && !ch.hub.pathUnderCollabAssets(p) {
+			return p
+		}
+		if p := strings.TrimSpace(c.WorkingDirectory); p != "" {
+			return p
+		}
+	}
+	return ""
 }
 
 // SetAssistantAgent sets the assistant agent reference for meeting notes functionality
@@ -3311,6 +3342,27 @@ func (ch *CommandHandler) AbortRuntimeAgentsOnChannel(channel string) {
 			continue
 		}
 		ra.AbortChannel(channel)
+	}
+	for _, ca := range ch.cliAgents {
+		if ca == nil {
+			continue
+		}
+		ca.AbortChannel(channel)
+	}
+	if ch.assistantAgent != nil && ch.assistantAgent.Agent != nil {
+		ch.assistantAgent.AbortChannel(channel)
+	}
+	for _, ra := range ch.repoAgents {
+		if ra == nil || ra.Agent == nil {
+			continue
+		}
+		ra.AbortChannel(channel)
+	}
+	for _, ca := range ch.confluenceAgents {
+		if ca == nil || ca.Agent == nil {
+			continue
+		}
+		ca.AbortChannel(channel)
 	}
 }
 
@@ -3437,10 +3489,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Expert Agents ─────────────────────────────────────────────
 		{
 			Name:        "/create-expert",
-			Description: "Create a specialist agent (rust, backend, frontend, devops, database, security, biology, assistant)",
+			Description: "Create a specialist agent (backend, frontend, devops, security, architecture, code-review, biology, assistant)",
 			Category:    "Expert Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "type", Description: "Expert type (rust, backend, frontend, devops, database, security, biology, assistant)", Type: "string", Required: true, Options: []string{"rust", "backend", "frontend", "devops", "database", "security", "biology", "assistant"}},
+				{Name: "type", Description: "Expert type (backend, frontend, devops, security, architecture, code-review, biology, assistant)", Type: "string", Required: true, Options: []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "biology", "assistant"}},
 				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},
@@ -3659,7 +3711,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Set a recurring reminder",
 			Category:    "Assistant",
 			Arguments: []protocol.CommandArgument{
-				{Name: "schedule", Description: "daily|weekly|monthly", Type: "string", Required: true},
+				{Name: "schedule", Description: "daily|weekly|monthly", Type: "string", Required: true, Options: []string{"daily", "weekly", "monthly"}},
 				{Name: "message", Description: "Reminder content", Type: "string", Required: true},
 			},
 		},
@@ -3682,7 +3734,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Mark a task as complete",
 			Category:    "Assistant",
 			Arguments: []protocol.CommandArgument{
-				{Name: "task-id", Description: "Task id or short id prefix", Type: "string", Required: true},
+				{Name: "task-id", Description: "Task id or short id prefix", Type: "assistant-task-id", Required: true},
 			},
 		},
 		{
@@ -3723,7 +3775,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Approve a pending file change",
 			Category:    "Files & Workspace",
 			Arguments: []protocol.CommandArgument{
-				{Name: "change-id", Description: "ID of the file change to approve", Type: "string", Required: true},
+				{Name: "change-id", Description: "ID of the file change to approve", Type: "file-change-id", Required: true},
 			},
 		},
 		{
@@ -3731,7 +3783,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Reject a pending file change",
 			Category:    "Files & Workspace",
 			Arguments: []protocol.CommandArgument{
-				{Name: "change-id", Description: "ID of the file change to reject", Type: "string", Required: true},
+				{Name: "change-id", Description: "ID of the file change to reject", Type: "file-change-id", Required: true},
 			},
 		},
 		{
@@ -3739,7 +3791,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Approve a pending file delete operation",
 			Category:    "Files & Workspace",
 			Arguments: []protocol.CommandArgument{
-				{Name: "change-id", Description: "ID of the delete operation to approve", Type: "string", Required: true},
+				{Name: "change-id", Description: "ID of the delete operation to approve", Type: "file-change-id", Required: true},
 			},
 		},
 		{
@@ -3782,7 +3834,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Add an agent to a channel",
 			Category:    "Channels",
 			Arguments: []protocol.CommandArgument{
-				{Name: "channel", Description: "Channel name", Type: "string", Required: true},
+				{Name: "channel", Description: "Channel name", Type: "channel-name", Required: true},
 				{Name: "agent-name", Description: "Agent to add", Type: "agent-name", Required: true},
 			},
 		},
@@ -3791,7 +3843,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Remove an agent from a channel",
 			Category:    "Channels",
 			Arguments: []protocol.CommandArgument{
-				{Name: "channel", Description: "Channel name", Type: "string", Required: true},
+				{Name: "channel", Description: "Channel name", Type: "channel-name", Required: true},
 				{Name: "agent-name", Description: "Agent to remove", Type: "agent-name", Required: true},
 			},
 		},
@@ -3806,7 +3858,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Delete a custom or DM channel",
 			Category:    "Channels",
 			Arguments: []protocol.CommandArgument{
-				{Name: "name", Description: "Channel name to delete", Type: "string", Required: true},
+				{Name: "name", Description: "Channel name to delete", Type: "channel-name", Required: true},
 			},
 		},
 
@@ -3872,7 +3924,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		},
 		{
 			Name:        "/collaborate",
-			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` / `--workspace` / `--worktree` before mentions (defaults 3 / 20). `--worktree` runs execution in a git worktree; combine with `--workspace` to bind the source repo at start.",
+			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` / `--workspace` / `--worktree` / `--allow-agent-adds` before mentions (defaults 3 / 20, agent add requests off). `--worktree` runs execution in a git worktree; combine with `--workspace` to bind the source repo at start.",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
 				{Name: "description", Description: "[--rounds N] [--messages M] [--workspace] [--worktree] @Agent1 @Agent2 ... description", Type: "string", Required: true},
@@ -3883,7 +3935,15 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Approve a collaboration plan and begin execution",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "collaboration-id", Required: true},
+			},
+		},
+		{
+			Name:        "/submit-plan",
+			Description: "End planning and move to user review (plan + session summary before approve)",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "collaboration-id", Required: true},
 			},
 		},
 		{
@@ -3891,7 +3951,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Confirm the collaboration sandbox so agents receive task prompts (after /approve-plan)",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "collaboration-id", Required: true},
 			},
 		},
 		{
@@ -3899,7 +3959,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Resume a collaboration: approve/retry execution when reviewing or approved, or re-send open task prompts when executing",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID (first 8 chars is enough)", Type: "collaboration-id", Required: true},
 			},
 		},
 		{
@@ -3907,7 +3967,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Send feedback to revise a collaboration plan",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID", Type: "collaboration-id", Required: true},
 				{Name: "feedback", Description: "Revision feedback for the agents", Type: "string", Required: true},
 			},
 		},
@@ -3916,7 +3976,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Cancel an active collaboration",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID", Type: "collaboration-id", Required: true},
 			},
 		},
 		{
@@ -3924,8 +3984,8 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Mark a collaboration complete (use --force to close open tasks)",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
-				{Name: "force", Description: "Pass --force to mark open tasks done and close", Type: "string", Required: false},
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "collaboration-id", Required: true},
+				{Name: "force", Description: "Pass --force to mark open tasks done and close", Type: "string", Required: false, Options: []string{"--force"}},
 			},
 		},
 		{
@@ -3933,8 +3993,8 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Mark one collaboration task complete (1-based task number or task id prefix)",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
-				{Name: "task", Description: "Task number (1-based) or task id prefix", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "collaboration-id", Required: true},
+				{Name: "task", Description: "Task number (1-based) or task id prefix", Type: "collaboration-task", Required: true},
 			},
 		},
 		{
@@ -3942,7 +4002,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Raise planning/review discussion limits after budget_exhausted (or bump caps while active)",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "collaboration-id", Required: true},
 				{Name: "rounds", Description: "Add this many to max rounds (optional)", Type: "string", Required: false},
 				{Name: "messages", Description: "Add this many to max agent messages (optional)", Type: "string", Required: false},
 			},
@@ -3952,7 +4012,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Set a short display title for a collaboration",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "string", Required: true},
+				{Name: "collab-id", Description: "Collaboration ID (prefix ok)", Type: "collaboration-id", Required: true},
 				{Name: "title", Description: "New title", Type: "string", Required: true},
 			},
 		},
@@ -3961,7 +4021,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Show status of active collaborations",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
-				{Name: "collab-id", Description: "Collaboration ID (optional, shows all if omitted)", Type: "string", Required: false},
+				{Name: "collab-id", Description: "Collaboration ID (optional, shows all if omitted)", Type: "collaboration-id", Required: false},
 			},
 		},
 	}
@@ -4010,7 +4070,7 @@ func (ch *CommandHandler) validateCommandDefinitions() {
 // ── Collaboration Command Handlers ──────────────────────────────────
 
 // handleCollaborate starts a multi-agent collaboration.
-// Usage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
+// Usage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 @Agent2 @Agent3 build a CLI tool that encrypts files
 func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	flagParse, tail, flagErr := parseCollaborateLeadFlags(parts)
 	if flagErr != "" {
@@ -4018,7 +4078,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 	discussionCfg := flagParse.Discussion
 	if len(tail) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] [--allow-agent-adds] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
 	}
 
 	cm := ch.hub.GetCollaborationManager()
@@ -4029,7 +4089,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	// Parse agent mentions and description
 	mentionStrings := protocol.ParseMentions(strings.Join(tail, " "))
 	if len(mentionStrings) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate [--rounds N] [--messages M] @Agent1 @Agent2 description"), nil
+		return ch.systemResponse(msg.Channel, "❌ At least 2 agents must be @mentioned.\nUsage: /collaborate [--rounds N] [--messages M] [--allow-agent-adds] @Agent1 @Agent2 description"), nil
 	}
 
 	// Resolve mentions to agent IDs
@@ -4059,14 +4119,20 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	ch.clearCollaborateRedirect()
 
 	var createOpts collaboration.CreateOptions
+	createOpts.AllowAgentParticipantRequests = flagParse.AllowAgentParticipantRequests
+	sourceWorkspacePath, sourceWorkspaceWarn := ch.hub.resolveCollaborateSourceRepoPath(msg)
+	if sourceWorkspacePath != "" {
+		createOpts.SourceRepoPath = sourceWorkspacePath
+	}
+	createOpts.SourceWorkspaceContext = workspaceContextFromMessageMetadata(msg)
 	if flagParse.Worktree {
 		createOpts.ExecutionMode = collaboration.ExecutionModeWorktree
-		if flagParse.AttachWorkspace {
-			if repoPath := workspacePathFromMessageMetadata(msg); repoPath != "" {
-				if err := collabworktree.ValidateGitRepo(repoPath); err != nil {
+		if createOpts.SourceRepoPath != "" {
+			if err := collabworktree.ValidateGitRepo(createOpts.SourceRepoPath); err != nil {
+				if flagParse.AttachWorkspace {
 					return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ --worktree with --workspace: %v", err)), nil
 				}
-				createOpts.SourceRepoPath = repoPath
+				createOpts.SourceRepoPath = ""
 			}
 		}
 	}
@@ -4129,6 +4195,18 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		} else {
 			seedBody += "Source repo will be chosen at execution (desktop active workspace or `--workspace` at start)."
 		}
+	} else if collab.SourceRepoPath != "" {
+		rel := collaboration.ProjectCollabRelPath(collab.ID)
+		seedBody += fmt.Sprintf(
+			"\n\n**Source workspace:** `%s`.\n\n**Deliverables folder:** `%s/` under the project (plans, research, and outputs). Inspect the repo at the source workspace; write files under the deliverables folder.",
+			collab.SourceRepoPath, rel,
+		)
+	}
+	if sourceWorkspaceWarn != "" {
+		seedBody += "\n\n" + sourceWorkspaceWarn
+	}
+	if collab.AllowAgentParticipantRequests {
+		seedBody += "\n\n**Agent expansion requests:** Enabled. Agents may suggest adding other agents, but Camron must approve each request."
 	}
 
 	// Send the seed message to kick off the planning discussion
@@ -4145,7 +4223,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 	seedMsg.Metadata["collab_internal_event"] = true
 	if flagParse.AttachWorkspace {
-		inheritWorkspaceContextMetadata(msg, seedMsg, true)
+		ch.attachCollaborationWorkspaceMetadata(msg, seedMsg, false)
 	}
 
 	if err := ch.hub.SendMessage(seedMsg); err != nil {
@@ -4176,7 +4254,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
 	turnMsg.Mentions = []string{firstAgent.AgentID}
 	if flagParse.AttachWorkspace {
-		inheritWorkspaceContextMetadata(msg, turnMsg, true)
+		ch.attachCollaborationWorkspaceMetadata(msg, turnMsg, false)
 	}
 
 	if err := ch.hub.SendMessage(turnMsg); err != nil {
@@ -4185,6 +4263,13 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 
 	ch.setCollaborateRedirect(collabChannelName, collab.ID)
+
+	if sourceWorkspaceWarn != "" {
+		warnMsg := ch.systemResponse(msg.Channel, sourceWorkspaceWarn)
+		if err := ch.hub.SendMessage(warnMsg); err != nil {
+			log.Printf("[Collaboration] workspace warning on %s: %v", msg.Channel, err)
+		}
+	}
 
 	return nil, nil
 }
@@ -4226,9 +4311,14 @@ func (ch *CommandHandler) handleRunbook(ctx context.Context, msg *protocol.Messa
 	if flagParse.Worktree {
 		execMode = string(collaboration.ExecutionModeWorktree)
 	}
-	sourceRepo := ""
-	if flagParse.Worktree && flagParse.AttachWorkspace {
-		sourceRepo = workspacePathFromMessageMetadata(msg)
+	sourceRepo, _ := ch.hub.resolveCollaborateSourceRepoPath(msg)
+	if flagParse.Worktree && sourceRepo != "" {
+		if err := collabworktree.ValidateGitRepo(sourceRepo); err != nil {
+			if flagParse.AttachWorkspace {
+				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ --worktree with --workspace: %v", err)), nil
+			}
+			sourceRepo = ""
+		}
 	}
 
 	result, err := ch.hub.CreateRunbookSession(RunbookCreateRequest{
@@ -4306,6 +4396,69 @@ func (ch *CommandHandler) setCollabClientOnAgent(agentID, agentName string, clie
 	log.Printf("[Collaboration] Setting collab client on agent %s (%s) via hub lookup", agentName, shortID(agentID))
 }
 
+func (ch *CommandHandler) handleSubmitPlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /submit-plan <collab-id>"), nil
+	}
+
+	cm := ch.hub.GetCollaborationManager()
+	collabID := ch.resolveCollabID(parts[1])
+	if collabID == "" {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
+	}
+
+	snap, err := cm.GetCollaborationSnapshot(collabID)
+	if err != nil || snap == nil {
+		return ch.systemResponse(msg.Channel, "❌ Collaboration not found."), nil
+	}
+
+	switch snap.Phase {
+	case collaboration.PhaseReviewing, collaboration.PhaseApproved:
+		out := ch.systemResponse(msg.Channel, fmt.Sprintf(
+			"📋 **Already in review** (`%s`) — read the plan and session summary, then **Approve & start** (`/approve-plan %s`) or **Revise** (`/revise-plan`).",
+			collabID[:8], collabID[:8],
+		))
+		out.SetCollaborationID(collabID)
+		return out, nil
+	case collaboration.PhaseExecuting, collaboration.PhaseCompleted, collaboration.PhaseCancelled:
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration is **%s** — cannot submit for review.", snap.Phase)), nil
+	case collaboration.PhasePlanning:
+		if snap.Discussion != nil && snap.Discussion.Status == collaboration.DiscussionActive {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf(
+				"⏳ **Planning still in progress** (`%s`) — agent discussion is active (round %d/%d, %d/%d messages). **Submit for review** unlocks when planning finishes (consensus, message limit, or round limit).",
+				collabID[:8],
+				snap.Discussion.CurrentRound, snap.Discussion.MaxRounds,
+				snap.Discussion.TotalMessageCount, snap.Discussion.MaxTotalMessages,
+			)), nil
+		}
+		// fall through
+	default:
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration is in **%s** — submit for review only applies during planning.", snap.Phase)), nil
+	}
+
+	if _, err := cm.TransitionToReviewing(collabID); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
+	}
+
+	ch.hub.persistCollaborationReviewAssets(collabID)
+
+	submitBody := fmt.Sprintf(
+		"📋 **Submitted for your review** (`%s`)\n\nAgent planning is paused. A facilitator will post a **session summary**; when it appears, review the plan and use **Approve & start** (`/approve-plan %s`) or **Revise** (`/revise-plan %s …`).",
+		collabID[:8], collabID[:8], collabID[:8],
+	)
+	if reviewSnap, err := cm.GetCollaborationSnapshot(collabID); err == nil && reviewSnap != nil {
+		submitBody += collaboration.FormatTaskPathWarnings(
+			collaboration.ValidateCollaborationPaths(reviewSnap),
+			reviewSnap.SourceRepoPath,
+		)
+	}
+
+	out := ch.systemResponse(msg.Channel, submitBody)
+	out.SetCollaborationID(collabID)
+	out.SetCollaborationPhase(string(collaboration.PhaseReviewing))
+	return out, nil
+}
+
 func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
 		return ch.systemResponse(msg.Channel, "❌ Usage: /approve-plan <collab-id>"), nil
@@ -4327,12 +4480,23 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 	if len(collab.Tasks) == 0 && collab.Plan != nil && strings.TrimSpace(collab.Plan.Content) != "" {
 		extractedTasks := collaboration.ExtractTasksFromPlan(collab.Plan.Content, collab.Agents)
+		collaboration.EnrichTasksWithContextPaths(extractedTasks, collab.SourceRepoPath)
 		if len(extractedTasks) > 0 {
 			if err := cm.SetTasks(collabID, extractedTasks); err != nil {
 				log.Printf("[Collaboration] Failed to set extracted tasks for %s: %v", collabID[:8], err)
 			}
 		}
 	}
+
+	pathWarnSnap, _ := cm.GetCollaborationSnapshot(collabID)
+	repoPath := ""
+	if pathWarnSnap != nil {
+		repoPath = pathWarnSnap.SourceRepoPath
+	}
+	pathWarnings := collaboration.FormatTaskPathWarnings(
+		collaboration.ValidateCollaborationPaths(pathWarnSnap),
+		repoPath,
+	)
 
 	// Transition to executing
 	_, err = cm.TransitionToExecuting(collabID)
@@ -4348,6 +4512,7 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	if err != nil || collabSnap == nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not load collaboration %s after execution start", collabID[:8])), nil
 	}
+	ch.hub.persistCollaborationReviewAssets(collabID)
 
 	// Notify agents about their assigned tasks
 	var taskSummary strings.Builder
@@ -4381,6 +4546,9 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree && collabSnap.WorktreeBranch != "" && strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
 			taskSummary.WriteString(fmt.Sprintf("_After completion, merge branch `%s` from your main checkout._\n", collabSnap.WorktreeBranch))
 		}
+	}
+	if pathWarnings != "" {
+		taskSummary.WriteString(pathWarnings)
 	}
 
 	out := ch.systemResponse(msg.Channel, taskSummary.String())
@@ -4457,7 +4625,7 @@ func (ch *CommandHandler) handleResumePlan(ctx context.Context, msg *protocol.Me
 		out.SetCollaborationID(collabID)
 		return out, nil
 	case collaboration.PhasePlanning:
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("⏳ **Still planning** (`%s`) — wait until the session reaches **Reviewing**, then use **Resume plan** (or `/approve-plan`) to approve and execute.", collabID[:8])), nil
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("⏳ **Still planning** (`%s`) — use **Submit for review** (`/submit-plan %s`) when ready, then **Approve & start** after the session summary.", collabID[:8], collabID[:8])), nil
 	default:
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration is **%s** — start a new session with `/collaborate`.", snap.Phase)), nil
 	}
@@ -4724,8 +4892,40 @@ func (ch *CommandHandler) handleCollabRename(ctx context.Context, msg *protocol.
 	return out, nil
 }
 
+// attachCollaborationWorkspaceMetadata copies workspace context onto collab channel messages
+// when /collaborate was invoked with --workspace (outline scope; no open file bodies).
+func (ch *CommandHandler) attachCollaborationWorkspaceMetadata(src, dst *protocol.Message, fullOpenFiles bool) {
+	if workspacePathFromMessageMetadata(src) == "" {
+		return
+	}
+	inheritWorkspaceContextMetadata(src, dst, !fullOpenFiles)
+}
+
+// workspaceContextFromMessageMetadata returns a copy of workspace_context from outbound metadata.
+func workspaceContextFromMessageMetadata(msg *protocol.Message) map[string]interface{} {
+	if msg == nil || msg.Metadata == nil {
+		return nil
+	}
+	raw, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return nil
+	}
+	ctxMap, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	out := map[string]interface{}{}
+	for k, v := range ctxMap {
+		out[k] = v
+	}
+	if p, _ := out["workspace_path"].(string); strings.TrimSpace(p) == "" {
+		return nil
+	}
+	return out
+}
+
 // inheritWorkspaceContextMetadata copies workspace metadata from src to dst.
-// When outlineOnly is true (collab --workspace), only name/path/tree are copied — no open file bodies.
+// When outlineOnly is true, only name/path/tree are copied — no open file bodies.
 func inheritWorkspaceContextMetadata(src, dst *protocol.Message, outlineOnly bool) {
 	if src == nil || dst == nil || src.Metadata == nil {
 		return

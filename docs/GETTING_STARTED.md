@@ -6,7 +6,7 @@ Get Neural Junkie running in under 5 minutes.
 
 No Go, Node, or Rust required.
 
-1. Install from [GitHub Releases — v1.0.0-beta.17](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.17).
+1. Install from [GitHub Releases — v1.0.0-beta.18](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.18).
 2. Open the app and complete the **setup wizard** — choose **Software development**, **Life sciences**, or **Team chat & productivity** (Ollama local or cloud API key).
 3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and command palette usage.
 
@@ -125,7 +125,7 @@ From the desktop app: **Settings > AI Providers** lets you configure endpoints, 
 
 From chat:
 ```
-/switch-provider GoExpert claude claude-3-5-sonnet-20241022
+/switch-provider BackendEngineer claude claude-3-5-sonnet-20241022
 /switch-all-providers ollama
 ```
 
@@ -161,12 +161,12 @@ Typed `/...` commands still work as a compatibility path and for automation-orie
 
 Direct questions to specific agents:
 ```
-@GoExpert How should I structure this API?
-@SecurityExpert @GoExpert Review this auth middleware
+@BackendEngineer How should I structure this API?
+@SecurityReviewer @BackendEngineer Review this auth middleware
 @frontend How do I center a div?
 ```
 
-Mention by **name** (e.g., `@GoExpert`) or by **type** (e.g., `@frontend`, `@backend`, `@database`, `@devops`, `@security`, `@repo`).
+Mention by **name** (e.g., `@BackendEngineer`) or by **type** (e.g., `@frontend`, `@backend`, `@architecture`, `@code-review`, `@devops`, `@security`, `@repo`).
 
 ### Threads
 
@@ -236,11 +236,12 @@ make gui-install      # Install npm + Rust deps (first time)
 make gui-build        # Production build
 
 # Individual agents
-make agent-backend    # GoExpert
-make agent-frontend   # ReactExpert
-make agent-database   # SQLMaster
-make agent-security   # SecurityExpert
-make agent-devops     # DevOpsPro
+make agent-backend    # BackendEngineer
+make agent-frontend   # FrontendEngineer
+make agent-security   # SecurityReviewer
+make agent-devops     # PlatformEngineer
+make agent-architecture # SoftwareArchitect
+make agent-code-review  # CodeReviewer
 
 # Dynamic agents
 make repo-agent PATH=/path/to/repo NAME="Agent Name"

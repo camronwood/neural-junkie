@@ -310,8 +310,13 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (!inner || inner.size === 0) return state;
       const respondedAgentIds = new Set(
         messages
-          .filter(m => m.type === 'chat' || m.type === 'answer')
-          .map(m => m.from?.id)
+          .filter(
+            (m) =>
+              m.type === 'chat' ||
+              m.type === 'answer' ||
+              m.type === 'collaboration_discussion'
+          )
+          .map((m) => m.from?.id)
           .filter(Boolean)
       );
       let changed = false;

@@ -14,15 +14,12 @@ import (
 // NewFrontendAgent creates a frontend development agent
 func NewFrontendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
-		"React", "Vue.js", "Angular",
-		"TypeScript", "JavaScript",
-		"CSS", "HTML", "Tailwind",
+		"Web UI", "Desktop UI", "TypeScript",
+		"JavaScript", "CSS", "HTML",
 		"UI/UX Design", "Accessibility",
-		"Performance Optimization",
-		"State Management", "Redux",
-		"Design Analysis", "CSS Generation",
-		"Style Guide Creation", "Design Tokens",
-		"Component Recreation", "Visual Design",
+		"Performance Optimization", "State Management",
+		"Design Systems", "Component Architecture",
+		"Visual QA", "Responsive Design",
 	}
 
 	agent := NewAgent(protocol.AgentTypeFrontend, name, expertise, ai, hub)
@@ -34,12 +31,12 @@ func NewFrontendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 // NewBackendAgent creates a backend development agent
 func NewBackendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
-		"Go", "Node.js", "Python",
-		"REST APIs", "GraphQL", "gRPC",
+		"APIs", "Services", "Data Modeling",
+		"REST", "GraphQL", "gRPC",
 		"Microservices", "Event-Driven Architecture",
 		"Business Logic", "API Design",
 		"Performance", "Caching",
-		"Message Queues", "Redis",
+		"Message Queues", "Integration Patterns",
 	}
 
 	agent := NewAgent(protocol.AgentTypeBackend, name, expertise, ai, hub)
@@ -153,6 +150,30 @@ func NewRustAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return NewAgent(protocol.AgentTypeRust, name, expertise, ai, hub)
 }
 
+// NewArchitectureAgent creates a broad software architecture agent.
+func NewArchitectureAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"System Design", "Architecture Review", "Service Boundaries",
+		"Scalability", "Reliability", "Maintainability",
+		"Technical Strategy", "Tradeoff Analysis", "Migration Planning",
+		"Integration Design", "Data Flow", "Operational Readiness",
+	}
+
+	return NewAgent(protocol.AgentTypeArchitecture, name, expertise, ai, hub)
+}
+
+// NewCodeReviewAgent creates a broad code review agent.
+func NewCodeReviewAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Code Review", "Correctness", "Maintainability",
+		"Testing", "Refactoring", "Error Handling",
+		"Performance", "Readability", "API Contracts",
+		"Regression Risk", "Dependency Hygiene", "Documentation",
+	}
+
+	return NewAgent(protocol.AgentTypeCodeReview, name, expertise, ai, hub)
+}
+
 // NewBiologyAgent creates a life-sciences agent with Bio MCP tools.
 func NewBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
@@ -211,6 +232,10 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewSecurityAgent(name, ai, hub), nil
 	case protocol.AgentTypeRust:
 		return NewRustAgent(name, ai, hub), nil
+	case protocol.AgentTypeArchitecture:
+		return NewArchitectureAgent(name, ai, hub), nil
+	case protocol.AgentTypeCodeReview:
+		return NewCodeReviewAgent(name, ai, hub), nil
 	case protocol.AgentTypeBiology:
 		return NewBiologyAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:

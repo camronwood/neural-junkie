@@ -890,7 +890,7 @@ func TestHubTaskLifecycleAutoCompletesCollaboration(t *testing.T) {
 	}
 }
 
-func TestHubCollaborationMentionAutoAddsParticipant(t *testing.T) {
+func TestHubCollaborationMentionRequestsParticipantWhenEnabled(t *testing.T) {
 	h := hub.NewHub()
 	_ = h.CreateChannel("test-collab", "Collaboration channel", "test")
 
@@ -902,7 +902,14 @@ func TestHubCollaborationMentionAutoAddsParticipant(t *testing.T) {
 	_ = h.RegisterAgent(agentC)
 
 	cm := h.GetCollaborationManager()
-	collab, err := cm.CreateCollaboration("Plan feature", []string{"a1", "a2"}, "test-collab", "tester", collaboration.DiscussionConfig{})
+	collab, err := cm.CreateCollaboration(
+		"Plan feature",
+		[]string{"a1", "a2"},
+		"test-collab",
+		"tester",
+		collaboration.DiscussionConfig{},
+		collaboration.CreateOptions{AllowAgentParticipantRequests: true},
+	)
 	if err != nil {
 		t.Fatalf("create collaboration: %v", err)
 	}
@@ -918,8 +925,14 @@ func TestHubCollaborationMentionAutoAddsParticipant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get collaboration: %v", err)
 	}
-	if len(updated.Agents) != 3 {
-		t.Fatalf("expected collaboration to include auto-added participant, got %d agents", len(updated.Agents))
+	if len(updated.Agents) != 2 {
+		t.Fatalf("expected collaboration to avoid auto-adding participant, got %d agents", len(updated.Agents))
+	}
+	if len(updated.PendingParticipantRequests) != 1 {
+		t.Fatalf("expected pending participant request, got %+v", updated.PendingParticipantRequests)
+	}
+	if updated.PendingParticipantRequests[0].AgentID != "a3" {
+		t.Fatalf("expected pending request for DevOpsPro, got %+v", updated.PendingParticipantRequests[0])
 	}
 }
 

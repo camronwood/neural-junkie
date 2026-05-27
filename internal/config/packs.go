@@ -7,15 +7,19 @@ import (
 
 // Pack IDs for domain packs (toggle in Settings).
 const (
-	PackLifeSciences         = "life-sciences"
-	PackSoftwareDevelopment  = "software-development"
+	PackLifeSciences        = "life-sciences"
+	PackSoftwareDevelopment = "software-development"
 )
 
 // DevOllamaCodeModel is the recommended local model for software-development specialists.
 const DevOllamaCodeModel = "qwen2.5-coder:14b"
 
 // devSpecialistTypes are in-process engineering agent types owned by the software-development pack.
-var devSpecialistTypes = []string{"backend", "frontend", "devops", "database", "security", "rust"}
+var devSpecialistTypes = []string{"backend", "frontend", "devops", "security", "architecture", "code-review"}
+
+// legacyDevSpecialistTypes are no longer default pack agents, but existing configs
+// should still be gated and migrated as software-development specialists.
+var legacyDevSpecialistTypes = []string{"database", "rust"}
 
 // PacksConfig stores which optional domain packs are enabled.
 type PacksConfig struct {
@@ -57,19 +61,19 @@ func PackCatalog() []DomainPack {
 		{
 			ID:          PackSoftwareDevelopment,
 			Title:       "Software development",
-			Description: "Go, React, Rust, DevOps, database, and security specialists with MCP analysis tools and Qwen Coder models.",
+			Description: "Broad backend, frontend, platform, security, architecture, and code review specialists with MCP analysis tools and Qwen Coder models.",
 			OllamaModel: DevOllamaCodeModel,
 			ModelsToEnsure: []string{
 				DevOllamaCodeModel,
 				UtilityOllamaModel,
 			},
 			Agents: []AgentConfig{
-				{Type: "backend", Name: "GoExpert", Enabled: true, ProviderID: "ollama-local"},
-				{Type: "frontend", Name: "ReactExpert", Enabled: true, ProviderID: "ollama-local"},
-				{Type: "devops", Name: "DevOpsPro", Enabled: true, ProviderID: "ollama-local"},
-				{Type: "database", Name: "SQLMaster", Enabled: true, ProviderID: "ollama-local"},
-				{Type: "security", Name: "SecurityExpert", Enabled: true, ProviderID: "ollama-local"},
-				{Type: "rust", Name: "RustExpert", Enabled: true, ProviderID: "ollama-local"},
+				{Type: "backend", Name: "BackendEngineer", Enabled: true, ProviderID: "ollama-local"},
+				{Type: "frontend", Name: "FrontendEngineer", Enabled: true, ProviderID: "ollama-local"},
+				{Type: "devops", Name: "PlatformEngineer", Enabled: true, ProviderID: "ollama-local"},
+				{Type: "security", Name: "SecurityReviewer", Enabled: true, ProviderID: "ollama-local"},
+				{Type: "architecture", Name: "SoftwareArchitect", Enabled: true, ProviderID: "ollama-local"},
+				{Type: "code-review", Name: "CodeReviewer", Enabled: true, ProviderID: "ollama-local"},
 			},
 		},
 	}
@@ -173,6 +177,9 @@ func (c *Config) SyncAgentsFromPacks() {
 			packTypes[a.Type] = struct{}{}
 		}
 	}
+	for _, t := range legacyDevSpecialistTypes {
+		packTypes[t] = struct{}{}
+	}
 
 	// Disable pack-owned agents when their pack is off.
 	for i := range c.Agents {
@@ -237,6 +244,11 @@ func packForAgentType(agentType string) string {
 			if a.Type == agentType {
 				return pack.ID
 			}
+		}
+	}
+	for _, t := range legacyDevSpecialistTypes {
+		if t == agentType {
+			return PackSoftwareDevelopment
 		}
 	}
 	return ""
@@ -306,12 +318,29 @@ var coreExpertPresets = []ExpertPreset{
 
 // devPackExpertPresets are /create-expert and New DM presets when software-development is on.
 var devPackExpertPresets = []ExpertPreset{
-	{Slug: "rust", Label: "Rust"},
 	{Slug: "backend", Label: "Backend"},
 	{Slug: "frontend", Label: "Frontend"},
-	{Slug: "devops", Label: "DevOps"},
-	{Slug: "database", Label: "Database"},
+	{Slug: "devops", Label: "Platform / DevOps"},
 	{Slug: "security", Label: "Security"},
+	{Slug: "architecture", Label: "Software Architecture"},
+	{Slug: "code-review", Label: "Code Review"},
+}
+
+// legacyDevPackExpertSlugs remain valid explicit /create-expert slugs, but are no longer
+// shown as default software-development pack presets.
+var legacyDevPackExpertSlugs = map[string]struct{}{
+	"database": {},
+	"rust":     {},
+}
+
+func isDevPackExpertSlug(slug string) bool {
+	for _, p := range devPackExpertPresets {
+		if p.Slug == slug {
+			return true
+		}
+	}
+	_, ok := legacyDevPackExpertSlugs[slug]
+	return ok
 }
 
 // AvailableExpertPresets returns core presets plus slugs from enabled packs.
@@ -353,10 +382,8 @@ func (c *Config) PresetExpertDeniedMessage(slug string) string {
 	case "biology":
 		return "Biology experts require the **Life sciences** pack. Enable it in Settings → AI & providers → Domain packs."
 	default:
-		for _, p := range devPackExpertPresets {
-			if p.Slug == slug {
-				return "Software development specialists require the **Software development** pack. Enable it in Settings → AI & providers → Domain packs."
-			}
+		if isDevPackExpertSlug(slug) {
+			return "Software development specialists require the **Software development** pack. Enable it in Settings → AI & providers → Domain packs."
 		}
 	}
 	return ""
@@ -377,10 +404,8 @@ func (c *Config) PresetExpertAllowed(slug string) bool {
 	if slug == "biology" {
 		return c.IsPackEnabled(PackLifeSciences)
 	}
-	for _, p := range devPackExpertPresets {
-		if p.Slug == slug {
-			return c.IsPackEnabled(PackSoftwareDevelopment)
-		}
+	if isDevPackExpertSlug(slug) {
+		return c.IsPackEnabled(PackSoftwareDevelopment)
 	}
 	return true // custom slugs
 }
@@ -389,6 +414,11 @@ func (c *Config) PresetExpertAllowed(slug string) bool {
 func IsDevSpecialistType(agentType string) bool {
 	t := strings.ToLower(strings.TrimSpace(agentType))
 	for _, d := range devSpecialistTypes {
+		if d == t {
+			return true
+		}
+	}
+	for _, d := range legacyDevSpecialistTypes {
 		if d == t {
 			return true
 		}
@@ -429,6 +459,9 @@ func ConfigurableSpecialistTypes() map[string]bool {
 		for _, a := range p.Agents {
 			types[a.Type] = true
 		}
+	}
+	for _, t := range legacyDevSpecialistTypes {
+		types[t] = true
 	}
 	return types
 }

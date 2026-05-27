@@ -8,9 +8,11 @@ import { parseDMDisplayName } from '../utils/dmChannelDisplay';
 import { channelSidebarLabel, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
 import {
   agentSidebarHideKey,
+  isAgentShortcutDeleted,
   isAgentShownInSidebar,
   isAgentShortcutHidden,
   isDmChannelVisibleInSidebar,
+  isSidebarChannelDeleted,
 } from '../utils/sidebarVisibility';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 
@@ -29,6 +31,78 @@ const MIN_WIDTH = 180;
 const COMPACT_MIN_WIDTH = 140;
 const DEFAULT_WIDTH = 220;
 const STORAGE_KEY = 'channel-sidebar-width';
+
+const CLI_AGENT_ICONS: Record<string, string> = {
+  aider: 'A',
+  amazonq: 'Q',
+  amp: '⚡',
+  claude: '🧠',
+  codex: '◎',
+  copilot: '⌾',
+  crush: '◆',
+  cursor: '⌖',
+  droid: 'D',
+  gemini: '✦',
+  kiro: 'K',
+  opencode: 'OC',
+};
+
+const CLI_AGENT_MATCHERS: Array<[keyof typeof CLI_AGENT_ICONS, string[]]> = [
+  ['amazonq', ['amazonq', 'amazon-q', 'amazon q']],
+  ['opencode', ['opencode', 'open-code', 'open code']],
+  ['aider', ['aider']],
+  ['amp', ['amp']],
+  ['claude', ['claude']],
+  ['codex', ['codex']],
+  ['copilot', ['copilot', 'github-copilot']],
+  ['crush', ['crush']],
+  ['cursor', ['cursor']],
+  ['droid', ['droid', 'factory']],
+  ['gemini', ['gemini']],
+  ['kiro', ['kiro']],
+];
+
+function getCliAgentIcon(agent?: AgentInfo): string | null {
+  if (!agent) return null;
+  const isCliAgent = agent.type === 'cli' || agent.ai_provider?.endsWith('-cli');
+  if (!isCliAgent) return null;
+
+  const identity = [agent.ai_provider, agent.ai_model, agent.model, agent.name]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  const match = CLI_AGENT_MATCHERS.find(([, aliases]) =>
+    aliases.some((alias) => identity.includes(alias))
+  );
+  return match ? CLI_AGENT_ICONS[match[0]] : 'CLI';
+}
+
+function AgentSidebarMarker({
+  agent,
+  fallbackColor,
+}: {
+  agent?: AgentInfo;
+  fallbackColor: string;
+}) {
+  const cliIcon = getCliAgentIcon(agent);
+  if (cliIcon) {
+    return (
+      <span
+        className="inline-flex h-4 min-w-4 items-center justify-center rounded bg-white/10 px-0.5 text-[9px] leading-none text-white/85 ring-1 ring-white/10 flex-shrink-0"
+        title={`${agent?.name ?? 'CLI agent'} icon`}
+      >
+        {cliIcon}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="w-2 h-2 rounded-full flex-shrink-0"
+      style={{ backgroundColor: fallbackColor }}
+    />
+  );
+}
 
 function maxSidebarWidth(): number {
   return Math.min(window.innerWidth * 0.4, 520);
@@ -100,6 +174,8 @@ export function ChannelSidebar({
   const hiddenCollabSet = new Set(settings.hiddenCollaborationChannelNames ?? []);
   const isShortcutHidden = (agent: AgentInfo) =>
     settingsLoaded && isAgentShortcutHidden(settings, agent);
+  const isShortcutDeleted = (agent: AgentInfo) =>
+    settingsLoaded && isAgentShortcutDeleted(settings, agent);
 
   // Separate channels by type, sorted alphabetically for stable ordering
   const publicChannels = channelsNorm
@@ -110,9 +186,11 @@ export function ChannelSidebar({
     .sort((a, b) => a.name.localeCompare(b.name));
   const collaborationChannels = channelsNorm
     .filter(c => c.type === 'collaboration')
+    .filter(c => !(settingsLoaded && isSidebarChannelDeleted(settings, c)))
     .sort((a, b) => a.name.localeCompare(b.name));
   const dmChannels = channelsNorm
     .filter(c => c.type === 'dm')
+    .filter(c => !(settingsLoaded && isSidebarChannelDeleted(settings, c)))
     .filter(c => isDmChannelVisibleInSidebar(c, agents))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -170,7 +248,7 @@ export function ChannelSidebar({
   );
 
   const filteredAgentsWithoutDM = agents
-    .filter(a => isAgentShownInSidebar(a) && !agentsWithDM.has(a.id))
+    .filter(a => isAgentShownInSidebar(a) && !agentsWithDM.has(a.id) && !isShortcutDeleted(a))
     .filter(a => {
       const hidden = settingsLoaded && isShortcutHidden(a);
       if (hidden && !normalizedQuery) return false;
@@ -378,10 +456,7 @@ export function ChannelSidebar({
           }`}
           title={`DM with ${displayName}`}
         >
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: color }}
-          />
+          <AgentSidebarMarker agent={agent} fallbackColor={color} />
           <span className="truncate">{displayName}</span>
           {isHiddenRow && (
             <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
@@ -446,10 +521,7 @@ export function ChannelSidebar({
           }`}
           title={`Message ${agent.name}`}
         >
-          <span
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{ backgroundColor: getAgentColor(agent.type) }}
-          />
+          <AgentSidebarMarker agent={agent} fallbackColor={getAgentColor(agent.type)} />
           <span className="truncate">{agent.name}</span>
           {agent.tool_count != null && agent.tool_count > 0 && (
             <span

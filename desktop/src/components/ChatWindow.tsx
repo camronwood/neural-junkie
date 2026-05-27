@@ -57,6 +57,10 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
+import {
+  isNonTerminalCollaborationPhase,
+  resolvePanelCollaboration,
+} from '../utils/collaborationPanelState';
 import { RunbookBuilderPanel } from './RunbookBuilderPanel';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
@@ -91,12 +95,17 @@ import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
+import { syncCollabTurnThinking } from '../utils/collabThinking';
+import { resolveTerminalCwd } from '../utils/terminalCwd';
+import { runAgentTerminalCommand } from '../utils/runTerminalCommand';
+import type { CommandSuggestion } from '../stores/terminalStore';
 import {
   ensureRepoAgentWorkspace,
   isRepoAgentWorkspaceAction,
   parseCreateRepoAgentCommand,
 } from '../utils/repoAgentWorkspace';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { useFileChangeStore } from '../stores/fileChangeStore';
 import { getHubBaseURL } from '../config/hubUrl';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
@@ -278,6 +287,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
+  const { pendingChanges, fetchPendingChanges } = useFileChangeStore(
+    (s) => ({
+      pendingChanges: s.pendingChanges,
+      fetchPendingChanges: s.fetchPendingChanges,
+    }),
+    shallow
+  );
 
   // Sidebar visibility
   const [channelSidebarOpen, setChannelSidebarOpen] = useState<boolean>(() => {
@@ -351,6 +367,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
   const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
+  const handledParticipantRequestPromptsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const activeCh = useChatStore.getState().channel;
@@ -531,8 +548,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       });
     }
 
-    if (isTerminal) {
-      setActiveCollab(current => (current?.id === snapshot.id ? snapshot : current));
+    setActiveCollab(current => (current?.id === snapshot.id ? snapshot : current));
+
+    const ch = snapshot.channel || useChatStore.getState().channel;
+    if (ch && !isTerminal) {
+      syncCollabTurnThinking(snapshot, ch);
     }
   }, []);
 
@@ -639,6 +659,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [trackedCollaborations, channel]
   );
 
+  const panelCollaboration = useMemo(
+    () => resolvePanelCollaboration(activeCollab, collaborationsByID),
+    [activeCollab, collaborationsByID]
+  );
+
   const isClosedCollaborationChannel = Boolean(
     collaborationForChannel && isTerminalCollaborationPhase(collaborationForChannel.phase)
   );
@@ -675,17 +700,29 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Handle switching channel: switch store state, then load fresh messages
   const handleSwitchChannel = useCallback(
     async (channelName: string) => {
-      if (channelName === useChatStore.getState().channel) return;
+      const prevChannel = useChatStore.getState().channel;
+      if (channelName === prevChannel) return;
       revealSidebarForChannel(channelName);
       // Collaboration side panel is channel-scoped; clear when navigating.
       setActiveCollab(null);
       useChatStore.getState().switchChannel(channelName);
       localStorage.setItem('last-channel', channelName);
+      if (prevChannel && prevChannel !== channelName) {
+        useChatStore.getState().clearThinkingAgents(prevChannel);
+      }
       try {
         const msgs = await api.fetchMessages(channelName, 50);
         useChatStore.getState().setMessages(msgs);
         useChatStore.getState().cleanupStaleThinking(channelName, msgs);
         await loadCollaborations(channelName);
+        const collab = Object.values(collaborationsByIDRef.current).find(
+          (c) => c.channel === channelName && !isTerminalCollaborationPhase(c.phase)
+        );
+        if (collab) {
+          syncCollabTurnThinking(collab, channelName);
+        }
+        const cwd = resolveTerminalCwd({ collaboration: collab ?? null });
+        useTerminalStore.getState().alignActiveTabCwd(cwd);
       } catch (error) {
         console.error('Failed to load messages for channel:', error);
       }
@@ -882,12 +919,21 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
           if (thinkingStatus === 'started') {
             st.addThinkingAgent(msgChannel, message.from.id, message.from.name, message.from.type);
+            if (
+              msgChannel !== activeChannel &&
+              msgChannel.startsWith('collab-')
+            ) {
+              st.addThinkingAgent(activeChannel, message.from.id, message.from.name, message.from.type);
+            }
           } else if (
             thinkingStatus === 'completed' ||
             thinkingStatus === 'error' ||
             thinkingStatus === 'aborted'
           ) {
             st.removeThinkingAgent(msgChannel, message.from.id);
+            if (msgChannel !== activeChannel) {
+              st.removeThinkingAgent(activeChannel, message.from.id);
+            }
           }
         }
 
@@ -981,6 +1027,52 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         });
       }
 
+      if (message.metadata?.event === 'collab-participant-add-request') {
+        const collabID = getCollaborationId(message) || collabData?.id || '';
+        const agentID = typeof message.metadata.requested_agent_id === 'string'
+          ? message.metadata.requested_agent_id
+          : '';
+        if (collabID && agentID) {
+          const key = `${collabID}:${agentID}:${message.id}`;
+          if (!handledParticipantRequestPromptsRef.current.has(key)) {
+            handledParticipantRequestPromptsRef.current.add(key);
+            const agentName = typeof message.metadata.requested_agent_name === 'string'
+              ? message.metadata.requested_agent_name
+              : 'the agent';
+            const requestedBy = typeof message.metadata.requested_by_name === 'string'
+              ? message.metadata.requested_by_name
+              : 'An agent';
+            void (async () => {
+              const approved = window.confirm(
+                `${requestedBy} wants to add ${agentName} to this collaboration. Allow?`
+              );
+              try {
+                const updated = approved
+                  ? await api.approveCollabParticipantRequest(collabID, agentID)
+                  : await api.denyCollabParticipantRequest(collabID, agentID);
+                mergeCollaborationSnapshot(updated);
+                if (activeCollabRef.current?.id === updated.id) {
+                  setActiveCollab(updated);
+                }
+                addToast({
+                  type: approved ? 'success' : 'info',
+                  title: approved ? 'Agent added' : 'Agent add denied',
+                  message: approved
+                    ? `@${agentName} joined "${updated.title}".`
+                    : `@${agentName} was not added to "${updated.title}".`,
+                });
+              } catch (error) {
+                addToast({
+                  type: 'error',
+                  title: 'Participant request failed',
+                  message: error instanceof Error ? error.message : 'Could not update collaboration participants.',
+                });
+              }
+            })();
+          }
+        }
+      }
+
       // Thread replies: NJ channels use ThreadPanel only; Slack mirrors also show in main timeline.
       if (message.is_thread_reply && message.thread_id) {
         const threadChannel = message.channel || activeChannel;
@@ -1014,15 +1106,41 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         st.addMessage(message);
 
         if (message.metadata?.suggested_commands) {
-          const suggestions = message.metadata.suggested_commands as any[];
-          suggestions.forEach((suggestion) => {
-            addSuggestedCommand(suggestion);
-          });
+          const suggestions = message.metadata.suggested_commands as CommandSuggestion[];
+          const msgCh = message.channel || activeChannel;
+          const collabCtx = Object.values(collaborationsByIDRef.current).find(
+            (c) => c.channel === msgCh
+          );
+          for (const suggestion of suggestions) {
+            const enriched = {
+              ...suggestion,
+              cwd:
+                suggestion.cwd?.trim() ||
+                resolveTerminalCwd({ collaboration: collabCtx ?? null }),
+            };
+            if (enriched.is_safe) {
+              useTerminalStore.getState().setPanelOpen(true);
+              void runAgentTerminalCommand(enriched, {
+                collaboration: collabCtx ?? null,
+                channel: msgCh,
+                api,
+              });
+            } else {
+              addSuggestedCommand(enriched);
+              useTerminalStore.getState().setPanelOpen(true);
+            }
+          }
         }
 
         if (message.metadata?.event === 'agent-open-terminal') {
           const agentName = message.metadata.agent_name as string || 'Agent';
-          const cwd = message.metadata.cwd as string || undefined;
+          const msgCh = message.channel || activeChannel;
+          const collabCtx = Object.values(collaborationsByIDRef.current).find(
+            (c) => c.channel === msgCh
+          );
+          const cwd =
+            (message.metadata.cwd as string | undefined)?.trim() ||
+            resolveTerminalCwd({ collaboration: collabCtx ?? null });
           const tab = createNewTab('agent', agentName, cwd);
           useTerminalStore.getState().addTab(tab);
           useTerminalStore.getState().setPanelOpen(true);
@@ -1046,8 +1164,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
       
       // Clear thinking indicator when agent sends actual message
-      if (message.type === 'chat' || message.type === 'answer') {
-        st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
+      if (
+        message.type === 'chat' ||
+        message.type === 'answer' ||
+        message.type === 'collaboration_discussion'
+      ) {
+        const ch = message.channel || activeChannel;
+        st.removeThinkingAgent(ch, message.from.id);
+        if (ch !== activeChannel) {
+          st.removeThinkingAgent(activeChannel, message.from.id);
+        }
       }
       
       // Auto-refresh agents and channels for join/leave events
@@ -1197,6 +1323,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           await loadChannels();
           await handleSwitchChannel(sendResult.collaboration_channel);
           timelineChannel = sendResult.collaboration_channel;
+          const collab = Object.values(collaborationsByIDRef.current).find(
+            (c) => c.channel === sendResult.collaboration_channel
+          );
+          if (collab) {
+            syncCollabTurnThinking(collab, sendResult.collaboration_channel);
+          }
         }
         if (content.trimStart().startsWith('/')) {
           try {
@@ -1361,9 +1493,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Open command palette from toolbar button
   const openCommandPalette = useCallback(async () => {
     await ensureCommandDefs(true);
+    void loadCollaborations(channel);
+    void api
+      .fetchAssistantState(channel)
+      .then((state) => {
+        setAssistantTasks(state.tasks || []);
+        setAssistantReminders(state.reminders || []);
+      })
+      .catch((error) => console.error('Failed to load assistant state:', error));
+    void fetchPendingChanges(username || 'default').catch((error) =>
+      console.error('Failed to load pending file changes:', error)
+    );
     setCommandPaletteFilter('');
     setCommandPaletteOpen(true);
-  }, [ensureCommandDefs]);
+  }, [api, channel, ensureCommandDefs, fetchPendingChanges, loadCollaborations, username]);
 
   useEffect(() => {
     const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
@@ -1453,6 +1596,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     return () => window.clearInterval(id);
   }, [taskManagementOpen, loadAssistantState, loadCollaborations, channel]);
 
+  // Hub phase changes are not always re-broadcast on every message; poll while panel is open.
+  useEffect(() => {
+    if (!activeCollab?.id) return;
+    const targetChannel = activeCollab.channel?.trim() || channel;
+    const tick = () => {
+      const latest = collaborationsByIDRef.current[activeCollab.id];
+      if (!latest || !isNonTerminalCollaborationPhase(latest.phase)) {
+        return;
+      }
+      void loadCollaborations(targetChannel);
+    };
+    tick();
+    const id = window.setInterval(tick, 10_000);
+    return () => window.clearInterval(id);
+  }, [activeCollab?.id, activeCollab?.channel, channel, loadCollaborations]);
+
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-screen bg-slack-bg">
@@ -1513,209 +1672,223 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         </div>
         
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => {
-              const next = !channelSidebarOpen;
-              setChannelSidebarOpen(next);
-              localStorage.setItem('channel-sidebar-open', String(next));
-            }}
-            className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
-              channelSidebarOpen
-                ? 'bg-slack-accent text-white'
-                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-            }`}
-            title="Toggle channels sidebar (⌘B)"
-            aria-label="Toggle channels sidebar"
-            aria-pressed={channelSidebarOpen}
-          >
-            <LeftSidebarIcon className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="w-px h-5 bg-slack-border mx-0.5" />
-
-          <button
-            type="button"
-            onClick={openCommandPalette}
-            className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
-            title="Command palette (Cmd+Shift+P / Ctrl+Shift+P)"
-            aria-label="Open command palette with Cmd+Shift+P or Ctrl+Shift+P"
-          >
-            P
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const next = cycleWorkspaceContextMode(workspaceContextMode);
-              setWorkspaceContextMode(next);
-              localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
-            }}
-            className={`w-7 h-7 rounded transition-colors flex items-center justify-center relative ${
-              workspaceContextMode !== 'off'
-                ? 'bg-purple-600 hover:bg-purple-700 text-white ring-1 ring-purple-400 ring-offset-1 ring-offset-slack-bg'
-                : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
-            }`}
-            title={`Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`}
-            aria-label={`Workspace context mode ${workspaceContextModeLabel(workspaceContextMode)}`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-            </svg>
-            {workspaceContextMode === 'auto' && (
-              <span className="absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full h-2 w-2 border border-slack-bg" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setPendingChangesOpen(true)}
-            className="w-7 h-7 bg-orange-600 hover:bg-orange-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400"
-            title="Pending changes"
-            aria-label="Open pending file changes"
-          >
-            <PendingChangesIcon className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTaskManagementOpen(true)}
-            className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
-              taskManagementOpen ? 'bg-violet-600 hover:bg-violet-700' : 'bg-violet-700/80 hover:bg-violet-700'
-            } text-white`}
-            title="Task management (⌘⇧T)"
-            aria-label="Open task management"
-            aria-pressed={taskManagementOpen}
-          >
-            <TaskManagementIcon className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleNewRunbook()}
-            className="w-7 h-7 rounded transition-colors flex items-center justify-center bg-slate-600 hover:bg-slate-500 text-white text-[10px] font-bold"
-            title="New runbook (task DAG)"
-            aria-label="Create new runbook"
-          >
-            RB
-          </button>
-          
-          <button
-            type="button"
-            onClick={() => setMyAgentsPanelOpen(true)}
-            className="w-7 h-7 bg-slack-accent hover:bg-slack-accentHover text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
-            title="My agents"
-            aria-label="Open my agents"
-          >
-            <MyAgentsIcon className="w-3.5 h-3.5" />
-            {totalAgentsCount > 0 && (
-              <span className="absolute -bottom-0.5 -right-0.5 bg-white text-slack-accent text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
-                {totalAgentsCount}
-              </span>
-            )}
-          </button>
-          
-          <button
-            type="button"
-            onClick={() => setFileExplorerOpen(true)}
-            className="w-7 h-7 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400"
-            title="File explorer"
-            aria-label="Open file explorer"
-          >
-            <FilesIcon className="w-3.5 h-3.5" />
-          </button>
-          
-          <button
-            type="button"
-            onClick={() => setCodeEditorOpen(true)}
-            className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
-            title="Code editor"
-            aria-label="Open code editor"
-          >
-            <EditorIcon className="w-3.5 h-3.5" />
-          </button>
-
-          {devPackEnabled && (
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1" aria-label="Navigation and commands">
             <button
               type="button"
-              onClick={() => setProblemsOpen(true)}
-              className="w-7 h-7 bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
-              title="Problems"
-              aria-label="Open problems panel"
-            >
-              <span className="text-xs font-bold">!</span>
-            </button>
-          )}
-
-          {devPackEnabled && (
-            <button
-              type="button"
-              onClick={() => setGitModalOpen((open) => !open)}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 ${
-                gitModalOpen
-                  ? 'bg-orange-500 ring-2 ring-orange-300/60 text-white'
-                  : 'bg-orange-600 hover:bg-orange-500 text-white'
+              onClick={() => {
+                const next = !channelSidebarOpen;
+                setChannelSidebarOpen(next);
+                localStorage.setItem('channel-sidebar-open', String(next));
+              }}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
+                channelSidebarOpen
+                  ? 'bg-slack-accent text-white'
+                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
               }`}
-              title="Git (source control)"
-              aria-label={gitModalOpen ? 'Close git panel' : 'Open git panel'}
-              aria-pressed={gitModalOpen}
+              title="Toggle channels sidebar (⌘B)"
+              aria-label="Toggle channels sidebar"
+              aria-pressed={channelSidebarOpen}
             >
-              <GitIcon className="w-3.5 h-3.5" />
+              <LeftSidebarIcon className="w-3.5 h-3.5" />
             </button>
-          )}
-          
-          <button
-            type="button"
-            onClick={() => useTerminalStore.getState().togglePanel()}
-            className="w-7 h-7 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-400"
-            title="Terminal (⌘J)"
-            aria-label="Toggle terminal panel"
-          >
-            <TerminalIcon className="w-3.5 h-3.5" />
-            {useTerminalStore.getState().suggestedCommands.length > 0 && (
-              <span className="absolute -bottom-0.5 -right-0.5 bg-yellow-500 text-black text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
-                {useTerminalStore.getState().suggestedCommands.length}
-              </span>
+
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+              title="Command palette (Cmd+Shift+P / Ctrl+Shift+P)"
+              aria-label="Open command palette with Cmd+Shift+P or Ctrl+Shift+P"
+            >
+              P
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-slack-border mx-0.5" />
+
+          <div className="flex items-center gap-1" aria-label="File workspace tools">
+            <button
+              type="button"
+              onClick={() => {
+                const next = cycleWorkspaceContextMode(workspaceContextMode);
+                setWorkspaceContextMode(next);
+                localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
+              }}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center relative ${
+                workspaceContextMode !== 'off'
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white ring-1 ring-purple-400 ring-offset-1 ring-offset-slack-bg'
+                  : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
+              }`}
+              title={`Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`}
+              aria-label={`Workspace context mode ${workspaceContextModeLabel(workspaceContextMode)}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+              </svg>
+              {workspaceContextMode === 'auto' && (
+                <span className="absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full h-2 w-2 border border-slack-bg" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPendingChangesOpen(true)}
+              className="w-7 h-7 bg-orange-600 hover:bg-orange-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400"
+              title="Pending changes"
+              aria-label="Open pending file changes"
+            >
+              <PendingChangesIcon className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFileExplorerOpen(true)}
+              className="w-7 h-7 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400"
+              title="File explorer"
+              aria-label="Open file explorer"
+            >
+              <FilesIcon className="w-3.5 h-3.5" />
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setCodeEditorOpen(true)}
+              className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+              title="Code editor"
+              aria-label="Open code editor"
+            >
+              <EditorIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-slack-border mx-0.5" />
+
+          <div className="flex items-center gap-1" aria-label="Collaboration and agents">
+            <button
+              type="button"
+              onClick={() => setTaskManagementOpen(true)}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
+                taskManagementOpen ? 'bg-violet-600 hover:bg-violet-700' : 'bg-violet-700/80 hover:bg-violet-700'
+              } text-white`}
+              title="Task management (⌘⇧T)"
+              aria-label="Open task management"
+              aria-pressed={taskManagementOpen}
+            >
+              <TaskManagementIcon className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleNewRunbook()}
+              className="w-7 h-7 rounded transition-colors flex items-center justify-center bg-slate-600 hover:bg-slate-500 text-white text-[10px] font-bold"
+              title="New runbook (task DAG)"
+              aria-label="Create new runbook"
+            >
+              RB
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setMyAgentsPanelOpen(true)}
+              className="w-7 h-7 bg-slack-accent hover:bg-slack-accentHover text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
+              title="My agents"
+              aria-label="Open my agents"
+            >
+              <MyAgentsIcon className="w-3.5 h-3.5" />
+              {totalAgentsCount > 0 && (
+                <span className="absolute -bottom-0.5 -right-0.5 bg-white text-slack-accent text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
+                  {totalAgentsCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-slack-border mx-0.5" />
+
+          <div className="flex items-center gap-1" aria-label="Developer tools">
+            {devPackEnabled && (
+              <button
+                type="button"
+                onClick={() => setProblemsOpen(true)}
+                className="w-7 h-7 bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
+                title="Problems"
+                aria-label="Open problems panel"
+              >
+                <span className="text-xs font-bold">!</span>
+              </button>
             )}
-          </button>
+
+            {devPackEnabled && (
+              <button
+                type="button"
+                onClick={() => setGitModalOpen((open) => !open)}
+                className={`w-7 h-7 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 ${
+                  gitModalOpen
+                    ? 'bg-orange-500 ring-2 ring-orange-300/60 text-white'
+                    : 'bg-orange-600 hover:bg-orange-500 text-white'
+                }`}
+                title="Git (source control)"
+                aria-label={gitModalOpen ? 'Close git panel' : 'Open git panel'}
+                aria-pressed={gitModalOpen}
+              >
+                <GitIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+            
+            <button
+              type="button"
+              onClick={() => useTerminalStore.getState().togglePanel()}
+              className="w-7 h-7 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-400"
+              title="Terminal (⌘J)"
+              aria-label="Toggle terminal panel"
+            >
+              <TerminalIcon className="w-3.5 h-3.5" />
+              {useTerminalStore.getState().suggestedCommands.length > 0 && (
+                <span className="absolute -bottom-0.5 -right-0.5 bg-yellow-500 text-black text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
+                  {useTerminalStore.getState().suggestedCommands.length}
+                </span>
+              )}
+            </button>
+          </div>
           
           <div className="w-px h-5 bg-slack-border mx-0.5" />
 
-          <button
-            type="button"
-            onClick={() => setModelLibraryOpen(true)}
-            className="w-7 h-7 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
-            title="Model library (Ctrl+Shift+M or ⌘⇧M)"
-            aria-label="Open model library"
-          >
-            <ModelLibraryIcon className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1" aria-label="Models and account">
+            <button
+              type="button"
+              onClick={() => setModelLibraryOpen(true)}
+              className="w-7 h-7 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+              title="Model library (Ctrl+Shift+M or ⌘⇧M)"
+              aria-label="Open model library"
+            >
+              <ModelLibraryIcon className="w-3.5 h-3.5" />
+            </button>
 
-          {onOpenSettings && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              className="w-7 h-7 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
-              title="Settings (⌘,)"
-              aria-label="Open settings"
-            >
-              <SettingsIcon className="w-3.5 h-3.5" />
-            </button>
-          )}
-          
-          {onLogout && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-7 h-7 text-slack-textMuted hover:text-red-500 hover:bg-red-500/10 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
-              title="Logout"
-              aria-label="Log out"
-            >
-              <LogoutIcon className="w-3.5 h-3.5" />
-            </button>
-          )}
-          
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="w-7 h-7 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
+                title="Settings (⌘,)"
+                aria-label="Open settings"
+              >
+                <SettingsIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+            
+            {onLogout && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-7 h-7 text-slack-textMuted hover:text-red-500 hover:bg-red-500/10 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+                title="Logout"
+                aria-label="Log out"
+              >
+                <LogoutIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
           <div className="w-px h-5 bg-slack-border mx-0.5" />
           
           <div className="text-xs text-slack-textMuted">
@@ -1848,9 +2021,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         )}
 
         {/* Collaboration / Runbook Panel */}
-        {activeCollab && showRunbookBuilderForCollab(activeCollab) ? (
+        {panelCollaboration && showRunbookBuilderForCollab(panelCollaboration) ? (
           <RunbookBuilderPanel
-            collaboration={activeCollab}
+            collaboration={panelCollaboration}
             hubAgents={agentsToCollaborationAgents(agents)}
             onClose={() => setActiveCollab(null)}
             onSaved={(snap) => {
@@ -1862,14 +2035,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               void loadCollaborations(channel);
             }}
           />
-        ) : activeCollab ? (
+        ) : panelCollaboration ? (
           <CollaborationPanel
-            collaboration={activeCollab}
+            collaboration={panelCollaboration}
             extendableCollaborations={extendableCollaborations}
             executingCollaboration={executingCollaborationForChannel}
             onClose={() => setActiveCollab(null)}
             onAfterCollaborationCommand={async () => {
-              await loadCollaborations(channel);
+              await loadCollaborations(panelCollaboration.channel || channel);
             }}
           />
         ) : null}
@@ -2007,7 +2180,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         className="transition-all duration-300 ease-in-out overflow-hidden"
         style={{ height: isPanelOpen ? `${panelHeight}px` : '0px' }}
       >
-        <TerminalPanel height={panelHeight} />
+        <TerminalPanel
+          height={panelHeight}
+          channel={channel}
+          api={api}
+          collaboration={collaborationForChannel}
+        />
       </div>
       
       <GitModal isOpen={gitModalOpen && devPackEnabled} onClose={() => setGitModalOpen(false)} />
@@ -2051,6 +2229,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       <CommandPalette
         commands={commandDefs}
         agents={agents}
+        channels={channels}
+        collaborations={trackedCollaborations}
+        assistantTasks={assistantTasks}
+        pendingChanges={pendingChanges}
         api={api}
         isOpen={commandPaletteOpen}
         initialFilter={commandPaletteFilter}

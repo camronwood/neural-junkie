@@ -11,12 +11,12 @@ import (
 
 // RunbookUpdatePayload is the body for updating a draft/reviewing runbook.
 type RunbookUpdatePayload struct {
-	Title            string
-	Description      string
-	AgentIDs         []string
-	Tasks            []CollaborationTask
-	ExecutionPolicy  *ExecutionPolicy
-	GraphLayout      GraphLayout
+	Title           string
+	Description     string
+	AgentIDs        []string
+	Tasks           []CollaborationTask
+	ExecutionPolicy *ExecutionPolicy
+	GraphLayout     GraphLayout
 }
 
 // CreateRunbook starts a user-authored collaboration in draft phase (no agent discussion).
@@ -169,23 +169,30 @@ func (cm *CollaborationManager) createCollaborationCore(
 	}
 
 	collab := &Collaboration{
-		ID:             collabID,
-		Title:          DeriveCollaborationTitle(description),
-		Description:    description,
-		Phase:          initialPhase,
-		Source:         source,
-		Agents:         agents,
-		Plan:           artifact,
-		Discussion:     discussion,
-		Channel:        channel,
-		CreatedBy:      createdBy,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		Config:         cfg,
-		ExecutionMode:  execMode,
-		SourceRepoPath: strings.TrimSpace(opts.SourceRepoPath),
+		ID:                            collabID,
+		Title:                         DeriveCollaborationTitle(description),
+		Description:                   description,
+		Phase:                         initialPhase,
+		Source:                        source,
+		Agents:                        agents,
+		Plan:                          artifact,
+		Discussion:                    discussion,
+		Channel:                       channel,
+		CreatedBy:                     createdBy,
+		CreatedAt:                     now,
+		UpdatedAt:                     now,
+		Config:                        cfg,
+		ExecutionMode:                 execMode,
+		SourceRepoPath:                strings.TrimSpace(opts.SourceRepoPath),
+		SourceWorkspaceContext:        cloneWorkspaceContextMap(opts.SourceWorkspaceContext),
+		AllowAgentParticipantRequests: opts.AllowAgentParticipantRequests,
 	}
 	cm.collaborations[collabID] = collab
+	if UsesProjectCollabDir(collab) {
+		if _, err := EnsureProjectCollabDir(collab.SourceRepoPath, collab.ID); err != nil {
+			log.Printf("[CollaborationManager] project collab dir for %s: %v", collabID[:8], err)
+		}
+	}
 	log.Printf("[CollaborationManager] Created %s collaboration %s with %d agents", source, collabID[:8], len(agents))
 	return collab, nil
 }

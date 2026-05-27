@@ -110,7 +110,7 @@ func TestHubTransitionToExecutingArchivesPlanningDiscussion(t *testing.T) {
 	if !strings.Contains(snap.PlanningDiscussion.Messages[0].Content, "planning line") {
 		t.Fatalf("archived content=%q", snap.PlanningDiscussion.Messages[0].Content)
 	}
-	if snap.Discussion == nil || snap.Discussion.Topic == "" || !strings.Contains(snap.Discussion.Topic, "Execution Q&A") {
-		t.Fatalf("expected fresh execution discussion, got %+v", snap.Discussion)
+	if snap.Discussion != nil {
+		t.Fatalf("execution should be task-driven with no active discussion, got %+v", snap.Discussion)
 	}
 }

@@ -38,6 +38,8 @@ interface TerminalStore {
   removeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   renameTab: (id: string, label: string) => void;
+  setTabCwd: (id: string, cwd: string) => void;
+  alignActiveTabCwd: (cwd: string) => void;
 
   // Command suggestions (shown as inline banner)
   suggestedCommands: CommandSuggestion[];
@@ -96,6 +98,18 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
   renameTab: (id, label) =>
     set((state) => ({
       tabs: state.tabs.map((t) => (t.id === id ? { ...t, label } : t)),
+    })),
+
+  setTabCwd: (id, cwd) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === id ? { ...t, cwd } : t)),
+    })),
+
+  alignActiveTabCwd: (cwd) =>
+    set((state) => ({
+      tabs: state.tabs.map((t) =>
+        t.id === state.activeTabId ? { ...t, cwd } : t
+      ),
     })),
 
   // Command suggestions

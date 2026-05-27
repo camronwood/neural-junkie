@@ -1,11 +1,22 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { CommandForm } from './CommandForm';
 import type { ChatAPI } from '../api/chatAPI';
-import type { CommandDefinition, AgentInfo } from '../types/protocol';
+import type {
+  AssistantTask,
+  Channel,
+  Collaboration,
+  CommandDefinition,
+  AgentInfo,
+  FileChange,
+} from '../types/protocol';
 
 interface CommandPaletteProps {
   commands: CommandDefinition[];
   agents: AgentInfo[];
+  channels?: Channel[];
+  collaborations?: Collaboration[];
+  assistantTasks?: AssistantTask[];
+  pendingChanges?: FileChange[];
   api?: ChatAPI;
   isOpen: boolean;
   initialFilter?: string;
@@ -16,6 +27,10 @@ interface CommandPaletteProps {
 export function CommandPalette({
   commands,
   agents,
+  channels,
+  collaborations,
+  assistantTasks,
+  pendingChanges,
   api,
   isOpen,
   initialFilter = '',
@@ -156,6 +171,10 @@ export function CommandPalette({
           <CommandForm
             command={activeCommand}
             agents={agents}
+            channels={channels}
+            collaborations={collaborations}
+            assistantTasks={assistantTasks}
+            pendingChanges={pendingChanges}
             api={api}
             onSubmit={handleFormSubmit}
             onBack={() => setActiveCommand(null)}

@@ -1,5 +1,5 @@
-/** Default hub HTTP origin (Neural Junkie chat hub; avoids common :8080 collisions). */
-export const DEFAULT_HUB_HTTP = 'http://localhost:18765';
+/** Default hub HTTP origin (Neural Junkie chat hub; server binds IPv4 loopback by default). */
+export const DEFAULT_HUB_HTTP = 'http://127.0.0.1:18765';
 
 /**
  * Map legacy local hub URLs that used port 8080 to the current default (18765).
@@ -85,6 +85,6 @@ export function getHubWebSocketURL(): string {
     const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${wsProto}//${u.host}/ws`;
   } catch {
-    return 'ws://localhost:18765/ws';
+    return 'ws://127.0.0.1:18765/ws';
   }
 }

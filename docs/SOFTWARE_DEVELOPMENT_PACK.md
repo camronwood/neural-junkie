@@ -14,13 +14,13 @@ Only **one** domain pack can be enabled: Software development **or** Life scienc
 | **IDE v2** (dev pack only) | Stage/unstage + diff viewer; go to symbol (⌘⇧O); Problems panel; inline hunks; fast edit (⌘K). See [IDE_V2.md](IDE_V2.md) |
 | **Qwen Coder 14B** | `qwen2.5-coder:14b` — recommended Ollama model for specialists |
 | **Utility tier** | `qwen2.5:7b` — merged into `models_to_ensure` for background tasks |
-| **GoExpert** | Backend / Go, APIs, microservices |
-| **ReactExpert** | Frontend, TypeScript, UI/UX |
-| **DevOpsPro** | Docker, K8s, CI/CD, cloud infra |
-| **SQLMaster** | Databases, query optimization |
-| **SecurityExpert** | Auth, OWASP, compliance |
-| **RustExpert** | Rust, async, cargo, WASM |
-| **Dev MCP** | Backend, DevOps, and database analysis tools |
+| **BackendEngineer** | APIs, services, integrations, business logic |
+| **FrontendEngineer** | Web/desktop UI, accessibility, design systems |
+| **PlatformEngineer** | Deployment, CI/CD, cloud infrastructure |
+| **SecurityReviewer** | Auth, encryption, threat modeling, OWASP |
+| **SoftwareArchitect** | System design, service boundaries, migrations |
+| **CodeReviewer** | Correctness, maintainability, tests, regressions |
+| **Dev MCP** | Backend and DevOps analysis tools for enabled specialists |
 
 ## Enable the pack
 
@@ -28,8 +28,8 @@ Only **one** domain pack can be enabled: Software development **or** Life scienc
 
 When enabled:
 
-- Six engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
-- Preset slugs (`rust`, `backend`, `frontend`, `devops`, `database`, `security`) appear in **New DM** and `/create-expert`.
+- Six broad engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
+- Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`) appear in **New DM** and `/create-expert`.
 - `qwen2.5-coder:14b` and `qwen2.5:7b` are merged into **models to ensure** for Ollama.
 - If **Life sciences** is also enabled, the hub does **not** auto-switch your default Ollama chat model (avoid bio vs coder conflicts); pick the model in Settings.
 

@@ -42,6 +42,12 @@ func (collabRecapStub) GetCurrentTurnAgent(string) (string, error)     { return 
 func (collabRecapStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{ID: "550e8400-e29b-41d4-a716-446655440000", Phase: "reviewing"}
 }
+func (collabRecapStub) GetCollaboration(collabID, _ string) CollaborationInfo {
+	if collabID == "550e8400-e29b-41d4-a716-446655440000" {
+		return CollaborationInfo{ID: collabID, Phase: "reviewing"}
+	}
+	return CollaborationInfo{Phase: "executing"}
+}
 func (collabRecapStub) GetCollaborationWorkingDirectory(string) string { return "" }
 func (collabRecapStub) RecordMessage(string, *protocol.Message) error { return nil }
 func (collabRecapStub) AnalyzeConsensus(string, *protocol.Message) string { return "" }

@@ -45,6 +45,9 @@ func (shouldRespondTestCollab) GetCurrentTurnAgent(string) (string, error) { ret
 func (shouldRespondTestCollab) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
 }
+func (shouldRespondTestCollab) GetCollaboration(string, string) CollaborationInfo {
+	return CollaborationInfo{}
+}
 func (shouldRespondTestCollab) GetCollaborationWorkingDirectory(string) string    { return "" }
 func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error     { return nil }
 func (shouldRespondTestCollab) AnalyzeConsensus(string, *protocol.Message) string { return "" }
@@ -85,6 +88,9 @@ func (collabSystemTurnStub) IsAgentTurn(_collabID, _agentID string) bool { retur
 func (collabSystemTurnStub) IsActive(_collabID string) bool              { return true }
 func (collabSystemTurnStub) GetCurrentTurnAgent(string) (string, error)  { return "", nil }
 func (collabSystemTurnStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{}
+}
+func (collabSystemTurnStub) GetCollaboration(string, string) CollaborationInfo {
 	return CollaborationInfo{}
 }
 func (collabSystemTurnStub) GetCollaborationWorkingDirectory(string) string { return "" }
@@ -190,12 +196,75 @@ func (collabTaskAssigneeStub) GetCurrentTurnAgent(string) (string, error)  { ret
 func (collabTaskAssigneeStub) GetCollaborationForAgent(string) CollaborationInfo {
 	return CollaborationInfo{}
 }
+func (s collabTaskAssigneeStub) GetCollaboration(_collabID, agentID string) CollaborationInfo {
+	if agentID == s.agentID {
+		return CollaborationInfo{Phase: "executing"}
+	}
+	return CollaborationInfo{}
+}
 func (collabTaskAssigneeStub) GetCollaborationWorkingDirectory(string) string { return "" }
 func (collabTaskAssigneeStub) RecordMessage(string, *protocol.Message) error  { return nil }
 func (collabTaskAssigneeStub) AnalyzeConsensus(string, *protocol.Message) string {
 	return ""
 }
 func (collabTaskAssigneeStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+
+type collabMultiActiveStub struct {
+	agentID string
+}
+
+func (s collabMultiActiveStub) IsParticipant(collabID, agentID string) bool {
+	return agentID == s.agentID && (collabID == "exec-collab-id" || collabID == "plan-collab-id")
+}
+func (collabMultiActiveStub) IsAgentTurn(string, string) bool            { return true }
+func (collabMultiActiveStub) IsActive(string) bool                       { return true }
+func (collabMultiActiveStub) GetCurrentTurnAgent(string) (string, error) { return "", nil }
+func (collabMultiActiveStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{ID: "exec-collab-id", Phase: "executing"}
+}
+func (s collabMultiActiveStub) GetCollaboration(collabID, agentID string) CollaborationInfo {
+	if agentID != s.agentID {
+		return CollaborationInfo{}
+	}
+	switch collabID {
+	case "plan-collab-id":
+		return CollaborationInfo{ID: collabID, Phase: "planning"}
+	case "exec-collab-id":
+		return CollaborationInfo{ID: collabID, Phase: "executing"}
+	default:
+		return CollaborationInfo{}
+	}
+}
+func (collabMultiActiveStub) GetCollaborationWorkingDirectory(string) string { return "" }
+func (collabMultiActiveStub) RecordMessage(string, *protocol.Message) error  { return nil }
+func (collabMultiActiveStub) AnalyzeConsensus(string, *protocol.Message) string {
+	return ""
+}
+func (collabMultiActiveStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+
+func TestShouldRespond_PlanningCollabIgnoresOtherExecutingCollab(t *testing.T) {
+	const agentID = "agent-multi"
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+	ag := NewAgent(protocol.AgentTypeAssistant, "Assistant", []string{}, mockAI, hubStub)
+	ag.Info.ID = agentID
+	ag.SetCollabClient(collabMultiActiveStub{agentID: agentID})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-plan",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"@Assistant -- You're up first.",
+	)
+	msg.Metadata = map[string]interface{}{
+		"collaboration_id": "plan-collab-id",
+	}
+	msg.Mentions = []string{agentID}
+
+	if !ag.shouldRespond(msg) {
+		t.Fatal("expected planning handoff to be answered even when agent is also in an executing collab")
+	}
+}
 
 func TestShouldRespond_CollabTaskViaAssigneeMetadata(t *testing.T) {
 	const agentID = "agent-xyz"
@@ -234,6 +303,9 @@ func (collabExhaustedMentionStub) GetCurrentTurnAgent(string) (string, error) {
 	return "", nil
 }
 func (collabExhaustedMentionStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{}
+}
+func (collabExhaustedMentionStub) GetCollaboration(string, string) CollaborationInfo {
 	return CollaborationInfo{}
 }
 func (collabExhaustedMentionStub) GetCollaborationWorkingDirectory(string) string { return "" }
