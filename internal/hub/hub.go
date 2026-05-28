@@ -49,7 +49,7 @@ func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collabor
 			}
 		}
 		if fileTree == ".  (sandbox — empty until agents create files)\n" {
-			fileTree = buildOutlineFileTree(sourcePath, 3)
+			fileTree = buildCollabOutlineFileTree(sourcePath, snap.Description, 3)
 			if fileTree == "" {
 				fileTree = ".\n"
 			}
@@ -1072,6 +1072,12 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	}
 	if !ok {
 		return
+	}
+
+	if status == collaboration.TaskCompleted {
+		if h.maybeWarnPrematureTaskCompletion(msg, collabID, task, collabSnapshot) {
+			return
+		}
 	}
 
 	output := strings.TrimSpace(msg.GetTaskOutput())
@@ -2276,6 +2282,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		}
 		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s%s\n\nComplete this task now. Ship concrete output ([FILE_CHANGE] and/or findings in the deliverables folder). End your reply with `TASK_STATUS: completed` or `TASK_STATUS: blocked`. @mention others only if blocked.",
 			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit), workspaceNote)
+		body += collaboration.TaskDispatchFileDeliverableNote(task)
 		taskMsg := protocol.NewMessage(
 			protocol.MessageTypeCollabTask,
 			ch,

@@ -2,6 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Color themes — applied via html[data-theme] from App.tsx */
+:root,
+[data-theme='slack'] {
+  --nj-bg: #1a1d21;
+  --nj-bg-hover: #222529;
+  --nj-text: #d1d2d3;
+  --nj-text-muted: #9ca3af;
+  --nj-accent: #1164a3;
+  --nj-accent-hover: #0e4c7a;
+  --nj-success: #148567;
+  --nj-border: #545454;
+  --nj-surface-elevated: #0f1115;
+  --nj-header-accent: #60a5fa;
+  --nj-scrollbar-thumb-hover: #666666;
+  --nj-slider-track: #2c2c2c;
+  --nj-prose-text: #d1d5db;
+  --nj-prose-heading: #f3f4f6;
+  --nj-prose-muted: #9ca3af;
+  --nj-prose-link: #60a5fa;
+  --nj-prose-link-hover: #93c5fd;
+  --nj-prose-code-bg: #374151;
+  --nj-prose-pre-bg: #1f2937;
+  --nj-prose-border: #374151;
+  --nj-prose-img-border: #2c2c2c;
+  --text-primary: var(--nj-text);
+  --text-secondary: var(--nj-text-muted);
+}
+
+[data-theme='flat'] {
+  --nj-bg: #0d0d1a;
+  --nj-bg-hover: #16162d;
+  --nj-text: #e4e4ef;
+  --nj-text-muted: #8b8fa8;
+  --nj-accent: #a78bfa;
+  --nj-accent-hover: #9333ea;
+  --nj-success: #34d399;
+  --nj-border: #3d3d5c;
+  --nj-surface-elevated: #252b45;
+  --nj-header-accent: #7dd3fc;
+  --nj-scrollbar-thumb-hover: #5a5a7a;
+  --nj-slider-track: #252b45;
+  --nj-prose-text: #e4e4ef;
+  --nj-prose-heading: #f0f0f8;
+  --nj-prose-muted: #8b8fa8;
+  --nj-prose-link: #7dd3fc;
+  --nj-prose-link-hover: #a5e4fc;
+  --nj-prose-code-bg: #252b45;
+  --nj-prose-pre-bg: #16162d;
+  --nj-prose-border: #3d3d5c;
+  --nj-prose-img-border: #3d3d5c;
+  --text-primary: var(--nj-text);
+  --text-secondary: var(--nj-text-muted);
+}
+
+html {
+  color-scheme: dark;
+}
+
 /* IDE v2 inline diff hunks (Monaco decorations) */
 .nj-inline-added {
   background: rgba(46, 160, 67, 0.2);
@@ -48,22 +106,22 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1d21;
+  background: var(--nj-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #545454;
+  background: var(--nj-border);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #666;
+  background: var(--nj-scrollbar-thumb-hover);
 }
 
 /* For Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #545454 #1a1d21;
+  scrollbar-color: var(--nj-border) var(--nj-bg);
 }
 
 /* Transitions on interactive elements only (avoids global * repaint cost) */
@@ -86,13 +144,13 @@ input {
 
 /* Focus styles */
 :focus-visible {
-  outline: 2px solid #1164a3;
+  outline: 2px solid var(--nj-accent);
   outline-offset: 2px;
 }
 
 /* Selection */
 ::selection {
-  background-color: #1164a3;
+  background-color: var(--nj-accent);
   color: white;
 }
 
@@ -162,30 +220,30 @@ input {
   height: 20px;
   width: 20px;
   border-radius: 50%;
-  background: #1164a3;
+  background: var(--nj-accent);
   cursor: pointer;
-  border: 2px solid #1a1d21;
+  border: 2px solid var(--nj-bg);
 }
 
 .slider::-webkit-slider-track {
   height: 8px;
   border-radius: 4px;
-  background: #2c2c2c;
+  background: var(--nj-slider-track);
 }
 
 .slider::-moz-range-thumb {
   height: 20px;
   width: 20px;
   border-radius: 50%;
-  background: #1164a3;
+  background: var(--nj-accent);
   cursor: pointer;
-  border: 2px solid #1a1d21;
+  border: 2px solid var(--nj-bg);
 }
 
 .slider::-moz-range-track {
   height: 8px;
   border-radius: 4px;
-  background: #2c2c2c;
+  background: var(--nj-slider-track);
 }
 
 /* Animations */
@@ -270,7 +328,7 @@ input {
 /* Markdown Content Styles */
 .markdown-content {
   line-height: 1.6;
-  color: #d1d5db;
+  color: var(--nj-prose-text);
 }
 
 .markdown-content h1,
@@ -279,7 +337,7 @@ input {
 .markdown-content h4,
 .markdown-content h5,
 .markdown-content h6 {
-  color: #f3f4f6;
+  color: var(--nj-prose-heading);
   font-weight: 600;
   margin-top: 1.5em;
   margin-bottom: 0.5em;
@@ -288,13 +346,13 @@ input {
 
 .markdown-content h1 {
   font-size: 2em;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid var(--nj-prose-border);
   padding-bottom: 0.3em;
 }
 
 .markdown-content h2 {
   font-size: 1.5em;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid var(--nj-prose-border);
   padding-bottom: 0.3em;
 }
 
@@ -312,7 +370,7 @@ input {
 
 .markdown-content h6 {
   font-size: 0.9em;
-  color: #9ca3af;
+  color: var(--nj-prose-muted);
 }
 
 .markdown-content p {
@@ -320,20 +378,20 @@ input {
 }
 
 .markdown-content a {
-  color: #60a5fa;
+  color: var(--nj-prose-link);
   text-decoration: underline;
-  text-decoration-color: #60a5fa;
+  text-decoration-color: var(--nj-prose-link);
   text-underline-offset: 2px;
 }
 
 .markdown-content a:hover {
-  color: #93c5fd;
-  text-decoration-color: #93c5fd;
+  color: var(--nj-prose-link-hover);
+  text-decoration-color: var(--nj-prose-link-hover);
 }
 
 .markdown-content strong {
   font-weight: 600;
-  color: #f3f4f6;
+  color: var(--nj-prose-heading);
 }
 
 .markdown-content em {
@@ -341,8 +399,8 @@ input {
 }
 
 .markdown-content code {
-  background-color: #374151;
-  color: #f3f4f6;
+  background-color: var(--nj-prose-code-bg);
+  color: var(--nj-prose-heading);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
@@ -350,8 +408,8 @@ input {
 }
 
 .markdown-content pre {
-  background-color: #1f2937;
-  border: 1px solid #374151;
+  background-color: var(--nj-prose-pre-bg);
+  border: 1px solid var(--nj-prose-border);
   border-radius: 6px;
   padding: 1em;
   margin: 1em 0;
@@ -360,17 +418,17 @@ input {
 
 .markdown-content pre code {
   background-color: transparent;
-  color: #d1d5db;
+  color: var(--nj-prose-text);
   padding: 0;
   border-radius: 0;
   font-size: 0.9em;
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid #60a5fa;
+  border-left: 4px solid var(--nj-prose-link);
   padding-left: 1em;
   margin: 1em 0;
-  color: #9ca3af;
+  color: var(--nj-prose-muted);
   font-style: italic;
 }
 
@@ -400,24 +458,24 @@ input {
 
 .markdown-content th,
 .markdown-content td {
-  border: 1px solid #374151;
+  border: 1px solid var(--nj-prose-border);
   padding: 0.5em 1em;
   text-align: left;
 }
 
 .markdown-content th {
-  background-color: #374151;
+  background-color: var(--nj-prose-code-bg);
   font-weight: 600;
-  color: #f3f4f6;
+  color: var(--nj-prose-heading);
 }
 
 .markdown-content tr:nth-child(even) {
-  background-color: #1f2937;
+  background-color: var(--nj-prose-pre-bg);
 }
 
 .markdown-content hr {
   border: none;
-  border-top: 1px solid #374151;
+  border-top: 1px solid var(--nj-prose-border);
   margin: 2em 0;
 }
 
@@ -520,9 +578,9 @@ input {
 
 .markdown-content--chat img {
   max-height: 16rem;
-  border: 1px solid #2c2c2c;
+  border: 1px solid var(--nj-prose-img-border);
   border-radius: 4px;
-  background-color: #1a1d21;
+  background-color: var(--nj-bg);
 }
 
 /* Mermaid diagram responsive sizing */
@@ -539,7 +597,7 @@ input {
 }
 
 .prose-invert {
-  color: #d1d5db;
+  color: var(--nj-prose-text);
 }
 
 .prose-invert h1,
@@ -548,44 +606,44 @@ input {
 .prose-invert h4,
 .prose-invert h5,
 .prose-invert h6 {
-  color: #f3f4f6;
+  color: var(--nj-prose-heading);
 }
 
 .prose-invert a {
-  color: #60a5fa;
+  color: var(--nj-prose-link);
 }
 
 .prose-invert strong {
-  color: #f3f4f6;
+  color: var(--nj-prose-heading);
 }
 
 .prose-invert code {
-  background-color: #374151;
-  color: #f3f4f6;
+  background-color: var(--nj-prose-code-bg);
+  color: var(--nj-prose-heading);
 }
 
 .prose-invert pre {
-  background-color: #1f2937;
-  color: #d1d5db;
+  background-color: var(--nj-prose-pre-bg);
+  color: var(--nj-prose-text);
 }
 
 .prose-invert blockquote {
-  color: #9ca3af;
-  border-left-color: #60a5fa;
+  color: var(--nj-prose-muted);
+  border-left-color: var(--nj-prose-link);
 }
 
 /* Settings → Integrations: readable text on dark fields (browser default is black) */
 .nj-settings-integrations input:not([type='checkbox']),
 .nj-settings-integrations select,
 .nj-settings-integrations textarea {
-  color: #d1d2d3;
+  color: var(--nj-text);
 }
 .nj-settings-integrations input::placeholder,
 .nj-settings-integrations textarea::placeholder {
-  color: #8b8d90;
+  color: var(--nj-text-muted);
 }
 .nj-settings-integrations select option {
-  color: #d1d2d3;
-  background-color: #1a1d21;
+  color: var(--nj-text);
+  background-color: var(--nj-bg);
 }
 

@@ -9,6 +9,8 @@ export interface InferContextScopeInput {
   activeTabPath?: string;
   /** Per-send override from composer chip */
   messageOverride?: ContextScope | null;
+  /** IDE layout: prefer focus with open tab/selection when available */
+  ideCoding?: boolean;
 }
 
 export interface InferContextScopeResult {
@@ -95,6 +97,13 @@ export function resolveContextScope(input: InferContextScopeInput): InferContext
   }
   if (input.mode === 'always') {
     return { scope: 'full', reason: 'workspace mode always' };
+  }
+
+  if (input.ideCoding && input.activeTabPath) {
+    return { scope: 'focus', reason: 'IDE layout — active file and selection' };
+  }
+  if (input.ideCoding) {
+    return { scope: 'outline', reason: 'IDE layout — project tree' };
   }
 
   // auto

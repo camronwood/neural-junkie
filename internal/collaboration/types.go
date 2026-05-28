@@ -77,9 +77,9 @@ type DiscussionConfig struct {
 }
 
 const (
-	DefaultMaxRounds        = 3
+	DefaultMaxRounds        = 2
 	DefaultTurnBudget       = 1
-	DefaultMaxTotalMessages = 20
+	DefaultMaxTotalMessages = 12
 	DefaultTimeout          = 5 * time.Minute
 
 	HardMaxRounds        = 10
@@ -315,6 +315,8 @@ type Collaboration struct {
 	FinalizeReason        string `json:"finalize_reason,omitempty"`
 	FinalizeChannel       string `json:"finalize_channel,omitempty"`
 	FinalizeMarkOpenTasks bool   `json:"finalize_mark_open_tasks,omitempty"`
+	// ApproveWarnings holds validation notices from the last plan approval (task hygiene).
+	ApproveWarnings []string `json:"approve_warnings,omitempty"`
 	// AllowAgentParticipantRequests lets participant agents ask the user to add
 	// another agent. Requests remain pending until the user approves them.
 	AllowAgentParticipantRequests bool                    `json:"allow_agent_participant_requests,omitempty"`

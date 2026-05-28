@@ -25,6 +25,16 @@ import {
   scanSummaryDirFromMetadataPath,
   SCAN_SUMMARY_METADATA_FILE,
 } from '../utils/scanSummary';
+import {
+  isCombinedRunDirListing,
+  isScanAnalysisDirListing,
+  isScanAnalysisResultsPath,
+  isScanAnalysisRootListing,
+  isScanAnalysisSummaryCSVPath,
+  SCAN_ANALYSIS_REPORTS_DIR,
+} from '../utils/scanAnalysis';
+import { analyteFromSummaryCsvPath } from '../utils/scanAnalysisCsv';
+import { loadScanAnalysisData, analysisDirFromFilePath } from '../utils/scanAnalysisLoad';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { workspacesForTabBar } from '../utils/workspaceOrder';
 import { ViewportContextMenu } from './ViewportContextMenu';
@@ -35,6 +45,7 @@ import { devLog } from '../utils/devLog';
 interface FileExplorerPanelProps {
   onClose: () => void;
   onFileOpen?: () => void;
+  variant?: 'overlay' | 'embedded';
 }
 
 const MIN_WIDTH = 200; // Minimum usable width
@@ -42,7 +53,8 @@ const COMPACT_MIN_WIDTH = 160;
 const DEFAULT_WIDTH = 300;
 const STORAGE_KEY = 'file-explorer-panel-width';
 
-export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProps) {
+export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: FileExplorerPanelProps) {
+  const embedded = variant === 'embedded';
   const {
     workspaces,
     activeWorkspaceId,
@@ -67,7 +79,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile, openScanSummary } = useEditorStore();
+  const { openFile, openScanSummary, openScanAnalysis } = useEditorStore();
   const lifeSciencesEnabled = usePacksStore(
     (s) => s.packs.find((p) => p.id === 'life-sciences')?.enabled === true
   );
@@ -222,6 +234,68 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     }
   };
 
+  const openScanAnalysisAtPath = async (
+    workspaceId: string,
+    analysisDir: string,
+    options?: { initialWell?: string; selectedAnalyte?: string; linkedScanDir?: string; csvPath?: string }
+  ) => {
+    if (!lifeSciencesEnabled) {
+      addToast({
+        type: 'info',
+        title: 'Life sciences pack',
+        message: 'Enable Life sciences in Settings → Domain packs to open scan analysis.',
+      });
+      return;
+    }
+    try {
+      const { data, linkedScanDir, source } = await loadScanAnalysisData(api, workspaceId, analysisDir, {
+        csvPath: options?.csvPath,
+        linkedScanDir: options?.linkedScanDir,
+      });
+      const selectedAnalyte =
+        options?.selectedAnalyte ??
+        (options?.csvPath ? analyteFromSummaryCsvPath(options.csvPath) ?? undefined : undefined);
+      openScanAnalysis(workspaceId, analysisDir, data, {
+        initialWell: options?.initialWell,
+        selectedAnalyte,
+        linkedScanDir,
+      });
+      if (onFileOpen) {
+        onFileOpen();
+      }
+      const linkNote = linkedScanDir ? ` Scan linked: ${linkedScanDir || '(workspace root)'}.` : '';
+      addToast({
+        type: 'success',
+        title: 'Scan analysis',
+        message:
+          (options?.initialWell ? `Opened well ${options.initialWell}` : `Opened analysis viewer (${source})`) +
+          linkNote,
+      });
+    } catch (error) {
+      console.error('Failed to open scan analysis:', error);
+      const message = error instanceof Error ? error.message : 'Failed to open scan analysis';
+      setError(message);
+      addToast({ type: 'error', title: 'Scan analysis', message });
+    }
+  };
+
+  const tryOpenScanAnalysisFile = async (
+    workspaceId: string,
+    filePath: string
+  ): Promise<boolean> => {
+    if (!lifeSciencesEnabled) return false;
+    if (!isScanAnalysisResultsPath(filePath) && !isScanAnalysisSummaryCSVPath(filePath)) {
+      return false;
+    }
+    const analysisDir = analysisDirFromFilePath(filePath);
+    const selectedAnalyte = analyteFromSummaryCsvPath(filePath) ?? undefined;
+    await openScanAnalysisAtPath(workspaceId, analysisDir, {
+      csvPath: isScanAnalysisSummaryCSVPath(filePath) ? filePath : undefined,
+      selectedAnalyte,
+    });
+    return true;
+  };
+
   const openScanSummaryAtPath = async (
     workspaceId: string,
     summaryDir: string,
@@ -306,6 +380,11 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     } else {
       const activeWorkspace = getActiveWorkspace();
       if (activeWorkspace) {
+        const openedAnalysis = await tryOpenScanAnalysisFile(activeWorkspace.id, file.path);
+        if (openedAnalysis) {
+          setSelectedPath(file.path);
+          return;
+        }
         const opened = await tryOpenScanSummaryFile(activeWorkspace.id, file.path);
         if (opened) {
           setSelectedPath(file.path);
@@ -561,12 +640,58 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
     return undefined;
   };
 
+  const isScanAnalysisFolder = (file: FileNode): boolean => {
+    if (!file.is_dir) return false;
+    if (file.children?.length && isScanAnalysisDirListing(file.children)) {
+      return true;
+    }
+    return /-summary$/i.test(file.name) || /-summary$/i.test(file.path);
+  };
+
   const isScanSummaryFolder = (file: FileNode): boolean => {
     if (!file.is_dir) return false;
     if (file.children?.length && isScanSummaryDirListing(file.children)) {
       return true;
     }
     return /-summary$/i.test(file.name) || /-summary$/i.test(file.path);
+  };
+
+  const contextMenuIsScanAnalysis = (): boolean => {
+    if (!contextMenu || !activeWorkspaceId) return false;
+    if (isScanAnalysisResultsPath(contextMenu.path) || isScanAnalysisSummaryCSVPath(contextMenu.path)) {
+      return true;
+    }
+    if (!contextMenu.isDir) return false;
+    const tree = fileTree[activeWorkspaceId] ?? [];
+    if (!contextMenu.path || contextMenu.path === '/' || contextMenu.path === '.') {
+      return tree.some((f) => f.is_dir && f.name === SCAN_ANALYSIS_REPORTS_DIR);
+    }
+    const node = findFileNode(tree, contextMenu.path);
+    if (node) return isScanAnalysisFolder(node);
+    return contextMenu.path.endsWith(`/${SCAN_ANALYSIS_REPORTS_DIR}`);
+  };
+
+  const handleOpenScanAnalysisFromMenu = async () => {
+    if (!contextMenu || !activeWorkspaceId) return;
+    let analysisDir = '';
+    if (isScanAnalysisResultsPath(contextMenu.path)) {
+      analysisDir = analysisDirFromFilePath(contextMenu.path);
+    } else if (isScanAnalysisSummaryCSVPath(contextMenu.path)) {
+      analysisDir = analysisDirFromFilePath(contextMenu.path);
+    } else if (contextMenu.isDir) {
+      analysisDir =
+        !contextMenu.path || contextMenu.path === '/' || contextMenu.path === '.'
+          ? ''
+          : contextMenu.path;
+      if (analysisDir.endsWith(`/${SCAN_ANALYSIS_REPORTS_DIR}`)) {
+        analysisDir = analysisDir.replace(/[/\\]reports$/, '');
+      }
+    }
+    await openScanAnalysisAtPath(activeWorkspaceId, analysisDir, {
+      csvPath: isScanAnalysisSummaryCSVPath(contextMenu.path) ? contextMenu.path : undefined,
+      selectedAnalyte: analyteFromSummaryCsvPath(contextMenu.path) ?? undefined,
+    });
+    closeContextMenu();
   };
 
   const contextMenuIsScanSummary = (): boolean => {
@@ -605,10 +730,16 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
   const renderFileIcon = (file: FileNode) => {
     if (file.is_dir) {
+      if (isScanAnalysisFolder(file)) {
+        return expandedPaths[file.path] ? '📊' : '📊';
+      }
       if (isScanSummaryFolder(file)) {
         return expandedPaths[file.path] ? '🔬' : '🔬';
       }
       return expandedPaths[file.path] ? '📂' : '📁';
+    }
+    if (isScanAnalysisResultsPath(file.path) || isScanAnalysisSummaryCSVPath(file.path)) {
+      return '📊';
     }
     if (isScanSummaryMetadataPath(file.path) || isScanSummaryWellPath(file.path)) {
       return '🔬';
@@ -675,6 +806,13 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
   const files = activeWorkspaceId ? (fileTree[activeWorkspaceId] || []) : [];
   const activeIsScanSummaryRoot =
     lifeSciencesEnabled && activeWorkspaceId != null && isScanSummaryWorkspaceRoot(files);
+  const activeIsScanAnalysisRoot =
+    lifeSciencesEnabled &&
+    activeWorkspaceId != null &&
+    (files.some((f) => f.is_dir && f.name === SCAN_ANALYSIS_REPORTS_DIR) ||
+      isScanAnalysisRootListing(files));
+  const activeIsCombinedRun =
+    lifeSciencesEnabled && activeWorkspaceId != null && isCombinedRunDirListing(files);
   const workspaceSwitcherOverflow = useMemo(
     () => workspacesForTabBar(workspaces, activeWorkspaceId).overflowCount,
     [workspaces, activeWorkspaceId]
@@ -683,10 +821,14 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
 
   return (
     <div 
-      className="border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left"
-      style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
+      className={
+        embedded
+          ? 'border-r border-slack-border bg-slack-bg flex flex-col h-full min-w-[200px] max-w-[360px] w-[280px] relative'
+          : 'border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left'
+      }
+      style={embedded ? undefined : shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
-        {/* Resize Handle */}
+        {!embedded && (
         <div
           className="absolute right-0 top-0 bottom-0 cursor-col-resize z-[100] group"
           onMouseDown={handleResizeStart}
@@ -700,6 +842,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           <div className="absolute inset-0 bg-transparent group-hover:bg-blue-500/30 transition-colors" />
           <div className="absolute right-1/2 top-1/2 -translate-y-1/2 translate-x-1/2 w-1 h-8 bg-gray-400 group-hover:bg-blue-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
+        )}
       
       {/* Header */}
       <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between bg-slack-bgHover">
@@ -741,7 +884,7 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
         </div>
       </div>
 
-      {activeIsScanSummaryRoot && activeWorkspaceId && (
+      {(activeIsScanSummaryRoot || activeIsCombinedRun) && activeWorkspaceId && (
         <div className="px-4 py-2 border-b border-slack-border bg-slack-bg">
           <button
             type="button"
@@ -749,6 +892,18 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
             className="w-full px-3 py-1.5 text-xs font-medium rounded bg-slack-accent/20 text-slack-accent hover:bg-slack-accent hover:text-white transition-colors"
           >
             Open scan summary
+          </button>
+        </div>
+      )}
+
+      {(activeIsScanAnalysisRoot || activeIsCombinedRun) && activeWorkspaceId && (
+        <div className="px-4 py-2 border-b border-slack-border bg-slack-bg">
+          <button
+            type="button"
+            onClick={() => void openScanAnalysisAtPath(activeWorkspaceId, '')}
+            className="w-full px-3 py-1.5 text-xs font-medium rounded bg-purple-600/20 text-purple-300 hover:bg-purple-600 hover:text-white transition-colors"
+          >
+            {activeIsCombinedRun ? 'Open combined run (analysis)' : 'Open scan analysis'}
           </button>
         </div>
       )}
@@ -801,6 +956,10 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
         onSelect={setActiveWorkspace}
+        onRemoveRequest={(id, name) => {
+          setShowWorkspaceSwitcher(false);
+          setPendingRemove({ id, name });
+        }}
       />
 
       {/* Add Workspace Modal */}
@@ -869,6 +1028,15 @@ export function FileExplorerPanel({ onClose, onFileOpen }: FileExplorerPanelProp
           y={contextMenu.y}
           onClose={closeContextMenu}
         >
+          {lifeSciencesEnabled && contextMenuIsScanAnalysis() && (
+            <button
+              onClick={() => void handleOpenScanAnalysisFromMenu()}
+              className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+            >
+              📊 Open scan analysis
+            </button>
+          )}
+
           {lifeSciencesEnabled && contextMenuIsScanSummary() && (
               <button
                 onClick={handleOpenScanSummaryFromMenu}

@@ -1,0 +1,32 @@
+{
+  "name": "multi-collab-isolation",
+  "description": "Planning collab still gets agent discussion while another collab is executing.",
+  "channel": "collab-scenarios",
+  "setup": {
+    "action": "executing_blocker",
+    "channel": "collab-scenario-blocker",
+    "flags": ["--rounds", "1", "--messages", "2"],
+    "goal": "nj collab scenario blocker — hold executing slot",
+    "steps": [
+      {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
+      {"action": "wait_planning_recap", "timeout": "120s"},
+      {"action": "approve_plan"},
+      {"action": "workspace_ack"},
+      {"action": "wait_phase", "phase": "executing", "timeout": 45}
+    ]
+  },
+  "collaborate": {
+    "flags": ["--rounds", "1", "--messages", "3"],
+    "goal": "Quick plan for a log parser CLI. Use - Task 1: @Agent - step format. Keep it brief."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 15},
+    {
+      "action": "wait_discussion",
+      "min_total": 1,
+      "timeout": "90s"
+    },
+    {"action": "assert_messages", "none_match": ["execution phase — task prompts only"]}
+  ],
+  "cleanup": "cancel"
+}

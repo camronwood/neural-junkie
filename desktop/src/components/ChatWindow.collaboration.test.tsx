@@ -101,8 +101,19 @@ vi.mock('../utils/outboundChatMetadata', () => ({
 
 vi.mock('../stores/settingsStore', () => {
   const state = {
-    layoutSettings: null,
+    layoutSettings: {
+      layoutPreset: 'team',
+      ideChatDock: 'right',
+      filesPanelVisible: false,
+      editorPanelVisible: false,
+      terminalPanelVisible: false,
+      myAgentsPanelVisible: false,
+      pendingChangesPanelVisible: false,
+      editorAgentMode: 'agent',
+      sidebarAgentsVisible: true,
+    },
     loadLayoutSettings: vi.fn(),
+    updateLayoutSettings: vi.fn(),
     settings: {},
     isLoaded: true,
     saveSettings: vi.fn(),
@@ -147,7 +158,6 @@ vi.mock('./QuickOpenModal', () => ({ QuickOpenModal: () => null }));
 vi.mock('./SymbolModal', () => ({ SymbolModal: () => null }));
 vi.mock('./ProblemsPanel', () => ({ ProblemsPanel: () => null }));
 vi.mock('./FastEditModal', () => ({ FastEditModal: () => null }));
-
 vi.mock('../utils/collaborationConfirm', () => ({
   confirmStartCollaborationWhileExecuting: (executing: unknown) => confirmStartMock(executing) as boolean,
   confirmReplaceCollaborationExecution: (executing: unknown, incoming: unknown) =>

@@ -967,6 +967,24 @@ func (cm *CollaborationManager) FailSessionRecap(collabID string) {
 	}
 }
 
+// SetApproveWarnings stores validation notices from the last plan approval.
+func (cm *CollaborationManager) SetApproveWarnings(collabID string, warnings []string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	if len(warnings) == 0 {
+		c.ApproveWarnings = nil
+	} else {
+		c.ApproveWarnings = append([]string(nil), warnings...)
+	}
+	c.UpdatedAt = time.Now()
+	return nil
+}
+
 // SetTasks sets the parsed tasks on a collaboration (used after plan synthesis).
 func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationTask) error {
 	cm.mu.Lock()
@@ -1018,21 +1036,17 @@ func assignRoundRobinToUnassignedTasks(tasks []CollaborationTask, agents []Colla
 	if len(agents) == 0 || len(tasks) == 0 {
 		return false
 	}
-	now := time.Now()
-	changed := false
-	ri := 0
+	before := make([]string, len(tasks))
 	for i := range tasks {
-		if strings.TrimSpace(tasks[i].AssignedTo) != "" {
-			continue
-		}
-		ag := agents[ri%len(agents)]
-		ri++
-		tasks[i].AssignedTo = ag.AgentID
-		tasks[i].AssignedName = ag.AgentName
-		tasks[i].UpdatedAt = now
-		changed = true
+		before[i] = tasks[i].AssignedTo
 	}
-	return changed
+	AssignRoundRobinToUnassignedTasks(tasks, agents)
+	for i := range tasks {
+		if before[i] == "" && strings.TrimSpace(tasks[i].AssignedTo) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // EnsureExecutionTasks creates one pending task per collaboration participant when
@@ -1426,13 +1440,13 @@ func shortCollabID(id string) string {
 func SuggestRole(agentType protocol.AgentType, expertise []string) string {
 	switch agentType {
 	case protocol.AgentTypeCLI:
-		return "Implementation & Code Generation"
+		return "Implementation & Code (from approved plan)"
 	case protocol.AgentTypeSecurity:
 		return "Security Review & Auth Design"
 	case protocol.AgentTypeRust:
 		return "Rust Architecture & Systems Design"
 	case protocol.AgentTypeArchitecture:
-		return "Software Architecture & System Design"
+		return "Architecture, API & Doc Standards (not implementation)"
 	case protocol.AgentTypeCodeReview:
 		return "Code Review & Regression Analysis"
 	case protocol.AgentTypeBiology:
@@ -1442,7 +1456,11 @@ func SuggestRole(agentType protocol.AgentType, expertise []string) string {
 	case protocol.AgentTypeFrontend:
 		return "Frontend Architecture & UI Design"
 	case protocol.AgentTypeDevOps:
-		return "Infrastructure & Deployment"
+		return "Platform, CI/CD & Runtime (not schema design)"
+	case protocol.AgentTypeAssistant:
+		return "Facilitation & Requirements Synthesis"
+	case protocol.AgentTypeModerator:
+		return "Discussion Facilitation"
 	case protocol.AgentTypeDatabase:
 		return "Data Modeling & Query Optimization"
 	case protocol.AgentTypeRepo:

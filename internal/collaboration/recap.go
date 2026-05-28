@@ -7,14 +7,23 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const recapContextMaxChars = 14000
+const recapContextMaxChars = 6000
+const recapDiscussionMaxMessages = 6
+const recapDiscussionMaxChars = 800
 
 // SelectRecapFacilitator returns the agent ID that should deliver a user-facing recap.
 // For pre_approval: last non-system speaker in the current (planning) discussion.
-// For final: last speaker in execution discussion, then planning recap agent, then first participant.
+// For final: prefer @Assistant, then last execution speaker, then planning recap agent.
 func SelectRecapFacilitator(c *Collaboration, kind RecapKind) string {
 	if c == nil {
 		return ""
+	}
+	if kind == RecapKindFinal {
+		for _, a := range c.Agents {
+			if strings.EqualFold(a.AgentName, "Assistant") {
+				return a.AgentID
+			}
+		}
 	}
 	disc := c.Discussion
 	if kind == RecapKindPreApproval && c.PlanningDiscussion != nil {
@@ -84,7 +93,11 @@ func BuildRecapContext(c *Collaboration, kind RecapKind) string {
 
 	if c.Plan != nil && strings.TrimSpace(c.Plan.Content) != "" {
 		b.WriteString("## Plan artifact\n")
-		b.WriteString(c.Plan.Content)
+		plan := c.Plan.Content
+		if kind == RecapKindFinal && len(plan) > 2500 {
+			plan = plan[:2500] + "…"
+		}
+		b.WriteString(plan)
 		b.WriteString("\n\n")
 	}
 
@@ -120,7 +133,15 @@ func BuildRecapContext(c *Collaboration, kind RecapKind) string {
 	}
 	if disc != nil && len(disc.Messages) > 0 {
 		b.WriteString("## Discussion transcript\n")
-		for _, m := range disc.Messages {
+		msgs := disc.Messages
+		if kind == RecapKindFinal && len(msgs) > recapDiscussionMaxMessages {
+			msgs = msgs[len(msgs)-recapDiscussionMaxMessages:]
+		}
+		perMsgLimit := 2000
+		if kind == RecapKindFinal {
+			perMsgLimit = recapDiscussionMaxChars
+		}
+		for _, m := range msgs {
 			if m == nil {
 				continue
 			}
@@ -131,8 +152,8 @@ func BuildRecapContext(c *Collaboration, kind RecapKind) string {
 			if content == "" {
 				continue
 			}
-			if len(content) > 2000 {
-				content = content[:2000] + "…"
+			if len(content) > perMsgLimit {
+				content = content[:perMsgLimit] + "…"
 			}
 			b.WriteString(fmt.Sprintf("[%s]: %s\n\n", m.From.Name, content))
 		}

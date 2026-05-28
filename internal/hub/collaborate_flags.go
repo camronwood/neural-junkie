@@ -13,6 +13,8 @@ import (
 type collaborateFlagParse struct {
 	Discussion                    collaboration.DiscussionConfig
 	AttachWorkspace               bool
+	NoWorkspace                   bool
+	RepoPath                      string
 	Worktree                      bool
 	AllowAgentParticipantRequests bool
 }
@@ -36,6 +38,16 @@ func parseCollaborateLeadFlags(parts []string) (collaborateFlagParse, []string, 
 		case "workspace":
 			out.AttachWorkspace = true
 			i++
+		case "no-workspace":
+			out.NoWorkspace = true
+			i++
+		case "repo", "workspace-path":
+			if i+1 >= len(parts) {
+				return out, nil, "❌ `--repo` needs an absolute or relative directory path."
+			}
+			out.RepoPath = parts[i+1]
+			out.AttachWorkspace = true
+			i += 2
 		case "worktree":
 			out.Worktree = true
 			i++
@@ -63,7 +75,7 @@ func parseCollaborateLeadFlags(parts []string) (collaborateFlagParse, []string, 
 			out.Discussion.MaxTotalMessages = n
 			i += 2
 		default:
-			return out, nil, fmt.Sprintf("❌ Unknown option %q. Use `--rounds`, `--messages`, `--workspace`, `--worktree`, and/or `--allow-agent-adds` before @mentions.", raw)
+			return out, nil, fmt.Sprintf("❌ Unknown option %q. Use `--rounds`, `--messages`, `--workspace`, `--no-workspace`, `--repo <path>`, `--worktree`, and/or `--allow-agent-adds` before @mentions.", raw)
 		}
 	}
 	return out, parts[i:], ""

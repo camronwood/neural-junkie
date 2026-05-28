@@ -328,6 +328,7 @@ func handleWorkspaceSymbolSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace"))
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
 	limit := 50
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if n, err := parsePositiveInt(l); err == nil && n > 0 && n <= 200 {
@@ -345,7 +346,7 @@ func handleWorkspaceSymbolSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	syms, err := workspacesymbols.Search(ctx, ws.Path, q, limit)
+	syms, err := workspacesymbols.SearchIndexed(ctx, ws.Path, q, kind, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

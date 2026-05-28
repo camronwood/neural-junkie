@@ -47,6 +47,7 @@ type CollaborationUIPayload struct {
 	SessionRecapStatus    string               `json:"session_recap_status,omitempty"`
 	PlanningRecapAgentID  string               `json:"planning_recap_agent_id,omitempty"`
 	SessionRecapAgentID   string               `json:"session_recap_agent_id,omitempty"`
+	ApproveWarnings       []string             `json:"approve_warnings,omitempty"`
 }
 
 // ToUIPayload returns metadata safe for WebSocket attachment (no discussion.messages).
@@ -81,6 +82,9 @@ func (c *Collaboration) ToUIPayload() *CollaborationUIPayload {
 		SessionRecapStatus:      c.SessionRecapStatus,
 		PlanningRecapAgentID:    c.PlanningRecapAgentID,
 		SessionRecapAgentID:     c.SessionRecapAgentID,
+	}
+	if len(c.ApproveWarnings) > 0 {
+		out.ApproveWarnings = append([]string(nil), c.ApproveWarnings...)
 	}
 	if c.Plan != nil {
 		planCopy := *c.Plan

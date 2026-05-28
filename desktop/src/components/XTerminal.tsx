@@ -3,6 +3,8 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { terminalAPI } from '../api/terminalAPI';
+import { useSettingsStore } from '../stores/settingsStore';
+import { getTerminalTheme } from '../utils/editorThemes';
 import '@xterm/xterm/css/xterm.css';
 
 interface XTerminalProps {
@@ -12,6 +14,7 @@ interface XTerminalProps {
 }
 
 export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
+  const colorTheme = useSettingsStore((s) => s.settings.colorTheme ?? 'slack');
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -25,32 +28,12 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
     if (!containerRef.current || initializedRef.current) return;
     initializedRef.current = true;
 
+    const themeAtInit = useSettingsStore.getState().settings.colorTheme ?? 'slack';
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Monaco, 'Courier New', monospace",
-      theme: {
-        background: '#1a1b26',
-        foreground: '#c0caf5',
-        cursor: '#c0caf5',
-        selectionBackground: '#33467c',
-        black: '#15161e',
-        red: '#f7768e',
-        green: '#9ece6a',
-        yellow: '#e0af68',
-        blue: '#7aa2f7',
-        magenta: '#bb9af7',
-        cyan: '#7dcfff',
-        white: '#a9b1d6',
-        brightBlack: '#414868',
-        brightRed: '#f7768e',
-        brightGreen: '#9ece6a',
-        brightYellow: '#e0af68',
-        brightBlue: '#7aa2f7',
-        brightMagenta: '#bb9af7',
-        brightCyan: '#7dcfff',
-        brightWhite: '#c0caf5',
-      },
+      theme: getTerminalTheme(themeAtInit),
       allowProposedApi: true,
       scrollback: 10000,
     });
@@ -124,6 +107,12 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
       initializedRef.current = false;
     };
   }, [sessionId, cwd, writeToTerminal]);
+
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.theme = getTerminalTheme(colorTheme);
+    }
+  }, [colorTheme]);
 
   useEffect(() => {
     if (isActive && fitRef.current) {

@@ -23,7 +23,7 @@ export type { ContentPart } from '../utils/messageContentCache';
 const CODE_BLOCK_CUSTOM_STYLE: React.CSSProperties = {
   margin: 0,
   padding: '0.75rem 1rem',
-  background: '#1e1e1e',
+  background: 'var(--nj-prose-pre-bg)',
   fontSize: '0.8125rem',
   lineHeight: 1.55,
 };

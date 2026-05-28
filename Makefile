@@ -84,6 +84,22 @@ debug-messages: ## Last messages for CHANNEL (session file; add LIVE=1 for hub)
 collab-smoke: ## Collab lifecycle smoke (API phases); LIVE=1 for running hub
 	@python3 scripts/collab-smoke.py $(if $(LIVE),--live,)
 
+collab-scenario: ## Run one live collab scenario (SCENARIO=planning-two-agent, PROFILE=fast|realistic, KEEP=1)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make collab-scenario SCENARIO=planning-two-agent [PROFILE=fast] [KEEP=1] [VERBOSE=1]"; exit 1; fi
+	@python3 scripts/collab-scenarios.py --scenario "$(SCENARIO)" \
+		$(if $(PROFILE),--profile $(PROFILE),) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(KEEP),--keep,)
+
+collab-scenarios: ## Run all live collab scenarios under scenarios/collab/
+	@python3 scripts/collab-scenarios.py --all \
+		$(if $(PROFILE),--profile $(PROFILE),) \
+		$(if $(VERBOSE),--verbose,)
+
+collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-agent template)
+	@chmod +x scripts/collab-scenario-matrix.sh
+	@./scripts/collab-scenario-matrix.sh
+
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go

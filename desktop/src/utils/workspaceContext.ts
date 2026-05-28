@@ -6,6 +6,7 @@ export interface WorkspaceContext {
   file_tree: string;
   open_files: OpenFileContext[];
   scan_summary?: ScanSummaryContext;
+  scan_analysis?: ScanAnalysisContext;
 }
 
 export interface OpenFileContext {
@@ -15,6 +16,7 @@ export interface OpenFileContext {
   is_active: boolean;
   view_mode?: string;
   scan_summary_dir?: string;
+  scan_analysis_dir?: string;
   selection_start_line?: number;
   selection_end_line?: number;
   selected_text?: string;
@@ -43,6 +45,26 @@ export interface ScanSummaryContext {
   wells_count: number;
   analytes: string[];
   active_well?: ScanSummaryWellContext;
+  note: string;
+}
+
+export interface ScanAnalysisWellContext {
+  well: string;
+  concentration?: number | null;
+  within_loq?: boolean | null;
+  well_type?: string;
+  well_label?: string;
+}
+
+export interface ScanAnalysisContext {
+  analysis_dir: string;
+  product_name?: string;
+  plate_barcode?: string;
+  analytes: string[];
+  dilution_factor?: number;
+  active_analyte?: string;
+  active_well?: ScanAnalysisWellContext;
+  linked_scan_dir?: string;
   note: string;
 }
 

@@ -10,12 +10,16 @@ import {
   type ScanSummaryWellMeta,
 } from '../utils/scanSummary';
 import { resolveScanSummaryWellImageSrc } from '../utils/scanSummaryImage';
+import { useEditorStore } from '../stores/editorStore';
+import { allWellAnalyteConcentrations } from '../utils/scanAnalysis';
+import { formatConcDisplay } from '../utils/scanAnalysisHelpers';
 
 interface ScanSummaryViewerProps {
   workspaceId: string;
   summaryDir: string;
   data: ScanSummaryData;
   initialWell?: string;
+  linkedAnalysisDir?: string;
 }
 
 export function ScanSummaryViewer({
@@ -23,12 +27,14 @@ export function ScanSummaryViewer({
   summaryDir,
   data,
   initialWell = 'A1',
+  linkedAnalysisDir,
 }: ScanSummaryViewerProps) {
   const workspacePath = useFileExplorerStore((s) => {
     const ws = s.workspaces.find((w) => w.id === workspaceId);
     return ws?.path ?? '';
   });
   const { addToast } = useToastStore();
+  const { findLinkedAnalysisTab, activateAnalysisWell } = useEditorStore();
 
   const [selectedWell, setSelectedWell] = useState(initialWell);
   useEffect(() => {
@@ -75,6 +81,31 @@ export function ScanSummaryViewer({
     }
     return Array.from(set).sort();
   }, [data]);
+
+  const linkedAnalysisTab = useMemo(() => {
+    if (linkedAnalysisDir) {
+      return useEditorStore.getState().tabs.find(
+        (t) =>
+          t.workspaceId === workspaceId &&
+          t.viewMode === 'scan-analysis' &&
+          t.scanAnalysisDir === linkedAnalysisDir
+      );
+    }
+    return findLinkedAnalysisTab(workspaceId, summaryDir);
+  }, [linkedAnalysisDir, findLinkedAnalysisTab, workspaceId, summaryDir]);
+
+  const analysisAtWell = useMemo(() => {
+    if (!linkedAnalysisTab?.scanAnalysisData) return [];
+    return allWellAnalyteConcentrations(linkedAnalysisTab.scanAnalysisData, selectedWell);
+  }, [linkedAnalysisTab, selectedWell]);
+
+  const handleOpenAnalysis = () => {
+    if (!linkedAnalysisTab) {
+      addToast({ type: 'info', title: 'Analysis', message: 'No linked analysis tab. Open scan analysis first.' });
+      return;
+    }
+    activateAnalysisWell(linkedAnalysisTab.id, selectedWell);
+  };
 
   const imageSize = 358;
 
@@ -153,7 +184,7 @@ export function ScanSummaryViewer({
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 flex items-center justify-center p-4 overflow-auto bg-[#1a1d21]">
+        <div className="flex-1 min-w-0 flex items-center justify-center p-4 overflow-auto bg-slack-bg">
           {loadingImage && (
             <div className="text-sm text-slack-textMuted">Loading well image…</div>
           )}
@@ -230,6 +261,31 @@ export function ScanSummaryViewer({
               </div>
             ))}
           </div>
+          {analysisAtWell.length > 0 && (
+            <>
+              <div className="p-2 border-t border-slack-border text-xs font-semibold flex items-center justify-between gap-1">
+                <span>Analysis at well</span>
+                <button
+                  type="button"
+                  className="text-[10px] px-1 py-0.5 border border-slack-border rounded hover:border-slack-accent"
+                  onClick={handleOpenAnalysis}
+                >
+                  Open
+                </button>
+              </div>
+              <div className="overflow-auto max-h-40 p-2 text-[10px] space-y-0.5">
+                {analysisAtWell.map((row: { analyte: string; concentration: number | null; withinLoq: boolean | null }) => (
+                  <div key={row.analyte} className="flex justify-between gap-1">
+                    <span className="truncate">{row.analyte}</span>
+                    <span className="font-mono shrink-0">
+                      {formatConcDisplay(row.concentration)}
+                      {row.withinLoq != null && (row.withinLoq ? ' ✓' : ' ✗')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

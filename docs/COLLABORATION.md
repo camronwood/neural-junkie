@@ -113,7 +113,7 @@ Creates a collaboration in **draft** phase. Use the desktop Runbook builder to a
 /collaborate @SoftwareArchitect @SecurityReviewer @Cursor design a secure file-encryption workflow
 ```
 
-Optional limits (must appear **before** the first `@mention`; omitted values use defaults **3** rounds and **20** agent messages, then the server clamps to hard caps):
+Optional limits (must appear **before** the first `@mention`; omitted values use defaults **2** rounds and **12** agent messages, then the server clamps to hard caps):
 
 ```text
 /collaborate --rounds 5 --messages 40 @SoftwareArchitect @SecurityReviewer design the auth flow
@@ -123,6 +123,12 @@ Optional: attach a **high-level** view of your open editor workspace (file tree 
 
 ```text
 /collaborate --workspace @SoftwareArchitect @CodeReviewer review the layout of this repo
+
+**Desktop command form** — pick **Active workspace** (default), **Choose folder**, or **No workspace** (research-only; adds `--no-workspace`). Choose folder sends `--repo /path` and binds that repo instead of whatever is open in the editor.
+
+/collaborate --no-workspace @Assistant @SoftwareArchitect compare API schema standards (no repo)
+
+/collaborate --repo /Users/you/projects/phoenix @BackendEngineer @SecurityReviewer audit auth middleware
 ```
 
 Optional: run execution in a **git worktree** (isolated branch + full repo copy) instead of an empty sandbox:
@@ -165,7 +171,13 @@ Moves `planning` → `reviewing` when you are ready (without waiting for consens
 /approve-plan <collab-id>
 ```
 
-Moves collaboration from `reviewing` -> `approved` -> `executing`, creates the on-disk collaboration workspace (`collabs/<id>/` under your project when a source workspace is bound), and lists assigned tasks in chat. Desktop: **Approve & start** (same as `/resume-plan` while reviewing). **Task prompts are not sent to agents until you confirm the workspace** (desktop **Continue** on that channel, or `/ack-collab-workspace <collab-id>`). This keeps execution from racing ahead of the app registering the sandbox as a workspace.
+Moves collaboration from `reviewing` -> `approved` -> `executing`, creates the on-disk collaboration workspace (`collabs/<id>/` under your project when a source workspace is bound), and lists assigned tasks in chat. Desktop: **Approve & start** (same as `/resume-plan` while reviewing).
+
+**Sandbox + bound project repo (`--workspace` / `--repo`):** approving the plan **auto-confirms the workspace** and dispatches `collaboration_task` prompts immediately (no separate **Continue** step).
+
+**Worktree or no bound repo:** task prompts are held until you confirm the workspace (desktop **Continue** on that channel, or `/ack-collab-workspace <collab-id>`).
+
+On approve, the hub also **normalizes** the task list (drops vague/duplicate lines, caps at 10 tasks) and shows **plan validation** warnings in chat and the collaboration panel.
 
 ### Confirm collaboration workspace (after approve)
 
@@ -295,14 +307,26 @@ All discussions enforce hard caps:
 
 | Safeguard | Default | Hard Max |
 |---|---:|---:|
-| Max rounds | 3 | 10 |
+| Max rounds | 2 | 10 |
 | Max turns per agent per round | 1 | 3 |
-| Max total messages | 20 | 50 |
+| Max total messages | 12 | 50 |
 | Wall-clock timeout | 5 min | 30 min |
 | Max concurrent collaborations | 3 | n/a |
 | Max tasks per collaboration | 10 | n/a |
 
 When a bound is reached, the discussion is ended and the system keeps what was produced.
+
+## Delivery checklist (quality outcomes)
+
+Use this when you want **files and finished tasks**, not a long planning thread:
+
+1. **Agent mix** — match specialists to the work (architect for schema docs, backend for code, assistant for summaries). **Any** assignee can ship files via `[FILE_CHANGE]` in the IDE — you do not need a CLI agent for markdown or code tasks.
+2. **Task shape** — **3–6** lines like `- Task 1: @SoftwareArchitect - Write collabs/<collab-id>/schema.md …` (verb + path). Avoid meta lines (“document findings”, “specific actions”).
+3. **Workspace** — use `--workspace` (or runbook with a bound repo) so deliverables land under `collabs/<collab-id>/` in your project.
+4. **Approve** — sandbox + bound repo: tasks dispatch on approve. Worktree: approve, then **Continue**.
+5. **Files** — agents must emit **`[FILE_CHANGE]`**; approve proposals in **Pending changes**. `TASK_STATUS: completed` alone does not write to disk; file-shaped tasks may stay **in progress** until a proposal or existing file is detected.
+
+**Harness:** `make collab-scenario SCENARIO=delivery-sandbox-auto-ack` (auto-ack on approve), `execute-deliverable` (end-to-end file), `resource-api-schema-planning` (plan quality).
 
 ## Collaboration Data Model
 
@@ -372,6 +396,87 @@ Desktop updates include:
   - plan artifact
   - approve/revise/cancel controls
 - confirmation when approving or resuming would replace another collaboration already executing in the channel; same idea when sending `/collaborate` while one is executing
+
+## Agent lanes (minimize overlap)
+
+During `/collaborate`, each participant gets **YOUR LANE** and **PEER LANES** in the system prompt: what they own, what to defer, and what to avoid. Planning tasks should have **one primary assignee** per deliverable.
+
+| Agent (examples) | Owns | Defers to |
+|------------------|------|-----------|
+| **Assistant** | Goal clarity, plan synthesis, task sequencing, assigned summary files | Deep schema design → architect when not assigned |
+| **SoftwareArchitect** | API/schema shape, registration approach, doc standards, assigned schema markdown | App code → backend when not assigned; CI/deploy → platform |
+| **PlatformEngineer** | CI/CD, packaging, deploy, observability for artifacts | Schema/doc narrative → architect when not assigned |
+| **Gemini** (CLI) | Same as other agents for assigned deliverables; optional for external CLI tooling | Architecture → architect when not assigned |
+
+**PlatformEngineer** and **SoftwareArchitect** both belong in the same collab when the goal spans **design + delivery** — they should not duplicate each other's tasks. The harness scenario `resource-api-schema-planning` encodes your original prompt with explicit lanes.
+
+## Live scenario harness (dev loop)
+
+For tuning multi-agent **conversation** and planning quality with **real Ollama agents** (not mocks), use JSON scenarios and a live hub.
+
+**Prerequisites**
+
+- Hub running (`make gui` or `make server`)
+- Ollama serving models used by your agents
+- Fewer than three active collaborations (runner auto-cancels prior runs on `collab-scenarios`)
+
+**Commands**
+
+```bash
+# List scenarios
+python3 scripts/collab-scenarios.py --list
+
+# Fast iteration (7b agents)
+make collab-scenario SCENARIO=planning-two-agent
+
+# Heavier agents
+make collab-scenario SCENARIO=planning-two-agent PROFILE=realistic
+
+# All planning + isolation scenarios
+make collab-scenarios
+
+# Execution + fixture repo (slow; needs task completion)
+make collab-scenario SCENARIO=execute-deliverable PROFILE=fast
+
+# Matrix sweep before/after prompt changes
+make collab-scenario-matrix
+```
+
+**Scenarios** live under `scenarios/collab/*.json`. Each file defines agents (or uses `PROFILE`), a `/collaborate` goal, ordered **steps** (`wait_phase`, `wait_discussion`, `assert_messages`, `assert_plan`, `approve_file_changes`, …), and `cleanup`.
+
+Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`** to apply pending hub file proposals (`POST /api/file-changes/approve/{id}`) before `assert_files`. **`assert_files`** can require grounded content (`any_match` / `none_match` on file body) and reject `TASK_STATUS` lines in deliverables. Set **`NJ_SCENARIO_ALLOW_FILE_FALLBACK=1`** only for local debugging when agents omit canonical `[FILE_CHANGE]` proposals.
+
+**Scenarios**
+
+| Name | Purpose |
+|------|---------|
+| `planning-two-agent` | Fast planning quality (2 tasks, reviewing) |
+| `multi-collab-isolation` | Planning while another collab executes |
+| `reject-collabs-subfolder` | Workspace guard for `collabs/<uuid>` paths |
+| `execute-deliverable` | Fixture repo execution + grounded `findings.md` |
+| `resource-api-schema-planning` | Your resource API schema prompt (`@Assistant @Gemini @PlatformEngineer`) |
+| `delivery-sandbox-auto-ack` | Approve on `--workspace` sandbox auto-acks and dispatches tasks (no `workspace_ack` step) |
+
+**Environment**
+
+- `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
+- `NJ_SCENARIO_PROFILE` — `fast` (`@ChatModerator @Assistant`) or `realistic` (`@SoftwareArchitect @BackendEngineer`)
+- `NJ_COLLAB_SCENARIO_AGENTS` — override mentions
+- `NEURAL_JUNKIE_SCENARIO_REPO` — optional repo root for `resource-api-schema-planning` (`--workspace` metadata when set)
+- `NJ_SCENARIO_ALLOW_FILE_FALLBACK` — allow discussion-only file write fallback (dev)
+
+**Interpreting failures**
+
+- The runner prints per-step pass/fail and dumps the last agent transcript lines on failure.
+- `wait_discussion` prints a **diagnosis** block: per-agent message counts, silent agents, and handoff counts.
+- Common exact failures:
+  - **Silent agent (e.g. Gemini):** turn handoffs with `collab_internal_event` were ignored before v1.0.0-beta.19+ fix — restart the hub after upgrading.
+  - **PlatformEngineer JSON/kubectl in planning:** scenario `none_match` fails with the agent name; hub should rewrite raw tool JSON during planning when the workspace is not k8s-heavy — restart after upgrade. `@SoftwareArchitect` is also valid for the same goal.
+  - **`any_match` keywords:** agents may say “standardize” without “registration”; scenarios use stem patterns (`registr`, `standardiz`).
+- Use `make debug-collab COLAB=<id8> LIVE=1` or `python3 scripts/debug-collab.py messages --channel collab-... --live` for full history.
+- `KEEP=1` leaves the collab active: `make collab-scenario SCENARIO=planning-two-agent KEEP=1`
+
+**CI:** `make collab-smoke` (in-process, no agents). Live scenarios are local-only.
 
 ## Testing
 

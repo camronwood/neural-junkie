@@ -5,13 +5,20 @@ import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
 import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import { useInlinePendingHunks, useMonacoDiagnostics } from '../hooks/useInlinePendingHunks';
+import { useInlineCompletion } from '../hooks/useInlineCompletion';
+import { EditorReviewBar } from './EditorReviewBar';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { usePacksStore } from '../stores/packsStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
+import { ScanAnalysisViewer } from './ScanAnalysisViewer';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
+import { getMonacoThemeId, registerMonacoThemes } from '../utils/editorThemes';
 
 function tabLabel(tab: EditorTab): string {
   const path = tab.path ?? '';
@@ -22,6 +29,8 @@ function tabLabel(tab: EditorTab): string {
 
 interface CodeEditorPanelProps {
   onClose: () => void;
+  /** embedded = flex center column in IDE layout; overlay = resizable slide-in panel */
+  variant?: 'overlay' | 'embedded';
 }
 
 const MIN_WIDTH = 300;
@@ -29,7 +38,8 @@ const COMPACT_MIN_WIDTH = 220;
 const DEFAULT_WIDTH = 600;
 const STORAGE_KEY = 'code-editor-panel-width';
 
-export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
+export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPanelProps) {
+  const embedded = variant === 'embedded';
   const {
     tabs,
     activeTabId,
@@ -98,8 +108,27 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   const revealRequest = useEditorStore((s) => s.revealRequest);
   const clearRevealRequest = useEditorStore((s) => s.clearRevealRequest);
 
+  const inlineCompletionOn = useSettingsStore(
+    (s) => s.layoutSettings.inlineCompletionEnabled ?? false
+  );
+  const colorTheme = useSettingsStore((s) => s.settings.colorTheme ?? 'slack');
+  const monacoThemeId = getMonacoThemeId(colorTheme);
+  const devPack = usePacksStore((s) => s.softwareDevelopmentEnabled());
+  const workspaceRoot = useFileExplorerStore((s) => {
+    const tab = activeTab;
+    if (!tab) return undefined;
+    return s.workspaces.find((w) => w.id === tab.workspaceId)?.path;
+  });
+
   useMonacoDiagnostics(editor, monacoRef.current, activeTab?.path, activeTab?.language);
   useInlinePendingHunks(editor, monacoRef.current, activeTabId);
+  useInlineCompletion(
+    editor,
+    monacoRef.current,
+    devPack && inlineCompletionOn,
+    activeTab?.language,
+    activeTab?.path
+  );
 
   useEffect(() => {
     if (!editor || !revealRequest || !activeTab) return;
@@ -115,17 +144,30 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   }, [editor, revealRequest, activeTab, clearRevealRequest]);
 
   useEffect(() => {
-    if (!activeTab?.workspaceId || activeTab.language !== 'go') return;
+    if (!activeTab?.workspaceId || !activeTab.path) return;
+    const lang = activeTab.language;
+    const ext = activeTab.path.split('.').pop()?.toLowerCase();
+    let lspLang: 'go' | 'rust' | 'python' | null = null;
+    if (lang === 'go' || ext === 'go') lspLang = 'go';
+    else if (lang === 'rust' || ext === 'rs') lspLang = 'rust';
+    else if (lang === 'python' || ext === 'py') lspLang = 'python';
+    if (!lspLang) return;
     let cancelled = false;
     const api = new ChatAPI(getHubBaseURL());
-    void api.getGoLSPDiagnostics(activeTab.workspaceId).then((items) => {
+    const fetch =
+      lspLang === 'go'
+        ? api.getGoLSPDiagnostics(activeTab.workspaceId)
+        : api.getLSPDiagnostics(lspLang, activeTab.workspaceId);
+    void fetch.then((items) => {
       if (cancelled) return;
       for (const d of items) {
-        if (d.path === activeTab.path) {
-          useDiagnosticsStore.getState().setForPath(d.path, [
-            ...(useDiagnosticsStore.getState().byPath[d.path] ?? []),
+        if (d.path === activeTab.path || d.path.endsWith('/' + activeTab.path)) {
+          useDiagnosticsStore.getState().setForPath(activeTab.path, [
+            ...(useDiagnosticsStore.getState().byPath[activeTab.path] ?? []).filter(
+              (x) => x.message !== d.message
+            ),
             {
-              path: d.path,
+              path: activeTab.path,
               line: d.line,
               column: d.column,
               message: d.message,
@@ -142,6 +184,8 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   const isImageTab = activeTab?.viewMode === 'image';
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
+  const isScanAnalysisTab = activeTab?.viewMode === 'scan-analysis';
+  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab;
 
   useEffect(() => {
     if (!activeTabId) {
@@ -190,7 +234,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -267,7 +311,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -289,11 +333,23 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
     }
   }, [addToast, saveTab]);
 
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+    monaco.editor.setTheme(monacoThemeId);
+  }, [monacoThemeId]);
+
+  const handleEditorBeforeMount = (monaco: typeof import('monaco-editor')) => {
+    registerMonacoThemes(monaco);
+  };
+
   const handleEditorDidMount = (
     ed: import('monaco-editor').editor.IStandaloneCodeEditor,
     monaco: typeof import('monaco-editor')
   ) => {
     monacoRef.current = monaco;
+    registerMonacoThemes(monaco);
+    monaco.editor.setTheme(monacoThemeId);
     setEditor(ed);
 
     for (const d of editorListenersRef.current) {
@@ -382,6 +438,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
     if (tab.viewMode === 'scan-summary') return '🔬';
+    if (tab.viewMode === 'scan-analysis') return '📊';
     const ext = (tab.path ?? '').split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
@@ -405,7 +462,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
   };
 
   const editorOptions: import('monaco-editor').editor.IStandaloneEditorConstructionOptions = {
-    theme: 'vs-dark',
+    theme: monacoThemeId,
     fontSize: 14,
     lineNumbers: 'on',
     minimap: { enabled: true },
@@ -425,9 +482,14 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
   return (
     <div
-      className="border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left"
-      style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
+      className={
+        embedded
+          ? 'border-r border-slack-border bg-slack-bg flex flex-col h-full min-w-0 flex-1 relative'
+          : 'border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left'
+      }
+      style={embedded ? undefined : shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
+      {!embedded && (
       <div
         className="absolute right-0 top-0 bottom-0 cursor-col-resize z-[100] group"
         onMouseDown={handleResizeStart}
@@ -441,6 +503,9 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
         <div className="absolute inset-0 bg-transparent group-hover:bg-blue-500/30 transition-colors" />
         <div className="absolute right-1/2 top-1/2 -translate-y-1/2 translate-x-1/2 w-1 h-8 bg-gray-400 group-hover:bg-blue-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
+      )}
+
+      <EditorReviewBar workspaceRoot={workspaceRoot} />
 
       <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between bg-slack-bgHover">
         <h2 className="font-bold text-slack-text">Code Editor</h2>
@@ -461,9 +526,9 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
           )}
           <button
             onClick={() => void handleSave()}
-            disabled={saving || !activeTab || isImageTab || isScanSummaryTab}
+            disabled={saving || !activeTab || isPreviewTab}
             className="px-2 py-1 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded transition-colors"
-            title={isImageTab || isScanSummaryTab ? 'Preview only' : 'Save current file (Cmd+S)'}
+            title={isPreviewTab ? 'Preview only' : 'Save current file (Cmd+S)'}
           >
             Save
           </button>
@@ -519,12 +584,23 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
 
       <div className="flex-1 min-h-0">
         {activeTab ? (
-          activeTab.viewMode === 'scan-summary' && activeTab.scanSummaryData != null ? (
+          activeTab.viewMode === 'scan-analysis' && activeTab.scanAnalysisData != null ? (
+            <ScanAnalysisViewer
+              workspaceId={activeTab.workspaceId}
+              analysisDir={activeTab.scanAnalysisDir ?? ''}
+              data={activeTab.scanAnalysisData}
+              initialWell={activeTab.scanAnalysisInitialWell ?? 'A1'}
+              initialAnalyte={activeTab.scanAnalysisSelectedAnalyte}
+              linkedScanDir={activeTab.linkedScanDir}
+              tabId={activeTab.id}
+            />
+          ) : activeTab.viewMode === 'scan-summary' && activeTab.scanSummaryData != null ? (
             <ScanSummaryViewer
               workspaceId={activeTab.workspaceId}
               summaryDir={activeTab.scanSummaryDir ?? ''}
               data={activeTab.scanSummaryData}
               initialWell={activeTab.scanSummaryInitialWell ?? 'A1'}
+              linkedAnalysisDir={activeTab.linkedAnalysisDir}
             />
           ) : activeTab.viewMode === 'image' ? (
             activeTab.imageSrc ? (
@@ -544,6 +620,8 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
               height="100%"
               language={activeTab.language || 'plaintext'}
               defaultValue=""
+              theme={monacoThemeId}
+              beforeMount={handleEditorBeforeMount}
               onMount={handleEditorDidMount}
               options={editorOptions}
             />
@@ -563,9 +641,9 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
         <div className="px-4 py-2 border-t border-slack-border bg-slack-bgHover text-xs text-slack-textMuted flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span>{activeTab.path}</span>
-            {isImageTab || isScanSummaryTab ? (
+            {isPreviewTab ? (
               <span className="px-2 py-1 bg-slack-bg rounded text-xs">
-                {isScanSummaryTab ? 'Scan summary' : 'Preview only'}
+                {isScanAnalysisTab ? 'Scan analysis' : isScanSummaryTab ? 'Scan summary' : 'Preview only'}
               </span>
             ) : (
               activeTab.language && (
@@ -573,7 +651,7 @@ export function CodeEditorPanel({ onClose }: CodeEditorPanelProps) {
               )
             )}
           </div>
-          {!isImageTab && !isScanSummaryTab && (
+          {!isPreviewTab && (
             <div className="flex items-center gap-2">
               {saving && <span className="text-yellow-500">Saving...</span>}
               <button

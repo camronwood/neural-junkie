@@ -138,7 +138,7 @@ func (a *AssistantAgent) ProcessMessage(ctx context.Context, msg *protocol.Messa
 
 	// Direct meeting-note questions already use the grounded meeting prompt below.
 	// Do not also send proactive context, or the UI can show two contradictory replies.
-	if !a.detectsMeetingQuery(msg) {
+	if !assistantSkipPersonalContextEnrichment(msg) && !a.detectsMeetingQuery(msg) {
 		a.checkProactiveSuggestions(ctx, msg)
 	}
 
@@ -191,16 +191,43 @@ func (a *AssistantAgent) GenerateResponse(ctx context.Context, msg *protocol.Mes
 	return a.generateResponse(ctx, msg, eff)
 }
 
+// assistantSkipPersonalContextEnrichment returns true for collaboration orchestration
+// messages where meeting/email enrichment must not run (avoids recap infinite loops).
+func assistantSkipPersonalContextEnrichment(msg *protocol.Message) bool {
+	if msg == nil {
+		return true
+	}
+	switch msg.Type {
+	case protocol.MessageTypeCollabRecap,
+		protocol.MessageTypeCollabTask,
+		protocol.MessageTypeCollabDiscussion:
+		return true
+	}
+	if msg.GetCollaborationID() != "" {
+		return true
+	}
+	return msg.IsFromSystem()
+}
+
 // buildAssistantPrompt creates a specialized prompt for the assistant.
 // Uses the system/user separator so providers can send identity as a system message.
 func (a *AssistantAgent) buildAssistantPrompt(msg *protocol.Message) string {
-	if a.detectsMeetingQuery(msg) {
-		log.Printf("🔍 [Assistant] Detected meeting query, using enriched context")
-		return a.buildMeetingContextPrompt(msg)
+	return a.buildAssistantPromptCore(msg, false)
+}
+
+func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPersonalEnrichment bool) string {
+	if isCollabRecapMessage(msg) {
+		return buildCollabRecapPrompt(a.Info.Name, msg)
 	}
-	if a.detectsEmailQuery(msg) {
-		log.Printf("🔍 [Assistant] Detected email query, using enriched context")
-		return a.buildEmailContextPrompt(msg)
+	if !skipPersonalEnrichment && !assistantSkipPersonalContextEnrichment(msg) {
+		if a.detectsMeetingQuery(msg) {
+			log.Printf("🔍 [Assistant] Detected meeting query, using enriched context")
+			return a.buildMeetingContextPrompt(msg)
+		}
+		if a.detectsEmailQuery(msg) {
+			log.Printf("🔍 [Assistant] Detected email query, using enriched context")
+			return a.buildEmailContextPrompt(msg)
+		}
 	}
 
 	var prompt strings.Builder
@@ -1296,7 +1323,7 @@ func messageAsksAboutEmail(content string) bool {
 
 // detectsMeetingQuery determines if a message is asking about meetings
 func (a *AssistantAgent) detectsMeetingQuery(msg *protocol.Message) bool {
-	if msg == nil {
+	if msg == nil || assistantSkipPersonalContextEnrichment(msg) {
 		return false
 	}
 	return messageAsksAboutMeetings(msg.Content)
@@ -1304,7 +1331,7 @@ func (a *AssistantAgent) detectsMeetingQuery(msg *protocol.Message) bool {
 
 // detectsEmailQuery determines if a message is asking about email.
 func (a *AssistantAgent) detectsEmailQuery(msg *protocol.Message) bool {
-	if msg == nil {
+	if msg == nil || assistantSkipPersonalContextEnrichment(msg) {
 		return false
 	}
 	return messageAsksAboutEmail(msg.Content)
@@ -1313,14 +1340,14 @@ func (a *AssistantAgent) detectsEmailQuery(msg *protocol.Message) bool {
 // buildMeetingContextPrompt creates an enriched prompt with full meeting content
 func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string {
 	if a.storage == nil {
-		return a.buildAssistantPrompt(msg)
+		return a.buildAssistantPromptCore(msg, true)
 	}
 
 	// Load meeting notes
 	meetingNotes, err := a.storage.LoadMeetingNotes()
 	if err != nil || len(meetingNotes) == 0 {
 		log.Printf("⚠️  [Assistant] No meeting notes available for context")
-		return a.buildAssistantPrompt(msg)
+		return a.buildAssistantPromptCore(msg, true)
 	}
 
 	now := assistantPromptTime(a.config)
@@ -1605,12 +1632,12 @@ func containsMeetingToken(normalized, token string) bool {
 // buildEmailContextPrompt creates a prompt with recent email content when the user asks about mail.
 func (a *AssistantAgent) buildEmailContextPrompt(msg *protocol.Message) string {
 	if a.storage == nil {
-		return a.buildAssistantPrompt(msg)
+		return a.buildAssistantPromptCore(msg, true)
 	}
 	recentEmails, err := a.storage.GetRecentEmails(7)
 	if err != nil || len(recentEmails) == 0 {
 		log.Printf("⚠️  [Assistant] No recent emails available for context")
-		return a.buildAssistantPrompt(msg)
+		return a.buildAssistantPromptCore(msg, true)
 	}
 
 	sort.Slice(recentEmails, func(i, j int) bool {

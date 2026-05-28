@@ -7,10 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
-
-	"github.com/camronwood/neural-junkie/internal/workspacefiles"
 )
 
 // Symbol is a navigable definition in a source file.
@@ -27,50 +24,18 @@ var (
 	extLang = map[string]string{
 		".go": "go", ".ts": "typescript", ".tsx": "typescript",
 		".js": "javascript", ".jsx": "javascript", ".rs": "rust",
+		".py": "python",
 	}
 )
 
-// Search finds symbols whose name contains q (case-insensitive).
+var (
+	rsSym = regexp.MustCompile(`^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)|^\s*(?:pub\s+)?struct\s+(\w+)|^\s*(?:pub\s+)?enum\s+(\w+)|^\s*(?:pub\s+)?trait\s+(\w+)|^\s*(?:pub\s+)?type\s+(\w+)`)
+	pySym = regexp.MustCompile(`^\s*(?:async\s+)?def\s+(\w+)|^\s*class\s+(\w+)`)
+)
+
+// Search finds symbols whose name contains q (case-insensitive). Uses disk-backed index when possible.
 func Search(ctx context.Context, workspaceRoot, q string, limit int) ([]Symbol, error) {
-	if limit <= 0 {
-		limit = 50
-	}
-	q = strings.ToLower(strings.TrimSpace(q))
-	paths, err := workspacefiles.Search(ctx, workspaceRoot, "", 5000)
-	if err != nil {
-		return nil, err
-	}
-	var out []Symbol
-	root, _ := filepath.Abs(filepath.Clean(workspaceRoot))
-	for _, rel := range paths {
-		if ctx.Err() != nil {
-			return out, ctx.Err()
-		}
-		lang := langForPath(rel)
-		if lang == "" {
-			continue
-		}
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		syms, err := scanFile(full, rel, lang)
-		if err != nil {
-			continue
-		}
-		for _, s := range syms {
-			if q == "" || strings.Contains(strings.ToLower(s.Name), q) {
-				out = append(out, s)
-			}
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Name != out[j].Name {
-			return out[i].Name < out[j].Name
-		}
-		return out[i].Path < out[j].Path
-	})
-	if len(out) > limit {
-		out = out[:limit]
-	}
-	return out, nil
+	return SearchIndexed(ctx, workspaceRoot, q, "", limit)
 }
 
 func langForPath(p string) string {
@@ -110,6 +75,38 @@ func scanFile(full, rel, lang string) ([]Symbol, error) {
 							kind = "class"
 						} else if strings.Contains(line, "interface") {
 							kind = "interface"
+						} else {
+							kind = "function"
+						}
+						break
+					}
+				}
+			}
+		case "rust":
+			if m := rsSym.FindStringSubmatch(line); len(m) > 0 {
+				for i := 1; i < len(m); i++ {
+					if m[i] != "" {
+						name = m[i]
+						if strings.Contains(line, "struct") {
+							kind = "struct"
+						} else if strings.Contains(line, "enum") {
+							kind = "enum"
+						} else if strings.Contains(line, "trait") {
+							kind = "trait"
+						} else {
+							kind = "function"
+						}
+						break
+					}
+				}
+			}
+		case "python":
+			if m := pySym.FindStringSubmatch(line); len(m) > 0 {
+				for i := 1; i < len(m); i++ {
+					if m[i] != "" {
+						name = m[i]
+						if strings.Contains(line, "class") {
+							kind = "class"
 						} else {
 							kind = "function"
 						}

@@ -1,11 +1,14 @@
 package agent
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+var rawToolJSONDiscussionRE = regexp.MustCompile(`(?s)^\s*\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{`)
 
 func appendCollaborationWorkspaceInstructions(b *strings.Builder, info CollaborationInfo, agentType protocol.AgentType) {
 	if b == nil {
@@ -45,11 +48,28 @@ func appendCollaborationWorkspaceInstructions(b *strings.Builder, info Collabora
 	b.WriteString("- Cite specific paths only when they support a point (one or two examples is enough).\n")
 	b.WriteString("- Do NOT recommend kubectl, Helm, or Kubernetes unless the file tree or open files show k8s/Helm usage.\n")
 	b.WriteString("- Do NOT start with \"Grounding: I loaded N files\"; the user cares about outcomes, not how many files you opened.\n")
+	if focus := collaborationWorkspaceFocusHint(goal); focus != "" {
+		b.WriteString(focus)
+	}
 
 	tree := fileTreeFromWorkspaceContext(info.SourceWorkspaceContext)
 	if tree != "" && !stackSignalsKubernetes(tree) && agentType == protocol.AgentTypeDevOps {
 		b.WriteString("- **Platform note:** The shared file tree does not show Kubernetes/Helm assets — focus on this repo's actual stack (languages, CI, AWS, apps) instead of cluster tooling.\n")
 	}
+}
+
+func collaborationWorkspaceFocusHint(goal string) string {
+	lower := strings.ToLower(strings.TrimSpace(goal))
+	if lower == "" {
+		return ""
+	}
+	if strings.Contains(lower, "resource") && strings.Contains(lower, "api") {
+		return "- **Focus paths:** `resource-api/json_endpoints/` and `docs/tim/` — use the JSON endpoint descriptors there; do not invent `core/sample/main.go`, `index.js`, or `api.js` unless they appear in the file tree.\n"
+	}
+	if strings.Contains(lower, "schema") || strings.Contains(lower, "standardiz") || strings.Contains(lower, "registr") {
+		return "- **Focus paths:** start with `resource-api/json_endpoints/` for schema/registration work; cite real filenames from the tree.\n"
+	}
+	return ""
 }
 
 func fileTreeFromWorkspaceContext(ctx map[string]interface{}) string {
@@ -74,6 +94,54 @@ func stackSignalsKubernetes(fileTree string) bool {
 		}
 	}
 	return false
+}
+
+// isCollabTurnPromptForAgent returns true for System turn prompts that should wake
+// the next collaboration participant (not seed banners marked collab_internal_event).
+func isCollabTurnPromptForAgent(msg *protocol.Message, collabID, agentID string, collab CollaborationClient) bool {
+	if msg == nil || collab == nil || collabID == "" || agentID == "" {
+		return false
+	}
+	if msg.Type != protocol.MessageTypeCollabDiscussion || !msg.IsFromSystem() {
+		return false
+	}
+	content := msg.Content
+	if !strings.Contains(content, "Collaboration turn handoff") && !strings.Contains(content, "You're up first.") {
+		return false
+	}
+	return msg.IsMentioned(agentID) || collab.IsAgentTurn(collabID, agentID)
+}
+
+// collabPlanningSuppressMCPTools hides DevOps MCP tool catalogs during planning when
+// the shared workspace does not look like a Kubernetes repo (doc/API collabs).
+func collabPlanningSuppressMCPTools(info CollaborationInfo, agentType protocol.AgentType) bool {
+	if info.Phase != "planning" {
+		return false
+	}
+	if agentType != protocol.AgentTypeDevOps {
+		return false
+	}
+	return !stackSignalsKubernetes(fileTreeFromWorkspaceContext(info.SourceWorkspaceContext))
+}
+
+// sanitizeCollabDiscussionResponse replaces raw tool-call JSON mistaken for chat
+// during collaboration planning (common with DevOps MCP-equipped agents).
+func sanitizeCollabDiscussionResponse(content string, collabInfo CollaborationInfo, agentType protocol.AgentType) string {
+	trimmed := strings.TrimSpace(content)
+	if collabInfo.Phase != "planning" || trimmed == "" {
+		return content
+	}
+	looksToolJSON := rawToolJSONDiscussionRE.MatchString(trimmed)
+	looksKubectl := strings.Contains(strings.ToLower(trimmed), "kubectl")
+	if !looksToolJSON && !looksKubectl {
+		return content
+	}
+	if agentType == protocol.AgentTypeDevOps || agentType == protocol.AgentTypeArchitecture {
+		return "For this planning turn, respond in prose (not JSON tool calls). " +
+			"Propose or refine tasks using lines like `- Task N: @AgentName - description` focused on " +
+			"API document schema standardization, registration, and a markdown deliverable."
+	}
+	return content
 }
 
 func collaborationTurnHandoffBody(phase string) string {

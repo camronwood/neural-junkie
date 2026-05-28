@@ -368,6 +368,7 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 		prompt.WriteString(fmt.Sprintf("Path: %s\n", path))
 	}
 	appendScanSummaryContext(prompt, ctxMap)
+	appendScanAnalysisContext(prompt, ctxMap)
 
 	includeTree := scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull
 	if includeTree {
@@ -474,6 +475,60 @@ func appendScanSummaryContext(prompt *strings.Builder, ctxMap map[string]interfa
 				y, _ := spot["y_px"].(float64)
 				prompt.WriteString(fmt.Sprintf("  - %s r%s c%s at (%.0f, %.0f)\n", analyte, row, col, x, y))
 			}
+		}
+	}
+}
+
+func appendScanAnalysisContext(prompt *strings.Builder, ctxMap map[string]interface{}) {
+	raw, ok := ctxMap["scan_analysis"]
+	if !ok || raw == nil {
+		return
+	}
+	scan, ok := raw.(map[string]interface{})
+	if !ok {
+		return
+	}
+	prompt.WriteString("\nPhoenix scan analysis context:\n")
+	if dir, ok := scan["analysis_dir"].(string); ok && dir != "" {
+		prompt.WriteString(fmt.Sprintf("- Analysis directory: %s\n", dir))
+	}
+	if product, ok := scan["product_name"].(string); ok && product != "" {
+		prompt.WriteString(fmt.Sprintf("- Product: %s\n", product))
+	}
+	if df, ok := scan["dilution_factor"].(float64); ok && df > 0 && df != 1 {
+		prompt.WriteString(fmt.Sprintf("- Dilution factor: %.1f (multiply unknown concentrations)\n", df))
+	}
+	if linked, ok := scan["linked_scan_dir"].(string); ok && linked != "" {
+		prompt.WriteString(fmt.Sprintf("- Linked scan directory: %s\n", linked))
+	}
+	if analytes, ok := scan["analytes"].([]interface{}); ok && len(analytes) > 0 {
+		names := make([]string, 0, len(analytes))
+		for _, a := range analytes {
+			if s, ok := a.(string); ok && strings.TrimSpace(s) != "" {
+				names = append(names, s)
+			}
+		}
+		if len(names) > 0 {
+			prompt.WriteString(fmt.Sprintf("- Analytes: %s\n", strings.Join(names, ", ")))
+		}
+	}
+	if note, ok := scan["note"].(string); ok && note != "" {
+		prompt.WriteString(fmt.Sprintf("- Note: %s\n", note))
+	}
+	if activeAnalyte, ok := scan["active_analyte"].(string); ok && activeAnalyte != "" {
+		prompt.WriteString(fmt.Sprintf("- Active analyte: %s\n", activeAnalyte))
+	}
+	if active, ok := scan["active_well"].(map[string]interface{}); ok && len(active) > 0 {
+		well, _ := active["well"].(string)
+		if well != "" {
+			prompt.WriteString(fmt.Sprintf("- Active well: %s", well))
+			if conc, ok := active["concentration"].(float64); ok {
+				prompt.WriteString(fmt.Sprintf(", concentration %.4f pg/ml", conc))
+			}
+			if loq, ok := active["within_loq"].(bool); ok {
+				prompt.WriteString(fmt.Sprintf(", within LOQ: %v", loq))
+			}
+			prompt.WriteString("\n")
 		}
 	}
 }

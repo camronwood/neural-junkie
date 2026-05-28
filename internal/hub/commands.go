@@ -3924,7 +3924,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		},
 		{
 			Name:        "/collaborate",
-			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` / `--workspace` / `--worktree` / `--allow-agent-adds` before mentions (defaults 3 / 20, agent add requests off). `--worktree` runs execution in a git worktree; combine with `--workspace` to bind the source repo at start.",
+			Description: "Start a multi-agent collaboration. Optional `--rounds` / `--messages` / `--workspace` / `--no-workspace` / `--repo <path>` / `--worktree` / `--allow-agent-adds` before mentions (defaults 3 / 20). Desktop command form can pick active workspace, a folder, or research-only (no repo).",
 			Category:    "Collaboration",
 			Arguments: []protocol.CommandArgument{
 				{Name: "description", Description: "[--rounds N] [--messages M] [--workspace] [--worktree] @Agent1 @Agent2 ... description", Type: "string", Required: true},
@@ -4120,11 +4120,11 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	var createOpts collaboration.CreateOptions
 	createOpts.AllowAgentParticipantRequests = flagParse.AllowAgentParticipantRequests
-	sourceWorkspacePath, sourceWorkspaceWarn := ch.hub.resolveCollaborateSourceRepoPath(msg)
+	sourceWorkspacePath, sourceWorkspaceWarn := ch.hub.resolveCollaborateSourceRepoPath(msg, flagParse)
 	if sourceWorkspacePath != "" {
 		createOpts.SourceRepoPath = sourceWorkspacePath
 	}
-	createOpts.SourceWorkspaceContext = workspaceContextFromMessageMetadata(msg)
+	createOpts.SourceWorkspaceContext = workspaceContextForCollaboration(msg, flagParse, sourceWorkspacePath, description)
 	if flagParse.Worktree {
 		createOpts.ExecutionMode = collaboration.ExecutionModeWorktree
 		if createOpts.SourceRepoPath != "" {
@@ -4201,6 +4201,8 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 			"\n\n**Source workspace:** `%s`.\n\n**Deliverables folder:** `%s/` under the project (plans, research, and outputs). Inspect the repo at the source workspace; write files under the deliverables folder.",
 			collab.SourceRepoPath, rel,
 		)
+	} else {
+		seedBody += "\n\n**Research-only** — no project repository is bound. Do not invent repo file paths; use the collaboration sandbox for outputs when execution starts."
 	}
 	if sourceWorkspaceWarn != "" {
 		seedBody += "\n\n" + sourceWorkspaceWarn
@@ -4247,7 +4249,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		protocol.MessageTypeCollabDiscussion,
 		collabChannelName,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
-		fmt.Sprintf("@%s -- You're up first. Please share your initial thoughts on how to approach: %s\n\nConsider the strengths of each participant and propose initial task assignments.",
+		fmt.Sprintf("@%s -- You're up first for: %s\n\nPropose a **minimal** task list (3–6 lines) with concrete deliverable paths (`- Task N: @Agent - Write collabs/<id>/file.md …`). Defer debate until tasks are drafted; use each participant's lane.",
 			firstAgent.AgentName, description),
 	)
 	turnMsg.SetCollaborationID(collab.ID)
@@ -4311,7 +4313,7 @@ func (ch *CommandHandler) handleRunbook(ctx context.Context, msg *protocol.Messa
 	if flagParse.Worktree {
 		execMode = string(collaboration.ExecutionModeWorktree)
 	}
-	sourceRepo, _ := ch.hub.resolveCollaborateSourceRepoPath(msg)
+	sourceRepo, _ := ch.hub.resolveCollaborateSourceRepoPath(msg, flagParse)
 	if flagParse.Worktree && sourceRepo != "" {
 		if err := collabworktree.ValidateGitRepo(sourceRepo); err != nil {
 			if flagParse.AttachWorkspace {
@@ -4478,13 +4480,21 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	if snapPre != nil && snapPre.PlanningRecapStatus == collaboration.RecapStatusFailed {
 		log.Printf("[Collaboration] Approving %s after failed planning recap (user override)", collabID[:8])
 	}
-	if len(collab.Tasks) == 0 && collab.Plan != nil && strings.TrimSpace(collab.Plan.Content) != "" {
-		extractedTasks := collaboration.ExtractTasksFromPlan(collab.Plan.Content, collab.Agents)
-		collaboration.EnrichTasksWithContextPaths(extractedTasks, collab.SourceRepoPath)
+	snapForTasks, _ := cm.GetCollaborationSnapshot(collabID)
+	if snapForTasks == nil {
+		snapForTasks = collab
+	}
+	var approveWarnings []string
+	if snapForTasks.Plan != nil && strings.TrimSpace(snapForTasks.Plan.Content) != "" {
+		extractedTasks, warnings := collaboration.NormalizeAndValidateTasksForExecution(snapForTasks)
+		approveWarnings = warnings
 		if len(extractedTasks) > 0 {
 			if err := cm.SetTasks(collabID, extractedTasks); err != nil {
 				log.Printf("[Collaboration] Failed to set extracted tasks for %s: %v", collabID[:8], err)
 			}
+		}
+		if err := cm.SetApproveWarnings(collabID, approveWarnings); err != nil {
+			log.Printf("[Collaboration] SetApproveWarnings for %s: %v", collabID[:8], err)
 		}
 	}
 
@@ -4514,6 +4524,17 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 	ch.hub.persistCollaborationReviewAssets(collabID)
 
+	if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && !collabSnap.WorkspaceAcknowledged {
+		if err := ch.hub.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
+			log.Printf("[Collaboration] Auto workspace ack for %s: %v", collabID[:8], err)
+		} else {
+			collabSnap, err = cm.GetCollaborationSnapshot(collabID)
+			if err != nil || collabSnap == nil {
+				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not reload collaboration %s after workspace ack", collabID[:8])), nil
+			}
+		}
+	}
+
 	// Notify agents about their assigned tasks
 	var taskSummary strings.Builder
 	taskSummary.WriteString(fmt.Sprintf("✅ **Plan Approved** (Collaboration `%s`)\n\n", collabID[:8]))
@@ -4534,6 +4555,9 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 
 	if ch.hub.CollaborationCanDispatchTasks(collabSnap) {
 		ch.hub.dispatchCollabTaskMessages(collabSnap, msg, false)
+		if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && collabSnap.WorkspaceAcknowledged {
+			taskSummary.WriteString("\n**Tasks dispatched** — workspace was auto-confirmed (bound project repo).\n")
+		}
 	} else {
 		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree {
 			if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
@@ -4549,6 +4573,9 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 	if pathWarnings != "" {
 		taskSummary.WriteString(pathWarnings)
+	}
+	if planWarn := collaboration.FormatApproveWarnings(approveWarnings); planWarn != "" {
+		taskSummary.WriteString(planWarn)
 	}
 
 	out := ch.systemResponse(msg.Channel, taskSummary.String())

@@ -15,6 +15,7 @@ import {
 const baseSettings: Settings = {
   fontSize: 16,
   fontSizeScope: 'messages',
+  colorTheme: 'slack',
   hiddenAgentSidebarKeys: ['backend:GoExpert'],
   hiddenAgentIdsForSidebar: ['legacy-uuid'],
   hiddenDmChannelNames: ['dm-u-goexpert'],

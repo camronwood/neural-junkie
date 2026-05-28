@@ -13,6 +13,10 @@ export const CONTEXT_SCOPE_REASON_KEY = 'context_scope_reason';
 export type ContextScope = 'none' | 'hint' | 'outline' | 'focus' | 'full';
 export type WorkspaceContextMode = 'auto' | 'always' | 'off';
 
+export const IDE_ROUTE_AGENT_TYPE_KEY = 'ide_route_agent_type';
+export const EDITOR_MODE_KEY = 'editor_mode';
+export const EDITOR_AGENT_TRUST_KEY = 'editor_agent_trust';
+
 export interface PromptAttachmentPayload {
   path: string;
   language: string;

@@ -1,0 +1,30 @@
+{
+  "name": "delivery-sandbox-auto-ack",
+  "description": "Sandbox collab with bound workspace auto-acks on approve and dispatches tasks without a separate workspace_ack step.",
+  "channel": "collab-scenarios",
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "4"],
+    "goal": "@ChatModerator @Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with two bullets from README.md only. Use - Task 1: @Assistant - Write collabs/<collab-id>/findings.md"
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {
+      "action": "assert_collab",
+      "phase": "executing",
+      "workspace_acknowledged": true,
+      "tasks_dispatched": true,
+      "source_repo_path_nonempty": true
+    }
+  ],
+  "cleanup": "cancel"
+}

@@ -22,8 +22,8 @@ These items from the original roadmap have been completed:
 ### Agent-to-WebSocket Migration
 Move agents from HTTP polling to WebSocket connections for lower latency and reduced server load.
 
-### Git Operations
-The server has stub endpoints for `git-status`, `git-diff`, `git-commit`, `git-push`, `git-pull` (currently returning 501). Implement these to enable agents to perform git operations with approval workflows.
+### Git Operations (agents)
+Hub git REST endpoints are implemented for the desktop Git modal (Software development pack). Remaining work: agent-initiated git operations with approval workflows from chat.
 
 ### Authentication & Authorization
 - JWT/API key auth for all endpoints

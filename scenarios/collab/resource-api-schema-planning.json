@@ -1,0 +1,55 @@
+{
+  "name": "resource-api-schema-planning",
+  "description": "Original Phoenix-style prompt with Assistant, Gemini, and PlatformEngineer (or SoftwareArchitect). Both platform and architect agents should contribute planning prose for API schema/docs — not kubectl JSON.",
+  "channel": "collab-scenarios",
+  "agents": "@Assistant @Gemini @PlatformEngineer",
+  "required_agents": ["Assistant", "Gemini", "PlatformEngineer"],
+  "workspace": {
+    "path_env": "NEURAL_JUNKIE_SCENARIO_REPO",
+    "workspace_flag": true,
+    "outline": true
+  },
+  "collaborate": {
+    "flags": ["--rounds", "2", "--messages", "5"],
+    "goal": "@Assistant @Gemini @PlatformEngineer Investigate resource api document schema standardization/registration, and product a markdown document? Lanes: @Assistant synthesizes plan; @SoftwareArchitect-level schema/doc standards (or @PlatformEngineer only for CI/release of docs, not schema design); @Gemini drafts markdown from the approved outline."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_discussion",
+      "min_total": 3,
+      "min_per_agent": 1,
+      "required_agents": ["Assistant", "Gemini", "PlatformEngineer"],
+      "timeout": "240s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_messages",
+      "none_match": [
+        "Grounding: I loaded",
+        "index\\.js",
+        "utils\\.js",
+        "check_pod_logs",
+        "kubectl",
+        "\"namespace\"\\s*:",
+        "\"name\"\\s*:\\s*\"kubectl"
+      ],
+      "any_match": ["schema", "standardiz", "registr", "markdown"]
+    },
+    {
+      "action": "assert_plan",
+      "min_tasks": 2,
+      "max_tasks": 6,
+      "tasks_have_assignee": true,
+      "title_none_match": ["task is to ", "should perform ", "review will "],
+      "content_any_match": ["schema|standardiz|registr|markdown|resource\\s*api"],
+      "content_none_match": ["index\\.js", "utils\\.js"]
+    },
+    {
+      "action": "assert_collab",
+      "phase": "reviewing"
+    }
+  ],
+  "cleanup": "cancel"
+}

@@ -1375,7 +1375,21 @@ export class ChatAPI {
     );
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch file content: ${response.statusText}`);
+      const body = await response.text().catch(() => '');
+      const detail = body.trim();
+      if (response.status === 403) {
+        throw new Error(
+          detail || 'Forbidden: path is outside the workspace. Use a path relative to the workspace root.'
+        );
+      }
+      if (response.status === 404) {
+        throw new Error(detail || `Not Found: ${path}`);
+      }
+      throw new Error(
+        detail
+          ? `Failed to fetch file content (${response.status}): ${detail}`
+          : `Failed to fetch file content: ${response.statusText}`
+      );
     }
     
     const data = await response.json();
@@ -1707,6 +1721,114 @@ export class ChatAPI {
       }>;
     };
     return data.diagnostics ?? [];
+  }
+
+  async getLSPDiagnostics(
+    lang: 'rust' | 'python',
+    workspaceId: string
+  ): Promise<
+    Array<{ path: string; line: number; column: number; message: string; severity: string }>
+  > {
+    const params = new URLSearchParams({ workspace: workspaceId });
+    const response = await this.hubFetch(`/api/lsp/${lang}/diagnostics?${params}`, {
+      method: 'GET',
+    });
+    if (!response.ok) return [];
+    const data = (await response.json()) as {
+      diagnostics?: Array<{
+        path: string;
+        line: number;
+        column: number;
+        message: string;
+        severity: string;
+      }>;
+    };
+    return data.diagnostics ?? [];
+  }
+
+  async devComplete(params: {
+    prefix: string;
+    suffix?: string;
+    language?: string;
+    path?: string;
+    model?: string;
+  }): Promise<{ completion: string }> {
+    const response = await this.hubFetch('/api/dev/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prefix: params.prefix,
+        suffix: params.suffix ?? '',
+        language: params.language,
+        path: params.path,
+        model: params.model,
+      }),
+    });
+    if (!response.ok) {
+      return { completion: '' };
+    }
+    return response.json();
+  }
+
+  async devAgentTurn(params: {
+    workspaceId: string;
+    instruction: string;
+    sessionId?: string;
+    mode?: 'ask' | 'agent';
+    path?: string;
+    selection?: string;
+    agentType?: string;
+    metadata?: Record<string, unknown>;
+    attachments?: Array<Record<string, unknown>>;
+  }): Promise<{
+    response: string;
+    proposed: boolean;
+    session_id: string;
+    channel: string;
+    change_ids?: string[];
+    agent?: string;
+    agent_type?: string;
+  }> {
+    const response = await this.hubFetch('/api/dev/agent-turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspace_id: params.workspaceId,
+        instruction: params.instruction,
+        session_id: params.sessionId,
+        mode: params.mode ?? 'agent',
+        path: params.path,
+        selection: params.selection,
+        agent_type: params.agentType,
+        metadata: params.metadata,
+        attachments: params.attachments,
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Agent turn failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async repoSemanticSearch(params: {
+    repoPath: string;
+    query: string;
+    limit?: number;
+  }): Promise<{ chunks: Array<{ path: string; content: string }> }> {
+    const response = await this.hubFetch('/api/repo/search/semantic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repo_path: params.repoPath,
+        query: params.query,
+        limit: params.limit ?? 8,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Semantic search failed: ${response.statusText}`);
+    }
+    return response.json();
   }
 
   // Tool approval API methods

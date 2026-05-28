@@ -198,8 +198,8 @@ func TestExtractTasksFromPlanSanitizesAssetMentionAssignee(t *testing.T) {
 	if len(tasks) != 1 {
 		t.Fatalf("expected 1 task, got %d", len(tasks))
 	}
-	if tasks[0].AssignedName != "" || tasks[0].AssignedTo != "" {
-		t.Fatalf("asset path should not resolve as an assignee: %+v", tasks[0])
+	if tasks[0].AssignedName != "Gemini" || tasks[0].AssignedTo != "gemini-1" {
+		t.Fatalf("bogus @mention should round-robin to participant: %+v", tasks[0])
 	}
 	if tasks[0].Description != "Analyze current API definitions" {
 		t.Fatalf("unexpected sanitized description %q", tasks[0].Description)

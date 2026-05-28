@@ -1,0 +1,23 @@
+{
+  "name": "reject-collabs-subfolder",
+  "description": "Workspace under collabs/<uuid> must not bind as source repo (warning + empty source_repo_path).",
+  "channel": "collab-scenarios",
+  "workspace": {
+    "path": "scenarios/fixtures/minimal-repo/collabs/00000000-0000-4000-8000-000000000099",
+    "workspace_flag": false,
+    "file_tree": "README.md\n"
+  },
+  "collaborate": {
+    "flags": ["--rounds", "1", "--messages", "1"],
+    "goal": "nj collab scenario reject collabs subfolder probe"
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 15},
+    {
+      "action": "assert_collab",
+      "source_repo_path_empty": true,
+      "expect_workspace_warning": true
+    }
+  ],
+  "cleanup": "cancel"
+}

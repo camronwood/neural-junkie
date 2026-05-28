@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { shallow } from 'zustand/shallow';
-import { useSettingsStore, type FontSizeScope } from '../stores/settingsStore';
+import { useSettingsStore, type ColorTheme, type FontSizeScope } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
 import type {
@@ -36,8 +36,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     settings, 
     integrations,
     layoutSettings,
-    updateFontSize, 
-    updateFontSizeScope, 
+    updateFontSize,
+    updateFontSizeScope,
+    updateColorTheme,
     loadSettings,
     updateSettings,
     loadIntegrations,
@@ -197,9 +198,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           packId === PACK_SOFTWARE_DEVELOPMENT &&
           !layoutSettings.devPackLayoutNudgeApplied
         ) {
+          const { panelsForPreset } = await import('../utils/layoutPresets');
           await updateLayoutSettings({
-            filesPanelVisible: true,
-            editorPanelVisible: true,
+            ...panelsForPreset('ide'),
             devPackLayoutNudgeApplied: true,
           });
         }
@@ -770,6 +771,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleScopeChange = (scope: FontSizeScope) => {
     updateFontSizeScope(scope);
   };
+
+  const handleColorThemeChange = (theme: ColorTheme) => {
+    updateColorTheme(theme);
+  };
+
+  const activeColorTheme: ColorTheme = settings.colorTheme ?? 'slack';
 
   const handleDelegationToggle = async (enabled: boolean) => {
     setDelegationSaving(true);
@@ -1418,6 +1425,65 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="p-6 max-h-[60vh] overflow-y-auto">
           {activeTab === 'appearance' && (
             <div className="space-y-6">
+              {/* Color theme */}
+              <div>
+                <label className="block text-sm font-medium text-slack-text mb-3">
+                  Color theme
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(
+                    [
+                      {
+                        id: 'slack' as const,
+                        label: 'Slack',
+                        description: 'Classic blue-accent dark UI',
+                        previewBg: '#1a1d21',
+                        previewAccent: '#1164a3',
+                      },
+                      {
+                        id: 'flat' as const,
+                        label: 'Flat',
+                        description: 'Navy base, purple accent, mint status',
+                        previewBg: '#0d0d1a',
+                        previewAccent: '#a78bfa',
+                      },
+                    ] as const
+                  ).map((option) => (
+                    <label
+                      key={option.id}
+                      className={`flex cursor-pointer flex-col rounded-lg border p-3 transition-colors ${
+                        activeColorTheme === option.id
+                          ? 'border-slack-accent bg-slack-accent/10 ring-1 ring-slack-accent'
+                          : 'border-slack-border bg-slack-bgHover hover:border-slack-textMuted'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="colorTheme"
+                        value={option.id}
+                        checked={activeColorTheme === option.id}
+                        onChange={() => handleColorThemeChange(option.id)}
+                        className="sr-only"
+                      />
+                      <div className="mb-2 flex items-center gap-2">
+                        <span
+                          className="h-8 w-8 shrink-0 rounded border border-white/10"
+                          style={{ backgroundColor: option.previewBg }}
+                          aria-hidden
+                        />
+                        <span
+                          className="h-8 flex-1 rounded"
+                          style={{ backgroundColor: option.previewAccent }}
+                          aria-hidden
+                        />
+                      </div>
+                      <div className="text-sm font-medium text-slack-text">{option.label}</div>
+                      <div className="text-xs text-slack-textMuted mt-0.5">{option.description}</div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               {/* Font Size */}
               <div>
                 <label className="block text-sm font-medium text-slack-text mb-3">
@@ -1488,6 +1554,71 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {activeTab === 'layout' && (
             <div className="space-y-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Layout preset</h3>
+                <p className="text-sm text-slack-textMuted mb-3">
+                  IDE puts the editor and agent first; Team keeps the classic chat-first workspace.
+                </p>
+                <div className="flex gap-2">
+                  {(['team', 'ide'] as const).map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        void import('../utils/layoutPresets').then(({ panelsForPreset }) =>
+                          updateLayoutSettings(panelsForPreset(preset))
+                        );
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded border ${
+                        (layoutSettings.layoutPreset ?? 'team') === preset
+                          ? 'border-slack-accent bg-slack-accent/20 text-slack-text'
+                          : 'border-slack-border text-slack-textMuted hover:text-slack-text'
+                      }`}
+                    >
+                      {preset === 'ide' ? 'IDE (project-first)' : 'Team (chat-first)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Inline completion (ghost text)</div>
+                  <div className="text-sm text-slack-textMuted">Ollama FIM via hub when Software development pack is on</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={layoutSettings.inlineCompletionEnabled ?? false}
+                    onChange={(e) => updateLayoutSettings({ inlineCompletionEnabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+                <div className="flex-1">
+                  <div className="font-medium text-slack-text">Editor agent trust</div>
+                  <div className="text-sm text-slack-textMuted">
+                    How file changes from IDE-mode chat are applied (Ask/Agent toggle on the main composer)
+                  </div>
+                </div>
+                <select
+                  value={layoutSettings.editorAgentTrust ?? 'interactive'}
+                  onChange={(e) =>
+                    updateLayoutSettings({
+                      editorAgentTrust: e.target.value as 'interactive' | 'auto_apply_edits' | 'yolo',
+                    })
+                  }
+                  className="text-sm bg-slack-bg border border-slack-border rounded px-2 py-1"
+                >
+                  <option value="interactive">Interactive (approve each)</option>
+                  <option value="auto_apply_edits">Auto-apply edits</option>
+                  <option value="yolo">Yolo (tools)</option>
+                </select>
+              </div>
+
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Panel Visibility</h3>
                 <p className="text-sm text-slack-textMuted">

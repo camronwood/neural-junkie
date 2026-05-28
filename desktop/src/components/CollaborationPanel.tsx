@@ -530,6 +530,26 @@ export function CollaborationPanel({
                 View graph
               </button>
             </div>
+            {c.approve_warnings && c.approve_warnings.length > 0 ? (
+              <div
+                style={{
+                  marginBottom: 10,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #b45309',
+                  backgroundColor: 'rgba(180, 83, 9, 0.12)',
+                  fontSize: 12,
+                  color: '#fcd34d',
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>Plan validation</div>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {c.approve_warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {c.tasks.map((task: CollaborationTask, i: number) => (
               <div key={task.id} style={{
                 padding: '8px 10px', marginBottom: 6,
@@ -713,6 +733,16 @@ export function CollaborationPanel({
               ) : c.phase === 'executing' ? (
                 <div style={{ gridColumn: '1 / -1' }}>
                   Task-driven execution — agents respond to assigned tasks only (no open planning discussion).
+                  {c.workspace_acknowledged && c.source_repo_path?.trim() && c.execution_mode !== 'worktree' ? (
+                    <span style={{ display: 'block', marginTop: 6, color: 'var(--text-secondary, #9ca3af)', fontSize: 12 }}>
+                      Tasks dispatch automatically after approve when a project workspace is bound.
+                    </span>
+                  ) : null}
+                  {c.phase === 'executing' && !c.workspace_acknowledged && (c.working_directory?.trim() || c.execution_mode === 'worktree') ? (
+                    <span style={{ display: 'block', marginTop: 6, color: '#fbbf24', fontSize: 12 }}>
+                      Confirm the execution workspace (Continue in chat) before agents receive task prompts.
+                    </span>
+                  ) : null}
                 </div>
               ) : (
                 <>

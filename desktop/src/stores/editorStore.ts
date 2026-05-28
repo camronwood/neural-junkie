@@ -3,10 +3,12 @@ import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { ScanSummaryData } from '../utils/scanSummary';
 import { isScanSummaryWellPath, SCAN_SUMMARY_METADATA_FILE } from '../utils/scanSummary';
+import type { ScanAnalysisData } from '../utils/scanAnalysis';
+import { isScanAnalysisResultsPath, SCAN_ANALYSIS_RESULTS_FILE } from '../utils/scanAnalysis';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'image' | 'scan-summary';
+export type EditorTabViewMode = 'text' | 'image' | 'scan-summary' | 'scan-analysis';
 
 export interface EditorTab {
   id: string;
@@ -26,6 +28,15 @@ export interface EditorTab {
   scanSummaryData?: ScanSummaryData;
   /** Well to select when the scan summary viewer opens. */
   scanSummaryInitialWell?: string;
+  /** Relative path to scan analysis directory (parent of reports/results.json). */
+  scanAnalysisDir?: string;
+  scanAnalysisData?: ScanAnalysisData;
+  scanAnalysisInitialWell?: string;
+  scanAnalysisSelectedAnalyte?: string;
+  /** Linked scan summary directory for image comparison. */
+  linkedScanDir?: string;
+  /** Linked analysis directory when viewing scan summary. */
+  linkedAnalysisDir?: string;
 }
 
 export interface OpenFileOptions {
@@ -33,6 +44,10 @@ export interface OpenFileOptions {
   imageSrc?: string;
   scanSummaryDir?: string;
   scanSummaryData?: ScanSummaryData;
+  scanAnalysisDir?: string;
+  scanAnalysisData?: ScanAnalysisData;
+  linkedScanDir?: string;
+  linkedAnalysisDir?: string;
 }
 
 export interface EditorSelectionContext {
@@ -66,8 +81,25 @@ interface EditorState {
     workspaceId: string,
     summaryDir: string,
     data: ScanSummaryData,
-    initialWell?: string
+    initialWell?: string,
+    options?: { linkedAnalysisDir?: string }
   ) => void;
+  openScanAnalysis: (
+    workspaceId: string,
+    analysisDir: string,
+    data: ScanAnalysisData,
+    options?: {
+      initialWell?: string;
+      selectedAnalyte?: string;
+      linkedScanDir?: string;
+    }
+  ) => void;
+  linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
+  linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
+  findLinkedAnalysisTab: (workspaceId: string, scanDir: string) => EditorTab | undefined;
+  findLinkedScanTab: (workspaceId: string, analysisDir: string) => EditorTab | undefined;
+  activateAnalysisWell: (tabId: string, wellId: string, analyte?: string) => void;
+  activateScanWell: (tabId: string, wellId: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
   updateTabContent: (tabId: string, content: string) => void;
@@ -120,11 +152,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'scan-summary' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
       scanSummaryData: options?.scanSummaryData,
+      scanAnalysisDir: options?.scanAnalysisDir,
+      scanAnalysisData: options?.scanAnalysisData,
+      linkedScanDir: options?.linkedScanDir,
+      linkedAnalysisDir: options?.linkedAnalysisDir,
     };
     
     set({
@@ -133,7 +169,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  openScanSummary: (workspaceId, summaryDir, data, initialWell) => {
+  openScanSummary: (workspaceId, summaryDir, data, initialWell, options) => {
     const state = get();
     const path = summaryDir
       ? `${summaryDir.replace(/\/$/, '')}/${SCAN_SUMMARY_METADATA_FILE}`
@@ -146,7 +182,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         activeTabId: existingTab.id,
         tabs: state.tabs.map((t) =>
           t.id === existingTab.id
-            ? { ...t, scanSummaryData: data, scanSummaryInitialWell: initialWell ?? t.scanSummaryInitialWell }
+            ? {
+                ...t,
+                scanSummaryData: data,
+                scanSummaryInitialWell: initialWell ?? t.scanSummaryInitialWell,
+                linkedAnalysisDir: options?.linkedAnalysisDir ?? t.linkedAnalysisDir,
+              }
             : t
         ),
       });
@@ -173,12 +214,138 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       scanSummaryDir: summaryDir,
       scanSummaryData: data,
       scanSummaryInitialWell: initialWell,
+      linkedAnalysisDir: options?.linkedAnalysisDir,
     };
     set({
       tabs: staleTextTab
         ? state.tabs.map((t) => (t.id === staleTextTab.id ? newTab : t))
         : [...state.tabs, newTab],
       activeTabId: tabId,
+    });
+  },
+
+  openScanAnalysis: (workspaceId, analysisDir, data, options) => {
+    const state = get();
+    const path = analysisDir
+      ? `${analysisDir.replace(/\/$/, '')}/${SCAN_ANALYSIS_RESULTS_FILE}`
+      : SCAN_ANALYSIS_RESULTS_FILE;
+    const selectedAnalyte =
+      options?.selectedAnalyte && data.analytes.includes(options.selectedAnalyte)
+        ? options.selectedAnalyte
+        : data.analytes[0];
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'scan-analysis' &&
+        t.scanAnalysisDir === analysisDir
+    );
+    if (existingTab) {
+      set({
+        activeTabId: existingTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === existingTab.id
+            ? {
+                ...t,
+                scanAnalysisData: data,
+                scanAnalysisInitialWell: options?.initialWell ?? t.scanAnalysisInitialWell,
+                scanAnalysisSelectedAnalyte: selectedAnalyte ?? t.scanAnalysisSelectedAnalyte,
+                linkedScanDir: options?.linkedScanDir ?? t.linkedScanDir,
+              }
+            : t
+        ),
+      });
+      return;
+    }
+    const staleTextTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'text' &&
+        (t.path === path ||
+          t.path.endsWith(`/${SCAN_ANALYSIS_RESULTS_FILE}`) ||
+          isScanAnalysisResultsPath(t.path))
+    );
+    const tabId =
+      staleTextTab?.id ?? `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path,
+      content: '',
+      isDirty: false,
+      viewMode: 'scan-analysis',
+      scanAnalysisDir: analysisDir,
+      scanAnalysisData: data,
+      scanAnalysisInitialWell: options?.initialWell ?? 'A1',
+      scanAnalysisSelectedAnalyte: selectedAnalyte,
+      linkedScanDir: options?.linkedScanDir,
+    };
+    set({
+      tabs: staleTextTab
+        ? state.tabs.map((t) => (t.id === staleTextTab.id ? newTab : t))
+        : [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
+  linkScanToAnalysisTab: (tabId, scanDir) => {
+    set({
+      tabs: get().tabs.map((t) =>
+        t.id === tabId && t.viewMode === 'scan-analysis' ? { ...t, linkedScanDir: scanDir } : t
+      ),
+    });
+  },
+
+  linkAnalysisToScanTab: (tabId, analysisDir) => {
+    set({
+      tabs: get().tabs.map((t) =>
+        t.id === tabId && t.viewMode === 'scan-summary'
+          ? { ...t, linkedAnalysisDir: analysisDir }
+          : t
+      ),
+    });
+  },
+
+  findLinkedAnalysisTab: (workspaceId, scanDir) => {
+    const normalized = scanDir.replace(/[/\\]+$/, '');
+    return get().tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'scan-analysis' &&
+        (t.linkedScanDir === normalized || t.scanAnalysisDir === normalized)
+    );
+  },
+
+  findLinkedScanTab: (workspaceId, analysisDir) => {
+    const normalized = analysisDir.replace(/[/\\]+$/, '');
+    return get().tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'scan-summary' &&
+        (t.scanSummaryDir === normalized || t.linkedAnalysisDir === normalized)
+    );
+  },
+
+  activateAnalysisWell: (tabId, wellId, analyte) => {
+    set({
+      activeTabId: tabId,
+      tabs: get().tabs.map((t) =>
+        t.id === tabId
+          ? {
+              ...t,
+              scanAnalysisInitialWell: wellId,
+              scanAnalysisSelectedAnalyte: analyte ?? t.scanAnalysisSelectedAnalyte,
+            }
+          : t
+      ),
+    });
+  },
+
+  activateScanWell: (tabId, wellId) => {
+    set({
+      activeTabId: tabId,
+      tabs: get().tabs.map((t) =>
+        t.id === tabId ? { ...t, scanSummaryInitialWell: wellId } : t
+      ),
     });
   },
   

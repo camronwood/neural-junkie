@@ -111,7 +111,7 @@ export function RunbookGraphModal({
       onClick={onClose}
     >
       <div
-        className="relative flex flex-col w-[95vw] h-[95vh] rounded-lg overflow-hidden border border-slack-border bg-[#1a1d21]"
+        className="relative flex flex-col w-[95vw] h-[95vh] rounded-lg overflow-hidden border border-slack-border bg-slack-bg"
         onClick={(e) => e.stopPropagation()}
       >
         <RunbookGraphToolbar

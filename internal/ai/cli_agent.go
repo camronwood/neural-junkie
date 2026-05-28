@@ -38,6 +38,12 @@ var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x
 var (
 	// ErrCLIProviderTimeout marks timeout failures from CLI-backed providers.
 	ErrCLIProviderTimeout = errors.New("cli provider timeout")
+
+	// DefaultGeminiCLITimeout caps how long a headless gemini-cli subprocess may run.
+	DefaultGeminiCLITimeout = 120 * time.Second
+
+	// GeminiCLIPromptMaxBytes limits prompt size passed to gemini-cli (avoids multi-minute hangs).
+	GeminiCLIPromptMaxBytes = 24000
 )
 
 // CLIAgentProvider implements AIProvider by invoking a CLI-based AI agent as a subprocess.
@@ -144,6 +150,9 @@ func NewCursorCLIProvider(workDir, apiKey string, opts ...CLIAgentOption) *CLIAg
 func NewGeminiCLIProvider(workDir string, opts ...CLIAgentOption) *CLIAgentProvider {
 	p := NewCLIAgentProvider("gemini", workDir, "gemini-cli", opts...)
 	p.Model = "gemini-agent"
+	if p.Timeout > DefaultGeminiCLITimeout {
+		p.Timeout = DefaultGeminiCLITimeout
+	}
 	// -p must be last: it takes the next arg as the prompt value (unlike Cursor's
 	// boolean -p flag). GenerateResponse appends the prompt text after BaseArgs.
 	// Tool approval is handled externally via the BeforeTool hook; no --yolo needed.
@@ -170,6 +179,9 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 
 	// Build full prompt with conversation context
 	fullPrompt := c.buildPromptWithHistory(combinedPrompt, conversationHistory)
+	if c.ProviderName == "gemini-cli" {
+		fullPrompt = truncateCLIPrompt(fullPrompt, GeminiCLIPromptMaxBytes)
+	}
 
 	// Create timeout context
 	timeoutCtx, cancel := context.WithTimeout(ctx, c.Timeout)
@@ -290,6 +302,9 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 		combinedPrompt = systemPrompt + "\n\n" + userMessage
 	}
 	fullPrompt := c.buildPromptWithHistory(combinedPrompt, conversationHistory)
+	if c.ProviderName == "gemini-cli" {
+		fullPrompt = truncateCLIPrompt(fullPrompt, GeminiCLIPromptMaxBytes)
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, c.Timeout)
 
@@ -731,6 +746,21 @@ func truncateError(s string) string {
 		first = first[:200] + "..."
 	}
 	return first
+}
+
+// truncateCLIPrompt shortens an oversized CLI prompt, keeping the tail (current task).
+func truncateCLIPrompt(prompt string, maxBytes int) string {
+	if maxBytes <= 0 || len(prompt) <= maxBytes {
+		return prompt
+	}
+	marker := "\n\n---\n\nNow respond to the following:\n\n"
+	if idx := strings.LastIndex(prompt, marker); idx > 0 && len(prompt)-idx < maxBytes/2 {
+		headBudget := maxBytes - (len(prompt) - idx) - len("\n…(prompt truncated)\n")
+		if headBudget > 512 {
+			return prompt[:headBudget] + "\n…(prompt truncated)\n" + prompt[idx:]
+		}
+	}
+	return prompt[len(prompt)-maxBytes:]
 }
 
 // buildPromptWithHistory constructs a prompt that includes relevant conversation history

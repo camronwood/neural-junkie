@@ -92,7 +92,8 @@ describe('CommandForm /collaborate quick select', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
 
     expect(onSubmit).toHaveBeenCalledWith(
-      '/collaborate @RustExpert @ReactExpert Build and deploy collaboration UI updates'
+      '/collaborate --workspace @RustExpert @ReactExpert Build and deploy collaboration UI updates',
+      { collab_source_mode: 'active' }
     );
   });
 
@@ -118,7 +119,8 @@ describe('CommandForm /collaborate quick select', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
 
     expect(onSubmit).toHaveBeenCalledWith(
-      '/collaborate --rounds 6 --messages 35 @RustExpert @ReactExpert Ship the feature'
+      '/collaborate --rounds 6 --messages 35 --workspace @RustExpert @ReactExpert Ship the feature',
+      { collab_source_mode: 'active' }
     );
   });
 
@@ -143,7 +145,8 @@ describe('CommandForm /collaborate quick select', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
 
     expect(onSubmit).toHaveBeenCalledWith(
-      '/collaborate --allow-agent-adds @RustExpert @ReactExpert Plan with optional reviewers'
+      '/collaborate --allow-agent-adds --workspace @RustExpert @ReactExpert Plan with optional reviewers',
+      { collab_source_mode: 'active' }
     );
   });
 });

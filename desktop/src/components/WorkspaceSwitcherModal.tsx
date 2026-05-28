@@ -8,6 +8,7 @@ export interface WorkspaceSwitcherModalProps {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   onSelect: (id: string) => void;
+  onRemoveRequest: (id: string, name: string) => void;
 }
 
 export function WorkspaceSwitcherModal({
@@ -16,6 +17,7 @@ export function WorkspaceSwitcherModal({
   workspaces,
   activeWorkspaceId,
   onSelect,
+  onRemoveRequest,
 }: WorkspaceSwitcherModalProps) {
   const [query, setQuery] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
@@ -51,7 +53,7 @@ export function WorkspaceSwitcherModal({
     setHighlightIndex((prev) =>
       filtered.length === 0 ? 0 : Math.min(prev, filtered.length - 1)
     );
-  }, [filtered.length]);
+  }, [filtered.length, workspaces.length]);
 
   useEffect(() => {
     if (!isOpen || filtered.length === 0) return;
@@ -109,7 +111,7 @@ export function WorkspaceSwitcherModal({
       className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] bg-black/50"
       role="dialog"
       aria-modal="true"
-      aria-label="Switch workspace"
+      aria-label="Workspaces"
       data-workspace-switcher-modal
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -117,7 +119,7 @@ export function WorkspaceSwitcherModal({
     >
       <div className="bg-slack-bg border border-slack-border rounded shadow-xl w-full max-w-md mx-4 overflow-hidden">
         <div className="px-4 py-3 border-b border-slack-border">
-          <h3 className="text-sm font-bold text-slack-text mb-2">Switch workspace</h3>
+          <h3 className="text-sm font-bold text-slack-text mb-2">Workspaces</h3>
           <input
             ref={searchRef}
             type="search"
@@ -131,7 +133,8 @@ export function WorkspaceSwitcherModal({
             autoComplete="off"
           />
           <p className="mt-2 text-xs text-slack-textMuted">
-            Up/Down to highlight, Enter to switch, Esc to close
+            Up/Down to highlight, Enter to switch, Esc to close. Remove unlinks from the file
+            explorer only; no files are deleted on disk.
           </p>
         </div>
 
@@ -152,7 +155,14 @@ export function WorkspaceSwitcherModal({
               const highlighted = index === highlightIndex;
               const isActive = ws.id === activeWorkspaceId;
               return (
-                <li key={ws.id} role="presentation">
+                <li
+                  key={ws.id}
+                  role="presentation"
+                  onMouseEnter={() => setHighlightIndex(index)}
+                  className={`flex items-stretch transition-colors ${
+                    highlighted ? 'bg-slack-accent/20' : 'hover:bg-slack-bgHover'
+                  }`}
+                >
                   <button
                     ref={(el) => {
                       rowRefs.current[index] = el;
@@ -161,10 +171,7 @@ export function WorkspaceSwitcherModal({
                     role="option"
                     aria-selected={highlighted}
                     onClick={() => pick(ws.id)}
-                    onMouseEnter={() => setHighlightIndex(index)}
-                    className={`w-full text-left px-4 py-2 transition-colors ${
-                      highlighted ? 'bg-slack-accent/20' : 'hover:bg-slack-bgHover'
-                    }`}
+                    className="flex-1 min-w-0 text-left px-4 py-2"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span
@@ -184,6 +191,25 @@ export function WorkspaceSwitcherModal({
                     <div className="text-xs text-slack-textMuted truncate font-mono" title={ws.path}>
                       {ws.path}
                     </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveRequest(ws.id, ws.name);
+                    }}
+                    className="flex-shrink-0 px-3 py-2 text-slack-textMuted hover:text-slack-text hover:bg-slack-border/50 transition-colors"
+                    title={`Remove ${ws.name}`}
+                    aria-label={`Remove ${ws.name}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
                   </button>
                 </li>
               );

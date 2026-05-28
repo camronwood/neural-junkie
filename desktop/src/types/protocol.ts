@@ -712,6 +712,8 @@ export interface Collaboration {
   session_recap_status?: 'pending' | 'complete' | 'failed';
   planning_recap_agent_id?: string;
   session_recap_agent_id?: string;
+  /** Validation notices from the last plan approval (task hygiene). */
+  approve_warnings?: string[];
 }
 
 export interface RunbookTemplate {

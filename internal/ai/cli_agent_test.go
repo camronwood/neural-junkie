@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -42,6 +43,31 @@ func TestStripCLILeadingNoiseLines(t *testing.T) {
 	got := stripCLILeadingNoiseLines(s)
 	if got != "Hello" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestTruncateCLIPrompt_KeepsTailTask(t *testing.T) {
+	marker := "\n\n---\n\nNow respond to the following:\n\n"
+	head := strings.Repeat("a", 30000)
+	tail := "Complete the assigned collaboration task now."
+	prompt := head + marker + tail
+	got := truncateCLIPrompt(prompt, 8000)
+	if !strings.Contains(got, tail) {
+		t.Fatalf("expected tail preserved, got len=%d suffix=%q", len(got), got[max(0, len(got)-120):])
+	}
+	if !strings.Contains(got, "prompt truncated") {
+		t.Fatalf("expected truncation marker, got len=%d", len(got))
+	}
+}
+
+func TestNewGeminiCLIProvider_DefaultTimeoutCapped(t *testing.T) {
+	p := NewGeminiCLIProvider(".")
+	if p.Timeout != DefaultGeminiCLITimeout {
+		t.Fatalf("timeout = %v, want %v", p.Timeout, DefaultGeminiCLITimeout)
+	}
+	p2 := NewGeminiCLIProvider(".", WithTimeout(45*time.Second))
+	if p2.Timeout != 45*time.Second {
+		t.Fatalf("custom timeout = %v", p2.Timeout)
 	}
 }
 

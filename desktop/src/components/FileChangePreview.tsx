@@ -9,7 +9,7 @@ interface FileChangePreviewProps {
   onReject: (changeId: string, reason: string) => void;
 }
 
-const codeBox = 'bg-[#0f1115] border border-slack-border rounded p-3 text-sm overflow-x-auto text-slack-text';
+const codeBox = 'bg-nj-surface border border-slack-border rounded p-3 text-sm overflow-x-auto text-slack-text';
 
 export function FileChangePreview({ change, onClose, onApprove, onReject }: FileChangePreviewProps) {
   const [rejectReason, setRejectReason] = useState('');
@@ -110,7 +110,7 @@ export function FileChangePreview({ change, onClose, onApprove, onReject }: File
               <p className="text-red-200/90 mb-3 text-sm">
                 This will permanently delete the file. A backup will be created before deletion.
               </p>
-              <div className="rounded border border-red-500/30 bg-[#0f1115] p-3">
+              <div className="rounded border border-red-500/30 bg-nj-surface p-3">
                 <h5 className="font-semibold text-red-300 mb-2 text-sm">File to be deleted:</h5>
                 <pre className="text-sm overflow-x-auto text-slack-text">
                   <code>{change.file_path}</code>

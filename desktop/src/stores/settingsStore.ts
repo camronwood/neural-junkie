@@ -4,9 +4,13 @@ import { ChatAPI } from '../api/chatAPI';
 
 export type FontSizeScope = 'messages' | 'input' | 'global';
 
+export type ColorTheme = 'slack' | 'flat';
+
 export interface Settings {
   fontSize: number;
   fontSizeScope: FontSizeScope;
+  /** UI color theme (Slack classic vs flat navy/purple). */
+  colorTheme?: ColorTheme;
   /** Global user instructions (markdown), merged into outbound message metadata for agents. */
   userRulesMarkdown?: string;
   /** DM channel names hidden from the sidebar (Slack-style; does not delete channels). */
@@ -71,16 +75,30 @@ export interface IntegrationSettings {
   lmstudio: LMStudioSettings;
 }
 
+export type LayoutPreset = 'team' | 'ide';
+export type IdeChatDock = 'right' | 'bottom';
+
 export interface LayoutSettings {
+  /** team = Slack-style chat primary; ide = editor + agent dock primary */
+  layoutPreset: LayoutPreset;
+  /** Where team channel chat docks when using IDE preset */
+  ideChatDock: IdeChatDock;
   filesPanelVisible: boolean;
   editorPanelVisible: boolean;
   terminalPanelVisible: boolean;
   myAgentsPanelVisible: boolean;
   pendingChangesPanelVisible: boolean;
+  /** IDE composer: ask (read-only) vs agent (may propose edits) */
+  editorAgentMode: 'ask' | 'agent';
   /** When false, agent shortcuts under Direct Messages are hidden (existing DM rows stay). */
   sidebarAgentsVisible: boolean;
-  /** True after one-time files+editor layout nudge when software-development pack is enabled. */
+  /** True after one-time IDE layout nudge when software-development pack is enabled. */
   devPackLayoutNudgeApplied?: boolean;
+  /** Inline tab completion (dev pack) */
+  inlineCompletionEnabled?: boolean;
+  inlineCompletionModel?: string;
+  /** Editor agent file-change trust: interactive | auto_apply_edits | yolo */
+  editorAgentTrust?: 'interactive' | 'auto_apply_edits' | 'yolo';
 }
 
 interface SettingsState {
@@ -96,6 +114,7 @@ interface SettingsState {
   loadSettings: () => Promise<void>;
   updateFontSize: (size: number) => Promise<void>;
   updateFontSizeScope: (scope: FontSizeScope) => Promise<void>;
+  updateColorTheme: (theme: ColorTheme) => Promise<void>;
   updateSettings: (partial: Partial<Settings>) => Promise<void>;
   resetSettings: () => Promise<void>;
   
@@ -127,6 +146,7 @@ interface SettingsState {
 const defaultSettings: Settings = {
   fontSize: 16,
   fontSizeScope: 'messages',
+  colorTheme: 'slack',
 };
 
 const defaultIntegrations: IntegrationSettings = {
@@ -162,12 +182,17 @@ const defaultIntegrations: IntegrationSettings = {
 };
 
 const defaultLayoutSettings: LayoutSettings = {
+  layoutPreset: 'team',
+  ideChatDock: 'right',
   filesPanelVisible: false,
   editorPanelVisible: false,
   terminalPanelVisible: false,
   myAgentsPanelVisible: false,
   pendingChangesPanelVisible: false,
+  editorAgentMode: 'agent',
   sidebarAgentsVisible: true,
+  inlineCompletionEnabled: false,
+  editorAgentTrust: 'interactive',
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -188,10 +213,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const savedSettings = await store.get<Settings>('settings');
       
       if (savedSettings) {
-        set({ 
-          settings: { ...defaultSettings, ...savedSettings },
+        set({
+          settings: {
+            ...defaultSettings,
+            ...savedSettings,
+            colorTheme: savedSettings.colorTheme ?? defaultSettings.colorTheme,
+          },
           isLoaded: true,
-          store 
+          store,
         });
       } else {
         // No saved settings, use defaults
@@ -243,6 +272,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         await store.save();
       } catch (error) {
         console.error('Failed to save font size scope:', error);
+      }
+    }
+  },
+
+  updateColorTheme: async (theme: ColorTheme) => {
+    const { store } = get();
+    const newSettings = { ...get().settings, colorTheme: theme };
+
+    set({ settings: newSettings });
+
+    if (store) {
+      try {
+        await store.set('settings', newSettings);
+        await store.save();
+      } catch (error) {
+        console.error('Failed to save color theme:', error);
       }
     }
   },

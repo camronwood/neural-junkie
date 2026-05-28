@@ -15,6 +15,7 @@ import { loadCredentials } from './utils/secureStorage';
 import { setHubSessionToken } from './config/hubUrl';
 import { ChatAPI } from './api/chatAPI';
 import { getHubBaseURL } from './config/hubUrl';
+import { applyMermaidTheme } from './utils/mermaidConfig';
 
 type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
 
@@ -54,12 +55,15 @@ function App() {
     }
   }, []);
 
-  // Apply font size to document root
+  // Apply font size and color theme to document root
   useEffect(() => {
+    const theme = settings.colorTheme ?? 'slack';
     const root = document.documentElement;
     root.style.setProperty('--app-font-size', `${settings.fontSize}px`);
+    root.dataset.theme = theme;
     document.body.className = `font-scope-${settings.fontSizeScope}`;
-  }, [settings.fontSize, settings.fontSizeScope]);
+    applyMermaidTheme(theme);
+  }, [settings.fontSize, settings.fontSizeScope, settings.colorTheme]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({

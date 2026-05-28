@@ -599,6 +599,8 @@ func ShouldIgnore(name string) bool {
 		".idea",
 		".vscode",
 		".DS_Store",
+		".gomodcache",
+		"gomodcache",
 	}
 
 	for _, pattern := range ignorePatterns {

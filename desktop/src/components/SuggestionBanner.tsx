@@ -42,7 +42,7 @@ export function SuggestionBanner({ suggestions, activeTabId, channel, api, colla
   };
 
   return (
-    <div className="bg-[#1e2030] border-b border-gray-700/50 px-3 py-1.5 flex items-center gap-3 text-xs">
+    <div className="bg-slack-bgHover border-b border-slack-border px-3 py-1.5 flex items-center gap-3 text-xs">
       <div className="flex items-center gap-1.5 text-purple-400 flex-shrink-0">
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

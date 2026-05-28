@@ -298,7 +298,12 @@ func main() {
 	http.HandleFunc("/api/workspaces/files/search", corsMiddleware(handleWorkspaceFileSearch))
 	http.HandleFunc("/api/workspaces/symbols/search", corsMiddleware(handleWorkspaceSymbolSearch))
 	http.HandleFunc("/api/dev/fast-edit", corsMiddleware(handleDevFastEdit))
+	http.HandleFunc("/api/dev/complete", corsMiddleware(handleDevComplete))
+	http.HandleFunc("/api/dev/agent-turn", corsMiddleware(handleDevAgentTurn))
 	http.HandleFunc("/api/lsp/go/diagnostics", corsMiddleware(handleLSPGoDiagnostics))
+	http.HandleFunc("/api/lsp/rust/diagnostics", corsMiddleware(handleLSPRustDiagnostics))
+	http.HandleFunc("/api/lsp/python/diagnostics", corsMiddleware(handleLSPPythonDiagnostics))
+	http.HandleFunc("/api/repo/search/semantic", corsMiddleware(handleRepoSemanticSearch))
 
 	// File change API endpoints
 	http.HandleFunc("/api/file-changes", corsMiddleware(handleFileChanges))
@@ -3340,6 +3345,10 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 
 		content, err := os.ReadFile(absPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

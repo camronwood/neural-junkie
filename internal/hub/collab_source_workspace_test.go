@@ -72,7 +72,7 @@ func TestCollaborateSkipsProjectCollabDeliverablePathAsSourceWorkspace(t *testin
 				"workspace_path": collabDir,
 			},
 		},
-	})
+	}, collaborateFlagParse{})
 	if path != "" {
 		t.Fatalf("path = %q, want empty for project collabs/<id> folder", path)
 	}
@@ -97,7 +97,7 @@ func TestCollaborateSkipsCollabReviewsPathAsSourceWorkspace(t *testing.T) {
 				"workspace_path": reviewsDir,
 			},
 		},
-	})
+	}, collaborateFlagParse{})
 	if path != "" {
 		t.Fatalf("path = %q, want empty", path)
 	}

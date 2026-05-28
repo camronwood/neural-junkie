@@ -555,7 +555,7 @@ export function ChannelSidebar({
   return (
     <div
       ref={sidebarRef}
-      className="relative bg-[#1a1d21] border-r border-slack-border flex flex-col overflow-hidden select-none"
+      className="relative bg-slack-bg border-r border-slack-border flex flex-col overflow-hidden select-none"
       style={shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
     >
       {/* Header */}
@@ -585,7 +585,7 @@ export function ChannelSidebar({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search chats/channels..."
-            className="flex-1 min-w-0 px-2 py-1 rounded bg-[#0f1115] border border-white/10 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-slack-accent"
+            className="flex-1 min-w-0 px-2 py-1 rounded bg-nj-surface border border-white/10 text-xs text-slack-text placeholder:text-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
           />
           {normalizedQuery.length > 0 && (
             <button

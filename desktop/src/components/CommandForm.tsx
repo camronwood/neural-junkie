@@ -9,6 +9,12 @@ import type {
   FileChange,
 } from '../types/protocol';
 import type { ChatAPI } from '../api/chatAPI';
+import {
+  COLLAB_SOURCE_MODE_KEY,
+  COLLAB_SOURCE_PATH_KEY,
+  type CollabSourceMode,
+} from '../constants/collabWorkspace';
+import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { isTauriRuntime } from '../utils/promptAttachments';
 
 const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
@@ -27,7 +33,7 @@ interface CommandFormProps {
   assistantTasks?: AssistantTask[];
   pendingChanges?: FileChange[];
   api?: ChatAPI;
-  onSubmit: (commandString: string) => void;
+  onSubmit: (commandString: string, metadata?: Record<string, unknown>) => void;
   onBack: () => void;
 }
 
@@ -78,6 +84,12 @@ export function CommandForm({
   const [collabRounds, setCollabRounds] = useState('');
   const [collabMessages, setCollabMessages] = useState('');
   const [allowAgentAdds, setAllowAgentAdds] = useState(false);
+  const [collabWorkspaceMode, setCollabWorkspaceMode] = useState<CollabSourceMode>('active');
+  const [collabRepoPath, setCollabRepoPath] = useState('');
+  const activeExplorerWorkspace = useFileExplorerStore((s) => {
+    const id = s.activeWorkspaceId;
+    return s.workspaces.find((w) => w.id === id) ?? s.workspaces[0];
+  });
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const arg of command.arguments) {
@@ -219,7 +231,24 @@ export function CommandForm({
       if (allowAgentAdds) {
         flags.push('--allow-agent-adds');
       }
-      onSubmit([command.name, ...flags, ...mentions, description].join(' '));
+      const meta: Record<string, unknown> = {
+        [COLLAB_SOURCE_MODE_KEY]: collabWorkspaceMode,
+      };
+      if (collabWorkspaceMode === 'none') {
+        flags.push('--no-workspace');
+      } else if (collabWorkspaceMode === 'path') {
+        const p = collabRepoPath.trim();
+        if (!p) return;
+        flags.push('--repo', p);
+        meta[COLLAB_SOURCE_PATH_KEY] = p;
+        flags.push('--workspace');
+      } else if (collabWorkspaceMode === 'active') {
+        flags.push('--workspace');
+        if (activeExplorerWorkspace?.path) {
+          meta[COLLAB_SOURCE_PATH_KEY] = activeExplorerWorkspace.path;
+        }
+      }
+      onSubmit([command.name, ...flags, ...mentions, description].join(' '), meta);
       return;
     }
 
@@ -244,8 +273,14 @@ export function CommandForm({
     return true;
   })();
 
+  const collabWorkspaceOk =
+    collabWorkspaceMode !== 'path' || collabRepoPath.trim().length > 0;
+
   const canSubmit = isCollaborateCommand
-    ? selectedCollaborators.size >= 2 && !!values.description?.trim() && collabNumericOptsOk
+    ? selectedCollaborators.size >= 2 &&
+      !!values.description?.trim() &&
+      collabNumericOptsOk &&
+      collabWorkspaceOk
     : command.arguments
         .filter(a => a.required)
         .every(a => values[a.name]?.trim());
@@ -584,6 +619,96 @@ export function CommandForm({
                   className={`${fieldClass} placeholder-slack-textMuted`}
                 />
               </div>
+            </div>
+            <div>
+              <span className="block text-xs font-medium text-slack-textMuted mb-1">
+                project workspace
+              </span>
+              <div className="space-y-2 rounded border border-slack-border bg-slack-bgHover p-2 text-sm">
+                <label className="flex items-center gap-2 text-slack-text cursor-pointer">
+                  <input
+                    type="radio"
+                    name="collab-ws"
+                    checked={collabWorkspaceMode === 'active'}
+                    onChange={() => setCollabWorkspaceMode('active')}
+                  />
+                  <span>
+                    Active workspace
+                    {activeExplorerWorkspace?.path ? (
+                      <span className="block text-xs text-slack-textMuted truncate">
+                        {activeExplorerWorkspace.path}
+                      </span>
+                    ) : (
+                      <span className="block text-xs text-amber-400/90">No workspace open in Files</span>
+                    )}
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 text-slack-text cursor-pointer">
+                  <input
+                    type="radio"
+                    name="collab-ws"
+                    checked={collabWorkspaceMode === 'path'}
+                    onChange={() => setCollabWorkspaceMode('path')}
+                  />
+                  <span>Choose folder</span>
+                </label>
+                {collabWorkspaceMode === 'path' && (
+                  <div className="flex gap-2 pl-6">
+                    <input
+                      type="text"
+                      value={collabRepoPath}
+                      onChange={(e) => setCollabRepoPath(e.target.value)}
+                      placeholder="/path/to/repo"
+                      className={`${fieldClass} flex-1 placeholder-slack-textMuted`}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setPathBrowseError(null);
+                        if (!isTauriRuntime()) {
+                          setPathBrowseError('Folder picker requires the desktop app');
+                          return;
+                        }
+                        try {
+                          const { open } = await import('@tauri-apps/api/dialog');
+                          const selected = await open({
+                            directory: true,
+                            multiple: false,
+                            title: 'Collaboration project root',
+                          });
+                          if (selected && typeof selected === 'string') {
+                            setCollabRepoPath(selected);
+                          }
+                        } catch (error) {
+                          setPathBrowseError(
+                            error instanceof Error ? error.message : String(error)
+                          );
+                        }
+                      }}
+                      className="px-2 py-1 rounded border border-slack-border text-xs text-slack-text hover:bg-white/5"
+                    >
+                      Browse
+                    </button>
+                  </div>
+                )}
+                <label className="flex items-center gap-2 text-slack-text cursor-pointer">
+                  <input
+                    type="radio"
+                    name="collab-ws"
+                    checked={collabWorkspaceMode === 'none'}
+                    onChange={() => setCollabWorkspaceMode('none')}
+                  />
+                  <span>
+                    No workspace
+                    <span className="block text-xs text-slack-textMuted">
+                      Research / discussion only — no repo paths
+                    </span>
+                  </span>
+                </label>
+              </div>
+              {pathBrowseError && collabWorkspaceMode === 'path' && (
+                <p className="text-xs text-red-400 mt-1">{pathBrowseError}</p>
+              )}
             </div>
             <div>
               <label htmlFor="cmd-arg-description" className="block text-xs font-medium text-slack-textMuted mb-1">

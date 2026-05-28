@@ -89,7 +89,18 @@ vi.mock('../utils/outboundChatMetadata', () => ({
 
 vi.mock('../stores/settingsStore', () => {
   const state = {
-    layoutSettings: null,
+    layoutSettings: {
+      layoutPreset: 'team',
+      ideChatDock: 'right',
+      filesPanelVisible: false,
+      editorPanelVisible: false,
+      terminalPanelVisible: false,
+      myAgentsPanelVisible: false,
+      pendingChangesPanelVisible: false,
+      editorAgentMode: 'agent',
+      sidebarAgentsVisible: true,
+    },
+    updateLayoutSettings: vi.fn(),
     loadLayoutSettings: vi.fn(),
     settings: {},
     isLoaded: true,

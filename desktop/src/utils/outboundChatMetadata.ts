@@ -4,6 +4,10 @@ import { usePacksStore } from '../stores/packsStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import type { EditorTab } from '../stores/editorStore';
 import {
+  COLLAB_SOURCE_MODE_KEY,
+  COLLAB_SOURCE_PATH_KEY,
+} from '../constants/collabWorkspace';
+import {
   CONTEXT_SCOPE_KEY,
   CONTEXT_SCOPE_REASON_KEY,
   type ContextScope,
@@ -11,7 +15,8 @@ import {
   USER_RULES_METADATA_KEY,
 } from '../constants/promptMetadata';
 import { buildFileTreeString } from './workspaceContext';
-import type { ScanSummaryContext, WorkspaceContext } from './workspaceContext';
+import type { ScanSummaryContext, ScanAnalysisContext, WorkspaceContext } from './workspaceContext';
+import { concentrationAt, validationAt } from './scanAnalysis';
 import { channelNameToKind, resolveContextScope, type ChannelKind } from './inferContextScope';
 
 const FILE_PATH_RE =
@@ -92,6 +97,45 @@ function buildScanSummaryContext(tab: EditorTab | undefined): ScanSummaryContext
   };
 }
 
+function buildScanAnalysisContext(tab: EditorTab | undefined): ScanAnalysisContext | undefined {
+  if (!tab || tab.viewMode !== 'scan-analysis' || !tab.scanAnalysisData) return undefined;
+  const activeWellId = tab.scanAnalysisInitialWell ?? 'A1';
+  const activeAnalyte = tab.scanAnalysisSelectedAnalyte ?? tab.scanAnalysisData.analytes[0] ?? '';
+  const validation = validationAt(tab.scanAnalysisData, activeWellId, activeAnalyte);
+  let withinLoq: boolean | null = null;
+  if (validation) {
+    const unknownRows = tab.scanAnalysisData.unknownReport[activeAnalyte] ?? [];
+    const unk = unknownRows.find((u) => u.wellLabel === validation.wellLabel);
+    if (unk) withinLoq = unk.withinLimitsOfQuantification;
+    else {
+      const stdRows = tab.scanAnalysisData.standardReport[activeAnalyte] ?? [];
+      const std = stdRows.find((s) => s.wellLabel === validation.wellLabel);
+      if (std) withinLoq = std.withinLimitsOfQuantificationV2;
+    }
+  }
+
+  return {
+    analysis_dir: tab.scanAnalysisDir ?? '',
+    product_name: tab.scanAnalysisData.experiment.productName,
+    plate_barcode: tab.scanAnalysisData.experiment.plateBarcode,
+    analytes: tab.scanAnalysisData.analytes,
+    dilution_factor: tab.scanAnalysisData.experiment.dilutionFactor,
+    active_analyte: activeAnalyte,
+    linked_scan_dir: tab.linkedScanDir,
+    active_well: validation
+      ? {
+          well: activeWellId,
+          concentration: concentrationAt(tab.scanAnalysisData, activeWellId, activeAnalyte),
+          within_loq: withinLoq,
+          well_type: validation.wellType,
+          well_label: validation.wellLabel,
+        }
+      : undefined,
+    note:
+      'Phoenix scan analysis results were shared. Concentrations may require dilution factor adjustment.',
+  };
+}
+
 export function trimWorkspaceContext(
   scope: ContextScope,
   full: WorkspaceContext,
@@ -105,6 +149,7 @@ export function trimWorkspaceContext(
     file_tree: '',
     open_files: [],
     scan_summary: full.scan_summary,
+    scan_analysis: full.scan_analysis,
   };
   if (scope === 'hint') return base;
   if (scope === 'outline' || scope === 'focus' || scope === 'full') {
@@ -169,8 +214,10 @@ function loadFullWorkspaceContext(): WorkspaceContext {
       is_active: tab.id === activeTabId,
       view_mode: tab.viewMode,
       scan_summary_dir: tab.scanSummaryDir,
+      scan_analysis_dir: tab.scanAnalysisDir,
     })),
     scan_summary: buildScanSummaryContext(activeTab),
+    scan_analysis: buildScanAnalysisContext(activeTab),
   };
 }
 
@@ -185,8 +232,11 @@ export function buildHumanOutboundMetadata(options: {
   channelType?: string;
   messageOverride?: ContextScope | null;
   composerMetadata?: Record<string, unknown>;
+  /** When true, attach IDE-focused workspace context (active tab + selection). */
+  ideCoding?: boolean;
 }): Record<string, unknown> | undefined {
-  const { contextMode, message, channel, composerMetadata, messageOverride, channelType } = options;
+  const { contextMode, message, channel, composerMetadata, messageOverride, channelType, ideCoding } =
+    options;
   const meta: Record<string, unknown> = { ...(composerMetadata ?? {}) };
 
   const rules = (useSettingsStore.getState().settings.userRulesMarkdown ?? '').trim();
@@ -195,20 +245,41 @@ export function buildHumanOutboundMetadata(options: {
   }
 
   const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);
+  const activeTabPath = useEditorStore.getState().tabs.find(
+    (t) => t.id === useEditorStore.getState().activeTabId
+  )?.path;
+
   const { scope, reason } = resolveContextScope({
     message,
     mode: contextMode,
     channelKind,
     messageOverride,
-    activeTabPath: useEditorStore.getState().tabs.find(
-      (t) => t.id === useEditorStore.getState().activeTabId
-    )?.path,
+    activeTabPath,
+    ideCoding,
   });
 
   meta[CONTEXT_SCOPE_KEY] = scope;
   meta[CONTEXT_SCOPE_REASON_KEY] = reason;
 
-  if (scope !== 'none') {
+  const collabMode = composerMetadata?.[COLLAB_SOURCE_MODE_KEY];
+  const collabPath = composerMetadata?.[COLLAB_SOURCE_PATH_KEY];
+  if (collabMode === 'none') {
+    delete meta.workspace_context;
+  } else if (
+    collabMode === 'path' &&
+    typeof collabPath === 'string' &&
+    collabPath.trim()
+  ) {
+    const p = collabPath.trim();
+    meta.workspace_context = {
+      workspace_name: p.split('/').filter(Boolean).pop() ?? p,
+      workspace_path: p,
+      file_tree: '',
+      open_files: [],
+    };
+  }
+
+  if (scope !== 'none' && collabMode !== 'none') {
     const full = loadFullWorkspaceContext();
     const activePath = useEditorStore.getState().tabs.find(
       (t) => t.id === useEditorStore.getState().activeTabId

@@ -55,3 +55,19 @@ func TestResolveSummaryDir(t *testing.T) {
 		t.Fatalf("file resolve: %v %q", err, got2)
 	}
 }
+
+func TestResolveSummaryDirScanExportSubfolder(t *testing.T) {
+	root := t.TempDir()
+	scanExport := filepath.Join(root, "scan-export")
+	if err := os.MkdirAll(scanExport, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	meta := filepath.Join(scanExport, MetadataFileName)
+	if err := os.WriteFile(meta, []byte(`{"metadata":[{"imageName":"A1","spots":[]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ResolveSummaryDir(root)
+	if err != nil || got != scanExport {
+		t.Fatalf("expected scan-export dir, got %v %q", err, got)
+	}
+}

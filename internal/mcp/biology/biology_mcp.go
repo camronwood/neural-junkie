@@ -66,10 +66,17 @@ func (b *BiologyMCP) registerTools() {
 
 	b.mcpServer.AddTool(mcp.CreateTool(
 		"summarize_scan_summary",
-		"Summarize a Phoenix-style scan summary folder (imageMetadata.json + well TIFFs): well counts, analyte spot distribution, and QC flags. Path may be the summary directory or imageMetadata.json.",
-		mcp.CreateStringInputSchema("path", "Absolute or workspace path to scan summary directory or imageMetadata.json"),
+		"Summarize a Phoenix-style scan summary folder (imageMetadata.json + well TIFFs): well counts, analyte spot distribution, and QC flags. Path may be the summary directory, scan-export/, or imageMetadata.json.",
+		mcp.CreateStringInputSchema("path", "Absolute or workspace path to scan summary directory, scan-export/, or imageMetadata.json"),
 		nil,
 	), b.handleSummarizeScanSummary)
+
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"summarize_scan_analysis",
+		"Summarize a Phoenix-style scan analysis export: reports/results.json and/or reports/{analyte}_summary_report.csv, plus optional process_report.txt. Returns QC stats (LOQ counts, dilution factor, analyte list) and process report excerpt. Path may be the analysis directory, reports/results.json, or a summary CSV file.",
+		mcp.CreateStringInputSchema("path", "Absolute or workspace path to scan analysis directory, reports/results.json, or reports/{analyte}_summary_report.csv"),
+		nil,
+	), b.handleSummarizeScanAnalysis)
 
 	log.Printf("Registered %d Biology MCP tools", len(b.mcpServer.ListTools()))
 }
@@ -94,6 +101,18 @@ func (b *BiologyMCP) handleSummarizeScanSummary(ctx context.Context, request mcp
 	out, err := summarizeScanSummaryPath(path)
 	if err != nil {
 		return mcp.HandleToolError(err, "summarize_scan_summary"), nil
+	}
+	return mcp.HandleToolSuccess(out), nil
+}
+
+func (b *BiologyMCP) handleSummarizeScanAnalysis(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
+		return mcp.HandleToolError(err, "summarize_scan_analysis"), nil
+	}
+	path := request.GetString("path", "")
+	out, err := summarizeScanAnalysisPath(path)
+	if err != nil {
+		return mcp.HandleToolError(err, "summarize_scan_analysis"), nil
 	}
 	return mcp.HandleToolSuccess(out), nil
 }

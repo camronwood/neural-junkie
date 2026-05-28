@@ -18,7 +18,9 @@ Only **one** domain pack can be enabled: Life sciences **or** Software developme
 | **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |
 | **Sequence review runbook** | Import from Runbook templates |
 | **Scan summary viewer** | Open Phoenix-style exports (`imageMetadata.json` + well TIFFs A1–H12) from the file explorer |
-| **summarize_scan_summary** | BiologyExpert MCP tool for QC stats on a summary folder |
+| **summarize_scan_summary** | BiologyExpert MCP tool for QC stats on a scan summary folder |
+| **Scan analysis viewer** | Open Phoenix-style analysis exports (`reports/results.json`, plots, per-analyte CSVs) with plate heat maps and QC tables |
+| **summarize_scan_analysis** | BiologyExpert MCP tool for analysis QC (LOQ counts, dilution factor, analyte list) |
 
 ## Enable the pack
 
@@ -30,6 +32,7 @@ When enabled:
 - **Biology / Life sciences** appears in **New DM** and channel expert invite lists.
 - `koesn/llama3-openbiollm-8b:latest`, `qwen2.5:7b`, and optional `nj-bio:8b` are merged into **models to ensure** for Ollama.
 - **Scan summary viewer** — add a workspace folder containing `imageMetadata.json` and extensionless well TIFFs; open the metadata file or use **Open scan summary** in the file explorer context menu.
+- **Scan analysis viewer** — add a workspace folder containing `reports/results.json` (and optional `plots/`); open results or use **Open scan analysis** in the file explorer. Link to a scan folder to jump from concentration data to well TIFF images.
 
 When disabled, pack-owned agents are stopped and removed from the hub. In-process engineering specialists are controlled by the separate [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md); **Moderator**, **Assistant**, and CLI agents are always available.
 
@@ -115,6 +118,25 @@ With the Life sciences pack enabled:
 
 BiologyExpert can run **`summarize_scan_summary`** with the folder path (or path to `imageMetadata.json`) for QC markdown (well counts, analyte distribution, wells missing spots).
 
+## Scan analysis viewer
+
+Phoenix-style **scan analysis** exports are folders with:
+
+- `reports/results.json` — canonical analysis data (concentrations, standard/unknown QC, spot intensities, LOQ, fit parameters)
+- `reports/process_report.txt` — human-readable analysis log
+- `reports/{analyte}_summary_report.csv` — per-analyte CSV exports
+- `plots/{analyte}_calibration_curve.jpg` and `plots/{analyte}_heat_map.jpg` — visualization plots
+
+With the Life sciences pack enabled:
+
+1. Add the analysis export folder as a **workspace** (or a combined folder with both scan TIFFs and `reports/`).
+2. Click `reports/results.json` or right-click the folder → **Open scan analysis**.
+3. Use analyte tabs and plate grid modes (concentration, intensity, LOQ, well type).
+4. **Link scan folder** (or auto-link when scan metadata is co-located) → **View scan image** jumps to the TIFF viewer for the same well.
+5. From the scan summary viewer, **Analysis at well** shows concentrations when analysis is linked.
+
+BiologyExpert can run **`summarize_scan_analysis`** with the analysis folder path, `reports/results.json`, or a `reports/{analyte}_summary_report.csv` file for QC markdown (LOQ pass/fail counts, dilution factor reminder, process report excerpt). When a sibling **`scan-export/`** folder exists, the summary includes the linked scan path for **`summarize_scan_summary`**.
+
 ## Smoke test checklist
 
 1. Life sciences wizard → Ollama → enable BiologyExpert.
@@ -124,6 +146,9 @@ BiologyExpert can run **`summarize_scan_summary`** with the folder path (or path
 5. Runbook → **sequence-review** → instantiate with BiologyExpert → start execution.
 6. Add a scan summary folder as a workspace → open viewer → confirm well A1 image and spot overlay.
 7. Ask BiologyExpert to summarize the same folder path → confirm `summarize_scan_summary` output.
+8. Add a scan analysis folder (or `summary (5)`-style export) → open analysis viewer → confirm IL-6 plate map and QC tables.
+9. Link scan + analysis → well click → **View scan image** opens TIFF; scan sidebar shows concentrations.
+10. Ask BiologyExpert to summarize analysis path → confirm `summarize_scan_analysis` output with dilution note.
 
 ## Out of scope (v1)
 

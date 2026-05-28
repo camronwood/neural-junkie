@@ -1,0 +1,677 @@
+{
+  "header_data": {
+    "analysis_date": "2026-05-01T21:45:32.989000",
+    "analysis_id": "69f51efcbe8464d1c2cefdab",
+    "scan_results_id": "69f51bc2b6197fc3fa446896",
+    "scan_date": "2026-05-01T21:31:47.687353",
+    "product_id": "6811198959fb0aec0c81e338"
+  },
+  "experiment_data": {
+    "analysis_plate_map_id": "69f51a43bad4f943376815bb",
+    "analysis_name": "050126_LMHQC_0430SD_13009_E6_P2_R1009_041426_041526",
+    "analysis_plate_map_name": "BD_STD_ACEFGH Unkn",
+    "product_name": "Human Inflammatory 12-Plex (V1)",
+    "plate_barcode": "HIF12A-1-2613009-1",
+    "scan_name": "HIF12A-1-2613009-1 - Human Inflammatory 12-Plex (V1)",
+    "signal_calculation_algorithm": "mean-threshold",
+    "initial_concentrations": {
+      "IFN-gamma": 600.0,
+      "IL-10": 400.0,
+      "IL-13": 600.0,
+      "IL-1alpha": 150.0,
+      "IL-1beta": 600.0,
+      "IL-2": 600.0,
+      "IL-4": 200.0,
+      "IL-5": 200.0,
+      "IL-6": 150.0,
+      "IL-8": 250.0,
+      "IL-12p70": 800.0,
+      "TNF-alpha": 2000.0
+    },
+    "dilution_factor": 3.0
+  },
+  "standard_report_data": {
+    "IL-6": [
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd1",
+        "concentration": 150.0,
+        "replicates": {
+          "1": 320230.5,
+          "2": 360533.0
+        },
+        "mean_replicate_intensity": 340381.75,
+        "mean_replicate_calculated_concentration": 106.24889030622357,
+        "percent_bias": 29.16740646251762,
+        "within_limits_of_quantification_v2": false,
+        "upper_percent_difference_v2": 41.290415342695354,
+        "lower_percent_difference_v2": 69.41105958479011
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd2",
+        "concentration": 50.0,
+        "replicates": {
+          "1": 329563.6875,
+          "2": 289662.75
+        },
+        "mean_replicate_intensity": 309613.21875,
+        "mean_replicate_calculated_concentration": 53.99496787900199,
+        "percent_bias": 7.98993575800398,
+        "within_limits_of_quantification_v2": false,
+        "upper_percent_difference_v2": 25.7743138094569,
+        "lower_percent_difference_v2": 32.56240844569779
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd3",
+        "concentration": 16.666666666666668,
+        "replicates": {
+          "1": 221942.078125,
+          "2": 208220.390625
+        },
+        "mean_replicate_intensity": 215081.234375,
+        "mean_replicate_calculated_concentration": 17.63501189082552,
+        "percent_bias": 5.810071344953116,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 11.058959582554403,
+        "lower_percent_difference_v2": 11.848142590690083
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd4",
+        "concentration": 5.555555555555555,
+        "replicates": {
+          "1": 93825.4453125,
+          "2": 103210.7265625
+        },
+        "mean_replicate_intensity": 98518.0859375,
+        "mean_replicate_calculated_concentration": 5.529933103510718,
+        "percent_bias": 0.46120413680707273,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 6.043190001791921,
+        "lower_percent_difference_v2": 6.42447212816859
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd5",
+        "concentration": 1.8518518518518519,
+        "replicates": {
+          "2": 35439.05078125,
+          "1": 37084.32421875
+        },
+        "mean_replicate_intensity": 36261.6875,
+        "mean_replicate_calculated_concentration": 1.9444111753772775,
+        "percent_bias": 4.998203470372983,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 5.0162263851987134,
+        "lower_percent_difference_v2": 5.282836810365683
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd6",
+        "concentration": 0.6172839506172839,
+        "replicates": {
+          "1": 10725.529296875,
+          "2": 9971.8583984375
+        },
+        "mean_replicate_intensity": 10348.69384765625,
+        "mean_replicate_calculated_concentration": 0.6131726961070632,
+        "percent_bias": 0.6660232306557636,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 5.096574608672219,
+        "lower_percent_difference_v2": 5.177613540427211
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd7",
+        "concentration": 0.205761316872428,
+        "replicates": {
+          "1": 3249.2216796875,
+          "2": 2505.074462890625
+        },
+        "mean_replicate_intensity": 2877.1480712890625,
+        "mean_replicate_calculated_concentration": 0.1968296094211907,
+        "percent_bias": 4.340809821301319,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 5.720106435652303,
+        "lower_percent_difference_v2": 5.540607596778037
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd8",
+        "concentration": 0.06858710562414266,
+        "replicates": {
+          "1": 871.343505859375,
+          "2": 860.60009765625
+        },
+        "mean_replicate_intensity": 865.9718017578125,
+        "mean_replicate_calculated_concentration": 0.06721473652081376,
+        "percent_bias": 2.000914152653535,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 7.0634708870951375,
+        "lower_percent_difference_v2": 6.440700565024349
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd9",
+        "concentration": 0.022862368541380886,
+        "replicates": {
+          "1": 302.5606689453125,
+          "2": 313.1566162109375
+        },
+        "mean_replicate_intensity": 307.858642578125,
+        "mean_replicate_calculated_concentration": 0.025297411387274295,
+        "percent_bias": 10.650877407937772,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 10.19593646248506,
+        "lower_percent_difference_v2": 8.572372385692958
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd10",
+        "concentration": 0.007620789513793629,
+        "replicates": {
+          "2": 91.52664184570312,
+          "1": 136.62307739257812
+        },
+        "mean_replicate_intensity": 114.07485961914062,
+        "mean_replicate_calculated_concentration": 0.008310883890574796,
+        "percent_bias": 9.055418412122467,
+        "within_limits_of_quantification_v2": true,
+        "upper_percent_difference_v2": 21.30733916173332,
+        "lower_percent_difference_v2": 15.44673339943053
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "stnd11",
+        "concentration": 0.002540263171264543,
+        "replicates": {
+          "1": 48.51689147949219,
+          "2": 68.83990478515625
+        },
+        "mean_replicate_intensity": 58.67839813232422,
+        "mean_replicate_calculated_concentration": 0.0025347877644256653,
+        "percent_bias": 0.21554486561925962,
+        "within_limits_of_quantification_v2": false,
+        "upper_percent_difference_v2": 67.73006474764166,
+        "lower_percent_difference_v2": 34.4906975095209
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "blank",
+        "concentration": 1e-10,
+        "replicates": {
+          "1": 39.332427978515625,
+          "2": 51.856414794921875
+        },
+        "mean_replicate_intensity": null,
+        "mean_replicate_calculated_concentration": null,
+        "percent_bias": null,
+        "within_limits_of_quantification_v2": false,
+        "upper_percent_difference_v2": null,
+        "lower_percent_difference_v2": null
+      }
+    ]
+  },
+  "unknown_report_data": {
+    "IL-6": [
+      {
+        "analyte": "IL-6",
+        "well_label": "unk1",
+        "replicates": [
+          {
+            "replicate_index": 0,
+            "signal": 362570.1875,
+            "concentration": 329.0635078574793
+          }
+        ],
+        "mean_replicate_concentration": 329.0635078574793,
+        "stdev_of_replicate_concentration": null,
+        "within_limits_of_quantification": false,
+        "concentration_unit": "pg/ml"
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "unk10",
+        "replicates": [
+          {
+            "replicate_index": 0,
+            "signal": 127.73359680175781,
+            "concentration": 0.009620952349638475
+          }
+        ],
+        "mean_replicate_concentration": 0.009620952349638475,
+        "stdev_of_replicate_concentration": null,
+        "within_limits_of_quantification": true,
+        "concentration_unit": "pg/ml"
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "unk11",
+        "replicates": [
+          {
+            "replicate_index": 0,
+            "signal": 61.39556884765625,
+            "concentration": 0.002848118259909003
+          }
+        ],
+        "mean_replicate_concentration": 0.002848118259909003,
+        "stdev_of_replicate_concentration": null,
+        "within_limits_of_quantification": false,
+        "concentration_unit": "pg/ml"
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "unk12",
+        "replicates": [
+          {
+            "replicate_index": 0,
+            "signal": 35.14007568359375,
+            "concentration": null
+          }
+        ],
+        "mean_replicate_concentration": null,
+        "stdev_of_replicate_concentration": null,
+        "within_limits_of_quantification": false,
+        "concentration_unit": "pg/ml"
+      },
+      {
+        "analyte": "IL-6",
+        "well_label": "unk13",
+        "replicates": [
+          {
+            "replicate_index": 0,
+            "signal": 344570.46875,
+            "concentration": 121.6703654249242
+          }
+        ],
+        "mean_replicate_concentration": 121.6703654249242,
+        "stdev_of_replicate_concentration": null,
+        "within_limits_of_quantification": false,
+        "concentration_unit": "pg/ml"
+      }
+    ]
+  },
+  "validation_data": [
+    {
+      "analyte": "IL-6",
+      "signal": 362570.1875,
+      "well_row": "A",
+      "well_column": 1,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk1",
+      "calculated_concentration": 329.0635078574793
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 347592.1875,
+      "well_row": "A",
+      "well_column": 2,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk2",
+      "calculated_concentration": 135.86793359763453
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 191821.84375,
+      "well_row": "A",
+      "well_column": 3,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk3",
+      "calculated_concentration": 14.161320375426694
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 108619.328125,
+      "well_row": "A",
+      "well_column": 4,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk4",
+      "calculated_concentration": 6.218417412121303
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 38426.4296875,
+      "well_row": "A",
+      "well_column": 5,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk5",
+      "calculated_concentration": 2.05628381780185
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 11546.2294921875,
+      "well_row": "A",
+      "well_column": 6,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk6",
+      "calculated_concentration": 0.6764164054423948
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 3190.879638671875,
+      "well_row": "A",
+      "well_column": 7,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk7",
+      "calculated_concentration": 0.21572491820361878
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 791.037353515625,
+      "well_row": "A",
+      "well_column": 8,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk8",
+      "calculated_concentration": 0.06188525274449352
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 369.5124816894531,
+      "well_row": "A",
+      "well_column": 9,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk9",
+      "calculated_concentration": 0.03027509821474405
+    },
+    {
+      "analyte": "IL-6",
+      "signal": 127.73359680175781,
+      "well_row": "A",
+      "well_column": 10,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk10",
+      "calculated_concentration": 0.009620952349638475
+    }
+  ],
+  "spot_intensities": [
+    {
+      "well_row": "A",
+      "well_column": 1,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk1",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 382521.125,
+      "background": 10053.9716796875,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 1,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk1",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 334563.21875,
+      "background": 8554.8212890625,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 1,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk1",
+      "analyte": "IL-6",
+      "row": 7,
+      "column": 2,
+      "signal": 362570.1875,
+      "background": 9487.7783203125,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 2,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk2",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 352647.875,
+      "background": 9368.3544921875,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 2,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk2",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 312464.0,
+      "background": 8201.705078125,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 2,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk2",
+      "analyte": "IL-6",
+      "row": 7,
+      "column": 2,
+      "signal": 347592.1875,
+      "background": 9310.6767578125,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 3,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk3",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 209293.96875,
+      "background": 5723.29541015625,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 3,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk3",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 187245.375,
+      "background": 4712.84375,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 3,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk3",
+      "analyte": "IL-6",
+      "row": 7,
+      "column": 2,
+      "signal": 191821.84375,
+      "background": 4680.69921875,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 4,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk4",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 111899.625,
+      "background": 3302.9560546875,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 4,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk4",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 102425.6640625,
+      "background": 2850.0693359375,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 4,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk4",
+      "analyte": "IL-6",
+      "row": 7,
+      "column": 2,
+      "signal": 108619.328125,
+      "background": 3071.426025390625,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 5,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk5",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 39510.5859375,
+      "background": 1540.1285400390625,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 5,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk5",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 38426.4296875,
+      "background": 1296.8673095703125,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 5,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk5",
+      "analyte": "IL-6",
+      "row": 7,
+      "column": 2,
+      "signal": 35000.203125,
+      "background": 1297.9627685546875,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 6,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk6",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 11546.2294921875,
+      "background": 864.3314819335938,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 6,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk6",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 12066.982421875,
+      "background": 747.7604370117188,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 6,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk6",
+      "analyte": "IL-6",
+      "row": 7,
+      "column": 2,
+      "signal": 11375.5390625,
+      "background": 740.7806396484375,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 7,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk7",
+      "analyte": "IL-6",
+      "row": 2,
+      "column": 1,
+      "signal": 3190.879638671875,
+      "background": 508.0345764160156,
+      "signal_intensity_algorithm": "mean-threshold"
+    },
+    {
+      "well_row": "A",
+      "well_column": 7,
+      "well_replicate_index": 0,
+      "well_type": "unknown",
+      "well_label": "unk7",
+      "analyte": "IL-6",
+      "row": 6,
+      "column": 7,
+      "signal": 3342.06787109375,
+      "background": 392.6962890625,
+      "signal_intensity_algorithm": "mean-threshold"
+    }
+  ],
+  "limits_of_quantification": {
+    "IL-6": {
+      "LLOQ": "0.008",
+      "ULOQ": "16.667",
+      "LOD_label": "Calculated LOD",
+      "LOD": "0.004",
+      "concentration_units": "pg/ml"
+    }
+  },
+  "fit_parameters": {
+    "IL-6": {
+      "a": 39.79232658852026,
+      "b": 1.1533902630840014,
+      "c": 13.389350432895291,
+      "d": 371596.94858844666
+    }
+  }
+}

@@ -63,6 +63,8 @@ var (
 	markdownNumberedBoldTaskRe  = regexp.MustCompile(`^\d+\.\s+\*\*(.+?)\*\*\s*(.*)$`)
 	planMetadataBulletRe        = regexp.MustCompile(`(?i)^\*\*(?:dependencies|milestones|acceptance|status)\*\*`)
 	assigneeParenRe             = regexp.MustCompile(`\(@([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)\)\s*$`)
+	subAssigneeBulletRe         = regexp.MustCompile(`^[-*]\s+\*\*@[^*]+\*\*:`)
+	detailedPlanBoundaryRe      = regexp.MustCompile(`(?i)^#{1,4}\s+detailed\s+plan\b`)
 )
 
 // ExtractPlanFromResponse attempts to extract a structured plan from an
@@ -158,7 +160,26 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 //
 // Returns a slice of CollaborationTask with IDs, descriptions, and
 // the assigned agent name (caller must resolve to agent ID).
+// planContentForTaskExtraction drops narrative "Detailed Plan" sections that repeat
+// numbered steps as prose (they are not executable task rows).
+func planContentForTaskExtraction(planContent string) string {
+	lines := strings.Split(planContent, "\n")
+	var kept []string
+	for _, line := range lines {
+		if detailedPlanBoundaryRe.MatchString(strings.TrimSpace(line)) {
+			break
+		}
+		kept = append(kept, line)
+	}
+	out := strings.TrimSpace(strings.Join(kept, "\n"))
+	if out == "" {
+		return strings.TrimSpace(planContent)
+	}
+	return out
+}
+
 func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []CollaborationTask {
+	planContent = planContentForTaskExtraction(planContent)
 	var tasks []CollaborationTask
 	now := time.Now()
 
@@ -190,6 +211,19 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 			continue
 		}
 
+		if isNumberedBoldOverviewLine(trimmed) {
+			task, next := parseNumberedBoldOverviewTask(lines, i, agentByName, now)
+			if task != nil && !isWeakTaskFragment(task.Description) {
+				deps, end := collectDependencyLines(lines, next)
+				task.Dependencies = deps
+				tasks = append(tasks, *task)
+				i = end - 1
+			} else {
+				i = next - 1
+			}
+			continue
+		}
+
 		// Format: "- Task N: @AgentName - description", "- @AgentName: description",
 		// or numbered list equivalents.
 		if isTaskListLine(trimmed) {
@@ -207,7 +241,7 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 		if isTaskHeading(trimmed) {
 			ctx, next := collectTaskHeadingContextWithEnd(lines, i+1)
 			task := parseTaskHeading(trimmed, ctx, agentByName, now)
-			if task != nil {
+			if task != nil && !isWeakTaskFragment(task.Title) && !isWeakTaskFragment(task.Description) {
 				deps, _ := collectDependencyLines(lines, next)
 				task.Dependencies = deps
 				tasks = append(tasks, *task)
@@ -217,7 +251,9 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 	}
 
 	NormalizeDependencies(tasks)
-	return DedupeTasks(tasks)
+	tasks = DedupeTasks(tasks)
+	AssignRoundRobinToUnassignedTasks(tasks, agents)
+	return tasks
 }
 
 // collectDependencyLines reads depends:/after: lines until the next task boundary.
@@ -271,6 +307,9 @@ func isTaskHeading(line string) bool {
 
 func isTaskListLine(line string) bool {
 	trimmed := strings.TrimSpace(line)
+	if subAssigneeBulletRe.MatchString(trimmed) {
+		return false
+	}
 	if isPlanMetadataBullet(trimmed) {
 		return false
 	}
@@ -292,7 +331,20 @@ func isTaskListLine(line string) bool {
 }
 
 func isMarkdownNumberedBoldTask(line string) bool {
-	return markdownNumberedBoldTaskRe.MatchString(strings.TrimSpace(line))
+	trimmed := strings.TrimSpace(line)
+	if !markdownNumberedBoldTaskRe.MatchString(trimmed) {
+		return false
+	}
+	m := markdownNumberedBoldTaskRe.FindStringSubmatch(trimmed)
+	if len(m) < 3 {
+		return false
+	}
+	tail := strings.TrimSpace(m[2])
+	// Require explicit assignee on the task row (## Tasks style), not nested plan steps.
+	if assigneeParenRe.MatchString(tail) {
+		return true
+	}
+	return agentMentionRe.MatchString(tail) && strings.Contains(tail, "`pending`")
 }
 
 func isPlanMetadataBullet(line string) bool {
@@ -347,18 +399,102 @@ func skipTaskSubBullets(lines []string, start int) int {
 
 func isWeakTaskFragment(desc string) bool {
 	lower := strings.ToLower(strings.TrimSpace(desc))
+	if strings.Contains(desc, "**:") || strings.HasPrefix(desc, "**") {
+		return true
+	}
 	weak := []string{
 		"task is to ",
 		"should perform ",
 		"review will ",
 		"will ensure ",
+		"specific actions",
+		"example actions",
+		"document findings",
+		"files to review",
+		"popular standards",
+		"incorporate findings from",
+		"reference research findings",
+		"research and gather",
 	}
 	for _, p := range weak {
-		if strings.HasPrefix(lower, p) {
+		if strings.HasPrefix(lower, p) || lower == strings.TrimSpace(p) {
 			return true
 		}
 	}
 	return false
+}
+
+func isNumberedBoldOverviewLine(line string) bool {
+	if !markdownNumberedBoldTaskRe.MatchString(strings.TrimSpace(line)) {
+		return false
+	}
+	return !isMarkdownNumberedBoldTask(line)
+}
+
+// parseNumberedBoldOverviewTask handles "1. **Title**" with "- **@Agent**: action" sub-bullets.
+func parseNumberedBoldOverviewTask(lines []string, i int, agents map[string]CollaborationAgent, now time.Time) (*CollaborationTask, int) {
+	trimmed := strings.TrimSpace(lines[i])
+	m := markdownNumberedBoldTaskRe.FindStringSubmatch(trimmed)
+	if len(m) < 2 {
+		return nil, i + 1
+	}
+	title := strings.TrimSpace(m[1])
+	if title == "" || len(title) < 4 {
+		return nil, i + 1
+	}
+
+	assignedTo := ""
+	assignedName := ""
+	desc := title
+	next := i + 1
+	for j := i + 1; j < len(lines) && j < i+8; j++ {
+		raw := lines[j]
+		sub := strings.TrimSpace(raw)
+		if sub == "" {
+			next = j + 1
+			continue
+		}
+		if isTaskHeading(sub) || isMarkdownNumberedBoldTask(sub) || isNumberedBoldOverviewLine(sub) {
+			break
+		}
+		if isTaskListLine(sub) && !subAssigneeBulletRe.MatchString(sub) {
+			break
+		}
+		if !strings.HasPrefix(raw, " ") && !strings.HasPrefix(raw, "\t") && j > i+1 {
+			break
+		}
+		if subAssigneeBulletRe.MatchString(sub) {
+			for _, mention := range agentMentionRe.FindAllStringSubmatch(sub, -1) {
+				name := strings.ToLower(mention[1])
+				if agent, ok := agents[name]; ok {
+					assignedTo = agent.AgentID
+					assignedName = agent.AgentName
+					break
+				}
+			}
+			if idx := strings.Index(sub, ":"); idx >= 0 {
+				if tail := strings.TrimSpace(sub[idx+1:]); tail != "" {
+					desc = title + " — " + tail
+				}
+			}
+			next = j + 1
+			break
+		}
+		next = j + 1
+	}
+	if assignedTo == "" {
+		return nil, next
+	}
+	return &CollaborationTask{
+		ID:           uuid.New().String(),
+		Title:        truncate(desc, 80),
+		Description:  desc,
+		AssignedTo:   assignedTo,
+		AssignedName: assignedName,
+		Status:       TaskPending,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}, next
 }
 
 func parseMarkdownNumberedBoldTask(line string, agents map[string]CollaborationAgent, now time.Time) *CollaborationTask {
@@ -390,6 +526,10 @@ func parseMarkdownNumberedBoldTask(line string, agents map[string]CollaborationA
 				break
 			}
 		}
+	}
+
+	if assignedTo == "" {
+		return nil
 	}
 
 	desc := title
@@ -504,6 +644,9 @@ func parseTaskHeading(line string, context []string, agents map[string]Collabora
 	if desc == "" {
 		return nil
 	}
+	if assignedTo == "" {
+		return nil
+	}
 
 	return &CollaborationTask{
 		ID:           uuid.New().String(),
@@ -514,5 +657,25 @@ func parseTaskHeading(line string, context []string, agents map[string]Collabora
 		Status:       TaskPending,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+	}
+}
+
+// AssignRoundRobinToUnassignedTasks fills AssignedTo / AssignedName on tasks parsed
+// without @participant mentions so execution routing and plan validation succeed.
+func AssignRoundRobinToUnassignedTasks(tasks []CollaborationTask, agents []CollaborationAgent) {
+	if len(agents) == 0 || len(tasks) == 0 {
+		return
+	}
+	now := time.Now()
+	ri := 0
+	for i := range tasks {
+		if strings.TrimSpace(tasks[i].AssignedTo) != "" {
+			continue
+		}
+		ag := agents[ri%len(agents)]
+		ri++
+		tasks[i].AssignedTo = ag.AgentID
+		tasks[i].AssignedName = ag.AgentName
+		tasks[i].UpdatedAt = now
 	}
 }

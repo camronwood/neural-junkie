@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isImagePreviewPath, isPngPath, workspaceAbsolutePath } from './editorFileKind';
+import { isImagePreviewPath, isPngPath, workspaceAbsolutePath, workspaceRelativePath } from './editorFileKind';
 
 describe('isImagePreviewPath', () => {
   it('matches common image extensions', () => {
@@ -38,5 +38,21 @@ describe('workspaceAbsolutePath', () => {
 
   it('strips leading slash from relative path', () => {
     expect(workspaceAbsolutePath('/ws', '/nested/file.png')).toBe('/ws/nested/file.png');
+  });
+});
+
+describe('workspaceRelativePath', () => {
+  it('returns empty string for workspace root', () => {
+    expect(workspaceRelativePath('/Users/me/summary-test', '/Users/me/summary-test')).toBe('');
+  });
+
+  it('returns relative path for nested folder', () => {
+    expect(
+      workspaceRelativePath('/Users/me/summary-test', '/Users/me/summary-test/scan-export')
+    ).toBe('scan-export');
+  });
+
+  it('returns null for paths outside workspace', () => {
+    expect(workspaceRelativePath('/Users/me/summary-test', '/Users/me/other/scan-export')).toBeNull();
   });
 });

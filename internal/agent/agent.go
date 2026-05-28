@@ -571,6 +571,10 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		return
 	}
 	response = sanitizeInternalToolNames(response)
+	collabCtx := a.getCollaborationContext(msg)
+	if collabCtx.ID != "" {
+		response = sanitizeCollabDiscussionResponse(response, collabCtx, a.Info.Type)
+	}
 	response, proposedFileChange, proposalErr := a.maybeSubmitFileChangeFromResponse(response, msg.Channel, msg)
 	if proposalErr != nil {
 		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
@@ -1020,6 +1024,9 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if routed := msg.SlackRoutedAgentID(); routed != "" {
 		return routed == a.Info.ID
 	}
+	if routedType := msg.IdeRouteAgentType(); routedType != "" {
+		return strings.EqualFold(string(a.Info.Type), routedType)
+	}
 
 	// Never respond to commands - let the command handler process them
 	if len(msg.Content) > 0 && msg.Content[0] == '/' {
@@ -1054,7 +1061,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 		if msg.Metadata != nil {
 			if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
-				return false
+				// Seed banners and status noise stay ignored; turn prompts must wake the next speaker.
+				if !isCollabTurnPromptForAgent(msg, collabID, a.Info.ID, a.Collab) {
+					return false
+				}
 			}
 		}
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
@@ -1124,6 +1134,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				msg.From.Type == protocol.AgentTypeCLI ||
 				msg.From.Type == protocol.AgentTypeConfluence
 			if isFromAgent && msg.From.ID != a.Info.ID {
+				if info.Phase == "executing" {
+					// Peer task replies are collaboration_discussion; only task prompts wake assignees (handled above).
+					return false
+				}
 				if !a.Collab.IsAgentTurn(info.ID, a.Info.ID) && !a.Collab.AgentOutOfTurnMentionAllowed(info.ID) {
 					log.Printf("[%s] ⏸ collaboration discussion closed — ignoring (collab %s)", a.Info.Name, info.ID[:8])
 					return false
@@ -2062,7 +2076,13 @@ func (a *Agent) resolveWorkspacePath(msg *protocol.Message) string {
 // split on the separator and send the first part as a system message.
 func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	if a.customPromptBuilder != nil {
+		if isCollabRecapMessage(msg) {
+			return buildCollabRecapPrompt(a.Info.Name, msg)
+		}
 		return a.customPromptBuilder(msg)
+	}
+	if isCollabRecapMessage(msg) {
+		return buildCollabRecapPrompt(a.Info.Name, msg)
 	}
 	if a.useCompactOllamaPrompt(msg) {
 		return a.buildCompactOllamaPrompt(msg)
@@ -2094,16 +2114,16 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("\n\n")
 	}
 
-	if a.MCPServer != nil {
+	// Check if this message is part of an active collaboration
+	collabInfo := a.getCollaborationContext(msg)
+	isCollab := collabInfo.ID != ""
+
+	if a.MCPServer != nil && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
 		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer))
 	}
 	if a.imageGenerationToolsEnabled() {
 		appendImageGenerationPrompt(&system)
 	}
-
-	// Check if this message is part of an active collaboration
-	collabInfo := a.getCollaborationContext(msg)
-	isCollab := collabInfo.ID != ""
 
 	if isCollab {
 		// Collaboration-specific behavioral rules
@@ -2124,6 +2144,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		system.WriteString("6. Keep responses focused and concise -- this is a bounded discussion.\n")
 		system.WriteString("7. Reference specific file paths when they support your point; avoid re-scanning or re-summarizing the whole repo each turn.\n")
 		system.WriteString("8. Answer the collaboration goal and your task first — workspace files are reference material, not the deliverable.\n")
+		system.WriteString("9. Stay in **your lane** (below). Do not assign duplicate tasks across agents or absorb peers' responsibilities.\n")
+
+		appendCollaborationLaneInstructions(&system, collabInfo, a.Info)
 
 		if msg.Type == protocol.MessageTypeCollabRecap {
 			system.WriteString("\n=== SESSION RECAP (TO USER) ===\n")
@@ -2132,11 +2155,22 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 			system.WriteString("Do NOT emit TASK_STATUS lines, new plan blocks, or @mention other agents unless quoting them.\n")
 		} else if collabInfo.Phase == "planning" {
 			system.WriteString("\n=== PLANNING PHASE INSTRUCTIONS ===\n")
-			system.WriteString("Propose a structured plan with tasks assigned to agents based on their strengths.\n")
+			system.WriteString("Propose a **minimal** structured plan: **3–6 tasks total**, each with one primary @assignee in that agent's lane (see YOUR LANE / PEER LANES).\n")
+			system.WriteString("Each task must name a **concrete deliverable** (verb + path), not meta-work like \"document findings\" or \"specific actions\".\n")
 			system.WriteString("Use this format for tasks:\n")
-			system.WriteString("- Task N: @AgentName - description of the task\n")
+			system.WriteString("- Task N: @AgentName - Write collabs/<collab-id>/findings.md summarizing …\n")
 			system.WriteString("  - depends: 1, 2   (optional; 1-based task numbers this task waits on)\n")
-			system.WriteString("Consider dependencies between tasks and declare them with depends: lines.\n")
+			system.WriteString("Assign file deliverables to the best domain owner (@SoftwareArchitect for schema docs, @Assistant for summaries, @BackendEngineer for code, etc.) — any assignee ships via [FILE_CHANGE].\n")
+			if strings.TrimSpace(collabInfo.SourceRepoPath) != "" {
+				if rel := collaboration.ProjectCollabRelPath(collabInfo.ID); rel != "" {
+					system.WriteString(fmt.Sprintf("File deliverables belong under `%s/` (paths relative to the project root).\n", rel))
+				}
+			}
+			system.WriteString("Consider dependencies between tasks and declare them with depends: lines. Defer debate until the task list is drafted.\n")
+			if a.Info.Type == protocol.AgentTypeDevOps {
+				system.WriteString("For documentation/schema/API planning: write prose and markdown task descriptions only. ")
+				system.WriteString("Do NOT emit kubectl, helm, JSON tool-call payloads, or cluster commands unless the user explicitly asked for infrastructure changes.\n")
+			}
 			appendCollaborationWorkspaceInstructions(&system, collabInfo, a.Info.Type)
 			if !collaborationSkipExtraWorkspaceSection(collabInfo) && !messageHasWorkspaceContext(msg) && len(collabInfo.SourceWorkspaceContext) > 0 {
 				appendWorkspacePromptSection(&system, ContextScopeOutline, collabInfo.SourceWorkspaceContext)
@@ -2145,6 +2179,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 			system.WriteString("\n=== EXECUTION PHASE INSTRUCTIONS ===\n")
 			system.WriteString("Execution is task-driven. Do NOT continue open plan discussion or re-summarize the whole repo.\n")
 			system.WriteString("Complete your assigned task: produce concrete deliverables ([FILE_CHANGE] under the collabs folder when files are required).\n")
+			system.WriteString("Prefer one focused reply with [FILE_CHANGE] over multi-paragraph discussion.\n")
 			system.WriteString("Only @mention another agent if you are blocked on a specific question; otherwise work from task context paths and the goal.\n")
 			system.WriteString(CollaborationExecutionTaskStatusInstructions())
 			if collabInfo.WorkingDirectory != "" {
@@ -2314,6 +2349,7 @@ Provide a concrete fix or mitigation for each issue.`
 		return `You are a life-sciences research assistant (not a clinician).
 - Use analyze_sequence and fold_protein tools for sequences and structures; do not invent PDB files or assay results.
 - For Phoenix-style scan summary exports (folder with imageMetadata.json and extensionless well TIFFs A1–H12), use summarize_scan_summary for QC stats; users can open the folder in Neural Junkie file explorer with the Life sciences pack for the plate viewer.
+- For Phoenix-style scan analysis exports (reports/results.json, reports/{analyte}_summary_report.csv, process_report.txt), use summarize_scan_analysis; users can open the analysis viewer to inspect plate heat maps and link wells to scan TIFF images. For combined folders with scan-export/ and reports/, run summarize_scan_summary on scan-export and summarize_scan_analysis on the analysis root.
 - Clearly label in silico predictions vs wet-lab experimental needs.
 - For protocols, include controls, replicates, and safety considerations.
 - Refuse medical diagnosis or treatment advice; research and education only.

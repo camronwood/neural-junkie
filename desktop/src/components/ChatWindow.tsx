@@ -107,6 +107,12 @@ import {
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
 import { getHubBaseURL } from '../config/hubUrl';
+import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
+import type { LayoutPreset } from '../stores/settingsStore';
+import {
+  buildIdeDispatchPayload,
+  mergeCodebaseAttachments,
+} from '../utils/ideComposer';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
@@ -175,7 +181,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const setMyAgentsPanelOpen = useChatStore((s) => s.setMyAgentsPanelOpen);
 
   const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
-  const { layoutSettings, loadLayoutSettings, updateSettings } = useSettingsStore();
+  const { layoutSettings, loadLayoutSettings, updateSettings, updateLayoutSettings } =
+    useSettingsStore();
   const addToast = useToastStore(s => s.addToast);
 
   useSidebarAutoUnhide(agents, channels);
@@ -191,8 +198,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [fastEditOpen, setFastEditOpen] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [gitModalOpen, setGitModalOpen] = useState(false);
-
   const devPackEnabled = usePacksStore((s) => s.softwareDevelopmentEnabled());
+  const ideLayout = devPackEnabled && isIdeLayout(layoutSettings);
   const fetchPacks = usePacksStore((s) => s.fetchPacks);
   const { activeWorkspaceId, workspaces: explorerWorkspaces } = useFileExplorerStore(
     (s) => ({ activeWorkspaceId: s.activeWorkspaceId, workspaces: s.workspaces }),
@@ -200,6 +207,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
   const openFileInEditor = useEditorStore((s) => s.openFile);
   const revealLineInEditor = useEditorStore((s) => s.revealLine);
+  const activeEditorTab = useEditorStore((s) => {
+    const id = s.activeTabId;
+    return id ? (s.tabs.find((t) => t.id === id) ?? null) : null;
+  });
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     void fetchPacks();
@@ -280,10 +292,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         e.preventDefault();
         setFastEditOpen(true);
       }
+      if (cmd && (e.key === 'l' || e.key === 'L') && ideLayout) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [devPackEnabled, codeEditorOpen]);
+  }, [devPackEnabled, codeEditorOpen, ideLayout]);
 
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
@@ -356,12 +372,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   const contextScopePreview = useMemo(() => {
+    const activeTabPath = activeEditorTab?.path;
     return resolveContextScope({
       message: composerDraft,
       mode: workspaceContextMode,
       channelKind: channelNameToKind(channel, activeChannelMeta?.type),
+      activeTabPath,
+      ideCoding: ideLayout && devPackEnabled,
     });
-  }, [composerDraft, workspaceContextMode, channel, activeChannelMeta?.type]);
+  }, [
+    composerDraft,
+    workspaceContextMode,
+    channel,
+    activeChannelMeta?.type,
+    activeEditorTab?.path,
+    ideLayout,
+    devPackEnabled,
+  ]);
 
   const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
@@ -418,9 +445,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // Debounce timeout ref for agent list refresh
   const agentRefreshTimeoutRef = useRef<number | null>(null);
   
-  // Ref to access RichTextInput methods
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
   // Load layout settings on mount
   useEffect(() => {
     loadLayoutSettings();
@@ -1295,17 +1319,42 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const dispatchMessage = useCallback(
     async (content: string, metadata?: Record<string, unknown>) => {
       useChatStore.getState().setChannelHold(channel, false);
+
+      let sendContent = content;
+      let composerMeta = metadata ?? {};
+      if (ideLayout && devPackEnabled) {
+        const ws =
+          explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+          explorerWorkspaces[0];
+        const idePayload = buildIdeDispatchPayload({
+          content,
+          agents,
+          activeTab: activeEditorTab,
+          editorAgentMode: layoutSettings.editorAgentMode ?? 'agent',
+          editorAgentTrust: layoutSettings.editorAgentTrust ?? 'interactive',
+          composerMetadata: composerMeta,
+        });
+        sendContent = idePayload.content;
+        composerMeta = await mergeCodebaseAttachments(
+          api,
+          sendContent,
+          ws?.path,
+          idePayload.metadata
+        );
+      }
+
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
-        message: content,
+        message: sendContent,
         channel,
         channelType: activeChannelMeta?.type,
-        composerMetadata: metadata,
+        composerMetadata: composerMeta,
+        ideCoding: ideLayout && devPackEnabled,
       });
 
       useChatStore.getState().setIsTyping(true);
       try {
-        const trimmed = content.trimStart();
+        const trimmed = sendContent.trimStart();
         if (trimmed.startsWith('/collaborate')) {
           if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
             return;
@@ -1313,7 +1362,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         }
         const sendResult = await api.sendMessage(
           channel,
-          content,
+          sendContent,
           { name: username, type: 'human' },
           'question',
           mergedMetadata
@@ -1330,7 +1379,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             syncCollabTurnThinking(collab, sendResult.collaboration_channel);
           }
         }
-        if (content.trimStart().startsWith('/')) {
+        if (sendContent.trimStart().startsWith('/')) {
           try {
             const msgs = await api.fetchMessages(timelineChannel, 50);
             useChatStore.getState().setMessages(msgs);
@@ -1361,6 +1410,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       loadCollaborations,
       executingCollaborationForChannel,
       addToast,
+      ideLayout,
+      devPackEnabled,
+      agents,
+      activeEditorTab,
+      layoutSettings.editorAgentMode,
+      layoutSettings.editorAgentTrust,
+      explorerWorkspaces,
+      activeWorkspaceId,
     ]
   );
 
@@ -1466,7 +1523,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   }, [api, commandDefs.length]);
 
   // Handle command executed from command palette
-  const handleCommandExecute = async (commandString: string) => {
+  const handleCommandExecute = async (
+    commandString: string,
+    metadata?: Record<string, unknown>
+  ) => {
     if (inputRef.current && (inputRef.current as any).clearInput) {
       (inputRef.current as any).clearInput();
     }
@@ -1476,7 +1536,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       return;
     }
     const repoAgentCmd = parseCreateRepoAgentCommand(trimmed);
-    await handleSendMessage(commandString);
+    await handleSendMessage(commandString, metadata);
     if (repoAgentCmd) {
       window.setTimeout(() => {
         void ensureRepoAgentWorkspace(repoAgentCmd.repoPath, {
@@ -1834,7 +1894,26 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 <GitIcon className="w-3.5 h-3.5" />
               </button>
             )}
-            
+
+            {devPackEnabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next: LayoutPreset = ideLayout ? 'team' : 'ide';
+                  void updateLayoutSettings(panelsForPreset(next));
+                }}
+                className={`w-7 h-7 rounded text-[10px] font-bold transition-colors ${
+                  ideLayout
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+                title={`Layout: ${layoutPresetLabel(ideLayout ? 'ide' : 'team')} (click to switch)`}
+                aria-label="Toggle IDE vs team layout"
+              >
+                IDE
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => useTerminalStore.getState().togglePanel()}
@@ -1915,25 +1994,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
-        {/* File Explorer Panel - slides in from left */}
+        {/* File Explorer */}
         {fileExplorerOpen && (
           <FileExplorerPanel
+            variant={ideLayout ? 'embedded' : 'overlay'}
             onClose={() => setFileExplorerOpen(false)}
             onFileOpen={() => setCodeEditorOpen(true)}
           />
         )}
 
-        {/* Code Editor Panel - slides in from left */}
+        {/* Code Editor */}
         {codeEditorOpen && (
           <CodeEditorPanel
+            variant={ideLayout ? 'embedded' : 'overlay'}
             onClose={() => setCodeEditorOpen(false)}
           />
         )}
 
-        {/* Main Chat Area - always flex-grow to fill remaining space */}
-        <div 
-          className="flex flex-col flex-1 min-h-0 min-w-[220px] sm:min-w-[260px] transition-all duration-300 ease-in-out relative overflow-hidden"
-        >
+        {/* Main Chat Area */}
+        <div className="flex flex-col flex-1 min-h-0 min-w-[220px] sm:min-w-[260px] transition-all duration-300 ease-in-out relative overflow-hidden">
 
         {isClosedCollaborationChannel && collaborationForChannel && (
             <div
@@ -1984,6 +2063,32 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </div>
         )}
 
+        {ideLayout && devPackEnabled && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-t border-slack-border bg-slack-bg/80 text-xs">
+            <span className="text-slack-textMuted">IDE</span>
+            <div className="inline-flex rounded border border-slack-border overflow-hidden">
+              {(['ask', 'agent'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => void updateLayoutSettings({ editorAgentMode: m })}
+                  className={`px-2.5 py-0.5 capitalize ${
+                    (layoutSettings.editorAgentMode ?? 'agent') === m
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                  }`}
+                  title={m === 'ask' ? 'Read-only — no file edits' : 'May propose file changes'}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            <span className="text-slack-textMuted truncate" title="Routes to specialist by open file">
+              @codebase · ⌘L focus · open file + selection in context
+            </span>
+          </div>
+        )}
+
         {/* Input */}
         <RichTextInput
           onSend={handleSendMessage}
@@ -1992,7 +2097,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             isClosedCollaborationChannel
               ? 'Collaboration closed — read-only (slash commands still work)'
               : status === 'connected'
-                ? 'Type your message here...'
+                ? ideLayout && devPackEnabled
+                  ? 'Ask about the project — @BackendEngineer auto if no @mention…'
+                  : 'Type your message here...'
                 : 'Connecting...'
           }
           agents={agents}

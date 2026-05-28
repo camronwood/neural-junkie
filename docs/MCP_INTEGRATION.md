@@ -63,6 +63,7 @@ CLI agents (Cursor, Gemini, Claude CLI) use external toolsets; the UI notes that
 ### BiologyExpert (Life sciences)
 
 - `summarize_scan_summary(path)` — QC summary for Phoenix-style scan summary folders (`imageMetadata.json` + well TIFFs)
+- `summarize_scan_analysis(path)` — QC summary for Phoenix-style analysis exports (`reports/results.json`, `reports/{analyte}_summary_report.csv`, and `process_report.txt`)
 
 **Tools:**
 - `analyze_sequence(sequence)` — DNA/RNA/protein validation and summary

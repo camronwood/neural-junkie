@@ -11,7 +11,8 @@ Only **one** domain pack can be enabled: Software development **or** Life scienc
 | Piece | Description |
 |-------|-------------|
 | **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
-| **IDE v2** (dev pack only) | Stage/unstage + diff viewer; go to symbol (⌘⇧O); Problems panel; inline hunks; fast edit (⌘K). See [IDE_V2.md](IDE_V2.md) |
+| **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
+| **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing), review bar. See [IDE_V3.md](IDE_V3.md) |
 | **Qwen Coder 14B** | `qwen2.5-coder:14b` — recommended Ollama model for specialists |
 | **Utility tier** | `qwen2.5:7b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |

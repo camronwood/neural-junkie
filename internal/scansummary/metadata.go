@@ -12,6 +12,8 @@ import (
 
 const MetadataFileName = "imageMetadata.json"
 
+var summaryScanSubdirs = []string{"", "scan-export", "scan_export", "scan", "summary"}
+
 var wellIDRe = regexp.MustCompile(`^[A-H](?:[1-9]|1[0-2])$`)
 
 // Spot is one detected spot on a well image.
@@ -74,11 +76,17 @@ func ResolveSummaryDir(path string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("not a scan summary directory: %s", path)
 	}
-	meta := filepath.Join(path, MetadataFileName)
-	if _, err := os.Stat(meta); err != nil {
-		return "", fmt.Errorf("missing %s in %s", MetadataFileName, path)
+	for _, sub := range summaryScanSubdirs {
+		cand := path
+		if sub != "" {
+			cand = filepath.Join(path, sub)
+		}
+		meta := filepath.Join(cand, MetadataFileName)
+		if _, err := os.Stat(meta); err == nil {
+			return cand, nil
+		}
 	}
-	return path, nil
+	return "", fmt.Errorf("missing %s in %s (tried scan-export/ and similar subfolders)", MetadataFileName, path)
 }
 
 // SummaryStats holds QC aggregates for summarize_scan_summary.

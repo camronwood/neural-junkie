@@ -12,6 +12,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/scansummary"
+	"github.com/camronwood/neural-junkie/internal/scananalysis"
 )
 
 const generateImageToolName = "generate_image"
@@ -90,6 +91,7 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 		return "", fmt.Errorf("tool %q not found", name)
 	}
 	input = rewriteScanSummaryToolInput(msg, name, input)
+	input = rewriteScanAnalysisToolInput(msg, name, input)
 	return executeMCPTool(ctx, mcpServer, name, input)
 }
 
@@ -143,6 +145,11 @@ func sharedScanSummaryPath(msg *protocol.Message) (string, bool) {
 	if scan, ok := ctxMap["scan_summary"].(map[string]interface{}); ok {
 		summaryDir, _ = scan["summary_dir"].(string)
 	}
+	if strings.TrimSpace(summaryDir) == "" {
+		if analysis, ok := ctxMap["scan_analysis"].(map[string]interface{}); ok {
+			summaryDir, _ = analysis["linked_scan_dir"].(string)
+		}
+	}
 	summaryDir = strings.TrimSpace(summaryDir)
 	if summaryDir == "" {
 		return workspacePath, true
@@ -166,6 +173,70 @@ func scanSummaryPathExists(path string) bool {
 		return false
 	}
 	return true
+}
+
+func rewriteScanAnalysisToolInput(msg *protocol.Message, name string, input json.RawMessage) json.RawMessage {
+	if name != "summarize_scan_analysis" {
+		return input
+	}
+	sharedPath, ok := sharedScanAnalysisPath(msg)
+	if !ok || !scanAnalysisPathExists(sharedPath) {
+		return input
+	}
+
+	var args map[string]interface{}
+	if len(input) > 0 {
+		_ = json.Unmarshal(input, &args)
+	}
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+	current, _ := args["path"].(string)
+	if strings.TrimSpace(current) != "" && scanAnalysisPathExists(current) {
+		return input
+	}
+	args["path"] = sharedPath
+	out, err := json.Marshal(args)
+	if err != nil {
+		return input
+	}
+	return out
+}
+
+func sharedScanAnalysisPath(msg *protocol.Message) (string, bool) {
+	if msg == nil || msg.Metadata == nil {
+		return "", false
+	}
+	raw, ok := msg.Metadata["workspace_context"]
+	if !ok {
+		return "", false
+	}
+	ctxMap, ok := raw.(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	workspacePath, _ := ctxMap["workspace_path"].(string)
+	workspacePath = strings.TrimSpace(workspacePath)
+	if workspacePath == "" {
+		return "", false
+	}
+
+	analysisDir := ""
+	if scan, ok := ctxMap["scan_analysis"].(map[string]interface{}); ok {
+		analysisDir, _ = scan["analysis_dir"].(string)
+	}
+	analysisDir = strings.TrimSpace(analysisDir)
+	if analysisDir == "" {
+		return workspacePath, true
+	}
+	if filepath.IsAbs(analysisDir) {
+		return analysisDir, true
+	}
+	return filepath.Join(workspacePath, analysisDir), true
+}
+
+func scanAnalysisPathExists(path string) bool {
+	return scananalysis.IsAnalysisExport(path)
 }
 
 // generateWithAgentTools runs Claude tool-use for MCP and/or image generation tools.

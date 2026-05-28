@@ -80,7 +80,8 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - **Domain packs** -- At most one of Software development or Life sciences enabled at a time
 - **Agent polling** -- Standalone `cmd/agent` processes use HTTP polling; in-process runtime agents use hub push delivery
 - **Git endpoints** -- Require Software development pack; need `git` on PATH and a git workspace
-- **IDE v2** -- Stage/unstage, symbols (⌘⇧O), Problems, fast edit (⌘K), inline hunks; optional `gopls` for Go diagnostics. See [IDE_V2.md](IDE_V2.md)
+- **IDE v2/v2c** -- IDE layout preset, symbol index, Rust/Python diagnostics, inline completion, plus v2a/v2b features. See [IDE_V2.md](IDE_V2.md)
+- **IDE v3** -- IDE layout + main chat routing (Ask/Agent, @codebase, auto specialist), review bar, editor trust. See [IDE_V3.md](IDE_V3.md)
 
 ## Documentation
 

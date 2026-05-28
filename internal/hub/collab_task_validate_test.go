@@ -69,4 +69,22 @@ func TestApprovePlanWarnsOnMissingTaskPaths(t *testing.T) {
 	if !strings.Contains(out.Content, "docs/api") {
 		t.Fatalf("expected docs/api in warning, got: %s", out.Content)
 	}
+
+	snap, err := cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if !snap.WorkspaceAcknowledged {
+		t.Fatal("expected workspace auto-acknowledged for sandbox with bound repo")
+	}
+	if !snap.TasksDispatched {
+		t.Fatal("expected tasks dispatched after auto-ack on approve")
+	}
+	msgs, _ := h.GetMessages("path-warn", 100)
+	if countMessageType(msgs, protocol.MessageTypeCollabTask) == 0 {
+		t.Fatal("expected collaboration_task messages after approve with bound repo")
+	}
+	if !strings.Contains(out.Content, "auto-confirmed") {
+		t.Fatalf("expected auto-confirmed notice, got: %s", out.Content)
+	}
 }

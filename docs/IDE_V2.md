@@ -1,6 +1,8 @@
 # IDE v2 (Software development pack)
 
-IDE v2 extends the dev pack with navigation/SCM depth (**v2a**) and editor-integrated agent workflow (**v2b**). All features require the **Software development** pack.
+IDE v2 extends the dev pack with navigation/SCM depth (**v2a**), editor-integrated agent workflow (**v2b**), and editor depth (**v2c**). All features require the **Software development** pack.
+
+See [IDE_V3.md](IDE_V3.md) for Cursor-like coding in the main chat (IDE layout).
 
 ## v2a — Navigation and SCM
 
@@ -11,7 +13,8 @@ IDE v2 extends the dev pack with navigation/SCM depth (**v2a**) and editor-integ
 
 ### v2a.2 Go to symbol
 
-- Hub: `GET /api/workspaces/symbols/search`
+- Hub: `GET /api/workspaces/symbols/search` (`q`, `kind`, `limit`)
+- Cached symbol index under `~/.neural-junkie/symbol-index/`
 - Desktop: **⌘⇧O** symbol modal, jump to file + line
 
 ### v2a.3 Diagnostics and Problems
@@ -20,10 +23,11 @@ IDE v2 extends the dev pack with navigation/SCM depth (**v2a**) and editor-integ
 - Problems panel (toolbar **!** button)
 - Click a problem → open file at line
 
-### v2a.3b Go diagnostics (optional)
+### v2a.3b Go / Rust / Python diagnostics (optional)
 
-- Hub: `GET /api/lsp/go/diagnostics` — runs `gopls check` when `gopls` is on PATH
-- Merged into Problems for open `.go` tabs
+- `GET /api/lsp/go/diagnostics` — `gopls check` when on PATH
+- `GET /api/lsp/rust/diagnostics` — `cargo check --message-format=json` when on PATH
+- `GET /api/lsp/python/diagnostics` — `pyright --outputjson` when on PATH
 
 ## v2b — Agent in the editor
 
@@ -38,12 +42,31 @@ IDE v2 extends the dev pack with navigation/SCM depth (**v2a**) and editor-integ
 - Hub: `POST /api/dev/fast-edit` — single specialist turn, proposes `[FILE_CHANGE]` when needed
 - Desktop: **⌘K** when the code editor is open
 
-## Deferred (v2c)
+## v2c — Editor depth (shipped)
 
-- Project-first default layout
-- Tab completion / ghost text
-- Full multi-language LSP (Rust, Python)
+### v2c.1 Project-first layout
+
+- Settings / toolbar: **IDE** vs **Team** preset
+- IDE: embedded file tree + editor + optional Agent dock; **Chat** toggles team channels
+
+### v2c.2 Symbol index
+
+- Go, TS/JS, Rust, Python via regex scan + disk cache (tree-sitter CLI optional later)
+
+### v2c.3 Multi-language diagnostics
+
+- Rust and Python hub routes (subprocess, same pattern as Go)
+
+### v2c.4 Tab completion
+
+- `POST /api/dev/complete` — Ollama FIM
+- Settings → inline completion toggle
+- Monaco inline completions provider
+
+## Deferred (v4+)
+
 - Remote SSH / dev containers
-- tree-sitter symbol index
+- Full Monaco LSP client
+- tree-sitter CLI / embedded queries (optional upgrade to symbol index)
 
 See [SOFTWARE_DEVELOPMENT_PACK.md](./SOFTWARE_DEVELOPMENT_PACK.md) for pack enablement.

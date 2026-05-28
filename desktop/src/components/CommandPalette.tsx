@@ -21,7 +21,7 @@ interface CommandPaletteProps {
   isOpen: boolean;
   initialFilter?: string;
   onClose: () => void;
-  onExecute: (commandString: string) => void;
+  onExecute: (commandString: string, metadata?: Record<string, unknown>) => void;
 }
 
 export function CommandPalette({
@@ -114,10 +114,13 @@ export function CommandPalette({
     }
   }, [onExecute, onClose]);
 
-  const handleFormSubmit = useCallback((commandString: string) => {
-    onExecute(commandString);
-    onClose();
-  }, [onExecute, onClose]);
+  const handleFormSubmit = useCallback(
+    (commandString: string, metadata?: Record<string, unknown>) => {
+      onExecute(commandString, metadata);
+      onClose();
+    },
+    [onExecute, onClose]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (activeCommand) return; // let the form handle keys when visible

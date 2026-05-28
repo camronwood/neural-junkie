@@ -7,26 +7,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Slack-inspired color palette
+        // Theme-aware palette (CSS vars in styles.css; data-theme on html)
         slack: {
-          bg: '#1a1d21',           // Main background
-          bgHover: '#222529',      // Hover background
-          sidebar: '#3f0e40',      // Sidebar (optional)
-          text: '#d1d2d3',         // Primary text
-          textMuted: '#9ca3af',    // Muted text
-          accent: '#1164a3',       // Primary blue
-          accentHover: '#0e4c7a',  // Primary blue hover
-          success: '#148567',      // Green accent
-          border: '#545454',       // Subtle borders
+          bg: 'var(--nj-bg)',
+          bgHover: 'var(--nj-bg-hover)',
+          sidebar: 'var(--nj-bg-hover)',
+          text: 'var(--nj-text)',
+          textMuted: 'var(--nj-text-muted)',
+          accent: 'var(--nj-accent)',
+          accentHover: 'var(--nj-accent-hover)',
+          success: 'var(--nj-success)',
+          border: 'var(--nj-border)',
+        },
+        nj: {
+          surface: 'var(--nj-surface-elevated)',
+          header: 'var(--nj-header-accent)',
         },
         agent: {
-          // Agent type colors (matching Fyne colors)
-          frontend: '#52b6ef',     // Blue
-          backend: '#af77ca',      // Purple
-          devops: '#f09348',       // Orange
-          database: '#fbd837',     // Yellow
-          security: '#f16a5a',     // Red
-          default: '#a9b9ba',      // Gray
+          frontend: '#52b6ef',
+          backend: '#af77ca',
+          devops: '#f09348',
+          database: '#fbd837',
+          security: '#f16a5a',
+          default: '#a9b9ba',
         },
       },
       fontFamily: {
@@ -61,4 +64,3 @@ export default {
   },
   plugins: [],
 }
-

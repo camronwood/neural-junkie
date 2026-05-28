@@ -74,7 +74,7 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
 
   return (
     <div
-      className="bg-[#1a1b26] border-t border-gray-700 flex flex-col overflow-hidden"
+      className="bg-slack-bg border-t border-slack-border flex flex-col overflow-hidden"
       style={{ height: `${height}px` }}
     >
       {/* Resize handle */}
@@ -88,7 +88,7 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
       </div>
 
       {/* Tab bar */}
-      <div className="flex items-center bg-[#13141f] border-b border-gray-800 px-1 min-h-[32px]">
+      <div className="flex items-center bg-slack-bgHover border-b border-slack-border px-1 min-h-[32px]">
         <div className="flex items-center gap-0.5 overflow-x-auto flex-1 scrollbar-none">
           {tabs.map((tab) => (
             <button
@@ -96,8 +96,8 @@ export function TerminalPanel({ height, channel, api, collaboration }: TerminalP
               onClick={() => setActiveTab(tab.id)}
               className={`group flex items-center gap-1.5 px-3 py-1.5 text-xs whitespace-nowrap rounded-t transition-colors ${
                 activeTabId === tab.id
-                  ? 'bg-[#1a1b26] text-white border-t border-x border-gray-700'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                  ? 'bg-slack-bg text-slack-text border-t border-x border-slack-border'
+                  : 'text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover'
               }`}
             >
               {tab.type === 'agent' ? (

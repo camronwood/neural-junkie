@@ -1,0 +1,55 @@
+{
+  "name": "execute-deliverable",
+  "description": "Approve plan, ack workspace on fixture repo, hub-approve findings.md grounded in minimal-repo (main.go).",
+  "channel": "collab-scenarios",
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
+    "goal": "@ChatModerator @Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write findings.md with paths and facts from those files."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {"action": "workspace_ack"},
+    {
+      "action": "wait_tasks",
+      "min_completed": 1,
+      "all_match": false,
+      "timeout": "300s"
+    },
+    {
+      "action": "assert_messages",
+      "require_task_status": true,
+      "deny_task_status_blocked": true,
+      "deny_failed_command_output": true,
+      "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "findings.md",
+      "target_rel": "collabs/<collab-id>/findings.md",
+      "expect_path": "collabs/<collab-id>/findings.md",
+      "require_hub_approval": true,
+      "from_discussion_fallback": false,
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/findings.md",
+      "must_exist": true,
+      "min_bytes": 40,
+      "deny_task_status": true,
+      "any_match": ["main\\.go", "core/sample", "minimal"],
+      "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module", "security vulnerabilities identified"]
+    }
+  ],
+  "cleanup": "cancel"
+}

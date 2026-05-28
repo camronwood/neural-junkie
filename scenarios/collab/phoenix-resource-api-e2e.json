@@ -1,0 +1,64 @@
+{
+  "name": "phoenix-resource-api-e2e",
+  "description": "Full Phoenix collab: planning through markdown deliverable under collabs/<id>/",
+  "channel": "collab-scenarios",
+  "agents": "@Assistant @SoftwareArchitect @BackendEngineer",
+  "required_agents": ["Assistant", "SoftwareArchitect", "BackendEngineer"],
+  "workspace": {
+    "path_env": "NEURAL_JUNKIE_SCENARIO_REPO",
+    "workspace_flag": true,
+    "outline": true
+  },
+  "collaborate": {
+    "flags": ["--rounds", "3", "--messages", "15", "--workspace"],
+    "goal": "@SoftwareArchitect @BackendEngineer @Assistant Investigate resource api document schema standardization/registration, and produce a markdown document under collabs/<id>/resource-api-schema-registration.md. Focus on resource-api/json_endpoints and docs/tim — not core/sample/main.go."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_discussion",
+      "min_total": 4,
+      "min_per_agent": 1,
+      "required_agents": ["Assistant", "SoftwareArchitect", "BackendEngineer"],
+      "timeout": "300s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "240s"},
+    {"action": "wait_planning_recap", "timeout": "180s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 1,
+      "max_tasks": 8,
+      "tasks_have_assignee": true,
+      "title_none_match": ["task is to ", "specific actions", "example actions", "files to review"],
+      "content_any_match": ["schema|standardiz|registr|markdown|resource\\s*api|json_endpoints"]
+    },
+    {"action": "assert_collab", "phase": "reviewing", "source_repo_path_nonempty": true},
+    {"action": "approve_plan"},
+    {"action": "workspace_ack"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 60},
+    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {
+      "action": "wait_tasks",
+      "settle_only": true,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_contains": "collabs/",
+      "target_rel": "collabs/<collab-id>/resource-api-schema-registration.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": 90
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/resource-api-schema-registration.md",
+      "min_bytes": 200,
+      "any_match": ["schema|standardiz|registr|resource.api|json_endpoints"],
+      "deny_task_status": true
+    },
+    {"action": "send", "content": "/complete-collab <collab-id> --force"},
+    {"action": "wait_phase", "phase": "completed", "timeout": "180s"}
+  ],
+  "cleanup": "cancel"
+}

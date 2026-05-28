@@ -90,7 +90,7 @@ export function FileChangeCard({ change, onPreview, onApprove, onReject }: FileC
 
       <div className="mb-3">
         <div className="text-xs font-medium text-slack-textMuted mb-1">File</div>
-        <div className="text-sm font-mono bg-[#0f1115] border border-slack-border rounded px-2 py-1 break-all text-slack-text">
+        <div className="text-sm font-mono bg-nj-surface border border-slack-border rounded px-2 py-1 break-all text-slack-text">
           {getDisplayPath()}
         </div>
       </div>

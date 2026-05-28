@@ -1,6 +1,6 @@
 {
-  "updated": "2026-05-22T17:37:33Z",
-  "count": 25,
+  "updated": "2026-05-28T18:41:10Z",
+  "count": 28,
   "items": [
     {
       "id": "neural-junkie-beta-download-ad-1080",
@@ -21,6 +21,15 @@
       "filename": "neural-junkie-biology-pack-ad-1080.png"
     },
     {
+      "id": "neural-junkie-byom-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-byom-ad-1080.png",
+      "title": "Byom",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-byom-ad-1080.png"
+    },
+    {
       "id": "neural-junkie-cli-agents-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-cli-agents-ad-1080.png",
       "title": "Cli Agents",
@@ -32,6 +41,17 @@
       "filename": "neural-junkie-cli-agents-ad-1080.png"
     },
     {
+      "id": "neural-junkie-collab-craft-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-collab-craft-ad-1080.png",
+      "title": "Collab Craft",
+      "caption": "",
+      "category": "ads",
+      "tags": [
+        "collaboration"
+      ],
+      "filename": "neural-junkie-collab-craft-ad-1080.png"
+    },
+    {
       "id": "neural-junkie-collaboration-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-collaboration-ad-1080.png",
       "title": "Collaboration",
@@ -41,6 +61,15 @@
         "collaboration"
       ],
       "filename": "neural-junkie-collaboration-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-community-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-community-ad-1080.png",
+      "title": "Community",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-community-ad-1080.png"
     },
     {
       "id": "neural-junkie-context-scope-ad-1080",

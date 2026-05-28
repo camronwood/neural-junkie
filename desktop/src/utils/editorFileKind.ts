@@ -20,3 +20,15 @@ export function workspaceAbsolutePath(workspacePath: string, relativePath: strin
   const rel = relativePath.replace(/^[/\\]+/, '');
   return `${root}/${rel}`;
 }
+
+/** Convert an absolute path to a workspace-relative path, or null if outside the workspace. */
+export function workspaceRelativePath(workspacePath: string, absolutePath: string): string | null {
+  const root = workspacePath.replace(/[/\\]+$/, '');
+  const abs = absolutePath.replace(/[/\\]+$/, '');
+  const normRoot = root.replace(/\\/g, '/');
+  const normAbs = abs.replace(/\\/g, '/');
+  if (normAbs === normRoot) return '';
+  const prefix = `${normRoot}/`;
+  if (!normAbs.startsWith(prefix)) return null;
+  return normAbs.slice(prefix.length);
+}

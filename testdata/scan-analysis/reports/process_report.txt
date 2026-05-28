@@ -1,0 +1,77 @@
+Starting analysis at 2026-05-01 21:45:58.540012
+
+Analysis ID: 2026-05-01T21:45:32.989000
+Analysis Date: 69f51efcbe8464d1c2cefdab
+ScanResults ID: 69f51bc2b6197fc3fa446896
+Scan date: 2026-05-01T21:31:47.687353
+Product ID: 6811198959fb0aec0c81e338
+Analysis Plate Map ID: 69f51a43bad4f943376815bb
+
+Analysis name: 050126_LMHQC_0430SD_13009_E6_P2_R1009_041426_041526
+Analysis Plate Map name: BD_STD_ACEFGH Unkn
+Product name: Human Inflammatory 12-Plex (V1)
+Plate barcode: HIF12A-1-2613009-1
+Scan name: HIF12A-1-2613009-1 - Human Inflammatory 12-Plex (V1)
+
+Experiment wells: A1: unk1 (unknown), A2: unk2 (unknown), A3: unk3 (unknown), A4: unk4 (unknown), A5: unk5 (unknown),
+A6: unk6 (unknown), A7: unk7 (unknown), A8: unk8 (unknown), A9: unk9 (unknown), A10: unk10 (unknown), A11: unk11
+(unknown), A12: unk12 (unknown), B1: stnd1 (standard), B2: stnd2 (standard), B3: stnd3 (standard), B4: stnd4 (standard),
+B5: stnd5 (standard), B6: stnd6 (standard), B7: stnd7 (standard), B8: stnd8 (standard), B9: stnd9 (standard), B10:
+stnd10 (standard), B11: stnd11 (standard), B12: blank (blank), C1: unk13 (unknown), C2: unk14 (unknown), C3: unk15
+(unknown), C4: unk16 (unknown), C5: unk17 (unknown), C6: unk18 (unknown), C7: unk19 (unknown), C8: unk20 (unknown), C9:
+unk21 (unknown), C10: unk22 (unknown), C11: unk23 (unknown), C12: unk24 (unknown), D1: stnd1 (standard), D2: stnd2
+(standard), D3: stnd3 (standard), D4: stnd4 (standard), D5: stnd5 (standard), D6: stnd6 (standard), D7: stnd7
+(standard), D8: stnd8 (standard), D9: stnd9 (standard), D10: stnd10 (standard), D11: stnd11 (standard), D12: blank
+(blank), E1: unk25 (unknown), E2: unk26 (unknown), E3: unk27 (unknown), E4: unk28 (unknown), E5: unk29 (unknown), E6:
+unk30 (unknown), E7: unk31 (unknown), E8: unk32 (unknown), E9: unk33 (unknown), E10: unk34 (unknown), E11: unk35
+(unknown), E12: unk36 (unknown), F1: unk37 (unknown), F2: unk38 (unknown), F3: unk39 (unknown), F4: unk40 (unknown), F5:
+unk41 (unknown), F6: unk42 (unknown), F7: unk43 (unknown), F8: unk44 (unknown), F9: unk45 (unknown), F10: unk46
+(unknown), F11: unk47 (unknown), F12: unk48 (unknown), G1: unk49 (unknown), G2: unk50 (unknown), G3: unk51 (unknown),
+G4: unk52 (unknown), G5: unk53 (unknown), G6: unk54 (unknown), G7: unk55 (unknown), G8: unk56 (unknown), G9: unk57
+(unknown), G10: unk58 (unknown), G11: unk59 (unknown), G12: unk60 (unknown), H1: unk61 (unknown), H2: unk62 (unknown),
+H3: unk63 (unknown), H4: unk64 (unknown), H5: unk65 (unknown), H6: unk66 (unknown), H7: unk67 (unknown), H8: unk68
+(unknown), H9: unk69 (unknown), H10: unk70 (unknown), H11: unk71 (unknown), H12: unk72 (unknown)
+
+Signal calculation algorithm: mean-threshold
+Initial concentrations: {'IFN-gamma': 600.0, 'IL-10': 400.0, 'IL-13': 600.0, 'IL-1alpha': 150.0, 'IL-1beta': 600.0,
+'IL-2': 600.0, 'IL-4': 200.0, 'IL-5': 200.0, 'IL-6': 150.0, 'IL-8': 250.0, 'IL-12p70': 800.0, 'TNF-alpha': 2000.0}
+Dilution factor: 3.0
+
+IFN-gamma: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IFN-gamma
+
+IL-10: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-10
+
+IL-13: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-13
+
+IL-1alpha: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-1alpha
+
+IL-1beta: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-1beta
+
+IL-2: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-2
+
+IL-4: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-4
+
+IL-5: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-5
+
+IL-6: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-6
+
+IL-8: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-8
+
+IL-12p70: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte IL-12p70
+
+TNF-alpha: 100 out of 100 sample curves were created.
+Standard curve successfully generated for analyte TNF-alpha
+
+
+Analysis completed at 2026-05-01 21:46:44.828676
