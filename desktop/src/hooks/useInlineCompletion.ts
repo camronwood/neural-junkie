@@ -75,7 +75,7 @@ export function useInlineCompletion(
             }, 400);
           });
         },
-        freeInlineCompletions: () => {},
+        disposeInlineCompletions: () => {},
       }
     );
 

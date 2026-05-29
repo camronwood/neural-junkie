@@ -700,6 +700,8 @@ export interface Collaboration {
   working_directory?: string;
   /** True after user confirms workspace setup; until then task prompts are not sent to agents. */
   workspace_acknowledged?: boolean;
+  /** True after the hub has sent initial task prompts to assignees. */
+  tasks_dispatched?: boolean;
   execution_policy?: ExecutionPolicy;
   graph_layout?: GraphLayout;
   dispatch_paused?: boolean;
