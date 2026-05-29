@@ -279,6 +279,79 @@ func TestExecutionReplyDoesNotOverwriteApprovedPlanArtifact(t *testing.T) {
 	}
 }
 
+func TestApprovePlanMaterializesDeliverableStubsInProjectCollabDir(t *testing.T) {
+	h := NewHub()
+	assetsRoot := t.TempDir()
+	h.SetCollaborationAssetsRootResolver(func() string { return assetsRoot })
+	_ = h.CreateChannel("stub-approve", "stub approve", "tester")
+
+	sourceWorkspace := t.TempDir()
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "BackendEngineer", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	plan := `### Task 1: Define Scope and Objectives (@BackendEngineer)
+- **Deliverable:** ` + "`collabs/TBD/scope.md`" + `
+- **Details:** List APIs in scope
+
+### Task 2: Review Existing API Documentation (@FrontendEngineer)
+- **Deliverable:** ` + "`collabs/TBD/existing-schema.md`" + `
+`
+	collab, err := cm.CreateCollaboration("schema scope", []string{"a1", "a2"}, "stub-approve", "tester", collaboration.DiscussionConfig{}, collaboration.CreateOptions{
+		SourceRepoPath: sourceWorkspace,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	plan = strings.ReplaceAll(plan, "TBD", collab.ID[:8])
+	if err := cm.UpdateArtifact(collab.ID, "a1", "BackendEngineer", plan); err != nil {
+		t.Fatalf("artifact: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("reviewing: %v", err)
+	}
+	if err := cm.CompletePlanningRecap(collab.ID, "a2", "ready"); err != nil {
+		t.Fatalf("recap: %v", err)
+	}
+	if _, err := cm.ApprovePlan(collab.ID); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	snap, err := cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot after approve: %v", err)
+	}
+	tasks, _ := collaboration.NormalizeAndValidateTasksForExecution(snap)
+	if err := cm.SetTasks(collab.ID, tasks); err != nil {
+		t.Fatalf("set tasks: %v", err)
+	}
+	if _, err := cm.TransitionToExecuting(collab.ID); err != nil {
+		t.Fatalf("executing: %v", err)
+	}
+	h.persistCollaborationReviewAssets(collab.ID)
+	snap, err = cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if len(tasks) == 0 {
+		t.Fatal("expected extracted tasks")
+	}
+	if !collaboration.TaskRequiresFileDeliverable(tasks[0]) {
+		t.Fatalf("task should require file deliverable after enrich: %q", tasks[0].Description)
+	}
+	collabDir := filepath.Join(sourceWorkspace, collaboration.ProjectCollabsDirName, collab.ID)
+	for _, name := range []string{"scope.md", "plan.md"} {
+		p := filepath.Join(collabDir, name)
+		if st, err := os.Stat(p); err != nil || st.IsDir() {
+			t.Fatalf("expected file %s: err=%v", p, err)
+		}
+	}
+	if snap.WorkingDirectory != collabDir {
+		t.Fatalf("working_directory=%q want %q", snap.WorkingDirectory, collabDir)
+	}
+}
+
 func assertHubFileContains(t *testing.T, path, want string) {
 	t.Helper()
 	data, err := os.ReadFile(path)

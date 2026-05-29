@@ -13,6 +13,7 @@ type Input struct {
 	HasUserImages       bool
 	Providers           []config.ProviderConfig
 	DefaultProviderID   string
+	AvailableLoRATags   map[string]struct{}
 }
 
 // SelectProviderID returns a provider config id and a short reason code.
@@ -32,6 +33,11 @@ func SelectProviderID(in Input) (id string, reason string) {
 	}
 
 	if looksSecurity(text) {
+		if tagInstalled(in.AvailableLoRATags, "nj-security:14b") {
+			if id := pickProviderByType(in.Providers, "ollama"); id != "" {
+				return id, "security_lora_local"
+			}
+		}
 		id := pickByTier(in.Providers, tierPremium, false)
 		if id != "" {
 			return id, "security_premium"
@@ -139,4 +145,14 @@ func pickByTier(providers []config.ProviderConfig, tierFn func(string) int, mini
 		}
 	}
 	return bestID
+}
+
+func pickProviderByType(providers []config.ProviderConfig, pType string) string {
+	pType = strings.ToLower(strings.TrimSpace(pType))
+	for _, p := range providers {
+		if strings.EqualFold(strings.TrimSpace(p.Type), pType) && strings.TrimSpace(p.ID) != "" {
+			return p.ID
+		}
+	}
+	return ""
 }

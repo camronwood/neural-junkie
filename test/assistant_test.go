@@ -476,6 +476,7 @@ func (m *MockHub) GetChannelType(channelName string) protocol.ChannelType {
 	return protocol.ChannelTypePublic
 }
 func (m *MockHub) GetChannelSessionSummary(channel string) string { return "" }
+func (m *MockHub) GetThreadMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
 func (m *MockHub) IsChannelHeld(channel string) bool              { return false }
 func (m *MockHub) ImageGenerationEnabled() bool { return false }
 func (m *MockHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {

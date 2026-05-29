@@ -16,13 +16,21 @@ const (
 	summaryLLMTimeout         = 30 * time.Second
 )
 
+func channelMaintainsSessionSummary(chType protocol.ChannelType, channel string) bool {
+	if chType == protocol.ChannelTypeDM || chType == protocol.ChannelTypeCustom || chType == protocol.ChannelTypePublic {
+		return true
+	}
+	channel = strings.TrimSpace(strings.ToLower(channel))
+	return strings.HasPrefix(channel, "dm-")
+}
+
 // noteChannelActivity updates turn counters and may schedule an async summary refresh.
 func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 	if msg == nil || strings.TrimSpace(msg.Channel) == "" {
 		return
 	}
 	chType := h.GetChannelType(msg.Channel)
-	if chType != protocol.ChannelTypeDM && chType != protocol.ChannelTypeCustom {
+	if !channelMaintainsSessionSummary(chType, msg.Channel) {
 		return
 	}
 	if msg.Type == protocol.MessageTypeStreamDelta ||

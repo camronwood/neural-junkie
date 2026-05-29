@@ -78,6 +78,24 @@ func TestNoteChannelActivity_summaryRefresh(t *testing.T) {
 	t.Fatal("expected summary to be generated")
 }
 
+func TestNoteChannelActivity_publicChannelEligible(t *testing.T) {
+	h := NewHub()
+	name := "general"
+	h.CreateChannelWithType(name, "General", "", protocol.ChannelTypePublic, "system")
+	if !channelMaintainsSessionSummary(protocol.ChannelTypePublic, name) {
+		t.Fatal("public channel should maintain session summary")
+	}
+	user := protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, name, user, "hello team")
+	h.noteChannelActivity(msg)
+	h.mu.RLock()
+	st := h.channelContext[name]
+	h.mu.RUnlock()
+	if st == nil || st.UserTurns != 1 {
+		t.Fatalf("expected user turn counted on public channel, got %+v", st)
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

@@ -19,11 +19,22 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 | Cursor / Gemini CLI agents | [CLI_AGENTS.md](docs/CLI_AGENTS.md) |
 | Agent review (@mentions in threads) | [AGENT_REVIEW.md](docs/AGENT_REVIEW.md) |
 | Multi-agent collaboration | [COLLABORATION.md](docs/COLLABORATION.md) |
+| LoRA adapters (import & compose) | [LORA_ADAPTERS.md](docs/LORA_ADAPTERS.md) |
+| LoRA training (in-app wizard) | [LORA_TRAINING.md](docs/LORA_TRAINING.md) |
 | Product overview | [USER_VALUE_GUIDE.md](docs/USER_VALUE_GUIDE.md) |
 | Maintainer / internals | [DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md) |
 | Release history | [CHANGELOG.md](docs/CHANGELOG.md) |
 | Roadmap / ideas | [FUTURE_ENHANCEMENTS.md](docs/FUTURE_ENHANCEMENTS.md) |
 | Current status | [STATUS.md](docs/STATUS.md) |
+
+## Marketing / publish copy (`docs/marketing/`)
+
+| Topic | File |
+|--------|------|
+| Multi-agent collaboration (LinkedIn article) | [COLLABORATION-LINKEDIN.md](docs/marketing/COLLABORATION-LINKEDIN.md) |
+| Conversational & collab test harness (LinkedIn article) | [CONVERSATIONAL-TEST-HARNESS.md](docs/marketing/CONVERSATIONAL-TEST-HARNESS.md) |
+| LoRA adapters & training (LinkedIn article) | [LORA-LINKEDIN.md](docs/marketing/LORA-LINKEDIN.md) |
+| Collab craft ad | [COLLAB-CRAFT-AD.md](docs/marketing/COLLAB-CRAFT-AD.md) |
 
 ## Static site
 

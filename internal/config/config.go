@@ -33,6 +33,7 @@ type AgentConfig struct {
 	Name       string `json:"name"`
 	Enabled    bool   `json:"enabled"`
 	ProviderID string `json:"provider_id,omitempty"`
+	Model      string `json:"model,omitempty"` // overrides provider row model for this agent
 }
 
 type AIConfig struct {
@@ -350,6 +351,48 @@ func (c *Config) SetAgentProvider(agentType, providerID string) error {
 	return fmt.Errorf("agent type %q not found", agentType)
 }
 
+// SetAgentRuntimeProvider updates provider and model for an agent matched by name or type.
+func (c *Config) SetAgentRuntimeProvider(name, agentType, providerID, model string) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	name = strings.TrimSpace(name)
+	agentType = strings.TrimSpace(agentType)
+	for i := range c.Agents {
+		if name != "" && c.Agents[i].Name == name {
+			if providerID != "" {
+				c.Agents[i].ProviderID = providerID
+			}
+			c.Agents[i].Model = strings.TrimSpace(model)
+			return true
+		}
+	}
+	for i := range c.Agents {
+		if agentType != "" && c.Agents[i].Type == agentType {
+			if providerID != "" {
+				c.Agents[i].ProviderID = providerID
+			}
+			c.Agents[i].Model = strings.TrimSpace(model)
+			return true
+		}
+	}
+	return false
+}
+
+// ClearAllAgentModels removes per-agent model overrides.
+func (c *Config) ClearAllAgentModels() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := range c.Agents {
+		c.Agents[i].Model = ""
+	}
+}
+
 func (c *Config) EnabledAgents() []AgentConfig {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -376,15 +419,17 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 	if p == nil {
 		return nil
 	}
+	copy := *p
 	if a.Type == "biology" && c.IsPackEnabled(PackLifeSciences) {
-		copy := *p
 		m := strings.TrimSpace(copy.Model)
 		if m == "" || m == BioOllamaTag {
 			copy.Model = BioOllamaChatModel
 		}
-		return &copy
 	}
-	return p
+	if m := strings.TrimSpace(a.Model); m != "" {
+		copy.Model = m
+	}
+	return &copy
 }
 
 // ListProvidersSnapshot returns a copy of configured providers (thread-safe).

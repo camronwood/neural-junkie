@@ -117,7 +117,8 @@ make server
 1. Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and set `HF_TOKEN` in `env.local` or add a **Hugging Face** row under **Settings → AI Providers → Provider registry** (`type: huggingface`, model = Hub repo id such as `Qwen/Qwen2.5-Coder-7B-Instruct`).
 2. **Hosted (cloud):** open the toolbar **Model library** (⇧⌘M), **Hugging Face** tab, **Hosted**, then **Use for agents** (or **Add provider** on the detail screen).
 3. **Local download:** use the **Download** tab to pull a curated GGUF, then **Import to Ollama** (requires Ollama running). Agents use the Ollama provider with the imported tag.
-4. When creating a DM expert, choose **Hugging Face (hosted)** or **From hub providers** to bind `provider_id` from the registry.
+4. **LoRA adapters:** download adapter safetensors, pull base `qwen2.5-coder:14b`, then **Compose & import**. See [LORA_ADAPTERS.md](LORA_ADAPTERS.md).
+5. When creating a DM expert, choose **Hugging Face (hosted)** or **From hub providers** to bind `provider_id` from the registry.
 
 ### Switching Providers at Runtime
 

@@ -1,0 +1,69 @@
+{
+  "name": "resource-api-schema-regression",
+  "description": "Regression for stuck Phoenix-style collab: bound workspace, enriched task deliverables, plan stubs after approve, no sandbox-only drift.",
+  "channel": "collab-scenarios",
+  "agents": "@Assistant @BackendEngineer @FrontendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer", "FrontendEngineer"],
+  "workspace": {
+    "path_env": "NEURAL_JUNKIE_SCENARIO_REPO",
+    "workspace_flag": true,
+    "outline": true
+  },
+  "collaborate": {
+    "flags": ["--rounds", "2", "--messages", "10", "--workspace"],
+    "goal": "@Assistant @BackendEngineer @FrontendEngineer Investigate resource api document schema standardization/registration. Use plan tasks like: ### Task 1: Define Scope (@Assistant) with Deliverable collabs/<id>/scope.md; ### Task 2: Review API docs (@BackendEngineer) with Deliverable collabs/<id>/existing-schema.md. Produce real markdown deliverables, not chat-only summaries."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_discussion",
+      "min_total": 3,
+      "min_per_agent": 1,
+      "required_agents": ["Assistant", "BackendEngineer", "FrontendEngineer"],
+      "timeout": "240s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 2,
+      "max_tasks": 8,
+      "tasks_have_assignee": true,
+      "tasks_have_file_deliverable": true,
+      "min_file_tasks": 2,
+      "content_any_match": ["schema|standardiz|registr|markdown|resource\\s*api|scope\\.md|existing-schema"]
+    },
+    {"action": "assert_collab", "phase": "reviewing", "source_repo_path_nonempty": true},
+    {"action": "approve_plan"},
+    {"action": "assert_collab", "phase": "executing", "source_repo_path_nonempty": true, "workspace_acknowledged": true},
+    {
+      "action": "assert_deliverable_stubs",
+      "min_stubs": 1,
+      "require_plan_md": true
+    },
+    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {"action": "wait_tasks", "settle_only": true, "timeout": "90s"},
+    {
+      "action": "assert_messages",
+      "phase": "executing",
+      "none_match": ["/approve-plan", "Approve the Plan"],
+      "deny_task_status_blocked": false
+    },
+    {
+      "action": "approve_file_changes",
+      "path_contains": "collabs/",
+      "target_rel": "collabs/<collab-id>/scope.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": 120
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/scope.md",
+      "min_bytes": 80,
+      "any_match": ["scope|schema|api|standardiz"],
+      "deny_task_status": true
+    }
+  ],
+  "cleanup": "cancel"
+}

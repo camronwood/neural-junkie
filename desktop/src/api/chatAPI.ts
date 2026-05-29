@@ -37,6 +37,44 @@ export interface PackCatalogEntry {
   builtin?: boolean;
   installed: boolean;
   enabled: boolean;
+  lora_adapter_count?: number;
+  lora_base_tags?: string[];
+}
+
+export interface InstallPackLoRAResult {
+  agent_type?: string;
+  repo_id: string;
+  ollama_tag: string;
+  status: string;
+  error?: string;
+}
+
+export interface InstallPackLoRAsResponse {
+  status: string;
+  pack_id: string;
+  results: InstallPackLoRAResult[];
+}
+
+export interface LoraTrainJob {
+  id: string;
+  status: string;
+  source: string;
+  source_id: string;
+  base_ollama_tag: string;
+  ollama_tag: string;
+  row_count?: number;
+  log_tail?: string[];
+  error?: string;
+}
+
+export interface LoraTrainStartRequest {
+  source: 'channel' | 'collaboration' | 'repo';
+  source_id: string;
+  thread_id?: string;
+  agent_name?: string;
+  base_ollama_tag: string;
+  ollama_tag: string;
+  hyperparams?: { rank?: number; epochs?: number; learning_rate?: number; max_seq_len?: number };
 }
 
 export interface PacksAPIResponse {
@@ -2022,6 +2060,17 @@ export class ChatAPI {
     return this.parsePacksMutationResponse(await response.json());
   }
 
+  async installPackLoRAs(packId: string): Promise<InstallPackLoRAsResponse> {
+    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install-loras`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
   async uninstallPack(packId: string): Promise<PacksAPIResponse> {
     const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}`, {
       method: 'DELETE',
@@ -2068,6 +2117,49 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(`Failed to restart agents: ${response.statusText}`);
     }
+  }
+
+  async previewLoraTrain(params: {
+    source: string;
+    source_id: string;
+    thread_id?: string;
+    agent_name?: string;
+  }): Promise<number> {
+    const q = new URLSearchParams({
+      source: params.source,
+      source_id: params.source_id,
+    });
+    if (params.thread_id) q.set('thread_id', params.thread_id);
+    if (params.agent_name) q.set('agent_name', params.agent_name);
+    const response = await this.hubFetch(`/api/lora/train/preview?${q.toString()}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = await response.json();
+    return Number(data.row_count ?? 0);
+  }
+
+  async startLoraTrain(body: LoraTrainStartRequest): Promise<LoraTrainJob> {
+    const response = await this.hubFetch(`/api/lora/train`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
+    const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
   }
 }
 

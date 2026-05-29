@@ -185,6 +185,33 @@ func (m *Manager) ListModels(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// HasModel reports whether an Ollama tag is installed locally.
+func (m *Manager) HasModel(ctx context.Context, tag string) (bool, error) {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return false, fmt.Errorf("model tag is required")
+	}
+	names, err := m.ListModels(ctx)
+	if err != nil {
+		return false, err
+	}
+	want := tag
+	wantWithLatest := tag
+	if !strings.Contains(tag, ":") {
+		wantWithLatest = tag + ":latest"
+	}
+	for _, name := range names {
+		if name == want || name == wantWithLatest {
+			return true, nil
+		}
+		// Match unversioned request against tagged names (qwen2.5-coder:14b vs qwen2.5-coder).
+		if strings.HasPrefix(name, want+":") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // PullModel pulls a model and streams progress to the provided callback.
 // The callback is called for each progress line from Ollama's streaming API.
 // Concurrent pulls are serialized so SSE clients do not interleave the same daemon state.

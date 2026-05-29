@@ -24,6 +24,7 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.scenario_assert import check_text_patterns  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "collab"
 DEFAULT_CHANNEL = "collab-scenarios"
@@ -280,6 +281,14 @@ def step_assert_messages(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     if step.get("include_system_discussion"):
         pool = [m for m in msgs if m.get("type") in ("collaboration_discussion", "answer", "command_output")]
 
+    phase_filter = (step.get("phase") or step.get("since_phase") or "").strip()
+    if phase_filter:
+        pool = [
+            m
+            for m in pool
+            if ((m.get("metadata") or {}).get("collaboration_phase") or "") == phase_filter
+        ]
+
     for pattern in step.get("none_match") or []:
         hits = hub.messages_matching(pool, pattern)
         if hits:
@@ -399,6 +408,18 @@ def step_assert_plan(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         if not re.search(pattern, plan_text, re.I):
             return False, f"plan content_any_match not found: {pattern!r}"
 
+    if step.get("tasks_have_file_deliverable"):
+        file_tasks = 0
+        for t in tasks:
+            if not isinstance(t, dict):
+                continue
+            combined = f"{t.get('title') or ''} {t.get('description') or ''}".lower()
+            if "write " in combined or ".md" in combined or "collabs/" in combined:
+                file_tasks += 1
+        min_file = int(step.get("min_file_tasks", 1))
+        if file_tasks < min_file:
+            return False, f"tasks with file deliverable hints={file_tasks} want >={min_file}"
+
     return True, f"plan ok (tasks={len(tasks)})"
 
 
@@ -516,22 +537,6 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     return False, f"no file change approved (pending={n}, ids={ids})"
 
 
-def _check_text_patterns(
-    text: str,
-    *,
-    any_match: list[str] | None = None,
-    none_match: list[str] | None = None,
-    label: str = "content",
-) -> tuple[bool, str]:
-    for pattern in none_match or []:
-        if re.search(pattern, text, re.I | re.MULTILINE):
-            return False, f"{label} none_match {pattern!r}"
-    if any_match:
-        if not any(re.search(p, text, re.I | re.MULTILINE) for p in any_match):
-            return False, f"{label} any_match not found (want one of {any_match!r})"
-    return True, "ok"
-
-
 def step_assert_files(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     rel = (step.get("path") or "").strip()
     if not rel:
@@ -552,7 +557,7 @@ def step_assert_files(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         body = full.read_text(encoding="utf-8", errors="replace")
         if step.get("deny_task_status") and re.search(r"TASK_STATUS:\s*\S+", body, re.I):
             return False, "file contains TASK_STATUS (chat leakage)"
-        ok, detail = _check_text_patterns(
+        ok, detail = check_text_patterns(
             body,
             any_match=step.get("any_match") or step.get("content_any_match"),
             none_match=step.get("none_match") or step.get("content_none_match"),
@@ -561,6 +566,42 @@ def step_assert_files(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         if not ok:
             return False, detail
     return True, str(full)
+
+
+def step_assert_deliverable_stubs(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    if not ctx.collab_id or not ctx.workspace_root:
+        return False, "need collab_id and workspace root"
+    rel_dir = f"collabs/{ctx.collab_id}"
+    collab_dir = Path(ctx.workspace_root) / rel_dir
+    if not collab_dir.is_dir():
+        return False, f"missing deliverables dir {collab_dir}"
+
+    min_stubs = int(step.get("min_stubs", 1))
+    skip_names = {n.lower() for n in (step.get("skip_names") or ["README.md", "planning-summary.md", "session-summary.md"])}
+    stubs = [
+        p
+        for p in collab_dir.glob("*.md")
+        if p.is_file() and p.name.lower() not in skip_names
+    ]
+    if step.get("require_plan_md", True):
+        plan_md = collab_dir / "plan.md"
+        if not plan_md.is_file():
+            return False, f"missing {plan_md}"
+        stubs = [p for p in stubs if p.name.lower() != "plan.md"]
+        deliverable_stubs = [p for p in collab_dir.glob("*.md") if p.name.lower() not in skip_names | {"plan.md"}]
+    else:
+        deliverable_stubs = stubs
+
+    if len(deliverable_stubs) < min_stubs:
+        names = sorted(p.name for p in collab_dir.glob("*"))
+        return False, f"deliverable stubs={len(deliverable_stubs)} want >={min_stubs} in {collab_dir} files={names}"
+
+    c = hub.fetch_collab(ctx.base, ctx.collab_channel, ctx.collab_id)
+    wd = ((c or {}).get("working_directory") or "").strip()
+    if wd and Path(wd).resolve() != collab_dir.resolve():
+        return False, f"working_directory={wd!r} != {collab_dir!r}"
+
+    return True, f"{len(deliverable_stubs)} stub(s) in {collab_dir}"
 
 
 def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
@@ -578,6 +619,7 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         "wait_tasks": step_wait_tasks,
         "approve_file_changes": step_approve_file_changes,
         "assert_files": step_assert_files,
+        "assert_deliverable_stubs": step_assert_deliverable_stubs,
     }
     fn = handlers.get(action)
     if not fn:

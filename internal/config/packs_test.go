@@ -112,6 +112,7 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	presets := cfg.AvailableExpertPresets()
 	hasArchitecture := false
 	hasCodeReview := false
+	hasDatabase := false
 	for _, p := range presets {
 		if p.Slug == "architecture" && p.FromPack == PackSoftwareDevelopment {
 			hasArchitecture = true
@@ -119,7 +120,10 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 		if p.Slug == "code-review" && p.FromPack == PackSoftwareDevelopment {
 			hasCodeReview = true
 		}
-		if p.Slug == "rust" || p.Slug == "database" {
+		if p.Slug == "database" && p.FromPack == PackSoftwareDevelopment {
+			hasDatabase = true
+		}
+		if p.Slug == "rust" {
 			t.Fatalf("legacy preset %q should not appear in software-development pack defaults", p.Slug)
 		}
 	}
@@ -128,6 +132,9 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	}
 	if !hasCodeReview {
 		t.Fatal("expected code-review preset from software-development pack")
+	}
+	if !hasDatabase {
+		t.Fatal("expected database preset from software-development pack")
 	}
 }
 
@@ -274,5 +281,29 @@ func TestMigrateInstalledPacksBothOn(t *testing.T) {
 	}
 	if cfg.LayoutOwnerPackID() != PackSoftwareDevelopment {
 		t.Fatalf("expected dev layout owner when both on, got %q", cfg.LayoutOwnerPackID())
+	}
+}
+
+func TestListPackCatalogStatusLoRAAdapterCount(t *testing.T) {
+	cfg := DefaultConfig()
+	rows, err := cfg.ListPackCatalogStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var devRow *PackCatalogStatus
+	for i := range rows {
+		if rows[i].ID == PackSoftwareDevelopment {
+			devRow = &rows[i]
+			break
+		}
+	}
+	if devRow == nil {
+		t.Fatal("software-development not in catalog")
+	}
+	if devRow.LoRAAdapterCount != 3 {
+		t.Fatalf("expected 3 lora adapters, got %d", devRow.LoRAAdapterCount)
+	}
+	if len(devRow.LoRABaseTags) != 1 || devRow.LoRABaseTags[0] != "qwen2.5-coder:14b" {
+		t.Fatalf("unexpected lora_base_tags: %v", devRow.LoRABaseTags)
 	}
 }

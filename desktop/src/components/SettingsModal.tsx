@@ -136,7 +136,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [hfTokenSaving, setHfTokenSaving] = useState(false);
   const [hfTokenErr, setHfTokenErr] = useState<string | null>(null);
   const [hfTokenOk, setHfTokenOk] = useState<string | null>(null);
+  const [configuredAgents, setConfiguredAgents] = useState<
+    { type: string; name: string; enabled: boolean; model?: string }[]
+  >([]);
+  const [agentModelsSaving, setAgentModelsSaving] = useState(false);
+  const [agentModelsErr, setAgentModelsErr] = useState<string | null>(null);
+  const [agentModelsOk, setAgentModelsOk] = useState<string | null>(null);
   const [mcpEnabled, setMcpEnabled] = useState(true);
+  const [mcpAgents, setMcpAgents] = useState<Record<string, boolean>>({});
   const [bioMaxFold, setBioMaxFold] = useState('400');
   const [bioMaxAnalyze, setBioMaxAnalyze] = useState('10000');
   const [bioEsmfoldModel, setBioEsmfoldModel] = useState('facebook/esmfold_v1');
@@ -665,11 +672,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setHfHubToken(redacted ? '' : hfTok);
           setHfHubTokenPersisted(redacted ? '***' : hfTok);
           setMcpEnabled(cfg.mcp?.enabled !== false);
+          setMcpAgents(
+            cfg.mcp?.agents && typeof cfg.mcp.agents === 'object'
+              ? (cfg.mcp.agents as Record<string, boolean>)
+              : {}
+          );
           const bio = cfg.mcp?.biology ?? {};
           setBioMaxFold(String(bio.max_fold_length || 400));
           setBioMaxAnalyze(String(bio.max_analyze_length || 10000));
           setBioEsmfoldModel(bio.esmfold_model || 'facebook/esmfold_v1');
           setBioArtifactsDir(bio.artifacts_dir || '');
+          const agentRows = Array.isArray(cfg.agents) ? cfg.agents : [];
+          setConfiguredAgents(
+            agentRows.filter((a: { enabled?: boolean }) => a.enabled !== false)
+          );
         }
       } catch (e) {
         if (!cancelled) {
@@ -816,6 +832,30 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const saveConfiguredAgentModels = async () => {
+    setAgentModelsSaving(true);
+    setAgentModelsErr(null);
+    setAgentModelsOk(null);
+    try {
+      await mergeSettingsPut((cfg) => {
+        const existing = Array.isArray(cfg.agents) ? cfg.agents : [];
+        const byKey = new Map(configuredAgents.map((a) => [`${a.type}\x00${a.name}`, a]));
+        const agents = existing.map((row: { type: string; name: string; model?: string }) => {
+          const hit = byKey.get(`${row.type}\x00${row.name}`);
+          if (!hit) return row;
+          return { ...row, model: hit.model?.trim() || undefined };
+        });
+        return { ...cfg, agents };
+      });
+      await fetch(`${hubHttp}/api/agents/restart`, { method: 'POST' });
+      setAgentModelsOk('Specialist models saved. Agents restarted.');
+    } catch (e) {
+      setAgentModelsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAgentModelsSaving(false);
+    }
+  };
+
   const saveBioMcpSettings = async () => {
     setBioSettingsSaving(true);
     setBioSettingsErr(null);
@@ -856,6 +896,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }));
     } catch (e) {
       setMcpEnabled(!enabled);
+      setBioSettingsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleMcpAgentToggle = async (agentKey: string, enabled: boolean) => {
+    setMcpAgents((prev) => ({ ...prev, [agentKey]: enabled }));
+    try {
+      await mergeSettingsPut((cfg) => {
+        const prevAgents =
+          cfg.mcp && typeof cfg.mcp === 'object' && cfg.mcp.agents && typeof cfg.mcp.agents === 'object'
+            ? (cfg.mcp.agents as Record<string, boolean>)
+            : {};
+        return {
+          ...cfg,
+          mcp: {
+            ...(cfg.mcp as object | undefined),
+            enabled: cfg.mcp?.enabled !== false,
+            agents: { ...prevAgents, [agentKey]: enabled },
+          },
+        };
+      });
+    } catch (e) {
+      setMcpAgents((prev) => ({ ...prev, [agentKey]: !enabled }));
       setBioSettingsErr(e instanceof Error ? e.message : String(e));
     }
   };
@@ -2709,6 +2772,47 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <PackStoreBrowse />
               </div>
 
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">MCP specialist tools</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Per-agent MCP tool servers. Enablement follows domain packs by default; override individual specialists here. Repo and Confluence agents always use in-process search tools when indexed.
+                </p>
+                <label className="flex items-center gap-3 cursor-pointer mb-4">
+                  <input
+                    type="checkbox"
+                    checked={mcpEnabled}
+                    onChange={(e) => void handleMcpMasterToggle(e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-sm text-slack-text">Enable MCP tool servers (master)</span>
+                </label>
+                {mcpEnabled && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {[
+                      ['backend', 'BackendEngineer'],
+                      ['frontend', 'FrontendEngineer'],
+                      ['devops', 'PlatformEngineer'],
+                      ['database', 'DatabaseSpecialist'],
+                      ['security', 'SecurityReviewer'],
+                      ['code-review', 'CodeReviewer'],
+                      ['architecture', 'SoftwareArchitect'],
+                      ['biology', 'BiologyExpert'],
+                      ['rust', 'RustExpert'],
+                    ].map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={mcpAgents[key] !== false}
+                          onChange={(e) => void handleMcpAgentToggle(key, e.target.checked)}
+                          className="rounded border-slack-border"
+                        />
+                        <span className="text-slack-text">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {bioPackTools && (
                 <div className="border border-slack-border rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-slack-text mb-2">Life sciences tools</h3>
@@ -2716,15 +2820,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     Limits for <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">analyze_sequence</code> and{' '}
                     <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">fold_protein</code> (BiologyExpert MCP).
                   </p>
-                  <label className="flex items-center gap-3 cursor-pointer mb-4">
-                    <input
-                      type="checkbox"
-                      checked={mcpEnabled}
-                      onChange={(e) => void handleMcpMasterToggle(e.target.checked)}
-                      className="rounded border-slack-border"
-                    />
-                    <span className="text-sm text-slack-text">Enable MCP tool servers (master)</span>
-                  </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="block text-sm">
                       <span className="text-slack-textMuted">Max fold length (aa)</span>
@@ -2907,6 +3002,63 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {collabRoutingErr && (
                   <p className="text-sm text-red-600 mt-2">{collabRoutingErr}</p>
                 )}
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Specialist model overrides</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Per-agent Ollama tags (including composed LoRA tags like <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">nj-security:14b</code>).
+                  Leave blank to use the provider default. Saves to hub config and applies on next agent restart.
+                </p>
+                {configuredAgents.length === 0 ? (
+                  <p className="text-sm text-slack-textMuted">No configured specialists. Enable a domain pack first.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {configuredAgents.map((a) => (
+                      <li key={`${a.type}-${a.name}`} className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <span className="text-sm text-slack-text sm:w-48 shrink-0">
+                          {a.name}{' '}
+                          <span className="text-slack-textMuted">({a.type})</span>
+                        </span>
+                        <input
+                          type="text"
+                          list="nj-ollama-model-options"
+                          value={a.model ?? ''}
+                          onChange={(e) =>
+                            setConfiguredAgents((prev) =>
+                              prev.map((row) =>
+                                row.type === a.type && row.name === a.name
+                                  ? { ...row, model: e.target.value }
+                                  : row
+                              )
+                            )
+                          }
+                          placeholder={ollamaForm.model || 'qwen2.5-coder:14b'}
+                          className="flex-1 px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text font-mono"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <datalist id="nj-ollama-model-options">
+                  {ollamaForm.availableModels.map((m) => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={agentModelsSaving || configuredAgents.length === 0}
+                    onClick={() => void saveConfiguredAgentModels()}
+                    className="px-4 py-2 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                  >
+                    {agentModelsSaving ? 'Saving…' : 'Save specialist models'}
+                  </button>
+                  {agentModelsErr && <p className="text-sm text-red-600">{agentModelsErr}</p>}
+                  {agentModelsOk && !agentModelsErr && (
+                    <p className="text-sm text-green-600">{agentModelsOk}</p>
+                  )}
+                </div>
               </div>
 
               {/* Dynamic Provider Registry */}

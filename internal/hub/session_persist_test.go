@@ -3,8 +3,10 @@ package hub
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -71,6 +73,73 @@ func TestSessionSaveBoundedSizeWithCollabMetadata(t *testing.T) {
 	const maxBytes = 5 * 1024 * 1024
 	if fi.Size() > maxBytes {
 		t.Fatalf("session file too large: %d bytes (max %d)", fi.Size(), maxBytes)
+	}
+}
+
+func TestPrepareSessionSnapshotStripsWorkspaceContextBodies(t *testing.T) {
+	h := NewHub()
+	ch := "persist-ws"
+	_ = h.CreateChannel(ch, "c", "test")
+
+	bigContent := strings.Repeat("x", 50_000)
+	msg := protocol.NewMessage(protocol.MessageTypeChat, ch, protocol.AgentInfo{ID: "u", Name: "Camron", Type: protocol.AgentTypeGeneral}, "review code")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{
+			"workspace_path": "/proj",
+			"workspace_name": "proj",
+			"file_tree":      strings.Repeat("a", 20_000),
+			"open_files": []interface{}{
+				map[string]interface{}{"path": "main.go", "content": bigContent},
+			},
+		},
+		"prompt_attachments": []interface{}{
+			map[string]interface{}{"type": "file", "content": bigContent},
+		},
+		agent.MetadataGrantedHubDataAccess: map[string]interface{}{
+			"entries": []interface{}{
+				map[string]interface{}{"path": "last-session.json", "content": bigContent},
+			},
+		},
+	}
+	h.mu.Lock()
+	h.appendChannelMessageLocked(ch, msg)
+	h.mu.Unlock()
+
+	snap := h.TakeSessionSnapshot()
+	prepareSessionSnapshotForPersist(snap)
+	msgs := snap.Channels[ch].Messages
+	if len(msgs) == 0 {
+		t.Fatal("expected messages")
+	}
+	md := msgs[0].Metadata
+	if md == nil {
+		t.Fatal("expected metadata")
+	}
+	if _, ok := md["prompt_attachments"]; ok {
+		t.Fatal("prompt_attachments should be stripped from persisted messages")
+	}
+	ws, ok := md["workspace_context"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected slim workspace_context")
+	}
+	if _, ok := ws["open_files"]; ok {
+		t.Fatal("open_files bodies should be stripped from persisted workspace_context")
+	}
+	tree, _ := ws["file_tree"].(string)
+	if len(tree) > maxPersistFileTreeBytes+32 {
+		t.Fatalf("file_tree should be truncated, got len %d", len(tree))
+	}
+	grant, ok := md[agent.MetadataGrantedHubDataAccess].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected slim granted_hub_data_access")
+	}
+	entries, _ := grant["entries"].([]interface{})
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 grant entry, got %d", len(entries))
+	}
+	entry, _ := entries[0].(map[string]interface{})
+	if _, ok := entry["content"]; ok {
+		t.Fatal("granted hub data content should be stripped on persist")
 	}
 }
 

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/packs"
 )
@@ -24,6 +27,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 	packID := parts[0]
 	if len(parts) == 2 && parts[1] == "install" {
 		handlePackInstall(w, r, packID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "install-loras" {
+		handlePackInstallLoRAs(w, r, packID)
 		return
 	}
 	handlePackByID(w, r, packID)
@@ -72,6 +79,36 @@ func handlePackInstall(w http.ResponseWriter, r *http.Request, packID string) {
 	writePacksMutationResponse(w, packID, nil)
 }
 
+func handlePackInstallLoRAs(w http.ResponseWriter, r *http.Request, packID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if hfMgr == nil {
+		http.Error(w, "HF manager not initialized", http.StatusInternalServerError)
+		return
+	}
+	m, err := appConfig.InstalledPackManifestByID(packID)
+	if err != nil || m == nil {
+		http.Error(w, "pack not found or not installed", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	defer cancel()
+	token := hfhub.TokenFromConfig(appConfig)
+	results, err := hfhub.InstallPackLoRAs(ctx, hfMgr, m, token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status":  "ok",
+		"pack_id": packID,
+		"results": results,
+	})
+}
+
 func handlePackByID(w http.ResponseWriter, r *http.Request, packID string) {
 	switch r.Method {
 	case http.MethodPut:
@@ -97,6 +134,9 @@ func handlePackByID(w http.ResponseWriter, r *http.Request, packID string) {
 		}
 		reconcileConfiguredSpecialists()
 		initializeConfiguredAgents()
+		if body.Enabled {
+			triggerEnsurePackLoRAs(packID)
+		}
 		writePacksMutationResponse(w, packID, map[string]any{"enabled": body.Enabled})
 	case http.MethodDelete:
 		if err := appConfig.UninstallPack(packID); err != nil {

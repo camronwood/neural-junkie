@@ -38,6 +38,23 @@ func TestSelectProviderID_security(t *testing.T) {
 	}
 }
 
+func TestSelectProviderID_securityLoRALocal(t *testing.T) {
+	providers := []config.ProviderConfig{
+		{ID: "local", Type: "ollama"},
+		{ID: "cloud", Type: "anthropic"},
+	}
+	id, reason := SelectProviderID(Input{
+		TaskText:          "Review OWASP auth and JWT handling for this API.",
+		HasUserImages:     false,
+		Providers:         providers,
+		DefaultProviderID: "local",
+		AvailableLoRATags: map[string]struct{}{"nj-security:14b": {}},
+	})
+	if id != "local" || reason != "security_lora_local" {
+		t.Fatalf("got id=%q reason=%q", id, reason)
+	}
+}
+
 func TestSelectProviderID_cheap(t *testing.T) {
 	providers := []config.ProviderConfig{
 		{ID: "local", Type: "ollama"},

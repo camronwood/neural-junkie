@@ -2,6 +2,7 @@ package agent
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -240,6 +241,12 @@ func ListCLIAgentTypes() []string {
 
 // NewCLIAgentFromConfig creates a CLI-backed agent from a registry config.
 func NewCLIAgentFromConfig(cfg CLIAgentConfig, name string, provider ai.AIProvider, hub HubClient) *Agent {
+	model := cfg.ModelName
+	if provider != nil {
+		if m := strings.TrimSpace(provider.GetModel()); m != "" {
+			model = m
+		}
+	}
 	return NewAgentWithProvider(
 		protocol.AgentTypeCLI,
 		name,
@@ -247,6 +254,6 @@ func NewCLIAgentFromConfig(cfg CLIAgentConfig, name string, provider ai.AIProvid
 		provider,
 		hub,
 		cfg.ProviderName,
-		cfg.ModelName,
+		model,
 	)
 }

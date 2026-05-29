@@ -17,11 +17,10 @@ const (
 const DevOllamaCodeModel = "qwen2.5-coder:14b"
 
 // devSpecialistTypes are in-process engineering agent types owned by the software-development pack.
-var devSpecialistTypes = []string{"backend", "frontend", "devops", "security", "architecture", "code-review"}
+var devSpecialistTypes = []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "database"}
 
-// legacyDevSpecialistTypes are no longer default pack agents, but existing configs
-// should still be gated and migrated as software-development specialists.
-var legacyDevSpecialistTypes = []string{"database", "rust"}
+// legacyDevSpecialistTypes are optional expert slugs gated by the software-development pack.
+var legacyDevSpecialistTypes = []string{"rust"}
 
 // PacksConfig stores installed packs, enable toggles, and layout ownership.
 type PacksConfig struct {
@@ -43,6 +42,7 @@ type DomainPack struct {
 	ModelsToEnsure []string
 	OllamaModel    string
 	ExpertPresets  []packs.ExpertPreset
+	LoRAAdapters   []packs.LoRAAdapterSpec
 }
 
 func manifestToDomainPack(m *packs.Manifest) DomainPack {
@@ -60,16 +60,35 @@ func manifestToDomainPack(m *packs.Manifest) DomainPack {
 		ModelsToEnsure: append([]string(nil), m.ModelsToEnsure...),
 		OllamaModel:    m.OllamaModel,
 		ExpertPresets:  append([]packs.ExpertPreset(nil), m.ExpertPresets...),
+		LoRAAdapters:   append([]packs.LoRAAdapterSpec(nil), m.LoRAAdapters...),
 	}
 	for _, a := range m.Agents {
-		dp.Agents = append(dp.Agents, AgentConfig{
+		ac := AgentConfig{
 			Type:       a.Type,
 			Name:       a.Name,
 			Enabled:    true,
 			ProviderID: "ollama-local",
-		})
+		}
+		if strings.TrimSpace(a.OllamaModel) != "" {
+			ac.Model = strings.TrimSpace(a.OllamaModel)
+		}
+		dp.Agents = append(dp.Agents, ac)
 	}
 	return dp
+}
+
+// InstalledPackManifestByID returns the manifest for an installed pack id.
+func (c *Config) InstalledPackManifestByID(id string) (*packs.Manifest, error) {
+	if c == nil {
+		return nil, fmt.Errorf("nil config")
+	}
+	id = strings.TrimSpace(id)
+	for _, m := range c.installedPackManifests() {
+		if m.ID == id {
+			return m, nil
+		}
+	}
+	return nil, fmt.Errorf("pack %q not installed", id)
 }
 
 // InstalledPackManifests returns manifests for packs listed in config.installed.
@@ -80,6 +99,21 @@ func (c *Config) InstalledPackManifests() ([]*packs.Manifest, error) {
 	c.mu.RLock()
 	ids := append([]string(nil), c.Packs.Installed...)
 	c.mu.RUnlock()
+	return c.installedPackManifestsFromIDs(ids)
+}
+
+func (c *Config) installedPackManifests() []*packs.Manifest {
+	if c == nil {
+		return nil
+	}
+	c.mu.RLock()
+	ids := append([]string(nil), c.Packs.Installed...)
+	c.mu.RUnlock()
+	out, _ := c.installedPackManifestsFromIDs(ids)
+	return out
+}
+
+func (c *Config) installedPackManifestsFromIDs(ids []string) ([]*packs.Manifest, error) {
 	var out []*packs.Manifest
 	for _, id := range ids {
 		id = strings.TrimSpace(id)
@@ -422,6 +456,9 @@ func (c *Config) SyncAgentsFromPacks() {
 				if c.Agents[idx].Name == "" {
 					c.Agents[idx].Name = want.Name
 				}
+				if strings.TrimSpace(want.Model) != "" {
+					c.Agents[idx].Model = strings.TrimSpace(want.Model)
+				}
 			}
 		}
 		if pack.OllamaModel != "" && c.shouldApplyPackOllamaModelLocked(pack.ID) {
@@ -430,6 +467,7 @@ func (c *Config) SyncAgentsFromPacks() {
 	}
 
 	c.mergeModelsToEnsureFromPacksLocked()
+	c.syncMCPFromPacksLocked()
 }
 
 func (c *Config) packCatalogLocked() []DomainPack {
@@ -565,8 +603,34 @@ func (c *Config) mergeModelsToEnsureFromPacksLocked() {
 				merged = append(merged, m)
 			}
 		}
+		for _, la := range pack.LoRAAdapters {
+			if tag := strings.TrimSpace(la.BaseOllamaTag); tag != "" {
+				if _, ok := seen[tag]; !ok {
+					seen[tag] = struct{}{}
+					merged = append(merged, tag)
+				}
+			}
+			tag := strings.TrimSpace(la.OllamaTag)
+			if tag == "" && la.AgentType != "" {
+				tag = hfhubSpecialistTag(la.AgentType)
+			}
+			if tag != "" {
+				if _, ok := seen[tag]; !ok {
+					seen[tag] = struct{}{}
+					merged = append(merged, tag)
+				}
+			}
+		}
 	}
 	c.Ollama.ModelsToEnsure = merged
+}
+
+func hfhubSpecialistTag(agentType string) string {
+	t := strings.ToLower(strings.TrimSpace(agentType))
+	if t == "biology" {
+		return "nj-biology:8b"
+	}
+	return "nj-" + t + ":14b"
 }
 
 // ExpertPreset is one row for /create-expert and New DM persona dropdowns.
@@ -581,8 +645,7 @@ var coreExpertPresets = []ExpertPreset{
 }
 
 var legacyDevPackExpertSlugs = map[string]struct{}{
-	"database": {},
-	"rust":     {},
+	"rust": {},
 }
 
 func isDevPackExpertSlug(slug string) bool {
@@ -692,15 +755,17 @@ type PackStatus struct {
 
 // PackCatalogStatus is a store row from GET /api/packs/catalog.
 type PackCatalogStatus struct {
-	ID          string `json:"id"`
-	Version     string `json:"version"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	IconKey     string `json:"icon_key,omitempty"`
-	Publisher   string `json:"publisher,omitempty"`
-	Builtin     bool   `json:"builtin,omitempty"`
-	Installed   bool   `json:"installed"`
-	Enabled     bool   `json:"enabled"`
+	ID               string   `json:"id"`
+	Version          string   `json:"version"`
+	Title            string   `json:"title"`
+	Description      string   `json:"description"`
+	IconKey          string   `json:"icon_key,omitempty"`
+	Publisher        string   `json:"publisher,omitempty"`
+	Builtin          bool     `json:"builtin,omitempty"`
+	Installed        bool     `json:"installed"`
+	Enabled          bool     `json:"enabled"`
+	LoRAAdapterCount int      `json:"lora_adapter_count,omitempty"`
+	LoRABaseTags     []string `json:"lora_base_tags,omitempty"`
 }
 
 // PacksAPIResponse is GET /api/packs payload.
@@ -756,7 +821,7 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 	}
 	var out []PackCatalogStatus
 	for _, e := range cat.Packs {
-		out = append(out, PackCatalogStatus{
+		row := PackCatalogStatus{
 			ID:          e.ID,
 			Version:     e.Version,
 			Title:       e.Title,
@@ -766,9 +831,36 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 			Builtin:     e.Builtin,
 			Installed:   c.IsPackInstalled(e.ID),
 			Enabled:     c.IsPackEnabled(e.ID),
-		})
+		}
+		if m, err := c.packManifestForCatalog(e.ID); err == nil && m != nil {
+			row.LoRAAdapterCount = len(m.LoRAAdapters)
+			if row.LoRAAdapterCount > 0 {
+				seen := make(map[string]struct{})
+				for _, la := range m.LoRAAdapters {
+					tag := strings.TrimSpace(la.BaseOllamaTag)
+					if tag == "" {
+						tag = DevOllamaCodeModel
+					}
+					if _, ok := seen[tag]; !ok {
+						seen[tag] = struct{}{}
+						row.LoRABaseTags = append(row.LoRABaseTags, tag)
+					}
+				}
+			}
+		}
+		out = append(out, row)
 	}
 	return out, nil
+}
+
+// packManifestForCatalog returns the installed pack manifest when present, else the builtin embed.
+func (c *Config) packManifestForCatalog(packID string) (*packs.Manifest, error) {
+	if c != nil {
+		if m, err := c.InstalledPackManifestByID(packID); err == nil && m != nil {
+			return m, nil
+		}
+	}
+	return packs.LoadBuiltinManifest(packID)
 }
 
 func ConfigurableSpecialistTypes() map[string]bool {

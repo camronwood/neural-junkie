@@ -1,0 +1,49 @@
+{
+  "name": "task-flip-review",
+  "description": "Casual hello then code-mode review should route as task (debug) and avoid chat-only blocks on turn 2.",
+  "channel": "chat-scenarios",
+  "channel_type": "public",
+  "mention": "@Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "hey",
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "90s"
+    },
+    {
+      "action": "send",
+      "content": "review cmd/server/main.go",
+      "metadata": {
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_debug_context",
+      "message": "review cmd/server/main.go",
+      "conversation_mode": "code",
+      "resolved_intent": "task",
+      "optional": true
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "Assistant",
+      "none_match": ["Grounding: I loaded"]
+    }
+  ],
+  "cleanup": "clear"
+}

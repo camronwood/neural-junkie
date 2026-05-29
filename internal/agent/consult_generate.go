@@ -80,7 +80,7 @@ func (a *Agent) appendDelegationContext(ctx context.Context, msg *protocol.Messa
 	if dc == nil || !dc.DelegationEnabled() || a.shouldSkipDelegation(msg) {
 		return prompt
 	}
-	if a.classifyTurnIntentForMessage(msg) == IntentClosure {
+	if a.classifyTurnIntentForMessage(msg) == IntentClosure || a.classifyTurnIntentForMessage(msg) == IntentLowSignal {
 		return prompt
 	}
 	candidates := dc.ResolveConsultants(a.Info, msg.Content)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -223,6 +224,47 @@ func TestSwitchProviderUpdatesRuntimeAgent(t *testing.T) {
 	}
 	if runtimeAgent.Info.AIModel != "llama3.2" {
 		t.Fatalf("Expected runtime AI model to be llama3.2, got %s", runtimeAgent.Info.AIModel)
+	}
+}
+
+func TestSwitchProviderPersistsAgentModel(t *testing.T) {
+	h := hub.NewHub()
+	handler, err := hub.NewCommandHandler(h)
+	if err != nil {
+		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
+	}
+	cfg := config.DefaultConfig()
+	cfg.Agents = []config.AgentConfig{
+		{Type: "backend", Name: "SwitchTarget", Enabled: true, ProviderID: "ollama-local"},
+	}
+	handler.SetProviderRegistry(cfg, ai.NewProviderCache())
+	h.CreateChannel("test-channel", "Test channel", "test-project")
+
+	runtimeAgent := agent.NewAgentWithProvider(
+		protocol.AgentTypeBackend,
+		"SwitchTarget",
+		[]string{"backend"},
+		ai.NewMockProvider(),
+		h,
+		"mock",
+		"mock-model",
+	)
+	handler.RegisterRuntimeAgent(runtimeAgent)
+	if err := h.RegisterAgent(&runtimeAgent.Info); err != nil {
+		t.Fatalf("Expected runtime agent registration to succeed, got error: %v", err)
+	}
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"test-channel",
+		protocol.AgentInfo{ID: "user-123", Name: "TestUser", Type: protocol.AgentTypeGeneral},
+		"/switch-provider SwitchTarget ollama nj-security:14b",
+	)
+	if _, err := handler.ProcessCommand(context.Background(), msg); err != nil {
+		t.Fatalf("Expected switch provider command to succeed, got error: %v", err)
+	}
+	if cfg.Agents[0].Model != "nj-security:14b" {
+		t.Fatalf("expected persisted model nj-security:14b, got %q", cfg.Agents[0].Model)
 	}
 }
 

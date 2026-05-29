@@ -11,26 +11,37 @@ import (
 
 // MCPServerConfig holds configuration for MCP servers
 type MCPServerConfig struct {
-	Enabled bool
-	Port    int
-	Name    string
-	Version string
+	Enabled       bool
+	Port          int
+	Name          string
+	Version       string
+	InProcessOnly bool // when true, skip HTTP server (multi-instance agents)
 }
 
 // defaultPorts matches env.example (MCP_*_PORT).
 var defaultPorts = map[string]int{
-	"BACKEND":  8081,
-	"DEVOPS":   8082,
-	"DATABASE": 8083,
-	"FRONTEND": 8084,
-	"SECURITY": 8085,
-	"BIOLOGY":  8087,
+	"BACKEND":      8081,
+	"DEVOPS":       8082,
+	"DATABASE":     8083,
+	"FRONTEND":     8084,
+	"SECURITY":     8085,
+	"BIOLOGY":      8087,
+	"RUST":         8088,
+	"CODE_REVIEW":  8089,
+	"ARCHITECTURE": 8090,
+}
+
+// NormalizeAgentType maps agent type strings to MCP port config keys (e.g. code-review -> CODE_REVIEW).
+func NormalizeAgentType(agentType string) string {
+	key := strings.ToLower(strings.TrimSpace(agentType))
+	key = strings.ReplaceAll(key, "-", "_")
+	return strings.ToUpper(key)
 }
 
 // GetMCPServerConfig returns configuration for a specific agent type (BACKEND, BIOLOGY, …).
 // Enablement comes from hub config (Settings → MCP / domain packs), not environment variables.
 func GetMCPServerConfig(agentType string) *MCPServerConfig {
-	key := strings.ToUpper(strings.TrimSpace(agentType))
+	key := NormalizeAgentType(agentType)
 	port := defaultPorts[key]
 	if port == 0 {
 		port = 8081
@@ -50,26 +61,48 @@ func GetMCPServerConfig(agentType string) *MCPServerConfig {
 	}
 }
 
-// NewMCPServer creates a new MCP server with common configuration
+// NewMCPServer creates a new MCP server with common configuration.
 func NewMCPServer(config *MCPServerConfig) (*server.MCPServer, *server.StreamableHTTPServer, error) {
+	if config == nil {
+		return nil, nil, fmt.Errorf("nil MCP config")
+	}
 	if !config.Enabled {
 		return nil, nil, fmt.Errorf("MCP server disabled for %s", config.Name)
 	}
 
 	mcpServer := server.NewMCPServer(config.Name, config.Version)
 
-	httpServer := server.NewStreamableHTTPServer(
-		mcpServer,
-		server.WithEndpointPath("/mcp"),
-	)
-
-	log.Printf("Created MCP server: %s v%s on port %d", config.Name, config.Version, config.Port)
+	var httpServer *server.StreamableHTTPServer
+	if !config.InProcessOnly {
+		httpServer = server.NewStreamableHTTPServer(
+			mcpServer,
+			server.WithEndpointPath("/mcp"),
+		)
+		log.Printf("Created MCP server: %s v%s on port %d", config.Name, config.Version, config.Port)
+	} else {
+		log.Printf("Created in-process MCP server: %s v%s", config.Name, config.Version)
+	}
 
 	return mcpServer, httpServer, nil
 }
 
+// NewInProcessMCPServer creates an MCP server without an HTTP listener (repo/confluence agents).
+func NewInProcessMCPServer(name, version string) (*server.MCPServer, error) {
+	cfg := &MCPServerConfig{
+		Enabled:       true,
+		Name:          name,
+		Version:       version,
+		InProcessOnly: true,
+	}
+	mcpServer, _, err := NewMCPServer(cfg)
+	return mcpServer, err
+}
+
 // StartMCPServer starts the MCP server in a goroutine
 func StartMCPServer(httpServer *server.StreamableHTTPServer, port int) error {
+	if httpServer == nil {
+		return nil
+	}
 	addr := fmt.Sprintf(":%d", port)
 
 	go func() {
@@ -159,4 +192,9 @@ func ValidateToolInput(request mcpgo.CallToolRequest, requiredParams []string) e
 		}
 	}
 	return nil
+}
+
+// MissingBinaryMessage returns a helpful message when an optional CLI tool is not installed.
+func MissingBinaryMessage(binary, installHint string) string {
+	return fmt.Sprintf("%s is not installed or not on PATH. %s", binary, installHint)
 }

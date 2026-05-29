@@ -1,6 +1,9 @@
 # Collaboration engineering notes (repo)
 
-**LinkedIn publish copy** (article + teaser + hashtags): [`docs/marketing/COLLABORATION-LINKEDIN.md`](marketing/COLLABORATION-LINKEDIN.md)
+**LinkedIn publish copy** (article + teaser + hashtags):
+
+- [`docs/marketing/COLLABORATION-LINKEDIN.md`](marketing/COLLABORATION-LINKEDIN.md) — multi-agent collaboration product/engineering story  
+- [`docs/marketing/CONVERSATIONAL-TEST-HARNESS.md`](marketing/CONVERSATIONAL-TEST-HARNESS.md) — three-layer chat + collab test harness (LinkedIn article; cover: `assets/neural-junkie-test-harness-ad-1200.png`)
 
 **User / operator reference:** [`docs/COLLABORATION.md`](COLLABORATION.md)
 

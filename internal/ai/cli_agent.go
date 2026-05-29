@@ -190,6 +190,9 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	// Build command arguments: base args + the prompt
 	args := make([]string, len(c.BaseArgs))
 	copy(args, c.BaseArgs)
+	if model := c.EffectiveCLIModel(); model != "" {
+		args = prependCLIModelArgs(c.ProviderName, args, model)
+	}
 	args = append(args, fullPrompt)
 
 	log.Printf("[CLIAgent/%s] Invoking: %s %v (workDir: %s, timeout: %s)",
@@ -210,7 +213,11 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	}
 	if c.ProviderName == "gemini-cli" {
 		// Allow runtime profile switching without rebuilding the agent instance.
-		if model := strings.TrimSpace(os.Getenv("GEMINI_MODEL")); model != "" {
+		model := c.EffectiveCLIModel()
+		if model == "" {
+			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
+		}
+		if model != "" {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("GEMINI_MODEL=%s", model))
 		}
 	}
@@ -277,6 +284,9 @@ func (c *CLIAgentProvider) GenerateVisionResponse(ctx context.Context, prompt st
 
 // GetModel returns the display model name
 func (c *CLIAgentProvider) GetModel() string {
+	if m := c.EffectiveCLIModel(); m != "" {
+		return m
+	}
 	return c.Model
 }
 
@@ -314,6 +324,9 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 
 	args := make([]string, len(c.BaseArgs))
 	copy(args, c.BaseArgs)
+	if model := c.EffectiveCLIModel(); model != "" {
+		args = prependCLIModelArgs(c.ProviderName, args, model)
+	}
 	args = append(args, fullPrompt)
 
 	cmd := exec.CommandContext(timeoutCtx, c.Command, args...)
@@ -326,7 +339,11 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 	}
 	if c.ProviderName == "gemini-cli" {
 		// Allow runtime profile switching without rebuilding the agent instance.
-		if model := strings.TrimSpace(os.Getenv("GEMINI_MODEL")); model != "" {
+		model := c.EffectiveCLIModel()
+		if model == "" {
+			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
+		}
+		if model != "" {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("GEMINI_MODEL=%s", model))
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/mcp/repomcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ type RepoAgent struct {
 	isIndexing      bool
 	watcher         *repo.Watcher
 	enableAutoWatch bool         // Enable automatic file watching and reindexing
+	repoMCP         *repomcp.RepoMCP
 	mu              sync.RWMutex // Protects index, isIndexing, watcher, enableAutoWatch
 }
 
@@ -80,6 +82,13 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 		storage:         storage,
 		isIndexing:      true,
 		enableAutoWatch: false, // Disabled by default to save resources
+	}
+
+	if repoMCP, err := repomcp.NewRepoMCP(repoPath); err != nil {
+		log.Printf("[%s] Failed to create Repo MCP tools: %v", name, err)
+	} else {
+		repoAgent.repoMCP = repoMCP
+		baseAgent.MCPServer = repoMCP
 	}
 
 	return repoAgent, nil
@@ -202,6 +211,9 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 	ra.Info.IndexingStatus = string(protocol.IndexingStatusReady)
 	ra.Info.IndexProgress = 100
 	ra.Info.Expertise = expertise
+	if ra.repoMCP != nil && index != nil {
+		ra.repoMCP.SetIndex(index)
+	}
 	ra.mu.Unlock()
 
 	ra.publishInfoToHub()

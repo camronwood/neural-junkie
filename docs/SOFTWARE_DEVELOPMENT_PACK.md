@@ -13,7 +13,8 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
 | **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
 | **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing), review bar. See [IDE_V3.md](IDE_V3.md) |
-| **Qwen Coder 14B** | `qwen2.5-coder:14b` — recommended Ollama model for specialists |
+| **Qwen Coder 14B** | `qwen2.5-coder:14b` — shared base for specialists |
+| **LoRA specialists** | **SecurityReviewer** → `nj-security:14b` (SecureCode); **CodeReviewer** → `nj-code-review:14b` (code feedback); **BackendEngineer** → `nj-backend:14b` (text-to-SQL). Frontend, platform, and architect use the shared base. |
 | **Utility tier** | `qwen2.5:7b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |
 | **FrontendEngineer** | Web/desktop UI, accessibility, design systems |
@@ -21,7 +22,22 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **SecurityReviewer** | Auth, encryption, threat modeling, OWASP |
 | **SoftwareArchitect** | System design, service boundaries, migrations |
 | **CodeReviewer** | Correctness, maintainability, tests, regressions |
-| **Dev MCP** | Backend and DevOps analysis tools for enabled specialists |
+| **DatabaseSpecialist** | SQL, schema design, query optimization |
+| **Dev MCP** | MCP tool servers for backend, frontend, platform, database, security, code review, and architecture specialists |
+
+### MCP tool matrix (software development pack)
+
+| Specialist | Port | Example tools |
+|------------|------|----------------|
+| BackendEngineer | 8081 | `analyze_go_code`, `run_go_tests`, `check_dependencies` |
+| PlatformEngineer | 8082 | `kubectl_query`, `validate_yaml`, `check_pod_logs` |
+| DatabaseSpecialist | 8083 | `explain_query`, `validate_schema`, `generate_migration` |
+| FrontendEngineer | 8084 | `run_typescript_check`, `run_eslint`, `check_package_json` |
+| SecurityReviewer | 8085 | `run_gosec`, `run_npm_audit`, `scan_secrets` |
+| CodeReviewer | 8089 | `analyze_go_code`, `run_eslint` (read-only review) |
+| SoftwareArchitect | 8090 | `validate_yaml`, `validate_schema`, `check_dependencies` |
+
+Enablement follows pack `mcp_agents` in `pack.yaml`; override per specialist in **Settings → Domain packs → MCP specialist tools**.
 
 ## Enable the pack
 
@@ -29,9 +45,9 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 
 When enabled:
 
-- Six broad engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
-- Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`) appear in **New DM** and `/create-expert`.
-- `qwen2.5-coder:14b` and `qwen2.5:7b` are merged into **models to ensure** for Ollama.
+- Seven engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
+- Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `database`) appear in **New DM** and `/create-expert`.
+- `qwen2.5-coder:14b`, `qwen2.5:7b`, and composed LoRA tags (`nj-security:14b`, `nj-code-review:14b`, `nj-backend:14b`) are merged into **models to ensure** for Ollama. Pack LoRAs install automatically when the pack is enabled (or via Pack store **Install LoRAs**).
 - If **Life sciences** is also enabled, the hub does **not** auto-switch your default Ollama chat model (avoid bio vs coder conflicts); pick the model in Settings.
 
 When disabled, pack-owned specialists are stopped; **Moderator**, **Assistant**, and **auto-detected CLI agents** (Cursor, Gemini, Claude, Copilot, Codex) are unchanged.
@@ -67,4 +83,5 @@ On first load after upgrading, if any legacy specialist (`backend`, `frontend`, 
 
 - [BIOLOGY_PACK.md](BIOLOGY_PACK.md) — Life sciences pack
 - [MCP_INTEGRATION.md](MCP_INTEGRATION.md) — MCP ports and tools
+- [MCP_EXTERNAL_CLIENTS.md](MCP_EXTERNAL_CLIENTS.md) — Claude Desktop / external MCP hosts
 - [CLI_AGENTS.md](CLI_AGENTS.md) — Cursor / Gemini / Claude / Copilot

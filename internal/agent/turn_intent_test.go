@@ -23,7 +23,14 @@ func TestClassifyTurnIntent_alreadySaid(t *testing.T) {
 func TestClassifyTurnIntent_lowSignal(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-u-a", protocol.AgentInfo{ID: "u", Name: "User"}, "nice")
 	if got := classifyTurnIntent(msg, protocol.ChannelTypeDM, "assistant", nil); got != IntentLowSignal {
-		t.Fatalf("got %v, want low_signal", got)
+		t.Fatalf("got %v, want casual/low_signal", got)
+	}
+}
+
+func TestClassifyTurnIntent_greetingIsCasual(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "what's up?")
+	if got := classifyTurnIntent(msg, protocol.ChannelTypePublic, "assistant", nil); got != IntentLowSignal {
+		t.Fatalf("got %v, want casual", got)
 	}
 }
 

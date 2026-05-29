@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { OllamaManager } from './OllamaManager';
 import { OllamaModelLibrary } from './OllamaModelLibrary';
 import { HfModelLibrary } from './HfModelLibrary';
+import { LoraTrainingPanel } from './LoraTrainingPanel';
 
-type LibrarySource = 'ollama' | 'huggingface';
+type LibrarySource = 'ollama' | 'huggingface' | 'train';
 type BrowseDepth = 'grid' | 'detail';
 
 interface ModelLibraryModalProps {
@@ -11,7 +12,10 @@ interface ModelLibraryModalProps {
   onClose: () => void;
   serverAddr: string;
   switchAllAgentProviders: (provider: string, model: string) => Promise<void>;
+  switchAgentProvider?: (agentId: string, provider: string, model: string) => Promise<void>;
+  runtimeAgents?: { id: string; name: string; type: string }[];
   onAfterModelChange?: () => void;
+  defaultChannel?: string;
 }
 
 export function ModelLibraryModal({
@@ -19,7 +23,10 @@ export function ModelLibraryModal({
   onClose,
   serverAddr,
   switchAllAgentProviders,
+  switchAgentProvider,
+  runtimeAgents,
   onAfterModelChange,
+  defaultChannel,
 }: ModelLibraryModalProps) {
   const [source, setSource] = useState<LibrarySource>('ollama');
   const [browseDepth, setBrowseDepth] = useState<BrowseDepth>('grid');
@@ -110,6 +117,19 @@ export function ModelLibraryModal({
               >
                 Hugging Face
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={source === 'train'}
+                onClick={() => handleSourceChange('train')}
+                className={`px-3 py-1.5 font-medium transition-colors ${
+                  source === 'train'
+                    ? 'bg-purple-700 text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+              >
+                Train LoRA
+              </button>
             </div>
             <button
               type="button"
@@ -145,9 +165,21 @@ export function ModelLibraryModal({
               <HfModelLibrary
                 serverAddr={serverAddr}
                 switchAllAgentProviders={switchAllAgentProviders}
+                switchAgentProvider={switchAgentProvider}
+                runtimeAgents={runtimeAgents}
                 onAfterModelChange={onAfterModelChange}
                 onViewChange={setBrowseDepth}
                 resetDetailSignal={resetDetailSignal}
+              />
+            </div>
+          )}
+          {source === 'train' && (
+            <div className="rounded-lg border border-slack-border bg-slack-bgHover/40 p-4">
+              <LoraTrainingPanel
+                serverAddr={serverAddr}
+                defaultChannel={defaultChannel}
+                switchAgentProvider={switchAgentProvider}
+                runtimeAgents={runtimeAgents}
               />
             </div>
           )}

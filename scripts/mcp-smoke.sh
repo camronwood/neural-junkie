@@ -6,15 +6,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "== MCP package tests =="
-go test ./internal/mcp/... ./internal/agent/... ./internal/ai/... ./internal/mcp_export/...
+go test ./internal/mcp/... ./internal/agent/... ./internal/ai/... ./internal/mcp_export/... ./internal/delegation/... -count=1
 
 echo "== Build =="
-go build ./...
+go build ./cmd/... ./internal/...
 
 echo "== MCP env config (dry) =="
 export ENABLE_MCP=true
 export ENABLE_BACKEND_MCP=true
 export MCP_BACKEND_PORT=8081
-go test ./internal/mcp/ -run TestGetMCPServerConfigEnabled -v
+go test ./internal/mcp/ -run TestGetMCPServerConfig -v
 
 echo "OK: MCP smoke checks passed"

@@ -1,5 +1,5 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
-import { ChatAPI, type PackCatalogEntry, type PackStatus, type PacksAPIResponse } from '../api/chatAPI';
+import { ChatAPI, type PackCatalogEntry, type PackStatus, type PacksAPIResponse, type InstallPackLoRAsResponse } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { PackCapability } from './packCapabilities';
 
@@ -18,6 +18,7 @@ interface PacksState {
   fetchPacks: () => Promise<void>;
   fetchPackCatalog: () => Promise<void>;
   installPack: (packId: string) => Promise<void>;
+  installPackLoRAs: (packId: string) => Promise<InstallPackLoRAsResponse>;
   uninstallPack: (packId: string) => Promise<void>;
   setPackEnabled: (packId: string, enabled: boolean) => Promise<void>;
   hasCapability: (cap: PackCapability | string) => boolean;
@@ -79,6 +80,13 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     const data = await api.installPack(packId);
     get().applyPacksResponse(data);
     await get().fetchPackCatalog();
+  },
+
+  installPackLoRAs: async (packId) => {
+    const api = new ChatAPI(getHubBaseURL());
+    const data = await api.installPackLoRAs(packId);
+    await get().fetchPackCatalog();
+    return data;
   },
 
   uninstallPack: async (packId) => {

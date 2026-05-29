@@ -24,12 +24,13 @@ type DownloadProgress struct {
 	Error     string  `json:"error,omitempty"`
 }
 
-// LocalFile describes a cached GGUF on disk.
+// LocalFile describes a cached HF artifact on disk (GGUF or LoRA adapter).
 type LocalFile struct {
 	RepoID   string `json:"repo_id"`
 	Filename string `json:"filename"`
 	Path     string `json:"path"`
 	Size     int64  `json:"size"`
+	Kind     string `json:"kind,omitempty"` // "full" or "adapter"
 }
 
 // Manager handles Hugging Face Hub downloads into a local cache.
@@ -112,41 +113,108 @@ func catalogHasMode(entry *LibraryModel, mode string) bool {
 	return false
 }
 
-// ListLocal returns GGUF files found under the cache for catalog repos.
+// ListLocal returns cached HF artifacts (GGUF and LoRA adapters).
 func (m *Manager) ListLocal() ([]LocalFile, error) {
+	return m.ListLocalFiltered("")
+}
+
+// ListLocalFiltered returns cached files optionally filtered by kind ("full", "adapter", or "" for all).
+func (m *Manager) ListLocalFiltered(kind string) ([]LocalFile, error) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	seen := make(map[string]struct{})
+	var out []LocalFile
+
+	catalogKind := make(map[string]string)
 	models, err := Library()
 	if err != nil {
 		return nil, err
 	}
-	var out []LocalFile
+	for _, entry := range models {
+		if IsAdapterEntry(&entry) {
+			catalogKind[entry.RepoID] = "adapter"
+		} else {
+			catalogKind[entry.RepoID] = "full"
+		}
+	}
+
+	appendFile := func(repoID, filename, fileKind string) {
+		if kind != "" && fileKind != kind {
+			return
+		}
+		key := repoID + "\x00" + filename
+		if _, ok := seen[key]; ok {
+			return
+		}
+		p := m.filePath(repoID, filename)
+		st, err := os.Stat(p)
+		if err != nil || st.IsDir() {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, LocalFile{
+			RepoID:   repoID,
+			Filename: filename,
+			Path:     p,
+			Size:     st.Size(),
+			Kind:     fileKind,
+		})
+	}
+
 	for _, entry := range models {
 		if !catalogHasMode(&entry, "local") {
 			continue
 		}
-		for _, f := range entry.Files {
-			p := m.filePath(entry.RepoID, f.Filename)
-			st, err := os.Stat(p)
-			if err != nil || st.IsDir() {
-				continue
-			}
-			out = append(out, LocalFile{
-				RepoID:   entry.RepoID,
-				Filename: f.Filename,
-				Path:     p,
-				Size:     st.Size(),
-			})
+		fileKind := catalogKind[entry.RepoID]
+		if fileKind == "" {
+			fileKind = "full"
 		}
+		for _, f := range entry.Files {
+			appendFile(entry.RepoID, f.Filename, fileKind)
+		}
+	}
+
+	cacheRoot := m.cacheDir
+	entries, err := os.ReadDir(cacheRoot)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return out, nil
+		}
+		return out, err
+	}
+	for _, ent := range entries {
+		if !ent.IsDir() || !strings.HasPrefix(ent.Name(), "models--") {
+			continue
+		}
+		repoID := strings.ReplaceAll(strings.TrimPrefix(ent.Name(), "models--"), "--", "/")
+		snapDir := filepath.Join(cacheRoot, ent.Name(), "snapshots", "main")
+		_ = filepath.WalkDir(snapDir, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() {
+				return nil
+			}
+			nameLower := strings.ToLower(d.Name())
+			var fileKind string
+			switch {
+			case strings.HasSuffix(nameLower, ".gguf"):
+				fileKind = "full"
+			case strings.HasSuffix(nameLower, ".safetensors"):
+				fileKind = "adapter"
+			default:
+				return nil
+			}
+			rel, err := filepath.Rel(snapDir, path)
+			if err != nil {
+				return nil
+			}
+			appendFile(repoID, filepath.ToSlash(rel), fileKind)
+			return nil
+		})
 	}
 	return out, nil
 }
 
-// Delete removes a cached file for a catalog repo.
+// Delete removes a cached file for a repo.
 func (m *Manager) Delete(repoID, filename string) error {
-	entry, err := FindCatalogEntry(repoID)
-	if err != nil {
-		return err
-	}
-	filename, err = ResolveDownloadFilename(entry, filename)
+	_, filename, err := ResolveDownloadTarget(repoID, filename)
 	if err != nil {
 		return err
 	}
@@ -163,11 +231,7 @@ func (m *Manager) Delete(repoID, filename string) error {
 
 // LocalPath returns the on-disk path if the file exists.
 func (m *Manager) LocalPath(repoID, filename string) (string, error) {
-	entry, err := FindCatalogEntry(repoID)
-	if err != nil {
-		return "", err
-	}
-	filename, err = ResolveDownloadFilename(entry, filename)
+	_, filename, err := ResolveDownloadTarget(repoID, filename)
 	if err != nil {
 		return "", err
 	}

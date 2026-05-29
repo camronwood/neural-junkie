@@ -49,6 +49,9 @@ func ProviderFromConfig(pcfg *config.ProviderConfig) (AIProvider, error) {
 		if pcfg.TimeoutSeconds > 0 {
 			opts = append(opts, WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
 		}
+		if model := strings.TrimSpace(pcfg.Model); model != "" {
+			opts = append(opts, WithModel(model))
+		}
 		return NewCursorCLIProvider(workDir, pcfg.APIKey, opts...), nil
 
 	case "huggingface":
@@ -85,7 +88,42 @@ func ProviderFromConfig(pcfg *config.ProviderConfig) (AIProvider, error) {
 		opts = append(opts, WithEnv("GEMINI_MODEL", model), WithModel(model))
 		return NewGeminiCLIProvider(workDir, opts...), nil
 
+	case "claude-cli", "codex-cli", "copilot-cli", "aider-cli", "opencode-cli":
+		workDir := pcfg.WorkDir
+		if workDir == "" {
+			workDir, _ = os.Getwd()
+		}
+		command := cliCommandForProviderType(pcfg.Type)
+		if command == "" {
+			return nil, fmt.Errorf("no CLI command mapping for provider type %q", pcfg.Type)
+		}
+		var opts []CLIAgentOption
+		if pcfg.TimeoutSeconds > 0 {
+			opts = append(opts, WithTimeout(time.Duration(pcfg.TimeoutSeconds)*time.Second))
+		}
+		if model := strings.TrimSpace(pcfg.Model); model != "" {
+			opts = append(opts, WithModel(model))
+		}
+		return NewCLIAgentProvider(command, workDir, pcfg.Type, opts...), nil
+
 	default:
 		return nil, fmt.Errorf("unknown provider type %q", pcfg.Type)
+	}
+}
+
+func cliCommandForProviderType(providerType string) string {
+	switch providerType {
+	case "claude-cli":
+		return "claude"
+	case "codex-cli":
+		return "codex"
+	case "copilot-cli":
+		return "copilot"
+	case "aider-cli":
+		return "aider"
+	case "opencode-cli":
+		return "opencode"
+	default:
+		return ""
 	}
 }

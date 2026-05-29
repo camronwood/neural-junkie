@@ -21,8 +21,16 @@ import {
   workspaceContextModeLabel,
   WORKSPACE_CONTEXT_MODE_KEY,
 } from '../utils/outboundChatMetadata';
+import {
+  cycleConversationModeSetting,
+  formatContextIndicator,
+  loadConversationModeSetting,
+  conversationModeSettingLabel,
+  resolveConversationMode,
+  CONVERSATION_MODE_STORAGE_KEY,
+} from '../utils/conversationMode';
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
-import type { WorkspaceContextMode } from '../constants/promptMetadata';
+import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
 import { METADATA_CHANNEL_HOLD } from '../types/protocol';
 import { GRANTED_HUB_DATA_ACCESS_KEY } from '../constants/promptMetadata';
 import {
@@ -139,7 +147,7 @@ interface ChatWindowProps {
 }
 
 export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
-  const { serverAddr, channel, username, agents, channels, switchAllAgentProviders } = useChatStore(
+  const { serverAddr, channel, username, agents, channels, switchAllAgentProviders, switchAgentProvider } = useChatStore(
     (s) => ({
       serverAddr: s.serverAddr,
       channel: s.channel,
@@ -147,6 +155,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       agents: s.agents,
       channels: s.channels,
       switchAllAgentProviders: s.switchAllAgentProviders,
+      switchAgentProvider: s.switchAgentProvider,
     }),
     shallow
   );
@@ -377,6 +386,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [workspaceContextMode, setWorkspaceContextMode] = useState<WorkspaceContextMode>(() =>
     loadWorkspaceContextMode()
   );
+  const [conversationModeSetting, setConversationModeSetting] = useState<ConversationModeSetting>(() =>
+    loadConversationModeSetting()
+  );
   const [composerDraft, setComposerDraft] = useState('');
 
   const activeChannelMeta = useMemo(
@@ -386,22 +398,50 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const contextScopePreview = useMemo(() => {
     const activeTabPath = activeEditorTab?.path;
-    return resolveContextScope({
+    const channelKind = channelNameToKind(channel, activeChannelMeta?.type);
+    const scopeResult = resolveContextScope({
       message: composerDraft,
       mode: workspaceContextMode,
-      channelKind: channelNameToKind(channel, activeChannelMeta?.type),
+      channelKind,
       activeTabPath,
       ideCoding: ideLayout && hasIdeComposer,
     });
+    const resolvedMode = resolveConversationMode(conversationModeSetting, composerDraft, {
+      ideCoding: ideLayout && hasIdeComposer,
+      channelKind,
+      hasOpenTab: Boolean(activeTabPath),
+    });
+    const scope =
+      resolvedMode === 'chat' ? ('none' as const) : scopeResult.scope;
+    return { ...scopeResult, scope, resolvedMode };
   }, [
     composerDraft,
     workspaceContextMode,
+    conversationModeSetting,
     channel,
     activeChannelMeta?.type,
     activeEditorTab?.path,
     ideLayout,
     hasIdeComposer,
   ]);
+
+  const contextIndicatorLabel = useMemo(
+    () =>
+      formatContextIndicator({
+        modeSetting: conversationModeSetting,
+        resolvedMode: contextScopePreview.resolvedMode,
+        scope: contextScopePreview.scope,
+        scopeReason: contextScopePreview.reason,
+        activeTabPath: activeEditorTab?.path,
+      }),
+    [
+      conversationModeSetting,
+      contextScopePreview.resolvedMode,
+      contextScopePreview.scope,
+      contextScopePreview.reason,
+      activeEditorTab?.path,
+    ]
+  );
 
   const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
@@ -1282,6 +1322,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     async (threadId: string, content: string, metadata?: Record<string, unknown>) => {
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
+        conversationMode: conversationModeSetting,
         message: content,
         channel,
         channelType: activeChannelMeta?.type,
@@ -1295,7 +1336,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         mergedMetadata
       );
     },
-    [api, channel, username, workspaceContextMode, activeChannelMeta?.type]
+    [api, channel, username, workspaceContextMode, conversationModeSetting, activeChannelMeta?.type]
   );
 
   const handleChannelInterject = useCallback(async () => {
@@ -1358,6 +1399,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
+        conversationMode: conversationModeSetting,
         message: sendContent,
         channel,
         channelType: activeChannelMeta?.type,
@@ -1417,6 +1459,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       channel,
       username,
       workspaceContextMode,
+      conversationModeSetting,
       activeChannelMeta?.type,
       loadChannels,
       handleSwitchChannel,
@@ -1798,6 +1841,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             <button
               type="button"
               onClick={() => {
+                const next = cycleConversationModeSetting(conversationModeSetting);
+                setConversationModeSetting(next);
+                localStorage.setItem(CONVERSATION_MODE_STORAGE_KEY, next);
+              }}
+              className={`px-2 h-7 rounded text-[11px] font-medium transition-colors ${
+                conversationModeSetting !== 'auto'
+                  ? 'bg-sky-600 hover:bg-sky-700 text-white ring-1 ring-sky-400 ring-offset-1 ring-offset-slack-bg'
+                  : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
+              }`}
+              title={`Conversation mode: ${conversationModeSettingLabel(conversationModeSetting)} (click to cycle Auto / Chat / Code)`}
+              aria-label={`Conversation mode ${conversationModeSettingLabel(conversationModeSetting)}`}
+            >
+              {conversationModeSettingLabel(conversationModeSetting)}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
                 const next = cycleWorkspaceContextMode(workspaceContextMode);
                 setWorkspaceContextMode(next);
                 localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
@@ -2049,6 +2110,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
+        {/* Keep chat pinned to the right when the editor is hidden (editor flex-1 normally fills this gap). */}
+        {ideLayout && !codeEditorOpen && (
+          <div className="flex-1 min-w-0" aria-hidden="true" />
+        )}
+
         {/* Main Chat Area */}
         {chatPanelVisible && (
         <div
@@ -2170,12 +2236,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onDraftChange={setComposerDraft}
         />
 
-        {workspaceContextMode === 'auto' && composerDraft.trim() && (
+        {(workspaceContextMode === 'auto' || conversationModeSetting === 'auto') && composerDraft.trim() && (
           <div
             className="px-3 py-1 text-xs text-slack-textMuted border-t border-slack-border"
             title={contextScopePreview.reason}
           >
-            Context: Auto → <span className="text-slack-text">{contextScopePreview.scope}</span>
+            Context: <span className="text-slack-text">{contextIndicatorLabel}</span>
           </div>
         )}
         </div>
@@ -2452,6 +2518,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         onClose={() => setModelLibraryOpen(false)}
         serverAddr={hubHttp}
         switchAllAgentProviders={switchAllAgentProviders}
+        switchAgentProvider={switchAgentProvider}
+        runtimeAgents={agents.map((a) => ({ id: a.id, name: a.name, type: a.type }))}
+        defaultChannel={channel}
       />
 
       {hubAccessPending && (

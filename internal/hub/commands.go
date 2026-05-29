@@ -19,6 +19,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/collabworktree"
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/mcp_export"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -263,13 +264,14 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 // handleCreateRepoAgent creates a new repository expert agent
 func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
-		return ch.systemResponse(msg.Channel, "Usage: /create-repo-agent <repo-path> [agent-name] [provider] [model]\nProviders: ollama (default), claude, lmstudio, huggingface\nExample: /create-repo-agent /path/to/repo MyRepoExpert ollama llama3.1"), nil
+		return ch.systemResponse(msg.Channel, "Usage: /create-repo-agent <repo-path> [agent-name] [provider] [model]\nFlags: --model <tag> --adapter-repo <hf-repo-id>\nProviders: ollama (default), claude, lmstudio, huggingface\nExample: /create-repo-agent /path/to/repo MyRepoExpert ollama qwen2.5-coder:14b"), nil
 	}
 
+	parts, flagModel, adapterRepo := parseCreateRepoAgentFlags(parts)
 	repoPath := parts[1]
 	agentName := ""
 	provider := "ollama" // Default to ollama
-	model := ""
+	model := flagModel
 
 	// Parse arguments
 	if len(parts) >= 3 {
@@ -296,6 +298,16 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid repository path: %v", err)), nil
 	}
 
+	if adapterRepo != "" && provider == "ollama" {
+		composedTag, composeErr := ch.composeRepoLoRA(ctx, absPath, adapterRepo, model)
+		if composeErr != nil {
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ LoRA compose failed: %v", composeErr)), nil
+		}
+		model = composedTag
+	} else if model == "" && provider == "ollama" {
+		model = config.DevOllamaCodeModel
+	}
+
 	// Check if agent with same name already exists
 	existingAgents := ch.hub.ListAgents()
 	for _, existingAgent := range existingAgents {
@@ -310,7 +322,7 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 
 	if provider == "ollama" {
 		if model == "" {
-			model = "llama3.1"
+			model = config.DevOllamaCodeModel
 		}
 		aiProvider = ai.NewOllamaProviderWithConfig("http://localhost:11434", model)
 	} else if provider == "huggingface" || provider == "hf" {
@@ -2944,6 +2956,8 @@ func (ch *CommandHandler) SwitchAgentProvider(agentID, provider, model, channel 
 		return nil, err
 	}
 
+	ch.persistAgentProviderSwitch(targetAgent, provider, resolvedModel)
+
 	// Keep hub metadata in sync for list/detail APIs.
 	targetAgent.AIProvider = strings.ToLower(provider)
 	targetAgent.AIModel = resolvedModel
@@ -2974,6 +2988,10 @@ func (ch *CommandHandler) SwitchAgentProvider(agentID, provider, model, channel 
 
 // SwitchAllProviders switches all currently registered live agents.
 func (ch *CommandHandler) SwitchAllProviders(provider, model, channel string, metadata map[string]interface{}) (int, error) {
+	if ch.appConfig != nil {
+		ch.appConfig.ClearAllAgentModels()
+		_ = ch.appConfig.Save()
+	}
 	agents := ch.hub.ListAgents()
 	switchedCount := 0
 	var failures []string
@@ -2990,6 +3008,101 @@ func (ch *CommandHandler) SwitchAllProviders(provider, model, channel string, me
 		return switchedCount, fmt.Errorf("%s", strings.Join(failures, "; "))
 	}
 	return switchedCount, nil
+}
+
+func parseCreateRepoAgentFlags(parts []string) ([]string, string, string) {
+	if len(parts) < 2 {
+		return parts, "", ""
+	}
+	out := []string{parts[0], parts[1]}
+	var flagModel, adapterRepo string
+	for i := 2; i < len(parts); i++ {
+		switch parts[i] {
+		case "--model":
+			if i+1 < len(parts) {
+				flagModel = parts[i+1]
+				i++
+			}
+		case "--adapter-repo":
+			if i+1 < len(parts) {
+				adapterRepo = parts[i+1]
+				i++
+			}
+		default:
+			out = append(out, parts[i])
+		}
+	}
+	return out, flagModel, adapterRepo
+}
+
+func (ch *CommandHandler) composeRepoLoRA(ctx context.Context, repoPath, adapterRepo, model string) (string, error) {
+	cacheDir := ""
+	if ch.appConfig != nil {
+		cacheDir = ch.appConfig.HF.CacheDir
+	}
+	mgr, err := hfhub.NewManager(cacheDir)
+	if err != nil {
+		return "", err
+	}
+	token := hfhub.TokenFromConfig(ch.appConfig)
+	filename := "adapter_model.safetensors"
+	if entry, err := hfhub.FindCatalogEntry(adapterRepo); err == nil && len(entry.Files) > 0 {
+		filename = entry.Files[0].Filename
+	}
+	if err := mgr.EnsureDownloadStarted(token, adapterRepo, filename); err != nil {
+		return "", err
+	}
+	if err := mgr.WatchDownload(ctx, adapterRepo, filename, nil); err != nil && err != context.Canceled {
+		return "", err
+	}
+	path, err := mgr.LocalPath(adapterRepo, filename)
+	if err != nil {
+		return "", err
+	}
+	tag := strings.TrimSpace(model)
+	if tag == "" {
+		tag = hfhub.RepoLoRATag(repoPath)
+	}
+	if err := hfhub.ImportAdapterToOllama(ctx, hfhub.DefaultLoRABaseTag, path, tag); err != nil {
+		return "", err
+	}
+	return tag, nil
+}
+
+func (ch *CommandHandler) persistAgentProviderSwitch(agentInfo *protocol.AgentInfo, provider, model string) {
+	if ch.appConfig == nil || agentInfo == nil {
+		return
+	}
+	providerID := ch.providerIDForRuntime(provider)
+	if !ch.appConfig.SetAgentRuntimeProvider(agentInfo.Name, string(agentInfo.Type), providerID, model) {
+		return
+	}
+	if err := ch.appConfig.Save(); err != nil {
+		log.Printf("persist agent provider switch: %v", err)
+		return
+	}
+	if ch.providerCache != nil {
+		ch.providerCache.Clear()
+	}
+}
+
+func (ch *CommandHandler) providerIDForRuntime(provider string) string {
+	if ch.appConfig == nil {
+		return ""
+	}
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	if provider == "hf" {
+		provider = "huggingface"
+	}
+	for _, p := range ch.appConfig.ListProvidersSnapshot() {
+		if p.Type == provider {
+			return p.ID
+		}
+	}
+	if provider == "ollama" {
+		return "ollama-local"
+	}
+	return ""
 }
 
 // ── Channel management commands ──────────────────────────────────────────
@@ -3431,7 +3544,8 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 				{Name: "repo-path", Description: "Path to the repository", Type: "path", Required: true},
 				{Name: "agent-name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
-				{Name: "model", Description: "AI model name", Type: "model", Required: false},
+				{Name: "model", Description: "AI model name or composed LoRA tag", Type: "model", Required: false},
+				{Name: "adapter-repo", Description: "Hugging Face LoRA repo to compose (with --adapter-repo flag)", Type: "string", Required: false},
 			},
 		},
 		{

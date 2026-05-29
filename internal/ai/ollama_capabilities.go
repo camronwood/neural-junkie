@@ -43,7 +43,7 @@ func (o *OllamaProvider) PrefersCompactPrompt() bool {
 // ollamaModelLikelyNoNativeTools is a fast path for known GGUF imports without tool templates.
 func ollamaModelLikelyNoNativeTools(model string) bool {
 	m := strings.ToLower(strings.TrimSpace(model))
-	if strings.HasPrefix(m, "nj-bio") {
+	if strings.HasPrefix(m, "nj-bio") || strings.HasPrefix(m, "nj-biology") {
 		return true
 	}
 	if strings.Contains(m, "openbiollm") {

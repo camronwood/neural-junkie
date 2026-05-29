@@ -29,11 +29,7 @@ func downloadJobKey(repoID, filename string) string {
 
 // FileReady reports whether the GGUF is fully on disk (not a partial).
 func (m *Manager) FileReady(repoID, filename string) (bool, error) {
-	entry, err := FindCatalogEntry(repoID)
-	if err != nil {
-		return false, err
-	}
-	filename, err = ResolveDownloadFilename(entry, filename)
+	_, filename, err := ResolveDownloadTarget(repoID, filename)
 	if err != nil {
 		return false, err
 	}
@@ -83,17 +79,14 @@ func (m *Manager) EnsureDownloadStarted(token, repoID, filename string) error {
 		return nil
 	}
 
-	entry, err := FindCatalogEntry(repoID)
+	hubRepo, filename, err := ResolveDownloadTarget(repoID, filename)
 	if err != nil {
 		return err
 	}
-	if !catalogHasMode(entry, "local") {
+	if entry, err := FindCatalogEntry(repoID); err == nil && !catalogHasMode(entry, "local") {
 		return fmt.Errorf("repo_id %q is not enabled for local download in the catalog", repoID)
 	}
-	filename, err = ResolveDownloadFilename(entry, filename)
-	if err != nil {
-		return err
-	}
+	_ = hubRepo
 
 	key := downloadJobKey(repoID, filename)
 	m.jobsMu.Lock()
@@ -210,11 +203,7 @@ func (m *Manager) WatchDownload(ctx context.Context, repoID, filename string, on
 
 // downloadOnce performs the HTTP download (caller must not hold downloadMu globally).
 func (m *Manager) downloadOnce(ctx context.Context, repoID, filename, token string, onProgress func(DownloadProgress)) error {
-	entry, err := FindCatalogEntry(repoID)
-	if err != nil {
-		return err
-	}
-	filename, err = ResolveDownloadFilename(entry, filename)
+	hubRepo, filename, err := ResolveDownloadTarget(repoID, filename)
 	if err != nil {
 		return err
 	}
@@ -231,7 +220,6 @@ func (m *Manager) downloadOnce(ctx context.Context, repoID, filename, token stri
 	}
 	report(DownloadProgress{Status: "starting", RepoID: repoID, Filename: filename})
 
-	hubRepo := ResolveDownloadRepoID(entry)
 	url := fmt.Sprintf("https://huggingface.co/%s/resolve/main/%s", hubRepo, filename)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

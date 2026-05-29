@@ -259,6 +259,19 @@ AI Provider generates response
 Agent sends response → Hub → Broadcast
 ```
 
+### Conversation Context Stack (v2)
+
+Before the "Build prompt" step, each turn passes through the **Conversation Context Stack** documented in [CONTEXT_MODEL.md](CONTEXT_MODEL.md):
+
+1. **Mode** — desktop `conversation_mode` (`chat` / `code` / `collab`)
+2. **Intent** — server classification (`closure`, `casual`, `substantive`, `task`)
+3. **Memory** — rolling session summary + capped history (thread-scoped in threads)
+4. **Grounding** — `context_scope` metadata and optional workspace file scan
+5. **Persona** — direct (DM), channel (`#general`), or collaboration framing
+6. **Budget** — byte caps applied before the LLM call
+
+Cross-specialist [delegation](DELEGATION.md) runs after intent classification and is skipped for closure/casual turns.
+
 ### File Change Flow
 
 ```

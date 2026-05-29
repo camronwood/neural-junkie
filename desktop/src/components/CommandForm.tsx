@@ -252,6 +252,22 @@ export function CommandForm({
       return;
     }
 
+    if (command.name === '/create-repo-agent') {
+      const repoPath = values['repo-path']?.trim();
+      if (!repoPath) return;
+      const parts = [command.name, repoPath];
+      const agentName = values['agent-name']?.trim();
+      const provider = values.provider?.trim();
+      const model = values.model?.trim();
+      const adapterRepo = values['adapter-repo']?.trim();
+      if (agentName) parts.push(agentName);
+      if (provider) parts.push(provider);
+      if (model) parts.push('--model', model);
+      if (adapterRepo) parts.push('--adapter-repo', adapterRepo);
+      onSubmit(parts.join(' '));
+      return;
+    }
+
     const parts = [command.name];
     for (const arg of command.arguments) {
       const v = values[arg.name]?.trim();

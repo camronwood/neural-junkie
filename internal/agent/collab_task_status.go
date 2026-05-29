@@ -46,5 +46,6 @@ func CollaborationExecutionTaskStatusInstructions() string {
 		"Shell commands belong in ```bash blocks only when they are real commands (not bare filenames like findings.md).\n" +
 		"When your assigned task is finished, end with: TASK_STATUS: completed — plus a one-line summary of what you shipped (files, paths, conclusions).\n" +
 		"If blocked, use TASK_STATUS: blocked and explain why.\n" +
-		"Do not leave work marked pending if it is done; chat-only summaries do not complete the task.\n"
+		"Do not leave work marked pending if it is done; chat-only summaries do not complete the task.\n" +
+		"Do not ask the user to run /approve-plan or re-open planning — execution has already started.\n"
 }

@@ -12,6 +12,7 @@ agents:
   - type: backend
     name: BackendEngineer
     implementation: builtin/backend
+    ollama_model: nj-backend:14b
   - type: frontend
     name: FrontendEngineer
     implementation: builtin/frontend
@@ -21,16 +22,40 @@ agents:
   - type: security
     name: SecurityReviewer
     implementation: builtin/security
+    ollama_model: nj-security:14b
   - type: architecture
     name: SoftwareArchitect
     implementation: builtin/architecture
   - type: code-review
     name: CodeReviewer
     implementation: builtin/code-review
+    ollama_model: nj-code-review:14b
+  - type: database
+    name: DatabaseSpecialist
+    implementation: builtin/database
 models_to_ensure:
   - qwen2.5-coder:14b
   - qwen2.5:7b
+  - nj-security:14b
+  - nj-code-review:14b
+  - nj-backend:14b
 ollama_model: qwen2.5-coder:14b
+lora_adapters:
+  - agent_type: security
+    repo_id: scthornton/qwen2.5-coder-14b-securecode
+    filename: adapter_model.safetensors
+    ollama_tag: nj-security:14b
+    base_ollama_tag: qwen2.5-coder:14b
+  - agent_type: code-review
+    repo_id: JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k
+    filename: adapter_model.safetensors
+    ollama_tag: nj-code-review:14b
+    base_ollama_tag: qwen2.5-coder:14b
+  - agent_type: backend
+    repo_id: blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora
+    filename: adapter_model.safetensors
+    ollama_tag: nj-backend:14b
+    base_ollama_tag: qwen2.5-coder:14b
 expert_presets:
   - slug: backend
     label: Backend
@@ -44,9 +69,13 @@ expert_presets:
     label: Software Architecture
   - slug: code-review
     label: Code Review
+  - slug: database
+    label: Database
 mcp_agents:
   - backend
   - devops
   - database
   - frontend
   - security
+  - code-review
+  - architecture

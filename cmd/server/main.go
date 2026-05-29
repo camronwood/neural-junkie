@@ -201,6 +201,7 @@ func main() {
 	initializeAssistantAgent()
 
 	// Initialize CLI agents (e.g. Cursor) if configured
+	syncCLIProviderModelsFromConfig()
 	initializeCLIAgents()
 
 	// Initialize Ollama manager
@@ -210,9 +211,13 @@ func main() {
 	}
 	ollamaMgr = ollamaManager.NewManager(ollamaEndpoint)
 
-	if appConfig.Ollama.AutoStart && len(appConfig.Ollama.ModelsToEnsure) > 0 {
-		go ensureOllamaModels(context.Background())
-	}
+	go func() {
+		ctx := context.Background()
+		if appConfig.Ollama.AutoStart && len(appConfig.Ollama.ModelsToEnsure) > 0 {
+			ensureOllamaModels(ctx)
+		}
+		ensurePackLoRAs(ctx, "")
+	}()
 
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
@@ -344,10 +349,14 @@ func main() {
 	http.HandleFunc("/api/ollama/stop", corsMiddleware(handleOllamaStop))
 	http.HandleFunc("/api/ollama/pull", corsMiddleware(handleOllamaPull))
 	http.HandleFunc("/api/ollama/catalog", corsMiddleware(handleOllamaCatalog))
+	http.HandleFunc("/api/ollama/library/search", corsMiddleware(handleOllamaLibrarySearch))
+	http.HandleFunc("/api/ollama/library/tags", corsMiddleware(handleOllamaLibraryTags))
 	http.HandleFunc("/api/ollama/delete", corsMiddleware(handleOllamaDelete))
 
 	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
 	http.HandleFunc("/api/hf/catalog", corsMiddleware(handleHfCatalog))
+	http.HandleFunc("/api/hf/search", corsMiddleware(handleHfSearch))
+	http.HandleFunc("/api/hf/files", corsMiddleware(handleHfFiles))
 	http.HandleFunc("/api/hf/test-connection", corsMiddleware(handleHfTestConnection))
 	http.HandleFunc("/api/hf/download", corsMiddleware(handleHfDownload))
 	http.HandleFunc("/api/hf/download/status", corsMiddleware(handleHfDownloadStatus))
@@ -355,6 +364,8 @@ func main() {
 	http.HandleFunc("/api/hf/local", corsMiddleware(handleHfLocal))
 	http.HandleFunc("/api/hf/delete", corsMiddleware(handleHfDelete))
 	http.HandleFunc("/api/hf/import-ollama", corsMiddleware(handleHfImportOllama))
+	http.HandleFunc("/api/lora/train", corsMiddleware(handleLoraTrainRoute))
+	http.HandleFunc("/api/lora/train/", corsMiddleware(handleLoraTrainRoute))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -2115,6 +2126,16 @@ func initializeAssistantAgent() {
 	log.Println("✅ Assistant agent started successfully")
 }
 
+func syncCLIProviderModelsFromConfig() {
+	if appConfig == nil {
+		return
+	}
+	for i := range appConfig.AI.Providers {
+		p := appConfig.AI.Providers[i]
+		syncCLIProviderModelToRuntime(&p)
+	}
+}
+
 // initializeCLIAgents creates and starts any CLI-backed agents based on environment configuration.
 // Each CLI agent is independent; if one binary is missing, the others still start.
 func initializeCLIAgents() {
@@ -2127,6 +2148,46 @@ func initializeCLIAgents() {
 	for _, cliType := range agent.ListCLIAgentTypes() {
 		cfg, _ := agent.GetCLIAgentConfig(cliType)
 		initCLIAgentFromConfig(cfg, defaultWorkDir)
+	}
+}
+
+func resolveCLIProviderModel(cfg agent.CLIAgentConfig) string {
+	model := ""
+	if appConfig != nil {
+		if p := appConfig.GetProvider(cfg.ProviderName); p != nil {
+			model = strings.TrimSpace(p.Model)
+		}
+	}
+	if cfg.Type == "gemini" {
+		if model == "" {
+			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
+		}
+		if model == "" {
+			model = "gemini-2.5-flash"
+		}
+	}
+	return model
+}
+
+func syncCLIProviderModelToRuntime(p *config.ProviderConfig) {
+	if p == nil {
+		return
+	}
+	model := strings.TrimSpace(p.Model)
+	switch p.Type {
+	case "gemini-cli":
+		if model == "" {
+			model = "gemini-2.5-flash"
+			p.Model = model
+		}
+		_ = os.Setenv("GEMINI_MODEL", model)
+		ai.SetCLIProviderModelOverride(p.Type, model)
+	case "cursor-cli", "claude-cli", "codex-cli", "copilot-cli", "aider-cli", "opencode-cli":
+		ai.SetCLIProviderModelOverride(p.Type, model)
+	default:
+		if strings.HasSuffix(p.Type, "-cli") {
+			ai.SetCLIProviderModelOverride(p.Type, model)
+		}
 	}
 }
 
@@ -2150,20 +2211,13 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 		ai.WithBaseArgs(resolved.BaseArgs),
 		ai.WithModel(cfg.ModelName),
 	}
-	if cfg.Type == "gemini" {
-		// Default Gemini to a faster profile unless explicitly overridden.
-		model := ""
-		if appConfig != nil {
-			if p := appConfig.GetProvider(cfg.ProviderName); p != nil {
-				model = strings.TrimSpace(p.Model)
-			}
-		}
-		if model == "" {
-			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
-		}
-		if model == "" {
-			model = "gemini-2.5-flash"
-		}
+
+	model := resolveCLIProviderModel(cfg)
+	if model != "" {
+		opts = append(opts, ai.WithModel(model))
+		ai.SetCLIProviderModelOverride(cfg.ProviderName, model)
+	}
+	if cfg.Type == "gemini" && model != "" {
 		_ = os.Setenv("GEMINI_MODEL", model)
 		opts = append(opts, ai.WithEnv("GEMINI_MODEL", model))
 	}
@@ -2185,6 +2239,9 @@ func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 			Type:    cfg.ProviderName,
 			Name:    cfg.DefaultName + " (Auto-detected)",
 			WorkDir: workDir,
+		}
+		if model != "" {
+			autoProvider.Model = model
 		}
 		if err := appConfig.AddProvider(autoProvider); err == nil {
 			log.Printf("📝 Auto-registered provider %q for %s CLI", cfg.ProviderName, cfg.DefaultName)
@@ -2481,6 +2538,57 @@ func handleOllamaCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func handleOllamaLibrarySearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	page := queryIntDefault(r.URL.Query().Get("page"), 1)
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	result, err := ollamaManager.SearchRegistry(ctx, query, page)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func handleOllamaLibraryTags(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	result, err := ollamaManager.ListRegistryTags(ctx, name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func queryIntDefault(raw string, fallback int) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		return fallback
+	}
+	return n
+}
+
 func handleOllamaDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -2701,8 +2809,29 @@ func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 		"history_count": len(msgs),
 		"has_summary":   summary != "",
 	}
+	if summary != "" {
+		out["session_summary"] = summary
+	}
+	if sample := strings.TrimSpace(r.URL.Query().Get("message")); sample != "" {
+		msg := protocol.NewMessage(protocol.MessageTypeQuestion, channel, protocol.AgentInfo{ID: "debug", Name: "Debug", Type: "human"}, sample)
+		if mode := strings.TrimSpace(r.URL.Query().Get("conversation_mode")); mode != "" {
+			if msg.Metadata == nil {
+				msg.Metadata = map[string]interface{}{}
+			}
+			msg.Metadata[agent.MetadataConversationMode] = mode
+		}
+		chType := chatHub.GetChannelType(channel)
+		intent := classifyTurnIntentForDebug(msg, chType)
+		out["conversation_mode"] = agent.EffectiveConversationMode(msg, chType)
+		out["resolved_intent"] = intent.String()
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
+}
+
+func classifyTurnIntentForDebug(msg *protocol.Message, chType protocol.ChannelType) agent.TurnIntent {
+	// Lightweight mirror for debug endpoint without spinning up a full agent.
+	return agent.ClassifyTurnIntentPublic(msg, chType, "", nil)
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -2825,14 +2954,7 @@ func handleProviders(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "id and type are required", http.StatusBadRequest)
 			return
 		}
-		if p.Type == "gemini-cli" {
-			model := strings.TrimSpace(p.Model)
-			if model == "" {
-				model = "gemini-2.5-flash"
-				p.Model = model
-			}
-			_ = os.Setenv("GEMINI_MODEL", model)
-		}
+		syncCLIProviderModelToRuntime(&p)
 		if err := appConfig.AddProvider(p); err != nil {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
@@ -2889,14 +3011,7 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		p.ID = id
-		if p.Type == "gemini-cli" || id == "gemini-cli" {
-			model := strings.TrimSpace(p.Model)
-			if model == "" {
-				model = "gemini-2.5-flash"
-				p.Model = model
-			}
-			_ = os.Setenv("GEMINI_MODEL", model)
-		}
+		syncCLIProviderModelToRuntime(&p)
 		if err := appConfig.UpdateProvider(p); err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return

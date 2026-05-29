@@ -12,6 +12,10 @@ export const CONTEXT_SCOPE_REASON_KEY = 'context_scope_reason';
 
 export type ContextScope = 'none' | 'hint' | 'outline' | 'focus' | 'full';
 export type WorkspaceContextMode = 'auto' | 'always' | 'off';
+export type ConversationModeSetting = 'auto' | 'chat' | 'code';
+export type ResolvedConversationMode = 'chat' | 'code' | 'collab';
+
+export const CONVERSATION_MODE_METADATA_KEY = 'conversation_mode';
 
 export const IDE_ROUTE_AGENT_TYPE_KEY = 'ide_route_agent_type';
 export const EDITOR_MODE_KEY = 'editor_mode';

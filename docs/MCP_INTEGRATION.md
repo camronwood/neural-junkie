@@ -19,6 +19,13 @@ neural-junkie/
 │   │   │   └── devops_mcp.go         # Infrastructure tools
 │   │   ├── database/                 # Database Agent MCP tools
 │   │   │   └── database_mcp.go       # Query analysis tools
+│   │   ├── frontend/                 # Frontend Agent MCP tools
+│   │   ├── security/                 # Security Agent MCP tools
+│   │   ├── codereview/               # CodeReviewer diagnostic tools
+│   │   ├── architecture/             # SoftwareArchitect diagnostic tools
+│   │   ├── rust/                     # RustExpert MCP tools
+│   │   ├── repomcp/                  # Repo agent in-process tools
+│   │   ├── confluencemcp/            # Confluence agent in-process tools
 │   │   └── biology/                  # BiologyExpert MCP tools
 │   │       └── biology_mcp.go        # Sequence + structure tools
 ```
@@ -29,23 +36,30 @@ neural-junkie/
 - Backend MCP: `:8081`
 - DevOps MCP: `:8082`
 - Database MCP: `:8083`
-- Frontend MCP: `:8084` (optional)
-- Security MCP: `:8085` (optional)
+- Frontend MCP: `:8084`
+- Security MCP: `:8085`
+- Resource exports: `:8086` (opt-in, `ENABLE_MCP_RESOURCES=true`)
 - Biology MCP: `:8087` (Life sciences pack)
+- Rust MCP: `:8088`
+- Code Review MCP: `:8089`
+- Architecture MCP: `:8090`
+- Repo / Confluence agents: in-process only (no HTTP port)
 
 ## Configuration
 
 MCP tool servers are controlled from **Settings → AI & providers** and persisted in `~/.neural-junkie/config.json`:
 
 - `mcp.enabled` — master switch (default on)
-- `mcp.agents` — per-type overrides (`backend`, `devops`, `database`, `biology`, …)
+- `mcp.agents` — per-type overrides (`backend`, `devops`, `database`, `biology`, …). When omitted, enablement follows enabled pack `mcp_agents` in each pack's `pack.yaml`.
 - `mcp.ports` — optional port overrides
 - `mcp.biology` — ESMFold model, sequence limits, artifacts directory
 - `hf.token` — Hugging Face hub token (folding + downloads)
 
 **Life sciences pack:** enabling the pack starts BiologyExpert and its MCP tools automatically — no `ENABLE_BIOLOGY_MCP` env var. See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
 
-**Software development pack:** enabling the pack starts backend, DevOps, and database MCP servers when those specialists are enabled. See [SOFTWARE_DEVELOPMENT_PACK.md](SOFTWARE_DEVELOPMENT_PACK.md).
+**Software development pack:** enabling the pack starts MCP servers for backend, frontend, platform, database, security, code review, and architecture specialists when those agents are enabled. See [SOFTWARE_DEVELOPMENT_PACK.md](SOFTWARE_DEVELOPMENT_PACK.md).
+
+**External MCP clients:** see [MCP_EXTERNAL_CLIENTS.md](MCP_EXTERNAL_CLIENTS.md) to connect Claude Desktop or other hosts to `:8081/mcp`, etc.
 
 ## Discovering tools
 
@@ -148,7 +162,7 @@ tool_result returned to Claude
 Final answer sent to the user
 ```
 
-External MCP clients (Claude Desktop, Cursor) can also connect to the agent HTTP servers at `http://localhost:8081/mcp` (Backend), `:8082` (DevOps), `:8083` (Database).
+External MCP clients (Claude Desktop, Cursor) can also connect to the agent HTTP servers — see [MCP_EXTERNAL_CLIENTS.md](MCP_EXTERNAL_CLIENTS.md).
 
 **Requirements:** Direct Anthropic API (`USE_AI_HUB=false`, `ANTHROPIC_API_KEY` set). MCP tool loops are not supported through AI Hub today.
 

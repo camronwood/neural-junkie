@@ -19,16 +19,20 @@ type CatalogFile struct {
 
 // LibraryModel is one row in the in-app HF model library.
 type LibraryModel struct {
+	Kind            string        `json:"kind,omitempty"` // "full" (default) or "adapter"
 	RepoID          string        `json:"repo_id"`
 	DownloadRepoID  string        `json:"download_repo_id,omitempty"` // Hub repo for GGUF when different from hosted repo_id
 	Title           string        `json:"title"`
-	Description string        `json:"description"`
-	Tags        []string      `json:"tags"`
-	SizeHint    string        `json:"size_hint,omitempty"`
-	IconKey     string        `json:"icon_key,omitempty"`
-	Publisher   string        `json:"publisher,omitempty"`
-	Modes       []string      `json:"modes"` // "hosted", "local"
-	Files       []CatalogFile `json:"files,omitempty"`
+	Description     string        `json:"description"`
+	Tags            []string      `json:"tags"`
+	SizeHint        string        `json:"size_hint,omitempty"`
+	IconKey         string        `json:"icon_key,omitempty"`
+	Publisher       string        `json:"publisher,omitempty"`
+	Modes           []string      `json:"modes"` // "hosted", "local"
+	Files           []CatalogFile `json:"files,omitempty"`
+	BaseOllamaTag   string        `json:"base_ollama_tag,omitempty"`
+	DefaultOllamaTag string       `json:"default_ollama_tag,omitempty"`
+	AgentType       string        `json:"agent_type,omitempty"` // optional specialist slug for assign-to-agent UX
 }
 
 // Library returns the embedded catalog.
@@ -37,7 +41,41 @@ func Library() ([]LibraryModel, error) {
 	if err := json.Unmarshal(libraryJSON, &out); err != nil {
 		return nil, fmt.Errorf("parse embedded hf library.json: %w", err)
 	}
+	for i := range out {
+		if err := validateLibraryEntry(&out[i]); err != nil {
+			return nil, fmt.Errorf("catalog entry %q: %w", out[i].RepoID, err)
+		}
+	}
 	return out, nil
+}
+
+func validateLibraryEntry(entry *LibraryModel) error {
+	if entry == nil {
+		return fmt.Errorf("nil entry")
+	}
+	if strings.TrimSpace(entry.RepoID) == "" {
+		return fmt.Errorf("repo_id is required")
+	}
+	if !IsAdapterEntry(entry) {
+		return nil
+	}
+	if strings.TrimSpace(entry.BaseOllamaTag) == "" {
+		return fmt.Errorf("adapter entries require base_ollama_tag")
+	}
+	if len(entry.Files) == 0 {
+		return fmt.Errorf("adapter entries require at least one file")
+	}
+	hasLocal := false
+	for _, m := range entry.Modes {
+		if m == "local" {
+			hasLocal = true
+			break
+		}
+	}
+	if !hasLocal {
+		return fmt.Errorf("adapter entries require local mode")
+	}
+	return nil
 }
 
 // FindCatalogEntry returns a catalog row by repo_id (case-sensitive Hub id).

@@ -9,11 +9,43 @@ import (
 // ClassifyForAgent picks consult intent for a target specialist type.
 func ClassifyForAgent(agentType protocol.AgentType, question string) Intent {
 	q := strings.ToLower(question)
-	if agentType == protocol.AgentTypeBiology {
+	switch agentType {
+	case protocol.AgentTypeBiology:
 		if looksBioTools(q) {
 			return IntentDomainTools
 		}
-		return IntentDomainReasoning
+	case protocol.AgentTypeBackend:
+		if looksBackendTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeDevOps:
+		if looksDevOpsTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeDatabase:
+		if looksDatabaseTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeFrontend:
+		if looksFrontendTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeSecurity:
+		if looksSecurityTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeCodeReview:
+		if looksCodeReviewTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeArchitecture:
+		if looksArchitectureTools(q) {
+			return IntentDomainTools
+		}
+	case protocol.AgentTypeRust:
+		if looksRustTools(q) {
+			return IntentDomainTools
+		}
 	}
 	return IntentDomainReasoning
 }

@@ -1,6 +1,6 @@
 {
-  "updated": "2026-05-29T19:36:16Z",
-  "count": 29,
+  "updated": "2026-05-29T21:21:32Z",
+  "count": 31,
   "items": [
     {
       "id": "neural-junkie-beta-download-ad-1080",
@@ -97,6 +97,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-local-ai-tokens-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-lora-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-lora-ad-1200.png",
+      "title": "Lora Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-lora-ad-1200.png"
     },
     {
       "id": "neural-junkie-nondev-collaborate-ad-1080",
@@ -223,6 +232,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-social-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-test-harness-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-test-harness-ad-1200.png",
+      "title": "Test Harness Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-test-harness-ad-1200.png"
     },
     {
       "id": "neural-junkie-tiff-previewer-ad-1080",

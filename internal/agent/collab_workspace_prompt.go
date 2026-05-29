@@ -128,7 +128,13 @@ func collabPlanningSuppressMCPTools(info CollaborationInfo, agentType protocol.A
 // during collaboration planning (common with DevOps MCP-equipped agents).
 func sanitizeCollabDiscussionResponse(content string, collabInfo CollaborationInfo, agentType protocol.AgentType) string {
 	trimmed := strings.TrimSpace(content)
-	if collabInfo.Phase != "planning" || trimmed == "" {
+	if trimmed == "" {
+		return content
+	}
+	if collabInfo.Phase == "executing" {
+		return collaboration.SanitizeCollabExecutionResponse(content, collabInfo.Phase)
+	}
+	if collabInfo.Phase != "planning" {
 		return content
 	}
 	looksToolJSON := rawToolJSONDiscussionRE.MatchString(trimmed)

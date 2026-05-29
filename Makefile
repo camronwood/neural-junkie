@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora
 
 # Bundled Neural Junkie Slack app (maintainer: ../scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -100,6 +100,16 @@ collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-
 	@chmod +x scripts/collab-scenario-matrix.sh
 	@./scripts/collab-scenario-matrix.sh
 
+chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make chat-scenario SCENARIO=greeting-chat-mode [VERBOSE=1] [KEEP=1]"; exit 1; fi
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --scenario "$(SCENARIO)" \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(KEEP),--keep,)
+
+chat-scenarios: ## Run all live chat scenarios under scenarios/chat/
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all \
+		$(if $(VERBOSE),--verbose,)
+
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go
@@ -114,7 +124,7 @@ ensure-sidecar: ## Build sidecar binary if missing (needed for Tauri dev)
 		$(MAKE) build-sidecar; \
 	fi
 
-gui-install: ## Install GUI dependencies (first time only)
+gui-install: deps-lora ## Install GUI dependencies (first time only)
 	@echo "📦 Installing desktop app dependencies..."
 	@cd desktop && npm install
 	@echo "✅ Desktop dependencies installed!"
@@ -256,7 +266,7 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo "🖥️  To open GUI, run: make gui"
 	@echo ""
 
-start-all: setup-env ## Start server and all agents with environment loaded
+start-all: setup-env deps-lora ## Start server and all agents with environment loaded
 	@bash -c 'cd "$(CURDIR)"; \
 		source ./load-env.sh; \
 		PORT="$${SERVER_PORT:-18765}"; \
@@ -291,17 +301,23 @@ clean: ## Clean build artifacts
 
 test: test-go ## Run Go unit tests (alias for test-go)
 
-deps: ## Download dependencies
+deps: deps-lora ## Download dependencies
 	@echo "📦 Downloading dependencies..."
 	@go mod download
 	@echo "✅ Dependencies downloaded!"
 
-pull-models: ## Pull required Ollama models (code tier + utility tier)
+deps-lora: ## Install LoRA training Python stack (.venv-lora)
+	@chmod +x ./scripts/setup-lora-deps.sh
+	@./scripts/setup-lora-deps.sh
+
+pull-models: ## Pull required Ollama models (code tier + utility tier + LoRA bases)
 	@echo "📥 Pulling Ollama models..."
 	@echo "  Code tier: qwen2.5-coder:14b (~9GB)..."
 	@ollama pull qwen2.5-coder:14b
 	@echo "  Utility tier: qwen2.5:7b (~4.5GB)..."
 	@ollama pull qwen2.5:7b
+	@echo "  LoRA base: llama3:8b (~4.7GB, biology pack)..."
+	@ollama pull llama3:8b
 	@echo "✅ All models pulled!"
 	@echo ""
 	@ollama list

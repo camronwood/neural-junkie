@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -41,8 +42,94 @@ func cloneMessageForSessionPersist(m *protocol.Message) *protocol.Message {
 	}
 	if out.Metadata != nil {
 		delete(out.Metadata, "collaboration_data")
+		slimMessageMetadataForPersist(out.Metadata)
 	}
 	return &out
+}
+
+const maxPersistFileTreeBytes = 12000
+
+func slimMessageMetadataForPersist(md map[string]interface{}) {
+	if md == nil {
+		return
+	}
+	slimWorkspaceContextMetadata(md)
+	slimGrantedHubDataAccessMetadata(md)
+	delete(md, "prompt_attachments")
+	delete(md, "user_images")
+}
+
+func slimWorkspaceContextMetadata(md map[string]interface{}) {
+	rawCtx, ok := md["workspace_context"]
+	if !ok {
+		return
+	}
+	ctxMap, ok := rawCtx.(map[string]interface{})
+	if !ok {
+		delete(md, "workspace_context")
+		return
+	}
+	safeCtx := map[string]interface{}{}
+	if workspaceName, ok := ctxMap["workspace_name"].(string); ok {
+		safeCtx["workspace_name"] = workspaceName
+	}
+	if workspacePath, ok := ctxMap["workspace_path"].(string); ok {
+		safeCtx["workspace_path"] = workspacePath
+	}
+	if scope, ok := ctxMap["context_scope"].(string); ok && scope != "" {
+		safeCtx["context_scope"] = scope
+	}
+	if fileTree, ok := ctxMap["file_tree"].(string); ok && fileTree != "" {
+		if len(fileTree) > maxPersistFileTreeBytes {
+			fileTree = fileTree[:maxPersistFileTreeBytes] + "\n... (truncated)"
+		}
+		safeCtx["file_tree"] = fileTree
+	}
+	if len(safeCtx) == 0 {
+		delete(md, "workspace_context")
+		return
+	}
+	md["workspace_context"] = safeCtx
+	md[agent.MetadataContextScope] = agent.ContextScopeOutline
+}
+
+func slimGrantedHubDataAccessMetadata(md map[string]interface{}) {
+	raw, ok := md[agent.MetadataGrantedHubDataAccess]
+	if !ok || raw == nil {
+		return
+	}
+	root, ok := raw.(map[string]interface{})
+	if !ok {
+		delete(md, agent.MetadataGrantedHubDataAccess)
+		return
+	}
+	entries, ok := root["entries"].([]interface{})
+	if !ok || len(entries) == 0 {
+		delete(md, agent.MetadataGrantedHubDataAccess)
+		return
+	}
+	trimmed := make([]interface{}, 0, len(entries))
+	for _, entry := range entries {
+		item, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out := map[string]interface{}{}
+		for k, v := range item {
+			if k == "content" {
+				continue
+			}
+			out[k] = v
+		}
+		if len(out) > 0 {
+			trimmed = append(trimmed, out)
+		}
+	}
+	if len(trimmed) == 0 {
+		delete(md, agent.MetadataGrantedHubDataAccess)
+		return
+	}
+	md[agent.MetadataGrantedHubDataAccess] = map[string]interface{}{"entries": trimmed}
 }
 
 func slimCollaborationForPersist(c *collaboration.Collaboration) *collaboration.Collaboration {
@@ -60,6 +147,20 @@ func slimCollaborationForPersist(c *collaboration.Collaboration) *collaboration.
 	if out.Discussion != nil && len(out.Discussion.Messages) > maxPersistDiscussionMessages {
 		msgs := out.Discussion.Messages
 		out.Discussion.Messages = append([]*protocol.Message(nil), msgs[len(msgs)-maxPersistDiscussionMessages:]...)
+	}
+	if out.Discussion != nil {
+		for i, dm := range out.Discussion.Messages {
+			out.Discussion.Messages[i] = cloneMessageForSessionPersist(dm)
+		}
+	}
+	if out.SourceWorkspaceContext != nil {
+		wsMD := map[string]interface{}{"workspace_context": out.SourceWorkspaceContext}
+		slimWorkspaceContextMetadata(wsMD)
+		if slim, ok := wsMD["workspace_context"].(map[string]interface{}); ok {
+			out.SourceWorkspaceContext = slim
+		} else {
+			out.SourceWorkspaceContext = nil
+		}
 	}
 	return &out
 }

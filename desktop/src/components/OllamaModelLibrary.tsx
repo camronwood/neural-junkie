@@ -12,6 +12,25 @@ export interface OllamaCatalogEntry {
   publisher?: string;
 }
 
+interface RegistryModel {
+  name: string;
+  title: string;
+  description?: string;
+}
+
+interface RegistrySearchResponse {
+  query: string;
+  page: number;
+  models: RegistryModel[];
+  has_more: boolean;
+}
+
+interface RegistryTagsResponse {
+  name: string;
+  default_tag?: string;
+  tags: { name: string }[];
+}
+
 interface HubProvider {
   id: string;
   type: string;
@@ -29,6 +48,31 @@ interface OllamaModelLibraryProps {
   onAfterModelChange?: () => void;
   onViewChange?: (view: 'grid' | 'detail') => void;
   resetDetailSignal?: number;
+}
+
+function familyName(tag: string): string {
+  const i = tag.indexOf(':');
+  return i >= 0 ? tag.slice(0, i) : tag;
+}
+
+function mergeCatalogRows(curated: OllamaCatalogEntry[], registry: RegistryModel[]): OllamaCatalogEntry[] {
+  const out = [...curated];
+  const seenFamilies = new Set(curated.map((row) => familyName(row.name)));
+  const seenNames = new Set(curated.map((row) => row.name));
+
+  for (const reg of registry) {
+    const base = familyName(reg.name);
+    if (!base || seenFamilies.has(base) || seenNames.has(base)) continue;
+    seenFamilies.add(base);
+    seenNames.add(base);
+    out.push({
+      name: base,
+      title: reg.title || base,
+      description: reg.description || `Ollama library model (${base})`,
+      tags: [],
+    });
+  }
+  return out;
 }
 
 async function parseSSEChunks(
@@ -73,17 +117,29 @@ export function OllamaModelLibrary({
   onViewChange,
   resetDetailSignal,
 }: OllamaModelLibraryProps) {
-  const [catalog, setCatalog] = useState<OllamaCatalogEntry[]>([]);
+  const [curated, setCurated] = useState<OllamaCatalogEntry[]>([]);
+  const [registry, setRegistry] = useState<RegistryModel[]>([]);
+  const [registryPage, setRegistryPage] = useState(1);
+  const [registryHasMore, setRegistryHasMore] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [registryError, setRegistryError] = useState<string | null>(null);
+  const [registryLoading, setRegistryLoading] = useState(false);
   const [ollamaRunning, setOllamaRunning] = useState(false);
   const [installed, setInstalled] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [customTag, setCustomTag] = useState('');
   const [pullingName, setPullingName] = useState<string | null>(null);
   const [pullProgress, setPullProgress] = useState('');
   const [actionMessage, setActionMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [deletingName, setDeletingName] = useState<string | null>(null);
   const [useBusyName, setUseBusyName] = useState<string | null>(null);
+  const [tagCache, setTagCache] = useState<Record<string, RegistryTagsResponse>>({});
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(id);
+  }, [query]);
 
   const refreshInstalled = useCallback(async () => {
     try {
@@ -121,12 +177,12 @@ export function OllamaModelLibrary({
         if (!r.ok) throw new Error(r.statusText);
         const rows = (await r.json()) as OllamaCatalogEntry[];
         if (!cancelled) {
-          setCatalog(Array.isArray(rows) ? rows : []);
+          setCurated(Array.isArray(rows) ? rows : []);
           setCatalogError(null);
         }
       } catch (e) {
         if (!cancelled) {
-          setCatalog([]);
+          setCurated([]);
           setCatalogError(e instanceof Error ? e.message : 'Failed to load catalog');
         }
       }
@@ -136,24 +192,84 @@ export function OllamaModelLibrary({
     };
   }, [serverAddr]);
 
+  const fetchRegistryPage = useCallback(
+    async (searchQuery: string, page: number, append: boolean) => {
+      setRegistryLoading(true);
+      setRegistryError(null);
+      try {
+        const params = new URLSearchParams({ page: String(page) });
+        if (searchQuery) params.set('q', searchQuery);
+        const r = await fetch(`${serverAddr}/api/ollama/library/search?${params}`);
+        if (!r.ok) throw new Error(await r.text());
+        const data = (await r.json()) as RegistrySearchResponse;
+        setRegistry((prev) => (append ? [...prev, ...(data.models ?? [])] : data.models ?? []));
+        setRegistryPage(data.page ?? page);
+        setRegistryHasMore(Boolean(data.has_more));
+      } catch (e) {
+        setRegistryError(e instanceof Error ? e.message : 'Failed to search Ollama library');
+        if (!append) setRegistry([]);
+        setRegistryHasMore(false);
+      } finally {
+        setRegistryLoading(false);
+      }
+    },
+    [serverAddr]
+  );
+
+  useEffect(() => {
+    void fetchRegistryPage(debouncedQuery, 1, false);
+  }, [debouncedQuery, fetchRegistryPage]);
+
   useEffect(() => {
     void refreshInstalled();
   }, [refreshInstalled]);
 
+  const catalog = useMemo(() => mergeCatalogRows(curated, registry), [curated, registry]);
+
+  const installedExtras = useMemo(() => {
+    const known = new Set(catalog.map((row) => row.name));
+    const knownFamilies = new Set(catalog.map((row) => familyName(row.name)));
+    const extras: OllamaCatalogEntry[] = [];
+    for (const name of installed) {
+      if (known.has(name)) continue;
+      const fam = familyName(name);
+      if (knownFamilies.has(fam)) continue;
+      extras.push({
+        name,
+        title: name,
+        description: 'Installed on this machine',
+        tags: ['installed'],
+      });
+    }
+    return extras.sort((a, b) => a.name.localeCompare(b.name));
+  }, [catalog, installed]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return catalog;
-    return catalog.filter((row) => {
+    const rows = [...installedExtras, ...catalog];
+    if (!q) return rows;
+    return rows.filter((row) => {
       const hay = [row.name, row.title, row.description, row.publisher, ...(row.tags || [])]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [catalog, query]);
+  }, [catalog, installedExtras, query]);
+
+  async function resolvePullTag(model: string): Promise<string> {
+    if (model.includes(':')) return model;
+    const cached = tagCache[model];
+    if (cached?.default_tag) return cached.default_tag;
+    const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(model)}`);
+    if (!r.ok) return `${model}:latest`;
+    const data = (await r.json()) as RegistryTagsResponse;
+    setTagCache((prev) => ({ ...prev, [model]: data }));
+    return data.default_tag || data.tags?.[0]?.name || `${model}:latest`;
+  }
 
   async function pullModel(model: string) {
-    const tag = model.trim();
+    const tag = (await resolvePullTag(model)).trim();
     if (!tag || !ollamaRunning) return;
     setPullingName(tag);
     setPullProgress('Starting…');
@@ -235,6 +351,7 @@ export function OllamaModelLibrary({
   }
 
   async function useForAgents(model: string) {
+    const tag = model.includes(':') ? model : await resolvePullTag(model);
     setUseBusyName(model);
     setActionMessage(null);
     try {
@@ -245,7 +362,7 @@ export function OllamaModelLibrary({
       if (!ollama) {
         throw new Error('No Ollama provider in hub config. Add one under AI Providers.');
       }
-      const updated: HubProvider = { ...ollama, model };
+      const updated: HubProvider = { ...ollama, model: tag };
       const put = await fetch(`${serverAddr}/api/providers/${encodeURIComponent(ollama.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -255,10 +372,10 @@ export function OllamaModelLibrary({
         const t = await put.text();
         throw new Error(t || put.statusText);
       }
-      await switchAllAgentProviders('ollama', model);
+      await switchAllAgentProviders('ollama', tag);
       setActionMessage({
         kind: 'ok',
-        text: `Hub Ollama provider set to ${model} and all agents switched.`,
+        text: `Hub Ollama provider set to ${tag} and all agents switched.`,
       });
     } catch (e) {
       setActionMessage({
@@ -275,11 +392,22 @@ export function OllamaModelLibrary({
     const globalPullBusy = !!pullingName;
 
     return filtered.map((row) => {
-      const isIn = installed.has(row.name);
+      const installedMatch =
+        installed.has(row.name) ||
+        [...installed].some((name) => name === row.name || name.startsWith(`${row.name}:`));
+      const installedTag =
+        [...installed].find((name) => name === row.name || name.startsWith(`${row.name}:`)) ?? row.name;
+      const isIn = installedMatch;
       const rowBusy =
-        pullingName === row.name || deletingName === row.name || useBusyName === row.name;
+        pullingName === row.name ||
+        pullingName === installedTag ||
+        deletingName === row.name ||
+        deletingName === installedTag ||
+        useBusyName === row.name;
       const pullLabel =
-        pullingName === row.name ? pullProgress || 'Pulling…' : 'Install';
+        pullingName === row.name || pullingName === installedTag
+          ? pullProgress || 'Pulling…'
+          : 'Install';
 
       const primaryAction: StoreModelAction | undefined = isIn
         ? {
@@ -288,7 +416,7 @@ export function OllamaModelLibrary({
             variant: 'primary',
             disabled: rowBusy || globalPullBusy,
             busyLabel: useBusyName === row.name ? 'Applying…' : undefined,
-            onClick: () => void useForAgents(row.name),
+            onClick: () => void useForAgents(installedTag),
           }
         : {
             id: 'install',
@@ -299,30 +427,44 @@ export function OllamaModelLibrary({
           };
 
       const detailActions: StoreModelAction[] = [];
+      const tagInfo = tagCache[row.name];
+      if (tagInfo?.tags?.length) {
+        for (const tag of tagInfo.tags) {
+          detailActions.push({
+            id: `install-${tag.name}`,
+            label: `Install ${tag.name}`,
+            disabled: !ollamaRunning || rowBusy || globalPullBusy,
+            onClick: () => void pullModel(tag.name),
+          });
+        }
+      }
+
       if (!isIn) {
-        detailActions.push({
-          id: 'install',
-          label: 'Install',
-          disabled: !ollamaRunning || rowBusy || globalPullBusy,
-          busyLabel: pullingName === row.name ? pullLabel : undefined,
-          onClick: () => void pullModel(row.name),
-        });
+        if (detailActions.length === 0) {
+          detailActions.push({
+            id: 'install',
+            label: 'Install',
+            disabled: !ollamaRunning || rowBusy || globalPullBusy,
+            busyLabel: pullingName === row.name ? pullLabel : undefined,
+            onClick: () => void pullModel(row.name),
+          });
+        }
       } else {
-        detailActions.push({
+        detailActions.unshift({
           id: 'use',
           label: 'Use for agents',
           variant: 'primary',
           disabled: rowBusy || globalPullBusy,
           busyLabel: useBusyName === row.name ? 'Applying…' : undefined,
-          onClick: () => void useForAgents(row.name),
+          onClick: () => void useForAgents(installedTag),
         });
         detailActions.push({
           id: 'remove',
           label: 'Remove',
           variant: 'danger',
           disabled: rowBusy || globalPullBusy,
-          busyLabel: deletingName === row.name ? 'Removing…' : undefined,
-          onClick: () => void deleteModel(row.name),
+          busyLabel: deletingName === installedTag ? 'Removing…' : undefined,
+          onClick: () => void deleteModel(installedTag),
         });
       }
 
@@ -349,12 +491,32 @@ export function OllamaModelLibrary({
     pullProgress,
     deletingName,
     useBusyName,
+    tagCache,
   ]);
+
+  useEffect(() => {
+    for (const row of filtered) {
+      if (row.name.includes(':')) continue;
+      void (async () => {
+        try {
+          const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(row.name)}`);
+          if (!r.ok) return;
+          const data = (await r.json()) as RegistryTagsResponse;
+          setTagCache((prev) => (prev[row.name] ? prev : { ...prev, [row.name]: data }));
+        } catch {
+          /* optional enrichment */
+        }
+      })();
+    }
+  }, [filtered, serverAddr]);
 
   const banner = (
     <>
       {catalogError && (
         <div className="text-sm text-red-400 border border-red-900/50 rounded p-2">{catalogError}</div>
+      )}
+      {registryError && (
+        <div className="text-sm text-amber-400 border border-amber-900/50 rounded p-2">{registryError}</div>
       )}
       {actionMessage && (
         <div
@@ -369,48 +531,63 @@ export function OllamaModelLibrary({
       )}
       {!ollamaRunning && (
         <p className="text-xs text-gray-500">
-          Start Ollama above to install models. Browse the catalog and pull when the server is running.
+          Start Ollama above to install models. Browse the full Ollama library and pull when the server is running.
         </p>
+      )}
+      {registryLoading && (
+        <p className="text-xs text-gray-500">Loading models from ollama.com…</p>
       )}
     </>
   );
 
   const footer = (
-    <div className="border border-gray-700 rounded-lg p-3 space-y-2">
-      <div className="text-xs font-medium text-gray-400">Custom model tag</div>
-      <p className="text-xs text-gray-500">
-        Pull any Ollama library name (e.g. <span className="font-mono text-gray-400">mistral-nemo:12b</span>).
-      </p>
-      <div className="flex gap-2 items-center">
-        <input
-          value={customTag}
-          onChange={(e) => setCustomTag(e.target.value)}
-          placeholder="model:tag"
-          disabled={!ollamaRunning || !!pullingName}
-          className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white disabled:opacity-50"
-        />
+    <div className="space-y-3">
+      {registryHasMore && (
         <button
           type="button"
-          disabled={!ollamaRunning || !customTag.trim() || !!pullingName}
-          onClick={() => {
-            void (async () => {
-              const tag = customTag.trim();
-              if (!tag) return;
-              await pullModel(tag);
-              setCustomTag('');
-            })();
-          }}
-          className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40"
+          disabled={registryLoading}
+          onClick={() => void fetchRegistryPage(debouncedQuery, registryPage + 1, true)}
+          className="w-full px-3 py-2 text-xs bg-gray-800 text-gray-300 rounded border border-gray-700 hover:bg-gray-700 disabled:opacity-40"
         >
-          Pull
+          {registryLoading ? 'Loading…' : 'Load more models'}
         </button>
-      </div>
-      {pullingName && (
-        <div className="text-xs text-blue-300 font-mono">
-          {pullingName}
-          {pullProgress ? ` — ${pullProgress}` : ''}
-        </div>
       )}
+      <div className="border border-gray-700 rounded-lg p-3 space-y-2">
+        <div className="text-xs font-medium text-gray-400">Custom model tag</div>
+        <p className="text-xs text-gray-500">
+          Pull any Ollama library name (e.g. <span className="font-mono text-gray-400">mistral-nemo:12b</span>).
+        </p>
+        <div className="flex gap-2 items-center">
+          <input
+            value={customTag}
+            onChange={(e) => setCustomTag(e.target.value)}
+            placeholder="model:tag"
+            disabled={!ollamaRunning || !!pullingName}
+            className="flex-1 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-sm text-white disabled:opacity-50"
+          />
+          <button
+            type="button"
+            disabled={!ollamaRunning || !customTag.trim() || !!pullingName}
+            onClick={() => {
+              void (async () => {
+                const tag = customTag.trim();
+                if (!tag) return;
+                await pullModel(tag);
+                setCustomTag('');
+              })();
+            }}
+            className="px-3 py-2 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-40"
+          >
+            Pull
+          </button>
+        </div>
+        {pullingName && (
+          <div className="text-xs text-blue-300 font-mono">
+            {pullingName}
+            {pullProgress ? ` — ${pullProgress}` : ''}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -419,7 +596,7 @@ export function OllamaModelLibrary({
       items={storeItems}
       query={query}
       onQueryChange={setQuery}
-      searchPlaceholder="Name, tag, or description…"
+      searchPlaceholder="Search all Ollama models…"
       onViewChange={onViewChange}
       resetDetailSignal={resetDetailSignal}
       banner={banner}

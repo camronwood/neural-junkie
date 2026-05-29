@@ -15,6 +15,18 @@ var ollamaTagsRequireHFImport = map[string]string{
 	config.BioOllamaTag: "Model Library (⇧⌘M) → Hugging Face → Neural Junkie Bio 8B (GGUF) → Import to Ollama",
 }
 
+func ollamaTagRequiresCompose(tag string) bool {
+	tag = strings.TrimSpace(tag)
+	if !strings.HasPrefix(tag, "nj-") {
+		return false
+	}
+	// Composed LoRA tags: nj-security:14b, nj-biology:8b, nj-repo-*:14b, etc.
+	if strings.Contains(tag, ":") {
+		return true
+	}
+	return false
+}
+
 // ensureOllamaModels pulls configured tags when Ollama is running (background).
 func ensureOllamaModels(ctx context.Context) {
 	if appConfig == nil || ollamaMgr == nil {
@@ -54,6 +66,10 @@ func ensureOllamaModels(ctx context.Context) {
 		}
 		if hint, skipPull := ollamaTagsRequireHFImport[tag]; skipPull {
 			log.Printf("ℹ️  models_to_ensure: %s is not on the Ollama registry — install via %s", tag, hint)
+			continue
+		}
+		if ollamaTagRequiresCompose(tag) {
+			log.Printf("ℹ️  models_to_ensure: %s is a composed LoRA tag — ensured automatically from enabled pack LoRAs", tag)
 			continue
 		}
 		log.Printf("📥 models_to_ensure: pulling %s", tag)

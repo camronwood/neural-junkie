@@ -54,6 +54,7 @@ export function buildIdeDispatchPayload(options: {
 }): { content: string; metadata: Record<string, unknown> } {
   const agentType = pickAgentTypeFromTab(options.activeTab);
   const agentName = resolveIdeAgentName(options.agents, agentType);
+  const hasExplicitMention = /@\w/.test(options.content);
   const content = applyIdeAskPrefix(
     ensureIdeAgentMention(options.content, agentName),
     options.editorAgentMode
@@ -62,7 +63,7 @@ export function buildIdeDispatchPayload(options: {
     content,
     metadata: {
       ...(options.composerMetadata ?? {}),
-      [IDE_ROUTE_AGENT_TYPE_KEY]: agentType,
+      ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
       [EDITOR_MODE_KEY]: options.editorAgentMode,
       [EDITOR_AGENT_TRUST_KEY]: options.editorAgentTrust,
     },

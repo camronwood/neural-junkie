@@ -1,5 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useChatStore } from '../stores/chatStore';
+import {
+  CLI_PROVIDER_PROFILES,
+  detectCLIProfileLabel,
+  type CLIProviderProfileConfig,
+} from '../utils/cliProviderProfiles';
 
 interface ProviderConfig {
   id: string;
@@ -12,8 +17,6 @@ interface ProviderConfig {
   work_dir?: string;
 }
 
-type GeminiProfile = 'fast' | 'deep';
-
 interface ProviderManagerProps {
   serverAddr: string;
 }
@@ -21,7 +24,7 @@ interface ProviderManagerProps {
 const PROVIDER_TYPES = [
   { value: 'ollama', label: 'Ollama (Local)' },
   { value: 'huggingface', label: 'Hugging Face (Hosted Inference)' },
-  { value: 'anthropic', label: 'Anthropic (Claude)' },
+  { value: 'anthropic', label: 'Anthropic (Claude API)' },
   { value: 'openai-compatible', label: 'OpenAI-Compatible (Bedrock, Azure, Groq, etc.)' },
   { value: 'cursor-cli', label: 'Cursor CLI' },
   { value: 'gemini-cli', label: 'Gemini CLI' },
@@ -32,7 +35,7 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
   const [editing, setEditing] = useState<ProviderConfig | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [testResult, setTestResult] = useState<Record<string, { success: boolean; error?: string }>>({});
-  const [geminiProfileStatus, setGeminiProfileStatus] = useState<string>('');
+  const [profileStatus, setProfileStatus] = useState<Record<string, string>>({});
   const messages = useChatStore((state) => state.messages);
   const agents = useChatStore((state) => state.agents);
 
@@ -61,22 +64,19 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
     loadProviders();
   }
 
-  function detectGeminiProfile(model?: string): GeminiProfile {
-    const normalized = (model || '').toLowerCase();
-    if (normalized.includes('flash')) return 'fast';
-    return 'deep';
-  }
+  async function applyCLIProfile(config: CLIProviderProfileConfig, presetId: string) {
+    const preset = config.presets.find((p) => p.id === presetId);
+    if (!preset) return;
 
-  async function applyGeminiProfile(profile: GeminiProfile) {
-    const geminiModel = profile === 'fast' ? 'gemini-2.5-flash' : 'gemini-2.5-pro';
-    const existing = providers.find((p) => p.type === 'gemini-cli');
+    const existing = providers.find((p) => p.type === config.providerType);
+    const defaultName = config.title + ' (Auto-detected)';
     const payload: ProviderConfig = existing
-      ? { ...existing, model: geminiModel }
+      ? { ...existing, model: preset.model }
       : {
-          id: 'gemini-cli',
-          type: 'gemini-cli',
-          name: 'Gemini CLI (Auto-detected)',
-          model: geminiModel,
+          id: config.providerType,
+          type: config.providerType,
+          name: defaultName,
+          model: preset.model,
         };
 
     const method = existing ? 'PUT' : 'POST';
@@ -84,7 +84,7 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
       ? `${serverAddr}/api/providers/${payload.id}`
       : `${serverAddr}/api/providers`;
 
-    setGeminiProfileStatus('Applying...');
+    setProfileStatus((prev) => ({ ...prev, [config.providerType]: 'Applying...' }));
     try {
       const resp = await fetch(url, {
         method,
@@ -93,14 +93,18 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
       });
       if (!resp.ok) {
         const err = await resp.text();
-        throw new Error(err || 'Failed to apply Gemini profile');
+        throw new Error(err || 'Failed to apply profile');
       }
       await loadProviders();
-      setGeminiProfileStatus(
-        `Gemini profile set to ${profile === 'fast' ? 'Fast' : 'Deep'} (${geminiModel}).`
-      );
+      setProfileStatus((prev) => ({
+        ...prev,
+        [config.providerType]: `Set to ${preset.label} (${preset.model}).`,
+      }));
     } catch (e) {
-      setGeminiProfileStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+      setProfileStatus((prev) => ({
+        ...prev,
+        [config.providerType]: `Failed: ${e instanceof Error ? e.message : String(e)}`,
+      }));
     }
   }
 
@@ -130,6 +134,8 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
     setEditing({ id: '', type: 'openai-compatible', name: '' });
     setIsNew(true);
   }
+
+  const visibleCLIProfiles = CLI_PROVIDER_PROFILES;
 
   const usageInsights = useMemo(() => {
     const providerByAgentId = new Map<string, string>();
@@ -174,43 +180,58 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
         </button>
       </div>
 
-      {/* Provider list */}
       <div className="p-3 bg-gray-800/60 border border-gray-700 rounded-lg">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-sm text-white font-medium">Gemini Profile</div>
-            <div className="text-xs text-gray-400">
-              Fast uses Flash for low latency. Deep uses Pro for higher quality.
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => applyGeminiProfile('fast')}
-              className="px-3 py-1 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-500"
-            >
-              Fast (Flash)
-            </button>
-            <button
-              onClick={() => applyGeminiProfile('deep')}
-              className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-500"
-            >
-              Deep (Pro)
-            </button>
-          </div>
-        </div>
-        {(() => {
-          const geminiProvider = providers.find((p) => p.type === 'gemini-cli');
-          if (!geminiProvider && !geminiProfileStatus) return null;
-          return (
-            <div className="mt-2 text-xs text-gray-300">
-              {geminiProvider
-                ? `Current model: ${geminiProvider.model || 'gemini-2.5-flash'} (${detectGeminiProfile(geminiProvider.model) === 'fast' ? 'Fast' : 'Deep'})`
-                : 'Gemini provider will be created on first apply.'}
-              {geminiProfileStatus ? ` ${geminiProfileStatus}` : ''}
-            </div>
-          );
-        })()}
+        <div className="text-sm text-white font-medium">Why two Claudes?</div>
+        <p className="mt-1 text-xs text-gray-400 leading-relaxed">
+          <span className="text-gray-300">Anthropic (Claude API)</span> is the in-process cloud provider for
+          built-in specialists (moderator, repo agents, etc.) — it calls Anthropic&apos;s HTTP API with your API key.
+          <span className="text-gray-300"> Claude Code CLI</span> is a separate auto-detected subprocess agent when
+          the <code className="text-gray-300">claude</code> binary is on your PATH. They can both appear in this list
+          because they are different integration paths, not duplicates of the same thing.
+        </p>
       </div>
+
+      {visibleCLIProfiles.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs text-gray-400 uppercase tracking-wide">CLI model profiles</div>
+          {visibleCLIProfiles.map((config) => {
+            const provider = providers.find((p) => p.type === config.providerType);
+            const status = profileStatus[config.providerType];
+            return (
+              <div
+                key={config.providerType}
+                className="p-3 bg-gray-800/60 border border-gray-700 rounded-lg"
+              >
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-sm text-white font-medium">{config.title}</div>
+                    <div className="text-xs text-gray-400">{config.description}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {config.presets.map((preset) => (
+                      <button
+                        key={preset.id}
+                        onClick={() => applyCLIProfile(config, preset.id)}
+                        className={`px-3 py-1 text-xs text-white rounded ${preset.buttonClass}`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {(provider || status) && (
+                  <div className="mt-2 text-xs text-gray-300">
+                    {provider
+                      ? `Current: ${provider.model || config.presets[0]?.model} (${detectCLIProfileLabel(config, provider.model)})`
+                      : 'Provider will be created on first apply.'}
+                    {status ? ` ${status}` : ''}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="p-3 bg-gray-800/60 border border-gray-700 rounded-lg">
         <div className="text-sm text-white font-medium">Usage & Cost Insights</div>
@@ -275,7 +296,6 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
         ))}
       </div>
 
-      {/* Edit/Add form */}
       {editing && (
         <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-lg space-y-3">
           <div className="text-sm font-medium text-white">{isNew ? 'Add Provider' : 'Edit Provider'}</div>

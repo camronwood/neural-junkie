@@ -66,8 +66,9 @@ Collaboration is implemented. Future improvements can focus on:
 
 ### MCP Tool Servers
 - ~~Re-enable Backend/DevOps/Database MCP tool servers~~ — **Done** (beta.8)
+- ~~Frontend, Security, Code Review, Architecture, Rust MCP servers~~ — **Done**
+- ~~Repo and Confluence in-process runtime search tools~~ — **Done**
 - Tool calling for LM Studio / OpenAI-compat providers (Ollama supported for BiologyExpert + MCP in v1; Claude also supported)
-- Rust MCP server (prompt no longer lists phantom Rust tools)
 
 ## Low Priority
 

@@ -10,7 +10,9 @@ import {
 import {
   CONTEXT_SCOPE_KEY,
   CONTEXT_SCOPE_REASON_KEY,
+  CONVERSATION_MODE_METADATA_KEY,
   type ContextScope,
+  type ConversationModeSetting,
   type WorkspaceContextMode,
   USER_RULES_METADATA_KEY,
 } from '../constants/promptMetadata';
@@ -18,6 +20,7 @@ import { buildFileTreeString } from './workspaceContext';
 import type { ScanSummaryContext, ScanAnalysisContext, WorkspaceContext } from './workspaceContext';
 import { concentrationAt, validationAt } from './scanAnalysis';
 import { channelNameToKind, resolveContextScope, type ChannelKind } from './inferContextScope';
+import { resolveConversationMode } from './conversationMode';
 
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
@@ -226,6 +229,7 @@ function loadFullWorkspaceContext(): WorkspaceContext {
  */
 export function buildHumanOutboundMetadata(options: {
   contextMode: WorkspaceContextMode;
+  conversationMode?: ConversationModeSetting;
   message: string;
   channel: string;
   channelKind?: ChannelKind;
@@ -248,8 +252,17 @@ export function buildHumanOutboundMetadata(options: {
   const activeTabPath = useEditorStore.getState().tabs.find(
     (t) => t.id === useEditorStore.getState().activeTabId
   )?.path;
+  const hasOpenTab = Boolean(activeTabPath);
 
-  const { scope, reason } = resolveContextScope({
+  const conversationModeSetting = options.conversationMode ?? 'auto';
+  const resolvedConversationMode = resolveConversationMode(conversationModeSetting, message, {
+    ideCoding,
+    channelKind,
+    hasOpenTab,
+  });
+  meta[CONVERSATION_MODE_METADATA_KEY] = resolvedConversationMode;
+
+  let { scope, reason } = resolveContextScope({
     message,
     mode: contextMode,
     channelKind,
@@ -257,6 +270,13 @@ export function buildHumanOutboundMetadata(options: {
     activeTabPath,
     ideCoding,
   });
+
+  if (resolvedConversationMode === 'chat') {
+    scope = 'none';
+    reason = 'conversation mode: chat';
+  } else if (resolvedConversationMode === 'collab') {
+    // scope follows collab / inferContextScope rules
+  }
 
   meta[CONTEXT_SCOPE_KEY] = scope;
   meta[CONTEXT_SCOPE_REASON_KEY] = reason;
@@ -290,6 +310,28 @@ export function buildHumanOutboundMetadata(options: {
         isCollaborateCommand(message) && isCollabSandboxPath(trimmed.workspace_path);
       if (!skipCollabSandbox) {
         meta.workspace_context = trimmed;
+      }
+    }
+  }
+
+  // Plain /collaborate from chat should bind the active explorer workspace like the collab form.
+  if (isCollaborateCommand(message) && !/\s--no-workspace\b/i.test(message)) {
+    if (meta[COLLAB_SOURCE_MODE_KEY] !== 'none') {
+      if (!meta[COLLAB_SOURCE_MODE_KEY]) {
+        meta[COLLAB_SOURCE_MODE_KEY] = 'active';
+      }
+      const full = loadFullWorkspaceContext();
+      const wsPath = full.workspace_path?.trim() ?? '';
+      if (wsPath && !isCollabSandboxPath(wsPath) && !meta.workspace_context) {
+        meta.workspace_context = {
+          workspace_name: full.workspace_name,
+          workspace_path: wsPath,
+          file_tree: full.file_tree,
+          open_files: [],
+        };
+        meta[COLLAB_SOURCE_PATH_KEY] = wsPath;
+      } else if (wsPath && !isCollabSandboxPath(wsPath)) {
+        meta[COLLAB_SOURCE_PATH_KEY] = wsPath;
       }
     }
   }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/confluence"
+	"github.com/camronwood/neural-junkie/internal/mcp/confluencemcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -21,6 +22,7 @@ type ConfluenceAgent struct {
 	storage    *confluence.Storage
 	client     *confluence.Client
 	isIndexing bool
+	confluenceMCP *confluencemcp.ConfluenceMCP
 }
 
 // NewConfluenceAgent creates a new Confluence space expert agent
@@ -65,6 +67,13 @@ func NewConfluenceAgent(name string, spaceKey string, ai ai.AIProvider, hub HubC
 		storage:    storage,
 		client:     client,
 		isIndexing: true,
+	}
+
+	if confMCP, err := confluencemcp.NewConfluenceMCP(spaceKey, client); err != nil {
+		log.Printf("[ConfluenceAgent:%s] Failed to create Confluence MCP tools: %v", name, err)
+	} else {
+		confluenceAgent.confluenceMCP = confMCP
+		baseAgent.MCPServer = confMCP
 	}
 
 	return confluenceAgent, nil
@@ -148,6 +157,7 @@ func (ca *ConfluenceAgent) indexSpace(ctx context.Context) {
 			ca.isIndexing = false
 			ca.Info.IndexingStatus = string(protocol.IndexingStatusReady)
 			ca.Info.IndexProgress = 100
+			ca.syncConfluenceMCPIndex()
 			ca.sendStatusUpdate("Ready")
 			return
 		}
@@ -178,9 +188,17 @@ func (ca *ConfluenceAgent) indexSpace(ctx context.Context) {
 	ca.isIndexing = false
 	ca.Info.IndexingStatus = string(protocol.IndexingStatusReady)
 	ca.Info.IndexProgress = 100
+	ca.syncConfluenceMCPIndex()
 
 	ca.sendStatusUpdate("Ready")
 	log.Printf("[ConfluenceAgent:%s] Indexing complete. Indexed %d pages.", ca.Info.Name, index.PageCount)
+}
+
+// syncConfluenceMCPIndex updates in-process MCP tools with the latest space index.
+func (ca *ConfluenceAgent) syncConfluenceMCPIndex() {
+	if ca.confluenceMCP != nil && ca.index != nil {
+		ca.confluenceMCP.SetIndex(ca.index)
+	}
 }
 
 // updateProgress updates the indexing progress

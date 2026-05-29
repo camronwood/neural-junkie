@@ -77,6 +77,7 @@ func (m *mockHubClientReview) GetChannelType(channelName string) protocol.Channe
 	return protocol.ChannelTypePublic
 }
 func (m *mockHubClientReview) GetChannelSessionSummary(channel string) string { return "" }
+func (m *mockHubClientReview) GetThreadMessages(string, int) ([]*protocol.Message, error) { return nil, nil }
 func (m *mockHubClientReview) IsChannelHeld(channel string) bool              { return false }
 func (m *mockHubClientReview) ImageGenerationEnabled() bool { return false }
 func (m *mockHubClientReview) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {

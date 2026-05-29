@@ -1,0 +1,11 @@
+# LoRA training extras — installed automatically by `make deps` into .venv-lora.
+# Requires CUDA for practical training times; CPU is experimental.
+
+unsloth
+trl
+transformers
+datasets
+accelerate
+peft
+bitsandbytes
+torch

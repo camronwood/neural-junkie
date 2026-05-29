@@ -224,6 +224,9 @@ func (h *httpHubClient) GetAgentChannels(agentID string) []string {
 }
 
 func (h *httpHubClient) GetChannelSessionSummary(channel string) string { return "" }
+func (h *httpHubClient) GetThreadMessages(threadID string, limit int) ([]*protocol.Message, error) {
+	return nil, nil
+}
 
 func (h *httpHubClient) GetChannelType(channelName string) protocol.ChannelType {
 	resp, err := h.client.Get(fmt.Sprintf("%s/api/channels", h.baseURL))

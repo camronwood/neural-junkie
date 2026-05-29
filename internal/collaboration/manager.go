@@ -585,7 +585,18 @@ func (cm *CollaborationManager) TransitionToExecuting(collabID string) (*Collabo
 	// Execution is task-driven only — no round-robin "execution Q&A" discussion.
 	c.Discussion = nil
 
+	planContent := ""
+	if c.Plan != nil {
+		planContent = c.Plan.Content
+	}
+	EnrichTasksWithPlanDeliverables(planContent, c.Tasks)
+	NormalizeTaskDeliverablePathsForSandbox(c, c.Tasks)
 	EnrichTasksWithContextPaths(c.Tasks, c.SourceRepoPath)
+	if created, err := MaterializePlanDeliverableStubs(c); err != nil {
+		log.Printf("[CollaborationManager] deliverable stubs for %s: %v", collabID[:8], err)
+	} else if len(created) > 0 {
+		log.Printf("[CollaborationManager] Created %d deliverable stub(s) for %s", len(created), collabID[:8])
+	}
 
 	log.Printf("[CollaborationManager] Collaboration %s transitioned to executing with %d tasks", collabID[:8], len(c.Tasks))
 	return c, nil

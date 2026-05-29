@@ -29,6 +29,8 @@ DISCUSSION_TYPES = frozenset(
     }
 )
 
+CHAT_REPLY_TYPES = frozenset({"chat", "answer"})
+
 
 def hub_request(
     base: str,
@@ -82,6 +84,72 @@ def ensure_channel(base: str, name: str, description: str = "Automated collab sc
         },
     )
     return code in (200, 201)
+
+
+def channel_has_agent(base: str, channel: str, agent_name: str) -> bool:
+    want = agent_name.strip().lstrip("@")
+    code, chs = hub_request(base, "GET", "/api/channels")
+    if code != 200 or not isinstance(chs, list):
+        return False
+    for ch in chs:
+        if not isinstance(ch, dict) or ch.get("name") != channel:
+            continue
+        for ag in ch.get("agents") or []:
+            if isinstance(ag, dict) and (ag.get("name") or "").strip() == want:
+                return True
+    return False
+
+
+def join_agent_to_channel(base: str, channel: str, agent_name: str, *, max_retries: int = 3) -> bool:
+    """Join an online agent to channel by display name (hub membership + discoverChannels)."""
+    if channel_has_agent(base, channel, agent_name):
+        return True
+    agent_id = resolve_agent_id(base, agent_name)
+    if not agent_id:
+        return False
+    payload = {"agent_id": agent_id, "channel": channel}
+    for attempt in range(max_retries):
+        code, _ = hub_request(base, "POST", "/api/channels/join", payload)
+        if code == 200:
+            return True
+        if code == 429 and attempt + 1 < max_retries:
+            time.sleep(2.0 * (attempt + 1))
+            continue
+        return False
+    return False
+
+
+def join_agents_to_channel(base: str, channel: str, agent_names: list[str]) -> tuple[bool, list[str]]:
+    """Join all named agents; return (ok, failed_names)."""
+    failed: list[str] = []
+    for name in agent_names:
+        want = name.strip().lstrip("@")
+        if not want:
+            continue
+        if not join_agent_to_channel(base, channel, want):
+            failed.append(want)
+    return len(failed) == 0, failed
+
+
+def ensure_channel_with_agents(
+    base: str,
+    name: str,
+    agent_names: list[str],
+    description: str = "Automated scenario tests",
+) -> tuple[bool, list[str]]:
+    """Ensure public channel exists and required agents are joined."""
+    if not ensure_channel(base, name, description):
+        return False, agent_names
+    need_join = [
+        n
+        for n in agent_names
+        if n.strip() and not channel_has_agent(base, name, n)
+    ]
+    ok, failed = join_agents_to_channel(base, name, agent_names)
+    if ok and need_join:
+        # In-process agents pick up new channels via discoverChannels (~1s).
+        time.sleep(2.0)
+    return ok, failed
 
 
 def send_message(
@@ -297,6 +365,117 @@ def count_by_agent(messages: list[dict]) -> dict[str, int]:
 def messages_matching(messages: list[dict], pattern: str) -> list[dict]:
     rx = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
     return [m for m in messages if rx.search(m.get("content") or "")]
+
+
+def chat_agent_messages(
+    messages: list[dict],
+    *,
+    exclude_system: bool = True,
+) -> list[dict]:
+    """Agent chat/answer messages for general conversation scenarios."""
+    return agent_messages(messages, types=CHAT_REPLY_TYPES, exclude_system=exclude_system)
+
+
+def count_chat_agent_messages(messages: list[dict], from_agent: str | None = None) -> int:
+    pool = chat_agent_messages(messages)
+    if not from_agent:
+        return len(pool)
+    want = from_agent.strip().lstrip("@")
+    return sum(1 for m in pool if (m.get("from") or {}).get("name") == want)
+
+
+def wait_chat_reply(
+    base: str,
+    channel: str,
+    *,
+    from_agent: str,
+    baseline_count: int,
+    timeout: float,
+    max_new: int = 1,
+) -> tuple[bool, str]:
+    """Poll until from_agent posts max_new chat/answer messages above baseline_count."""
+    want = from_agent.strip().lstrip("@")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        msgs = list_messages(base, channel, 200)
+        pool = chat_agent_messages(msgs)
+        agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == want]
+        new_count = len(agent_msgs) - baseline_count
+        if new_count >= max_new:
+            return True, f"{want} replied ({new_count} new)"
+        time.sleep(POLL_INTERVAL)
+    counts = count_by_agent(chat_agent_messages(list_messages(base, channel, 50)))
+    return False, f"timeout waiting for @{want} (baseline={baseline_count}, counts={counts})"
+
+
+def resolve_agent_id(base: str, agent_name: str) -> str | None:
+    """Resolve display name to hub agent id."""
+    want = agent_name.strip().lstrip("@")
+    code, data = hub_request(base, "GET", "/api/agents")
+    if code != 200 or not isinstance(data, list):
+        return None
+    for a in data:
+        if not isinstance(a, dict):
+            continue
+        if (a.get("name") or "").strip() == want:
+            return (a.get("id") or "").strip() or None
+    return None
+
+
+def ensure_dm_channel(base: str, user: str, agent_name: str) -> str | None:
+    """Create or return DM channel name between user and agent (by display name)."""
+    agent_id = resolve_agent_id(base, agent_name)
+    if not agent_id:
+        return None
+    body = {
+        "type": "dm",
+        "created_by": user,
+        "members": [agent_id],
+        "description": "Chat scenario DM",
+    }
+    code, data = None, None
+    for attempt in range(3):
+        code, data = hub_request(base, "POST", "/api/channels/create", body)
+        if code in (200, 201):
+            break
+        if code == 429 and attempt + 1 < 3:
+            time.sleep(2.0 * (attempt + 1))
+            continue
+        break
+    if code not in (200, 201) or not isinstance(data, dict):
+        return None
+    name = (data.get("name") or "").strip()
+    return name or None
+
+
+def clear_channel_history(base: str, channel: str, *, max_retries: int = 3) -> bool:
+    payload = {"name": channel}
+    for attempt in range(max_retries):
+        code, _ = hub_request(base, "POST", "/api/channels/clear-history", payload)
+        if code == 200:
+            return True
+        if code == 429 and attempt + 1 < max_retries:
+            time.sleep(2.0 * (attempt + 1))
+            continue
+        return False
+    return False
+
+
+def fetch_debug_context(
+    base: str,
+    channel: str,
+    message: str,
+    *,
+    conversation_mode: str | None = None,
+) -> dict | None:
+    q: dict[str, str] = {"channel": channel, "message": message}
+    if conversation_mode:
+        q["conversation_mode"] = conversation_mode
+    query = urllib.parse.urlencode(q)
+    code, data = hub_request(base, "GET", f"/api/debug/channel-context?{query}")
+    if code == 200 and isinstance(data, dict):
+        return data
+    return None
 
 
 def resolve_agents(profile: str | None, override: str | None) -> str:

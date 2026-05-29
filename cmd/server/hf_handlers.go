@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,6 +55,64 @@ func handleHfCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(models)
+}
+
+func handleHfSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	mode := strings.TrimSpace(r.URL.Query().Get("mode"))
+	if mode == "" {
+		mode = "hosted"
+	}
+	limit := queryIntDefault(r.URL.Query().Get("limit"), 24)
+	offset := 0
+	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n >= 0 {
+			offset = n
+		}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+	result, err := hfhub.SearchModels(ctx, query, mode, limit, offset)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+
+func handleHfFiles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	repoID := strings.TrimSpace(r.URL.Query().Get("repo_id"))
+	if repoID == "" {
+		http.Error(w, "repo_id is required", http.StatusBadRequest)
+		return
+	}
+	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+	token := hfhub.TokenFromConfig(appConfig)
+	var files []hfhub.CatalogFile
+	var err error
+	switch kind {
+	case "adapter":
+		files, err = hfhub.ListRepoAdapterFiles(ctx, repoID, token)
+	default:
+		files, err = hfhub.ListRepoGGUF(ctx, repoID, token)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"repo_id": repoID, "kind": kind, "files": files})
 }
 
 func handleHfTestConnection(w http.ResponseWriter, r *http.Request) {
@@ -190,7 +249,8 @@ func handleHfLocal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "HF manager not initialized", http.StatusInternalServerError)
 		return
 	}
-	files, err := hfMgr.ListLocal()
+	kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
+	files, err := hfMgr.ListLocalFiltered(kind)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -234,13 +294,20 @@ func handleHfImportOllama(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		RepoID    string `json:"repo_id"`
-		Filename  string `json:"filename"`
-		OllamaTag string `json:"ollama_tag"`
+		RepoID        string `json:"repo_id"`
+		Filename      string `json:"filename"`
+		OllamaTag     string `json:"ollama_tag"`
+		BaseOllamaTag string `json:"base_ollama_tag"`
+		Kind          string `json:"kind"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.RepoID) == "" {
 		http.Error(w, "repo_id is required", http.StatusBadRequest)
 		return
+	}
+	entry, _ := hfhub.FindCatalogEntry(req.RepoID)
+	kind := strings.ToLower(strings.TrimSpace(req.Kind))
+	if kind == "" && entry != nil && hfhub.IsAdapterEntry(entry) {
+		kind = "adapter"
 	}
 	path, err := hfMgr.LocalPath(req.RepoID, req.Filename)
 	if err != nil {
@@ -248,20 +315,35 @@ func handleHfImportOllama(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tag := strings.TrimSpace(req.OllamaTag)
+	fn := req.Filename
+	if entry != nil && fn == "" && len(entry.Files) > 0 {
+		fn = entry.Files[0].Filename
+	}
 	if tag == "" {
-		entry, _ := hfhub.FindCatalogEntry(req.RepoID)
-		fn := req.Filename
-		if entry != nil && fn == "" && len(entry.Files) > 0 {
-			fn = entry.Files[0].Filename
+		if entry != nil && hfhub.IsAdapterEntry(entry) {
+			tag = hfhub.DefaultAdapterOllamaTag(entry, fn)
+		} else {
+			tag = hfhub.DefaultOllamaTag(req.RepoID, fn)
 		}
-		tag = hfhub.DefaultOllamaTag(req.RepoID, fn)
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
-	if err := hfhub.ImportToOllama(ctx, path, tag); err != nil {
+	if kind == "adapter" {
+		baseTag := strings.TrimSpace(req.BaseOllamaTag)
+		if baseTag == "" && entry != nil {
+			baseTag = entry.BaseOllamaTag
+		}
+		if baseTag == "" {
+			baseTag = hfhub.DefaultLoRABaseTag
+		}
+		if err := hfhub.ImportAdapterToOllama(ctx, baseTag, path, tag); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else if err := hfhub.ImportToOllama(ctx, path, tag); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "imported", "ollama_tag": tag})
+	json.NewEncoder(w).Encode(map[string]string{"status": "imported", "ollama_tag": tag, "kind": kind})
 }

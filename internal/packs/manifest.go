@@ -24,6 +24,7 @@ type Manifest struct {
 	ExpertLabel    string         `yaml:"expert_label"`
 	ExpertPresets  []ExpertPreset `yaml:"expert_presets"`
 	MCPAgents      []string       `yaml:"mcp_agents"`
+	LoRAAdapters   []LoRAAdapterSpec `yaml:"lora_adapters,omitempty"`
 }
 
 // AgentSpec declares one in-process specialist from a pack.
@@ -31,6 +32,16 @@ type AgentSpec struct {
 	Type           string `yaml:"type"`
 	Name           string `yaml:"name"`
 	Implementation string `yaml:"implementation"`
+	OllamaModel    string `yaml:"ollama_model,omitempty"`
+}
+
+// LoRAAdapterSpec declares a pack LoRA to download and compose in Ollama.
+type LoRAAdapterSpec struct {
+	AgentType     string `yaml:"agent_type"`
+	RepoID        string `yaml:"repo_id"`
+	Filename      string `yaml:"filename,omitempty"`
+	OllamaTag     string `yaml:"ollama_tag"`
+	BaseOllamaTag string `yaml:"base_ollama_tag,omitempty"`
 }
 
 // ExpertPreset is a /create-expert slug from a pack manifest.

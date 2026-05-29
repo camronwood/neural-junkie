@@ -1075,6 +1075,16 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	}
 
 	if status == collaboration.TaskCompleted {
+		if collaboration.AgentReplyContainsStalePlanning(msg.Content) {
+			h.broadcastCollabSystem(msg.Channel, collabID, fmt.Sprintf(
+				"⚠️ **Task not marked complete** (`%s`) — @%s echoed planning/approval language during execution. Finish the assigned deliverable or use `/collab-task-done` when real output exists.",
+				collabID[:8], msg.From.Name,
+			))
+			if task.Status != collaboration.TaskInProgress {
+				_, _ = h.collabManager.UpdateTaskStatusWithEffects(collabID, task.ID, collaboration.TaskInProgress, "Awaiting execution deliverable")
+			}
+			return
+		}
 		if h.maybeWarnPrematureTaskCompletion(msg, collabID, task, collabSnapshot) {
 			return
 		}

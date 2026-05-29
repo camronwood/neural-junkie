@@ -147,5 +147,85 @@
     "icon_key": "bio",
     "publisher": "OpenBioLLM",
     "modes": ["hosted"]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "scthornton/qwen2.5-coder-14b-securecode",
+    "title": "Qwen Coder 14B SecureCode LoRA",
+    "description": "OWASP-focused secure coding LoRA for Qwen 2.5 Coder 14B. Compose on qwen2.5-coder:14b as nj-security:14b for SecurityReviewer.",
+    "tags": ["code", "lora", "adapter", "security"],
+    "size_hint": "~50 MB",
+    "icon_key": "qwen",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "qwen2.5-coder:14b",
+    "default_ollama_tag": "nj-security:14b",
+    "agent_type": "security",
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k",
+    "title": "Qwen Coder 14B Code Feedback LoRA",
+    "description": "Community LoRA for Qwen 2.5 Coder 14B trained on code feedback. Compose on qwen2.5-coder:14b as nj-code-review:14b for CodeReviewer.",
+    "tags": ["code", "lora", "adapter"],
+    "size_hint": "~50 MB",
+    "icon_key": "qwen",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "qwen2.5-coder:14b",
+    "default_ollama_tag": "nj-code-review:14b",
+    "agent_type": "code-review",
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora",
+    "title": "Qwen Coder 14B Text-to-SQL LoRA",
+    "description": "Text-to-SQL LoRA for Qwen 2.5 Coder 14B. Compose on qwen2.5-coder:14b as nj-backend:14b for BackendEngineer (APIs, schemas, data layer).",
+    "tags": ["code", "lora", "adapter", "sql"],
+    "size_hint": "~50 MB",
+    "icon_key": "qwen",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "qwen2.5-coder:14b",
+    "default_ollama_tag": "nj-backend:14b",
+    "agent_type": "backend",
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "Pk3112/medmcqa-lora-llama3-8b-instruct",
+    "title": "MedMCQA LoRA (Llama 3 8B)",
+    "description": "Medical/biology LoRA for Meta-Llama-3-8B-Instruct. Compose on llama3:8b as nj-biology:8b for BiologyExpert.",
+    "tags": ["biology", "lora", "adapter"],
+    "size_hint": "~50 MB",
+    "icon_key": "bio",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "llama3:8b",
+    "default_ollama_tag": "nj-biology:8b",
+    "agent_type": "biology",
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
   }
 ]

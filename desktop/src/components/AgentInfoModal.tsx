@@ -51,6 +51,8 @@ export function AgentInfoModal({
   const [toolCaps, setToolCaps] = useState<AgentToolCapabilities | null>(null);
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsError, setToolsError] = useState<string | null>(null);
+  const [fetchedOllamaModels, setFetchedOllamaModels] = useState<string[]>([]);
+  const [fetchedLMStudioModels, setFetchedLMStudioModels] = useState<string[]>([]);
 
   useEffect(() => {
     if (agent && agent.type !== 'loading') {
@@ -92,6 +94,27 @@ export function AgentInfoModal({
     };
   }, [isOpen, agent?.id, agent?.type, isCLIAgent, serverAddr]);
 
+  useEffect(() => {
+    if (!isOpen || !agent || agent.type === 'loading' || isCLIAgent) {
+      return;
+    }
+    let cancelled = false;
+    const api = new ChatAPI(serverAddr);
+    void api.fetchOllamaModels().then((models) => {
+      if (!cancelled) {
+        setFetchedOllamaModels(models);
+      }
+    }).catch(() => {});
+    void api.fetchLMStudioModels().then((models) => {
+      if (!cancelled) {
+        setFetchedLMStudioModels(models);
+      }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, agent?.id, agent?.type, isCLIAgent, serverAddr]);
+
   // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -107,6 +130,41 @@ export function AgentInfoModal({
   }, [isOpen, onClose]);
 
   if (!isOpen || !agent) return null;
+
+  const effectiveProvider =
+    agent.ai_provider ||
+    toolCaps?.chat_provider ||
+    (agent.model && !agent.model.startsWith('claude') ? 'ollama' : '') ||
+    'unknown';
+  const effectiveModel = agent.ai_model || agent.model || toolCaps?.chat_model || '';
+  const selectValue =
+    effectiveProvider && effectiveModel && effectiveProvider !== 'unknown'
+      ? `${effectiveProvider}::${effectiveModel}`
+      : '';
+
+  const mergedOllamaModels = [
+    ...new Set([...availableOllamaModels, ...fetchedOllamaModels]),
+  ];
+  const mergedLMStudioModels = [
+    ...new Set([...availableLMStudioModels, ...fetchedLMStudioModels]),
+  ];
+
+  const ollamaOptions = [...mergedOllamaModels];
+  if (
+    effectiveProvider === 'ollama' &&
+    effectiveModel &&
+    !ollamaOptions.includes(effectiveModel)
+  ) {
+    ollamaOptions.unshift(effectiveModel);
+  }
+  const lmStudioOptions = [...mergedLMStudioModels];
+  if (
+    effectiveProvider === 'lmstudio' &&
+    effectiveModel &&
+    !lmStudioOptions.includes(effectiveModel)
+  ) {
+    lmStudioOptions.unshift(effectiveModel);
+  }
 
   const agentColor = agent.type === 'loading' ? '#3b82f6' : getAgentColor(agent.type);
   const isActive = agent.status === 'active';

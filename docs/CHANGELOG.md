@@ -6,6 +6,17 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Context model v2
+
+- **Conversation Context Stack** — documented in [CONTEXT_MODEL.md](CONTEXT_MODEL.md): mode → intent → memory → grounding → persona → budget pipeline.
+- **Composer conversation mode** — Auto / Chat / Code chip sends `conversation_mode` metadata; Chat mode skips workspace attachment and tooling-heavy prompts.
+- **Turn intent v2** — `casual` (was `low_signal`), new `task` intent for code verbs; chat mode biases toward casual replies.
+- **DM persona** — direct 1:1 framing in DMs; MCP and `[FILE_CHANGE]` docs suppressed on casual chat turns.
+- **Broader session summaries** — rolling summaries on public channels and `dm-*` specialist slugs, not only typed DM/custom channels.
+- **Thread-scoped history** — agents in threads use thread messages for LLM history instead of full channel noise.
+- **Context budget** — ~32KB prompt cap with section-aware truncation before LLM calls.
+- **Baseline fixes** — `@mention` overrides IDE route; session persist slimming for `workspace_context`.
+
 ## [1.0.0-beta.19] - 2026-05-29
 
 ### Added

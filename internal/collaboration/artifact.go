@@ -647,6 +647,7 @@ func parseTaskHeading(line string, context []string, agents map[string]Collabora
 	if assignedTo == "" {
 		return nil
 	}
+	desc = mergeTaskContextIntoDescription(desc, context)
 
 	return &CollaborationTask{
 		ID:           uuid.New().String(),

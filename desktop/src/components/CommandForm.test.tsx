@@ -19,7 +19,13 @@ const createRepoAgentCommand: CommandDefinition = {
       options: ['ollama', 'claude', 'lmstudio', 'huggingface'],
       default: 'ollama',
     },
-    { name: 'model', description: 'AI model name', type: 'model', required: false },
+    { name: 'model', description: 'AI model name or composed LoRA tag', type: 'model', required: false },
+    {
+      name: 'adapter-repo',
+      description: 'HF LoRA repo id (use --adapter-repo in command)',
+      type: 'string',
+      required: false,
+    },
   ],
 };
 

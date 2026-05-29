@@ -116,6 +116,23 @@ func NewOllamaProviderWithConfig(endpoint, model string) *OllamaProvider {
 	}
 }
 
+// OllamaWithModel returns a shallow copy of base using model for inference.
+func OllamaWithModel(base *OllamaProvider, model string) *OllamaProvider {
+	if base == nil {
+		return NewOllamaProviderWithConfig("", model)
+	}
+	model = strings.TrimSpace(model)
+	if model == "" || model == base.Model {
+		return base
+	}
+	clone := *base
+	clone.Model = model
+	clone.httpClient = &http.Client{Timeout: ollamaHTTPTimeout(model)}
+	clone.toolsProbeOnce = sync.Once{}
+	clone.nativeToolsSupported = false
+	return &clone
+}
+
 func (o *OllamaProvider) buildChatMessages(systemPrompt, userMessage string, conversationHistory []protocol.Message) []OllamaMessage {
 	messages := []OllamaMessage{}
 	if systemPrompt != "" {

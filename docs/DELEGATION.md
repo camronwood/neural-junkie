@@ -10,6 +10,8 @@ Neural Junkie can let **any in-process hub agent** consult **other registered sp
 4. Consult runs **in-process** (no public handoff message unless visibility is changed later).
 5. Results appear in the prompt as `=== DELEGATE_RESULTS ===`; the responding agent's model merges them.
 
+**Context v2:** Delegation runs after turn intent classification. It is **skipped** for `closure` and `casual` intents so greetings and small talk do not trigger cross-agent consults. See [CONTEXT_MODEL.md](CONTEXT_MODEL.md).
+
 ```mermaid
 sequenceDiagram
     participant U as User
@@ -51,8 +53,10 @@ Default is **`enabled: false`** (no behavior change until you turn it on).
 
 | Intent | Behavior |
 |--------|----------|
-| `domain_reasoning` | OpenBio (or `biology_chat_model`) via model consult |
-| `domain_tools` | BiologyExpert runtime agent + MCP tools (Qwen tool loop when needed) |
+| `domain_reasoning` | Specialist chat model (e.g. OpenBio for biology) via model consult |
+| `domain_tools` | Specialist runtime agent + MCP tools (tool loop with qwen fallback when needed) |
+
+Supported `domain_tools` targets when the consultee has MCP tools: **BackendEngineer**, **PlatformEngineer**, **DatabaseSpecialist**, **FrontendEngineer**, **SecurityReviewer**, **CodeReviewer**, **SoftwareArchitect**, **RustExpert**, and **BiologyExpert**. Classification uses keyword heuristics on the sub-question (see `internal/delegation/classify_tools.go`).
 
 See [BIOLOGY_PACK.md](BIOLOGY_PACK.md) for model pulls and disclaimers.
 
@@ -73,6 +77,6 @@ curl 'http://localhost:18765/api/debug/delegation-resolve?from=BackendEngineer&q
 
 ## Related
 
-- [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — turn intent runs before delegation augments the prompt.
+- [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack v2; turn intent runs before delegation augments the prompt.
 - [AGENT_REVIEW.md](AGENT_REVIEW.md) — user-driven second opinion (@mention), not automatic consult.
 - [COLLABORATION.md](COLLABORATION.md) — structured multi-agent projects.

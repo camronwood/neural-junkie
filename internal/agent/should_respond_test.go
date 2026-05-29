@@ -34,6 +34,9 @@ func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelTyp
 	return protocol.ChannelTypePublic
 }
 func (shouldRespondTestHub) GetChannelSessionSummary(string) string { return "" }
+func (shouldRespondTestHub) GetThreadMessages(string, int) ([]*protocol.Message, error) {
+	return nil, nil
+}
 func (shouldRespondTestHub) IsChannelHeld(string) bool             { return false }
 
 type shouldRespondTestCollab struct{}
@@ -360,5 +363,34 @@ func TestShouldRespond_CollaborationMentionIgnoredWhenDiscussionExhausted(t *tes
 
 	if ag.shouldRespond(msg) {
 		t.Fatal("expected no agent reply when discussion is exhausted and only @mention would apply")
+	}
+}
+
+func TestShouldRespond_ExplicitMentionOverridesIdeRoute(t *testing.T) {
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+
+	backend := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"go"}, mockAI, hubStub)
+	backend.SetCollabClient(shouldRespondTestCollab{})
+
+	assistant := NewAgent(protocol.AgentTypeAssistant, "Assistant", []string{"help"}, mockAI, hubStub)
+	assistant.SetCollabClient(shouldRespondTestCollab{})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "human-user", Name: "camron", Type: "human"},
+		"@Assistant hello",
+	)
+	msg.Metadata = map[string]interface{}{
+		protocol.IdeMetaRouteAgentType: "backend",
+	}
+	msg.Mention(assistant.Info.ID)
+
+	if backend.shouldRespond(msg) {
+		t.Fatal("BackendEngineer must not respond when only Assistant is @mentioned")
+	}
+	if !assistant.shouldRespond(msg) {
+		t.Fatal("Assistant should respond when @mentioned even with IDE backend route metadata")
 	}
 }

@@ -1,0 +1,31 @@
+{
+  "name": "greeting-chat-mode",
+  "description": "Chat mode greeting stays short without tooling blocks in the reply.",
+  "channel": "chat-scenarios",
+  "channel_type": "public",
+  "mention": "@Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "hello",
+      "metadata": {
+        "conversation_mode": "chat",
+        "context_scope": "none"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "90s"
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "Assistant",
+      "none_match": ["MCP", "FILE_CHANGE", "kubectl", "=== TOOL"],
+      "max_chars": 1200
+    }
+  ],
+  "cleanup": "clear"
+}

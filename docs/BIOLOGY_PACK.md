@@ -13,6 +13,7 @@ Install and enable this pack from **Settings → Domain packs → Pack store**. 
 | **OpenBioLLM 8B (chat)** | `koesn/llama3-openbiollm-8b:latest` — recommended Ollama Hub pull (Llama 3 template) |
 | **Tool runner** | `qwen2.5:7b` — hub uses this for MCP `analyze_sequence` / `fold_protein` when the chat model has no native tools |
 | **nj-bio:8b (optional)** | HF GGUF import with Llama 3 template (branded tag) |
+| **nj-biology:8b (optional)** | LoRA compose on `llama3:8b` — installed automatically when the pack is enabled (or via Pack store **Install LoRAs**) |
 | **BiologyExpert** | Preset agent with bio MCP tools |
 | **analyze_sequence** | DNA/RNA/protein checks, length, reverse complement |
 | **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |

@@ -107,6 +107,7 @@ type HubClient interface {
 	GetAgentChannels(agentID string) []string
 	GetChannelType(channelName string) protocol.ChannelType
 	GetChannelSessionSummary(channel string) string
+	GetThreadMessages(threadID string, limit int) ([]*protocol.Message, error)
 	// IsChannelHeld is true when the user has interjected (agents should not start new turns).
 	IsChannelHeld(channel string) bool
 	// Image generation (hub OpenAI Images API when OPENAI_API_KEY is set).
@@ -1024,7 +1025,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if routed := msg.SlackRoutedAgentID(); routed != "" {
 		return routed == a.Info.ID
 	}
-	if routedType := msg.IdeRouteAgentType(); routedType != "" {
+	// IDE file-tab routing applies only when the user did not @mention a specific agent.
+	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() {
 		return strings.EqualFold(string(a.Info.Type), routedType)
 	}
 
@@ -1178,6 +1180,9 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeCLI ||
 			msg.From.Type == protocol.AgentTypeConfluence
 		if !isFromAgent {
+			if msg.HasMentions() {
+				return msg.IsMentioned(a.Info.ID)
+			}
 			log.Printf("[%s] ✅ DM CHANNEL - will respond", a.Info.Name)
 			return true
 		}
@@ -1641,6 +1646,12 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 
 	prompt = a.augmentPromptWithCLIImages(msg, prompt)
 
+	var budgetStats ContextBudgetStats
+	prompt, budgetStats = applyContextBudget(prompt)
+	if budgetStats.Truncated {
+		log.Printf("[%s] context budget applied: %d -> %d bytes", a.Info.Name, budgetStats.OriginalBytes, budgetStats.FinalBytes)
+	}
+
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
 		approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
@@ -1753,6 +1764,12 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 
 	prompt = a.augmentPromptWithCLIImages(msg, prompt)
+
+	var streamBudgetStats ContextBudgetStats
+	prompt, streamBudgetStats = applyContextBudget(prompt)
+	if streamBudgetStats.Truncated {
+		log.Printf("[%s] context budget applied (stream): %d -> %d bytes", a.Info.Name, streamBudgetStats.OriginalBytes, streamBudgetStats.FinalBytes)
+	}
 
 	imgs := protocol.ExtractUserImages(msg)
 	if len(imgs) > 0 && a.Info.SupportsVision {
@@ -2074,7 +2091,11 @@ func (a *Agent) resolveWorkspacePath(msg *protocol.Message) string {
 //
 // AI providers that support a "system" role (Ollama, Claude, LM Studio) will
 // split on the separator and send the first part as a system message.
-func (a *Agent) buildPrompt(msg *protocol.Message) string {
+func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string {
+	resolvedIntent := IntentSubstantive
+	if len(intent) > 0 {
+		resolvedIntent = intent[0]
+	}
 	if a.customPromptBuilder != nil {
 		if isCollabRecapMessage(msg) {
 			return buildCollabRecapPrompt(a.Info.Name, msg)
@@ -2088,16 +2109,14 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		return a.buildCompactOllamaPrompt(msg)
 	}
 
+	personaTier := a.promptPersonaTier(msg)
+	includeTooling := a.shouldIncludeToolingInPrompt(msg, resolvedIntent)
+
 	var system strings.Builder
 	var user strings.Builder
 
 	// ── SYSTEM SECTION ──────────────────────────────────────────────────
-	specialty := string(a.Info.Type)
-	if a.Info.Type == protocol.AgentTypeHelper && len(a.Info.Expertise) > 0 {
-		specialty = a.Info.Expertise[0]
-	}
-	system.WriteString(fmt.Sprintf("You are %s, a %s specialist agent in a multi-agent collaboration chat room.\n\n", a.Info.Name, specialty))
-	system.WriteString(fmt.Sprintf("Your expertise: %s\n\n", strings.Join(a.Info.Expertise, ", ")))
+	a.writePersonaOpening(&system, msg, personaTier)
 
 	// Self-knowledge: tell the agent what model/provider it's actually running on
 	// so it can answer honestly when users ask "what LLM are you?"
@@ -2118,10 +2137,10 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	collabInfo := a.getCollaborationContext(msg)
 	isCollab := collabInfo.ID != ""
 
-	if a.MCPServer != nil && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
+	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
 		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer))
 	}
-	if a.imageGenerationToolsEnabled() {
+	if includeTooling && a.imageGenerationToolsEnabled() {
 		appendImageGenerationPrompt(&system)
 	}
 
@@ -2201,6 +2220,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 				} else {
 					system.WriteString(fmt.Sprintf("\n**Execution workspace:** %s\n", collabInfo.WorkingDirectory))
 					system.WriteString("Use this directory as the root for relative paths and shell commands.\n")
+					system.WriteString("When no project repo is bound, write deliverables as flat filenames in this workspace (e.g. `scope.md`), not nested `collabs/<id>/` paths.\n")
 				}
 			}
 			appendCollaborationWorkspaceInstructions(&system, collabInfo, a.Info.Type)
@@ -2241,16 +2261,18 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 		}
 		system.WriteString("5. Only respond to the user's question -- do not respond to other agents' responses.\n")
 		system.WriteString("6. Ask clarifying questions when the request is ambiguous.\n")
-		system.WriteString("7. CRITICAL: If asked to review, analyze, or explain code but NO code and NO workspace context appear below, ")
-		system.WriteString("you MUST tell the user you currently do not have code context and ask them to either: ")
-		system.WriteString("(a) include the file path in their message (e.g., 'review cmd/server/main.go'), or ")
-		system.WriteString("(b) enable workspace sharing. If workspace context is present, do NOT claim you cannot access files; use available context and request a specific path only when needed. NEVER fabricate or guess code content.\n")
-		system.WriteString("8. You CAN propose file changes (create/edit/delete) in the shared workspace for user approval. ")
-		system.WriteString("If asked whether you can edit files, answer YES and explain that changes apply after approval.\n")
-		system.WriteString("9. NEVER mention internal tool/function names (e.g., ProposeFileEdit/ProposeFileCreate) to the user.\n")
-		system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
-		appendFileChangeMachineBlockDocs(&system)
-		if a.Info.Type == protocol.AgentTypeHelper {
+		if includeTooling {
+			system.WriteString("7. CRITICAL: If asked to review, analyze, or explain code but NO code and NO workspace context appear below, ")
+			system.WriteString("you MUST tell the user you currently do not have code context and ask them to either: ")
+			system.WriteString("(a) include the file path in their message (e.g., 'review cmd/server/main.go'), or ")
+			system.WriteString("(b) enable workspace sharing. If workspace context is present, do NOT claim you cannot access files; use available context and request a specific path only when needed. NEVER fabricate or guess code content.\n")
+			system.WriteString("8. You CAN propose file changes (create/edit/delete) in the shared workspace for user approval. ")
+			system.WriteString("If asked whether you can edit files, answer YES and explain that changes apply after approval.\n")
+			system.WriteString("9. NEVER mention internal tool/function names (e.g., ProposeFileEdit/ProposeFileCreate) to the user.\n")
+			system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
+			appendFileChangeMachineBlockDocs(&system)
+		}
+		if includeTooling && a.Info.Type == protocol.AgentTypeHelper {
 			system.WriteString("11. If the user asks you to create, write, or save a file, you MUST emit a [FILE_CHANGE] block (usually operation: create with a relative path). ")
 			system.WriteString("Chat-only explanations do not write to disk; the host only applies changes from FILE_CHANGE proposals (after user approval).\n")
 		}
@@ -2260,7 +2282,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message) string {
 	agents, errAgents := a.Hub.GetChannelAgents(msg.Channel)
 	if errAgents != nil {
 		log.Printf("[%s] GetChannelAgents(%s): %v", a.Info.Name, msg.Channel, errAgents)
-	} else if len(agents) > 1 && !isCollab {
+	} else if len(agents) > 1 && !isCollab && personaTier == PersonaChannel {
 		system.WriteString("\nOther agents in this channel:\n")
 		for _, agent := range agents {
 			if agent.ID != a.Info.ID {

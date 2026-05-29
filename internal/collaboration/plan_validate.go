@@ -18,6 +18,8 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 
 	var warnings []string
 	tasks := ExtractTasksFromPlan(planContent, c.Agents)
+	EnrichTasksWithPlanDeliverables(planContent, tasks)
+	NormalizeTaskDeliverablePathsForSandbox(c, tasks)
 	EnrichTasksWithContextPaths(tasks, c.SourceRepoPath)
 
 	filtered := make([]CollaborationTask, 0, len(tasks))
@@ -42,8 +44,23 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 	if w := warnMissingFileDeliverableTasks(c, tasks); w != "" {
 		warnings = append(warnings, w)
 	}
+	if w := warnMissingSourceRepoForFileCollab(c, tasks); w != "" {
+		warnings = append(warnings, w)
+	}
 
 	return tasks, warnings
+}
+
+func warnMissingSourceRepoForFileCollab(c *Collaboration, tasks []CollaborationTask) string {
+	if c == nil || strings.TrimSpace(c.SourceRepoPath) != "" || !goalNeedsFileDeliverables(c) {
+		return ""
+	}
+	for _, t := range tasks {
+		if TaskRequiresFileDeliverable(t) {
+			return "No project workspace is bound — deliverables will land in an isolated sandbox. Re-start with `/collaborate --workspace` (or pick a folder in the desktop collab form) to read your repo and write under `<project>/collabs/<id>/`."
+		}
+	}
+	return ""
 }
 
 func taskPassesExecutionQuality(t CollaborationTask) bool {

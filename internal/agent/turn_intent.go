@@ -17,6 +17,7 @@ const (
 	IntentMeta
 	IntentSlashCommand
 	IntentLowSignal
+	IntentTask
 )
 
 func (i TurnIntent) String() string {
@@ -30,7 +31,9 @@ func (i TurnIntent) String() string {
 	case IntentSlashCommand:
 		return "slash"
 	case IntentLowSignal:
-		return "low_signal"
+		return "casual"
+	case IntentTask:
+		return "task"
 	default:
 		return "unknown"
 	}
@@ -48,7 +51,7 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 	kind := classifyConversationalClosure(content)
 	if kind != ClosureNone {
 		if kind == ClosureBriefAck && !recentAgentAnsweredInChannel(history, agentID) {
-			// Not a true closure turn; treat as low-signal minimal prompt.
+			// Not a true closure turn; treat as casual minimal prompt.
 		} else {
 			return IntentClosure
 		}
@@ -62,6 +65,27 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		return IntentSubstantive
 	}
 
+	mode := EffectiveConversationMode(msg, channelType)
+
+	if hasCodeTaskSignals(content) {
+		return IntentTask
+	}
+
+	if mode == ConversationModeChat {
+		if strings.Contains(content, "?") && len(content) >= 40 {
+			return IntentSubstantive
+		}
+		return IntentLowSignal
+	}
+
+	if ContextScopeFromMessage(msg) == ContextScopeNone && !strings.Contains(content, "?") && len(content) < 80 {
+		return IntentLowSignal
+	}
+
+	if greetingRE.MatchString(content) {
+		return IntentLowSignal
+	}
+
 	if len(content) < 25 && !strings.Contains(content, "?") {
 		return IntentLowSignal
 	}
@@ -73,12 +97,17 @@ func (a *Agent) classifyTurnIntentForMessage(msg *protocol.Message) TurnIntent {
 	return classifyTurnIntent(msg, a.effectiveChannelType(msg.Channel), a.Info.ID, history)
 }
 
+// ClassifyTurnIntentPublic exposes turn intent classification for debug tooling.
+func ClassifyTurnIntentPublic(msg *protocol.Message, channelType protocol.ChannelType, agentID string, history []*protocol.Message) TurnIntent {
+	return classifyTurnIntent(msg, channelType, agentID, history)
+}
+
 func (a *Agent) sessionSummaryBlock(channel string) string {
 	if a.Hub == nil {
 		return ""
 	}
 	chType := a.effectiveChannelType(channel)
-	if chType != protocol.ChannelTypeDM && chType != protocol.ChannelTypeCustom {
+	if !shouldMaintainSessionSummary(chType, channel) {
 		return ""
 	}
 	summary := strings.TrimSpace(a.Hub.GetChannelSessionSummary(channel))
@@ -103,11 +132,16 @@ func (a *Agent) injectSessionSummary(prompt string, msg *protocol.Message) strin
 
 func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	var b strings.Builder
+	tier := a.promptPersonaTier(msg)
 	specialty := string(a.Info.Type)
 	if a.Info.Type == protocol.AgentTypeHelper && len(a.Info.Expertise) > 0 {
 		specialty = a.Info.Expertise[0]
 	}
-	fmt.Fprintf(&b, "You are %s, a %s specialist in a multi-agent chat.\n\n", a.Info.Name, specialty)
+	if tier == PersonaDirect {
+		fmt.Fprintf(&b, "You are %s, a %s specialist speaking directly with the user.\n\n", a.Info.Name, specialty)
+	} else {
+		fmt.Fprintf(&b, "You are %s, a %s specialist in a multi-agent chat.\n\n", a.Info.Name, specialty)
+	}
 	if a.Info.Type == protocol.AgentTypeAssistant {
 		fmt.Fprintf(&b, "You are powered by the %q model via the %q provider.\n", a.Info.AIModel, a.Info.AIProvider)
 		if userAsksAboutModelIdentity(msg.Content) {
@@ -128,7 +162,7 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 
 func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) string {
 	if a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeCollaboration {
-		return a.injectSessionSummary(a.buildPrompt(msg), msg)
+		return a.injectSessionSummary(a.buildPrompt(msg, intent), msg)
 	}
 	switch intent {
 	case IntentLowSignal, IntentMeta:
@@ -146,14 +180,25 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) s
 		if a.customPromptBuilder != nil {
 			return a.injectSessionSummary(a.customPromptBuilder(msg), msg)
 		}
-		return a.injectSessionSummary(a.buildPrompt(msg), msg)
+		return a.injectSessionSummary(a.buildPrompt(msg, intent), msg)
 	}
 }
 
 func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnIntent) []*protocol.Message {
 	hasSummary := a.sessionSummaryBlock(msg.Channel) != ""
 	max := maxHistoryForIntent(intent, hasSummary)
-	raw := a.channelHistory(msg.Channel)
+	var raw []*protocol.Message
+	if msg.IsInThread() && a.Hub != nil {
+		threadID := msg.GetThreadID()
+		if threadID != "" {
+			if threadMsgs, err := a.Hub.GetThreadMessages(threadID, maxHistoryForIntent(intent, false)+2); err == nil && len(threadMsgs) > 0 {
+				raw = threadMsgs
+			}
+		}
+	}
+	if len(raw) == 0 {
+		raw = a.channelHistory(msg.Channel)
+	}
 	var base []*protocol.Message
 	if a.Info.Type == protocol.AgentTypeAssistant {
 		base = filterAssistantHistory(raw, msg)
@@ -170,6 +215,8 @@ func maxHistoryForIntent(intent TurnIntent, hasSummary bool) int {
 	switch intent {
 	case IntentLowSignal, IntentMeta:
 		return 2
+	case IntentTask:
+		return 8
 	case IntentSubstantive:
 		if hasSummary {
 			return 4
@@ -188,7 +235,14 @@ func trimHistoryTail(history []*protocol.Message, max int) []*protocol.Message {
 }
 
 func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protocol.Message) bool {
-	if intent == IntentLowSignal || intent == IntentMeta {
+	if intent == IntentLowSignal || intent == IntentMeta || intent == IntentClosure {
+		return false
+	}
+	mode := EffectiveConversationMode(msg, a.effectiveChannelType(msg.Channel))
+	if mode == ConversationModeChat && intent != IntentTask {
+		return false
+	}
+	if ContextScopeFromMessage(msg) == ContextScopeNone && intent != IntentTask {
 		return false
 	}
 	if a.useOllamaContextGuardrails(msg) {
@@ -200,9 +254,11 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 func (a *Agent) logTurnIntent(intent TurnIntent, msg *protocol.Message) {
 	hasSummary := a.sessionSummaryBlock(msg.Channel) != ""
 	chars := 0
+	mode := ""
 	if msg != nil {
 		chars = len(strings.TrimSpace(msg.Content))
+		mode = EffectiveConversationMode(msg, a.effectiveChannelType(msg.Channel))
 	}
-	log.Printf("[%s] intent=%s channel=%s chars=%d summary=%t",
-		a.Info.Name, intent.String(), msg.Channel, chars, hasSummary)
+	log.Printf("[%s] intent=%s mode=%s channel=%s chars=%d summary=%t",
+		a.Info.Name, intent.String(), mode, msg.Channel, chars, hasSummary)
 }

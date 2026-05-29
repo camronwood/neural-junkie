@@ -4,12 +4,29 @@ import (
 	"log"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/mcp/architecture"
 	"github.com/camronwood/neural-junkie/internal/mcp/backend"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
+	"github.com/camronwood/neural-junkie/internal/mcp/codereview"
 	"github.com/camronwood/neural-junkie/internal/mcp/database"
 	"github.com/camronwood/neural-junkie/internal/mcp/devops"
+	"github.com/camronwood/neural-junkie/internal/mcp/frontend"
+	"github.com/camronwood/neural-junkie/internal/mcp/rust"
+	"github.com/camronwood/neural-junkie/internal/mcp/security"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func startAgentMCP(agent *Agent, label string, srv MCPServerInterface) {
+	if agent == nil || srv == nil {
+		return
+	}
+	agent.MCPServer = srv
+	if err := srv.Start(); err != nil {
+		log.Printf("Failed to start %s MCP server: %v", label, err)
+	} else {
+		log.Printf("%s MCP server started for agent: %s", label, agent.Info.Name)
+	}
+}
 
 // NewFrontendAgent creates a frontend development agent
 func NewFrontendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
@@ -25,6 +42,13 @@ func NewFrontendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	agent := NewAgent(protocol.AgentTypeFrontend, name, expertise, ai, hub)
 	agent.SupportsVision = true
 	agent.Info.SupportsVision = true
+
+	if frontendMCP, err := frontend.NewFrontendMCP(); err != nil {
+		log.Printf("Failed to create Frontend MCP server: %v", err)
+	} else {
+		startAgentMCP(agent, "Frontend", frontendMCP)
+	}
+
 	return agent
 }
 
@@ -45,12 +69,7 @@ func NewBackendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	if err != nil {
 		log.Printf("Failed to create Backend MCP server: %v", err)
 	} else {
-		agent.MCPServer = backendMCP
-		if err := backendMCP.Start(); err != nil {
-			log.Printf("Failed to start Backend MCP server: %v", err)
-		} else {
-			log.Printf("Backend MCP server started for agent: %s", name)
-		}
+		startAgentMCP(agent, "Backend", backendMCP)
 	}
 
 	return agent
@@ -76,12 +95,7 @@ func NewDevOpsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	if err != nil {
 		log.Printf("Failed to create DevOps MCP server: %v", err)
 	} else {
-		agent.MCPServer = devopsMCP
-		if err := devopsMCP.Start(); err != nil {
-			log.Printf("Failed to start DevOps MCP server: %v", err)
-		} else {
-			log.Printf("DevOps MCP server started for agent: %s", name)
-		}
+		startAgentMCP(agent, "DevOps", devopsMCP)
 	}
 
 	return agent
@@ -104,12 +118,7 @@ func NewDatabaseAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	if err != nil {
 		log.Printf("Failed to create Database MCP server: %v", err)
 	} else {
-		agent.MCPServer = databaseMCP
-		if err := databaseMCP.Start(); err != nil {
-			log.Printf("Failed to start Database MCP server: %v", err)
-		} else {
-			log.Printf("Database MCP server started for agent: %s", name)
-		}
+		startAgentMCP(agent, "Database", databaseMCP)
 	}
 
 	return agent
@@ -127,7 +136,15 @@ func NewSecurityAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 		"Compliance", "GDPR", "SOC2",
 	}
 
-	return NewAgent(protocol.AgentTypeSecurity, name, expertise, ai, hub)
+	agent := NewAgent(protocol.AgentTypeSecurity, name, expertise, ai, hub)
+
+	if securityMCP, err := security.NewSecurityMCP(); err != nil {
+		log.Printf("Failed to create Security MCP server: %v", err)
+	} else {
+		startAgentMCP(agent, "Security", securityMCP)
+	}
+
+	return agent
 }
 
 // NewRustAgent creates a Rust development agent
@@ -147,7 +164,15 @@ func NewRustAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 		"Performance", "Zero-Cost Abstractions",
 	}
 
-	return NewAgent(protocol.AgentTypeRust, name, expertise, ai, hub)
+	agent := NewAgent(protocol.AgentTypeRust, name, expertise, ai, hub)
+
+	if rustMCP, err := rust.NewRustMCP(); err != nil {
+		log.Printf("Failed to create Rust MCP server: %v", err)
+	} else {
+		startAgentMCP(agent, "Rust", rustMCP)
+	}
+
+	return agent
 }
 
 // NewArchitectureAgent creates a broad software architecture agent.
@@ -159,7 +184,15 @@ func NewArchitectureAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 		"Integration Design", "Data Flow", "Operational Readiness",
 	}
 
-	return NewAgent(protocol.AgentTypeArchitecture, name, expertise, ai, hub)
+	agent := NewAgent(protocol.AgentTypeArchitecture, name, expertise, ai, hub)
+
+	if archMCP, err := architecture.NewArchitectureMCP(); err != nil {
+		log.Printf("Failed to create Architecture MCP server: %v", err)
+	} else {
+		startAgentMCP(agent, "Architecture", archMCP)
+	}
+
+	return agent
 }
 
 // NewCodeReviewAgent creates a broad code review agent.
@@ -171,7 +204,15 @@ func NewCodeReviewAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 		"Regression Risk", "Dependency Hygiene", "Documentation",
 	}
 
-	return NewAgent(protocol.AgentTypeCodeReview, name, expertise, ai, hub)
+	agent := NewAgent(protocol.AgentTypeCodeReview, name, expertise, ai, hub)
+
+	if reviewMCP, err := codereview.NewCodeReviewMCP(); err != nil {
+		log.Printf("Failed to create Code Review MCP server: %v", err)
+	} else {
+		startAgentMCP(agent, "CodeReview", reviewMCP)
+	}
+
+	return agent
 }
 
 // NewBiologyAgent creates a life-sciences agent with Bio MCP tools.
@@ -188,12 +229,7 @@ func NewBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	if err != nil {
 		log.Printf("Failed to create Biology MCP server: %v", err)
 	} else {
-		agent.MCPServer = bioMCP
-		if err := bioMCP.Start(); err != nil {
-			log.Printf("Failed to start Biology MCP server: %v", err)
-		} else {
-			log.Printf("Biology MCP server started for agent: %s", name)
-		}
+		startAgentMCP(agent, "Biology", bioMCP)
 	}
 
 	return agent

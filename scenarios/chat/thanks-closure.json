@@ -1,0 +1,39 @@
+{
+  "name": "thanks-closure",
+  "description": "After a substantive answer, ok thanks should get a canned closure without a long LLM reply.",
+  "channel": "chat-scenarios",
+  "channel_type": "public",
+  "mention": "@Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "How far is Collinsville IL from St Louis MO?"
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "120s"
+    },
+    {
+      "action": "send",
+      "content": "ok thanks"
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "20s"
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "Assistant",
+      "any_match": ["welcome|anything else|You're welcome"]
+    },
+    {
+      "action": "assert_reply_count",
+      "since_start": 2
+    }
+  ],
+  "cleanup": "clear"
+}
