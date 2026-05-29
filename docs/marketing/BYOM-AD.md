@@ -2,7 +2,7 @@
 
 **Audience:** Developers and power users tired of single-vendor AI IDEs — emphasizes Neural Junkie as the workbench (files, agents, approvals), not the model vendor.
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.18
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19
 
 **Regenerate graphic:**
 
@@ -36,7 +36,7 @@ Sub: An agent IDE — files, specialists, approvals. You pick the brain.
 >
 > We’re the workbench. You bring the brain.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.18
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19
 
 ---
 
@@ -51,7 +51,7 @@ Sub: An agent IDE — files, specialists, approvals. You pick the brain.
 > - **IDE layout** — files, editor, main chat; optional Team layout for channels and collab
 > - **You approve file changes** — proposals and diffs, not silent writes
 >
-> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.18
+> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19
 
 ---
 
