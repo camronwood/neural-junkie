@@ -45,5 +45,7 @@ func TaskDispatchFileDeliverableNote(t CollaborationTask) string {
 	if !TaskRequiresFileDeliverable(t) {
 		return ""
 	}
-	return "\n\n**Deliverable required:** Emit a `[FILE_CHANGE]` block for the target path before `TASK_STATUS: completed`. Conversation-only replies do not satisfy file tasks."
+	return "\n\n**Deliverable required:** Emit a canonical `[FILE_CHANGE]` block before `TASK_STATUS: completed`:\n" +
+		"```\n[FILE_CHANGE]\noperation: create\npath: collabs/<id>/file.md\n```new\n<file content>\n```\n[/FILE_CHANGE]\n```\n" +
+		"Conversation-only or inline `[FILE_CHANGE] path` without a hub proposal does not write to disk until approved in Pending changes."
 }

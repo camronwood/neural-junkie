@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Collaboration } from '../types/protocol';
-import { resolvePanelCollaboration } from './collaborationPanelState';
+import {
+  isApprovedAwaitingDispatch,
+  isPlanningAwaitingFirstTurn,
+  resolvePanelCollaboration,
+  taskNeedsFileDeliverable,
+} from './collaborationPanelState';
 
 function collab(overrides: Partial<Collaboration> = {}): Collaboration {
   return {
@@ -29,5 +34,54 @@ describe('resolvePanelCollaboration', () => {
 
   it('returns null when active is null', () => {
     expect(resolvePanelCollaboration(null, {})).toBeNull();
+  });
+});
+
+describe('isPlanningAwaitingFirstTurn', () => {
+  it('is true when planning with zero messages', () => {
+    expect(
+      isPlanningAwaitingFirstTurn(
+        collab({
+          phase: 'planning',
+          discussion: {
+            id: 'd',
+            collaboration_id: 'cid-1',
+            current_round: 1,
+            max_rounds: 2,
+            turn_budget: 1,
+            total_message_count: 0,
+            max_total_messages: 12,
+            status: 'active',
+            started_at: '',
+          },
+        })
+      )
+    ).toBe(true);
+  });
+});
+
+describe('taskNeedsFileDeliverable', () => {
+  it('detects write md tasks', () => {
+    expect(
+      taskNeedsFileDeliverable({
+        id: 't1',
+        title: 'Write collabs/x/findings.md',
+        status: 'in_progress',
+      })
+    ).toBe(true);
+  });
+});
+
+describe('isApprovedAwaitingDispatch', () => {
+  it('is true when workspace acked but tasks not dispatched', () => {
+    expect(
+      isApprovedAwaitingDispatch(
+        collab({
+          phase: 'approved',
+          workspace_acknowledged: true,
+          tasks_dispatched: false,
+        })
+      )
+    ).toBe(true);
   });
 });

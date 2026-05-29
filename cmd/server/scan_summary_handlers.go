@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/scansummary"
 )
@@ -18,7 +17,7 @@ func handleScanSummaryWellImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if appConfig == nil || !appConfig.IsPackEnabled(config.PackLifeSciences) {
+	if appConfig == nil || !appConfig.AnyPackCapability("scan-summary-api") {
 		http.Error(w, "Life sciences pack is not enabled", http.StatusForbidden)
 		return
 	}

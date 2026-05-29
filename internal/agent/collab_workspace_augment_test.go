@@ -27,6 +27,18 @@ func TestCollaborationWorkspaceGroundingLineDisabledForCollab(t *testing.T) {
 	}
 }
 
+func TestCollaborationPlanningWithoutWorkspaceSkipsScanAndGrounding(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-ch", protocol.AgentInfo{ID: "a1", Name: "BE"}, "Write collabs/x/findings.md")
+	msg.SetCollaborationID("cid")
+	info := CollaborationInfo{ID: "cid", Phase: "planning"}
+	if collaborationProactiveWorkspaceScan(msg, info) {
+		t.Fatal("planning without bound repo should not scan open editor tree")
+	}
+	if collaborationWorkspaceGroundingLine(msg, info) {
+		t.Fatal("planning without bound repo should not force grounding line")
+	}
+}
+
 func TestCollaborationProactiveWorkspaceScanAllowsExplicitReview(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-ch", protocol.AgentInfo{ID: "a1", Name: "Arch"}, "please review internal/hub/hub.go")
 	msg.SetCollaborationID("cid")

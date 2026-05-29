@@ -4,7 +4,7 @@ Neural Junkie includes an optional **Software development** domain pack for in-p
 
 ## One pack at a time
 
-Only **one** domain pack can be enabled: Software development **or** Life sciences (not both). The hub enforces this when you toggle packs in Settings.
+Install the pack from **Settings → Domain packs → Pack store**, then enable it. You can run **multiple packs** at once; the **first pack you enable** sets the UI layout (IDE vs team). Enabling another pack adds specialists and tools without changing your layout.
 
 ## What you get
 

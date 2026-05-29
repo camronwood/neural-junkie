@@ -2841,6 +2841,13 @@ func sanitizeInternalToolNames(response string) string {
 func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
 	match := fileChangeBlockRegex.FindStringSubmatch(response)
 	if len(match) < 2 {
+		if loose, ok := parseLooseFileChange(response); ok {
+			if err := a.proposeFileCreateInChannel(channel, loose.Path, loose.NewContent); err != nil {
+				return response, false, err
+			}
+			log.Printf("[%s] loose_file_change_used(path=%s)", a.Info.Name, loose.Path)
+			return stripLooseFileChangeBlock(response), true, nil
+		}
 		// Deterministic fallback: user asked to write/create/save files and the model
 		// returned fenced content (or explicit approval phrases) but omitted [FILE_CHANGE].
 		if sourceMsg == nil || (!isExplicitProposalIntent(sourceMsg.Content) && !isUserRequestingFileWrite(sourceMsg.Content)) {

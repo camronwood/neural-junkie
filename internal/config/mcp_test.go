@@ -4,6 +4,9 @@ import "testing"
 
 func TestMCPEnabledForAgentBiologyPack(t *testing.T) {
 	cfg := DefaultConfig()
+	if err := cfg.InstallPack(PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Packs.Enabled[PackLifeSciences] = true
 	cfg.SyncAgentsFromPacks()
 	if !cfg.MCPEnabledForAgent("biology") {
@@ -18,6 +21,9 @@ func TestMCPEnabledForAgentBiologyPack(t *testing.T) {
 
 func TestMCPEnabledForAgentSoftwareDevelopmentPack(t *testing.T) {
 	cfg := DefaultConfig()
+	if err := cfg.InstallPack(PackSoftwareDevelopment); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	cfg.SyncAgentsFromPacks()
 	if !cfg.MCPEnabledForAgent("backend") {

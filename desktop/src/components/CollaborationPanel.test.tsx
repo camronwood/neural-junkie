@@ -454,7 +454,7 @@ describe('CollaborationPanel', () => {
     expect(screen.getByText(/1\/2 tasks \(50%\)/)).toBeInTheDocument();
     expect(screen.getByText('Task 1: First')).toBeInTheDocument();
     expect(screen.getByText('Task 2: Second')).toBeInTheDocument();
-    expect(screen.getByText('Execution — limits off')).toBeInTheDocument();
+    expect(screen.getByText(/Task-driven execution — agents respond to assigned tasks only/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Re-dispatch tasks' })).toBeInTheDocument();
   });
 

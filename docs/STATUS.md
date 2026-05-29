@@ -77,7 +77,7 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 - **Hub-local persistence** -- Session metadata, channels, and agent registrations restore from `last-session.json`; per-channel message history is bounded and pruned over time (not a full durable message archive).
 - **Single server** -- No distributed deployment
 - **Session auth** -- Optional `NEURAL_JUNKIE_AUTH_REQUIRED=1` and channel ACLs; see [SECURITY.md](SECURITY.md)
-- **Domain packs** -- At most one of Software development or Life sciences enabled at a time
+- **Domain packs** -- Installable plugins from Pack store; multiple packs can be enabled; first enabled pack owns UI layout
 - **Agent polling** -- Standalone `cmd/agent` processes use HTTP polling; in-process runtime agents use hub push delivery
 - **Git endpoints** -- Require Software development pack; need `git` on PATH and a git workspace
 - **IDE v2/v2c** -- IDE layout preset, symbol index, Rust/Python diagnostics, inline completion, plus v2a/v2b features. See [IDE_V2.md](IDE_V2.md)

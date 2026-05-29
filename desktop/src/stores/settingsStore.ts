@@ -83,6 +83,8 @@ export interface LayoutSettings {
   layoutPreset: LayoutPreset;
   /** Where team channel chat docks when using IDE preset */
   ideChatDock: IdeChatDock;
+  /** When false, main chat column is hidden (IDE layout can show files + editor only). */
+  chatPanelVisible?: boolean;
   filesPanelVisible: boolean;
   editorPanelVisible: boolean;
   terminalPanelVisible: boolean;
@@ -184,6 +186,7 @@ const defaultIntegrations: IntegrationSettings = {
 const defaultLayoutSettings: LayoutSettings = {
   layoutPreset: 'team',
   ideChatDock: 'right',
+  chatPanelVisible: true,
   filesPanelVisible: false,
   editorPanelVisible: false,
   terminalPanelVisible: false,

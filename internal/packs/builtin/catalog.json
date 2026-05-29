@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "catalog_url": "https://raw.githubusercontent.com/camronwood/neural-junkie/main/packs/catalog.json",
+  "packs": [
+    {
+      "id": "software-development",
+      "version": "1.0.0",
+      "title": "Software development",
+      "description": "Broad backend, frontend, platform, security, architecture, and code review specialists with MCP analysis tools and Qwen Coder models.",
+      "icon_key": "code",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/software-development-1.0.0.zip"
+    },
+    {
+      "id": "life-sciences",
+      "version": "1.0.0",
+      "title": "Life sciences",
+      "description": "OpenBioLLM chat, BiologyExpert, sequence analysis, ESMFold, and scan summary viewer (research use only).",
+      "icon_key": "biology",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/life-sciences-1.0.0.zip"
+    }
+  ]
+}

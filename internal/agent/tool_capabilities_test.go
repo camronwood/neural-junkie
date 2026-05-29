@@ -36,6 +36,9 @@ func TestEffectiveToolLoopModelQwenNoFallback(t *testing.T) {
 func TestDescribeToolCapabilitiesBiologyMCP(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
+	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Packs.Enabled[config.PackLifeSciences] = true
 	cfg.SyncAgentsFromPacks()
 	mcp.SetAppConfig(cfg)

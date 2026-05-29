@@ -94,6 +94,7 @@ vi.mock('../stores/settingsStore', () => {
       ideChatDock: 'right',
       filesPanelVisible: false,
       editorPanelVisible: false,
+      chatPanelVisible: true,
       terminalPanelVisible: false,
       myAgentsPanelVisible: false,
       pendingChangesPanelVisible: false,
@@ -121,6 +122,15 @@ vi.mock('../stores/packsStore', () => {
     fetchPacks: vi.fn().mockResolvedValue(undefined),
     softwareDevelopmentEnabled: () => false,
     lifeSciencesEnabled: () => false,
+    hasCapability: () => false,
+    layoutProfile: 'team' as const,
+    layoutOwner: '',
+    capabilities: [],
+    catalog: [],
+    applyPacksResponse: vi.fn(),
+    fetchPackCatalog: vi.fn(),
+    installPack: vi.fn(),
+    uninstallPack: vi.fn(),
   };
   return {
     usePacksStore: Object.assign(

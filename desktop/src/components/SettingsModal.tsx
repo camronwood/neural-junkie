@@ -18,9 +18,10 @@ import type {
   SlackConfigResponse,
   SlackConnectionResponse,
 } from '../types/protocol';
-import { ChatAPI, type PackStatus } from '../api/chatAPI';
-import { usePacksStore, PACK_SOFTWARE_DEVELOPMENT } from '../stores/packsStore';
-import { patchRevealActiveAgentsInSidebar } from '../utils/sidebarVisibility';
+import { ChatAPI } from '../api/chatAPI';
+import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
+import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 import { agentSidebarHideKey, parseDMDisplayName } from '../utils/dmChannelDisplay';
 import { ProviderManager } from './ProviderManager';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
@@ -59,13 +60,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     fetchOllamaModels,
     fetchLMStudioModels
   } = useSettingsStore();
-  const { switchAllAgentProviders, serverAddr: chatServerAddr, channels, agents, setAgents, setChannels } = useChatStore(
+  const { switchAllAgentProviders, serverAddr: chatServerAddr, channels, agents, setChannels } = useChatStore(
     (s) => ({
       switchAllAgentProviders: s.switchAllAgentProviders,
       serverAddr: s.serverAddr,
       channels: s.channels,
       agents: s.agents,
-      setAgents: s.setAgents,
       setChannels: s.setChannels,
     }),
     shallow
@@ -128,9 +128,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [slackChannelsError, setSlackChannelsError] = useState<string | null>(null);
   const [slackConnection, setSlackConnection] = useState<SlackConnectionResponse | null>(null);
   const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
-  const [domainPacks, setDomainPacks] = useState<PackStatus[]>([]);
   const [packsLoading, setPacksLoading] = useState(false);
-  const [packsSaving, setPacksSaving] = useState<string | null>(null);
+  const bioPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_SUMMARY_API));
   const [packsErr, setPacksErr] = useState<string | null>(null);
   const [hfHubToken, setHfHubToken] = useState('');
   const [hfHubTokenPersisted, setHfHubTokenPersisted] = useState('');
@@ -151,8 +150,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setPacksErr(null);
     try {
       const api = new ChatAPI(hubHttp);
-      const rows = await api.fetchPacks();
-      setDomainPacks(rows);
+      const data = await api.fetchPacks();
+      usePacksStore.getState().applyPacksResponse(data);
     } catch (e) {
       setPacksErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -173,50 +172,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     });
     if (!put.ok) {
       throw new Error(await put.text());
-    }
-  };
-
-  const handlePackToggle = async (packId: string, enabled: boolean) => {
-    setPacksSaving(packId);
-    setPacksErr(null);
-    try {
-      const api = new ChatAPI(hubHttp);
-      const rows = await api.setPackEnabled(packId, enabled);
-      setDomainPacks(rows);
-      void usePacksStore.getState().fetchPacks();
-      const [agentList, channelList] = await Promise.all([
-        api.fetchAgents(),
-        api.fetchChannels(),
-      ]);
-      setAgents(agentList);
-      setChannels(channelList);
-      if (enabled) {
-        if (!layoutSettings.sidebarAgentsVisible) {
-          await updateLayoutSettings({ sidebarAgentsVisible: true });
-        }
-        if (
-          packId === PACK_SOFTWARE_DEVELOPMENT &&
-          !layoutSettings.devPackLayoutNudgeApplied
-        ) {
-          const { panelsForPreset } = await import('../utils/layoutPresets');
-          await updateLayoutSettings({
-            ...panelsForPreset('ide'),
-            devPackLayoutNudgeApplied: true,
-          });
-        }
-        const revealPatch = patchRevealActiveAgentsInSidebar(
-          useSettingsStore.getState().settings,
-          agentList,
-          channelList
-        );
-        if (revealPatch) {
-          await updateSettings(revealPatch);
-        }
-      }
-    } catch (e) {
-      setPacksErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setPacksSaving(null);
     }
   };
 
@@ -2745,47 +2700,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </div>
 
               <div className="border border-slack-border rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-slack-text mb-2">Domain packs</h3>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Pack store</h3>
                 <p className="text-sm text-slack-textMuted mb-4">
-                  <strong>One domain pack at a time</strong> — Software development or Life sciences. Enabling one turns the other off.
-                  Enabled packs add experts to <strong>New DM</strong>, channel invite, and the agent sidebar.
+                  Install official domain packs from the catalog. You can enable multiple packs; the <strong>first pack you enable</strong> sets the UI layout (IDE vs team). Later packs add specialists and tools without changing layout.
                 </p>
-                {packsLoading && <p className="text-sm text-slack-textMuted">Loading packs…</p>}
+                {packsLoading && <p className="text-sm text-slack-textMuted mb-2">Loading packs…</p>}
                 {packsErr && <p className="text-sm text-red-600 mb-2">{packsErr}</p>}
-                <div className="space-y-3">
-                  {domainPacks.map((pack) => (
-                    <label
-                      key={pack.id}
-                      className="flex items-start gap-3 p-3 rounded-lg border border-slack-border bg-slack-bgHover/30 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={pack.enabled}
-                        disabled={packsSaving === pack.id}
-                        onChange={(e) => void handlePackToggle(pack.id, e.target.checked)}
-                        className="mt-1 rounded border-slack-border"
-                      />
-                      <div>
-                        <div className="text-slack-text font-medium">{pack.title}</div>
-                        <p className="text-xs text-slack-textMuted mt-1">{pack.description}</p>
-                        {pack.enabled && pack.id === 'life-sciences' && pack.expert_label && (
-                          <p className="text-xs text-teal-600 mt-1">
-                            Expert: {pack.expert_label} — install Bio 8B from Model Library when using local Ollama. MCP tools start automatically (no env vars).
-                          </p>
-                        )}
-                        {pack.enabled && pack.id === 'software-development' && (
-                          <p className="text-xs text-blue-600 mt-1">
-                            Adds BackendEngineer, FrontendEngineer, SoftwareArchitect, CodeReviewer, and other in-process specialists; IDE features (Git panel, quick open, editor selection context). Pull{' '}
-                            <code className="font-mono bg-slack-bgHover px-1 rounded">qwen2.5-coder:14b</code> from Model Library for local Ollama. Dev MCP tools start with enabled agents.
-                          </p>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                <PackStoreBrowse />
               </div>
 
-              {domainPacks.some((p) => p.id === 'life-sciences' && p.enabled) && (
+              {bioPackTools && (
                 <div className="border border-slack-border rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-slack-text mb-2">Life sciences tools</h3>
                   <p className="text-sm text-slack-textMuted mb-4">

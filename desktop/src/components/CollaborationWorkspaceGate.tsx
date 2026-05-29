@@ -91,6 +91,10 @@ export function CollaborationWorkspaceGate({
               Execution uses a sandbox folder on disk. Add it as a workspace here, then confirm so agents
               receive their task prompts and file changes resolve correctly.
             </p>
+            <p className="text-xs text-gray-500 mb-4">
+              After you continue, assignees receive <strong className="text-gray-400">collaboration_task</strong>{' '}
+              prompts. File deliverables must be approved in <strong className="text-gray-400">Pending changes</strong>.
+            </p>
             <p className="text-xs font-mono text-gray-400 break-all mb-6">{collaboration.working_directory}</p>
           </>
         )}

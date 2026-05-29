@@ -160,7 +160,7 @@ func Load() (*Config, error) {
 
 	cfg.migrateIfNeeded(data)
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
-	cfg.MigrateExclusiveDomainPacks()
+	cfg.MigrateInstalledPacks()
 	cfg.EnsureMCPDefaults()
 	if err := cfg.DecryptSecretsAfterLoad(); err != nil {
 		return nil, fmt.Errorf("decrypt config secrets: %w", err)
@@ -359,7 +359,7 @@ func (c *Config) EnabledAgents() []AgentConfig {
 			continue
 		}
 		t := strings.ToLower(strings.TrimSpace(a.Type))
-		if packID := packForAgentType(t); packID != "" && !c.packEnabledLocked(packID) {
+		if packID := packForAgentTypeLocked(c, t); packID != "" && !c.packEnabledLocked(packID) {
 			continue
 		}
 		result = append(result, a)

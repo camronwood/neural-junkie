@@ -83,14 +83,13 @@ func (c *Config) ApplyWizardProfile(track WizardTrack, ollamaLocal bool) {
 	}
 	switch track {
 	case WizardTrackLifeSciences:
-		c.Packs.Enabled[PackLifeSciences] = true
-		c.Packs.Enabled[PackSoftwareDevelopment] = false
+		_ = c.InstallPack(PackLifeSciences)
+		_ = c.SetPackEnabled(PackLifeSciences, true)
 	case WizardTrackDeveloper:
-		c.Packs.Enabled[PackLifeSciences] = false
-		c.Packs.Enabled[PackSoftwareDevelopment] = true
+		_ = c.InstallPack(PackSoftwareDevelopment)
+		_ = c.SetPackEnabled(PackSoftwareDevelopment, true)
 	default:
-		c.Packs.Enabled[PackLifeSciences] = false
-		c.Packs.Enabled[PackSoftwareDevelopment] = false
+		// general track: no packs
 	}
 	c.SyncAgentsFromPacks()
 	c.Ollama.ModelsToEnsure = append([]string(nil), c.Ollama.ModelsToEnsure...)

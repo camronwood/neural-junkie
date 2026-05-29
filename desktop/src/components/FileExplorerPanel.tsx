@@ -80,9 +80,8 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   } = useFileExplorerStore();
 
   const { openFile, openScanSummary, openScanAnalysis } = useEditorStore();
-  const lifeSciencesEnabled = usePacksStore(
-    (s) => s.packs.find((p) => p.id === 'life-sciences')?.enabled === true
-  );
+  const hasScanSummary = usePacksStore((s) => s.hasCapability('scan-summary-viewer'));
+  const hasScanAnalysis = usePacksStore((s) => s.hasCapability('scan-analysis-viewer'));
   const { addToast } = useToastStore();
 
   // Resize state
@@ -239,11 +238,11 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     analysisDir: string,
     options?: { initialWell?: string; selectedAnalyte?: string; linkedScanDir?: string; csvPath?: string }
   ) => {
-    if (!lifeSciencesEnabled) {
+    if (!hasScanAnalysis) {
       addToast({
         type: 'info',
         title: 'Life sciences pack',
-        message: 'Enable Life sciences in Settings → Domain packs to open scan analysis.',
+        message: 'Install and enable Life sciences in Settings → Domain packs to open scan analysis.',
       });
       return;
     }
@@ -283,7 +282,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     workspaceId: string,
     filePath: string
   ): Promise<boolean> => {
-    if (!lifeSciencesEnabled) return false;
+    if (!hasScanAnalysis) return false;
     if (!isScanAnalysisResultsPath(filePath) && !isScanAnalysisSummaryCSVPath(filePath)) {
       return false;
     }
@@ -301,7 +300,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     summaryDir: string,
     initialWell?: string
   ) => {
-    if (!lifeSciencesEnabled) {
+    if (!hasScanSummary) {
       addToast({
         type: 'info',
         title: 'Life sciences pack',
@@ -339,7 +338,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     workspaceId: string,
     filePath: string
   ): Promise<boolean> => {
-    if (!lifeSciencesEnabled) return false;
+    if (!hasScanSummary) return false;
     const summaryDir = scanSummaryDirForFilePath(filePath);
     const isMetadata = isScanSummaryMetadataPath(filePath);
     const isWell = isScanSummaryWellPath(filePath);
@@ -805,14 +804,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
   const files = activeWorkspaceId ? (fileTree[activeWorkspaceId] || []) : [];
   const activeIsScanSummaryRoot =
-    lifeSciencesEnabled && activeWorkspaceId != null && isScanSummaryWorkspaceRoot(files);
+    hasScanSummary && activeWorkspaceId != null && isScanSummaryWorkspaceRoot(files);
   const activeIsScanAnalysisRoot =
-    lifeSciencesEnabled &&
+    hasScanSummary &&
     activeWorkspaceId != null &&
     (files.some((f) => f.is_dir && f.name === SCAN_ANALYSIS_REPORTS_DIR) ||
       isScanAnalysisRootListing(files));
   const activeIsCombinedRun =
-    lifeSciencesEnabled && activeWorkspaceId != null && isCombinedRunDirListing(files);
+    hasScanSummary && activeWorkspaceId != null && isCombinedRunDirListing(files);
   const workspaceSwitcherOverflow = useMemo(
     () => workspacesForTabBar(workspaces, activeWorkspaceId).overflowCount,
     [workspaces, activeWorkspaceId]
@@ -931,7 +930,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
               Dismiss
             </button>
           </div>
-        ) : loadingFiles ? (
+        ) : loadingFiles && files.length === 0 ? (
           <div className="flex items-center justify-center h-32">
             <div className="flex items-center gap-2 text-slack-textMuted">
               <div className="w-4 h-4 border border-slack-textMuted border-t-transparent rounded-full animate-spin"></div>
@@ -1028,7 +1027,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           y={contextMenu.y}
           onClose={closeContextMenu}
         >
-          {lifeSciencesEnabled && contextMenuIsScanAnalysis() && (
+          {hasScanAnalysis && contextMenuIsScanAnalysis() && (
             <button
               onClick={() => void handleOpenScanAnalysisFromMenu()}
               className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
@@ -1037,7 +1036,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
             </button>
           )}
 
-          {lifeSciencesEnabled && contextMenuIsScanSummary() && (
+          {hasScanSummary && contextMenuIsScanSummary() && (
               <button
                 onClick={handleOpenScanSummaryFromMenu}
                 className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"

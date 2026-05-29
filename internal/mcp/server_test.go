@@ -11,6 +11,9 @@ func TestGetMCPServerConfigFromHubConfig(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
 	cfg.MCP.Agents["backend"] = true
+	if err := cfg.InstallPack(config.PackSoftwareDevelopment); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Packs.Enabled[config.PackSoftwareDevelopment] = true
 	cfg.SyncAgentsFromPacks()
 	SetAppConfig(cfg)

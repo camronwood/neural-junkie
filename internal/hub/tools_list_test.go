@@ -16,6 +16,9 @@ import (
 func TestFormatChannelToolsListWithBiologyTools(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
+	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Packs.Enabled[config.PackLifeSciences] = true
 	cfg.SyncAgentsFromPacks()
 	mcp.SetAppConfig(cfg)

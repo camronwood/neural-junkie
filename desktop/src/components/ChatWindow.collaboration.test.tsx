@@ -106,6 +106,7 @@ vi.mock('../stores/settingsStore', () => {
       ideChatDock: 'right',
       filesPanelVisible: false,
       editorPanelVisible: false,
+      chatPanelVisible: true,
       terminalPanelVisible: false,
       myAgentsPanelVisible: false,
       pendingChangesPanelVisible: false,
@@ -133,6 +134,15 @@ vi.mock('../stores/packsStore', () => {
     fetchPacks: vi.fn().mockResolvedValue(undefined),
     softwareDevelopmentEnabled: () => false,
     lifeSciencesEnabled: () => false,
+    hasCapability: () => false,
+    layoutProfile: 'team' as const,
+    layoutOwner: '',
+    capabilities: [],
+    catalog: [],
+    applyPacksResponse: vi.fn(),
+    fetchPackCatalog: vi.fn(),
+    installPack: vi.fn(),
+    uninstallPack: vi.fn(),
   };
   return {
     usePacksStore: Object.assign(
@@ -371,14 +381,14 @@ describe('ChatWindow collaboration wiring', () => {
   });
 
   it('auto-opens the collaboration panel on first collaboration_discussion with metadata', async () => {
-    apiHarness.fetchCollaborations.mockResolvedValue([]);
+    const collab = makeCollaboration({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', phase: 'planning' });
+    apiHarness.fetchCollaborations.mockResolvedValue([collab]);
 
     render(<ChatWindow />);
     await flushWsConnect();
 
     const opts = wsHarness.lastOpts;
     expect(opts).toBeTruthy();
-    const collab = makeCollaboration({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', phase: 'planning' });
     const msg: Message = {
       id: 'ws-1',
       type: 'collaboration_discussion',
@@ -392,18 +402,11 @@ describe('ChatWindow collaboration wiring', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Planning')).toBeInTheDocument();
+      expect(screen.getByText('Wire-test collaboration')).toBeInTheDocument();
     });
-    expect(screen.getByText('Wire-test collaboration')).toBeInTheDocument();
   });
 
   it('keeps the panel open read-only and toasts when collaboration completes over WS', async () => {
-    apiHarness.fetchCollaborations.mockResolvedValue([]);
-    addToastMock.mockClear();
-
-    render(<ChatWindow />);
-    await flushWsConnect();
-
-    const opts = wsHarness.lastOpts!;
     const openCollab = makeCollaboration({
       id: 'bbbbbbbb-2222-3333-4444-555555555555',
       phase: 'planning',
@@ -420,6 +423,13 @@ describe('ChatWindow collaboration wiring', () => {
         },
       ],
     });
+    apiHarness.fetchCollaborations.mockResolvedValue([openCollab]);
+    addToastMock.mockClear();
+
+    render(<ChatWindow />);
+    await flushWsConnect();
+
+    const opts = wsHarness.lastOpts!;
     await opts.onMessage({
       id: 'ws-open',
       type: 'collaboration_discussion',
@@ -436,6 +446,7 @@ describe('ChatWindow collaboration wiring', () => {
       phase: 'completed' as const,
       updated_at: '2026-01-05T00:00:00.000Z',
     };
+    apiHarness.fetchCollaborations.mockResolvedValue([completed]);
     await opts.onMessage({
       id: 'ws-done',
       type: 'collaboration_status',

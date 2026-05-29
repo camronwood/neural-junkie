@@ -12,6 +12,10 @@ func collaborationProactiveWorkspaceScan(msg *protocol.Message, info Collaborati
 	if msg == nil || info.ID == "" {
 		return true
 	}
+	// No bound repo (--no-workspace / research-only planning): do not scan the open editor tree.
+	if (info.Phase == "planning" || info.Phase == "reviewing") && len(info.SourceWorkspaceContext) == 0 {
+		return false
+	}
 	switch msg.Type {
 	case protocol.MessageTypeCollabTask:
 		return true
@@ -40,6 +44,9 @@ func collaborationProactiveWorkspaceScan(msg *protocol.Message, info Collaborati
 func collaborationWorkspaceGroundingLine(msg *protocol.Message, info CollaborationInfo) bool {
 	if info.ID == "" {
 		return true
+	}
+	if (info.Phase == "planning" || info.Phase == "reviewing") && len(info.SourceWorkspaceContext) == 0 {
+		return false
 	}
 	if msg != nil && msg.Type == protocol.MessageTypeCollabTask {
 		return false

@@ -198,14 +198,19 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   
   loadFiles: async (workspaceId, path = '/') => {
     devLog('FileExplorerStore: Loading files for workspace:', workspaceId, 'path:', path);
-    set({ loadingFiles: true, error: null });
+    const isRoot = path === '/' || path === '';
+    if (isRoot) {
+      set({ loadingFiles: true, error: null });
+    } else {
+      set({ error: null });
+    }
     try {
       const files = await api.fetchFiles(workspaceId, path);
       devLog('FileExplorerStore: Loaded files:', files);
       set(state => {
         let updatedFiles: FileNode[];
         
-        if (path === '/') {
+        if (isRoot) {
           updatedFiles = files;
         } else {
           const currentFiles = state.fileTree[workspaceId] || [];
@@ -226,15 +231,15 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
         
         return {
           fileTree: { ...state.fileTree, [workspaceId]: updatedFiles },
-          loadingFiles: false,
+          ...(isRoot ? { loadingFiles: false } : {}),
         };
       });
     } catch (error) {
       console.error('Failed to load files:', error);
-      set({ 
-        loadingFiles: false,
+      set(state => ({ 
+        loadingFiles: isRoot ? false : state.loadingFiles,
         error: error instanceof Error ? error.message : 'Failed to load files'
-      });
+      }));
     }
   },
   

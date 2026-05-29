@@ -11,6 +11,9 @@
 After prompt or orchestration changes, run:
 
 ```bash
+# Hub for live scenarios (disable rate limit for matrix sweeps)
+NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_SKIP_SESSION_RESTORE=1 make server
+
 # In-process smoke (no live agents)
 make collab-smoke
 

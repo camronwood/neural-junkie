@@ -1,10 +1,23 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/packs"
+)
+
+func installTestPack(t *testing.T, cfg *Config, packID string) {
+	t.Helper()
+	if err := cfg.InstallPack(packID); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestSyncAgentsFromPacksLifeSciences(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackLifeSciences)
 	cfg.Packs.Enabled[PackLifeSciences] = true
 	cfg.SyncAgentsFromPacks()
 
@@ -31,7 +44,7 @@ func TestSyncAgentsFromPacksLifeSciences(t *testing.T) {
 
 func TestSyncAgentsFromPacksDisabled(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackLifeSciences)
 	cfg.Agents = append(cfg.Agents, AgentConfig{Type: "biology", Name: "BiologyExpert", Enabled: true})
 	cfg.Packs.Enabled[PackLifeSciences] = false
 	cfg.SyncAgentsFromPacks()
@@ -43,7 +56,7 @@ func TestSyncAgentsFromPacksDisabled(t *testing.T) {
 
 func TestAvailableExpertPresets(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackLifeSciences)
 	cfg.Packs.Enabled[PackLifeSciences] = true
 	presets := cfg.AvailableExpertPresets()
 	hasBio := false
@@ -59,8 +72,9 @@ func TestAvailableExpertPresets(t *testing.T) {
 
 func TestSyncAgentsFromPacksSoftwareDevelopment(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	cfg.Packs.LayoutOwner = PackSoftwareDevelopment
 	cfg.SyncAgentsFromPacks()
 
 	for _, typ := range devSpecialistTypes {
@@ -81,7 +95,7 @@ func TestSyncAgentsFromPacksSoftwareDevelopment(t *testing.T) {
 
 func TestSyncAgentsFromPacksSoftwareDevelopmentDisabled(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Agents = append(cfg.Agents, AgentConfig{Type: "backend", Name: "BackendEngineer", Enabled: true})
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
 	cfg.SyncAgentsFromPacks()
@@ -93,7 +107,7 @@ func TestSyncAgentsFromPacksSoftwareDevelopmentDisabled(t *testing.T) {
 
 func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	presets := cfg.AvailableExpertPresets()
 	hasArchitecture := false
@@ -132,6 +146,7 @@ func TestPresetExpertAllowed(t *testing.T) {
 	if cfg.PresetExpertAllowed("biology") {
 		t.Fatal("biology should be blocked when life-sciences off")
 	}
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	if !cfg.PresetExpertAllowed("rust") {
 		t.Fatal("legacy rust should be allowed when dev pack on")
@@ -153,22 +168,14 @@ func TestMigrateSoftwareDevelopmentPackIfNeeded(t *testing.T) {
 	if !cfg.Packs.Enabled[PackSoftwareDevelopment] {
 		t.Fatal("expected migration to enable software-development pack")
 	}
-}
-
-func TestMigrateSoftwareDevelopmentPackIfNeededLegacySpecialist(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
-	cfg.Agents = []AgentConfig{{Type: "rust", Name: "RustExpert", Enabled: true}}
-	delete(cfg.Packs.Enabled, PackSoftwareDevelopment)
-	cfg.migrateSoftwareDevelopmentPackIfNeeded()
-	if !cfg.Packs.Enabled[PackSoftwareDevelopment] {
-		t.Fatal("expected legacy rust specialist to enable software-development pack")
+	if !cfg.IsPackInstalled(PackSoftwareDevelopment) {
+		t.Fatal("expected migration to install software-development pack")
 	}
 }
 
 func TestSpecialistShouldBeRunningPackOffOverridesConfig(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Agents = []AgentConfig{{Type: "backend", Name: "BackendEngineer", Enabled: true}}
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
 	if cfg.SpecialistShouldBeRunning("backend") {
@@ -180,76 +187,92 @@ func TestSpecialistShouldBeRunningPackOffOverridesConfig(t *testing.T) {
 	}
 }
 
-func TestLegacySpecialistShouldBeRunningPackGated(t *testing.T) {
+func TestSetPackEnabledMultiPack(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
-	cfg.Agents = []AgentConfig{{Type: "database", Name: "DatabaseSpecialist", Enabled: true}}
-	cfg.Packs.Enabled[PackSoftwareDevelopment] = false
-	if cfg.SpecialistShouldBeRunning("database") {
-		t.Fatal("expected legacy database specialist not running when software-development pack off")
-	}
-	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
-	if !cfg.SpecialistShouldBeRunning("database") {
-		t.Fatal("expected legacy database specialist running when pack on and config enabled")
-	}
-}
-
-func TestSetPackEnabledExclusiveDev(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
-	cfg.Packs.Enabled[PackLifeSciences] = true
-	if err := cfg.SetPackEnabled(PackSoftwareDevelopment, true); err != nil {
-		t.Fatal(err)
-	}
-	if !cfg.IsPackEnabled(PackSoftwareDevelopment) {
-		t.Fatal("expected dev pack on")
-	}
-	if cfg.IsPackEnabled(PackLifeSciences) {
-		t.Fatal("expected life-sciences off when dev enabled")
-	}
-}
-
-func TestSetPackEnabledExclusiveBio(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
-	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	installTestPack(t, cfg, PackLifeSciences)
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	if err := cfg.SetPackEnabled(PackLifeSciences, true); err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.IsPackEnabled(PackLifeSciences) {
-		t.Fatal("expected life-sciences on")
+	if err := cfg.SetPackEnabled(PackSoftwareDevelopment, true); err != nil {
+		t.Fatal(err)
 	}
-	if cfg.IsPackEnabled(PackSoftwareDevelopment) {
-		t.Fatal("expected dev pack off when life-sciences enabled")
+	if !cfg.IsPackEnabled(PackLifeSciences) || !cfg.IsPackEnabled(PackSoftwareDevelopment) {
+		t.Fatal("expected both packs enabled")
 	}
-}
-
-func TestMigrateExclusiveDomainPacksBothOn(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Packs = DefaultPacksConfig()
-	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
-	cfg.Packs.Enabled[PackLifeSciences] = true
-	cfg.MigrateExclusiveDomainPacks()
-	if !cfg.IsPackEnabled(PackSoftwareDevelopment) {
-		t.Fatal("expected dev pack to remain on")
-	}
-	if cfg.IsPackEnabled(PackLifeSciences) {
-		t.Fatal("expected life-sciences disabled after migration")
+	if cfg.LayoutOwnerPackID() != PackLifeSciences {
+		t.Fatalf("expected layout owner life-sciences (first enabled), got %q", cfg.LayoutOwnerPackID())
 	}
 }
 
-func TestDefaultConfigNoDevAgents(t *testing.T) {
+func TestLayoutOwnerClearedWhenAllDisabled(t *testing.T) {
 	cfg := DefaultConfig()
-	if len(cfg.Agents) != 0 {
-		t.Fatalf("expected no default agents, got %d", len(cfg.Agents))
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, true)
+	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, false)
+	if cfg.LayoutOwnerPackID() != "" {
+		t.Fatalf("expected empty layout owner, got %q", cfg.LayoutOwnerPackID())
+	}
+}
+
+func TestAnyPackCapability(t *testing.T) {
+	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, true)
+	if !cfg.AnyPackCapability("git-rest") {
+		t.Fatal("expected git-rest capability")
+	}
+}
+
+func TestDefaultConfigNoPacksInstalled(t *testing.T) {
+	cfg := DefaultConfig()
+	if len(cfg.Packs.Installed) != 0 {
+		t.Fatalf("expected no installed packs, got %v", cfg.Packs.Installed)
 	}
 	if cfg.IsPackEnabled(PackSoftwareDevelopment) {
 		t.Fatal("expected dev pack off in defaults")
 	}
-	presets := cfg.AvailableExpertPresets()
-	for _, p := range presets {
-		if p.Slug == "rust" {
-			t.Fatal("rust preset should not appear when dev pack off")
-		}
+}
+
+func TestInstallAndUninstallPack(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.InstallPack(PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsPackInstalled(PackLifeSciences) {
+		t.Fatal("expected installed")
+	}
+	dir, _ := packs.InstalledPackDir(PackLifeSciences)
+	if _, err := os.Stat(filepath.Join(dir, "pack.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.UninstallPack(PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IsPackInstalled(PackLifeSciences) {
+		t.Fatal("expected uninstalled")
+	}
+}
+
+func TestSetPackEnabledRequiresInstall(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.SetPackEnabled(PackLifeSciences, true); err == nil {
+		t.Fatal("expected error enabling without install")
+	}
+}
+
+func TestMigrateInstalledPacksBothOn(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	cfg.Packs.Enabled[PackLifeSciences] = true
+	cfg.MigrateInstalledPacks()
+	if !cfg.IsPackInstalled(PackSoftwareDevelopment) || !cfg.IsPackInstalled(PackLifeSciences) {
+		t.Fatal("expected both packs installed after migration")
+	}
+	if !cfg.IsPackEnabled(PackSoftwareDevelopment) || !cfg.IsPackEnabled(PackLifeSciences) {
+		t.Fatal("expected both packs still enabled")
+	}
+	if cfg.LayoutOwnerPackID() != PackSoftwareDevelopment {
+		t.Fatalf("expected dev layout owner when both on, got %q", cfg.LayoutOwnerPackID())
 	}
 }

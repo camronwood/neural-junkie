@@ -77,6 +77,7 @@ import {
   LogoutIcon,
   LeftSidebarIcon,
   TaskManagementIcon,
+  ChatPanelIcon,
 } from './Icons';
 import type {
   AssistantReminder,
@@ -108,6 +109,8 @@ import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useFileChangeStore } from '../stores/fileChangeStore';
 import { getHubBaseURL } from '../config/hubUrl';
 import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
+import { shrinkablePanelStyle } from '../utils/panelLayout';
+import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
   buildIdeDispatchPayload,
@@ -198,8 +201,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [fastEditOpen, setFastEditOpen] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [gitModalOpen, setGitModalOpen] = useState(false);
-  const devPackEnabled = usePacksStore((s) => s.softwareDevelopmentEnabled());
-  const ideLayout = devPackEnabled && isIdeLayout(layoutSettings);
+  const layoutProfile = usePacksStore((s) => s.layoutProfile);
+  const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
+  const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
+  const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
+  const devPackEnabled = hasIdeV2;
+  const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
+  const mainChatResize = useHorizontalPanelResize({
+    storageKey: 'main-chat-panel-width',
+    defaultWidth: 420,
+    minWidth: 260,
+    edge: 'left',
+  });
   const fetchPacks = usePacksStore((s) => s.fetchPacks);
   const { activeWorkspaceId, workspaces: explorerWorkspaces } = useFileExplorerStore(
     (s) => ({ activeWorkspaceId: s.activeWorkspaceId, workspaces: s.workspaces }),
@@ -378,7 +391,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       mode: workspaceContextMode,
       channelKind: channelNameToKind(channel, activeChannelMeta?.type),
       activeTabPath,
-      ideCoding: ideLayout && devPackEnabled,
+      ideCoding: ideLayout && hasIdeComposer,
     });
   }, [
     composerDraft,
@@ -387,7 +400,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     activeChannelMeta?.type,
     activeEditorTab?.path,
     ideLayout,
-    devPackEnabled,
+    hasIdeComposer,
   ]);
 
   const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
@@ -1349,7 +1362,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         channel,
         channelType: activeChannelMeta?.type,
         composerMetadata: composerMeta,
-        ideCoding: ideLayout && devPackEnabled,
+        ideCoding: ideLayout && hasIdeComposer,
       });
 
       useChatStore.getState().setIsTyping(true);
@@ -1769,6 +1782,21 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <div className="flex items-center gap-1" aria-label="File workspace tools">
             <button
               type="button"
+              onClick={() => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible })}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent ${
+                chatPanelVisible
+                  ? 'bg-slack-accent text-white'
+                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
+              }`}
+              title={chatPanelVisible ? 'Hide main chat' : 'Show main chat'}
+              aria-label={chatPanelVisible ? 'Hide main chat panel' : 'Show main chat panel'}
+              aria-pressed={chatPanelVisible}
+            >
+              <ChatPanelIcon className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 const next = cycleWorkspaceContextMode(workspaceContextMode);
                 setWorkspaceContextMode(next);
@@ -1998,7 +2026,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {fileExplorerOpen && (
           <FileExplorerPanel
             variant={ideLayout ? 'embedded' : 'overlay'}
-            onClose={() => setFileExplorerOpen(false)}
+            onClose={() => {
+              setFileExplorerOpen(false);
+              if (ideLayout) {
+                void updateLayoutSettings({ filesPanelVisible: false });
+              }
+            }}
             onFileOpen={() => setCodeEditorOpen(true)}
           />
         )}
@@ -2007,12 +2040,42 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {codeEditorOpen && (
           <CodeEditorPanel
             variant={ideLayout ? 'embedded' : 'overlay'}
-            onClose={() => setCodeEditorOpen(false)}
+            onClose={() => {
+              setCodeEditorOpen(false);
+              if (ideLayout) {
+                void updateLayoutSettings({ editorPanelVisible: false });
+              }
+            }}
           />
         )}
 
         {/* Main Chat Area */}
-        <div className="flex flex-col flex-1 min-h-0 min-w-[220px] sm:min-w-[260px] transition-all duration-300 ease-in-out relative overflow-hidden">
+        {chatPanelVisible && (
+        <div
+          className={
+            ideLayout
+              ? 'flex flex-col h-full min-h-0 relative border-l border-slack-border'
+              : 'flex flex-col flex-1 min-h-0 min-w-[220px] sm:min-w-[260px] transition-all duration-300 ease-in-out relative overflow-hidden'
+          }
+          style={ideLayout ? shrinkablePanelStyle(mainChatResize.width, 220) : undefined}
+        >
+        {ideLayout && (
+          <div
+            className="absolute left-0 top-0 bottom-0 cursor-col-resize z-[100] group"
+            onMouseDown={mainChatResize.onResizeStart}
+            aria-label="Resize chat panel"
+            style={{
+              width: '6px',
+              marginLeft: '-3px',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div className="absolute inset-0 bg-transparent group-hover:bg-blue-500/30 transition-colors" />
+            <div className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 w-1 h-8 bg-gray-400 group-hover:bg-blue-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        )}
+
+        <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 
         {isClosedCollaborationChannel && collaborationForChannel && (
             <div
@@ -2116,6 +2179,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </div>
         )}
         </div>
+        </div>
+        )}
 
         {/* Thread Panel - slides in when thread is open */}
         {openThreadId && parentMessage && (

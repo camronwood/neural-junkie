@@ -17,6 +17,8 @@ export function panelsForPreset(preset: LayoutPreset): Partial<LayoutSettings> {
   }
   return {
     layoutPreset: 'team',
+    filesPanelVisible: false,
+    editorPanelVisible: false,
   };
 }
 

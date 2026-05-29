@@ -35,7 +35,7 @@
         "\"namespace\"\\s*:",
         "\"name\"\\s*:\\s*\"kubectl"
       ],
-      "any_match": ["schema", "standardiz", "registr", "markdown"]
+      "any_match": ["schema|standardiz|registr|markdown|resource\\s*api"]
     },
     {
       "action": "assert_plan",

@@ -1,0 +1,52 @@
+id: software-development
+version: "1.0.0"
+title: Software development
+description: Broad backend, frontend, platform, security, architecture, and code review specialists with MCP analysis tools and Qwen Coder models.
+layout_profile: ide
+capabilities:
+  - ide-v2
+  - ide-v3-composer
+  - git-rest
+  - inline-completion
+agents:
+  - type: backend
+    name: BackendEngineer
+    implementation: builtin/backend
+  - type: frontend
+    name: FrontendEngineer
+    implementation: builtin/frontend
+  - type: devops
+    name: PlatformEngineer
+    implementation: builtin/devops
+  - type: security
+    name: SecurityReviewer
+    implementation: builtin/security
+  - type: architecture
+    name: SoftwareArchitect
+    implementation: builtin/architecture
+  - type: code-review
+    name: CodeReviewer
+    implementation: builtin/code-review
+models_to_ensure:
+  - qwen2.5-coder:14b
+  - qwen2.5:7b
+ollama_model: qwen2.5-coder:14b
+expert_presets:
+  - slug: backend
+    label: Backend
+  - slug: frontend
+    label: Frontend
+  - slug: devops
+    label: Platform / DevOps
+  - slug: security
+    label: Security
+  - slug: architecture
+    label: Software Architecture
+  - slug: code-review
+    label: Code Review
+mcp_agents:
+  - backend
+  - devops
+  - database
+  - frontend
+  - security

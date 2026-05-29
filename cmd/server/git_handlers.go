@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/git"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/workspacefiles"
@@ -16,7 +15,7 @@ import (
 )
 
 func requireSoftwareDevPack(w http.ResponseWriter) bool {
-	if appConfig == nil || !appConfig.IsPackEnabled(config.PackSoftwareDevelopment) {
+	if appConfig == nil || !appConfig.AnyPackCapability("git-rest") {
 		http.Error(w, "Software development pack required for git operations", http.StatusForbidden)
 		return false
 	}

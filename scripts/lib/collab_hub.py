@@ -91,6 +91,7 @@ def send_message(
     *,
     metadata: dict | None = None,
     from_name: str = "CollabScenario",
+    max_retries: int = 3,
 ) -> tuple[int, dict | None]:
     payload: dict[str, Any] = {
         "channel": channel,
@@ -100,10 +101,15 @@ def send_message(
     }
     if metadata:
         payload["metadata"] = metadata
-    code, data = hub_request(base, "POST", "/api/send", payload)
-    if code == 200 and isinstance(data, dict):
-        return code, data
-    return code, data if isinstance(data, dict) else None
+    for attempt in range(max_retries):
+        code, data = hub_request(base, "POST", "/api/send", payload)
+        if code == 429 and attempt + 1 < max_retries:
+            time.sleep(2.0 * (attempt + 1))
+            continue
+        if code == 200 and isinstance(data, dict):
+            return code, data
+        return code, data if isinstance(data, dict) else None
+    return 429, None
 
 
 def workspace_ack(
@@ -225,7 +231,7 @@ def cancel_collab(base: str, collab: dict) -> bool:
 def free_scenario_capacity(
     base: str,
     channel: str,
-    markers: tuple[str, ...] = ("collab-scenario", "nj collab scenario", "collab scenario"),
+    markers: tuple[str, ...] = ("collab-scenarios", "planning-two-agent probe"),
 ) -> bool:
     active = list_active_collaborations(base)
     cancelled = 0
@@ -250,7 +256,11 @@ def last_system_error(base: str, channel: str) -> str:
         if m.get("type") != "system_info":
             continue
         body = (m.get("content") or "").strip()
-        if body.startswith("❌") or "Ignored active workspace" in body:
+        if body.startswith("❌") or body.startswith("⚠️"):
+            return body
+        if "Ignored" in body and "workspace" in body:
+            return body
+        if "deliverables folder" in body:
             return body
     return ""
 

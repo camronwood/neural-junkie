@@ -18,9 +18,32 @@ export interface PackStatus {
   id: string;
   title: string;
   description: string;
+  installed: boolean;
   enabled: boolean;
+  layout_profile?: string;
+  capabilities?: string[];
   expert_slug?: string;
   expert_label?: string;
+  version?: string;
+}
+
+export interface PackCatalogEntry {
+  id: string;
+  version: string;
+  title: string;
+  description: string;
+  icon_key?: string;
+  publisher?: string;
+  builtin?: boolean;
+  installed: boolean;
+  enabled: boolean;
+}
+
+export interface PacksAPIResponse {
+  packs: PackStatus[];
+  layout_owner?: string;
+  layout_profile?: string;
+  capabilities?: string[];
 }
 
 export interface ExpertPresetOption {
@@ -1971,7 +1994,7 @@ export class ChatAPI {
     return response.json();
   }
 
-  async fetchPacks(): Promise<PackStatus[]> {
+  async fetchPacks(): Promise<PacksAPIResponse> {
     const response = await this.hubFetch(`/api/packs`);
     if (!response.ok) {
       throw new Error(`Failed to fetch packs: ${response.statusText}`);
@@ -1979,7 +2002,38 @@ export class ChatAPI {
     return response.json();
   }
 
-  async setPackEnabled(packId: string, enabled: boolean): Promise<PackStatus[]> {
+  async fetchPackCatalog(): Promise<PackCatalogEntry[]> {
+    const response = await this.hubFetch(`/api/packs/catalog`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch pack catalog: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return (data.packs as PackCatalogEntry[]) ?? [];
+  }
+
+  async installPack(packId: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async uninstallPack(packId: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async setPackEnabled(packId: string, enabled: boolean): Promise<PacksAPIResponse> {
     const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1989,8 +2043,16 @@ export class ChatAPI {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);
     }
-    const data = await response.json();
-    return (data.packs as PackStatus[]) ?? [];
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  private parsePacksMutationResponse(data: Record<string, unknown>): PacksAPIResponse {
+    return {
+      packs: (data.packs as PackStatus[]) ?? [],
+      layout_owner: data.layout_owner as string | undefined,
+      layout_profile: data.layout_profile as string | undefined,
+      capabilities: (data.capabilities as string[]) ?? [],
+    };
   }
 
   async fetchExpertPresets(): Promise<ExpertPresetOption[]> {

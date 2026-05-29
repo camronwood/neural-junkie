@@ -1301,7 +1301,7 @@ func TestSuggestRole(t *testing.T) {
 		agentType protocol.AgentType
 		expected  string
 	}{
-		{protocol.AgentTypeCLI, "Implementation & Code Generation"},
+		{protocol.AgentTypeCLI, "Implementation & Code (from approved plan)"},
 		{protocol.AgentTypeSecurity, "Security Review & Auth Design"},
 		{protocol.AgentTypeRust, "Rust Architecture & Systems Design"},
 		{protocol.AgentTypeBackend, "Backend Architecture & API Design"},

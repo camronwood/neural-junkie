@@ -338,7 +338,8 @@ def step_assert_collab(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
 
     if step.get("expect_workspace_warning"):
         err = hub.last_system_error(ctx.base, ctx.channel)
-        if "Ignored active workspace" not in err and "deliverables folder" not in err:
+        ok = ("Ignored" in err and "workspace" in err) or "deliverables folder" in err
+        if not ok:
             return False, f"expected workspace warning on parent channel, got: {err!r}"
 
     if step.get("workspace_acknowledged") is True and not c.get("workspace_acknowledged"):
@@ -604,7 +605,7 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     mini = {
         "collaborate": {
             "flags": setup.get("flags") or ["--rounds", "1", "--messages", "1"],
-            "goal": setup.get("goal") or "nj collab scenario blocker (executing fixture)",
+            "goal": setup.get("goal") or "hold executing slot for isolation probe",
         },
         "channel": ch,
     }

@@ -15,6 +15,11 @@ import {
   collaborationPrimaryActionTitle,
   collaborationSubmitForReviewTitle,
 } from '../utils/collaborationActionLabels';
+import {
+  isApprovedAwaitingDispatch,
+  isPlanningAwaitingFirstTurn,
+  taskNeedsFileDeliverable,
+} from '../utils/collaborationPanelState';
 import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
@@ -137,6 +142,8 @@ export function CollaborationPanel({
     primaryActionLabel != null &&
     (c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing');
   const approveBlocked = c.phase === 'reviewing' && planningRecapPending;
+  const planningAwaitingFirstTurn = isPlanningAwaitingFirstTurn(c);
+  const approvedAwaitingDispatch = isApprovedAwaitingDispatch(c);
   const submitForReviewEnabled = canSubmitCollaborationForReview(c.phase, c.discussion);
   const submitForReviewBlocked = c.phase === 'planning' && !submitForReviewEnabled;
 
@@ -452,7 +459,49 @@ export function CollaborationPanel({
           </div>
         )}
 
-        {c.phase === 'planning' && (
+        {c.phase === 'planning' && planningAwaitingFirstTurn && (
+          <div
+            data-testid="collaboration-planning-wait-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #b45309',
+              backgroundColor: 'rgba(180, 83, 9, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
+              Waiting for the first agent turn
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              The hub prompted the first participant. If nothing appears after ~30s, check that agents are online
+              or run <code style={{ fontSize: 11 }}>make debug-collab LIVE=1</code>.
+            </p>
+          </div>
+        )}
+
+        {approvedAwaitingDispatch && (
+          <div
+            data-testid="collaboration-dispatch-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#6ee7b7', marginBottom: 6 }}>
+              Tasks dispatching…
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              Workspace confirmed. Task prompts are being sent to assignees — no Continue step needed for sandbox +
+              bound project repos.
+            </p>
+          </div>
+        )}
+
+        {c.phase === 'planning' && !planningAwaitingFirstTurn && (
           <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary, #aaa)', lineHeight: 1.45 }}>
             Agents are discussing and refining the plan.{' '}
             {submitForReviewEnabled ? (
@@ -569,6 +618,14 @@ export function CollaborationPanel({
                     {c.tasks && taskOrchestrationLabel(task, c.tasks, c.phase) ? (
                       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                         {taskOrchestrationLabel(task, c.tasks, c.phase)}
+                      </div>
+                    ) : null}
+                    {c.phase === 'executing' &&
+                    task.status === 'in_progress' &&
+                    taskNeedsFileDeliverable(task) ? (
+                      <div style={{ fontSize: 11, color: '#fbbf24', marginTop: 4, lineHeight: 1.4 }}>
+                        File deliverable: assignee must emit a <strong>[FILE_CHANGE]</strong> proposal — approve it in{' '}
+                        <strong>Pending changes</strong>. Chat-only replies do not write to disk.
                       </div>
                     ) : null}
                     {!isTerminal && task.status !== 'completed' && c.phase === 'executing' && (
@@ -818,7 +875,11 @@ export function CollaborationPanel({
               type="button"
               onClick={() => void handleResume()}
               disabled={isSubmitting || approveBlocked}
-              title={collaborationPrimaryActionTitle(c.phase)}
+              title={
+                approveBlocked
+                  ? `Approve unlocks when the session summary is posted (waiting on @${recapFacilitatorName})`
+                  : collaborationPrimaryActionTitle(c.phase)
+              }
               style={{
                 padding: '8px 16px',
                 borderRadius: 6,

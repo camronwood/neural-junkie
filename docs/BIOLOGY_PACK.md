@@ -4,7 +4,7 @@ Neural Junkie includes a **Life sciences** setup path with a domain-tuned model 
 
 ## One pack at a time
 
-Only **one** domain pack can be enabled: Life sciences **or** Software development (not both). Enable this pack from Settings to use biology specialists and lab tools.
+Install and enable this pack from **Settings → Domain packs → Pack store**. Multiple packs can be enabled together; layout is determined by the first pack you turn on.
 
 ## What you get
 

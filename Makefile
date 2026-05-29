@@ -86,7 +86,7 @@ collab-smoke: ## Collab lifecycle smoke (API phases); LIVE=1 for running hub
 
 collab-scenario: ## Run one live collab scenario (SCENARIO=planning-two-agent, PROFILE=fast|realistic, KEEP=1)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make collab-scenario SCENARIO=planning-two-agent [PROFILE=fast] [KEEP=1] [VERBOSE=1]"; exit 1; fi
-	@python3 scripts/collab-scenarios.py --scenario "$(SCENARIO)" \
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario "$(SCENARIO)" \
 		$(if $(PROFILE),--profile $(PROFILE),) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(KEEP),--keep,)

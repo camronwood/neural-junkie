@@ -464,15 +464,20 @@ Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`
 - `NJ_COLLAB_SCENARIO_AGENTS` — override mentions
 - `NEURAL_JUNKIE_SCENARIO_REPO` — optional repo root for `resource-api-schema-planning` (`--workspace` metadata when set)
 - `NJ_SCENARIO_ALLOW_FILE_FALLBACK` — allow discussion-only file write fallback (dev)
+- `NEURAL_JUNKIE_RATE_LIMIT=0` — start the hub with rate limiting disabled when running many scenarios locally (`make collab-scenario-matrix`); otherwise POST `/api/send` may return HTTP 429
 
 **Interpreting failures**
 
 - The runner prints per-step pass/fail and dumps the last agent transcript lines on failure.
 - `wait_discussion` prints a **diagnosis** block: per-agent message counts, silent agents, and handoff counts.
 - Common exact failures:
+  - **HTTP 429 on approve or /collaborate:** hub rate limit exhausted from polling — restart with `NEURAL_JUNKIE_RATE_LIMIT=0 make server` or wait one minute.
   - **Silent agent (e.g. Gemini):** turn handoffs with `collab_internal_event` were ignored before v1.0.0-beta.19+ fix — restart the hub after upgrading.
   - **PlatformEngineer JSON/kubectl in planning:** scenario `none_match` fails with the agent name; hub should rewrite raw tool JSON during planning when the workspace is not k8s-heavy — restart after upgrade. `@SoftwareArchitect` is also valid for the same goal.
-  - **`any_match` keywords:** agents may say “standardize” without “registration”; scenarios use stem patterns (`registr`, `standardiz`).
+  - **`Grounding: I loaded` in planning-two-agent:** usually means the agent scanned your open editor workspace during a no-repo collab — fixed when no source workspace is bound; restart hub after upgrade.
+  - **`multi-collab-isolation` setup cancelled:** do not run scenarios in parallel; the isolation blocker must stay executing on `collab-scenario-blocker`.
+  - **`any_match` keywords:** use a single combined regex in scenario JSON (e.g. `schema|standardiz|registr`) — each list entry must match somewhere in agent messages.
+  - **`require_hub_approval` with approved=0:** agent used chat-only `[FILE_CHANGE] path` without a hub proposal — upgrade hub for loose FILE_CHANGE parsing or approve in Pending changes manually.
 - Use `make debug-collab COLAB=<id8> LIVE=1` or `python3 scripts/debug-collab.py messages --channel collab-... --live` for full history.
 - `KEEP=1` leaves the collab active: `make collab-scenario SCENARIO=planning-two-agent KEEP=1`
 

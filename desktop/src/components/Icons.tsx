@@ -80,6 +80,18 @@ export const LeftSidebarIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) 
   </svg>
 );
 
+/** Main chat column toggle */
+export const ChatPanelIcon: React.FC<IconProps> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M8 10h8M8 14h5M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.8-5.4A8.96 8.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+    />
+  </svg>
+);
+
 export const RightSidebarIcon: React.FC<IconProps> = ({ className = "w-5 h-5" }) => (
   <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v16H4V4z" />

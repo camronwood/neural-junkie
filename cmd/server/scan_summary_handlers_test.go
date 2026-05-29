@@ -45,6 +45,9 @@ func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func
 
 	appConfig = config.DefaultConfig()
 	appConfig.Packs = config.DefaultPacksConfig()
+	if err := appConfig.InstallPack(config.PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
 	appConfig.Packs.Enabled[config.PackLifeSciences] = true
 
 	return ws.ID, func() {

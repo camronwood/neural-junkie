@@ -6,6 +6,25 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.19] - 2026-05-29
+
+### Added
+- **Domain pack store** — Settings → Domain packs → Pack store lists official packs from GitHub; hub installs zip bundles with embedded fallback when offline. See [PACKS.md](PACKS.md).
+- **Loose `[FILE_CHANGE]` parsing** — collaboration task replies that use inline `[FILE_CHANGE] path` or `path:` lines (without `[/FILE_CHANGE]`) now register hub file proposals.
+- **Desktop collaboration UX** — planning wait banner (0 messages), approved/dispatch banner, file-deliverable hints on in-progress tasks, workspace gate copy for Pending changes.
+- **Horizontal panel resize** — drag handles for resizable desktop layout panels.
+
+### Changed
+- **Domain packs** — multiple packs can be enabled together; first enabled pack owns UI layout (replaces single-pack exclusivity).
+- **Scenario harness** — `last_system_error` matches `⚠️` workspace warnings; `send_message` retries on HTTP 429; `free_scenario_capacity` no longer cancels multi-collab isolation blockers; `resource-api-schema-planning` uses a single combined `any_match` regex.
+- **Planning without bound repo** — agents no longer scan the open editor tree or emit `Grounding: I loaded N files` during planning/review when no source workspace is bound.
+- **Task dispatch note** — file-shaped tasks include a canonical `[FILE_CHANGE]` example in the prompt.
+- **CLI collab role label** — `SuggestRole(cli)` is “Implementation & Code (from approved plan)”.
+
+### Fixed
+- **Multi-collab isolation** — executing blocker collabs are not auto-cancelled when other scenarios start on `collab-scenarios`.
+- **Rate limit during scenario sweeps** — document `NEURAL_JUNKIE_RATE_LIMIT=0` for local hub when running `make collab-scenario-matrix`.
+
 ## [1.0.0-beta.18] - 2026-05-27
 
 ### Added
