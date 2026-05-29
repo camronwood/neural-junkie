@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(sys.argv[1])
 OUT = Path(sys.argv[2])
 brand = ROOT / "assets/neural-junkie-social-ad-1080.png"
-shot = next((ROOT / "assets/screenshots").glob("Screenshot 2026-05-13 at 12.35.40*"))
+shot = next((ROOT / "assets/screenshots").glob("Screenshot 2026-05-29 at 2.31.27*"))
 
 def font(path: str, size: int):
     try:

@@ -71,9 +71,9 @@ graph TB
 
 ## Screenshots
 
-Main workspace with channels, direct-message agents, multi-agent chat, and the task sidebar.
+Main workspace with files, code editor, multi-agent collaboration, and chat.
 
-![Neural Junkie main workspace with chat and tasks](assets/screenshots/Screenshot%202026-05-13%20at%2012.35.40%E2%80%AFPM.png)
+![Neural Junkie main workspace with files, editor, and chat](assets/screenshots/Screenshot%202026-05-29%20at%202.31.27%20PM.png)
 
 Command palette for discovering and running slash commands (repo agents, Confluence, experts, agent management).
 
