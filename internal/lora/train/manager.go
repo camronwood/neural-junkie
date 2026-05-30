@@ -43,13 +43,16 @@ type HyperParams struct {
 
 // StartRequest starts a new training job.
 type StartRequest struct {
-	Source        lorexport.SourceKind `json:"source"`
-	SourceID      string               `json:"source_id"`
-	ThreadID      string               `json:"thread_id,omitempty"`
-	AgentName     string               `json:"agent_name,omitempty"`
-	BaseOllamaTag string               `json:"base_ollama_tag"`
-	OllamaTag     string               `json:"ollama_tag"`
-	HyperParams   HyperParams          `json:"hyperparams,omitempty"`
+	Source           lorexport.SourceKind `json:"source"`
+	SourceID         string               `json:"source_id"`
+	ThreadID         string               `json:"thread_id,omitempty"`
+	AgentName        string               `json:"agent_name,omitempty"`
+	AgentID          string               `json:"agent_id,omitempty"`
+	IncludeLearnings bool                 `json:"include_learnings,omitempty"`
+	LearningRows     []lorexport.Row      `json:"-"`
+	BaseOllamaTag    string               `json:"base_ollama_tag"`
+	OllamaTag        string               `json:"ollama_tag"`
+	HyperParams      HyperParams          `json:"hyperparams,omitempty"`
 }
 
 // Job is the persisted view of one training run.
@@ -156,6 +159,7 @@ func (m *Manager) run(ctx context.Context, rj *runningJob, req StartRequest) {
 		SourceID:  req.SourceID,
 		ThreadID:  req.ThreadID,
 		AgentName: req.AgentName,
+		ExtraRows: req.LearningRows,
 	}
 	n, err := lorexport.Export(exportReq, m.msgs, collab, datasetPath)
 	if err != nil {

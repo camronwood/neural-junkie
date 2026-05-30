@@ -424,7 +424,9 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 			if ra.Collab.IsAgentTurn(collabID, ra.Info.ID) {
 				return true
 			}
-			if msg.IsMentioned(ra.Info.ID) && ra.Collab.AgentOutOfTurnMentionAllowed(collabID) {
+			collabPhase := ra.Collab.GetCollaboration(collabID, ra.Info.ID).Phase
+			if msg.IsMentioned(ra.Info.ID) && ra.Collab.AgentOutOfTurnMentionAllowed(collabID) &&
+				collabOutOfTurnMentionOK(msg, collabPhase) {
 				return true
 			}
 		}

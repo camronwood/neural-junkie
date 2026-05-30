@@ -70,6 +70,7 @@ func TestHandleLearningsCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	learningpkg.SetGlobalStore(learningStore)
 
 	body := map[string]string{
 		"agent_id":   "agent-1",
@@ -116,6 +117,76 @@ func TestHandleLearningsCRUD(t *testing.T) {
 	}
 }
 
+func TestHandleLearningsUpdateAndQuery(t *testing.T) {
+	dir := t.TempDir()
+	chatHub = hub.NewHub()
+	defer func() {
+		chatHub = nil
+		appConfig = nil
+		learningStore = nil
+	}()
+
+	enablePersonalLearningForTest(t)
+	storePath := filepath.Join(dir, "learnings.json")
+	var err error
+	learningStore, err = learningpkg.NewStore(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	learningpkg.SetGlobalStore(learningStore)
+
+	body := map[string]string{
+		"agent_id": "agent-1",
+		"content":  "Use structured logging",
+		"category": "preference",
+		"scope":    "agent",
+	}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/learnings", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	handleLearningsRoute(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var created learningpkg.Entry
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	patch := map[string]string{
+		"content": "Use JSON structured logging",
+		"scope":   "global",
+	}
+	raw, _ = json.Marshal(patch)
+	req = httptest.NewRequest(http.MethodPut, "/api/learnings/"+created.ID, bytes.NewReader(raw))
+	rec = httptest.NewRecorder()
+	handleLearningsRoute(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var updated learningpkg.Entry
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Scope != learningpkg.ScopeGlobal || updated.Content != "Use JSON structured logging" {
+		t.Fatalf("unexpected update: %+v", updated)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/learnings/query?agent_id=agent-1&q=logging&scope=global", nil)
+	rec = httptest.NewRecorder()
+	handleLearningsRoute(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("query expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var qbody map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &qbody); err != nil {
+		t.Fatal(err)
+	}
+	if int(qbody["count"].(float64)) < 1 {
+		t.Fatalf("expected query results: %+v", qbody)
+	}
+}
+
 func TestHandleLearningsStats(t *testing.T) {
 	chatHub = hub.NewHub()
 	defer func() {
@@ -159,6 +230,7 @@ func TestHandleLearningsStats(t *testing.T) {
 func TestLearningLoRASmoke(t *testing.T) {
 	TestHandleLearningsRoute_gates(t)
 	TestHandleLearningsCRUD(t)
+	TestHandleLearningsUpdateAndQuery(t)
 	TestHandleLearningsStats(t)
 	TestHandleLoraTrainExpertContext_assistantAgent(t)
 }

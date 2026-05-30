@@ -28,4 +28,5 @@ type Request struct {
 	ThreadID   string
 	AgentName  string
 	MaxRows    int
+	ExtraRows  []Row // prepended learning rows (e.g. confirmed personal learnings)
 }

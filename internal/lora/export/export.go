@@ -38,6 +38,9 @@ func Export(req Request, msgs MessageSource, collab *collaboration.Collaboration
 	if err != nil {
 		return 0, err
 	}
+	if len(req.ExtraRows) > 0 {
+		rows = MergeLearningsRows(rows, req.ExtraRows)
+	}
 	if len(rows) < MinRows {
 		return len(rows), fmt.Errorf("only %d training rows (minimum %d)", len(rows), MinRows)
 	}

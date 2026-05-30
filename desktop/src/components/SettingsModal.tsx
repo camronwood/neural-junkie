@@ -18,7 +18,7 @@ import type {
   SlackConfigResponse,
   SlackConnectionResponse,
 } from '../types/protocol';
-import { ChatAPI } from '../api/chatAPI';
+import { ChatAPI, type UserLearning } from '../api/chatAPI';
 import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
@@ -155,11 +155,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [bioSettingsErr, setBioSettingsErr] = useState<string | null>(null);
   const [bioSettingsOk, setBioSettingsOk] = useState<string | null>(null);
   const [personalLearningEnabled, setPersonalLearningEnabled] = useState(false);
+  const [personalLearningSuggestEnabled, setPersonalLearningSuggestEnabled] = useState(false);
   const [personalLearningSaving, setPersonalLearningSaving] = useState(false);
   const [personalLearningsOpen, setPersonalLearningsOpen] = useState(false);
-  const [allLearnings, setAllLearnings] = useState<
-    { id: string; agent_id: string; agent_name?: string; content: string; category: string; confirmed_at?: string }[]
-  >([]);
+  const [allLearnings, setAllLearnings] = useState<UserLearning[]>([]);
   const [allLearningsLoading, setAllLearningsLoading] = useState(false);
   const [allLearningsErr, setAllLearningsErr] = useState<string | null>(null);
 
@@ -698,6 +697,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             agentRows.filter((a: { enabled?: boolean }) => a.enabled !== false)
           );
           setPersonalLearningEnabled(!!cfg.features?.personal_learning_enabled);
+          setPersonalLearningSuggestEnabled(!!cfg.features?.personal_learning_suggest_enabled);
         }
       } catch (e) {
         if (!cancelled) {
@@ -799,6 +799,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setAllLearningsErr(e instanceof Error ? e.message : String(e));
     } finally {
       setAllLearningsLoading(false);
+    }
+  };
+
+  const handlePersonalLearningSuggestToggle = async (enabled: boolean) => {
+    setPersonalLearningSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        features: {
+          ...(typeof cfg.features === 'object' && cfg.features ? cfg.features : {}),
+          personal_learning_suggest_enabled: enabled,
+        },
+      }));
+      setPersonalLearningSuggestEnabled(enabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPersonalLearningSaving(false);
     }
   };
 
@@ -3076,6 +3095,70 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </label>
 
                   {personalLearningEnabled && (
+                    <label className="flex items-center gap-3 cursor-pointer mt-3">
+                      <input
+                        type="checkbox"
+                        checked={personalLearningSuggestEnabled}
+                        disabled={personalLearningSaving}
+                        onChange={(e) => void handlePersonalLearningSuggestToggle(e.target.checked)}
+                        className="rounded border-slack-border"
+                      />
+                      <span className="text-slack-text">Allow agents to suggest learnings (still requires your approval)</span>
+                    </label>
+                  )}
+
+                  {personalLearningEnabled && (
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        type="button"
+                        className="px-3 py-1.5 text-sm border border-slack-border rounded hover:bg-slack-bgHover"
+                        onClick={async () => {
+                          try {
+                            const api = new ChatAPI(hubHttp);
+                            const bundle = await api.exportLearnings();
+                            const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'neural-junkie-learnings.json';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          } catch (e) {
+                            setAllLearningsErr(e instanceof Error ? e.message : String(e));
+                          }
+                        }}
+                      >
+                        Export learnings
+                      </button>
+                      <label className="px-3 py-1.5 text-sm border border-slack-border rounded hover:bg-slack-bgHover cursor-pointer">
+                        Import learnings
+                        <input
+                          type="file"
+                          accept="application/json,.json"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const text = await file.text();
+                              const bundle = JSON.parse(text) as { entries: UserLearning[] };
+                              const api = new ChatAPI(hubHttp);
+                              await api.importLearnings(bundle);
+                              const rows = await api.fetchLearnings();
+                              setAllLearnings(rows);
+                              setAllLearningsErr(null);
+                            } catch (err) {
+                              setAllLearningsErr(err instanceof Error ? err.message : 'Import failed');
+                            } finally {
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {personalLearningEnabled && (
                     <details
                       open={personalLearningsOpen}
                       onToggle={(e) => setPersonalLearningsOpen(e.currentTarget.open)}
@@ -3094,48 +3177,55 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <p className="text-sm text-slack-textMuted mt-2">No learnings saved yet.</p>
                       )}
                       {allLearnings.length > 0 && (
-                        <ul className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-                          {Object.entries(
-                            allLearnings.reduce<Record<string, typeof allLearnings>>((acc, e) => {
-                              const key = e.agent_name || e.agent_id;
-                              (acc[key] ||= []).push(e);
-                              return acc;
-                            }, {})
-                          ).map(([agentName, rows]) => (
-                            <li key={agentName} className="text-sm">
-                              <p className="font-medium text-slack-text mb-1">{agentName}</p>
-                              <ul className="space-y-1 pl-2 border-l border-slack-border">
-                                {rows.map((e) => (
-                                  <li
-                                    key={e.id}
-                                    className="flex justify-between gap-2 text-slack-textMuted"
-                                  >
-                                    <span>
-                                      [{e.category}] {e.content}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="text-red-500 hover:text-red-400 shrink-0"
-                                      onClick={async () => {
-                                        try {
-                                          const api = new ChatAPI(hubHttp);
-                                          await api.deleteLearning(e.id);
-                                          setAllLearnings((prev) => prev.filter((x) => x.id !== e.id));
-                                        } catch (err) {
-                                          setAllLearningsErr(
-                                            err instanceof Error ? err.message : 'Forget failed'
-                                          );
-                                        }
-                                      }}
+                        <div className="mt-2 space-y-4 max-h-64 overflow-y-auto">
+                          {(['global', 'agent', 'collaboration'] as const).map((scopeKey) => {
+                            const rows = allLearnings.filter((e) => (e.scope || 'agent') === scopeKey);
+                            if (rows.length === 0) return null;
+                            const title =
+                              scopeKey === 'global'
+                                ? 'All experts'
+                                : scopeKey === 'collaboration'
+                                  ? 'By collaboration'
+                                  : 'By expert';
+                            return (
+                              <div key={scopeKey}>
+                                <p className="text-xs font-semibold text-slack-textMuted uppercase mb-1">{title}</p>
+                                <ul className="space-y-1">
+                                  {rows.map((e) => (
+                                    <li
+                                      key={e.id}
+                                      className="flex justify-between gap-2 text-sm text-slack-textMuted"
                                     >
-                                      Forget
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            </li>
-                          ))}
-                        </ul>
+                                      <span>
+                                        {scopeKey === 'agent' && (
+                                          <span className="text-slack-text mr-1">{e.agent_name || e.agent_id}:</span>
+                                        )}
+                                        [{e.category}] {e.content}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="text-red-500 hover:text-red-400 shrink-0"
+                                        onClick={async () => {
+                                          try {
+                                            const api = new ChatAPI(hubHttp);
+                                            await api.deleteLearning(e.id);
+                                            setAllLearnings((prev) => prev.filter((x) => x.id !== e.id));
+                                          } catch (err) {
+                                            setAllLearningsErr(
+                                              err instanceof Error ? err.message : 'Forget failed'
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        Forget
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                       {hasLoRATraining && (
                         <p className="text-xs text-slack-textMuted mt-3">

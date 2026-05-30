@@ -271,6 +271,27 @@ func (collabMultiActiveStub) AnalyzeConsensus(string, *protocol.Message) string 
 }
 func (collabMultiActiveStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 
+type collabPlanningTurnStub struct{}
+
+func (collabPlanningTurnStub) IsParticipant(string, string) bool { return true }
+func (collabPlanningTurnStub) IsAgentTurn(string, string) bool    { return false }
+func (collabPlanningTurnStub) IsActive(string) bool              { return true }
+func (collabPlanningTurnStub) GetCurrentTurnAgent(string) (string, error) {
+	return "gemini-id", nil
+}
+func (collabPlanningTurnStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{}
+}
+func (collabPlanningTurnStub) GetCollaboration(string, string) CollaborationInfo {
+	return CollaborationInfo{Phase: "planning"}
+}
+func (collabPlanningTurnStub) GetCollaborationWorkingDirectory(string) string { return "" }
+func (collabPlanningTurnStub) RecordMessage(string, *protocol.Message) error  { return nil }
+func (collabPlanningTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
+	return ""
+}
+func (collabPlanningTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
+
 func TestShouldRespond_PlanningCollabIgnoresOtherExecutingCollab(t *testing.T) {
 	const agentID = "agent-multi"
 	hubStub := shouldRespondTestHub{}
@@ -392,5 +413,28 @@ func TestShouldRespond_ExplicitMentionOverridesIdeRoute(t *testing.T) {
 	}
 	if !assistant.shouldRespond(msg) {
 		t.Fatal("Assistant should respond when @mentioned even with IDE backend route metadata")
+	}
+}
+
+func TestShouldRespond_CollaborationAgentMentionInPlanDoesNotStealTurn(t *testing.T) {
+	const collabID = "550e8400-e29b-41d4-a716-446655440000"
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+
+	platform := NewAgent(protocol.AgentTypeDevOps, "PlatformEngineer", []string{"infra"}, mockAI, hubStub)
+	platform.Info.ID = "platform-id"
+	platform.SetCollabClient(collabPlanningTurnStub{})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "assistant-id", Name: "Assistant", Type: protocol.AgentTypeAssistant},
+		"- Task 1: @PlatformEngineer - Review CI pipeline",
+	)
+	msg.SetCollaborationID(collabID)
+	msg.Mention(platform.Info.ID)
+
+	if platform.shouldRespond(msg) {
+		t.Fatal("PlatformEngineer must not respond to @mention in another agent's planning prose when it is not their turn")
 	}
 }

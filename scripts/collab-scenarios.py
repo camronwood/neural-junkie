@@ -53,6 +53,10 @@ class ScenarioContext:
         path_env = (ws.get("path_env") or "").strip()
         if path_env:
             raw = os.environ.get(path_env, "").strip()
+            if not raw and path_env == "NEURAL_JUNKIE_SCENARIO_REPO":
+                fallback = ROOT / "scenarios" / "fixtures" / "minimal-repo"
+                if fallback.is_dir():
+                    return str(fallback.resolve())
             if not raw:
                 return ""
             p = Path(raw)

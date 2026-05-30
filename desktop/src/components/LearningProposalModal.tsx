@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { LearningCategory, LearningProposalAction } from '../api/chatAPI';
+import type { LearningCategory, LearningProposalAction, LearningScope } from '../api/chatAPI';
 import { ChatAPI } from '../api/chatAPI';
 
 const CATEGORIES: { value: LearningCategory; label: string }[] = [
@@ -9,12 +9,22 @@ const CATEGORIES: { value: LearningCategory; label: string }[] = [
   { value: 'communication', label: 'Communication' },
 ];
 
+const SCOPES: { value: LearningScope; label: string }[] = [
+  { value: 'agent', label: 'This expert only' },
+  { value: 'global', label: 'All experts' },
+  { value: 'collaboration', label: 'This collaboration' },
+];
+
 interface LearningProposalModalProps {
   isOpen: boolean;
   proposal: LearningProposalAction | null;
   serverAddr: string;
   onClose: () => void;
   onSaved?: (agentId: string) => void;
+  /** When set, show collab scope option */
+  collaborationId?: string;
+  /** Edit existing learning id */
+  editLearningId?: string;
 }
 
 export function LearningProposalModal({
@@ -23,9 +33,12 @@ export function LearningProposalModal({
   serverAddr,
   onClose,
   onSaved,
+  collaborationId,
+  editLearningId,
 }: LearningProposalModalProps) {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<LearningCategory>('preference');
+  const [scope, setScope] = useState<LearningScope>('agent');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +46,7 @@ export function LearningProposalModal({
     if (!isOpen || !proposal) return;
     setContent(proposal.draft?.trim() ?? '');
     setCategory(proposal.category ?? 'preference');
+    setScope(proposal.scope ?? 'agent');
     setError(null);
   }, [isOpen, proposal]);
 
@@ -46,19 +60,29 @@ export function LearningProposalModal({
       setError('Enter something to remember.');
       return;
     }
+    if (scope === 'collaboration' && !collaborationId && !proposal.collaboration_id) {
+      setError('Collaboration scope requires an active collaboration channel.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const api = new ChatAPI(serverAddr);
-      await api.createLearning({
-        agent_id: proposal.agent_id,
-        agent_type: proposal.agent_type,
-        agent_name: proposal.agent_name,
-        content: trimmed,
-        category,
-        source_channel: proposal.source_channel,
-        source_message_id: proposal.source_message_id,
-      });
+      if (editLearningId) {
+        await api.updateLearning(editLearningId, { content: trimmed, category, scope, collaboration_id: collaborationId || proposal.collaboration_id });
+      } else {
+        await api.createLearning({
+          scope,
+          agent_id: proposal.agent_id,
+          agent_type: proposal.agent_type,
+          agent_name: proposal.agent_name,
+          collaboration_id: scope === 'collaboration' ? (collaborationId || proposal.collaboration_id) : undefined,
+          content: trimmed,
+          category,
+          source_channel: proposal.source_channel,
+          source_message_id: proposal.source_message_id,
+        });
+      }
       onSaved?.(proposal.agent_id);
       onClose();
     } catch (e) {
@@ -68,6 +92,13 @@ export function LearningProposalModal({
     }
   };
 
+  const scopeOptions = SCOPES.filter((s) => {
+    if (s.value === 'collaboration') {
+      return !!(collaborationId || proposal.collaboration_id);
+    }
+    return true;
+  });
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
       <div
@@ -76,10 +107,10 @@ export function LearningProposalModal({
         aria-labelledby="learning-proposal-title"
       >
         <h2 id="learning-proposal-title" className="text-lg font-semibold text-slack-text mb-1">
-          Save learning for {proposal.agent_name}
+          {editLearningId ? 'Edit learning' : `Save learning for ${proposal.agent_name}`}
         </h2>
         <p className="text-sm text-slack-textMuted mb-4">
-          Edit and confirm — this note is scoped to this expert only.
+          Edit and confirm — nothing is saved until you click Save.
         </p>
 
         <label className="block text-sm text-slack-text mb-1" htmlFor="learning-content">
@@ -94,6 +125,23 @@ export function LearningProposalModal({
           className="w-full px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text mb-3 resize-y"
           placeholder="e.g. Always use tabs for indentation"
         />
+
+        <label className="block text-sm text-slack-text mb-1" htmlFor="learning-scope">
+          Scope
+        </label>
+        <select
+          id="learning-scope"
+          value={scope}
+          onChange={(e) => setScope(e.target.value as LearningScope)}
+          disabled={saving}
+          className="w-full px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text mb-3"
+        >
+          {scopeOptions.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
 
         <label className="block text-sm text-slack-text mb-1" htmlFor="learning-category">
           Category

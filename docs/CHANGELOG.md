@@ -17,6 +17,23 @@ All notable changes to Neural Junkie.
 - **Context budget** — ~32KB prompt cap with section-aware truncation before LLM calls.
 - **Baseline fixes** — `@mention` overrides IDE route; session persist slimming for `workspace_context`.
 
+## [1.0.0-beta.20] - 2026-05-30
+
+### Added
+- **Personal learning v2** — multi-scope memory (`agent`, `global`, `collaboration`) with Ollama embedding retrieval (keyword fallback when offline), edit/export/import APIs, and per-user session isolation. See [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md).
+- **Learning proposal UX** — scope toggle in approval modal; grouped lists in Settings; edit + scope badges in agent info; optional agent-suggested learnings (`personal_learning_suggest_enabled`).
+- **LoRA + learnings bridge** — include up to 50 confirmed learnings in train preview/export (`include_learnings=1`).
+- **Test harness** — v2 JSON scenarios (`learning-global-scope`, `learning-collab-scope`, `learning-export-import`, `learning-retrieval-debug`) and extended CI smoke.
+
+### Changed
+- **Prompt injection** — top-k retrieval per scope instead of dump-all learnings; debug metadata includes `injected_learning_ids` when `NEURAL_JUNKIE_DEBUG=1`.
+- **Specialist pack sync** — match agents by name before type to avoid clobbering custom specialist entries.
+
+### Fixed
+- **Collab @mention during planning** — agents ignore @mentions embedded in another agent's plan prose; humans and system turn prompts still wake assignees.
+- **Collab turn prompt** — match `You're up first` without requiring a trailing period.
+- **Embedding scheduler** — remove recursive `SetOnEntryChanged` hook that could stack-overflow on save.
+
 ## [1.0.0-beta.19] - 2026-05-29
 
 ### Added

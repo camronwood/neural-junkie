@@ -483,7 +483,15 @@ func (c *Config) SyncAgentsFromPacks() {
 			continue
 		}
 		for _, want := range pack.Agents {
-			idx := agentIndexByType(c.Agents, want.Type)
+			idx := agentIndexByName(c.Agents, want.Name)
+			if idx < 0 {
+				if typeIdx := agentIndexByType(c.Agents, want.Type); typeIdx >= 0 {
+					existing := c.Agents[typeIdx]
+					if existing.Name == "" || existing.Name == want.Name {
+						idx = typeIdx
+					}
+				}
+			}
 			if idx < 0 {
 				acfg := want
 				acfg.Enabled = true
@@ -598,6 +606,19 @@ func packForAgentType(agentType string) string {
 func agentIndexByType(agents []AgentConfig, agentType string) int {
 	for i := range agents {
 		if agents[i].Type == agentType {
+			return i
+		}
+	}
+	return -1
+}
+
+func agentIndexByName(agents []AgentConfig, name string) int {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return -1
+	}
+	for i := range agents {
+		if agents[i].Name == name {
 			return i
 		}
 	}

@@ -320,7 +320,9 @@ func (ca *ConfluenceAgent) shouldRespond(msg *protocol.Message) bool {
 			if ca.Collab.IsAgentTurn(collabID, ca.Info.ID) {
 				return true
 			}
-			if msg.IsMentioned(ca.Info.ID) && ca.Collab.AgentOutOfTurnMentionAllowed(collabID) {
+			collabPhase := ca.Collab.GetCollaboration(collabID, ca.Info.ID).Phase
+			if msg.IsMentioned(ca.Info.ID) && ca.Collab.AgentOutOfTurnMentionAllowed(collabID) &&
+				collabOutOfTurnMentionOK(msg, collabPhase) {
 				return true
 			}
 			return false

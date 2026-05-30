@@ -81,24 +81,33 @@ export interface LoraTrainJob {
 }
 
 export type LearningCategory = 'preference' | 'fact' | 'workflow' | 'communication';
+export type LearningScope = 'agent' | 'global' | 'collaboration';
 
 export interface UserLearning {
   id: string;
+  scope?: LearningScope;
+  user_id?: string;
   agent_id: string;
   agent_type?: string;
   agent_name?: string;
+  collaboration_id?: string;
   content: string;
   category: LearningCategory;
   source_channel?: string;
   source_message_id?: string;
   created_at: string;
   confirmed_at: string;
+  updated_at?: string;
+  use_count?: number;
   active: boolean;
 }
 
 export interface LearningStats {
   agent_id: string;
   learning_count: number;
+  global_count?: number;
+  collab_count?: number;
+  embedding_index_ready?: boolean;
   preview_rows: number;
   min_rows: number;
   ready_for_lora: boolean;
@@ -106,13 +115,16 @@ export interface LearningStats {
 
 export interface LearningProposalAction {
   type: 'learning_proposal';
+  source?: string;
   agent_id: string;
   agent_name: string;
   agent_type?: string;
   draft?: string;
   category?: LearningCategory;
+  scope?: LearningScope;
   source_message_id?: string;
   source_channel?: string;
+  collaboration_id?: string;
 }
 
 export interface LoraTrainStartRequest {
@@ -120,6 +132,8 @@ export interface LoraTrainStartRequest {
   source_id: string;
   thread_id?: string;
   agent_name?: string;
+  agent_id?: string;
+  include_learnings?: boolean;
   base_ollama_tag: string;
   ollama_tag: string;
   hyperparams?: { rank?: number; epochs?: number; learning_rate?: number; max_seq_len?: number };
@@ -2183,6 +2197,8 @@ export class ChatAPI {
     source_id: string;
     thread_id?: string;
     agent_name?: string;
+    agent_id?: string;
+    include_learnings?: boolean;
   }): Promise<number> {
     const q = new URLSearchParams({
       source: params.source,
@@ -2190,6 +2206,8 @@ export class ChatAPI {
     });
     if (params.thread_id) q.set('thread_id', params.thread_id);
     if (params.agent_name) q.set('agent_name', params.agent_name);
+    if (params.agent_id) q.set('agent_id', params.agent_id);
+    if (params.include_learnings) q.set('include_learnings', '1');
     const response = await this.hubFetch(`/api/lora/train/preview?${q.toString()}`);
     if (!response.ok) {
       const t = await response.text();
@@ -2232,9 +2250,11 @@ export class ChatAPI {
   }
 
   async createLearning(body: {
+    scope?: LearningScope;
     agent_id: string;
     agent_type?: string;
     agent_name?: string;
+    collaboration_id?: string;
     content: string;
     category?: LearningCategory;
     source_channel?: string;
@@ -2266,6 +2286,70 @@ export class ChatAPI {
     const response = await this.hubFetch(
       `/api/learnings/stats?agent_id=${encodeURIComponent(agentId)}`,
     );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async updateLearning(
+    id: string,
+    body: {
+      content?: string;
+      category?: LearningCategory;
+      scope?: LearningScope;
+      collaboration_id?: string;
+    },
+  ): Promise<UserLearning> {
+    const response = await this.hubFetch(`/api/learnings/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async queryLearnings(params: {
+    q?: string;
+    agent_id?: string;
+    scope?: LearningScope;
+    channel?: string;
+    collaboration_id?: string;
+  }): Promise<{ query: string; count: number; results: UserLearning[] }> {
+    const q = new URLSearchParams();
+    if (params.q) q.set('q', params.q);
+    if (params.agent_id) q.set('agent_id', params.agent_id);
+    if (params.scope) q.set('scope', params.scope);
+    if (params.channel) q.set('channel', params.channel);
+    if (params.collaboration_id) q.set('collaboration_id', params.collaboration_id);
+    const response = await this.hubFetch(`/api/learnings/query?${q.toString()}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async exportLearnings(): Promise<{ version: number; user_id: string; entries: UserLearning[] }> {
+    const response = await this.hubFetch(`/api/learnings/export`, { method: 'POST' });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async importLearnings(bundle: { entries: UserLearning[] }): Promise<{ added: number; skipped: number }> {
+    const response = await this.hubFetch(`/api/learnings/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bundle),
+    });
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

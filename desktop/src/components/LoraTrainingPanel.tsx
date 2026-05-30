@@ -38,6 +38,7 @@ export function LoraTrainingPanel({
   const [ollamaTag, setOllamaTag] = useState(prefill?.ollamaTag ?? 'nj-repo-custom:14b');
   const [rank, setRank] = useState(16);
   const [epochs, setEpochs] = useState(1);
+  const [includeLearnings, setIncludeLearnings] = useState(true);
   const [previewCount, setPreviewCount] = useState<number | null>(prefill?.previewRows ?? null);
   const [job, setJob] = useState<LoraTrainJob | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +70,8 @@ export function LoraTrainingPanel({
         source_id: sourceId.trim(),
         thread_id: threadId.trim() || undefined,
         agent_name: agentName.trim() || undefined,
+        agent_id: prefill?.agentId,
+        include_learnings: includeLearnings,
       });
       setPreviewCount(n);
       setError(null);
@@ -76,7 +79,7 @@ export function LoraTrainingPanel({
       setPreviewCount(null);
       setError(e instanceof Error ? e.message : 'Preview failed');
     }
-  }, [api, source, sourceId, threadId, agentName]);
+  }, [api, source, sourceId, threadId, agentName, includeLearnings, prefill?.agentId]);
 
   useEffect(() => {
     void refreshPreview();
@@ -106,6 +109,8 @@ export function LoraTrainingPanel({
         source_id: sourceId.trim(),
         thread_id: threadId.trim() || undefined,
         agent_name: agentName.trim() || undefined,
+        agent_id: prefill?.agentId,
+        include_learnings: includeLearnings,
         base_ollama_tag: baseTag.trim(),
         ollama_tag: ollamaTag.trim(),
         hyperparams: { rank, epochs, learning_rate: 2e-4 },
@@ -227,6 +232,18 @@ export function LoraTrainingPanel({
           />
         </label>
       </div>
+
+      {prefill?.agentId && (
+        <label className="flex items-center gap-2 text-xs text-gray-400">
+          <input
+            type="checkbox"
+            checked={includeLearnings}
+            onChange={(e) => setIncludeLearnings(e.target.checked)}
+            className="rounded border-slack-border"
+          />
+          Include confirmed personal learnings (up to 50 rows)
+        </label>
+      )}
 
       {previewCount != null && (
         <p className={`text-xs ${previewCount >= minRows ? 'text-gray-500' : 'text-amber-400'}`}>

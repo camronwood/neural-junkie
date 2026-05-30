@@ -472,7 +472,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setWorkspaceGateCollab(next);
   }, [collaborationsByID, channel]);
 
-  // Clear stale chat width from localStorage (no longer used - chat area always flex-grows)
+  const activeCollabForChannel = useMemo(
+    () => Object.values(collaborationsByID).find((c) => c.channel === channel),
+    [collaborationsByID, channel],
+  );
+
+  // Clear stale chat width from localStorage
   useEffect(() => {
     localStorage.removeItem('main-chat-area-width');
   }, []);
@@ -2581,6 +2586,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         isOpen={learningProposalOpen}
         proposal={learningProposal}
         serverAddr={hubHttp}
+        collaborationId={activeCollabForChannel?.id}
         onClose={() => {
           setLearningProposalOpen(false);
           setLearningProposal(null);

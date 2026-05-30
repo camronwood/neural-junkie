@@ -718,6 +718,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
 		return
 	}
+	learning.MaybeSuggestAfterAgentReply(msg.Channel, a.Info.ID, a.Info.Name, string(a.Info.Type), msg.Content, response)
 	log.Printf("[%s] ✅ Response sent successfully!", a.Info.Name)
 	a.MaybePostHubGeneratedImageForCLI(msg, responseHasImage)
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
@@ -964,6 +965,24 @@ func isHumanCollabSpeaker(msg *protocol.Message) bool {
 	return msg.From.Type == protocol.AgentTypeGeneral
 }
 
+// collabOutOfTurnMentionOK allows @mentions to wake an agent outside round-robin.
+// During planning/review, only humans and system turn prompts may do so — not
+// @mentions embedded in another agent's plan prose (which would skip participants).
+func collabOutOfTurnMentionOK(msg *protocol.Message, phase string) bool {
+	if msg == nil {
+		return false
+	}
+	if msg.IsFromSystem() {
+		return true
+	}
+	switch phase {
+	case "planning", "reviewing":
+		return isHumanCollabSpeaker(msg)
+	default:
+		return true
+	}
+}
+
 func taskAssigneeFromMetadata(meta map[string]interface{}) (string, bool) {
 	if meta == nil {
 		return "", false
@@ -1110,7 +1129,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}
-			if msg.IsMentioned(a.Info.ID) && a.Collab.AgentOutOfTurnMentionAllowed(collabID) {
+			if msg.IsMentioned(a.Info.ID) && a.Collab.AgentOutOfTurnMentionAllowed(collabID) &&
+				collabOutOfTurnMentionOK(msg, collabPhase) {
 				log.Printf("[%s] ✅ MENTIONED in collaboration - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}
@@ -2293,11 +2313,23 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	}
 
 	AppendUserAndAgentRules(&system, msg, &a.Info)
-	if n := learning.AppendForAgent(&system, &a.Info); n > 0 {
+	userID := learning.SlugUserID(msg.From.Name)
+	if protocol.IsUserLikeSender(msg.From) {
+		userID = learning.SlugUserID(msg.From.Name)
+	}
+	pctx := learning.PromptContext{
+		Query:   strings.TrimSpace(msg.Content),
+		UserID:  userID,
+		Channel: msg.Channel,
+	}
+	if pr := learning.AppendForAgent(&system, &a.Info, pctx); pr.Count > 0 {
 		if msg.Metadata == nil {
 			msg.Metadata = map[string]any{}
 		}
-		msg.Metadata["injected_learnings_count"] = n
+		msg.Metadata["injected_learnings_count"] = pr.Count
+		if len(pr.IDs) > 0 {
+			msg.Metadata["injected_learning_ids"] = pr.IDs
+		}
 	}
 
 	// ── USER SECTION ────────────────────────────────────────────────────

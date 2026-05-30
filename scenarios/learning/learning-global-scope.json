@@ -1,0 +1,30 @@
+{
+  "name": "learning-global-scope",
+  "description": "Save global-scoped learning and retrieve via query endpoint",
+  "setup": {
+    "enable_personal_learning": true
+  },
+  "steps": [
+    {
+      "type": "setup_pack",
+      "pack_id": "specialist-tuning"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "backend-agent",
+      "agent_name": "BackendEngineer",
+      "agent_type": "backend",
+      "content": "Always use structured JSON logging",
+      "category": "preference",
+      "scope": "global"
+    },
+    {
+      "type": "assert_learning_query",
+      "agent_id": "backend-agent",
+      "q": "structured logging",
+      "scope": "global",
+      "min_count": 1,
+      "any_match": "JSON logging"
+    }
+  ]
+}

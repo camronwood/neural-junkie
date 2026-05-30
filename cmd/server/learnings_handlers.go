@@ -1,22 +1,35 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
-	learningpkg "github.com/camronwood/neural-junkie/internal/learning"
+	"github.com/camronwood/neural-junkie/internal/learning"
 	"github.com/camronwood/neural-junkie/internal/lora/export"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-var learningStore *learningpkg.Store
+var learningStore *learning.Store
 
 func handleLearningsRoute(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/learnings")
 	path = strings.Trim(path, "/")
-	if path == "stats" {
+	switch path {
+	case "stats":
 		handleLearningsStats(w, r)
+		return
+	case "query":
+		handleLearningsQuery(w, r)
+		return
+	case "export":
+		handleLearningsExport(w, r)
+		return
+	case "import":
+		handleLearningsImport(w, r)
 		return
 	}
 	if path != "" {
@@ -38,11 +51,18 @@ func handleLearningsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if learningStore == nil {
-		writeJSON(w, http.StatusOK, []learningpkg.Entry{})
+		writeJSON(w, http.StatusOK, []learning.Entry{})
 		return
 	}
-	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
-	writeJSON(w, http.StatusOK, learningStore.List(agentID))
+	userID := learningUserID(r)
+	f := learning.Filter{
+		AgentID:       strings.TrimSpace(r.URL.Query().Get("agent_id")),
+		UserID:        userID,
+		Scope:         learning.Scope(strings.TrimSpace(r.URL.Query().Get("scope"))),
+		CollaborationID: strings.TrimSpace(r.URL.Query().Get("collaboration_id")),
+		IncludeLegacy: true,
+	}
+	writeJSON(w, http.StatusOK, learningStore.ListFiltered(f))
 }
 
 func handleLearningsCreate(w http.ResponseWriter, r *http.Request) {
@@ -54,9 +74,12 @@ func handleLearningsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
+		Scope           string `json:"scope"`
+		UserID          string `json:"user_id"`
 		AgentID         string `json:"agent_id"`
 		AgentType       string `json:"agent_type"`
 		AgentName       string `json:"agent_name"`
+		CollaborationID string `json:"collaboration_id"`
 		Content         string `json:"content"`
 		Category        string `json:"category"`
 		SourceChannel   string `json:"source_channel"`
@@ -70,12 +93,19 @@ func handleLearningsCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "agent_id required", http.StatusBadRequest)
 		return
 	}
-	entry, err := learningStore.Add(learningpkg.Entry{
+	uid := learningUserID(r)
+	if uid != "" {
+		body.UserID = uid
+	}
+	entry, err := learningStore.Add(learning.Entry{
+		Scope:           learning.Scope(body.Scope),
+		UserID:          body.UserID,
 		AgentID:         body.AgentID,
 		AgentType:       body.AgentType,
 		AgentName:       body.AgentName,
+		CollaborationID: body.CollaborationID,
 		Content:         body.Content,
-		Category:        learningpkg.Category(body.Category),
+		Category:        learning.Category(body.Category),
 		SourceChannel:   body.SourceChannel,
 		SourceMessageID: body.SourceMessageID,
 	})
@@ -83,6 +113,7 @@ func handleLearningsCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	learning.ScheduleEmbed(entry)
 	writeJSON(w, http.StatusOK, entry)
 }
 
@@ -90,7 +121,113 @@ func handleLearningByID(w http.ResponseWriter, r *http.Request, id string) {
 	if !requirePersonalLearning(w) {
 		return
 	}
-	if r.Method != http.MethodDelete {
+	if learningStore == nil {
+		http.Error(w, "learning store unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var body struct {
+			Content         string `json:"content"`
+			Category        string `json:"category"`
+			Scope           string `json:"scope"`
+			CollaborationID string `json:"collaboration_id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		patch := learning.UpdatePatch{}
+		if body.Content != "" {
+			patch.Content = &body.Content
+		}
+		if body.Category != "" {
+			c := learning.Category(body.Category)
+			patch.Category = &c
+		}
+		if body.Scope != "" {
+			s := learning.Scope(body.Scope)
+			patch.Scope = &s
+		}
+		if body.CollaborationID != "" {
+			patch.CollaborationID = &body.CollaborationID
+		}
+		entry, err := learningStore.Update(id, patch)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		learning.ScheduleEmbed(entry)
+		writeJSON(w, http.StatusOK, entry)
+	case http.MethodDelete:
+		if err := learningStore.Forget(id); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleLearningsQuery(w http.ResponseWriter, r *http.Request) {
+	if !requirePersonalLearning(w) {
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
+	scope := learning.Scope(strings.TrimSpace(r.URL.Query().Get("scope")))
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	collabID := strings.TrimSpace(r.URL.Query().Get("collaboration_id"))
+	if collabID == "" && channel != "" {
+		collabID = learning.ResolveCollabID(channel)
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 500*time.Millisecond)
+	defer cancel()
+	pctx := learning.PromptContext{
+		Query:           q,
+		UserID:          learningUserID(r),
+		Channel:         channel,
+		CollaborationID: collabID,
+	}
+	results := learning.QueryPreview(ctx, pctx, agentID, scope)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"query":   q,
+		"count":   len(results),
+		"results": results,
+	})
+}
+
+func handleLearningsExport(w http.ResponseWriter, r *http.Request) {
+	if !requirePersonalLearning(w) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if learningStore == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"entries": []learning.Entry{}})
+		return
+	}
+	uid := learningUserID(r)
+	entries := learningStore.ExportBundle(uid)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"version": learning.StoreVersion,
+		"user_id": uid,
+		"entries": entries,
+	})
+}
+
+func handleLearningsImport(w http.ResponseWriter, r *http.Request) {
+	if !requirePersonalLearning(w) {
+		return
+	}
+	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -98,11 +235,26 @@ func handleLearningByID(w http.ResponseWriter, r *http.Request, id string) {
 		http.Error(w, "learning store unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	if err := learningStore.Forget(id); err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	var bundle struct {
+		Entries []learning.Entry `json:"entries"`
+	}
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	uid := learningUserID(r)
+	added, skipped := learningStore.ImportMerge(uid, bundle.Entries)
+	for _, e := range bundle.Entries {
+		if e.ID != "" {
+			learning.ScheduleEmbed(e)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"added": added, "skipped": skipped})
 }
 
 func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
@@ -114,9 +266,14 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "agent_id required", http.StatusBadRequest)
 		return
 	}
+	uid := learningUserID(r)
 	count := 0
+	globalCount := 0
+	collabCount := 0
 	if learningStore != nil {
 		count = learningStore.CountForAgent(agentID)
+		globalCount = learningStore.CountByScope(uid, learning.ScopeGlobal)
+		collabCount = learningStore.CountByScope(uid, learning.ScopeCollaboration)
 	}
 	ready := false
 	previewRows := 0
@@ -130,11 +287,14 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"agent_id":        agentID,
-		"learning_count":  count,
-		"preview_rows":    previewRows,
-		"min_rows":        export.MinRows,
-		"ready_for_lora":  ready,
+		"agent_id":              agentID,
+		"learning_count":        count,
+		"global_count":          globalCount,
+		"collab_count":          collabCount,
+		"embedding_index_ready": learning.IndexReady(),
+		"preview_rows":          previewRows,
+		"min_rows":              export.MinRows,
+		"ready_for_lora":        ready,
 	})
 }
 
@@ -148,8 +308,8 @@ func maybeEmitLearningProposal(msg *protocol.Message) {
 	if strings.HasPrefix(strings.TrimSpace(msg.Content), "/") {
 		return
 	}
-	draft := learningpkg.ExtractDraftFromMessage(msg.Content)
-	if draft == "" && !learningpkg.HasLearningTrigger(msg.Content) {
+	draft := learning.ExtractDraftFromMessage(msg.Content)
+	if draft == "" && !learning.HasLearningTrigger(msg.Content) {
 		return
 	}
 	if draft == "" {
@@ -159,9 +319,17 @@ func maybeEmitLearningProposal(msg *protocol.Message) {
 	if target == nil {
 		return
 	}
+	emitLearningProposal(msg.Channel, target, draft, learning.CategoryPreference, msg.ID, msg.Channel, "trigger")
+}
+
+func emitLearningProposal(channel string, target *protocol.AgentInfo, draft string, cat learning.Category, sourceMsgID, sourceChannel, source string) {
+	if target == nil || !personalLearningActive() {
+		return
+	}
+	collabID := learning.ResolveCollabID(channel)
 	proposal := protocol.NewMessage(
 		protocol.MessageTypeSystemInfo,
-		msg.Channel,
+		channel,
 		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeModerator},
 		"Learning proposal — confirm in the dialog to save for "+target.Name+".",
 	)
@@ -170,13 +338,15 @@ func maybeEmitLearningProposal(msg *protocol.Message) {
 	}
 	proposal.Metadata["client_action"] = map[string]any{
 		"type":              "learning_proposal",
+		"source":            source,
 		"agent_id":          target.ID,
 		"agent_name":        target.Name,
 		"agent_type":        string(target.Type),
 		"draft":             draft,
-		"category":          string(learningpkg.CategoryPreference),
-		"source_message_id": msg.ID,
-		"source_channel":    msg.Channel,
+		"category":          string(cat),
+		"source_message_id": sourceMsgID,
+		"source_channel":    sourceChannel,
+		"collaboration_id":  collabID,
 	}
 	_ = chatHub.SendMessage(proposal)
 }

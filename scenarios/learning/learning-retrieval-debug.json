@@ -1,0 +1,39 @@
+{
+  "name": "learning-retrieval-debug",
+  "description": "Query endpoint returns ranked learnings for agent scope (keyword fallback without Ollama)",
+  "setup": {
+    "enable_personal_learning": true
+  },
+  "steps": [
+    {
+      "type": "setup_pack",
+      "pack_id": "specialist-tuning"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "data-agent",
+      "agent_name": "DataEngineer",
+      "agent_type": "data",
+      "content": "Use Parquet for large dataset exports",
+      "category": "workflow",
+      "scope": "agent"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "data-agent",
+      "agent_name": "DataEngineer",
+      "agent_type": "data",
+      "content": "Prefer DuckDB for local analytics",
+      "category": "preference",
+      "scope": "agent"
+    },
+    {
+      "type": "assert_learning_query",
+      "agent_id": "data-agent",
+      "q": "parquet dataset",
+      "scope": "agent",
+      "min_count": 1,
+      "any_match": "Parquet"
+    }
+  ]
+}

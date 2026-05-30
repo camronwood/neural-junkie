@@ -93,6 +93,33 @@ func TestSyncAgentsFromPacksSoftwareDevelopment(t *testing.T) {
 	}
 }
 
+func TestSyncAgentsFromPacksPreservesCustomTypeOccupant(t *testing.T) {
+	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
+	cfg.Agents = []AgentConfig{
+		{Type: "backend", Name: "SwitchTarget", Enabled: true, ProviderID: "ollama-local"},
+	}
+	cfg.SyncAgentsFromPacks()
+
+	hasBackend := false
+	hasSwitch := false
+	for _, a := range cfg.Agents {
+		if a.Name == "BackendEngineer" && a.Enabled {
+			hasBackend = true
+		}
+		if a.Name == "SwitchTarget" && a.Enabled {
+			hasSwitch = true
+		}
+	}
+	if !hasBackend {
+		t.Fatal("expected BackendEngineer from pack when custom backend agent occupies type slot")
+	}
+	if !hasSwitch {
+		t.Fatal("expected SwitchTarget preserved")
+	}
+}
+
 func TestSyncAgentsFromPacksSoftwareDevelopmentDisabled(t *testing.T) {
 	cfg := DefaultConfig()
 	installTestPack(t, cfg, PackSoftwareDevelopment)

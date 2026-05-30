@@ -106,7 +106,8 @@ func isCollabTurnPromptForAgent(msg *protocol.Message, collabID, agentID string,
 		return false
 	}
 	content := msg.Content
-	if !strings.Contains(content, "Collaboration turn handoff") && !strings.Contains(content, "You're up first.") {
+	if !strings.Contains(content, "Collaboration turn handoff") &&
+		!strings.Contains(content, "You're up first") {
 		return false
 	}
 	return msg.IsMentioned(agentID) || collab.IsAgentTurn(collabID, agentID)

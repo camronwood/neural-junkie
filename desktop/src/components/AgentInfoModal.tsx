@@ -64,6 +64,7 @@ export function AgentInfoModal({
   const [learningsLoading, setLearningsLoading] = useState(false);
   const [learningsError, setLearningsError] = useState<string | null>(null);
   const [addLearningOpen, setAddLearningOpen] = useState(false);
+  const [editLearning, setEditLearning] = useState<UserLearning | null>(null);
 
   const isExpertAgent =
     !!agent &&
@@ -654,12 +655,21 @@ export function AgentInfoModal({
                         className="text-xs p-2 rounded bg-slack-bgHover border border-slack-border flex justify-between gap-2"
                       >
                         <span>
+                          <span className="text-purple-300/80 text-[10px] uppercase mr-1">{e.scope || 'agent'}</span>
                           <span className="text-slack-textMuted">[{e.category}]</span> {e.content}
                         </span>
-                        <button
-                          type="button"
-                          className="text-red-400 hover:text-red-300 shrink-0"
-                          onClick={async () => {
+                        <span className="flex gap-2 shrink-0">
+                          <button
+                            type="button"
+                            className="text-slack-textMuted hover:text-slack-text"
+                            onClick={() => setEditLearning(e)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="text-red-400 hover:text-red-300"
+                            onClick={async () => {
                             try {
                               const api = new ChatAPI(serverAddr);
                               await api.deleteLearning(e.id);
@@ -671,6 +681,7 @@ export function AgentInfoModal({
                         >
                           Forget
                         </button>
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -754,9 +765,20 @@ export function AgentInfoModal({
 
       {hasPersonalLearning && agent && (
         <LearningProposalModal
-          isOpen={addLearningOpen}
+          isOpen={addLearningOpen || !!editLearning}
           proposal={
-            addLearningOpen
+            editLearning
+              ? {
+                  type: 'learning_proposal',
+                  agent_id: editLearning.agent_id,
+                  agent_name: editLearning.agent_name || editLearning.agent_id,
+                  agent_type: editLearning.agent_type || agent.type,
+                  draft: editLearning.content,
+                  category: editLearning.category,
+                  scope: editLearning.scope,
+                  collaboration_id: editLearning.collaboration_id,
+                }
+              : addLearningOpen
               ? {
                   type: 'learning_proposal',
                   agent_id: agent.id,
@@ -767,12 +789,17 @@ export function AgentInfoModal({
                 }
               : null
           }
+          editLearningId={editLearning?.id}
           serverAddr={serverAddr}
-          onClose={() => setAddLearningOpen(false)}
+          onClose={() => {
+            setAddLearningOpen(false);
+            setEditLearning(null);
+          }}
           onSaved={async () => {
             const api = new ChatAPI(serverAddr);
             const rows = await api.fetchLearnings(agent.id);
             setLearnings(rows);
+            setEditLearning(null);
           }}
         />
       )}

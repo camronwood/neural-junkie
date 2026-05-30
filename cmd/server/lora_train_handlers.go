@@ -100,9 +100,19 @@ func handleLoraTrainPreview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	learningRows := 0
+	if q.Get("include_learnings") == "1" && learningStore != nil && personalLearningActive() {
+		agentID := strings.TrimSpace(q.Get("agent_id"))
+		if agentID != "" {
+			learningRows = len(export.ExportLearningsRows(learningStore.List(agentID)))
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"row_count": n,
-		"min_rows":  export.MinRows,
+		"row_count":         n + learningRows,
+		"chat_rows":         n,
+		"learning_rows":     learningRows,
+		"include_learnings": learningRows > 0,
+		"min_rows":          export.MinRows,
 	})
 }
 
@@ -115,6 +125,12 @@ func handleLoraTrainStart(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
+	}
+	if body.IncludeLearnings && learningStore != nil && personalLearningActive() {
+		agentID := strings.TrimSpace(body.AgentID)
+		if agentID != "" {
+			body.LearningRows = export.ExportLearningsRows(learningStore.List(agentID))
+		}
 	}
 	job, err := loraTrainMgr.Start(r.Context(), body)
 	if err != nil {

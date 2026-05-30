@@ -77,6 +77,10 @@ def run_step(base: str, scenario: dict, step: dict, ctx: dict) -> None:
             "content": step["content"],
             "category": step.get("category", "preference"),
         }
+        if step.get("scope"):
+            body["scope"] = step["scope"]
+        if step.get("collaboration_id"):
+            body["collaboration_id"] = step["collaboration_id"]
         code, out = hub.hub_request(base, "POST", "/api/learnings", body)
         if code != 200:
             raise RuntimeError(f"post_learning failed: {code} {out}")
@@ -85,7 +89,14 @@ def run_step(base: str, scenario: dict, step: dict, ctx: dict) -> None:
 
     if stype == "assert_learnings":
         agent_id = step.get("agent_id", "")
-        q = f"?agent_id={agent_id}" if agent_id else ""
+        params = []
+        if agent_id:
+            params.append(f"agent_id={agent_id}")
+        if step.get("scope"):
+            params.append(f"scope={step['scope']}")
+        if step.get("collaboration_id"):
+            params.append(f"collaboration_id={step['collaboration_id']}")
+        q = "?" + "&".join(params) if params else ""
         code, rows = hub.hub_request(base, "GET", f"/api/learnings{q}")
         if code != 200 or not isinstance(rows, list):
             raise RuntimeError(f"assert_learnings GET failed: {code} {rows}")
@@ -179,6 +190,52 @@ def run_step(base: str, scenario: dict, step: dict, ctx: dict) -> None:
                 continue
             return
         raise RuntimeError("assert_learning_proposal: no proposal metadata on recent messages")
+
+    if stype == "assert_learning_query":
+        params = []
+        if step.get("agent_id"):
+            params.append(f"agent_id={step['agent_id']}")
+        if step.get("q"):
+            params.append(f"q={step['q']}")
+        if step.get("scope"):
+            params.append(f"scope={step['scope']}")
+        if step.get("collaboration_id"):
+            params.append(f"collaboration_id={step['collaboration_id']}")
+        if step.get("channel"):
+            params.append(f"channel={step['channel']}")
+        q = "?" + "&".join(params)
+        code, body = hub.hub_request(base, "GET", f"/api/learnings/query{q}")
+        if code != 200 or not isinstance(body, dict):
+            raise RuntimeError(f"assert_learning_query failed: {code} {body}")
+        count = int(body.get("count", 0))
+        min_count = int(step.get("min_count", 1))
+        if count < min_count:
+            raise RuntimeError(f"expected >= {min_count} query results, got {count}")
+        match = step.get("any_match")
+        if match:
+            results = body.get("results") or []
+            if not any(match in (r.get("content") or "") for r in results):
+                raise RuntimeError(f"no query result matched {match!r}")
+        return
+
+    if stype == "export_import_learnings":
+        code, bundle = hub.hub_request(base, "POST", "/api/learnings/export", {})
+        if code != 200 or not isinstance(bundle, dict):
+            raise RuntimeError(f"export failed: {code} {bundle}")
+        entries = bundle.get("entries") or []
+        if not entries:
+            raise RuntimeError("export returned no entries")
+        code, out = hub.hub_request(base, "POST", "/api/learnings/import", bundle)
+        if code != 200 or not isinstance(out, dict):
+            raise RuntimeError(f"import failed: {code} {out}")
+        min_added = int(step.get("min_added", 0))
+        added = int(out.get("added", 0))
+        skipped = int(out.get("skipped", 0))
+        if added < min_added:
+            raise RuntimeError(f"expected added >= {min_added}, got {added}")
+        if "expect_skipped" in step and skipped != int(step["expect_skipped"]):
+            raise RuntimeError(f"expected skipped {step['expect_skipped']}, got {skipped}")
+        return
 
     if stype == "assert_expert_context":
         agent_id = step["agent_id"]

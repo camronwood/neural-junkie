@@ -2,7 +2,7 @@
 
 **Audience:** Builders, beta testers, and curious users who might star the repo, open issues, or share real workflows — not a feature drop.
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.20
 
 **Regenerate graphic:**
 
@@ -33,7 +33,7 @@ Sub: Open beta. Star it, break it, tell us what you're building.
 >
 > **Star** the repo · **open an issue** with a screenshot · or **install** and tell us one thing that surprised you.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19  
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.20  
 > https://github.com/camronwood/neural-junkie/issues
 
 ---
@@ -52,7 +52,7 @@ Sub: Open beta. Star it, break it, tell us what you're building.
 >
 > If that's you: **star the repo**, drop an issue with "what I was trying to do," or reply with a screenshot. That's how this community gets built.
 >
-> Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19  
+> Beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.20  
 > Site: https://camronwood.github.io/neural-junkie/
 
 ---

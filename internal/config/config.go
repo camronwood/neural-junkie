@@ -70,7 +70,9 @@ type CollaborationConfig struct {
 
 // FeaturesConfig toggles optional product features (pack-gated elsewhere).
 type FeaturesConfig struct {
-	PersonalLearningEnabled bool `json:"personal_learning_enabled"`
+	PersonalLearningEnabled        bool   `json:"personal_learning_enabled"`
+	PersonalLearningSuggestEnabled bool   `json:"personal_learning_suggest_enabled"`
+	LearningEmbedModel             string `json:"learning_embed_model,omitempty"`
 }
 
 type Config struct {
@@ -395,6 +397,26 @@ func (c *Config) PersonalLearningEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Features.PersonalLearningEnabled
+}
+
+// PersonalLearningSuggestEnabled reports opt-in agent-suggested learning proposals.
+func (c *Config) PersonalLearningSuggestEnabled() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Features.PersonalLearningEnabled && c.Features.PersonalLearningSuggestEnabled
+}
+
+// LearningEmbedModel returns configured Ollama embed model or default.
+func (c *Config) LearningEmbedModel() string {
+	if c == nil {
+		return ""
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return strings.TrimSpace(c.Features.LearningEmbedModel)
 }
 
 // ClearAllAgentModels removes per-agent model overrides.

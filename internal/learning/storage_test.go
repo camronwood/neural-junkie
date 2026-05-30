@@ -81,3 +81,30 @@ func TestStoreValidation(t *testing.T) {
 		t.Fatal("expected content required")
 	}
 }
+
+func TestStoreScopeAndUpdate(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "learnings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := store.Add(Entry{AgentID: "a1", Content: "global note", Category: CategoryPreference, Scope: ScopeGlobal, UserID: "u1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Scope != ScopeGlobal {
+		t.Fatalf("expected global scope, got %s", g.Scope)
+	}
+	global := store.ListFiltered(Filter{UserID: "u1", Scope: ScopeGlobal})
+	if len(global) != 1 {
+		t.Fatalf("expected 1 global, got %d", len(global))
+	}
+	updated, err := store.Update(g.ID, UpdatePatch{Content: strPtr("updated global")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Content != "updated global" || updated.UpdatedAt.IsZero() {
+		t.Fatalf("unexpected update: %+v", updated)
+	}
+}
+
+func strPtr(s string) *string { return &s }

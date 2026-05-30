@@ -30,7 +30,7 @@ func (ch *CommandHandler) handleLearn(ctx context.Context, msg *protocol.Message
 	if resp.Metadata == nil {
 		resp.Metadata = map[string]interface{}{}
 	}
-	resp.Metadata["client_action"] = map[string]interface{}{
+	action := map[string]interface{}{
 		"type":              "learning_proposal",
 		"agent_id":          target.ID,
 		"agent_name":        target.Name,
@@ -40,7 +40,26 @@ func (ch *CommandHandler) handleLearn(ctx context.Context, msg *protocol.Message
 		"source_message_id": msg.ID,
 		"source_channel":    msg.Channel,
 	}
+	if collabID := ch.collaborationIDForChannel(msg.Channel); collabID != "" {
+		action["collaboration_id"] = collabID
+	}
+	resp.Metadata["client_action"] = action
 	return resp, nil
+}
+
+func (ch *CommandHandler) collaborationIDForChannel(channel string) string {
+	channel = strings.TrimSpace(channel)
+	if channel == "" || ch.hub == nil {
+		return ""
+	}
+	cm := ch.hub.GetCollaborationManager()
+	if cm == nil {
+		return ""
+	}
+	if c := cm.GetByChannel(channel); c != nil {
+		return c.ID
+	}
+	return ""
 }
 
 func (ch *CommandHandler) handleLearningList(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {

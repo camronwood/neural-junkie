@@ -1,0 +1,27 @@
+{
+  "name": "learning-export-import",
+  "description": "Export learnings bundle and re-import with dedup",
+  "setup": {
+    "enable_personal_learning": true
+  },
+  "steps": [
+    {
+      "type": "setup_pack",
+      "pack_id": "specialist-tuning"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "assistant-agent",
+      "agent_name": "Assistant",
+      "agent_type": "assistant",
+      "content": "Prefer concise bullet answers",
+      "category": "communication",
+      "scope": "agent"
+    },
+    {
+      "type": "export_import_learnings",
+      "min_added": 0,
+      "expect_skipped": 1
+    }
+  ]
+}

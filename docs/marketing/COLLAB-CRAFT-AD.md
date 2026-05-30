@@ -2,7 +2,7 @@
 
 **Audience:** Developers (and power users) who tried multi-agent tools and got burned by demos that break on real repos — emphasizes engineering rigor on `/collaborate`, not first-time feature discovery.
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.20
 
 **Regenerate graphic:**
 
@@ -34,7 +34,7 @@ Sub: Planning → review → execute — tested, gated, bounded.
 >
 > If collab broke on you before, try again and tell us what still fails.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.20
 
 ---
 
@@ -50,7 +50,7 @@ Sub: Planning → review → execute — tested, gated, bounded.
 > - **beta.18 fixes** — source repo binding, task extraction from plans, multi-collab phase routing
 > - **`make collab-smoke`** — real hub agents through plan → review → execute
 >
-> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.19  
+> Open source beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.20  
 > Docs: https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md
 
 ---

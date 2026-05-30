@@ -1,0 +1,38 @@
+{
+  "name": "learning-collab-scope",
+  "description": "Save collaboration-scoped learning and query by scope",
+  "setup": {
+    "enable_personal_learning": true
+  },
+  "steps": [
+    {
+      "type": "setup_pack",
+      "pack_id": "specialist-tuning"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "security-agent",
+      "agent_name": "SecurityReviewer",
+      "agent_type": "security",
+      "content": "Review only files touched in this collab",
+      "category": "workflow",
+      "scope": "collaboration",
+      "collaboration_id": "collab-test-001"
+    },
+    {
+      "type": "assert_learnings",
+      "scope": "collaboration",
+      "collaboration_id": "collab-test-001",
+      "min_count": 1,
+      "any_match": "Review only files"
+    },
+    {
+      "type": "assert_learning_query",
+      "agent_id": "security-agent",
+      "q": "review files collab",
+      "scope": "collaboration",
+      "collaboration_id": "collab-test-001",
+      "min_count": 1
+    }
+  ]
+}
