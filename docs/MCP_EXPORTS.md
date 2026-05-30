@@ -7,7 +7,6 @@ This guide explains how to export Neural Junkie agents to MCP (Model Context Pro
 The MCP export system allows you to:
 
 - **Export repo agents** - Convert repository experts to portable MCP resources
-- **Export helper agents** - Package knowledge bases as MCP prompts
 - **Share expertise** - Distribute agent knowledge as files
 - **Recreate agents** - Use exports to recreate experts elsewhere
 - **Integrate with tools** - Use exports in Claude Desktop, IDEs, etc.
@@ -121,39 +120,6 @@ Repository exports include these prompt templates:
 # The export is saved to ~/.neural-junkie/exports/repo/myproject_expert.json
 ```
 
-## Helper Agent Exports
-
-Helper agents export their knowledge base and configuration:
-
-### Resources Exported
-
-- **Agent configuration** - Name, expertise, keywords, system prompt
-- **Knowledge documents** - All markdown/text files in knowledge base
-- **Expertise areas** - List of expertise domains
-- **Keywords** - Trigger keywords for responses
-- **Knowledge index** - Topics and headings for quick reference
-
-### Prompt Templates
-
-Helper exports include these prompt templates:
-
-- `ask_question` - Ask a question to the helper
-- `get_guidance` - Get guidance on a specific topic
-- `find_topic` - Find information about a topic
-- `suggest_resources` - Suggest relevant resources
-
-### Usage Example
-
-```bash
-# Create a helper agent
-/create-helper day-one "Day One Expert" "Helps new engineers get started"
-
-# Export the helper
-/export-agent-mcp Day One Expert
-
-# The export is saved to ~/.neural-junkie/exports/helper/day_one_expert.json
-```
-
 ## MCP Resource Server
 
 The MCP resource server exposes exported agents via the Model Context Protocol:
@@ -191,9 +157,6 @@ The CLI tool supports export operations:
 # Export a repo agent
 neural-junkie export repo-agent --name="MyProject Expert" --output=export.json
 
-# Export a helper agent
-neural-junkie export helper-agent --name="Day One Expert" --output=export.json
-
 # List all exports
 neural-junkie list-exports
 
@@ -220,12 +183,9 @@ Exports are stored in:
 
 ```
 ~/.neural-junkie/exports/
-├── repo/
-│   ├── myproject_expert.json
-│   └── backend_expert.json
-└── helper/
-    ├── day_one_expert.json
-    └── testing_expert.json
+└── repo/
+    ├── myproject_expert.json
+    └── backend_expert.json
 ```
 
 ## Use Cases

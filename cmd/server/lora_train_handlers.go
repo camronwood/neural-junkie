@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/lora/export"
 	"github.com/camronwood/neural-junkie/internal/lora/train"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -60,9 +62,16 @@ func repoRoot() string {
 }
 
 func handleLoraTrainRoute(w http.ResponseWriter, r *http.Request) {
+	if !requireLoRACapability(w, capLoRATraining) {
+		return
+	}
 	initLoraTrainManager()
 	path := strings.TrimPrefix(r.URL.Path, "/api/lora/train")
 	path = strings.Trim(path, "/")
+	if path == "expert-context" {
+		handleLoraTrainExpertContext(w, r)
+		return
+	}
 	if path == "preview" {
 		handleLoraTrainPreview(w, r)
 		return
@@ -134,4 +143,89 @@ func handleLoraTrainByID(w http.ResponseWriter, r *http.Request, id string) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func handleLoraTrainExpertContext(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
+	if agentID == "" {
+		http.Error(w, "agent_id required", http.StatusBadRequest)
+		return
+	}
+	info, err := chatHub.GetAgent(agentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, buildExpertTrainContext(info))
+}
+
+func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
+	base := config.DevOllamaCodeModel
+	channels := chatHub.GetAgentChannels(info.ID)
+	channelID := ""
+	if len(channels) > 0 {
+		channelID = channels[0]
+	}
+
+	result := map[string]any{
+		"agent_id":                  info.ID,
+		"agent_name":                info.Name,
+		"agent_type":                string(info.Type),
+		"suggested_base_ollama_tag": base,
+		"min_rows":                  export.MinRows,
+		"preview_rows":              0,
+		"ready":                     false,
+	}
+	if channelID != "" {
+		result["source_id"] = channelID
+	}
+
+	var expReq export.Request
+	switch info.Type {
+	case protocol.AgentTypeRepo:
+		result["source"] = "repo"
+		result["agent_name"] = info.Name
+		if strings.TrimSpace(info.RepositoryPath) != "" {
+			result["suggested_ollama_tag"] = hfhub.RepoLoRATag(info.RepositoryPath)
+		} else {
+			result["suggested_ollama_tag"] = "nj-repo-custom:14b"
+		}
+		expReq = export.Request{
+			Source:    export.SourceRepo,
+			SourceID:  channelID,
+			AgentName: info.Name,
+		}
+	case protocol.AgentTypeAssistant:
+		result["source"] = "channel"
+		result["suggested_ollama_tag"] = hfhub.AssistantLoRATag(info.Name)
+		expReq = export.Request{
+			Source:    export.SourceChannel,
+			SourceID:  channelID,
+			AgentName: info.Name,
+		}
+	default:
+		result["source"] = "channel"
+		if tag := hfhub.SpecialistLoRATag(string(info.Type)); tag != "" {
+			result["suggested_ollama_tag"] = tag
+		} else if m := strings.TrimSpace(info.Model); strings.HasPrefix(m, "nj-") {
+			result["suggested_ollama_tag"] = m
+		}
+		expReq = export.Request{
+			Source:    export.SourceChannel,
+			SourceID:  channelID,
+			AgentName: info.Name,
+		}
+	}
+
+	if channelID != "" && loraTrainMgr != nil {
+		if n, err := loraTrainMgr.Preview(expReq); err == nil {
+			result["preview_rows"] = n
+			result["ready"] = n >= export.MinRows
+		}
+	}
+	return result
 }

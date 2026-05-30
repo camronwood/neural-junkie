@@ -99,7 +99,7 @@ func (rs *ResourceServer) registerTools() {
 	rs.mcpServer.AddTool(mcp.CreateTool(
 		"list_exported_agents",
 		"List all available exported agents",
-		mcp.CreateStringInputSchema("agent_type", "Filter by agent type (repo, helper, or all)"),
+		mcp.CreateStringInputSchema("agent_type", "Filter by agent type (repo or all)"),
 		nil,
 	), rs.handleListExportedAgents)
 
@@ -108,7 +108,7 @@ func (rs *ResourceServer) registerTools() {
 		"Get a specific resource from an exported agent",
 		mcp.CreateMultiStringInputSchema(map[string]string{
 			"agent_name":   "Name of the exported agent",
-			"agent_type":   "Type of agent (repo or helper)",
+			"agent_type":   "Type of agent (repo)",
 			"resource_uri": "URI of the resource to retrieve",
 		}),
 		nil,
@@ -119,7 +119,7 @@ func (rs *ResourceServer) registerTools() {
 		"Get a pre-configured prompt from an exported agent",
 		mcp.CreateMultiStringInputSchema(map[string]string{
 			"agent_name":  "Name of the exported agent",
-			"agent_type":  "Type of agent (repo or helper)",
+			"agent_type":  "Type of agent (repo)",
 			"prompt_name": "Name of the prompt to retrieve",
 		}),
 		nil,
@@ -130,7 +130,7 @@ func (rs *ResourceServer) registerTools() {
 		"Get instructions to recreate an agent from its export",
 		mcp.CreateMultiStringInputSchema(map[string]string{
 			"agent_name": "Name of the exported agent",
-			"agent_type": "Type of agent (repo or helper)",
+			"agent_type": "Type of agent (repo)",
 		}),
 		nil,
 	), rs.handleRecreateAgent)
@@ -140,7 +140,7 @@ func (rs *ResourceServer) registerTools() {
 		"Get detailed information about an exported agent",
 		mcp.CreateMultiStringInputSchema(map[string]string{
 			"agent_name": "Name of the exported agent",
-			"agent_type": "Type of agent (repo or helper)",
+			"agent_type": "Type of agent (repo)",
 		}),
 		nil,
 	), rs.handleGetAgentInfo)

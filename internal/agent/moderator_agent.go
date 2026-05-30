@@ -177,7 +177,7 @@ func (m *ModeratorAgent) respondToUnanswered(ctx context.Context, tracker *Messa
 			"If you're looking for help with the chat system itself, feel free to ask me about:\n"+
 			"• Available commands (type /help)\n"+
 			"• How to mention agents (@name or @type)\n"+
-			"• Creating repo or helper agents\n\n"+
+			"• Creating repo or Confluence agents\n\n"+
 			"For technical questions, try mentioning specific agent types like @backend, @frontend, @devops, etc.",
 	)
 	response.ReplyTo = tracker.MessageID
@@ -220,7 +220,7 @@ func (m *ModeratorAgent) shouldRespond(msg *protocol.Message) bool {
 		"thread", "channel",
 		"agent", "help",
 		"create repo", "repo agent",
-		"helper agent",
+		"create expert", "custom expert",
 		"moderator",
 		"chat feature", "chat room",
 	}
@@ -257,8 +257,7 @@ func (m *ModeratorAgent) buildModeratorPrompt(msg *protocol.Message) string {
 	system.WriteString("• /help - Show help information\n")
 	system.WriteString("• /list-agents - List all active agents\n")
 	system.WriteString("• /create-repo-agent <path> [name] - Create a repository expert agent\n")
-	system.WriteString("• /create-helper <template> [name] - Create a helper agent (templates: day-one, testing-expert, docs-expert)\n")
-	system.WriteString("• /list-helper-templates - List available helper agent templates\n")
+	system.WriteString("• /create-expert <type> [name] - Create a specialist or custom domain expert\n")
 	system.WriteString("• /delete-agent <name> - Delete an agent\n")
 	system.WriteString("• /pause-agent <name> - Pause an agent\n")
 	system.WriteString("• /unpause-agent <name> - Unpause an agent\n")
@@ -273,7 +272,7 @@ func (m *ModeratorAgent) buildModeratorPrompt(msg *protocol.Message) string {
 	system.WriteString("• @architecture - System design, tradeoffs, migration planning\n")
 	system.WriteString("• @code-review - Correctness, maintainability, tests, regressions\n")
 	system.WriteString("• @repo - Repository-specific experts with deep code knowledge\n")
-	system.WriteString("• @helper - Custom expert agents with specialized knowledge bases\n")
+	system.WriteString("• Custom experts - Use /create-expert with any domain slug (e.g. guitar, legal-advice)\n")
 	system.WriteString("• @assistant - Reminders, tasks, notes, scheduling, summarization\n")
 	system.WriteString("• @Cursor - CLI agent: code generation, refactoring, shell commands (Cursor)\n")
 	system.WriteString("• @Gemini - CLI agent: code generation, code review, multimodal analysis (Google Gemini)\n\n")

@@ -58,7 +58,6 @@ type UpdateConfig struct {
 	AutoCheck bool `json:"auto_check"`
 }
 
-// CollaborationConfig controls multi-agent collaboration behavior.
 type CollaborationConfig struct {
 	// SmartRoutingEnabled selects a configured AI provider per collaboration
 	// execution task (MessageTypeCollabTask with task_id) using a static heuristic.
@@ -67,6 +66,11 @@ type CollaborationConfig struct {
 	// Each run uses <AssetsRoot>/<collaboration-id>/. Empty uses ~/.neural-junkie/collaborations.
 	// Overridden by NEURAL_JUNKIE_COLLAB_ASSETS_DIR when set.
 	AssetsRoot string `json:"assets_root,omitempty"`
+}
+
+// FeaturesConfig toggles optional product features (pack-gated elsewhere).
+type FeaturesConfig struct {
+	PersonalLearningEnabled bool `json:"personal_learning_enabled"`
 }
 
 type Config struct {
@@ -80,6 +84,7 @@ type Config struct {
 	Updates        UpdateConfig         `json:"updates"`
 	Collaboration  CollaborationConfig  `json:"collaboration"`
 	Delegation     DelegationConfig     `json:"delegation"`
+	Features       FeaturesConfig       `json:"features"`
 	Slack          SlackConfig          `json:"slack"`
 
 	mu       sync.RWMutex `json:"-"`
@@ -116,6 +121,7 @@ func DefaultConfig() *Config {
 			SmartRoutingEnabled: false,
 		},
 		Delegation: DefaultDelegationConfig(),
+		Features:   FeaturesConfig{PersonalLearningEnabled: false},
 		Packs:      DefaultPacksConfig(),
 		MCP:        DefaultMCPConfig(),
 	}
@@ -381,6 +387,16 @@ func (c *Config) SetAgentRuntimeProvider(name, agentType, providerID, model stri
 	return false
 }
 
+// PersonalLearningEnabled reports opt-in personal learning (also requires pack capability at runtime).
+func (c *Config) PersonalLearningEnabled() bool {
+	if c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Features.PersonalLearningEnabled
+}
+
 // ClearAllAgentModels removes per-agent model overrides.
 func (c *Config) ClearAllAgentModels() {
 	if c == nil {
@@ -456,6 +472,7 @@ func (c *Config) Redacted() *Config {
 	updates := c.Updates
 	collab := c.Collaboration
 	delegation := c.Delegation.Normalized()
+	features := c.Features
 	packs := c.Packs
 	if packs.Enabled == nil {
 		packs.Enabled = make(map[string]bool)
@@ -494,6 +511,7 @@ func (c *Config) Redacted() *Config {
 		Updates:       updates,
 		Collaboration: collab,
 		Delegation:    delegation,
+		Features:      features,
 		filePath:      filePath,
 	}
 }

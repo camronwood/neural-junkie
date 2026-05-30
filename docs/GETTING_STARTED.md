@@ -48,6 +48,10 @@ This launches:
 - **CLI agents** (Cursor, Gemini, Claude, Copilot, Codex, Aider, OpenCode, Amazon Q, Crush, Amp, Droid, Kiro, …) when their binaries are on PATH — see [CLI_AGENTS.md](CLI_AGENTS.md) — not pack-gated
 - The **Tauri desktop app**
 
+### Repo expert LoRAs (optional)
+
+Enable the **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack to train LoRA adapters from repo expert sessions, compose Hugging Face adapters, and install bootstrap presets (`nj-security:14b`, `nj-biology:8b`, etc.). Run `make deps-lora` once before your first training job.
+
 `make start-all` does **not** run `make agents`; specialists are started inside the hub (`initializeConfiguredAgents`). Use `make agents` only when you intentionally want **separate** `cmd/agent` processes (avoid duplicate agent names versus in-process config).
 
 ### Option 2: Manual Setup (Separate Terminals)
@@ -318,7 +322,6 @@ Neural Junkie stores data in `~/.neural-junkie/`:
 |------|----------|
 | `~/.neural-junkie/repos/` | Cached repository indexes |
 | `~/.neural-junkie/confluence/` | Cached Confluence indexes |
-| `~/.neural-junkie/helpers/` | Helper agent configs and knowledge |
 | `~/.neural-junkie/assistant/` | Reminders, tasks, notes |
 | `~/.neural-junkie/exports/` | MCP-format agent exports |
 | `~/.neural-junkie/backups/` | File change backups |

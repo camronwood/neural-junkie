@@ -44,19 +44,19 @@ Tag conventions: nj-{type}:14b for specialists, nj-repo-{slug}:14b for repo expe
 
 ## Three ways to get a composed tag
 
-**Import from Hugging Face.** Model library → Hugging Face → LoRA adapter → Download → Compose & import. Assign via Settings → Specialist model overrides or /switch-provider.
+**Import from Hugging Face.** Model library → Hugging Face → LoRA adapter → Download → Compose & import. Assign via agent info or `/switch-provider` (Settings → Advanced for bulk edits).
 
-**Domain pack presets.** Software development ships a security adapter on Qwen Coder; life sciences ships a MedMCQA biology adapter on Llama 3. One API call: POST /api/packs/software-development/install-loras on localhost:18765.
+**Domain pack presets (optional bootstrap).** The **Specialist tuning** pack ships curated community adapters (security, code-review, backend, biology) — install via Pack store → **Install LoRAs** or `POST /api/packs/specialist-tuning/install-loras`. Assign tags manually in Settings; domain packs no longer auto-bind LoRAs.
 
-**Train from your history.** Model library → Train LoRA. Sources: channel/DM transcripts, collaboration task outputs, or repo-agent history. Set base tag, output tag, rank/epochs, Start. Hub exports JSONL, runs Unsloth (optional Python + CUDA), composes into Ollama on success. Minimum 10 rows; one job at a time. Optional: pip install -r requirements-lora.txt.
+**Train from your history (hero path).** Create a repo expert, accumulate Q&A, open agent info → **Train LoRA** (or Model library → Train LoRA). Sources: channel/DM transcripts, collaboration task outputs, or repo-agent history. Set base tag, output tag (e.g. nj-repo-myapp:14b), rank/epochs, Start. Hub exports JSONL, runs Unsloth (`make deps-lora`, optional CUDA), composes into Ollama on success. Minimum 10 rows; one job at a time.
 
 ## What you can do with it
 
-**Security on a shared base.** Install the dev-pack LoRA — SecurityReviewer uses nj-security:14b on qwen2.5-coder:14b. One pull, security-tuned inference.
+**Security on a shared base.** Install the Specialist tuning bootstrap LoRA — assign nj-security:14b to SecurityReviewer on qwen2.5-coder:14b. One pull, security-tuned inference.
 
-**Biology without a second full 8B.** nj-biology:8b from llama3:8b + MedMCQA adapter — lighter than a separate full biology GGUF when LoRA is enough.
+**Biology without a second full 8B.** nj-biology:8b from llama3:8b + MedMCQA adapter — from Specialist tuning pack, not life-sciences.
 
-**Repo expert from your sessions.** /create-repo-agent on your repo, accumulate Q&A, train nj-repo-myapp:14b from repo source, assign back. Chat and collab become training signal.
+**Repo expert from your sessions.** /create-repo-agent on your repo, accumulate Q&A, **Train LoRA** from agent info → nj-repo-myapp:14b, assign back. Chat and collab become training signal.
 
 **Collab routing.** With smart routing on, security tasks can prefer nj-security:14b locally when installed. Override per task with task_ollama_model when needed.
 

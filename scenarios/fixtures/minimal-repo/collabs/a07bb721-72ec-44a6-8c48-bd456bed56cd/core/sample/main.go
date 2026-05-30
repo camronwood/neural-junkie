@@ -1,3 +1,4 @@
-# main.go
+// Package main is a minimal sample for collaboration scenario fixtures.
+package main
 
-_Initial stub created when the plan was approved. Replace with task output._
+func main() {}

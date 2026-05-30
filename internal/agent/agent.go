@@ -16,6 +16,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/learning"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/server"
@@ -644,7 +645,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 					histMsg.From.Type == protocol.AgentTypeCodeReview ||
 					histMsg.From.Type == protocol.AgentTypeDevOps ||
 					histMsg.From.Type == protocol.AgentTypeRepo ||
-					histMsg.From.Type == protocol.AgentTypeHelper ||
+					histMsg.From.Type == protocol.AgentTypeExpert ||
 					histMsg.From.Type == protocol.AgentTypeCLI
 
 				if isFromAgent {
@@ -1130,7 +1131,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				msg.From.Type == protocol.AgentTypeBiology ||
 				msg.From.Type == protocol.AgentTypeDevOps ||
 				msg.From.Type == protocol.AgentTypeRepo ||
-				msg.From.Type == protocol.AgentTypeHelper ||
+				msg.From.Type == protocol.AgentTypeExpert ||
 				msg.From.Type == protocol.AgentTypeAssistant ||
 				msg.From.Type == protocol.AgentTypeModerator ||
 				msg.From.Type == protocol.AgentTypeCLI ||
@@ -1174,7 +1175,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeBiology ||
 			msg.From.Type == protocol.AgentTypeDevOps ||
 			msg.From.Type == protocol.AgentTypeRepo ||
-			msg.From.Type == protocol.AgentTypeHelper ||
+			msg.From.Type == protocol.AgentTypeExpert ||
 			msg.From.Type == protocol.AgentTypeAssistant ||
 			msg.From.Type == protocol.AgentTypeModerator ||
 			msg.From.Type == protocol.AgentTypeCLI ||
@@ -1223,7 +1224,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		msg.From.Type == protocol.AgentTypeBiology ||
 		msg.From.Type == protocol.AgentTypeDevOps ||
 		msg.From.Type == protocol.AgentTypeRepo ||
-		msg.From.Type == protocol.AgentTypeHelper ||
+		msg.From.Type == protocol.AgentTypeExpert ||
 		msg.From.Type == protocol.AgentTypeAssistant ||
 		msg.From.Type == protocol.AgentTypeModerator ||
 		msg.From.Type == protocol.AgentTypeCLI
@@ -1261,7 +1262,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 						repliedToMsg.From.Type == protocol.AgentTypeBiology ||
 						repliedToMsg.From.Type == protocol.AgentTypeDevOps ||
 						repliedToMsg.From.Type == protocol.AgentTypeRepo ||
-						repliedToMsg.From.Type == protocol.AgentTypeHelper ||
+						repliedToMsg.From.Type == protocol.AgentTypeExpert ||
 						repliedToMsg.From.Type == protocol.AgentTypeAssistant ||
 						repliedToMsg.From.Type == protocol.AgentTypeModerator ||
 						repliedToMsg.From.Type == protocol.AgentTypeCLI
@@ -1571,7 +1572,7 @@ func isAgentType(t protocol.AgentType) bool {
 		t == protocol.AgentTypeBiology ||
 		t == protocol.AgentTypeDevOps ||
 		t == protocol.AgentTypeRepo ||
-		t == protocol.AgentTypeHelper ||
+		t == protocol.AgentTypeExpert ||
 		t == protocol.AgentTypeAssistant ||
 		t == protocol.AgentTypeModerator ||
 		t == protocol.AgentTypeCLI
@@ -1621,7 +1622,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	// code even when the user doesn't mention specific file paths.
 	scannedLoaded := 0
 	collabInfo := a.getCollaborationContext(msg)
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
 		if existingContextSize < maxScanChars/2 {
 			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
@@ -1733,7 +1734,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	scannedLoaded := 0
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.isRepoOrHelperAgent() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		basePrompt := a.buildPromptForIntent(msg, intent)
 		existingContextSize := len(prompt) - len(basePrompt)
 		if existingContextSize < maxScanChars/2 {
@@ -1984,9 +1985,9 @@ finishStream:
 	return fullResponse.String(), streamMsgID, fullReasoning.String(), nil
 }
 
-// isRepoOrHelperAgent returns true for agent types that already have their
+// agentHasDedicatedContext returns true for agent types that already have their
 // own file-context strategy (repo agents use their index, CLI agents have shell access).
-func (a *Agent) isRepoOrHelperAgent() bool {
+func (a *Agent) agentHasDedicatedContext() bool {
 	switch a.Info.Type {
 	case protocol.AgentTypeRepo, protocol.AgentTypeCLI,
 		protocol.AgentTypeModerator, protocol.AgentTypeAssistant, protocol.AgentTypeConfluence:
@@ -2272,7 +2273,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
 			appendFileChangeMachineBlockDocs(&system)
 		}
-		if includeTooling && a.Info.Type == protocol.AgentTypeHelper {
+		if includeTooling && a.Info.Type == protocol.AgentTypeExpert {
 			system.WriteString("11. If the user asks you to create, write, or save a file, you MUST emit a [FILE_CHANGE] block (usually operation: create with a relative path). ")
 			system.WriteString("Chat-only explanations do not write to disk; the host only applies changes from FILE_CHANGE proposals (after user approval).\n")
 		}
@@ -2292,6 +2293,12 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	}
 
 	AppendUserAndAgentRules(&system, msg, &a.Info)
+	if n := learning.AppendForAgent(&system, &a.Info); n > 0 {
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]any{}
+		}
+		msg.Metadata["injected_learnings_count"] = n
+	}
 
 	// ── USER SECTION ────────────────────────────────────────────────────
 
@@ -2310,7 +2317,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 					histMsg.From.Type == protocol.AgentTypeCodeReview ||
 					histMsg.From.Type == protocol.AgentTypeDevOps ||
 					histMsg.From.Type == protocol.AgentTypeRepo ||
-					histMsg.From.Type == protocol.AgentTypeHelper ||
+					histMsg.From.Type == protocol.AgentTypeExpert ||
 					histMsg.From.Type == protocol.AgentTypeCLI {
 					isReview = true
 				}
@@ -2459,7 +2466,7 @@ Provide concrete code examples for suggested improvements.`
 Reference specific queries, table names, and line numbers.
 Suggest optimized query alternatives with concrete SQL/code examples.`
 
-	case protocol.AgentTypeHelper:
+	case protocol.AgentTypeExpert:
 		return `You are a custom domain expert. Follow your persona and scoped rules above.
 Answer from the perspective of your stated expertise. Be practical and specific.
 If a question is outside your domain, say so briefly and offer what you can from adjacent knowledge.`

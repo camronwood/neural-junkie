@@ -35,7 +35,7 @@ export type AgentType =
   | 'biology'
   | 'general'
   | 'repo'
-  | 'helper'
+  | 'expert'
   | 'confluence'
   | 'moderator'
   | 'assistant'
@@ -225,7 +225,7 @@ export interface ThreadMetadata {
 }
 
 export interface CachedAgentInfo {
-  type: 'repo' | 'helper' | 'confluence' | 'cli';
+  type: 'repo' | 'confluence' | 'cli';
   name: string;
   path: string;
   last_used: string; // ISO date string
@@ -233,7 +233,7 @@ export interface CachedAgentInfo {
   metadata: Record<string, any>;
 }
 
-export type AgentCategory = 'all' | 'repo' | 'helper' | 'confluence' | 'cli';
+export type AgentCategory = 'all' | 'repo' | 'confluence' | 'cli';
 
 // Integration Settings Types
 export interface AnthropicSettings {
@@ -392,6 +392,8 @@ export function getAgentColor(type: AgentType): string {
       return '#06b6d4'; // Cyan
     case 'biology':
       return '#14b8a6'; // Teal for life sciences
+    case 'expert':
+      return '#af77ca'; // Purple for custom domain experts
     case 'moderator':
       return '#3b82f6'; // Blue for moderator
     case 'assistant':

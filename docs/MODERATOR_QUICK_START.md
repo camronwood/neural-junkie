@@ -63,7 +63,7 @@ The moderator is **passive** and only responds when:
 
 ### Commands
 All slash commands:
-- `/create-repo-agent`, `/create-helper`, `/list-agents`
+- `/create-repo-agent`, `/create-expert`, `/list-agents`
 - `/pause-agent`, `/unpause-agent`, `/delete-agent`
 - `/reindex-agent`, `/enable-watch`, `/disable-watch`
 - `/help`
@@ -75,7 +75,7 @@ All slash commands:
 - `@database` - PostgreSQL, queries, schemas
 - `@security` - Auth, encryption, best practices
 - `@repo` - Code analysis experts
-- `@helper` - Custom expert agents
+- Custom experts - `/create-expert <slug>` (e.g. guitar, legal-advice)
 
 ### System Features
 - How to use mentions
@@ -101,7 +101,7 @@ You: "What commands are available?"
 Chat Moderator: "Here are the main commands:
                  • /list-agents - See active agents
                  • /create-repo-agent <path> - Create code expert
-                 • /create-helper <template> - Create helper agent
+                 • /create-expert <type> - Create a specialist or custom domain expert
                  • /help - Full command list"
 ```
 

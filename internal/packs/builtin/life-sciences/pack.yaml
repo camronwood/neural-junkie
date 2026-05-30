@@ -14,16 +14,8 @@ agents:
 models_to_ensure:
   - koesn/llama3-openbiollm-8b:latest
   - qwen2.5:7b
-  - llama3:8b
   - nj-bio:8b
-  - nj-biology:8b
 ollama_model: koesn/llama3-openbiollm-8b:latest
-lora_adapters:
-  - agent_type: biology
-    repo_id: Pk3112/medmcqa-lora-llama3-8b-instruct
-    filename: adapter_model.safetensors
-    ollama_tag: nj-biology:8b
-    base_ollama_tag: llama3:8b
 expert_slug: biology
 expert_label: Biology / Life sciences
 mcp_agents:

@@ -3,6 +3,8 @@ import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useToastStore } from '../stores/toastStore';
+import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI } from '../api/chatAPI';
 import type { CachedAgentInfo, AgentInfo } from '../types/protocol';
 import { AgentInfoModal } from './AgentInfoModal';
@@ -10,6 +12,7 @@ import { CachedAgentInfoModal } from './CachedAgentInfoModal';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
+  onTrainLoRA?: (agentId: string) => void;
 }
 
 type TabType = 'active' | 'my-agents' | 'removed';
@@ -18,7 +21,7 @@ const MIN_WIDTH = 250; // Minimum usable width
 const DEFAULT_WIDTH = 384; // w-96 = 384px
 const STORAGE_KEY = 'my-agents-panel-width';
 
-export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
+export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
   const {
     serverAddr,
     channel,
@@ -56,6 +59,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
   const [recallingAgent, setRecallingAgent] = useState<string | null>(null);
   const [switchingProvider, setSwitchingProvider] = useState<string | null>(null);
   const [infoAgentId, setInfoAgentId] = useState<string | null>(null);
+  const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
   const [cachedInfoAgent, setCachedInfoAgent] = useState<CachedAgentInfo | null>(null);
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [deletingCachedAgent, setDeletingCachedAgent] = useState(false);
@@ -237,9 +241,6 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
         case 'repo':
           command = `/create-repo-agent ${agent.path} ${agent.name}`;
           break;
-        case 'helper':
-          console.warn('Helper agents are no longer supported; remove this cache entry or use a repo/Confluence agent.');
-          return;
         case 'confluence':
           // Extract space key from path or metadata
           const spaceKey = agent.metadata?.space_key || agent.path;
@@ -484,7 +485,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
   const getAgentTypeColor = (type: string): string => {
     switch (type) {
       case 'repo': return '#52b6ef';
-      case 'helper': return '#af77ca';
+      case 'expert': return '#af77ca';
       case 'confluence': return '#f09348';
       case 'moderator': return '#3b82f6';
       case 'assistant': return '#10b981';
@@ -503,7 +504,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
   const getAgentTypeIcon = (type: string): string => {
     switch (type) {
       case 'repo': return '📁';
-      case 'helper': return '🤖';
+      case 'expert': return '🎯';
       case 'confluence': return '📚';
       case 'moderator': return '🛡️';
       case 'assistant': return '✨';
@@ -785,6 +786,16 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
                             {(agent as AgentInfo).tool_count} tool{(agent as AgentInfo).tool_count !== 1 ? 's' : ''}
                           </span>
                         )}
+                        {hasLoRATraining && onTrainLoRA && agent.type !== 'cli' && agent.type !== 'moderator' && agent.type !== 'human' && 'id' in agent && !String(agent.id).startsWith('loading-') && (
+                          <button
+                            type="button"
+                            onClick={() => onTrainLoRA(agent.id)}
+                            className="px-2 py-0.5 text-[10px] rounded bg-purple-900/50 text-purple-200 border border-purple-700/50 hover:bg-purple-800/50"
+                            title={`Train LoRA from ${agent.name} sessions`}
+                          >
+                            Train LoRA
+                          </button>
+                        )}
                         <span className="px-3 py-1 text-xs rounded bg-slack-bg text-slack-textMuted border border-slack-border">
                           online
                         </span>
@@ -854,6 +865,7 @@ export function MyAgentsPanel({ onClose }: MyAgentsPanelProps) {
             onDelete={handleDeleteAgent}
             deletingAgent={deletingAgentId === infoAgentId}
             onApprovalModeChange={handleApprovalModeChange}
+            onTrainLoRA={onTrainLoRA}
             onAfterRulesSaved={async () => {
               try {
                 const fresh = await api.fetchAgents({ includeToolCounts: true });

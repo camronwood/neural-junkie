@@ -290,20 +290,50 @@ func TestListPackCatalogStatusLoRAAdapterCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var devRow *PackCatalogStatus
+	var tuningRow *PackCatalogStatus
 	for i := range rows {
-		if rows[i].ID == PackSoftwareDevelopment {
-			devRow = &rows[i]
+		if rows[i].ID == PackSpecialistTuning {
+			tuningRow = &rows[i]
 			break
 		}
 	}
-	if devRow == nil {
-		t.Fatal("software-development not in catalog")
+	if tuningRow == nil {
+		t.Fatal("specialist-tuning not in catalog")
 	}
-	if devRow.LoRAAdapterCount != 3 {
-		t.Fatalf("expected 3 lora adapters, got %d", devRow.LoRAAdapterCount)
+	if tuningRow.LoRAAdapterCount != 4 {
+		t.Fatalf("expected 4 lora adapters, got %d", tuningRow.LoRAAdapterCount)
 	}
-	if len(devRow.LoRABaseTags) != 1 || devRow.LoRABaseTags[0] != "qwen2.5-coder:14b" {
-		t.Fatalf("unexpected lora_base_tags: %v", devRow.LoRABaseTags)
+	bases := map[string]struct{}{}
+	for _, b := range tuningRow.LoRABaseTags {
+		bases[b] = struct{}{}
+	}
+	if _, ok := bases["qwen2.5-coder:14b"]; !ok {
+		t.Fatalf("expected qwen2.5-coder:14b in lora_base_tags: %v", tuningRow.LoRABaseTags)
+	}
+	if _, ok := bases["llama3:8b"]; !ok {
+		t.Fatalf("expected llama3:8b in lora_base_tags: %v", tuningRow.LoRABaseTags)
+	}
+}
+
+func TestMigrateSpecialistTuningForLoRAUsers(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Ollama.ModelsToEnsure = []string{"nj-security:14b", "qwen2.5-coder:14b"}
+	cfg.Agents = append(cfg.Agents, AgentConfig{
+		Type:       "security",
+		Name:       "SecurityReviewer",
+		Enabled:    true,
+		ProviderID: "ollama-local",
+		Model:      "nj-security:14b",
+	})
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, true)
+
+	cfg.MigrateSpecialistTuningForLoRAUsers()
+
+	if !cfg.IsPackInstalled(PackSpecialistTuning) {
+		t.Fatal("expected specialist-tuning installed")
+	}
+	if !cfg.IsPackEnabled(PackSpecialistTuning) {
+		t.Fatal("expected specialist-tuning enabled after nj-* migration")
 	}
 }

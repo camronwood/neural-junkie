@@ -19,13 +19,12 @@ type AgentExport struct {
 // AgentMetadata contains agent configuration and metadata
 type AgentMetadata struct {
 	Name          string   `json:"name"`
-	Type          string   `json:"type"` // "repo" or "helper"
-	Expertise     []string `json:"expertise"`
-	Description   string   `json:"description,omitempty"`
-	Keywords      []string `json:"keywords,omitempty"`
-	CreatedAt     string   `json:"createdAt"`
-	Repository    string   `json:"repository,omitempty"`    // For repo agents
-	KnowledgePath string   `json:"knowledgePath,omitempty"` // For helper agents
+	Type        string   `json:"type"` // "repo"
+	Expertise   []string `json:"expertise"`
+	Description string   `json:"description,omitempty"`
+	Keywords    []string `json:"keywords,omitempty"`
+	CreatedAt   string   `json:"createdAt"`
+	Repository  string   `json:"repository,omitempty"` // For repo agents
 }
 
 // MCPResource represents a knowledge resource in MCP format
@@ -72,17 +71,6 @@ type ExportableAgent interface {
 
 // CreateRepoResource creates a resource for repository content
 func CreateRepoResource(uri, name, mimeType, content string) MCPResource {
-	return MCPResource{
-		URI:      uri,
-		Name:     name,
-		MimeType: mimeType,
-		Content:  content,
-		Size:     int64(len(content)),
-	}
-}
-
-// CreateHelperResource creates a resource for helper agent content
-func CreateHelperResource(uri, name, mimeType, content string) MCPResource {
 	return MCPResource{
 		URI:      uri,
 		Name:     name,

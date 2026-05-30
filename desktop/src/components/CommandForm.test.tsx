@@ -226,7 +226,7 @@ describe('CommandForm path and model fields', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
 
     expect(onSubmit).toHaveBeenCalledWith(
-      '/create-repo-agent /Users/me/projects/my-app ollama llama3.1'
+      '/create-repo-agent /Users/me/projects/my-app ollama --model llama3.1'
     );
   });
 

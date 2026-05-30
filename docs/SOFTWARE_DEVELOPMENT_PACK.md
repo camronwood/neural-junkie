@@ -13,8 +13,7 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
 | **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
 | **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing), review bar. See [IDE_V3.md](IDE_V3.md) |
-| **Qwen Coder 14B** | `qwen2.5-coder:14b` — shared base for specialists |
-| **LoRA specialists** | **SecurityReviewer** → `nj-security:14b` (SecureCode); **CodeReviewer** → `nj-code-review:14b` (code feedback); **BackendEngineer** → `nj-backend:14b` (text-to-SQL). Frontend, platform, and architect use the shared base. |
+| **Qwen Coder 14B** | `qwen2.5-coder:14b` — shared base for all specialists |
 | **Utility tier** | `qwen2.5:7b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |
 | **FrontendEngineer** | Web/desktop UI, accessibility, design systems |
@@ -47,7 +46,8 @@ When enabled:
 
 - Seven engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
 - Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `database`) appear in **New DM** and `/create-expert`.
-- `qwen2.5-coder:14b`, `qwen2.5:7b`, and composed LoRA tags (`nj-security:14b`, `nj-code-review:14b`, `nj-backend:14b`) are merged into **models to ensure** for Ollama. Pack LoRAs install automatically when the pack is enabled (or via Pack store **Install LoRAs**).
+- `qwen2.5-coder:14b` and `qwen2.5:7b` are merged into **models to ensure** for Ollama.
+- Optional LoRA adapters (security, code-review, backend) are in the separate **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack — install and assign manually if desired.
 - If **Life sciences** is also enabled, the hub does **not** auto-switch your default Ollama chat model (avoid bio vs coder conflicts); pick the model in Settings.
 
 When disabled, pack-owned specialists are stopped; **Moderator**, **Assistant**, and **auto-detected CLI agents** (Cursor, Gemini, Claude, Copilot, Codex) are unchanged.

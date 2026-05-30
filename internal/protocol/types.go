@@ -49,7 +49,7 @@ const (
 	AgentTypeBiology      AgentType = "biology"
 	AgentTypeGeneral      AgentType = "general"
 	AgentTypeRepo         AgentType = "repo"
-	AgentTypeHelper       AgentType = "helper"     // Custom helper/expert agents
+	AgentTypeExpert       AgentType = "expert"     // Custom domain experts (/create-expert)
 	AgentTypeModerator    AgentType = "moderator"  // System moderator agent
 	AgentTypeAssistant    AgentType = "assistant"  // Personal assistant agent
 	AgentTypeConfluence   AgentType = "confluence" // Confluence documentation agents
@@ -128,7 +128,7 @@ type AgentInfo struct {
 	IndexingStatus          string    `json:"indexing_status"`           // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
 	IndexProgress           int       `json:"index_progress"`            // 0-100 percentage (for repo/confluence agents)
 	RepositoryPath          string    `json:"repository_path"`           // Path to repository (for repo agents)
-	KnowledgePath           string    `json:"knowledge_path"`            // Path to knowledge base (for helper agents)
+	KnowledgePath           string    `json:"knowledge_path"`            // Optional knowledge base path (legacy exports)
 	ConfluenceSpaceKey      string    `json:"confluence_space_key"`      // Confluence space key (for confluence agents)
 	LastActiveTime          time.Time `json:"last_active_time"`          // When agent was last in a channel
 	RemovedFrom             []string  `json:"removed_from"`              // List of channels agent was removed from
@@ -223,7 +223,7 @@ type CommandOutput struct {
 
 // CachedAgentInfo represents a cached agent that can be loaded
 type CachedAgentInfo struct {
-	Type      string                 `json:"type"`       // "repo", "helper", "confluence"
+	Type      string                 `json:"type"`       // "repo", "confluence"
 	Name      string                 `json:"name"`       // Agent name
 	Path      string                 `json:"path"`       // Repository path, knowledge path, or space key
 	LastUsed  string                 `json:"last_used"`  // ISO timestamp of last use
@@ -507,7 +507,14 @@ func (m *Message) IsCollaborationMessage() bool {
 	return m.GetCollaborationID() != ""
 }
 
-// IsUserCreatedAgent checks if an agent type is user-created (not system agent)
+// NormalizeAgentType maps deprecated agent type strings to current types.
+func NormalizeAgentType(t AgentType) AgentType {
+	if t == "helper" {
+		return AgentTypeExpert
+	}
+	return t
+}
+
 func IsUserCreatedAgent(agentType string) bool {
 	return agentType == "repo" || agentType == "confluence"
 }

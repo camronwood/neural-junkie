@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/packs"
@@ -82,6 +83,13 @@ func handlePackInstall(w http.ResponseWriter, r *http.Request, packID string) {
 func handlePackInstallLoRAs(w http.ResponseWriter, r *http.Request, packID string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !requireLoRACapability(w, capLoRAAdapters) {
+		return
+	}
+	if packID != config.PackSpecialistTuning {
+		http.Error(w, "LoRA install is only available for the Specialist tuning pack", http.StatusBadRequest)
 		return
 	}
 	if hfMgr == nil {

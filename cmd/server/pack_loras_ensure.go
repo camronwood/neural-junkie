@@ -96,6 +96,9 @@ func ensurePackLoRAs(ctx context.Context, onlyPackID string) {
 	if appConfig == nil || hfMgr == nil || ollamaMgr == nil {
 		return
 	}
+	if !hasLoRACapability(capLoRAAdapters) {
+		return
+	}
 	if !waitForOllamaServer(ctx, 2*time.Minute) {
 		log.Printf("ℹ️  Ollama not running; skipping pack LoRA compose")
 		return

@@ -1,0 +1,45 @@
+{
+  "name": "learning-save-and-list",
+  "description": "POST learnings for a specialist, list by agent_id, forget one",
+  "setup": {
+    "enable_personal_learning": true
+  },
+  "steps": [
+    {
+      "type": "setup_pack",
+      "pack_id": "specialist-tuning"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "security-agent",
+      "agent_name": "SecurityReviewer",
+      "agent_type": "security",
+      "content": "Always flag SQL injection in reviews",
+      "category": "workflow"
+    },
+    {
+      "type": "post_learning",
+      "agent_id": "security-agent",
+      "agent_name": "SecurityReviewer",
+      "agent_type": "security",
+      "content": "Prefer OWASP references",
+      "category": "preference"
+    },
+    {
+      "type": "assert_learnings",
+      "agent_id": "security-agent",
+      "min_count": 2,
+      "any_match": "SQL injection"
+    },
+    {
+      "type": "forget_learning",
+      "agent_id": "security-agent",
+      "content_match": "OWASP"
+    },
+    {
+      "type": "assert_learnings",
+      "agent_id": "security-agent",
+      "min_count": 1
+    }
+  ]
+}

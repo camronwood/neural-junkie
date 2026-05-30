@@ -55,6 +55,19 @@ export interface InstallPackLoRAsResponse {
   results: InstallPackLoRAResult[];
 }
 
+export interface LoraExpertContext {
+  agent_id: string;
+  agent_name: string;
+  agent_type: string;
+  source: 'repo' | 'channel' | 'collaboration';
+  source_id?: string;
+  suggested_base_ollama_tag: string;
+  suggested_ollama_tag?: string;
+  preview_rows: number;
+  min_rows: number;
+  ready: boolean;
+}
+
 export interface LoraTrainJob {
   id: string;
   status: string;
@@ -65,6 +78,41 @@ export interface LoraTrainJob {
   row_count?: number;
   log_tail?: string[];
   error?: string;
+}
+
+export type LearningCategory = 'preference' | 'fact' | 'workflow' | 'communication';
+
+export interface UserLearning {
+  id: string;
+  agent_id: string;
+  agent_type?: string;
+  agent_name?: string;
+  content: string;
+  category: LearningCategory;
+  source_channel?: string;
+  source_message_id?: string;
+  created_at: string;
+  confirmed_at: string;
+  active: boolean;
+}
+
+export interface LearningStats {
+  agent_id: string;
+  learning_count: number;
+  preview_rows: number;
+  min_rows: number;
+  ready_for_lora: boolean;
+}
+
+export interface LearningProposalAction {
+  type: 'learning_proposal';
+  agent_id: string;
+  agent_name: string;
+  agent_type?: string;
+  draft?: string;
+  category?: LearningCategory;
+  source_message_id?: string;
+  source_channel?: string;
 }
 
 export interface LoraTrainStartRequest {
@@ -2119,6 +2167,17 @@ export class ChatAPI {
     }
   }
 
+  async fetchLoraExpertContext(agentId: string): Promise<LoraExpertContext> {
+    const response = await this.hubFetch(
+      `/api/lora/train/expert-context?agent_id=${encodeURIComponent(agentId)}`,
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
   async previewLoraTrain(params: {
     source: string;
     source_id: string;
@@ -2155,6 +2214,58 @@ export class ChatAPI {
 
   async fetchLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
     const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchLearnings(agentId?: string): Promise<UserLearning[]> {
+    const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : '';
+    const response = await this.hubFetch(`/api/learnings${q}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async createLearning(body: {
+    agent_id: string;
+    agent_type?: string;
+    agent_name?: string;
+    content: string;
+    category?: LearningCategory;
+    source_channel?: string;
+    source_message_id?: string;
+  }): Promise<UserLearning> {
+    const response = await this.hubFetch(`/api/learnings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async deleteLearning(id: string): Promise<void> {
+    const response = await this.hubFetch(`/api/learnings/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+  }
+
+  async fetchLearningStats(agentId: string): Promise<LearningStats> {
+    const response = await this.hubFetch(
+      `/api/learnings/stats?agent_id=${encodeURIComponent(agentId)}`,
+    );
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

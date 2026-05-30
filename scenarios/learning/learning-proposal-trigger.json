@@ -1,0 +1,27 @@
+{
+  "name": "learning-proposal-trigger",
+  "description": "Trigger phrase emits learning_proposal client_action without auto-save",
+  "channel": "general",
+  "setup": {
+    "enable_personal_learning": true
+  },
+  "steps": [
+    {
+      "type": "setup_pack",
+      "pack_id": "specialist-tuning"
+    },
+    {
+      "type": "send",
+      "content": "@Assistant remember that I prefer tabs over spaces"
+    },
+    {
+      "type": "wait_reply",
+      "timeout_sec": 15,
+      "learning_proposal": true
+    },
+    {
+      "type": "assert_learning_proposal",
+      "agent_name": "Assistant"
+    }
+  ]
+}

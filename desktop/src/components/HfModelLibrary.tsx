@@ -55,6 +55,7 @@ interface HfModelLibraryProps {
   onAfterModelChange?: () => void;
   onViewChange?: (view: 'grid' | 'detail') => void;
   resetDetailSignal?: number;
+  canComposeLoRA?: boolean;
 }
 
 type LibraryTab = 'hosted' | 'local';
@@ -136,6 +137,7 @@ export function HfModelLibrary({
   onAfterModelChange,
   onViewChange,
   resetDetailSignal,
+  canComposeLoRA = true,
 }: HfModelLibraryProps) {
   const [tab, setTab] = useState<LibraryTab>('hosted');
   const [curated, setCurated] = useState<HfCatalogEntry[]>([]);
@@ -525,6 +527,13 @@ export function HfModelLibrary({
     const filename = resolved.files?.[0]?.filename;
     if (!filename) return;
     const adapter = isAdapterEntry(resolved);
+    if (adapter && !canComposeLoRA) {
+      setActionMessage({
+        kind: 'err',
+        text: 'Enable Specialist tuning pack to compose LoRA adapters.',
+      });
+      return;
+    }
     const baseTag = resolved.base_ollama_tag || 'qwen2.5-coder:14b';
     if (adapter && !ollamaHasBase(baseTag)) {
       setActionMessage({
@@ -606,6 +615,7 @@ export function HfModelLibrary({
       const isHosted = tab === 'hosted';
 
       const adapter = isAdapterEntry(entry);
+      const adapterComposeBlocked = adapter && !canComposeLoRA;
       const detailRows = file
         ? [
             { label: 'Repository', value: entry.repo_id },
@@ -677,7 +687,7 @@ export function HfModelLibrary({
           primaryAction = {
             id: 'import',
             label: importLabel,
-            disabled: !ollamaRunning || importingKey === dlKey,
+            disabled: !ollamaRunning || importingKey === dlKey || adapterComposeBlocked,
             busyLabel: importingKey === dlKey ? (adapter ? 'Composing…' : 'Importing…') : undefined,
             onClick: () => void importToOllama(entry),
           };
@@ -685,7 +695,7 @@ export function HfModelLibrary({
             {
               id: 'import',
               label: importLabel,
-              disabled: !ollamaRunning || importingKey === dlKey,
+              disabled: !ollamaRunning || importingKey === dlKey || adapterComposeBlocked,
               busyLabel: importingKey === dlKey ? (adapter ? 'Composing…' : 'Importing…') : undefined,
               onClick: () => void importToOllama(entry),
             },
@@ -726,6 +736,7 @@ export function HfModelLibrary({
     importingKey,
     hfStatus,
     hfToken,
+    canComposeLoRA,
   ]);
 
   const tabSwitcher = (

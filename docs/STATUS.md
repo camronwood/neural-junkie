@@ -69,7 +69,7 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 
 - Unit tests across core packages
 - Integration tests for message flow, commands, deduplication
-- Agent-specific tests (repo, helper, assistant, moderator, hub, review)
+- Agent-specific tests (repo, expert, assistant, moderator, hub, review)
 - Architecture and thread-safety tests
 
 ## Known Limitations

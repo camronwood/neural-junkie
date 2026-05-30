@@ -41,7 +41,7 @@ func TestResolveExpertCustom(t *testing.T) {
 	if spec.IsPreset {
 		t.Fatal("expected custom expert")
 	}
-	if spec.AgentType != protocol.AgentTypeHelper {
+	if spec.AgentType != protocol.AgentTypeExpert {
 		t.Fatalf("type = %q", spec.AgentType)
 	}
 	if spec.Label != "Guitar" {
@@ -118,7 +118,7 @@ func TestExpertSlugToAgentTypeCustom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if typ != protocol.AgentTypeHelper {
+	if typ != protocol.AgentTypeExpert {
 		t.Fatalf("type = %q", typ)
 	}
 }

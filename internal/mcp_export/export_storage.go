@@ -11,7 +11,6 @@ import (
 const (
 	ExportsDir = ".neural-junkie/exports"
 	RepoDir    = "repo"
-	HelperDir  = "helper"
 )
 
 // ExportStorage manages exported agent packages
@@ -48,12 +47,8 @@ func NewExportStorage() (*ExportStorage, error) {
 		return nil, fmt.Errorf("failed to create exports directory: %w", err)
 	}
 
-	// Create subdirectories
 	if err := os.MkdirAll(filepath.Join(baseDir, RepoDir), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create repo exports directory: %w", err)
-	}
-	if err := os.MkdirAll(filepath.Join(baseDir, HelperDir), 0755); err != nil {
-		return nil, fmt.Errorf("failed to create helper exports directory: %w", err)
 	}
 
 	return &ExportStorage{baseDir: baseDir}, nil
@@ -65,28 +60,18 @@ func (s *ExportStorage) SaveExport(export *AgentExport) error {
 		return fmt.Errorf("invalid export: %w", err)
 	}
 
-	// Determine subdirectory based on agent type
-	var subDir string
-	switch export.Agent.Type {
-	case "repo":
-		subDir = RepoDir
-	case "helper":
-		subDir = HelperDir
-	default:
+	if export.Agent.Type != "repo" {
 		return fmt.Errorf("unsupported agent type: %s", export.Agent.Type)
 	}
 
-	// Generate filename from agent name
 	filename := s.sanitizeFilename(export.Agent.Name) + ".json"
-	exportPath := filepath.Join(s.baseDir, subDir, filename)
+	exportPath := filepath.Join(s.baseDir, RepoDir, filename)
 
-	// Convert to JSON
 	data, err := export.ToJSON()
 	if err != nil {
 		return fmt.Errorf("failed to marshal export: %w", err)
 	}
 
-	// Write to file
 	if err := os.WriteFile(exportPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write export file: %w", err)
 	}
@@ -96,22 +81,13 @@ func (s *ExportStorage) SaveExport(export *AgentExport) error {
 
 // LoadExport loads an agent export from disk
 func (s *ExportStorage) LoadExport(agentName, agentType string) (*AgentExport, error) {
-	// Determine subdirectory based on agent type
-	var subDir string
-	switch agentType {
-	case "repo":
-		subDir = RepoDir
-	case "helper":
-		subDir = HelperDir
-	default:
+	if agentType != "repo" {
 		return nil, fmt.Errorf("unsupported agent type: %s", agentType)
 	}
 
-	// Generate filename from agent name
 	filename := s.sanitizeFilename(agentName) + ".json"
-	exportPath := filepath.Join(s.baseDir, subDir, filename)
+	exportPath := filepath.Join(s.baseDir, RepoDir, filename)
 
-	// Read file
 	data, err := os.ReadFile(exportPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -120,7 +96,6 @@ func (s *ExportStorage) LoadExport(agentName, agentType string) (*AgentExport, e
 		return nil, fmt.Errorf("failed to read export file: %w", err)
 	}
 
-	// Parse JSON
 	export, err := FromJSON(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse export: %w", err)
@@ -131,13 +106,11 @@ func (s *ExportStorage) LoadExport(agentName, agentType string) (*AgentExport, e
 
 // LoadExportFromPath loads an agent export from a specific file path
 func (s *ExportStorage) LoadExportFromPath(exportPath string) (*AgentExport, error) {
-	// Read file
 	data, err := os.ReadFile(exportPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read export file: %w", err)
 	}
 
-	// Parse JSON
 	export, err := FromJSON(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse export: %w", err)
@@ -148,27 +121,17 @@ func (s *ExportStorage) LoadExportFromPath(exportPath string) (*AgentExport, err
 
 // DeleteExport removes an agent export from disk
 func (s *ExportStorage) DeleteExport(agentName, agentType string) error {
-	// Determine subdirectory based on agent type
-	var subDir string
-	switch agentType {
-	case "repo":
-		subDir = RepoDir
-	case "helper":
-		subDir = HelperDir
-	default:
+	if agentType != "repo" {
 		return fmt.Errorf("unsupported agent type: %s", agentType)
 	}
 
-	// Generate filename from agent name
 	filename := s.sanitizeFilename(agentName) + ".json"
-	exportPath := filepath.Join(s.baseDir, subDir, filename)
+	exportPath := filepath.Join(s.baseDir, RepoDir, filename)
 
-	// Check if file exists
 	if _, err := os.Stat(exportPath); os.IsNotExist(err) {
 		return fmt.Errorf("export not found: %s", agentName)
 	}
 
-	// Delete file
 	if err := os.Remove(exportPath); err != nil {
 		return fmt.Errorf("failed to delete export: %w", err)
 	}
@@ -178,22 +141,10 @@ func (s *ExportStorage) DeleteExport(agentName, agentType string) error {
 
 // ListExports returns all available exports
 func (s *ExportStorage) ListExports() ([]ExportInfo, error) {
-	var exports []ExportInfo
-
-	// List repo exports
-	repoExports, err := s.listExportsInDir(RepoDir, "repo")
+	exports, err := s.listExportsInDir(RepoDir, "repo")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list repo exports: %w", err)
 	}
-	exports = append(exports, repoExports...)
-
-	// List helper exports
-	helperExports, err := s.listExportsInDir(HelperDir, "helper")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list helper exports: %w", err)
-	}
-	exports = append(exports, helperExports...)
-
 	return exports, nil
 }
 
@@ -228,16 +179,13 @@ func (s *ExportStorage) listExportsInDir(subDir, agentType string) ([]ExportInfo
 
 		exportPath := filepath.Join(dirPath, entry.Name())
 
-		// Get file info
 		info, err := entry.Info()
 		if err != nil {
 			continue
 		}
 
-		// Try to load export to get metadata
 		export, err := s.LoadExportFromPath(exportPath)
 		if err != nil {
-			// If we can't load the export, create basic info
 			exportInfo := ExportInfo{
 				Name:         strings.TrimSuffix(entry.Name(), ".json"),
 				Type:         agentType,
@@ -249,7 +197,6 @@ func (s *ExportStorage) listExportsInDir(subDir, agentType string) ([]ExportInfo
 			continue
 		}
 
-		// Create detailed info from export
 		exportInfo := ExportInfo{
 			Name:          export.Agent.Name,
 			Type:          export.Agent.Type,
@@ -268,20 +215,12 @@ func (s *ExportStorage) listExportsInDir(subDir, agentType string) ([]ExportInfo
 
 // GetExportPath returns the file path for an export
 func (s *ExportStorage) GetExportPath(agentName, agentType string) string {
-	// Determine subdirectory based on agent type
-	var subDir string
-	switch agentType {
-	case "repo":
-		subDir = RepoDir
-	case "helper":
-		subDir = HelperDir
-	default:
+	if agentType != "repo" {
 		return ""
 	}
 
-	// Generate filename from agent name
 	filename := s.sanitizeFilename(agentName) + ".json"
-	return filepath.Join(s.baseDir, subDir, filename)
+	return filepath.Join(s.baseDir, RepoDir, filename)
 }
 
 // ExportExists checks if an export exists
@@ -300,8 +239,7 @@ func (s *ExportStorage) GetExportStats() (*ExportStats, error) {
 
 	stats := &ExportStats{
 		TotalExports:   len(exports),
-		RepoExports:    0,
-		HelperExports:  0,
+		RepoExports:    len(exports),
 		TotalSize:      0,
 		TotalResources: 0,
 		TotalPrompts:   0,
@@ -312,12 +250,6 @@ func (s *ExportStorage) GetExportStats() (*ExportStats, error) {
 		stats.TotalSize += export.FileSize
 		stats.TotalResources += export.ResourceCount
 		stats.TotalPrompts += export.PromptCount
-
-		if export.Type == "repo" {
-			stats.RepoExports++
-		} else if export.Type == "helper" {
-			stats.HelperExports++
-		}
 
 		if export.LastModified.After(stats.LastExport) {
 			stats.LastExport = export.LastModified
@@ -331,7 +263,6 @@ func (s *ExportStorage) GetExportStats() (*ExportStats, error) {
 type ExportStats struct {
 	TotalExports   int       `json:"totalExports"`
 	RepoExports    int       `json:"repoExports"`
-	HelperExports  int       `json:"helperExports"`
 	TotalSize      int64     `json:"totalSize"`
 	TotalResources int       `json:"totalResources"`
 	TotalPrompts   int       `json:"totalPrompts"`
@@ -340,7 +271,6 @@ type ExportStats struct {
 
 // sanitizeFilename creates a safe filename from an agent name
 func (s *ExportStorage) sanitizeFilename(name string) string {
-	// Replace problematic characters with underscores
 	replacer := strings.NewReplacer(
 		" ", "_",
 		"/", "_",
@@ -356,7 +286,6 @@ func (s *ExportStorage) sanitizeFilename(name string) string {
 
 	sanitized := replacer.Replace(name)
 
-	// Remove any remaining problematic characters
 	var result strings.Builder
 	for _, r := range sanitized {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
@@ -382,10 +311,8 @@ func (s *ExportStorage) CleanupOldExports(olderThan time.Duration) (int, error) 
 
 	for _, export := range exports {
 		if export.LastModified.Before(cutoff) {
-			// Extract agent name from path
 			agentName := strings.TrimSuffix(filepath.Base(export.ExportPath), ".json")
 			if err := s.DeleteExport(agentName, export.Type); err != nil {
-				// Log error but continue with other exports
 				continue
 			}
 			deletedCount++

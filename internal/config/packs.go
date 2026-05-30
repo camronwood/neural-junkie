@@ -11,6 +11,7 @@ import (
 const (
 	PackLifeSciences        = "life-sciences"
 	PackSoftwareDevelopment = "software-development"
+	PackSpecialistTuning    = "specialist-tuning"
 )
 
 // DevOllamaCodeModel is the recommended local model for software-development specialists.
@@ -408,6 +409,42 @@ func (c *Config) MigrateInstalledPacks() {
 			c.Packs.LayoutOwner = PackLifeSciences
 		}
 	}
+	c.MigrateSpecialistTuningForLoRAUsers()
+}
+
+// MigrateSpecialistTuningForLoRAUsers auto-enables the tuning pack when legacy configs used nj-* LoRA tags.
+func (c *Config) MigrateSpecialistTuningForLoRAUsers() {
+	if c == nil || c.IsPackEnabled(PackSpecialistTuning) {
+		return
+	}
+	if !c.configUsesNJComposedTags() {
+		return
+	}
+	if !c.IsPackInstalled(PackSpecialistTuning) {
+		if err := c.InstallPack(PackSpecialistTuning); err != nil {
+			return
+		}
+	}
+	_ = c.SetPackEnabled(PackSpecialistTuning, true)
+}
+
+func (c *Config) configUsesNJComposedTags() bool {
+	for _, a := range c.Agents {
+		if isNJComposedModelTag(a.Model) {
+			return true
+		}
+	}
+	for _, m := range c.Ollama.ModelsToEnsure {
+		if isNJComposedModelTag(m) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNJComposedModelTag(tag string) bool {
+	tag = strings.TrimSpace(tag)
+	return strings.HasPrefix(tag, "nj-") && strings.Contains(tag, ":")
 }
 
 // SyncAgentsFromPacks merges enabled pack agents into cfg.Agents and updates models_to_ensure.

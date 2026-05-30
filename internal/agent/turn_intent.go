@@ -134,7 +134,7 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	var b strings.Builder
 	tier := a.promptPersonaTier(msg)
 	specialty := string(a.Info.Type)
-	if a.Info.Type == protocol.AgentTypeHelper && len(a.Info.Expertise) > 0 {
+	if a.Info.Type == protocol.AgentTypeExpert && len(a.Info.Expertise) > 0 {
 		specialty = a.Info.Expertise[0]
 	}
 	if tier == PersonaDirect {

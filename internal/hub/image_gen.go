@@ -35,7 +35,7 @@ func OpenAIImageGenFromEnv() ai.ImageGenerator {
 
 func agentTypeSupportsImageGeneration(t protocol.AgentType) bool {
 	switch t {
-	case protocol.AgentTypeFrontend, protocol.AgentTypeAssistant, protocol.AgentTypeHelper:
+	case protocol.AgentTypeFrontend, protocol.AgentTypeAssistant, protocol.AgentTypeExpert:
 		return true
 	default:
 		return false

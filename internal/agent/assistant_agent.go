@@ -328,7 +328,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 
 	prompt.WriteString("=== SYSTEM KNOWLEDGE ===\n")
 	prompt.WriteString("• This is the Neural Junkie, a multi-agent collaboration system where specialized AI agents communicate and solve problems together.\n")
-	prompt.WriteString("• Agents include: Frontend, Backend, Platform, Security, Software Architecture, Code Review, Repository Experts, and Helper Agents.\n")
+	prompt.WriteString("• Agents include: Frontend, Backend, Platform, Security, Software Architecture, Code Review, Repository Experts, and custom domain experts.\n")
 	prompt.WriteString("• Users can @mention agents by name (e.g., @BackendEngineer, @ChatModerator) to direct questions to specific agents.\n")
 	prompt.WriteString("• The @ChatModerator agent helps with chat features, commands, and system usage.\n")
 	prompt.WriteString("• Repository expert agents analyze codebases and can answer project-specific questions.\n")

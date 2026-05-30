@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { OllamaManager } from './OllamaManager';
 import { OllamaModelLibrary } from './OllamaModelLibrary';
 import { HfModelLibrary } from './HfModelLibrary';
-import { LoraTrainingPanel } from './LoraTrainingPanel';
+import { LoraTrainingPanel, type LoraTrainPrefill } from './LoraTrainingPanel';
+import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 
 type LibrarySource = 'ollama' | 'huggingface' | 'train';
 type BrowseDepth = 'grid' | 'detail';
@@ -16,6 +18,8 @@ interface ModelLibraryModalProps {
   runtimeAgents?: { id: string; name: string; type: string }[];
   onAfterModelChange?: () => void;
   defaultChannel?: string;
+  initialTab?: LibrarySource;
+  loraTrainPrefill?: LoraTrainPrefill | null;
 }
 
 export function ModelLibraryModal({
@@ -27,10 +31,20 @@ export function ModelLibraryModal({
   runtimeAgents,
   onAfterModelChange,
   defaultChannel,
+  initialTab,
+  loraTrainPrefill,
 }: ModelLibraryModalProps) {
-  const [source, setSource] = useState<LibrarySource>('ollama');
+  const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
+  const hasLoRACompose = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_COMPOSE));
+  const [source, setSource] = useState<LibrarySource>(initialTab ?? 'ollama');
   const [browseDepth, setBrowseDepth] = useState<BrowseDepth>('grid');
   const [resetDetailSignal, setResetDetailSignal] = useState(0);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setSource(initialTab);
+    }
+  }, [isOpen, initialTab]);
 
   const handleSourceChange = useCallback((next: LibrarySource) => {
     setSource(next);
@@ -121,12 +135,14 @@ export function ModelLibraryModal({
                 type="button"
                 role="tab"
                 aria-selected={source === 'train'}
-                onClick={() => handleSourceChange('train')}
+                disabled={!hasLoRATraining}
+                title={hasLoRATraining ? undefined : 'Enable Specialist tuning pack'}
+                onClick={() => hasLoRATraining && handleSourceChange('train')}
                 className={`px-3 py-1.5 font-medium transition-colors ${
                   source === 'train'
                     ? 'bg-purple-700 text-white'
                     : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
-                }`}
+                } ${!hasLoRATraining ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
                 Train LoRA
               </button>
@@ -170,6 +186,7 @@ export function ModelLibraryModal({
                 onAfterModelChange={onAfterModelChange}
                 onViewChange={setBrowseDepth}
                 resetDetailSignal={resetDetailSignal}
+                canComposeLoRA={hasLoRACompose}
               />
             </div>
           )}
@@ -180,6 +197,7 @@ export function ModelLibraryModal({
                 defaultChannel={defaultChannel}
                 switchAgentProvider={switchAgentProvider}
                 runtimeAgents={runtimeAgents}
+                prefill={loraTrainPrefill ?? undefined}
               />
             </div>
           )}

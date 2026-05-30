@@ -19,8 +19,8 @@ func TestLoadBuiltinCatalog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cat.Packs) < 2 {
-		t.Fatal("expected at least 2 catalog entries")
+	if len(cat.Packs) < 3 {
+		t.Fatal("expected at least 3 catalog entries")
 	}
 }
 
@@ -37,18 +37,29 @@ func TestSoftwareDevCapabilities(t *testing.T) {
 	}
 }
 
-func TestSoftwareDevelopmentLoRAAdapters(t *testing.T) {
+func TestSoftwareDevelopmentNoLoRAAdapters(t *testing.T) {
 	m, err := LoadBuiltinManifest("software-development")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.LoRAAdapters) != 3 {
-		t.Fatalf("expected 3 lora adapters, got %d", len(m.LoRAAdapters))
+	if len(m.LoRAAdapters) != 0 {
+		t.Fatalf("expected no lora adapters on dev pack, got %d", len(m.LoRAAdapters))
+	}
+}
+
+func TestSpecialistTuningLoRAAdapters(t *testing.T) {
+	m, err := LoadBuiltinManifest("specialist-tuning")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.LoRAAdapters) != 4 {
+		t.Fatalf("expected 4 lora adapters, got %d", len(m.LoRAAdapters))
 	}
 	want := map[string]string{
 		"security":    "nj-security:14b",
 		"code-review": "nj-code-review:14b",
 		"backend":     "nj-backend:14b",
+		"biology":     "nj-biology:8b",
 	}
 	got := make(map[string]string, len(m.LoRAAdapters))
 	for _, la := range m.LoRAAdapters {
@@ -59,18 +70,20 @@ func TestSoftwareDevelopmentLoRAAdapters(t *testing.T) {
 			t.Fatalf("agent %s: got tag %q want %q (all: %+v)", agentType, got[agentType], tag, got)
 		}
 	}
+	if !m.HasCapability("lora-training") || !m.HasCapability("lora-compose") {
+		t.Fatal("expected lora capabilities")
+	}
+	if !m.HasCapability("personal-learning") {
+		t.Fatal("expected personal-learning capability")
+	}
 }
 
-func TestLifeSciencesLoRAAdapters(t *testing.T) {
+func TestLifeSciencesNoLoRAAdapters(t *testing.T) {
 	m, err := LoadBuiltinManifest("life-sciences")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.LoRAAdapters) != 1 {
-		t.Fatalf("expected 1 lora adapter, got %d", len(m.LoRAAdapters))
-	}
-	la := m.LoRAAdapters[0]
-	if la.OllamaTag != "nj-biology:8b" || la.BaseOllamaTag != "llama3:8b" {
-		t.Fatalf("unexpected lora spec: %+v", la)
+	if len(m.LoRAAdapters) != 0 {
+		t.Fatalf("expected no lora adapters on life-sciences pack, got %d", len(m.LoRAAdapters))
 	}
 }

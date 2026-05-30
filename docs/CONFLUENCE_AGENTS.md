@@ -367,7 +367,7 @@ Agents automatically check for staleness on load, but manual reindex ensures fre
 
 ### Works With
 - **Repository Agents**: Different agents for code vs docs
-- **Helper Agents**: Custom knowledge bases alongside Confluence
+- **Custom domain experts**: Use `/create-expert` alongside Confluence agents
 - **Multi-channel**: Same agent can serve multiple channels
 
 ### Example Workflow

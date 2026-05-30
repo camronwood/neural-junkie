@@ -44,6 +44,16 @@ The Assistant Agent is a comprehensive personal assistant that auto-loads with t
 - **Task suggestions**: Propose creating tasks from action items
 - **Note suggestions**: Suggest saving important information
 
+### 🧠 Personal learning (Specialist tuning)
+
+When the **Specialist tuning** pack and **personal learning** opt-in are enabled, you can save user-approved notes scoped to the Assistant (or any expert):
+
+- `/learn [draft]` — open the approval dialog
+- `/learning-list` — list saved learnings
+- Natural phrases like “remember that I prefer …” propose a save (nothing stored until you confirm)
+
+See [PERSONAL_LEARNING.md](PERSONAL_LEARNING.md).
+
 ## Commands
 
 ### Reminder Commands
@@ -344,7 +354,7 @@ The Assistant Agent works seamlessly with other agents:
 
 - **Moderator Agent**: Provides help with assistant commands
 - **Repository Agents**: Can create tasks from code review discussions
-- **Helper Agents**: Can save notes from expert knowledge
+- **Custom domain experts**: Can save notes from expert knowledge
 - **All Agents**: Can benefit from meeting reminders and task tracking
 
 ## Future Enhancements

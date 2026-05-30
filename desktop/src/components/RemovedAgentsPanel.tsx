@@ -80,7 +80,7 @@ export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
   const getAgentTypeColor = (type: string): string => {
     switch (type) {
       case 'repo': return '#52b6ef';
-      case 'helper': return '#af77ca';
+      case 'expert': return '#af77ca';
       case 'confluence': return '#f09348';
       case 'frontend': return '#61dafb';
       case 'backend': return '#68d391';
@@ -97,7 +97,7 @@ export function RemovedAgentsPanel({ onClose }: RemovedAgentsPanelProps) {
   const getAgentTypeIcon = (type: string): string => {
     switch (type) {
       case 'repo': return '📁';
-      case 'helper': return '🤖';
+      case 'expert': return '🎯';
       case 'confluence': return '📚';
       case 'frontend': return '🎨';
       case 'backend': return '⚙️';

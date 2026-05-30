@@ -61,11 +61,18 @@ func applyLoRAModelOverride(ctx context.Context, p ai.AIProvider, info protocol.
 	if msg.Metadata != nil {
 		if m, ok := msg.Metadata["task_ollama_model"].(string); ok {
 			tag := strings.TrimSpace(m)
+			if tag != "" && strings.HasPrefix(tag, "nj-") && !hasLoRACapability(capLoRAAdapters) {
+				return p
+			}
 			if tag != "" {
 				log.Printf("[collab-routing] %s: model=%s reason=task_ollama_model (provider=%s)", info.Name, tag, providerReason)
 				return ai.OllamaWithModel(ollamaBase, tag)
 			}
 		}
+	}
+
+	if !hasLoRACapability(capLoRAAdapters) {
+		return p
 	}
 
 	loraTags := collectInstalledLoRATags(ctx)

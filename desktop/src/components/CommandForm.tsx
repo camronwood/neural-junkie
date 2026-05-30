@@ -16,6 +16,8 @@ import {
 } from '../constants/collabWorkspace';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { isTauriRuntime } from '../utils/promptAttachments';
+import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 
 const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
 
@@ -81,6 +83,13 @@ export function CommandForm({
   onBack,
 }: CommandFormProps) {
   const isCollaborateCommand = command.name === '/collaborate';
+  const hasLoRACompose = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_COMPOSE));
+  const visibleArguments = useMemo(() => {
+    if (command.name === '/create-repo-agent' && !hasLoRACompose) {
+      return command.arguments.filter((a) => a.name !== 'adapter-repo');
+    }
+    return command.arguments;
+  }, [command.arguments, command.name, hasLoRACompose]);
   const [collabRounds, setCollabRounds] = useState('');
   const [collabMessages, setCollabMessages] = useState('');
   const [allowAgentAdds, setAllowAgentAdds] = useState(false);
@@ -269,7 +278,7 @@ export function CommandForm({
     }
 
     const parts = [command.name];
-    for (const arg of command.arguments) {
+    for (const arg of visibleArguments) {
       const v = values[arg.name]?.trim();
       if (v) {
         parts.push(v);
@@ -297,7 +306,7 @@ export function CommandForm({
       !!values.description?.trim() &&
       collabNumericOptsOk &&
       collabWorkspaceOk
-    : command.arguments
+    : visibleArguments
         .filter(a => a.required)
         .every(a => values[a.name]?.trim());
 
@@ -785,7 +794,7 @@ export function CommandForm({
             </label>
           </>
         ) : (
-          command.arguments.map((arg, idx) => (
+          visibleArguments.map((arg, idx) => (
             <div key={arg.name}>
               <label htmlFor={`cmd-arg-${arg.name}`} className="block text-xs font-medium text-slack-textMuted mb-1">
                 {arg.name}

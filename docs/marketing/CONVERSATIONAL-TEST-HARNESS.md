@@ -101,6 +101,7 @@ Two runners, two scenario directories, same design language:
 |---------|-----------|--------|-------------|
 | **Chat** | `scenarios/chat/*.json` | `scripts/chat-scenarios.py` | `make chat-scenario SCENARIO=…` |
 | **Collaboration** | `scenarios/collab/*.json` | `scripts/collab-scenarios.py` | `make collab-scenario SCENARIO=…` |
+| **Learning / LoRA** | `scenarios/learning/*.json` | `scripts/learning-scenarios.py` | `make learning-scenario SCENARIO=…` |
 
 **Prerequisites:** hub running (`make server` or `make gui`), agents online, models configured. For sweeps, start the hub with `NEURAL_JUNKIE_RATE_LIMIT=0` so scenario polling doesn’t hit HTTP 429.
 

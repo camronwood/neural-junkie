@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { InstallPackLoRAResult } from '../../api/chatAPI';
 import { usePacksStore } from '../../stores/packsStore';
+import { PACK_CAP } from '../../stores/packCapabilities';
 
 export function PackStoreBrowse() {
   const catalog = usePacksStore((s) => s.catalog);
@@ -12,6 +13,7 @@ export function PackStoreBrowse() {
   const installPackLoRAs = usePacksStore((s) => s.installPackLoRAs);
   const uninstallPack = usePacksStore((s) => s.uninstallPack);
   const setPackEnabled = usePacksStore((s) => s.setPackEnabled);
+  const hasLoRAAdapters = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_ADAPTERS));
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loraResults, setLoraResults] = useState<Record<string, InstallPackLoRAResult[]>>({});
@@ -113,7 +115,7 @@ export function PackStoreBrowse() {
                 >
                   {busy ? '…' : primaryLabel}
                 </button>
-                {entry.installed && loraCount > 0 && (
+                {entry.installed && loraCount > 0 && entry.id === 'specialist-tuning' && hasLoRAAdapters && (
                   <button
                     type="button"
                     disabled={busy}

@@ -106,7 +106,7 @@ Defines message types, agent types, and @mention parsing.
 
 **Message Types:** `chat`, `question`, `answer`, `system_info`, `agent_join`, `agent_leave`, `agent_status`, `context_share`, `request_help`, `file_change`, `command_output`, `command_suggestion`, `design_output`, `tool_approval`, `stream_delta`, `stream_end`, `collaboration_plan`, `collaboration_task`, `collaboration_status`, `collaboration_discussion`
 
-**Agent Types:** `frontend`, `backend`, `devops`, `security`, `architecture`, `code-review`, `database`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `helper` (legacy payloads only), `cli`
+**Agent Types:** `frontend`, `backend`, `devops`, `security`, `architecture`, `code-review`, `database`, `rust`, `general`, `repo`, `confluence`, `moderator`, `assistant`, `expert`, `cli`
 
 **Mention System:** Parses `@AgentName` and `@agenttype` from message content. Normalizes names for fuzzy matching.
 

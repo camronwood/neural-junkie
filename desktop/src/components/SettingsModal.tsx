@@ -128,8 +128,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [slackChannelsError, setSlackChannelsError] = useState<string | null>(null);
   const [slackConnection, setSlackConnection] = useState<SlackConnectionResponse | null>(null);
   const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
+  const [specialistModelsAdvancedOpen, setSpecialistModelsAdvancedOpen] = useState(false);
   const [packsLoading, setPacksLoading] = useState(false);
   const bioPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_SUMMARY_API));
+  const hasPersonalLearning = usePacksStore((s) => s.hasCapability(PACK_CAP.PERSONAL_LEARNING));
+  const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
   const [packsErr, setPacksErr] = useState<string | null>(null);
   const [hfHubToken, setHfHubToken] = useState('');
   const [hfHubTokenPersisted, setHfHubTokenPersisted] = useState('');
@@ -151,6 +154,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [bioSettingsSaving, setBioSettingsSaving] = useState(false);
   const [bioSettingsErr, setBioSettingsErr] = useState<string | null>(null);
   const [bioSettingsOk, setBioSettingsOk] = useState<string | null>(null);
+  const [personalLearningEnabled, setPersonalLearningEnabled] = useState(false);
+  const [personalLearningSaving, setPersonalLearningSaving] = useState(false);
+  const [personalLearningsOpen, setPersonalLearningsOpen] = useState(false);
+  const [allLearnings, setAllLearnings] = useState<
+    { id: string; agent_id: string; agent_name?: string; content: string; category: string; confirmed_at?: string }[]
+  >([]);
+  const [allLearningsLoading, setAllLearningsLoading] = useState(false);
+  const [allLearningsErr, setAllLearningsErr] = useState<string | null>(null);
 
   const refreshDomainPacks = async () => {
     setPacksLoading(true);
@@ -686,6 +697,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setConfiguredAgents(
             agentRows.filter((a: { enabled?: boolean }) => a.enabled !== false)
           );
+          setPersonalLearningEnabled(!!cfg.features?.personal_learning_enabled);
         }
       } catch (e) {
         if (!cancelled) {
@@ -697,6 +709,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       cancelled = true;
     };
   }, [isOpen, activeTab, hubHttp]);
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'ai-providers' || !personalLearningEnabled || !hasPersonalLearning) {
+      return;
+    }
+    void refreshAllLearnings();
+  }, [isOpen, activeTab, personalLearningEnabled, hasPersonalLearning, hubHttp]);
 
   // Auto-fetch available models when AI Providers tab is selected
   useEffect(() => {
@@ -748,6 +767,40 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const activeColorTheme: ColorTheme = settings.colorTheme ?? 'slack';
+
+  const handlePersonalLearningToggle = async (enabled: boolean) => {
+    setPersonalLearningSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        features: {
+          ...(typeof cfg.features === 'object' && cfg.features ? cfg.features : {}),
+          personal_learning_enabled: enabled,
+        },
+      }));
+      setPersonalLearningEnabled(enabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPersonalLearningSaving(false);
+    }
+  };
+
+  const refreshAllLearnings = async () => {
+    if (!personalLearningEnabled || !hasPersonalLearning) return;
+    setAllLearningsLoading(true);
+    setAllLearningsErr(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const rows = await api.fetchLearnings();
+      setAllLearnings(rows);
+    } catch (e) {
+      setAllLearningsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAllLearningsLoading(false);
+    }
+  };
 
   const handleDelegationToggle = async (enabled: boolean) => {
     setDelegationSaving(true);
@@ -904,15 +957,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setMcpAgents((prev) => ({ ...prev, [agentKey]: enabled }));
     try {
       await mergeSettingsPut((cfg) => {
+        const mcp = (cfg.mcp ?? {}) as Record<string, unknown>;
         const prevAgents =
-          cfg.mcp && typeof cfg.mcp === 'object' && cfg.mcp.agents && typeof cfg.mcp.agents === 'object'
-            ? (cfg.mcp.agents as Record<string, boolean>)
+          mcp.agents && typeof mcp.agents === 'object'
+            ? (mcp.agents as Record<string, boolean>)
             : {};
         return {
           ...cfg,
           mcp: {
-            ...(cfg.mcp as object | undefined),
-            enabled: cfg.mcp?.enabled !== false,
+            ...mcp,
+            enabled: mcp.enabled !== false,
             agents: { ...prevAgents, [agentKey]: enabled },
           },
         };
@@ -3004,11 +3058,108 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 )}
               </div>
 
-              <div className="border border-slack-border rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-slack-text mb-2">Specialist model overrides</h3>
-                <p className="text-sm text-slack-textMuted mb-4">
-                  Per-agent Ollama tags (including composed LoRA tags like <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">nj-security:14b</code>).
-                  Leave blank to use the provider default. Saves to hub config and applies on next agent restart.
+              {hasPersonalLearning && (
+                <div className="border border-slack-border rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slack-text mb-2">Personal learning</h3>
+                  <p className="text-sm text-slack-textMuted mb-4">
+                    Agents will ask before saving anything — each expert keeps its own learnings.
+                  </p>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={personalLearningEnabled}
+                      disabled={personalLearningSaving}
+                      onChange={(e) => void handlePersonalLearningToggle(e.target.checked)}
+                      className="rounded border-slack-border"
+                    />
+                    <span className="text-slack-text">Enable personal learning for experts</span>
+                  </label>
+
+                  {personalLearningEnabled && (
+                    <details
+                      open={personalLearningsOpen}
+                      onToggle={(e) => setPersonalLearningsOpen(e.currentTarget.open)}
+                      className="mt-4"
+                    >
+                      <summary className="cursor-pointer text-sm font-medium text-slack-text">
+                        Saved learnings ({allLearnings.length})
+                      </summary>
+                      {allLearningsLoading && (
+                        <p className="text-sm text-slack-textMuted mt-2">Loading…</p>
+                      )}
+                      {allLearningsErr && (
+                        <p className="text-sm text-red-600 mt-2">{allLearningsErr}</p>
+                      )}
+                      {!allLearningsLoading && allLearnings.length === 0 && (
+                        <p className="text-sm text-slack-textMuted mt-2">No learnings saved yet.</p>
+                      )}
+                      {allLearnings.length > 0 && (
+                        <ul className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+                          {Object.entries(
+                            allLearnings.reduce<Record<string, typeof allLearnings>>((acc, e) => {
+                              const key = e.agent_name || e.agent_id;
+                              (acc[key] ||= []).push(e);
+                              return acc;
+                            }, {})
+                          ).map(([agentName, rows]) => (
+                            <li key={agentName} className="text-sm">
+                              <p className="font-medium text-slack-text mb-1">{agentName}</p>
+                              <ul className="space-y-1 pl-2 border-l border-slack-border">
+                                {rows.map((e) => (
+                                  <li
+                                    key={e.id}
+                                    className="flex justify-between gap-2 text-slack-textMuted"
+                                  >
+                                    <span>
+                                      [{e.category}] {e.content}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="text-red-500 hover:text-red-400 shrink-0"
+                                      onClick={async () => {
+                                        try {
+                                          const api = new ChatAPI(hubHttp);
+                                          await api.deleteLearning(e.id);
+                                          setAllLearnings((prev) => prev.filter((x) => x.id !== e.id));
+                                        } catch (err) {
+                                          setAllLearningsErr(
+                                            err instanceof Error ? err.message : 'Forget failed'
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      Forget
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {hasLoRATraining && (
+                        <p className="text-xs text-slack-textMuted mt-3">
+                          When an expert has 10+ chat turns, open agent info (ℹ️) → Train LoRA to bake history into weights.
+                        </p>
+                      )}
+                    </details>
+                  )}
+                </div>
+              )}
+
+              <details
+                open={specialistModelsAdvancedOpen}
+                onToggle={(e) => setSpecialistModelsAdvancedOpen(e.currentTarget.open)}
+                className="border border-slack-border rounded-lg p-6"
+              >
+                <summary className="cursor-pointer text-lg font-semibold text-slack-text">
+                  Advanced — specialist model overrides
+                </summary>
+                <p className="text-sm text-slack-textMuted mt-4 mb-4">
+                  Bulk-edit per-agent Ollama tags in hub config (including composed LoRA tags like{' '}
+                  <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">nj-security:14b</code>).
+                  For most cases, use agent info (ℹ️) → provider/model or Model library assign after compose/train.
+                  Leave blank to use the provider default. Saves on button click and restarts agents.
                 </p>
                 {configuredAgents.length === 0 ? (
                   <p className="text-sm text-slack-textMuted">No configured specialists. Enable a domain pack first.</p>
@@ -3033,7 +3184,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               )
                             )
                           }
-                          placeholder={ollamaForm.model || 'qwen2.5-coder:14b'}
+                          placeholder={ollamaForm.defaultModel || 'qwen2.5-coder:14b'}
                           className="flex-1 px-3 py-2 text-sm border border-slack-border rounded bg-slack-bg text-slack-text font-mono"
                         />
                       </li>
@@ -3059,7 +3210,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <p className="text-sm text-green-600">{agentModelsOk}</p>
                   )}
                 </div>
-              </div>
+              </details>
 
               {/* Dynamic Provider Registry */}
               <div className="border border-slack-border rounded-lg p-6">

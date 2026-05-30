@@ -21,6 +21,16 @@
       "publisher": "Neural Junkie",
       "builtin": true,
       "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/life-sciences-1.0.0.zip"
+    },
+    {
+      "id": "specialist-tuning",
+      "version": "1.0.0",
+      "title": "Specialist tuning",
+      "description": "Train LoRA adapters from chat, collabs, and repo experts; compose Hugging Face adapters in Ollama.",
+      "icon_key": "lora",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/specialist-tuning-1.0.0.zip"
     }
   ]
 }

@@ -122,6 +122,7 @@ func main() {
 		appConfig = config.DefaultConfig()
 	}
 	syncMCPFromConfig()
+	initPersonalLearningStore()
 
 	// Resolve bind address (loopback by default; see docs/SECURITY.md)
 	*addr = resolveListenAddr(*addr, appConfig)
@@ -366,6 +367,8 @@ func main() {
 	http.HandleFunc("/api/hf/import-ollama", corsMiddleware(handleHfImportOllama))
 	http.HandleFunc("/api/lora/train", corsMiddleware(handleLoraTrainRoute))
 	http.HandleFunc("/api/lora/train/", corsMiddleware(handleLoraTrainRoute))
+	http.HandleFunc("/api/learnings", corsMiddleware(handleLearningsRoute))
+	http.HandleFunc("/api/learnings/", corsMiddleware(handleLearningsRoute))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -1852,6 +1855,8 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	maybeEmitLearningProposal(msg)
+
 	writeSendMessageOKResponse(w)
 }
 
@@ -2887,6 +2892,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Updates = incoming.Updates
 		appConfig.Collaboration = incoming.Collaboration
 		appConfig.Delegation = incoming.Delegation.Normalized()
+		appConfig.Features = incoming.Features
 		if incoming.Packs.Enabled != nil {
 			appConfig.Packs = incoming.Packs
 		}

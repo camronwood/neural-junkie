@@ -25,7 +25,7 @@ Prompt personas and the [context stack](CONTEXT_MODEL.md) are unchanged — LoRA
 3. **Download** the adapter file.
 4. Ensure the **base model** is pulled (Ollama tab → `qwen2.5-coder:14b`).
 5. **Compose & import** — creates the composed Ollama tag.
-6. If the catalog entry has `agent_type`, the hub assigns that specialist automatically; otherwise use **Settings → AI & providers → Specialist model overrides** or `/switch-provider`.
+6. If the catalog entry has `agent_type`, the hub assigns that specialist automatically; otherwise use agent info (ℹ️) → provider/model, `/switch-provider`, or **Settings → AI & providers → Advanced → specialist model overrides**.
 
 API: `POST /api/hf/import-ollama` with `kind: "adapter"`, `base_ollama_tag`, and optional `ollama_tag`.
 
@@ -43,24 +43,14 @@ API: `POST /api/hf/import-ollama` with `kind: "adapter"`, `base_ollama_tag`, and
 }
 ```
 
-`/switch-provider` and the desktop **Specialist model overrides** panel persist this field. **Switch all providers** clears per-agent overrides.
+`/switch-provider`, agent info, and **Settings → Advanced → specialist model overrides** persist this field. **Switch all providers** clears per-agent overrides.
 
 ## Domain pack presets
 
-Software development pack may declare:
+LoRA bootstrap adapters live in the **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack (not in Software development or Life sciences):
 
 ```yaml
-agents:
-  - type: security
-    name: SecurityReviewer
-    ollama_model: nj-security:14b
-  - type: code-review
-    name: CodeReviewer
-    ollama_model: nj-code-review:14b
-  - type: backend
-    name: BackendEngineer
-    ollama_model: nj-backend:14b
-
+# specialist-tuning/pack.yaml
 lora_adapters:
   - agent_type: security
     repo_id: scthornton/qwen2.5-coder-14b-securecode
@@ -69,20 +59,22 @@ lora_adapters:
   - agent_type: code-review
     repo_id: JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k
     ollama_tag: nj-code-review:14b
-    base_ollama_tag: qwen2.5-coder:14b
   - agent_type: backend
     repo_id: blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora
     ollama_tag: nj-backend:14b
-    base_ollama_tag: qwen2.5-coder:14b
+  - agent_type: biology
+    repo_id: Pk3112/medmcqa-lora-llama3-8b-instruct
+    ollama_tag: nj-biology:8b
+    base_ollama_tag: llama3:8b
 ```
 
-Install pack LoRAs in one call (also runs automatically when a pack is enabled and Ollama is up):
+Install bootstrap LoRAs (requires Specialist tuning pack enabled):
 
 ```bash
-curl -X POST http://localhost:18765/api/packs/software-development/install-loras
+curl -X POST http://localhost:18765/api/packs/specialist-tuning/install-loras
 ```
 
-Pack sync copies `ollama_model` into agent config and adds composed tags to `models_to_ensure` (bases are pulled on startup; composed tags are installed from pack manifests in the background).
+Assign composed tags via agent info, `/switch-provider`, or **Settings → Advanced → specialist model overrides** — domain packs no longer auto-assign `nj-*` models to specialists.
 
 ## Repo agents
 
@@ -102,7 +94,7 @@ With `--adapter-repo`, the hub downloads the adapter, composes `nj-repo-{slug}:1
 - Safetensors adapters only (not GGUF LoRA blobs)
 - Each compose creates a distinct Ollama tag (no hot-swap per request)
 - Tool calling still follows base model capabilities; biology MCP fallback unchanged
-- LoRA training uses the Python stack in `.venv-lora` (`make deps`); no auto-upload to Hugging Face
+- LoRA training uses the Python stack in `.venv-lora` (`make deps-lora`); requires Specialist tuning pack
 
 ## Biology LoRA vs full GGUF
 

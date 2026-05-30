@@ -221,6 +221,9 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		"/task-done":        ch.handleTask,
 		"/note-save":        ch.handleNote,
 		"/note-search":      ch.handleNote,
+		"/learn":            ch.handleLearn,
+		"/learning-list":    ch.handleLearningList,
+		"/learning-forget":  ch.handleLearningForget,
 		"/meeting-add":      ch.handleMeeting,
 		"/ingest-meetings": func(ctx context.Context, msg *protocol.Message, _ []string) (*protocol.Message, error) {
 			return ch.handleIngestMeetings(ctx, msg)
@@ -298,6 +301,11 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Invalid repository path: %v", err)), nil
 	}
 
+	if adapterRepo != "" {
+		if ch.appConfig == nil || !ch.appConfig.AnyPackCapability("lora-compose") {
+			return ch.systemResponse(msg.Channel, "❌ Specialist tuning pack required for --adapter-repo (Settings → Domain packs → Specialist tuning)"), nil
+		}
+	}
 	if adapterRepo != "" && provider == "ollama" {
 		composedTag, composeErr := ch.composeRepoLoRA(ctx, absPath, adapterRepo, model)
 		if composeErr != nil {
@@ -436,6 +444,10 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 				"Future agents for this repository will load instantly from cache!",
 				agentName, filepath.Base(absPath))
 		}
+	}
+
+	if ch.appConfig != nil && ch.appConfig.AnyPackCapability("lora-training") && !isAutoCreated {
+		statusMsg += "\n\n💡 After 10+ Q&A turns, open agent info → **Train LoRA** to bake sessions into a repo adapter."
 	}
 
 	resp := ch.systemResponse(msg.Channel, statusMsg)
@@ -1167,7 +1179,7 @@ func (ch *CommandHandler) handleRemoveAgent(ctx context.Context, msg *protocol.M
 		// Get agent info to check type
 		agent, err := ch.hub.GetAgent(agentID)
 		if err == nil {
-			// Check if this is a user-created agent (repo, helper, confluence)
+			// Check if this is a user-created agent (repo, confluence)
 			if protocol.IsUserCreatedAgent(string(agent.Type)) {
 				// User-created agents don't go to removed list, they stay available in "My Agents"
 				// Just update the status to indicate they're not in any channel
@@ -1443,9 +1455,6 @@ func (ch *CommandHandler) handleImportAgentMCP(ctx context.Context, msg *protoco
 
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Imported repo agent '%s' from %s\n📄 Resources: %d | 💬 Prompts: %d",
 			export.Agent.Name, filePath, export.GetResourceCount(), export.GetPromptCount())), nil
-
-	case "helper":
-		return ch.systemResponse(msg.Channel, "❌ Helper agent imports are no longer supported. Create a repository or Confluence agent instead."), nil
 
 	default:
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Unsupported agent type: %s", export.Agent.Type)), nil
@@ -2138,6 +2147,10 @@ func (ch *CommandHandler) handleAssistantHelp(ctx context.Context, msg *protocol
 		"**Notes:**\n" +
 		"• `/note-save <content>` - Save a note\n" +
 		"• `/note-search <query>` - Search notes\n\n" +
+		"**Personal learning** (Specialist tuning + opt-in):\n" +
+		"• `/learn [draft]` - Save a note for the active expert\n" +
+		"• `/learning-list [@agent]` - List saved learnings\n" +
+		"• `/learning-forget <id-prefix>` - Forget a learning\n\n" +
 		"**Meetings:**\n" +
 		"• `/meeting-add <time> <title>` - Add meeting\n\n" +
 		"**Other:**\n" +
@@ -3865,6 +3878,30 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Category:    "Assistant",
 			Arguments: []protocol.CommandArgument{
 				{Name: "query", Description: "Search query", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/learn",
+			Description: "Open dialog to save a personal learning for the active expert",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "draft", Description: "Optional draft text to prefill", Type: "string", Required: false},
+			},
+		},
+		{
+			Name:        "/learning-list",
+			Description: "List saved personal learnings (optional @agent filter)",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "agent", Description: "Optional agent name", Type: "string", Required: false},
+			},
+		},
+		{
+			Name:        "/learning-forget",
+			Description: "Forget a saved learning by id prefix",
+			Category:    "Assistant",
+			Arguments: []protocol.CommandArgument{
+				{Name: "id-prefix", Description: "Learning id prefix", Type: "string", Required: true},
 			},
 		},
 		{

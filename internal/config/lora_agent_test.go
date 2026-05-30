@@ -38,3 +38,10 @@ func TestSetAgentRuntimeProvider(t *testing.T) {
 		t.Fatalf("expected cleared model, got %q", cfg.Agents[0].Model)
 	}
 }
+
+func TestDefaultConfigPersonalLearningDisabled(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.PersonalLearningEnabled() {
+		t.Fatal("personal learning should default to off")
+	}
+}

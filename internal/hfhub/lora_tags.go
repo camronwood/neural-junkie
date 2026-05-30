@@ -33,6 +33,21 @@ func SpecialistLoRATag(agentType string) string {
 	return "nj-" + t + ":14b"
 }
 
+// AssistantLoRATag returns a composed tag for the personal assistant expert.
+func AssistantLoRATag(username string) string {
+	slug := strings.ToLower(strings.TrimSpace(username))
+	slug = strings.ReplaceAll(slug, "_", "-")
+	slug = slugSanitizer.ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "user"
+	}
+	if len(slug) > 32 {
+		slug = slug[:32]
+	}
+	return "nj-assistant-" + slug + ":14b"
+}
+
 // RepoLoRATag returns a composed Ollama tag for a repository path.
 func RepoLoRATag(repoPath string) string {
 	base := filepath.Base(strings.TrimSpace(repoPath))

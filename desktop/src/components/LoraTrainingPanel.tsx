@@ -3,11 +3,24 @@ import { ChatAPI, type LoraTrainJob, type LoraTrainStartRequest } from '../api/c
 
 type SourceKind = 'channel' | 'collaboration' | 'repo';
 
+export interface LoraTrainPrefill {
+  source?: SourceKind;
+  sourceId?: string;
+  agentName?: string;
+  baseTag?: string;
+  ollamaTag?: string;
+  expertName?: string;
+  agentId?: string;
+  previewRows?: number;
+  ready?: boolean;
+}
+
 interface LoraTrainingPanelProps {
   serverAddr: string;
   defaultChannel?: string;
   switchAgentProvider?: (agentId: string, provider: string, model: string) => Promise<void>;
   runtimeAgents?: { id: string; name: string; type: string }[];
+  prefill?: LoraTrainPrefill;
 }
 
 export function LoraTrainingPanel({
@@ -15,19 +28,30 @@ export function LoraTrainingPanel({
   defaultChannel = '',
   switchAgentProvider,
   runtimeAgents = [],
+  prefill,
 }: LoraTrainingPanelProps) {
-  const [source, setSource] = useState<SourceKind>('channel');
-  const [sourceId, setSourceId] = useState(defaultChannel);
+  const [source, setSource] = useState<SourceKind>(prefill?.source ?? 'channel');
+  const [sourceId, setSourceId] = useState(prefill?.sourceId ?? defaultChannel);
   const [threadId, setThreadId] = useState('');
-  const [agentName, setAgentName] = useState('');
-  const [baseTag, setBaseTag] = useState('qwen2.5-coder:14b');
-  const [ollamaTag, setOllamaTag] = useState('nj-repo-custom:14b');
+  const [agentName, setAgentName] = useState(prefill?.agentName ?? '');
+  const [baseTag, setBaseTag] = useState(prefill?.baseTag ?? 'qwen2.5-coder:14b');
+  const [ollamaTag, setOllamaTag] = useState(prefill?.ollamaTag ?? 'nj-repo-custom:14b');
   const [rank, setRank] = useState(16);
   const [epochs, setEpochs] = useState(1);
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [previewCount, setPreviewCount] = useState<number | null>(prefill?.previewRows ?? null);
   const [job, setJob] = useState<LoraTrainJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!prefill) return;
+    if (prefill.source) setSource(prefill.source);
+    if (prefill.sourceId) setSourceId(prefill.sourceId);
+    if (prefill.agentName) setAgentName(prefill.agentName);
+    if (prefill.baseTag) setBaseTag(prefill.baseTag);
+    if (prefill.ollamaTag) setOllamaTag(prefill.ollamaTag);
+    if (prefill.previewRows != null) setPreviewCount(prefill.previewRows);
+  }, [prefill]);
 
   useEffect(() => {
     if (defaultChannel && !sourceId) {
@@ -100,11 +124,24 @@ export function LoraTrainingPanel({
     await switchAgentProvider(agentId, 'ollama-local', ollamaTag.trim());
   };
 
+  const minRows = 10;
+  const canStart = sourceId.trim() !== '' && (previewCount == null || previewCount >= minRows);
+
+  const assignAgents =
+    prefill?.agentId && runtimeAgents.some((a) => a.id === prefill.agentId)
+      ? runtimeAgents.filter((a) => a.id === prefill.agentId)
+      : runtimeAgents.slice(0, 6);
+
   return (
     <div className="space-y-4 text-sm text-gray-300">
+      {prefill?.expertName && (
+        <p className="text-sm text-white">
+          Training LoRA for <strong>{prefill.expertName}</strong>
+        </p>
+      )}
       <p className="text-xs text-gray-400">
-        Export chat or collaboration data, fine-tune with Unsloth, then compose into Ollama. Python deps install with{' '}
-        <span className="font-mono text-gray-500">make deps</span> (.venv-lora). See{' '}
+        Export chat or collaboration data, fine-tune with Unsloth, then compose into Ollama. Python deps:{' '}
+        <span className="font-mono text-gray-500">make deps-lora</span> (Specialist tuning pack). See{' '}
         <span className="font-mono text-gray-500">docs/LORA_TRAINING.md</span>.
       </p>
 
@@ -192,15 +229,15 @@ export function LoraTrainingPanel({
       </div>
 
       {previewCount != null && (
-        <p className="text-xs text-gray-500">
-          Preview: {previewCount} training rows (minimum 10 required)
+        <p className={`text-xs ${previewCount >= minRows ? 'text-gray-500' : 'text-amber-400'}`}>
+          Preview: {previewCount} training rows (minimum {minRows} required)
         </p>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       <button
         type="button"
-        disabled={busy || !sourceId.trim()}
+        disabled={busy || !canStart}
         onClick={() => void start()}
         className="px-4 py-2 rounded-lg bg-purple-700 text-white text-xs font-medium hover:bg-purple-600 disabled:opacity-40"
       >
@@ -219,9 +256,9 @@ export function LoraTrainingPanel({
               {job.log_tail.slice(-12).join('\n')}
             </pre>
           )}
-          {job.status === 'done' && switchAgentProvider && runtimeAgents.length > 0 && (
+          {job.status === 'done' && switchAgentProvider && assignAgents.length > 0 && (
             <div className="flex flex-wrap gap-2 pt-1">
-              {runtimeAgents.slice(0, 6).map((a) => (
+              {assignAgents.map((a) => (
                 <button
                   key={a.id}
                   type="button"

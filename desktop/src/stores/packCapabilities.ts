@@ -7,6 +7,10 @@ export const PACK_CAP = {
   SCAN_SUMMARY_API: 'scan-summary-api',
   SCAN_SUMMARY_VIEWER: 'scan-summary-viewer',
   SCAN_ANALYSIS_VIEWER: 'scan-analysis-viewer',
+  LORA_TRAINING: 'lora-training',
+  LORA_COMPOSE: 'lora-compose',
+  LORA_ADAPTERS: 'lora-adapters',
+  PERSONAL_LEARNING: 'personal-learning',
 } as const;
 
 export type PackCapability = (typeof PACK_CAP)[keyof typeof PACK_CAP];

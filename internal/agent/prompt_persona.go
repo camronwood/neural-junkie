@@ -77,7 +77,7 @@ func (a *Agent) shouldIncludeToolingInPrompt(msg *protocol.Message, intent TurnI
 
 func (a *Agent) writePersonaOpening(system *strings.Builder, msg *protocol.Message, tier PromptPersonaTier) {
 	specialty := string(a.Info.Type)
-	if a.Info.Type == protocol.AgentTypeHelper && len(a.Info.Expertise) > 0 {
+	if a.Info.Type == protocol.AgentTypeExpert && len(a.Info.Expertise) > 0 {
 		specialty = a.Info.Expertise[0]
 	}
 	switch tier {

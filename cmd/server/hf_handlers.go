@@ -329,6 +329,9 @@ func handleHfImportOllama(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
 	defer cancel()
 	if kind == "adapter" {
+		if !requireLoRACapability(w, capLoRACompose) {
+			return
+		}
 		baseTag := strings.TrimSpace(req.BaseOllamaTag)
 		if baseTag == "" && entry != nil {
 			baseTag = entry.BaseOllamaTag

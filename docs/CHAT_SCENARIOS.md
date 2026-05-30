@@ -82,3 +82,4 @@ Public scenarios call `ensure_channel_with_agents`: the runner creates `chat-sce
 
 - [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack (what Layer A asserts)
 - [COLLABORATION.md](COLLABORATION.md) — collab scenario harness (`scenarios/collab/`)
+- [LEARNING_LORA_TEST_HARNESS.md](LEARNING_LORA_TEST_HARNESS.md) — personal learning + LoRA scenarios (`scenarios/learning/`)

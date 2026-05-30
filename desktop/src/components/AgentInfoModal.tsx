@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import type { AgentInfo, AgentToolCapabilities } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
-import { ChatAPI } from '../api/chatAPI';
+import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
+import { ChatAPI, type UserLearning } from '../api/chatAPI';
+import { LearningProposalModal } from './LearningProposalModal';
 
 const TOOL_EXAMPLE_PROMPTS: Record<string, string> = {
   analyze_sequence: 'Analyze this peptide: MKTAYIAKQRQISFVK',
@@ -24,6 +27,7 @@ interface AgentInfoModalProps {
   onApprovalModeChange?: (agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo') => void;
   /** Called after agent custom rules are saved successfully (refresh agent list). */
   onAfterRulesSaved?: () => void;
+  onTrainLoRA?: (agentId: string) => void;
   switchingProvider?: string | null;
   availableOllamaModels?: string[];
   availableLMStudioModels?: string[];
@@ -40,11 +44,14 @@ export function AgentInfoModal({
   deletingAgent = false,
   onApprovalModeChange,
   onAfterRulesSaved,
+  onTrainLoRA,
   switchingProvider,
   availableOllamaModels = [],
   availableLMStudioModels = []
 }: AgentInfoModalProps) {
   const serverAddr = useChatStore(s => s.serverAddr);
+  const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
+  const hasPersonalLearning = usePacksStore((s) => s.hasCapability(PACK_CAP.PERSONAL_LEARNING));
   const [rulesDraft, setRulesDraft] = useState('');
   const [savingRules, setSavingRules] = useState(false);
   const [rulesError, setRulesError] = useState<string | null>(null);
@@ -53,6 +60,17 @@ export function AgentInfoModal({
   const [toolsError, setToolsError] = useState<string | null>(null);
   const [fetchedOllamaModels, setFetchedOllamaModels] = useState<string[]>([]);
   const [fetchedLMStudioModels, setFetchedLMStudioModels] = useState<string[]>([]);
+  const [learnings, setLearnings] = useState<UserLearning[]>([]);
+  const [learningsLoading, setLearningsLoading] = useState(false);
+  const [learningsError, setLearningsError] = useState<string | null>(null);
+  const [addLearningOpen, setAddLearningOpen] = useState(false);
+
+  const isExpertAgent =
+    !!agent &&
+    agent.type !== 'loading' &&
+    agent.type !== 'cli' &&
+    agent.type !== 'moderator' &&
+    agent.type !== 'human';
 
   useEffect(() => {
     if (agent && agent.type !== 'loading') {
@@ -93,6 +111,34 @@ export function AgentInfoModal({
       cancelled = true;
     };
   }, [isOpen, agent?.id, agent?.type, isCLIAgent, serverAddr]);
+
+  useEffect(() => {
+    if (!isOpen || !agent || !hasPersonalLearning || !isExpertAgent) {
+      setLearnings([]);
+      return;
+    }
+    let cancelled = false;
+    setLearningsLoading(true);
+    setLearningsError(null);
+    const api = new ChatAPI(serverAddr);
+    void api
+      .fetchLearnings(agent.id)
+      .then((rows) => {
+        if (!cancelled) setLearnings(rows);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setLearnings([]);
+          setLearningsError(e instanceof Error ? e.message : 'Failed to load learnings');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLearningsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, agent?.id, hasPersonalLearning, isExpertAgent, serverAddr]);
 
   useEffect(() => {
     if (!isOpen || !agent || agent.type === 'loading' || isCLIAgent) {
@@ -324,16 +370,16 @@ export function AgentInfoModal({
                 <h3 className="text-sm font-medium text-slack-textMuted mb-2">AI Configuration</h3>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className={`text-sm font-medium ${getProviderColor(agent.ai_provider)}`}>
-                      {getProviderIcon(agent.ai_provider)} {agent.ai_provider || 'unknown'}
+                    <span className={`text-sm font-medium ${getProviderColor(effectiveProvider)}`}>
+                      {getProviderIcon(effectiveProvider)} {effectiveProvider}
                     </span>
                     <span className="text-sm text-slack-textMuted">•</span>
-                    <span className="text-sm text-slack-text">{agent.ai_model || 'unknown'}</span>
+                    <span className="text-sm text-slack-text">{effectiveModel || 'unknown'}</span>
                   </div>
                   {onProviderSwitch && (
                     <div className="relative">
                       <select
-                        value={`${agent.ai_provider || 'claude'}::${agent.ai_model || 'claude-sonnet'}`}
+                        value={selectValue}
                         onChange={(e) => {
                           const [provider, ...modelParts] = e.target.value.split('::');
                           const model = modelParts.join('::');
@@ -343,13 +389,24 @@ export function AgentInfoModal({
                         className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
                         title="Switch AI provider"
                       >
+                        {selectValue &&
+                          !selectValue.startsWith('claude::') &&
+                          !ollamaOptions.some((m) => selectValue === `ollama::${m}`) &&
+                          !lmStudioOptions.some((m) => selectValue === `lmstudio::${m}`) && (
+                            <optgroup label="Current">
+                              <option value={selectValue}>
+                                {effectiveProvider === 'ollama' ? '🤖' : effectiveProvider === 'lmstudio' ? '🎨' : '🧠'}{' '}
+                                {effectiveModel} (current)
+                              </option>
+                            </optgroup>
+                          )}
                         <optgroup label="Claude">
                           <option value="claude::claude-sonnet">🧠 Claude Sonnet</option>
                           <option value="claude::claude-haiku">🧠 Claude Haiku</option>
                         </optgroup>
                         <optgroup label="Ollama">
-                          {availableOllamaModels.length > 0 ? (
-                            availableOllamaModels.map((m) => (
+                          {ollamaOptions.length > 0 ? (
+                            ollamaOptions.map((m) => (
                               <option key={m} value={`ollama::${m}`}>
                                 🤖 {m}
                               </option>
@@ -361,8 +418,8 @@ export function AgentInfoModal({
                           )}
                         </optgroup>
                         <optgroup label="LM Studio">
-                          {availableLMStudioModels.length > 0 ? (
-                            availableLMStudioModels.map((m) => (
+                          {lmStudioOptions.length > 0 ? (
+                            lmStudioOptions.map((m) => (
                               <option key={m} value={`lmstudio::${m}`}>
                                 🎨 {m}
                               </option>
@@ -566,6 +623,61 @@ export function AgentInfoModal({
               </div>
             )}
 
+            {hasPersonalLearning && isExpertAgent && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-slack-textMuted">
+                    Learnings ({learnings.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setAddLearningOpen(true)}
+                    className="text-xs px-2 py-1 rounded border border-slack-border text-slack-text hover:bg-slack-bgHover"
+                  >
+                    Add learning
+                  </button>
+                </div>
+                {learningsLoading && (
+                  <p className="text-xs text-slack-textMuted">Loading…</p>
+                )}
+                {learningsError && (
+                  <p className="text-xs text-red-400">{learningsError}</p>
+                )}
+                {!learningsLoading && learnings.length === 0 && (
+                  <p className="text-xs text-slack-textMuted">No saved learnings for this expert yet.</p>
+                )}
+                {learnings.length > 0 && (
+                  <ul className="space-y-2 max-h-40 overflow-y-auto">
+                    {learnings.slice(0, 8).map((e) => (
+                      <li
+                        key={e.id}
+                        className="text-xs p-2 rounded bg-slack-bgHover border border-slack-border flex justify-between gap-2"
+                      >
+                        <span>
+                          <span className="text-slack-textMuted">[{e.category}]</span> {e.content}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-red-400 hover:text-red-300 shrink-0"
+                          onClick={async () => {
+                            try {
+                              const api = new ChatAPI(serverAddr);
+                              await api.deleteLearning(e.id);
+                              setLearnings((prev) => prev.filter((x) => x.id !== e.id));
+                            } catch (err) {
+                              setLearningsError(err instanceof Error ? err.message : 'Forget failed');
+                            }
+                          }}
+                        >
+                          Forget
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
 
@@ -573,8 +685,21 @@ export function AgentInfoModal({
         <div className="shrink-0 p-6 border-t border-slack-border bg-slack-bgHover">
           <div className="flex justify-between items-center gap-3">
             <div className="flex gap-2">
-              {/* Export Button - only for repo and helper agents */}
-              {(agent.type === 'repo' || agent.type === 'helper') && onExport && (
+              {hasLoRATraining && onTrainLoRA && isExpertAgent && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onTrainLoRA(agent.id);
+                    onClose();
+                  }}
+                  className="px-4 py-2 text-sm text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 rounded transition-colors border border-purple-500/30"
+                  title={`Train a LoRA adapter from ${agent.name} sessions`}
+                >
+                  🎯 Train LoRA
+                </button>
+              )}
+              {/* Export Button - repo agents only */}
+              {agent.type === 'repo' && onExport && (
                 <button
                   onClick={() => {
                     onExport(agent.name);
@@ -626,6 +751,31 @@ export function AgentInfoModal({
           </div>
         </div>
       </div>
+
+      {hasPersonalLearning && agent && (
+        <LearningProposalModal
+          isOpen={addLearningOpen}
+          proposal={
+            addLearningOpen
+              ? {
+                  type: 'learning_proposal',
+                  agent_id: agent.id,
+                  agent_name: agent.name,
+                  agent_type: agent.type,
+                  draft: '',
+                  category: 'preference',
+                }
+              : null
+          }
+          serverAddr={serverAddr}
+          onClose={() => setAddLearningOpen(false)}
+          onSaved={async () => {
+            const api = new ChatAPI(serverAddr);
+            const rows = await api.fetchLearnings(agent.id);
+            setLearnings(rows);
+          }}
+        />
+      )}
     </div>
   );
 }

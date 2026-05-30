@@ -1,0 +1,38 @@
+id: specialist-tuning
+version: "1.0.0"
+title: Specialist tuning
+description: Train LoRA adapters from chat, collabs, and repo experts; compose Hugging Face adapters in Ollama.
+layout_profile: team
+capabilities:
+  - personal-learning
+  - lora-training
+  - lora-compose
+  - lora-adapters
+models_to_ensure:
+  - qwen2.5-coder:14b
+  - llama3:8b
+  - nj-security:14b
+  - nj-code-review:14b
+  - nj-backend:14b
+  - nj-biology:8b
+lora_adapters:
+  - agent_type: security
+    repo_id: scthornton/qwen2.5-coder-14b-securecode
+    filename: adapter_model.safetensors
+    ollama_tag: nj-security:14b
+    base_ollama_tag: qwen2.5-coder:14b
+  - agent_type: code-review
+    repo_id: JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k
+    filename: adapter_model.safetensors
+    ollama_tag: nj-code-review:14b
+    base_ollama_tag: qwen2.5-coder:14b
+  - agent_type: backend
+    repo_id: blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora
+    filename: adapter_model.safetensors
+    ollama_tag: nj-backend:14b
+    base_ollama_tag: qwen2.5-coder:14b
+  - agent_type: biology
+    repo_id: Pk3112/medmcqa-lora-llama3-8b-instruct
+    filename: adapter_model.safetensors
+    ollama_tag: nj-biology:8b
+    base_ollama_tag: llama3:8b

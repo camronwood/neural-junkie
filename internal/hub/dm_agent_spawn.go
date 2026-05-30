@@ -224,7 +224,7 @@ func buildCustomPersonaMarkdown(label, extraPersona string) string {
 }
 
 // ResolveExpert maps a slug to a preset specialist or a custom domain expert.
-// Any slug not in the preset list becomes AgentTypeHelper with persona rules.
+// Any slug not in the preset list becomes AgentTypeExpert with persona rules.
 func ResolveExpert(expertSlug, persona string) (ExpertResolveResult, error) {
 	slug := normalizeExpertSlug(expertSlug)
 	if slug == "" {
@@ -239,7 +239,7 @@ func ResolveExpert(expertSlug, persona string) (ExpertResolveResult, error) {
 	}
 	label := humanizeExpertSlug(slug)
 	return ExpertResolveResult{
-		AgentType:       protocol.AgentTypeHelper,
+		AgentType:       protocol.AgentTypeExpert,
 		IsPreset:        false,
 		Label:           label,
 		Expertise:       []string{label},
@@ -248,7 +248,7 @@ func ResolveExpert(expertSlug, persona string) (ExpertResolveResult, error) {
 }
 
 // ExpertSlugToAgentType maps preset /create-expert slugs to protocol types.
-// Unknown slugs resolve to AgentTypeHelper (custom experts).
+// Unknown slugs resolve to AgentTypeExpert (custom experts).
 func ExpertSlugToAgentType(expertType string) (protocol.AgentType, error) {
 	spec, err := ResolveExpert(expertType, "")
 	if err != nil {

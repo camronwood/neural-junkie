@@ -326,7 +326,7 @@ func TestAgentTypes(t *testing.T) {
 		protocol.AgentTypeSecurity,
 		protocol.AgentTypeDevOps,
 		protocol.AgentTypeRepo,
-		protocol.AgentTypeHelper,
+		protocol.AgentTypeExpert,
 	}
 
 	for _, agentType := range types {

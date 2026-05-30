@@ -73,6 +73,9 @@ import { RunbookBuilderPanel } from './RunbookBuilderPanel';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
 import { ModelLibraryModal } from './ModelLibraryModal';
+import { LearningProposalModal } from './LearningProposalModal';
+import type { LearningProposalAction } from '../api/chatAPI';
+import type { LoraTrainPrefill } from './LoraTrainingPanel';
 import {
   PendingChangesIcon,
   MyAgentsIcon,
@@ -348,6 +351,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [commandPaletteFilter, setCommandPaletteFilter] = useState('');
   const [commandDefs, setCommandDefs] = useState<CommandDefinition[]>([]);
   const [modelLibraryOpen, setModelLibraryOpen] = useState(false);
+  const [modelLibraryInitialTab, setModelLibraryInitialTab] = useState<'ollama' | 'huggingface' | 'train' | undefined>();
+  const [loraTrainPrefill, setLoraTrainPrefill] = useState<LoraTrainPrefill | null>(null);
+  const [learningProposal, setLearningProposal] = useState<LearningProposalAction | null>(null);
+  const [learningProposalOpen, setLearningProposalOpen] = useState(false);
 
   // State for active collaboration panel
   const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
@@ -447,6 +454,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
   const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
+  const handledLearningProposalsRef = useRef<Set<string>>(new Set());
   const handledParticipantRequestPromptsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -1238,6 +1246,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             }
           });
         }
+
+        if (
+          clientAction &&
+          typeof clientAction === 'object' &&
+          clientAction.type === 'learning_proposal' &&
+          !handledLearningProposalsRef.current.has(message.id)
+        ) {
+          handledLearningProposalsRef.current.add(message.id);
+          setLearningProposal(clientAction as LearningProposalAction);
+          setLearningProposalOpen(true);
+        }
       }
       
       // Clear thinking indicator when agent sends actual message
@@ -1475,6 +1494,34 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       explorerWorkspaces,
       activeWorkspaceId,
     ]
+  );
+
+  const handleTrainLoRAForAgent = useCallback(
+    async (agentId: string) => {
+      try {
+        const ctx = await api.fetchLoraExpertContext(agentId);
+        setLoraTrainPrefill({
+          source: ctx.source,
+          sourceId: ctx.source_id,
+          agentName: ctx.agent_name,
+          baseTag: ctx.suggested_base_ollama_tag,
+          ollamaTag: ctx.suggested_ollama_tag,
+          expertName: ctx.agent_name,
+          agentId: ctx.agent_id,
+          previewRows: ctx.preview_rows,
+          ready: ctx.ready,
+        });
+        setModelLibraryInitialTab('train');
+        setModelLibraryOpen(true);
+      } catch (e) {
+        addToast({
+          type: 'error',
+          title: 'Train LoRA',
+          message: e instanceof Error ? e.message : 'Failed to load expert training context',
+        });
+      }
+    },
+    [api, addToast],
   );
 
   const handleSendMessage = async (content: string, metadata?: Record<string, unknown>) => {
@@ -2402,6 +2449,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {myAgentsPanelOpen && (
           <MyAgentsPanel
             onClose={() => setMyAgentsPanelOpen(false)}
+            onTrainLoRA={handleTrainLoRAForAgent}
           />
         )}
 
@@ -2515,12 +2563,47 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
       <ModelLibraryModal
         isOpen={modelLibraryOpen}
-        onClose={() => setModelLibraryOpen(false)}
+        onClose={() => {
+          setModelLibraryOpen(false);
+          setModelLibraryInitialTab(undefined);
+          setLoraTrainPrefill(null);
+        }}
         serverAddr={hubHttp}
         switchAllAgentProviders={switchAllAgentProviders}
         switchAgentProvider={switchAgentProvider}
         runtimeAgents={agents.map((a) => ({ id: a.id, name: a.name, type: a.type }))}
         defaultChannel={channel}
+        initialTab={modelLibraryInitialTab}
+        loraTrainPrefill={loraTrainPrefill}
+      />
+
+      <LearningProposalModal
+        isOpen={learningProposalOpen}
+        proposal={learningProposal}
+        serverAddr={hubHttp}
+        onClose={() => {
+          setLearningProposalOpen(false);
+          setLearningProposal(null);
+        }}
+        onSaved={async (agentId) => {
+          addToast({
+            type: 'success',
+            title: 'Learning saved',
+            message: `Saved for ${learningProposal?.agent_name ?? 'expert'}.`,
+          });
+          try {
+            const stats = await api.fetchLearningStats(agentId);
+            if (stats.ready_for_lora) {
+              addToast({
+                type: 'info',
+                title: 'Train LoRA',
+                message: `10+ turns with ${learningProposal?.agent_name ?? 'this expert'} — open agent info to train LoRA.`,
+              });
+            }
+          } catch {
+            /* stats optional */
+          }
+        }}
       />
 
       {hubAccessPending && (

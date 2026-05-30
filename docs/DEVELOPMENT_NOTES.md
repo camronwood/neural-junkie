@@ -121,7 +121,7 @@ make test          # Alias for test-go
 go test ./test/... # Run integration test package only
 ```
 
-Key test files: `hub_test.go`, `commands_test.go`, `assistant_test.go`, `moderator_test.go`, `repo_agent_test.go`, `helper_agent_test.go`, `deduplication_test.go`, `integration_test.go`, `agent_review_test.go`
+Key test files: `hub_test.go`, `commands_test.go`, `assistant_test.go`, `moderator_test.go`, `repo_agent_test.go`, `deduplication_test.go`, `integration_test.go`, `agent_review_test.go`
 
 Chat conversation quality: CI router table in `internal/agent/chat_quality_router_test.go`; live JSON scenarios — [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) (`make chat-scenario SCENARIO=…`).
 

@@ -240,7 +240,7 @@ func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvi
 	if len(expertise) == 0 {
 		expertise = []string{"General"}
 	}
-	return NewAgent(protocol.AgentTypeHelper, name, expertise, aiProvider, hub)
+	return NewAgent(protocol.AgentTypeExpert, name, expertise, aiProvider, hub)
 }
 
 // NewRepoAgentWrapper creates a repository expert agent wrapper

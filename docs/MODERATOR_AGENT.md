@@ -30,7 +30,7 @@ The moderator has built-in knowledge about:
 - Thread functionality
 - Channel management
 - Repository agents
-- Helper agents
+- Custom domain experts (`/create-expert`)
 
 ## Architecture
 
@@ -87,7 +87,7 @@ Responds to questions containing keywords like:
 - "thread", "channel"
 - "agent", "help"
 - "create repo", "repo agent"
-- "helper agent"
+- "create expert", "custom expert"
 
 ### 3. No Agent Response (20-second timeout)
 ```
@@ -120,8 +120,7 @@ The moderator can help with:
 - `/help` - Show help information
 - `/list-agents` - List all active agents
 - `/create-repo-agent <path> [name]` - Create repository expert
-- `/create-helper <template> [name]` - Create helper agent
-- `/list-helper-templates` - List helper templates
+- `/create-expert <type> [name]` - Create a specialist or custom domain expert
 - `/delete-agent <name>` - Delete an agent
 - `/pause-agent <name>` - Pause an agent
 - `/unpause-agent <name>` - Unpause an agent
@@ -136,7 +135,7 @@ The moderator can help with:
 - `@database` - PostgreSQL, schema design, queries
 - `@security` - Authentication, encryption, best practices
 - `@repo` - Repository-specific code experts
-- `@helper` - Custom expert agents
+- Custom experts - `/create-expert <slug>` for any domain
 
 ### System Features
 - Mention system (@name or @type)
@@ -147,10 +146,9 @@ The moderator can help with:
 
 ### Example 1: Command Help
 ```
-User: "How do I create a helper agent?"
-Moderator: "You can create a helper agent using the /create-helper command. 
-           Available templates: day-one, testing-expert, docs-expert. 
-           Example: /create-helper day-one MyDayOneExpert"
+User: "How do I create a custom expert?"
+Moderator: "Use /create-expert with a preset slug (backend, frontend, architecture) or any custom domain slug.
+           Example: /create-expert guitar GuitarCoach"
 ```
 
 ### Example 2: Agent Type Guidance

@@ -84,6 +84,19 @@ debug-messages: ## Last messages for CHANNEL (session file; add LIVE=1 for hub)
 collab-smoke: ## Collab lifecycle smoke (API phases); LIVE=1 for running hub
 	@python3 scripts/collab-smoke.py $(if $(LIVE),--live,)
 
+learning-lora-smoke: ## Personal learning + LoRA expert-context smoke (CI, no GPU)
+	@go test ./cmd/server/ -run TestLearningLoRASmoke -count=1
+	@go test ./internal/learning/... -count=1
+
+learning-scenario: ## Run one live learning scenario (SCENARIO=learning-save-and-list)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make learning-scenario SCENARIO=learning-save-and-list [VERBOSE=1]"; exit 1; fi
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/learning-scenarios.py --scenario "$(SCENARIO)" \
+		$(if $(VERBOSE),--verbose,)
+
+learning-scenarios: ## Run all live learning scenarios under scenarios/learning/
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/learning-scenarios.py --all \
+		$(if $(VERBOSE),--verbose,)
+
 collab-scenario: ## Run one live collab scenario (SCENARIO=planning-two-agent, PROFILE=fast|realistic, KEEP=1)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make collab-scenario SCENARIO=planning-two-agent [PROFILE=fast] [KEEP=1] [VERBOSE=1]"; exit 1; fi
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario "$(SCENARIO)" \
@@ -124,7 +137,7 @@ ensure-sidecar: ## Build sidecar binary if missing (needed for Tauri dev)
 		$(MAKE) build-sidecar; \
 	fi
 
-gui-install: deps-lora ## Install GUI dependencies (first time only)
+gui-install: ## Install GUI dependencies (first time only)
 	@echo "📦 Installing desktop app dependencies..."
 	@cd desktop && npm install
 	@echo "✅ Desktop dependencies installed!"
@@ -266,7 +279,7 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo "🖥️  To open GUI, run: make gui"
 	@echo ""
 
-start-all: setup-env deps-lora ## Start server and all agents with environment loaded
+start-all: setup-env ## Start server and all agents with environment loaded
 	@bash -c 'cd "$(CURDIR)"; \
 		source ./load-env.sh; \
 		PORT="$${SERVER_PORT:-18765}"; \
@@ -301,7 +314,7 @@ clean: ## Clean build artifacts
 
 test: test-go ## Run Go unit tests (alias for test-go)
 
-deps: deps-lora ## Download dependencies
+deps: ## Download dependencies (LoRA stack: make deps-lora when Specialist tuning pack is enabled)
 	@echo "📦 Downloading dependencies..."
 	@go mod download
 	@echo "✅ Dependencies downloaded!"
