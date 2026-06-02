@@ -32,41 +32,62 @@ var binaryExtensions = map[string]bool{
 }
 
 // filePathPattern matches common file paths in text:
-//   - path/to/file.ext (relative with at least one directory separator)
+//   - path/to/file.ext (relative with directories)
+//   - tailwind.config.js (root-level filenames)
 //   - ./path/to/file.ext (dot-relative)
 //   - /absolute/path/file.ext (absolute)
 //
 // Requires a file extension to reduce false positives.
-var filePathPattern = regexp.MustCompile(`(?:^|\s|["'\x60(])([./]?(?:[a-zA-Z0-9_\-]+/)+[a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)`)
+var filePathPattern = regexp.MustCompile(`(?:^|\s|["'\x60(])([./]?(?:(?:[a-zA-Z0-9_\-]+/)*[a-zA-Z0-9_\-]+)\.[a-zA-Z0-9]{1,16})`)
 
-// DetectFilePaths extracts file paths from a message string.
-// It returns deduplicated paths that look like real files (have extensions, directory separators).
-func DetectFilePaths(content string) []string {
-	matches := filePathPattern.FindAllStringSubmatch(content, -1)
+// bareFilenamePattern matches standalone config/source filenames (e.g. tailwind.config.js).
+var bareFilenamePattern = regexp.MustCompile(`\b([a-zA-Z0-9][a-zA-Z0-9._\-]*\.(?:js|ts|tsx|jsx|mjs|cjs|css|scss|less|html|json|yaml|yml|vue|svelte|go|rs|py|md|toml))\b`)
+
+func appendDetectedPath(paths []string, seen map[string]bool, p string) []string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return paths
+	}
+	if strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+		return paths
+	}
+	ext := strings.ToLower(filepath.Ext(p))
+	if binaryExtensions[ext] {
+		return paths
+	}
+	if seen[p] {
+		return paths
+	}
+	seen[p] = true
+	return append(paths, p)
+}
+
+// DetectBareFilenames finds root-level or bare filenames in user text (tailwind.config.js, package.json).
+func DetectBareFilenames(content string) []string {
 	seen := make(map[string]bool)
 	var paths []string
-
-	for _, match := range matches {
+	for _, match := range bareFilenamePattern.FindAllStringSubmatch(content, -1) {
 		if len(match) < 2 {
 			continue
 		}
-		p := match[1]
+		paths = appendDetectedPath(paths, seen, match[1])
+	}
+	return paths
+}
 
-		// Skip URLs
-		if strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+// DetectFilePaths extracts file paths from a message string (with or without directory prefixes).
+func DetectFilePaths(content string) []string {
+	seen := make(map[string]bool)
+	var paths []string
+
+	for _, match := range filePathPattern.FindAllStringSubmatch(content, -1) {
+		if len(match) < 2 {
 			continue
 		}
-
-		// Skip binary files
-		ext := strings.ToLower(filepath.Ext(p))
-		if binaryExtensions[ext] {
-			continue
-		}
-
-		if !seen[p] {
-			seen[p] = true
-			paths = append(paths, p)
-		}
+		paths = appendDetectedPath(paths, seen, match[1])
+	}
+	for _, p := range DetectBareFilenames(content) {
+		paths = appendDetectedPath(paths, seen, p)
 	}
 
 	return paths
@@ -345,8 +366,8 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 		prompt.WriteString("Answer general questions directly without inventing repo-specific details.\n\n")
 	case ContextScopeOutline:
 		prompt.WriteString("The user shared a high-level view of their project (name, path, file tree). ")
-		prompt.WriteString("Use the tree for structure questions only; do not invent file contents. ")
-		prompt.WriteString("For general or planning questions, answer directly first.\n\n")
+		prompt.WriteString("Use the tree for structure questions; do not invent file contents not shown below. ")
+		prompt.WriteString("When REFERENCED FILES or WORKSPACE SOURCE FILES sections appear below, those are real disk content — use them.\n\n")
 	case ContextScopeFocus:
 		prompt.WriteString("The user shared limited code context (referenced paths and/or active file). ")
 		prompt.WriteString("Stay within the files shown; do not assume other parts of the repo. ")

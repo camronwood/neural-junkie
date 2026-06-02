@@ -1,7 +1,7 @@
 {
   "name": "dm-security-review",
   "description": "SecurityReviewer DM path-based review is a code task.",
-  "tags": ["dm", "security", "task"],
+  "tags": ["dm", "security", "task", "debug"],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "SecurityReviewer",

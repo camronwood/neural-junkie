@@ -3,9 +3,13 @@ import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, Cach
 import {
   channelTimelineAllowsEmptyContent,
   getReasoningText,
+  getToolSteps,
   isReasoningStreamDelta,
+  isToolStepStreamDelta,
   REASONING_APPEND_METADATA_KEY,
   REASONING_TEXT_METADATA_KEY,
+  TOOL_STEPS_METADATA_KEY,
+  type ToolStepMeta,
 } from '../types/protocol';
 import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
@@ -70,6 +74,7 @@ export interface ChatState {
   setUsername: (username: string) => void;
   addMessage: (message: Message) => void;
   setMessages: (messages: Message[]) => void;
+  prependMessages: (messages: Message[]) => void;
   setAgents: (agents: AgentInfo[]) => void;
   setIsTyping: (isTyping: boolean) => void;
   setErrorMessage: (message: string | null) => void;
@@ -256,6 +261,18 @@ export const useChatStore = create<ChatState>((set, get) => {
         ),
         MAX_UI_CHANNEL_MESSAGES
       ),
+    }),
+
+  prependMessages: (older) =>
+    set((state) => {
+      const ids = new Set(state.messages.map((m) => m.id));
+      const merged = [...older.filter((m) => !ids.has(m.id)), ...state.messages];
+      return {
+        messages: trimMessagesToMax(
+          merged.filter((m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)),
+          MAX_UI_CHANNEL_MESSAGES
+        ),
+      };
     }),
   
   setAgents: (agents) => set({ agents }),
@@ -517,12 +534,30 @@ export const useChatStore = create<ChatState>((set, get) => {
     const id = msg.id;
     const meta = msg.metadata ?? {};
     const isReasoning = isReasoningStreamDelta(meta);
+    const isToolStep = isToolStepStreamDelta(meta);
     const reasoningChunk =
       typeof meta[REASONING_APPEND_METADATA_KEY] === 'string'
         ? (meta[REASONING_APPEND_METADATA_KEY] as string)
         : '';
 
     const mergeDelta = (base: Message): Message => {
+      if (isToolStep) {
+        const prev = getToolSteps(base.metadata as Record<string, unknown> | undefined);
+        const step: ToolStepMeta = {
+          kind: String(meta.tool_step ?? ''),
+          name: String(meta.tool_name ?? ''),
+          iteration: typeof meta.tool_iteration === 'number' ? meta.tool_iteration : undefined,
+          preview: typeof meta.tool_preview === 'string' ? meta.tool_preview : undefined,
+        };
+        return {
+          ...base,
+          type: 'chat' as Message['type'],
+          metadata: {
+            ...base.metadata,
+            [TOOL_STEPS_METADATA_KEY]: [...prev, step],
+          },
+        };
+      }
       if (isReasoning) {
         const prev = getReasoningText(base.metadata as Record<string, unknown> | undefined);
         return {
@@ -548,7 +583,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       streamPending.set(id, mergeDelta(curPending));
     } else if (state.streamingMessages[id]) {
       streamPending.set(id, mergeDelta(state.streamingMessages[id]));
-    } else if (isReasoning) {
+    } else if (isReasoning || isToolStep) {
       streamPending.set(id, mergeDelta({
         ...msg,
         type: 'chat' as Message['type'],

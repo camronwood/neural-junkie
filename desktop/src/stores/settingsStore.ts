@@ -199,7 +199,7 @@ const defaultLayoutSettings: LayoutSettings = {
   editorAgentMode: 'agent',
   sidebarAgentsVisible: true,
   inlineCompletionEnabled: false,
-  editorAgentTrust: 'interactive',
+  editorAgentTrust: 'auto_apply_edits',
   toolbarChipsPlacement: 'top',
 };
 

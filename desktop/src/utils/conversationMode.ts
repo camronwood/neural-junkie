@@ -3,6 +3,7 @@ import {
   messageReferencesOpenEditor,
   messageRequestsScanTool,
 } from './inferContextScope';
+import { hasImplementationContinuationSignals } from './implementationContinuation';
 import { CONVERSATION_MODE_METADATA_KEY } from '../constants/promptMetadata';
 
 export type ConversationModeSetting = 'auto' | 'chat' | 'code';
@@ -60,6 +61,7 @@ export function hasScanOrEditorTaskSignals(message: string): boolean {
 export function hasCodeTaskSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
+  if (hasImplementationContinuationSignals(text)) return true;
   if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
   if (CODE_VERBS_RE.test(text)) return true;
@@ -72,6 +74,12 @@ export function inferResolvedConversationMode(
   message: string,
   options?: { ideCoding?: boolean; channelKind?: ChannelKind; hasOpenTab?: boolean }
 ): ResolvedConversationMode {
+  if (options?.ideCoding) {
+    if (GREETING_RE.test(message.trim())) {
+      return 'chat';
+    }
+    return 'code';
+  }
   if (options?.channelKind === 'collaboration') {
     return 'collab';
   }

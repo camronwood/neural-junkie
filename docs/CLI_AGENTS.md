@@ -36,7 +36,7 @@ User sends @Cursor message in chat
     │
     ▼
 Cursor agent receives message, builds prompt
-(includes system prompt + last 8 messages for context)
+(includes the same assembled system prompt and up to 12 recent turns from the hub Context Stack v2 — session summary, project rules, workspace outline, and @codebase attachments when present)
     │
     ▼
 Invokes: agent -p --output-format text "<prompt>"
@@ -148,7 +148,7 @@ User sends @Gemini message in chat
     │
     ▼
 Gemini agent receives message, builds prompt
-(includes system prompt + last 8 messages for context)
+(includes the same assembled system prompt and up to 12 recent turns from the hub Context Stack v2 — session summary, project rules, workspace outline, and @codebase attachments when present)
     │
     ▼
 Invokes: gemini -p --output-format text --yolo "<prompt>"
@@ -331,7 +331,7 @@ The provider implements the standard `AIProvider` interface:
 ### How Prompts Are Built
 
 1. The system prompt and user message are recombined (CLI tools don't use role separation)
-2. The last 8 messages from conversation history are prepended as context
+2. Recent conversation history (up to 12 turns, already trimmed by the hub intent router) is prepended as context, alongside the full system prompt from Context Stack v2
 3. The full prompt is passed as the final argument to the CLI command
 
 ### Output Parsing

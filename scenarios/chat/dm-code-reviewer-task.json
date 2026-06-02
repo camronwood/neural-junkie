@@ -1,7 +1,7 @@
 {
   "name": "dm-code-reviewer-task",
   "description": "CodeReviewer DM file review path.",
-  "tags": ["dm", "code-review", "task"],
+  "tags": ["dm", "code-review", "task", "debug"],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "CodeReviewer",

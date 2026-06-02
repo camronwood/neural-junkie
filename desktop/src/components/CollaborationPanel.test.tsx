@@ -155,7 +155,9 @@ describe('CollaborationPanel', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
         `/submit-plan ${collabPrefix}`,
-        { name: 'PanelTester', type: 'human' }
+        { name: 'PanelTester', type: 'human' },
+        'question',
+        expect.anything()
       );
     });
     expect(onAfter).toHaveBeenCalled();
@@ -228,7 +230,9 @@ describe('CollaborationPanel', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
         `/resume-plan ${collabPrefix}`,
-        { name: 'PanelTester', type: 'human' }
+        { name: 'PanelTester', type: 'human' },
+        'question',
+        expect.anything()
       );
     });
     expect(onAfter).toHaveBeenCalled();
@@ -290,7 +294,9 @@ describe('CollaborationPanel', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
         `/revise-plan ${collabPrefix}   Add observability  `,
-        { name: 'PanelTester', type: 'human' }
+        { name: 'PanelTester', type: 'human' },
+        'question',
+        expect.anything()
       );
     });
     expect(onAfter).toHaveBeenCalled();
@@ -308,7 +314,9 @@ describe('CollaborationPanel', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
         `/revise-plan ${collabPrefix} Ship in two phases`,
-        { name: 'PanelTester', type: 'human' }
+        { name: 'PanelTester', type: 'human' },
+        'question',
+        expect.anything()
       );
     });
   });
@@ -342,7 +350,9 @@ describe('CollaborationPanel', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
         `/complete-collab ${collabPrefix} --force`,
-        expect.objectContaining({ name: 'PanelTester' })
+        expect.objectContaining({ name: 'PanelTester' }),
+        'question',
+        expect.anything()
       );
     });
     confirmSpy.mockRestore();
@@ -415,7 +425,9 @@ describe('CollaborationPanel', () => {
       expect(sendMessageMock).toHaveBeenCalledWith(
         'collab-test-channel',
         `/cancel-plan ${collabPrefix}`,
-        { name: 'PanelTester', type: 'human' }
+        { name: 'PanelTester', type: 'human' },
+        'question',
+        expect.anything()
       );
     });
     expect(onAfter).toHaveBeenCalled();

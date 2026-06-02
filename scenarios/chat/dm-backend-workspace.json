@@ -1,7 +1,7 @@
 {
   "name": "dm-backend-workspace",
   "description": "BackendEngineer DM: theme ask then workspace visibility — no fake Go packages or echo.",
-  "tags": ["dm", "backend", "workspace", "regression"],
+  "tags": ["dm", "backend", "workspace", "regression", "debug"],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",

@@ -27,6 +27,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/codeindex"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/hub"
@@ -123,6 +124,7 @@ func main() {
 	}
 	syncMCPFromConfig()
 	initPersonalLearningStore()
+	initCodeIndexEmbed()
 
 	// Resolve bind address (loopback by default; see docs/SECURITY.md)
 	*addr = resolveListenAddr(*addr, appConfig)
@@ -136,12 +138,14 @@ func main() {
 		}
 	}
 	chatHub = hub.NewHub()
+	initMessageStore()
 	chatHub.SetCollaborationAssetsRootResolver(func() string {
 		return config.CollabAssetsRoot(appConfig)
 	})
 	globalProviderCache = ai.NewProviderCache()
 	initChannelSummaryGenerator(appConfig, chatHub)
 	agent.SetGlobalCollabRouting(collabRoutingRuntime{})
+	agent.SetGlobalImplementationRouting(implementationRoutingRuntime{})
 	if err := initHFManager(); err != nil {
 		log.Printf("⚠️  HF download manager init failed: %v", err)
 	}
@@ -310,6 +314,7 @@ func main() {
 	http.HandleFunc("/api/lsp/rust/diagnostics", corsMiddleware(handleLSPRustDiagnostics))
 	http.HandleFunc("/api/lsp/python/diagnostics", corsMiddleware(handleLSPPythonDiagnostics))
 	http.HandleFunc("/api/repo/search/semantic", corsMiddleware(handleRepoSemanticSearch))
+	http.HandleFunc("/api/repo/index/status", corsMiddleware(handleRepoIndexStatus))
 
 	// File change API endpoints
 	http.HandleFunc("/api/file-changes", corsMiddleware(handleFileChanges))
@@ -1655,7 +1660,15 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	messages, err := chatHub.GetMessages(channel, 50)
+	limit := 50
+	if v := strings.TrimSpace(r.URL.Query().Get("limit")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	beforeID := strings.TrimSpace(r.URL.Query().Get("before"))
+
+	messages, err := chatHub.GetMessagesPage(channel, limit, beforeID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -3377,6 +3390,9 @@ func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
+		}
+		if workspace.Path != "" {
+			codeindex.BuildIndexAsync(workspace.Path)
 		}
 		json.NewEncoder(w).Encode(workspace)
 	case "DELETE":

@@ -395,6 +395,7 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		log.Printf("[%s] Error generating response: %v", ra.Info.Name, err)
 		clearResponded()
 		ra.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+		ra.sendGenerationFailureMessages(msg, err)
 		return
 	}
 

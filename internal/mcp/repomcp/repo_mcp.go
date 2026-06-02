@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
+	"github.com/camronwood/neural-junkie/internal/codeindex"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/repo"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -100,11 +101,25 @@ func (r *RepoMCP) handleSearchCodebase(ctx context.Context, request mcpgo.CallTo
 	if query == "" {
 		return mcp.HandleToolError(fmt.Errorf("query is required"), "search_codebase"), nil
 	}
+	maxFiles := 5
+	if r.repoPath != "" {
+		results, err := codeindex.Search(ctx, r.repoPath, query, maxFiles)
+		if err == nil && len(results) > 0 {
+			var b strings.Builder
+			for _, hit := range results {
+				snippet := hit.Content
+				if len(snippet) > 500 {
+					snippet = snippet[:500] + "..."
+				}
+				fmt.Fprintf(&b, "### %s\n%s\n\n", hit.Path, snippet)
+			}
+			return mcp.HandleToolSuccess(b.String()), nil
+		}
+	}
 	index := r.getIndex()
 	if index == nil {
 		return mcp.HandleToolError(fmt.Errorf("repository index not ready"), "search_codebase"), nil
 	}
-	maxFiles := 5
 	files := repo.SearchRelevantFiles(query, index, maxFiles)
 	if len(files) == 0 {
 		return mcp.HandleToolSuccess("No matching files found."), nil

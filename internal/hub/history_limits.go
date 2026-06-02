@@ -53,6 +53,9 @@ func (h *Hub) appendChannelMessageLocked(channelName string, msg *protocol.Messa
 	}
 	h.messages[channelName] = append(msgs, msg)
 	h.enforceMaxChannelHistoryLocked(channelName)
+	if h.persistentStore != nil {
+		go h.persistMessage(msg)
+	}
 }
 
 // enforceMaxThreadHistoryLocked drops oldest thread messages if over the cap.

@@ -1,0 +1,31 @@
+{
+  "name": "theme-toggle",
+  "description": "Frontend implementation session asks for theme-related deliverable.",
+  "tags": ["implement", "frontend"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "workspace": { "fixture": "minimal-repo" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "implement a simple theme.css file with light and dark variables under src/theme.css",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "assert_messages",
+      "from": "FrontendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation session|theme|FILE_CHANGE|file change"]
+    }
+  ],
+  "cleanup": "clear"
+}

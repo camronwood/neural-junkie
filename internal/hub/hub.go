@@ -200,6 +200,9 @@ type Hub struct {
 	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
 	channelHolds map[string]ChannelHold
 
+	persistentStore PersistentMessageStore
+	durableChannels map[string]bool
+
 	// Collaboration idle watchdog (in-memory, not persisted).
 	collabWatchdogMu           sync.Mutex
 	collabWatchdogRedispatch   map[string]int
@@ -621,6 +624,9 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
 	h.inheritCollaborationFromChannel(msg)
+	if msg != nil && msg.IdeRouteAgentType() != "" && msg.Channel != "" {
+		h.MarkChannelDurable(msg.Channel)
+	}
 	// Human message clears channel hold (user interject / resume).
 	if msg != nil && protocol.IsUserLikeSender(msg.From) && msg.Channel != "" && h.IsChannelHeld(msg.Channel) {
 		h.SetChannelHold(msg.Channel, false, "")
@@ -2667,6 +2673,7 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		proposal.Operation, filePath, change.ID, msg.From.Name)
 
 	h.maybeAutoApproveCollabFileChange(msg, change, operation, wsRoot)
+	h.maybeAutoApproveIDEFileChange(msg, change, operation, wsRoot)
 }
 
 // resolveWorkspacePath resolves a potentially relative file path against the provided workspace root.
@@ -2721,6 +2728,9 @@ func (h *Hub) PruneMessagesOlderThan(maxAge time.Duration) (removed int) {
 	h.mu.Lock()
 
 	for chName, msgs := range h.messages {
+		if h.isChannelDurable(chName) {
+			continue
+		}
 		next := make([]*protocol.Message, 0, len(msgs))
 		for _, m := range msgs {
 			if m == nil {

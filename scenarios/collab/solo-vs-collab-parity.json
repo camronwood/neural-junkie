@@ -13,7 +13,8 @@
     "output_rel": "collabs/parity-solo/findings.md",
     "timeout": "300s",
     "min_bytes": 40,
-    "message": "@Assistant Write collabs/parity-solo/findings.md with three bullet findings about this repo using only README.md and core/sample/main.go. Emit a [FILE_CHANGE] block to create the file.",
+    "message": "@Assistant Write collabs/parity-solo/findings.md with three bullet findings about this repo using only README.md and core/sample/main.go. Use a [FILE_CHANGE] proposal or workspace write so the file exists on disk under collabs/parity-solo/findings.md.",
+    "approve_timeout": "180s",
     "any_match": ["main\\.go", "core/sample", "minimal"],
     "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
   },

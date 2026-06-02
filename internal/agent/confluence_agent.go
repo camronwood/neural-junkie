@@ -422,6 +422,7 @@ func (ca *ConfluenceAgent) generateResponse(ctx context.Context, msg *protocol.M
 	if err != nil {
 		log.Printf("[ConfluenceAgent:%s] Failed to generate response: %v", ca.Info.Name, err)
 		ca.sendThinkingStatus(msg, protocol.ThinkingStatusError)
+		ca.sendGenerationFailureMessages(msg, err)
 		return
 	}
 

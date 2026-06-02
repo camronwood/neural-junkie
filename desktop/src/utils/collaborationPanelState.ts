@@ -23,6 +23,34 @@ export function isPlanningAwaitingFirstTurn(collaboration: Collaboration | null)
   return (collaboration.discussion?.total_message_count ?? 0) === 0;
 }
 
+/** Agent display names that have not spoken this round while discussion is underway. */
+export function planningStalledParticipantNames(collaboration: Collaboration | null): string[] {
+  if (!collaboration || collaboration.phase !== 'planning') {
+    return [];
+  }
+  const d = collaboration.discussion;
+  if (!d || (d.total_message_count ?? 0) === 0) {
+    return [];
+  }
+  const turns = d.turns_this_round ?? {};
+  const participantIds = d.participants ?? [];
+  if (participantIds.length === 0) {
+    return [];
+  }
+  const stalled: string[] = [];
+  for (const agentId of participantIds) {
+    if ((turns[agentId] ?? 0) < 1) {
+      const name =
+        collaboration.agents?.find((a) => a.agent_id === agentId)?.agent_name?.trim() ||
+        agentId.slice(0, 8);
+      if (name && !stalled.includes(name)) {
+        stalled.push(name);
+      }
+    }
+  }
+  return stalled;
+}
+
 /** Heuristic: task text asks for a concrete file deliverable. */
 export function taskNeedsFileDeliverable(task: CollaborationTask): boolean {
   const combined = `${task.title} ${task.description ?? ''}`.toLowerCase();

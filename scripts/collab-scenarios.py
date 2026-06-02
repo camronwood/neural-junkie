@@ -48,30 +48,7 @@ class ScenarioContext:
             print(msg)
 
     def resolve_workspace_root(self) -> str:
-        ws = scenario_workspace(self.scenario)
-        if not ws:
-            return ""
-        path_env = (ws.get("path_env") or "").strip()
-        if path_env:
-            raw = os.environ.get(path_env, "").strip()
-            if not raw and path_env == "NEURAL_JUNKIE_SCENARIO_REPO":
-                fallback = ROOT / "scenarios" / "fixtures" / "minimal-repo"
-                if fallback.is_dir():
-                    return str(fallback.resolve())
-            if not raw:
-                return ""
-            p = Path(raw)
-            return str(p.resolve()) if p.is_dir() else ""
-        if ws.get("path"):
-            p = Path(ws["path"])
-            if not p.is_absolute():
-                p = ROOT / p
-            return str(p.resolve())
-        fixture = (ws.get("fixture") or "").strip()
-        if fixture:
-            p = ROOT / "scenarios" / "fixtures" / fixture
-            return str(p.resolve())
-        return ""
+        return resolve_workspace_repo(self.scenario)
 
     def build_send_metadata(self) -> dict | None:
         path = self.workspace_root
@@ -99,6 +76,34 @@ def scenario_workspace(scenario: dict) -> dict | None:
     if isinstance(ws, dict):
         return ws
     return None
+
+
+def resolve_workspace_repo(scenario: dict) -> str:
+    """Resolve workspace path for --repo and workspace_context (shared fallback for path_env)."""
+    ws = scenario_workspace(scenario)
+    if not ws:
+        return ""
+    path_env = (ws.get("path_env") or "").strip()
+    if path_env:
+        raw = os.environ.get(path_env, "").strip()
+        if not raw and path_env == "NEURAL_JUNKIE_SCENARIO_REPO":
+            fallback = ROOT / "scenarios" / "fixtures" / "minimal-repo"
+            if fallback.is_dir():
+                return str(fallback.resolve())
+        if not raw:
+            return ""
+        p = Path(raw)
+        return str(p.resolve()) if p.is_dir() else ""
+    if ws.get("path"):
+        p = Path(ws["path"])
+        if not p.is_absolute():
+            p = ROOT / p
+        return str(p.resolve())
+    fixture = (ws.get("fixture") or "").strip()
+    if fixture:
+        p = ROOT / "scenarios" / "fixtures" / fixture
+        return str(p.resolve())
+    return ""
 
 
 def load_scenario(name: str) -> dict:
@@ -154,20 +159,7 @@ def build_collaborate_command(scenario: dict, agents: str) -> str:
     if ws and ws.get("workspace_flag"):
         if "--workspace" not in flags:
             flags = ["--workspace", *flags]
-    repo = ""
-    if ws:
-        if ws.get("path"):
-            p = Path(ws["path"])
-            if not p.is_absolute():
-                p = ROOT / p
-            if p.is_dir():
-                repo = str(p.resolve())
-        elif ws.get("path_env"):
-            raw = os.environ.get((ws.get("path_env") or "").strip(), "").strip()
-            if raw:
-                p = Path(raw)
-                if p.is_dir():
-                    repo = str(p.resolve())
+    repo = resolve_workspace_repo(scenario) if ws else ""
     if repo and "--repo" not in flags:
         flags = ["--repo", repo, *flags]
     parts = ["/collaborate", *flags, agents, goal]
@@ -248,27 +240,51 @@ def _discussion_requirements_met(
     return all(counts.get(name, 0) >= max(min_per, 1) for name in required_agents)
 
 
+def _nudge_discussion_agents(ctx: ScenarioContext, names: list) -> None:
+    for raw in names:
+        name = str(raw).strip().lstrip("@")
+        if not name:
+            continue
+        msg = f"@{name} — please add your planning perspective for this collab."
+        hub.send_message(ctx.base, ctx.collab_channel, msg)
+        ctx.log(f"  nudge: {msg}")
+
+
 def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     timeout = hub.parse_timeout(step.get("timeout", 90))
     min_total = int(step.get("min_total", 1))
     min_per = int(step.get("min_per_agent", 0))
     max_total = int(step.get("max_total", 0))
     required = step.get("required_agents") or ctx.scenario.get("required_agents") or []
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        msgs = hub.agent_messages(hub.list_messages(ctx.base, ctx.collab_channel, 200))
-        counts = hub.count_by_agent(msgs)
-        total = len(msgs)
-        if _discussion_requirements_met(
-            counts, total, min_total=min_total, min_per=min_per, required_agents=required
-        ):
-            return True, f"messages total={total} by_agent={counts}"
-        if max_total > 0 and total > max_total:
-            diag = hub.discussion_diagnosis(
-                ctx.base, ctx.collab_channel, required_agents=required
-            )
-            return False, f"too many messages ({total} > {max_total})\n{diag}"
-        time.sleep(hub.POLL_INTERVAL)
+    retries = max(0, int(step.get("retries", 0)))
+    nudge_agents = step.get("nudge_agents") or []
+
+    for attempt in range(retries + 1):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            msgs = hub.agent_messages(hub.list_messages(ctx.base, ctx.collab_channel, 200))
+            counts = hub.count_by_agent(msgs)
+            total = len(msgs)
+            if _discussion_requirements_met(
+                counts, total, min_total=min_total, min_per=min_per, required_agents=required
+            ):
+                suffix = f" (after retry {attempt})" if attempt else ""
+                return True, f"messages total={total} by_agent={counts}{suffix}"
+            if max_total > 0 and total > max_total:
+                diag = hub.discussion_diagnosis(
+                    ctx.base, ctx.collab_channel, required_agents=required
+                )
+                return False, f"too many messages ({total} > {max_total})\n{diag}"
+            time.sleep(hub.POLL_INTERVAL)
+
+        if attempt < retries:
+            diag = hub.discussion_diagnosis(ctx.base, ctx.collab_channel, required_agents=required)
+            ctx.log(f"  wait_discussion attempt {attempt + 1} timed out; retrying\n{diag}")
+            if nudge_agents:
+                _nudge_discussion_agents(ctx, nudge_agents)
+            time.sleep(5)
+            continue
+
     diag = hub.discussion_diagnosis(ctx.base, ctx.collab_channel, required_agents=required)
     counts = hub.count_by_agent(hub.agent_messages(hub.list_messages(ctx.base, ctx.collab_channel, 200)))
     need = (
@@ -747,9 +763,26 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
 
     timeout = hub.parse_timeout(solo.get("timeout", "300s"))
     min_bytes = int(solo.get("min_bytes", 40))
+    approve_timeout = hub.parse_timeout(solo.get("approve_timeout", "120s"))
     deadline = time.time() + timeout
     full = Path(ctx.workspace_root) / output_rel
     while time.time() < deadline:
+        if not full.is_file() or full.stat().st_size < min_bytes:
+            remaining = max(0.5, deadline - time.time())
+            approve_poll = min(5.0, approve_timeout, remaining)
+            for path_needle in ("parity-solo", output_rel.replace("\\", "/"), ""):
+                n, _ids = hub.wait_and_approve_file_changes(
+                    ctx.base,
+                    channel,
+                    path_contains=path_needle,
+                    min_approved=1,
+                    timeout=approve_poll,
+                )
+                if n > 0:
+                    if ctx.verbose:
+                        print(f"  solo leg: approved {n} file change(s) path~={path_needle!r}")
+                    break
+            time.sleep(hub.POLL_INTERVAL)
         if full.is_file() and full.stat().st_size >= min_bytes:
             body = full.read_text(encoding="utf-8", errors="replace")
             ok, detail = check_text_patterns(

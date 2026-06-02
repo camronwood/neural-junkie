@@ -20,6 +20,9 @@ export const CONVERSATION_MODE_METADATA_KEY = 'conversation_mode';
 export const IDE_ROUTE_AGENT_TYPE_KEY = 'ide_route_agent_type';
 export const EDITOR_MODE_KEY = 'editor_mode';
 export const EDITOR_AGENT_TRUST_KEY = 'editor_agent_trust';
+export const IMPLEMENTATION_SESSION_METADATA_KEY = 'implementation_session';
+export const IMPLEMENTATION_SESSION_COMPLETE_KEY = 'implementation_session_complete';
+export const IMPLEMENTATION_FILES_CHANGED_KEY = 'implementation_files_changed';
 
 export interface PromptAttachmentPayload {
   path: string;

@@ -1,0 +1,35 @@
+{
+  "name": "dm-ide-route-backend",
+  "description": "IDE implicit routing: open Go file routes to backend specialist without @mention in body.",
+  "tags": ["dm", "backend", "ide", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "open_files": ["core/sample/main.go"],
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "steps": [
+    {
+      "action": "send",
+      "content": "What does the main function in the open file do?",
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline",
+        "ide_route_agent_type": "backend",
+        "editor_mode": "agent"
+      }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "BackendEngineer",
+      "any_match": ["main|Main|func main|sample/main.go|package main"],
+      "none_match": ["I don't have access", "cannot see your workspace"]
+    }
+  ],
+  "cleanup": "clear"
+}

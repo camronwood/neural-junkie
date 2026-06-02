@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-02T15:40:29Z",
-  "count": 33,
+  "updated": "2026-06-02T16:04:30Z",
+  "count": 36,
   "items": [
     {
       "id": "neural-junkie-beta-download-ad-1080",
@@ -19,6 +19,35 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-beta21-ad-1200.png"
+    },
+    {
+      "id": "neural-junkie-beta21-chat-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta21-chat-ad-1200.png",
+      "title": "Beta21 Chat Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-beta21-chat-ad-1200.png"
+    },
+    {
+      "id": "neural-junkie-beta21-slack-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta21-slack-ad-1200.png",
+      "title": "Beta21 Slack Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [
+        "slack"
+      ],
+      "filename": "neural-junkie-beta21-slack-ad-1200.png"
+    },
+    {
+      "id": "neural-junkie-beta21-test-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta21-test-ad-1200.png",
+      "title": "Beta21 Test Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-beta21-test-ad-1200.png"
     },
     {
       "id": "neural-junkie-biology-pack-ad-1080",

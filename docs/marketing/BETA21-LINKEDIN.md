@@ -1,70 +1,36 @@
-# LinkedIn — Neural Junkie v1.0.0-beta.21
+# LinkedIn — v1.0.0-beta.21 (three posts)
 
-**Cover image:** `assets/neural-junkie-beta21-ad-1200.png` (1200×627)
+**Do not combine audiences in one post.** Ship three separate posts (or a thread), each with its own image:
 
-**Regenerate:**
+| # | Audience | Image | Copy file |
+|---|----------|-------|-----------|
+| 1 | **Slack users** — mobile inbox, forwarding | `assets/neural-junkie-beta21-slack-ad-1200.png` | [BETA21-SLACK-LINKEDIN.md](BETA21-SLACK-LINKEDIN.md) |
+| 2 | **Builders** — chat quality, workspace honesty | `assets/neural-junkie-beta21-chat-ad-1200.png` | [BETA21-CHAT-LINKEDIN.md](BETA21-CHAT-LINKEDIN.md) |
+| 3 | **Contributors** — clone repo, run scenarios | `assets/neural-junkie-beta21-test-ad-1200.png` | [BETA21-TEST-LINKEDIN.md](BETA21-TEST-LINKEDIN.md) |
+
+**Regenerate all images:**
 
 ```bash
-chmod +x ./scripts/compose-beta21-ad.sh
-./scripts/compose-beta21-ad.sh
+chmod +x ./scripts/compose-beta21-ads.sh
+./scripts/compose-beta21-ads.sh all
 ./scripts/sync-gallery.sh
 ```
 
-**Download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21
+**Download (same for every post):** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21
+
+**Posting order (suggested):** Slack → Chat → Test (widest → builder → maintainer). Space 2–4 days if you want reach without fatigue.
 
 ---
 
-## Headline on image
+## Release post (optional fourth, text-only)
 
-**SLACK INBOX. CHAT YOU CAN TRUST.**
+Short “beta.21 is live” with link only — no technical pillars. Point readers to the three topic posts above or to [release-notes.html](../release-notes.html).
 
-Sub: Context model v2, workspace visibility, live scenario regressions.
-
----
-
-## Feed post (short)
-
-> **Neural Junkie v1.0.0-beta.21** is out.
->
-> **Slack** — personal inbox DM to your hub, selective channel forwarding, optional away-mode replies in your own DMs.
->
-> **Chat quality** — conversation mode + turn intent v2, deterministic “can you see my workspace?” answers (no fake `go get` packages), echo/closure fixes.
->
-> **Testing** — expanded chat/collab/learning JSON scenarios, `make test-all`, and docs in `docs/TESTING.md` so regressions show up before manual clicking.
->
-> macOS / Windows / Linux: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21
->
-> #AI #MultiAgent #DeveloperTools #OpenSource #Slack
+> **v1.0.0-beta.21** — Slack inbox, sharper chat, and a bigger test harness for anyone hacking on the repo.  
+> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21
 
 ---
 
-## LinkedIn (longer)
+## Deprecated combined creative
 
-> Multi-agent tools are easy to demo and hard to regression-test. **beta.21** focuses on **real channels** and **conversation quality you can verify**.
->
-> **Slack**
-> - Personal inbox — message the NJ bot from mobile; routes to a private hub channel and your chosen agent
-> - Forwarding rules — `@mention`, `nj:` prefix, or reaction emoji; replies land in the **original Slack thread**
-> - Away mode (opt-in) — user-token replies in your 1:1 DMs when you’re marked away
->
-> **Context model v2** ([CONTEXT_MODEL.md](https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md))
-> - Composer **Chat / Code** mode with `conversation_mode` metadata
-> - Turn intent: casual, closure, task, substantive — with DM persona and thread-scoped history
-> - ~32KB context budget; session persist slimming for workspace payloads
->
-> **Chat regressions**
-> - Workspace visibility shortcut + streaming fallback when models ignore the question
-> - Live scenarios: `make chat-scenarios-regression` (workspace, echo, closure)
->
-> **Collab & CI**
-> - Deterministic agent order for round-robin task assignment
-> - Collab auto-approve deliverables, idle watchdog, dependency-prose parser tests
-> - `docs/TESTING.md` — isolated Go tests, scenario runners, full checklist
->
-> Open source beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21
-
----
-
-## Suggested first comment
-
-Pin the release link and: “If workspace visibility or Slack routing misbehaves on your setup, open an issue with hub logs — we added scenario repros for the chat cases we kept hitting.”
+`assets/neural-junkie-beta21-ad-1200.png` mixed Slack + context v2 + testing in one frame. Prefer the three audience-specific assets above.

@@ -197,10 +197,12 @@ export class ChatAPI {
   }
 
   // Fetch existing messages for a channel
-  async fetchMessages(channel: string, limit: number = 50): Promise<Message[]> {
-    const response = await this.hubFetch(
-      `/api/messages?channel=${encodeURIComponent(channel)}&limit=${limit}`
-    );
+  async fetchMessages(channel: string, limit: number = 50, beforeId?: string): Promise<Message[]> {
+    const params = new URLSearchParams({ channel, limit: String(limit) });
+    if (beforeId?.trim()) {
+      params.set('before', beforeId.trim());
+    }
+    const response = await this.hubFetch(`/api/messages?${params}`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch messages: ${response.statusText}`);
@@ -2004,6 +2006,20 @@ export class ChatAPI {
     });
     if (!response.ok) {
       throw new Error(`Semantic search failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async repoIndexStatus(repoPath: string): Promise<{
+    ready: boolean;
+    building: boolean;
+    chunk_count: number;
+    embedding_model?: string;
+  }> {
+    const params = new URLSearchParams({ repo_path: repoPath });
+    const response = await this.hubFetch(`/api/repo/index/status?${params}`);
+    if (!response.ok) {
+      throw new Error(`Index status failed: ${response.statusText}`);
     }
     return response.json();
   }

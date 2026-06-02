@@ -1,5 +1,130 @@
 # Testing
 
+## North star: Cursor-like agent behavior
+
+Neural Junkie tests are the contract for **Cursor-like parity** on this platform: workspace-aware replies, substantive coding answers, every collab participant contributing when invited, deliverables on real paths, and the same agent stack in chat, IDE layout, collab, and Slack.
+
+When a live scenario fails, triage **product/hub/agent behavior first**, harness second. Do not weaken assertions to greenwash flakes.
+
+| Behavior | Implementation | Verified by |
+|----------|----------------|-------------|
+| Workspace / open-file awareness | [CONTEXT_MODEL.md](CONTEXT_MODEL.md), [IDE_V3.md](IDE_V3.md) | `make chat-scenarios-debug` (`assert_debug_context`); `dm-backend-workspace`, `public-backend-theme-workspace` |
+| Substantive coding replies | Intent routing, specialist prompts | `make chat-scenarios-regression`, DM task scenarios |
+| `@codebase` semantic search | `internal/codeindex`, `POST /api/repo/search/semantic` | `dm-backend-codebase-semantic` |
+| IDE routing from open file | `ide_route_agent_type` metadata | `dm-ide-route-backend` |
+| Workspace MCP tools (read/grep/glob) | `internal/mcp/workspace` | manual IDE Agent mode |
+| Everyone contributes in collab | Discussion turns, `@mention` out-of-turn | `make collab-scenarios-all`; `wait_discussion` + nudges |
+| Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios, Phoenix with real repo |
+| Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` |
+| Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
+
+See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORATION.md).
+
+## Test tiers
+
+| Tier | When | Commands |
+|------|------|----------|
+| **CI** | Every push/PR to `main` | `make test-all` (GitHub Actions [`.github/workflows/test.yml`](../.github/workflows/test.yml)) |
+| **Smoke** | Local dev, no LLM | `make collab-smoke`, `make test-collab-plan`, `make test-scenario-assert`, `make learning-lora-smoke`, `./scripts/mcp-smoke.sh`, `make slack-smoke` |
+| **Live regression** | Pre-release / beta | Checklist below |
+
+## CI vs live: what each tier proves
+
+| Proven in CI (`make test-all`) | Proven only in live regression |
+|-------------------------------|--------------------------------|
+| Go + desktop unit tests | Multi-agent LLM discussion quality |
+| Hub wiring, plan parser, collab API smoke | Full 15-scenario `collab-scenarios-all` sweep |
+| Slack handler mocks (`slack-smoke`) | `chat-scenarios-regression` / `chat-scenarios-debug` |
+| `collab-smoke`, `learning-lora-smoke` | `learning-scenarios`, file deliverables on disk |
+| No Ollama, no 1–3h serial LLM work | Phoenix repo paths (`NEURAL_JUNKIE_SCENARIO_REPO`) |
+
+Do **not** add `collab-scenarios-all` to CI. Use `make collab-preflight` before live sweeps.
+
+Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be reachable from the runner — typically local pre-release only).
+
+## Pre-release checklist
+
+1. CI green on branch (`make test-all` locally if needed).
+2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen2.5:7b`).
+3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
+4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
+5. `make chat-scenarios-regression`
+6. `make chat-scenarios-debug`
+7. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
+8. `make learning-scenarios`
+9. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
+10. Optional: `LIVE=1 make slack-smoke` (runs `scripts/slack-live-smoke.sh`)
+11. Optional: `@Cursor` smoke when `agent` binary on PATH
+
+Quick reference: `make test-regression-live` prints the live steps.
+
+### Hub vs client rate limit
+
+HTTP 429 during scenario polling is controlled by the **hub** env var `NEURAL_JUNKIE_RATE_LIMIT` ([`internal/hub/ratelimit.go`](../internal/hub/ratelimit.go)). Makefile targets set `NEURAL_JUNKIE_RATE_LIMIT=0` on Python clients for consistency, but you must start the hub with `make server-regression` (or `NEURAL_JUNKIE_RATE_LIMIT=0` manually) before live sweeps.
+
+### Collab preflight and sweep
+
+```bash
+ollama serve
+make server-regression    # separate terminal
+make collab-preflight     # REQUIRE_GEMINI=1 if running Gemini scenario
+```
+
+**Recommended:** one scenario at a time (advance only after PASS):
+
+```bash
+make collab-sweep-serial              # stop on first FAIL
+make collab-scenario SCENARIO=<name> VERBOSE=1   # fix and re-run one
+make collab-sweep-serial RESUME=1     # skip PASS rows in docs/testing/collab-matrix.tsv
+```
+
+Batch (all 15 serially, ~1–3h, no gate between failures):
+
+```bash
+make collab-scenarios-all 2>&1 | tee /tmp/nj-collab-sweep-$(date +%F).log
+```
+
+`PROFILE=fast` only substitutes agents when a scenario JSON **omits** the `agents` field; it does not shorten timeouts.
+
+### Per-scenario agent requirements (all 15)
+
+| Scenario | Required agents | Notes |
+|----------|-----------------|-------|
+| `planning-two-agent` | (profile default: 2+ online) | No pinned roster |
+| `delivery-sandbox-auto-ack` | (profile default) | |
+| `execute-deliverable` | (profile default) | |
+| `document-findings-execution` | (profile default) | |
+| `reject-collabs-subfolder` | (profile default) | |
+| `solo-vs-collab-parity` | Assistant | Solo leg auto-approves file proposals |
+| `multi-collab-isolation` | (profile default) | Blocker setup uses fast agents |
+| `plan-findings-task-regression` | Assistant, BackendEngineer, SoftwareArchitect | |
+| `plan-distinct-deliverables-same-agent` | SoftwareArchitect, BackendEngineer | |
+| `plan-phoenix-combined-regression` | BackendEngineer, SoftwareArchitect, PlatformEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `plan-dependency-prose-regression` | BackendEngineer, SoftwareArchitect, PlatformEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `resource-api-schema-regression` | Assistant, BackendEngineer, FrontendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `resource-api-schema-planning` | Assistant, **Gemini**, PlatformEngineer | Gemini CLI agent |
+| `phoenix-resource-api-e2e` | Assistant, SoftwareArchitect, BackendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `execution-no-stack-commands` | Assistant, PlatformEngineer | |
+
+Sweep logs: [testing/collab-sweep-2026-06-02.md](testing/collab-sweep-2026-06-02.md).
+
+### Triage playbook (live failures)
+
+1. Re-run one scenario: `make collab-scenario SCENARIO=<name> VERBOSE=1`
+2. Read harness diagnosis (printed on `wait_discussion` failure); includes `generation_error` posts when the model failed.
+3. Hub log: `grep -E 'COLLABORATION TURN|Error generating response' /tmp/nj-hub.log | tail -40`
+   - Many `Error generating response` + zero discussion → **Ollama down** (`ollama_down`), not harness.
+   - `COLLABORATION TURN` without discussion → participation / `shouldRespond` (`silent_agent`).
+   - Stuck in `planning` → `stuck_planning` (budget, consensus, or silent agents).
+4. Live debug: `make debug-collab COLAB=<id8> LIVE=1`
+5. Product-first: do not weaken `wait_discussion` assertions to greenwash flakes.
+
+Latest archived sweep: see `docs/testing/collab-sweep-*.md`.
+
+### `wait_discussion` flakes
+
+A silent specialist (e.g. BackendEngineer never spoke) is a **participation defect**, not noise to ignore. Harness `retries` and `nudge_agents` (`@mention` for out-of-turn) are a safety net; fix subscription/turn budget in product code if nudges do not help.
+
 ## Test isolation
 
 Go tests that touch hub storage, repo agents, or collaboration sandboxes should not write to your real `~/.neural-junkie` tree.

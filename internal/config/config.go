@@ -58,6 +58,21 @@ type UpdateConfig struct {
 	AutoCheck bool `json:"auto_check"`
 }
 
+type ImplementationConfig struct {
+	RoutingEnabled      bool     `json:"routing_enabled"`
+	LocalProviderID     string   `json:"local_provider_id,omitempty"`
+	LocalToolModel      string   `json:"local_tool_model,omitempty"`
+	FallbackProviderIDs []string `json:"fallback_provider_ids,omitempty"`
+}
+
+// LocalToolModel returns the configured implementation tool-loop model or default.
+func (c ImplementationConfig) LocalToolModelOrDefault() string {
+	if m := strings.TrimSpace(c.LocalToolModel); m != "" {
+		return m
+	}
+	return "qwen2.5-coder:7b"
+}
+
 type CollaborationConfig struct {
 	// SmartRoutingEnabled selects a configured AI provider per collaboration
 	// execution task (MessageTypeCollabTask with task_id) using a static heuristic.
@@ -84,6 +99,7 @@ type FeaturesConfig struct {
 	PersonalLearningEnabled        bool   `json:"personal_learning_enabled"`
 	PersonalLearningSuggestEnabled bool   `json:"personal_learning_suggest_enabled"`
 	LearningEmbedModel             string `json:"learning_embed_model,omitempty"`
+	CodebaseEmbedModel             string `json:"codebase_embed_model,omitempty"`
 }
 
 type Config struct {
@@ -96,6 +112,7 @@ type Config struct {
 	HF             HFConfig             `json:"hf"`
 	Updates        UpdateConfig         `json:"updates"`
 	Collaboration  CollaborationConfig  `json:"collaboration"`
+	Implementation ImplementationConfig `json:"implementation"`
 	Delegation     DelegationConfig     `json:"delegation"`
 	Features       FeaturesConfig       `json:"features"`
 	Slack          SlackConfig          `json:"slack"`
@@ -133,6 +150,10 @@ func DefaultConfig() *Config {
 		Collaboration: CollaborationConfig{
 			SmartRoutingEnabled:     false,
 			AutoApproveDeliverables: boolPtr(true),
+		},
+		Implementation: ImplementationConfig{
+			RoutingEnabled:  true,
+			LocalToolModel:  "qwen2.5-coder:7b",
 		},
 		Delegation: DefaultDelegationConfig(),
 		Features:   FeaturesConfig{PersonalLearningEnabled: false},
@@ -433,6 +454,16 @@ func (c *Config) LearningEmbedModel() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return strings.TrimSpace(c.Features.LearningEmbedModel)
+}
+
+// CodebaseEmbedModel returns configured Ollama embed model for @codebase search.
+func (c *Config) CodebaseEmbedModel() string {
+	if c == nil {
+		return ""
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return strings.TrimSpace(c.Features.CodebaseEmbedModel)
 }
 
 // ClearAllAgentModels removes per-agent model overrides.

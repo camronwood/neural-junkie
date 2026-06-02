@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 const defaultContextBudgetBytes = 32 * 1024
@@ -12,6 +13,9 @@ const (
 	maxBudgetSessionSummary   = 2 * 1024
 	maxBudgetHistoryBody      = 12 * 1024
 	maxBudgetWorkspaceOutline = 4 * 1024
+	ideContextBudgetBytes     = 48 * 1024
+	ideWorkspaceOutlineBytes  = 16 * 1024
+	implSessionBudgetBytes    = 64 * 1024
 )
 
 const (
@@ -31,10 +35,25 @@ func contextBudgetLimit() int {
 }
 
 // applyContextBudget trims non-essential system sections when the prompt exceeds the budget.
-// The user section after SystemPromptSeparator is never truncated.
 func applyContextBudget(prompt string) (string, ContextBudgetStats) {
-	stats := ContextBudgetStats{OriginalBytes: len(prompt)}
+	return applyContextBudgetWithLimit(prompt, contextBudgetLimit(), maxBudgetWorkspaceOutline)
+}
+
+func applyContextBudgetForMessage(msg *protocol.Message, prompt string) (string, ContextBudgetStats) {
 	limit := contextBudgetLimit()
+	outline := maxBudgetWorkspaceOutline
+	if msg != nil && msg.ImplementationSession() {
+		limit = implSessionBudgetBytes
+		outline = ideWorkspaceOutlineBytes
+	} else if msg != nil && msg.IdeRouteAgentType() != "" {
+		limit = ideContextBudgetBytes
+		outline = ideWorkspaceOutlineBytes
+	}
+	return applyContextBudgetWithLimit(prompt, limit, outline)
+}
+
+func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int) (string, ContextBudgetStats) {
+	stats := ContextBudgetStats{OriginalBytes: len(prompt)}
 	if len(prompt) <= limit {
 		stats.FinalBytes = len(prompt)
 		return prompt, stats
@@ -52,8 +71,8 @@ func applyContextBudget(prompt string) (string, ContextBudgetStats) {
 
 	systemPart, rulesBlock := peelProtectedRulesSection(systemPart)
 	systemPart = truncateMarkedSection(systemPart, "=== SESSION SUMMARY ===", maxBudgetSessionSummary)
-	systemPart = truncateMarkedSection(systemPart, "=== WORKSPACE CONTEXT ===", maxBudgetWorkspaceOutline)
-	systemPart = truncateMarkedSection(systemPart, "Grounding requirement:", maxBudgetWorkspaceOutline)
+	systemPart = truncateMarkedSection(systemPart, "=== WORKSPACE CONTEXT ===", workspaceOutlineCap)
+	systemPart = truncateMarkedSection(systemPart, "Grounding requirement:", workspaceOutlineCap)
 	systemPart = rulesBlock + systemPart
 
 	combined := systemPart + ai.SystemPromptSeparator + userPart

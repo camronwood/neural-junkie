@@ -534,7 +534,19 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
-	if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+
+	var implSessionProposed bool
+	var implSessionFiles []string
+	if shouldRunImplementationSession(a, msg) {
+		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
+		if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+			streamMsgID = uuid.New().String()
+			response, streamMsgID, implSessionProposed, implSessionFiles, err = a.runImplementationSessionStreaming(genCtx, msg, eff, streamMsgID)
+			reasoningText = ""
+		} else {
+			response, implSessionProposed, implSessionFiles, err = a.runImplementationSession(genCtx, msg, eff)
+		}
+	} else if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
 		response, streamMsgID, reasoningText, err = a.generateResponseStreaming(genCtx, msg, eff)
 	} else {
@@ -553,23 +565,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		clearResponded()
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
 
-		// Surface a user-safe error to chat while keeping full details in logs.
-		userMsg, code, retryable := classifyUserFacingError(err)
-		errMsg := protocol.NewMessage(
-			protocol.MessageTypeSystemInfo,
-			msg.Channel,
-			a.Info,
-			userMsg,
-		)
-		errMsg.ReplyTo = msg.ID
-		errMsg.SetErrorMetadata(code, retryable)
-		if msg.IsInThread() {
-			errMsg.ThreadID = msg.ThreadID
-			errMsg.IsThreadReply = true
-		}
-		if sendErr := a.Hub.SendMessage(errMsg); sendErr != nil {
-			log.Printf("[%s] Failed to send error message: %v", a.Info.Name, sendErr)
-		}
+		a.sendGenerationFailureMessages(msg, err)
 		return
 	}
 	response = sanitizeInternalToolNames(response)
@@ -577,7 +573,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if collabCtx.ID != "" {
 		response = sanitizeCollabDiscussionResponse(response, collabCtx, a.Info.Type)
 	}
-	response, proposedFileChange, proposalErr := a.maybeSubmitFileChangeFromResponse(response, msg.Channel, msg)
+	var proposedFileChange bool
+	var proposalErr error
+	if implSessionProposed {
+		proposedFileChange = true
+	} else {
+		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(response, msg.Channel, msg)
+	}
 	if proposalErr != nil {
 		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
 	}
@@ -617,6 +619,15 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			responseMsg.Metadata = make(map[string]interface{})
 		}
 		responseMsg.Metadata["delegation_consulted"] = consulted
+	}
+	if shouldRunImplementationSession(a, msg) {
+		if responseMsg.Metadata == nil {
+			responseMsg.Metadata = make(map[string]interface{})
+		}
+		responseMsg.Metadata[protocol.IdeMetaImplementationComplete] = true
+		if len(implSessionFiles) > 0 {
+			responseMsg.Metadata[protocol.IdeMetaImplementationFiles] = implSessionFiles
+		}
 	}
 	responseMsg.ReplyTo = msg.ID
 
@@ -1637,6 +1648,9 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" {
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+		if userRequestsImplementationForMessage(a, msg) {
+			referencedLoaded += AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
+		}
 		if referencedFiles.Len() > 0 {
 			prompt += referencedFiles.String()
 			for _, p := range DetectFilePaths(msg.Content) {
@@ -1650,7 +1664,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	// code even when the user doesn't mention specific file paths.
 	scannedLoaded := 0
 	collabInfo := a.getCollaborationContext(msg)
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && !a.hasWorkspaceTools() && shouldProactiveScanWorkspace(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
 		if existingContextSize < maxScanChars/2 {
 			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
@@ -1663,11 +1677,11 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 		}
 	}
 
-	if shouldInjectWorkspaceCode(msg.Content) && collaborationWorkspaceGroundingLine(msg, collabInfo) {
+	if collaborationWorkspaceGroundingLine(msg, collabInfo) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
-		if totalLoaded > 0 {
-			prompt += fmt.Sprintf("\nGrounding requirement: Start your answer with exactly this one line:\n\"Grounding: I loaded %d file(s) from the workspace context for this answer.\"\nThen continue with your analysis.\n\n", totalLoaded)
+		if g := workspaceGroundingRequirement(totalLoaded, msg.Content, userRequestsImplementationForMessage(a, msg)); g != "" {
+			prompt += g
 		}
 	}
 
@@ -1676,7 +1690,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	prompt = a.augmentPromptWithCLIImages(msg, prompt)
 
 	var budgetStats ContextBudgetStats
-	prompt, budgetStats = applyContextBudget(prompt)
+	prompt, budgetStats = applyContextBudgetForMessage(msg, prompt)
 	if budgetStats.Truncated {
 		log.Printf("[%s] context budget applied: %d -> %d bytes", a.Info.Name, budgetStats.OriginalBytes, budgetStats.FinalBytes)
 	}
@@ -1768,6 +1782,9 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" {
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+		if userRequestsImplementationForMessage(a, msg) {
+			referencedLoaded += AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
+		}
 		if referencedFiles.Len() > 0 {
 			prompt += referencedFiles.String()
 			for _, p := range DetectFilePaths(msg.Content) {
@@ -1777,7 +1794,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	scannedLoaded := 0
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && shouldInjectWorkspaceCode(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && !a.hasWorkspaceTools() && shouldProactiveScanWorkspace(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		basePrompt := a.buildPromptForIntent(msg, intent)
 		existingContextSize := len(prompt) - len(basePrompt)
 		if existingContextSize < maxScanChars/2 {
@@ -1791,11 +1808,11 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		}
 	}
 
-	if shouldInjectWorkspaceCode(msg.Content) && collaborationWorkspaceGroundingLine(msg, collabInfo) {
+	if collaborationWorkspaceGroundingLine(msg, collabInfo) {
 		openFileLoaded := len(collectIncludedFilePaths(msg))
 		totalLoaded := openFileLoaded + referencedLoaded + scannedLoaded
-		if totalLoaded > 0 {
-			prompt += fmt.Sprintf("\nGrounding requirement: Start your answer with exactly this one line:\n\"Grounding: I loaded %d file(s) from the workspace context for this answer.\"\nThen continue with your analysis.\n\n", totalLoaded)
+		if g := workspaceGroundingRequirement(totalLoaded, msg.Content, userRequestsImplementationForMessage(a, msg)); g != "" {
+			prompt += g
 		}
 	}
 
@@ -1810,7 +1827,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	prompt = a.augmentPromptWithCLIImages(msg, prompt)
 
 	var streamBudgetStats ContextBudgetStats
-	prompt, streamBudgetStats = applyContextBudget(prompt)
+	prompt, streamBudgetStats = applyContextBudgetForMessage(msg, prompt)
 	if streamBudgetStats.Truncated {
 		log.Printf("[%s] context budget applied (stream): %d -> %d bytes", a.Info.Name, streamBudgetStats.OriginalBytes, streamBudgetStats.FinalBytes)
 	}
@@ -1843,16 +1860,15 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
 	if len(a.agentToolDefinitions()) > 0 {
-		text, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
+		toolCtx := ai.WithToolStepObserver(approvalCtx, func(ev ai.ToolStepEvent) {
+			a.broadcastToolStep(approvalCtx, msg, streamMsgID, ev)
+		})
+		text, err := a.generateWithAgentTools(toolCtx, msg, prompt, history, eff)
 		if err != nil {
 			return "", "", "", err
 		}
 		text = a.finalizeWorkspaceVisibilityReply(msg, text)
-		tokenCh := make(chan ai.StreamToken, 2)
-		tokenCh <- ai.StreamToken{Content: text}
-		tokenCh <- ai.StreamToken{Done: true}
-		close(tokenCh)
-		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+		return a.streamTextAsTokens(approvalCtx, msg, streamMsgID, text)
 	}
 
 	sp, ok := eff.(ai.StreamingProvider)
@@ -2066,7 +2082,7 @@ func truncationLabelForError(err error) string {
 func appendFileChangeMachineBlockDocs(sb *strings.Builder) {
 	sb.WriteString("[FILE_CHANGE]\n")
 	sb.WriteString("operation: create|edit|delete|move\n")
-	sb.WriteString("path: relative/path/from/workspace\n")
+	sb.WriteString("path: relative/path/from/workspace (must include a file extension, e.g. tailwind.config.js or src/App.tsx — never a label like \"File:\")\n")
 	sb.WriteString("old_path: relative/path (move only)\n")
 	sb.WriteString("new_path: relative/path (move only)\n")
 	sb.WriteString("```new\n<new content for create/edit>\n```\n")
@@ -2333,6 +2349,10 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("11. If the user asks you to create, write, or save a file, you MUST emit a [FILE_CHANGE] block (usually operation: create with a relative path). ")
 			system.WriteString("Chat-only explanations do not write to disk; the host only applies changes from FILE_CHANGE proposals (after user approval).\n")
 		}
+		if includeTooling && userRequestsImplementationForMessage(a, msg) && agentTypeCanShipFileChanges(a.Info.Type) {
+			system.WriteString("12. IMPLEMENTATION REQUEST: You MUST emit one or more [FILE_CHANGE] blocks with real edits under the shared workspace. ")
+			system.WriteString("Advice-only or codebase-summary replies do not satisfy this request.\n")
+		}
 	}
 
 	// Add context about other agents in the channel
@@ -2349,6 +2369,13 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	}
 
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), 0)
+	if ws := a.resolveWorkspacePath(msg); ws != "" {
+		if projectRules := LoadProjectRulesMarkdown(ws); projectRules != "" {
+			system.WriteString("\n=== PROJECT RULES ===\n")
+			system.WriteString(projectRules)
+			system.WriteString("\n=== END PROJECT RULES ===\n\n")
+		}
+	}
 	userID := learning.SlugUserID(msg.From.Name)
 	if protocol.IsUserLikeSender(msg.From) {
 		userID = learning.SlugUserID(msg.From.Name)
@@ -2409,10 +2436,11 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	// Append workspace context if the user shared it
 	AppendWorkspaceContextForChannel(&user, msg, a.effectiveChannelType(msg.Channel))
 	appendWorkspaceReviewGuidance(&user, msg)
+	appendImplementationDeliveryGuidance(&user, a, msg, a.Info.Type)
 	AppendGrantedHubDataAccess(&user, msg)
 
 	// Adaptive response length based on intent
-	user.WriteString(getResponseLengthGuidance(msg.Content))
+	user.WriteString(getResponseLengthGuidanceForMessage(a, msg))
 
 	// Combine with separator
 	return system.String() + ai.SystemPromptSeparator + user.String()
@@ -2508,7 +2536,8 @@ Reference specific functions, types, and line numbers.
 When suggesting improvements, show concrete code examples.`
 
 	case protocol.AgentTypeFrontend:
-		return `When asked to review or analyze code, evaluate:
+		return `When the user asks you to implement UI work (themes, components, styling), emit [FILE_CHANGE] blocks for real edits — do not stop at Tailwind advice.
+When asked to review or analyze code, evaluate:
 - Component architecture (composition, prop drilling, component size)
 - State management (local vs global state, unnecessary re-renders)
 - Accessibility (ARIA attributes, keyboard navigation, screen reader support)
@@ -2566,8 +2595,24 @@ Provide concrete fix examples with proper YAML/HCL/Dockerfile snippets.`
 
 // getResponseLengthGuidance returns response length instructions based on the user's intent.
 // Deep analysis requests get thorough guidance; simple questions stay concise.
-func getResponseLengthGuidance(content string) string {
+func getResponseLengthGuidanceForMessage(a *Agent, msg *protocol.Message) string {
+	if msg == nil {
+		return getResponseLengthGuidance("")
+	}
+	return getResponseLengthGuidance(msg.Content, userRequestsImplementationForMessage(a, msg))
+}
+
+func getResponseLengthGuidance(content string, implementation ...bool) string {
 	lower := strings.ToLower(content)
+
+	impl := len(implementation) > 0 && implementation[0]
+	if !impl {
+		impl = userRequestsImplementation(content)
+	}
+	if impl {
+		return "The user wants working repo changes, not a summary. Emit [FILE_CHANGE] block(s) for each file you modify. " +
+			"Keep chat text to 2-4 sentences unless you need approval context."
+	}
 
 	// Deep analysis keywords -- user wants thorough output
 	deepKeywords := []string{
@@ -2940,11 +2985,21 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 	match := fileChangeBlockRegex.FindStringSubmatch(response)
 	if len(match) < 2 {
 		if loose, ok := parseLooseFileChange(response); ok {
-			if err := a.proposeFileCreateInChannel(channel, loose.Path, loose.NewContent); err != nil {
-				return response, false, err
+			path := loose.Path
+			if sourceMsg != nil && !isValidFileChangeRelPath(path) {
+				if alt := preferImplementationTargetPath(sourceMsg.Content, path, a.Info.Type); alt != "" {
+					path = alt
+					log.Printf("[%s] loose_file_change_path_replaced(invalid=%q,target=%s)", a.Info.Name, loose.Path, path)
+				}
 			}
-			log.Printf("[%s] loose_file_change_used(path=%s)", a.Info.Name, loose.Path)
-			return stripLooseFileChangeBlock(response), true, nil
+			if !isValidFileChangeRelPath(path) {
+				log.Printf("[%s] loose_file_change_rejected(path=%q)", a.Info.Name, loose.Path)
+			} else if err := a.proposeFileChangePreferEditOrCreate(channel, path, loose.NewContent, sourceMsg); err != nil {
+				return response, false, err
+			} else {
+				log.Printf("[%s] loose_file_change_used(path=%s)", a.Info.Name, path)
+				return stripLooseFileChangeBlock(response), true, nil
+			}
 		}
 		// Deterministic fallback: user asked to write/create/save files and the model
 		// returned fenced content (or explicit approval phrases) but omitted [FILE_CHANGE].
@@ -2995,6 +3050,17 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 	}
 
 	directive, err := parseFileChangeDirective(match[1])
+	if err != nil && sourceMsg != nil && userRequestsImplementationForMessage(a, sourceMsg) {
+		if alt := preferImplementationTargetPath(sourceMsg.Content, "", a.Info.Type); alt != "" {
+			if body := stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(match[1])); strings.TrimSpace(body) != "" {
+				if err2 := a.proposeFileEditInChannel(channel, alt, "", body); err2 == nil {
+					log.Printf("[%s] implement_path_recovery(edit,target=%s)", a.Info.Name, alt)
+					cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+					return cleaned, true, nil
+				}
+			}
+		}
+	}
 	if err != nil {
 		// Strip malformed directives from user-visible chat to avoid leaking
 		// internal syntax while still surfacing a clean response.
@@ -3004,7 +3070,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 
 	switch directive.Operation {
 	case "create":
-		if err := a.proposeFileCreateInChannel(channel, directive.Path, directive.NewContent); err != nil {
+		if err := a.proposeFileChangePreferEditOrCreate(channel, directive.Path, directive.NewContent, sourceMsg); err != nil {
 			return response, false, err
 		}
 	case "edit":
@@ -3046,10 +3112,17 @@ func parseFileChangeDirective(block string) (*fileChangeDirective, error) {
 	d.NewContent = stripEditorLineNumberPrefixes(d.NewContent)
 	d.OldContent = stripEditorLineNumberPrefixes(d.OldContent)
 
+	d.Path = normalizeFileChangeRelPath(d.Path)
+	d.OldPath = normalizeFileChangeRelPath(d.OldPath)
+	d.NewPath = normalizeFileChangeRelPath(d.NewPath)
+
 	switch d.Operation {
 	case "create":
 		if strings.TrimSpace(d.Path) == "" {
 			return nil, fmt.Errorf("create directive missing path")
+		}
+		if !isValidFileChangeRelPath(d.Path) {
+			return nil, fmt.Errorf("create directive has invalid path %q", d.Path)
 		}
 		if strings.TrimSpace(d.NewContent) == "" {
 			return nil, fmt.Errorf("create directive missing new content")
@@ -3058,12 +3131,18 @@ func parseFileChangeDirective(block string) (*fileChangeDirective, error) {
 		if strings.TrimSpace(d.Path) == "" {
 			return nil, fmt.Errorf("edit directive missing path")
 		}
+		if !isValidFileChangeRelPath(d.Path) {
+			return nil, fmt.Errorf("edit directive has invalid path %q", d.Path)
+		}
 		if strings.TrimSpace(d.NewContent) == "" {
 			return nil, fmt.Errorf("edit directive missing new content")
 		}
 	case "delete":
 		if strings.TrimSpace(d.Path) == "" {
 			return nil, fmt.Errorf("delete directive missing path")
+		}
+		if !isValidFileChangeRelPath(d.Path) {
+			return nil, fmt.Errorf("delete directive has invalid path %q", d.Path)
 		}
 	case "move":
 		if strings.TrimSpace(d.OldPath) == "" || strings.TrimSpace(d.NewPath) == "" {
@@ -3193,6 +3272,8 @@ func isUserRequestingFileWrite(content string) bool {
 		"make a file", "make the file", "add a file",
 		"complete file", "full tab", "complete tab", "turn it into",
 		"write to disk", "same directory", "this folder", "next to the",
+		"implement", "please implement", "implement that", "implement the",
+		"code this", "build this", "apply the plan", "make the changes",
 	}
 	for _, p := range phrases {
 		if strings.Contains(lower, p) {
@@ -3223,6 +3304,8 @@ func isExplicitProposalIntent(content string) bool {
 		"apply it", "go ahead and update", "update the file", "make the change",
 		"yes propose", "yes, propose", "yes please propose",
 		"create the file", "create this file", "save the file", "write the file",
+		"please implement", "implement that", "implement the plan", "go ahead and implement",
+		"ok please implement", "please implement the",
 	}
 	for _, p := range explicitPhrases {
 		if strings.Contains(lower, p) {
@@ -3282,6 +3365,10 @@ func (a *Agent) proposeFileEditInChannel(channel, path, oldContent, newContent s
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
+	path = normalizeFileChangeRelPath(path)
+	if !isValidFileChangeRelPath(path) {
+		return fmt.Errorf("invalid file change path: %q", path)
+	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
@@ -3311,9 +3398,31 @@ func (a *Agent) ProposeFileCreate(path, content string) error {
 	return a.proposeFileCreateInChannel(a.Context.CurrentChannel, path, content)
 }
 
+func (a *Agent) proposeFileChangePreferEditOrCreate(channel, path, content string, sourceMsg *protocol.Message) error {
+	path = normalizeFileChangeRelPath(path)
+	if !isValidFileChangeRelPath(path) {
+		return fmt.Errorf("invalid file change path: %q", path)
+	}
+	wsPath := ""
+	if sourceMsg != nil {
+		wsPath = a.resolveWorkspacePath(sourceMsg)
+	}
+	if wsPath != "" {
+		resolved := filepath.Join(wsPath, path)
+		if info, err := os.Stat(resolved); err == nil && !info.IsDir() {
+			return a.proposeFileEditInChannel(channel, path, "", content)
+		}
+	}
+	return a.proposeFileCreateInChannel(channel, path, content)
+}
+
 func (a *Agent) proposeFileCreateInChannel(channel, path, content string) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
+	}
+	path = normalizeFileChangeRelPath(path)
+	if !isValidFileChangeRelPath(path) {
+		return fmt.Errorf("invalid file change path: %q", path)
 	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{

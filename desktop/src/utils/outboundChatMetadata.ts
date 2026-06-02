@@ -29,6 +29,7 @@ import {
   type ChannelKind,
 } from './inferContextScope';
 import { resolveConversationMode } from './conversationMode';
+import { hasImplementationContinuationSignals } from './implementationContinuation';
 
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
@@ -347,12 +348,18 @@ export function buildHumanOutboundMetadata(options: {
     scope = activeTabPath || hasScanViewerTab ? 'focus' : 'hint';
     reason = 'open editor or scan tool request';
     meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  } else if (hasImplementationContinuationSignals(message) && contextMode !== 'off') {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'implementation continuation';
+    }
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
   } else if (messageAsksWorkspaceVisibility(message) && contextMode !== 'off') {
     if (scope === 'none' || scope === 'hint') {
       scope = activeTabPath ? 'focus' : 'outline';
       reason = 'workspace visibility question';
     }
-  } else if (resolvedConversationMode === 'chat') {
+  } else if (resolvedConversationMode === 'chat' && contextMode !== 'always') {
     scope = 'none';
     reason = 'conversation mode: chat';
   } else if (resolvedConversationMode === 'collab') {

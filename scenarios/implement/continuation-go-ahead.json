@@ -1,0 +1,43 @@
+{
+  "name": "continuation-go-ahead",
+  "description": "User affirms prior implementation ask; session should still run.",
+  "tags": ["implement", "continuation"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "minimal-repo" },
+  "setup": [
+    {
+      "action": "send",
+      "content": "implement a PrintVersion helper in core/sample/main.go",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "conversation_mode": "code"
+      }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "go ahead",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "conversation_mode": "code"
+      }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation|PrintVersion|Grounding"]
+    }
+  ],
+  "cleanup": "clear"
+}

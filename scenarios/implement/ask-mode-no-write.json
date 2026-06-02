@@ -1,0 +1,25 @@
+{
+  "name": "ask-mode-no-write",
+  "description": "IDE Ask mode must not run implementation session or propose edits.",
+  "tags": ["implement", "ask"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "minimal-repo" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "please implement a new API handler in core/sample/main.go",
+      "metadata": {
+        "editor_mode": "ask",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "conversation_mode": "code"
+      }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "assert_no_file_change" }
+  ],
+  "cleanup": "clear"
+}

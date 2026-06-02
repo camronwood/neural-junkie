@@ -147,6 +147,25 @@ export function isReasoningStreamDelta(metadata?: Record<string, unknown>): bool
   return metadata?.[REASONING_DELTA_METADATA_KEY] === true;
 }
 
+export const TOOL_STEPS_METADATA_KEY = 'tool_steps';
+
+export type ToolStepMeta = {
+  kind: string;
+  name: string;
+  iteration?: number;
+  preview?: string;
+};
+
+export function getToolSteps(metadata?: Record<string, unknown>): ToolStepMeta[] {
+  const raw = metadata?.[TOOL_STEPS_METADATA_KEY];
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x) => x && typeof x === 'object') as ToolStepMeta[];
+}
+
+export function isToolStepStreamDelta(metadata?: Record<string, unknown>): boolean {
+  return typeof metadata?.tool_step === 'string';
+}
+
 export type ChannelType = 'public' | 'dm' | 'custom' | 'collaboration';
 
 export interface Channel {
@@ -721,6 +740,8 @@ export interface DiscussionSession {
   status: DiscussionStatus;
   current_turn_index: number;
   consensus: Record<string, ConsensusState>;
+  /** Messages per participant in the current discussion round (hub JSON: turns_this_round). */
+  turns_this_round?: Record<string, number>;
 }
 
 export interface Collaboration {

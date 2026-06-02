@@ -22,12 +22,7 @@ func parseLooseFileChange(response string) (*fileChangeDirective, bool) {
 	idx := strings.Index(strings.ToLower(response), "[file_change]")
 	tail := response[idx:]
 
-	path := strings.TrimSpace(extractDirectiveField(tail, "path"))
-	if path == "" {
-		if m := looseFileChangeSameLineRE.FindStringSubmatch(tail); len(m) >= 2 {
-			path = strings.Trim(m[1], "`\"'")
-		}
-	}
+	path := resolveLooseFileChangePath(tail)
 	if path == "" {
 		return nil, false
 	}

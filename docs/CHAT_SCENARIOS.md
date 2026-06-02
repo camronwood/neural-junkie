@@ -16,10 +16,11 @@ Layer B catches **multi-turn behavior** (echo, workspace visibility answers, fak
 ## Prerequisites
 
 - Hub running: `make server` or `make gui`
+- **Full regression hub:** `make server-regression` (`NEURAL_JUNKIE_RATE_LIMIT=0` + `NEURAL_JUNKIE_DEBUG=1` on the **server**). See [TESTING.md](TESTING.md).
 - Agents in each scenario's `required_agents` online and not paused
 - Models configured (e.g. Ollama) for agents that use local LLMs
-- Optional: `NEURAL_JUNKIE_DEBUG=1` on the hub for `assert_debug_context` steps
-- For sweeps: start the hub with `NEURAL_JUNKIE_RATE_LIMIT=0`. The Makefile sets this on the scenario client only.
+- Debug context assertions: `make chat-scenarios-debug` (`--require-debug`; scenarios tagged `debug`)
+- For sweeps: hub must have `NEURAL_JUNKIE_RATE_LIMIT=0` (via `server-regression`). Makefile also sets it on scenario clients.
 
 ## Commands
 

@@ -58,7 +58,8 @@ func (o *OllamaProvider) GenerateResponseWithTools(
 	messages := o.buildChatMessages(systemPrompt, userMessage, conversationHistory)
 	ollamaTools := claudeToolsToOllama(tools)
 
-	for iter := 0; iter < maxToolLoopIterations; iter++ {
+	maxIter := ToolLoopMaxIterationsFromContext(ctx)
+	for iter := 0; iter < maxIter; iter++ {
 		reqBody := o.newChatRequest(messages, false)
 		reqBody.Tools = ollamaTools
 
@@ -113,9 +114,23 @@ func (o *OllamaProvider) GenerateResponseWithTools(
 			if len(input) == 0 {
 				input = json.RawMessage(`{}`)
 			}
+			emitToolStep(ctx, ToolStepEvent{
+				Kind: "start", Name: name, Iteration: iter + 1, MaxIterations: maxIter,
+			})
 			result, err := onToolUse(ctx, ToolUseRequest{Name: name, Input: input})
 			if err != nil {
 				result = "ERROR: " + err.Error()
+				emitToolStep(ctx, ToolStepEvent{
+					Kind: "error", Name: name, Iteration: iter + 1, MaxIterations: maxIter, Preview: result,
+				})
+			} else {
+				preview := result
+				if len(preview) > 200 {
+					preview = preview[:200] + "…"
+				}
+				emitToolStep(ctx, ToolStepEvent{
+					Kind: "result", Name: name, Iteration: iter + 1, MaxIterations: maxIter, Preview: preview,
+				})
 			}
 			messages = append(messages, OllamaMessage{
 				Role:     "tool",
@@ -125,7 +140,7 @@ func (o *OllamaProvider) GenerateResponseWithTools(
 		}
 	}
 
-	return "", fmt.Errorf("ollama tool loop exceeded %d iterations", maxToolLoopIterations)
+	return "", fmt.Errorf("ollama tool loop exceeded %d iterations", maxIter)
 }
 
 func ollamaToolsUnsupported(status int, body []byte) bool {

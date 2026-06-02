@@ -4,6 +4,8 @@ IDE v2 extends the dev pack with navigation/SCM depth (**v2a**), editor-integrat
 
 See [IDE_V3.md](IDE_V3.md) for Cursor-like coding in the main chat (IDE layout).
 
+See [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) for multi-step IDE Agent implementation sessions.
+
 ## v2a — Navigation and SCM
 
 ### v2a.1 Git SCM v2

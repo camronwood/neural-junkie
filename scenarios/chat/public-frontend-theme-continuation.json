@@ -1,0 +1,37 @@
+{
+  "name": "public-frontend-theme-continuation",
+  "description": "FrontendEngineer: theme ask then go-ahead keeps code context (no path begging).",
+  "tags": ["public", "frontend", "workspace", "regression"],
+  "channel": "chat-scenarios",
+  "channel_type": "public",
+  "mention": "@FrontendEngineer",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I want to add UI themes under settings with light and dark modes",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "yes please go ahead",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "FrontendEngineer",
+      "none_match": [
+        "provide the path",
+        "path to your main",
+        "path to the main",
+        "which file",
+        "eslint.config"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

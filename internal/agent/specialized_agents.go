@@ -13,14 +13,25 @@ import (
 	"github.com/camronwood/neural-junkie/internal/mcp/frontend"
 	"github.com/camronwood/neural-junkie/internal/mcp/rust"
 	"github.com/camronwood/neural-junkie/internal/mcp/security"
+	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func attachWorkspaceTools(agent *Agent, srv MCPServerInterface) {
+	if agent == nil || srv == nil {
+		return
+	}
+	workspace.AttachTools(srv.GetMCPServer(), func() string {
+		return agent.WorkspacePath
+	})
+}
 
 func startAgentMCP(agent *Agent, label string, srv MCPServerInterface) {
 	if agent == nil || srv == nil {
 		return
 	}
 	agent.MCPServer = srv
+	attachWorkspaceTools(agent, srv)
 	if err := srv.Start(); err != nil {
 		log.Printf("Failed to start %s MCP server: %v", label, err)
 	} else {

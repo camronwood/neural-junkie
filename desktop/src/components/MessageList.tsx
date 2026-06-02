@@ -7,6 +7,8 @@ import { channelTimelineAllowsEmptyContent } from '../types/protocol';
 import { isHumanJoinAnnouncement } from '../utils/joinMessage';
 import { Message } from './Message';
 import { useChatStore } from '../stores/chatStore';
+import { ChatAPI } from '../api/chatAPI';
+import { getHubBaseURL } from '../config/hubUrl';
 import { shallow } from 'zustand/shallow';
 
 type ListRow =
@@ -52,13 +54,15 @@ interface MessageListProps {
 }
 
 export function MessageList({ searchQuery = '' }: MessageListProps) {
-  const { channel, messages, threadMetadata, streamingMessages, openThread } = useChatStore(
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const { channel, messages, threadMetadata, streamingMessages, openThread, serverAddr } = useChatStore(
     (s) => ({
       channel: s.channel,
       messages: s.messages,
       threadMetadata: s.threadMetadata,
       streamingMessages: s.streamingMessages,
       openThread: s.openThread,
+      serverAddr: s.serverAddr,
     }),
     shallow
   );
@@ -71,8 +75,8 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [pendingMessageCount, setPendingMessageCount] = useState(0);
   const [showJumpButton, setShowJumpButton] = useState(false);
-
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const [, setLoadingOlder] = useState(false);
+  const loadOlderRef = useRef(false);
 
   const channelMessages = useMemo(() => {
     const filtered = messages.filter((m) => {
@@ -104,6 +108,26 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     });
     return deduped;
   }, [messages, normalizedSearchQuery, slackMirrorTimeline]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (loadOlderRef.current || normalizedSearchQuery) return;
+    const oldest = channelMessages[0];
+    if (!oldest?.id) return;
+    loadOlderRef.current = true;
+    setLoadingOlder(true);
+    try {
+      const api = new ChatAPI(serverAddr || getHubBaseURL());
+      const older = await api.fetchMessages(channel, 50, oldest.id);
+      if (older.length > 0) {
+        useChatStore.getState().prependMessages(older);
+      }
+    } catch (e) {
+      console.warn('[MessageList] load older failed', e);
+    } finally {
+      loadOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }, [channel, channelMessages, normalizedSearchQuery, serverAddr]);
 
   const activeStreams = useMemo(() => Object.values(streamingMessages), [streamingMessages]);
 
@@ -276,6 +300,7 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
         components={virtuosoComponents}
         followOutput={isNearBottom ? 'auto' : false}
         atBottomStateChange={handleAtBottomStateChange}
+        startReached={loadOlderMessages}
         totalListHeightChanged={() => scheduleScrollToTrueBottom('auto')}
         increaseViewportBy={{ top: 400, bottom: 800 }}
         itemContent={itemContent}

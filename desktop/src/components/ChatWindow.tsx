@@ -31,7 +31,7 @@ import {
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
 import { METADATA_CHANNEL_HOLD } from '../types/protocol';
-import { GRANTED_HUB_DATA_ACCESS_KEY } from '../constants/promptMetadata';
+import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_COMPLETE_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
   hasGrantedHubDataAccess,
@@ -119,6 +119,7 @@ import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
   buildIdeDispatchPayload,
+  ideRoutingChipLabel,
   mergeCodebaseAttachments,
 } from '../utils/ideComposer';
 
@@ -265,6 +266,43 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
     },
     [activeWorkspaceId, explorerWorkspaces, openFileInEditor, addToast]
+  );
+
+  const handleImplementationSessionComplete = useCallback(
+    async (metadata?: Record<string, unknown>) => {
+      const raw = metadata?.[IMPLEMENTATION_FILES_CHANGED_KEY];
+      const paths = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
+      if (paths.length === 0) return;
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      if (!ws) return;
+      const chatApi = new ChatAPI(getHubBaseURL());
+      for (const relPath of paths) {
+        try {
+          const existing = useEditorStore.getState().getTabByPath(ws.id, relPath);
+          if (existing) {
+            await useEditorStore.getState().refreshTabFromDisk(ws.id, relPath);
+            revealLineInEditor(ws.id, relPath, 1);
+          } else {
+            const content = await chatApi.fetchFileContent(ws.id, relPath);
+            openFileInEditor(ws.id, relPath, content, getLanguageFromPath(relPath));
+          }
+        } catch (e) {
+          console.error('[impl-session] open changed file:', relPath, e);
+        }
+      }
+      setCodeEditorOpen(true);
+      setFileExplorerOpen(true);
+      void useFileChangeStore.getState().fetchPendingChanges(username || 'default');
+    },
+    [
+      activeWorkspaceId,
+      explorerWorkspaces,
+      openFileInEditor,
+      revealLineInEditor,
+      username,
+    ]
   );
 
   const handleOpenAtLine = useCallback(
@@ -443,6 +481,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     ideLayout,
     hasIdeComposer,
   ]);
+
+  const ideRoutingLabel = useMemo(() => {
+    if (!ideLayout || !hasIdeComposer) return '';
+    return ideRoutingChipLabel(activeEditorTab, agents);
+  }, [ideLayout, hasIdeComposer, activeEditorTab, agents]);
 
   const contextIndicatorLabel = useMemo(
     () =>
@@ -1301,6 +1344,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         // Message belongs to the active channel (never wrap addMessage in startTransition —
         // high-frequency agent_status updates can starve transitions and leave the chat empty).
         st.addMessage(message);
+
+        if (message.metadata?.[IMPLEMENTATION_SESSION_COMPLETE_KEY] === true) {
+          void handleImplementationSessionComplete(
+            message.metadata as Record<string, unknown> | undefined
+          );
+        }
 
         if (message.metadata?.suggested_commands) {
           const suggestions = message.metadata.suggested_commands as CommandSuggestion[];
@@ -2239,7 +2288,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               ? 'Collaboration closed — read-only (slash commands still work)'
               : status === 'connected'
                 ? ideLayout && devPackEnabled
-                  ? 'Ask about the project — @BackendEngineer auto if no @mention…'
+                  ? 'Ask about the project — routes by open file; @mention to pick an agent…'
                   : 'Type your message here...'
                 : 'Connecting...'
           }
@@ -2254,6 +2303,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             title={contextScopePreview.reason}
           >
             Context: <span className="text-slack-text">{contextIndicatorLabel}</span>
+            {ideRoutingLabel ? (
+              <span className="ml-2 text-slack-accent">{ideRoutingLabel}</span>
+            ) : null}
           </div>
         )}
         </div>

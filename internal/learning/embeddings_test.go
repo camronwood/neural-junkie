@@ -3,22 +3,24 @@ package learning
 import (
 	"context"
 	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/embed"
 )
 
 func TestCosineSimilarity(t *testing.T) {
 	a := []float64{1, 0, 0}
 	b := []float64{1, 0, 0}
-	if cosineSimilarity(a, b) < 0.99 {
+	if embed.CosineSimilarity(a, b) < 0.99 {
 		t.Fatal("identical vectors should score ~1")
 	}
 	c := []float64{0, 1, 0}
-	if cosineSimilarity(a, c) > 0.01 {
+	if embed.CosineSimilarity(a, c) > 0.01 {
 		t.Fatal("orthogonal vectors should score ~0")
 	}
 }
 
 func TestKeywordScoreFallback(t *testing.T) {
-	score := keywordScore("please use tabs in go", "Always use tabs for indentation in Go files")
+	score := embed.KeywordScore("please use tabs in go", "Always use tabs for indentation in Go files")
 	if score <= 0 {
 		t.Fatal("expected positive keyword overlap")
 	}

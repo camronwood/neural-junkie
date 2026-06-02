@@ -148,6 +148,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [isSwitching, setIsSwitching] = useState(false);
   const [collabSmartRouting, setCollabSmartRouting] = useState(false);
+  const [implRoutingEnabled, setImplRoutingEnabled] = useState(true);
+  const [implRoutingEnabledPersisted, setImplRoutingEnabledPersisted] = useState(true);
+  const [implLocalToolModel, setImplLocalToolModel] = useState('qwen2.5-coder:7b');
+  const [implLocalToolModelPersisted, setImplLocalToolModelPersisted] = useState('qwen2.5-coder:7b');
   const [collabAutoApproveDeliverables, setCollabAutoApproveDeliverables] = useState(true);
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
@@ -860,6 +864,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+          setImplRoutingEnabled(cfg.implementation?.routing_enabled !== false);
+          setImplRoutingEnabledPersisted(cfg.implementation?.routing_enabled !== false);
+          const toolModel =
+            typeof cfg.implementation?.local_tool_model === 'string' &&
+            cfg.implementation.local_tool_model.trim()
+              ? cfg.implementation.local_tool_model.trim()
+              : 'qwen2.5-coder:7b';
+          setImplLocalToolModel(toolModel);
+          setImplLocalToolModelPersisted(toolModel);
           setCollabAutoApproveDeliverables(cfg.collaboration?.auto_approve_deliverables !== false);
           setDelegationEnabled(!!cfg.delegation?.enabled);
           const root =
@@ -1040,6 +1053,40 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setCollabRoutingErr(e instanceof Error ? e.message : String(e));
     } finally {
       setDelegationSaving(false);
+    }
+  };
+
+  const saveImplementationSettings = async () => {
+    setCollabRoutingSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      const r = await fetch(`${hubHttp}/api/settings`);
+      if (!r.ok) {
+        throw new Error(await r.text());
+      }
+      const cfg = await r.json();
+      const next = {
+        ...cfg,
+        implementation: {
+          ...(cfg.implementation ?? {}),
+          routing_enabled: implRoutingEnabled,
+          local_tool_model: implLocalToolModel.trim() || 'qwen2.5-coder:7b',
+        },
+      };
+      const put = await fetch(`${hubHttp}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!put.ok) {
+        throw new Error(await put.text());
+      }
+      setImplLocalToolModelPersisted(implLocalToolModel.trim() || 'qwen2.5-coder:7b');
+      setImplRoutingEnabledPersisted(implRoutingEnabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollabRoutingSaving(false);
     }
   };
 
@@ -3591,6 +3638,47 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {collabRoutingErr && (
                   <p className="text-sm text-red-600 mt-2">{collabRoutingErr}</p>
                 )}
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Implementation sessions</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  IDE Agent mode runs multi-step implementation sessions (read → edit → verify). Local Ollama is
+                  preferred; fallbacks use configured cloud providers when local tool calling is unavailable.
+                </p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={implRoutingEnabled}
+                    disabled={collabRoutingSaving}
+                    onChange={(e) => setImplRoutingEnabled(e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-slack-text">Enable local-first implementation routing</span>
+                </label>
+                <div className="mt-4">
+                  <label className="block text-sm text-slack-textMuted mb-1">Implementation tool model (Ollama tag)</label>
+                  <input
+                    type="text"
+                    value={implLocalToolModel}
+                    disabled={collabRoutingSaving}
+                    onChange={(e) => setImplLocalToolModel(e.target.value)}
+                    className="w-full max-w-md px-3 py-2 rounded border border-slack-border bg-slack-bg text-slack-text text-sm"
+                    placeholder="qwen2.5-coder:7b"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    collabRoutingSaving ||
+                    (implRoutingEnabled === implRoutingEnabledPersisted &&
+                      (implLocalToolModel.trim() || 'qwen2.5-coder:7b') === implLocalToolModelPersisted)
+                  }
+                  onClick={() => void saveImplementationSettings()}
+                  className="mt-4 px-4 py-2 text-sm rounded bg-slack-accent text-white disabled:opacity-50"
+                >
+                  Save implementation settings
+                </button>
               </div>
 
               {hasPersonalLearning && (

@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -64,6 +64,10 @@ server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hu
 	@echo "🔧 Starting debug hub → /tmp/nj-hub.log  (pprof: http://127.0.0.1:6060/debug/pprof/) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
+server-regression: setup-env ## Hub for live scenario regression (RATE_LIMIT=0 + DEBUG=1); logs to /tmp/nj-hub.log
+	@echo "🔧 Regression hub → /tmp/nj-hub.log  (NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
 
@@ -83,6 +87,29 @@ debug-messages: ## Last messages for CHANNEL (session file; add LIVE=1 for hub)
 
 collab-smoke: ## Collab lifecycle smoke (API phases); LIVE=1 for running hub
 	@python3 scripts/collab-smoke.py $(if $(LIVE),--live,)
+
+slack-smoke: ## Slack integration + hub /api/slack handler smoke (CI-safe; LIVE=1 runs slack-live-smoke.sh)
+	@go test ./internal/integrations/slack/... -count=1
+	@go test ./cmd/server -run 'TestHandleSlack' -count=1
+	@if [ "$(LIVE)" = "1" ]; then \
+		chmod +x scripts/slack-live-smoke.sh; \
+		./scripts/slack-live-smoke.sh; \
+	fi
+
+collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, agents, scenario list)
+	@python3 scripts/collab-preflight.py $(if $(REQUIRE_GEMINI),--require-gemini,)
+
+test-regression-live: ## Print pre-release live regression checklist (does not start hub)
+	@echo "Pre-release live regression (see docs/TESTING.md):"
+	@echo "  0. ollama serve  &&  ollama pull qwen2.5:7b   # required for Ollama-backed agents"
+	@echo "  0b. make server-regression && make collab-preflight"
+	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
+	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
+	@echo "  3. make chat-scenarios-regression"
+	@echo "  4. make chat-scenarios-debug"
+	@echo "  5. make collab-scenarios-all  # ~1-3h serial"
+	@echo "  6. make learning-scenarios"
+	@echo "  Optional: LIVE=1 make slack-smoke, collab matrices, NEURAL_JUNKIE_SCENARIO_REPO=..."
 
 learning-lora-smoke: ## Personal learning + LoRA expert-context smoke (CI, no GPU)
 	@go test ./cmd/server/ -run TestLearningLoRASmoke -count=1
@@ -104,10 +131,17 @@ collab-scenario: ## Run one live collab scenario (SCENARIO=planning-two-agent, P
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(KEEP),--keep,)
 
-collab-scenarios: ## Run all live collab scenarios under scenarios/collab/
-	@python3 scripts/collab-scenarios.py --all \
+collab-scenarios: ## Run all live collab scenarios (hub should use make server-regression)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --all \
 		$(if $(PROFILE),--profile $(PROFILE),) \
 		$(if $(VERBOSE),--verbose,)
+
+collab-scenarios-all: collab-scenarios ## Alias: full collab sweep (15 scenarios; PROFILE does not shorten timeouts)
+
+collab-sweep-serial: ## Run collab scenarios one-by-one; stop on FAIL (RESUME=1 skips PASS in docs/testing/collab-matrix.tsv)
+	@chmod +x scripts/collab-sweep-serial.sh
+	@RETRIES=$(or $(RETRIES),1) RESUME=$(RESUME) ONLY="$(ONLY)" VERBOSE=$(VERBOSE) \
+		./scripts/collab-sweep-serial.sh
 
 collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-agent template)
 	@chmod +x scripts/collab-scenario-matrix.sh
@@ -153,8 +187,24 @@ chat-scenarios-regression: ## Run regression-tagged chat scenarios (workspace, e
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag regression \
 		$(if $(VERBOSE),--verbose,)
 
+chat-scenarios-debug: ## Run debug-tagged chat scenarios (requires hub: make server-regression)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag debug --require-debug \
+		$(if $(VERBOSE),--verbose,)
+
 chat-scenarios-list: ## List chat scenarios and tags
 	@python3 scripts/chat-scenarios.py --list
+
+implement-scenario: ## Run one implementation scenario (SCENARIO=go-handler)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make implement-scenario SCENARIO=go-handler"; exit 1; fi
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios.py --scenario "$(SCENARIO)" \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(KEEP),--keep,)
+
+implement-scenarios: ## Run all scenarios under scenarios/implement/
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios.py --all \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(KEEP),--keep,)
+
+implement-scenarios-list: ## List implementation scenarios
+	@python3 scripts/implement-scenarios.py --list
 
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."

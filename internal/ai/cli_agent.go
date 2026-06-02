@@ -811,13 +811,12 @@ func (c *CLIAgentProvider) buildPromptWithHistory(prompt string, history []proto
 
 	var sb strings.Builder
 
-	// Include limited history for context
-	historyLimit := 8
+	// Include conversation history already trimmed by the hub context stack (up to 12 turns).
+	historyLimit := 12
 	perMessageLimit := 2000
 	if c.ProviderName == "gemini-cli" {
-		// Keep Gemini context slimmer to reduce end-to-end latency.
-		historyLimit = 4
-		perMessageLimit = 700
+		historyLimit = 8
+		perMessageLimit = 1200
 	}
 	startIdx := 0
 	if len(history) > historyLimit {

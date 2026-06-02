@@ -3,6 +3,7 @@ import type { Message as MessageType, CommandOutput as CommandOutputType, Messag
 import {
   getAgentColor,
   getReasoningText,
+  getToolSteps,
   isSystemMessage,
   isCollaborationMessage,
 } from '../types/protocol';
@@ -92,6 +93,23 @@ function MessageReasoningBlock({
         </div>
       )}
     </div>
+  );
+}
+
+function MessageToolStepsBlock({ steps }: { steps: ReturnType<typeof getToolSteps> }) {
+  if (!steps.length) return null;
+  return (
+    <details className="mb-2 rounded border border-slack-border/70 bg-slack-bgHover/40 text-xs text-slack-textMuted">
+      <summary className="cursor-pointer px-3 py-2">Agent activity ({steps.length})</summary>
+      <ul className="px-3 pb-2 space-y-1">
+        {steps.map((step, i) => (
+          <li key={i}>
+            <span className="font-medium text-slack-text">{step.name}</span>
+            {step.preview ? `: ${step.preview}` : ''}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -194,6 +212,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const suggestsFileChange = shouldShowProposeAction(message);
   const canShowProposeButton = suggestsFileChange && !isStreaming;
   const reasoningText = getReasoningText(message.metadata as Record<string, unknown> | undefined);
+  const toolSteps = getToolSteps(message.metadata as Record<string, unknown> | undefined);
   const senderName = slackSenderDisplayName(message);
   const sharedContextBadge = workspaceContextBadge(message.metadata as Record<string, unknown> | undefined);
   const imageAttached = hasUserImages(message.metadata as Record<string, unknown> | undefined);
@@ -365,6 +384,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             <MessageUserImages metadata={message.metadata as Record<string, unknown> | undefined} />
             <MessageGeneratedImage metadata={message.metadata as Record<string, unknown> | undefined} />
             <MessageReasoningBlock reasoningText={reasoningText} isStreaming={isStreaming} />
+            <MessageToolStepsBlock steps={toolSteps} />
             <MessageContent content={message.content} isStreaming={isStreaming} />
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />

@@ -52,10 +52,18 @@ def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
 
 
 class ChatScenarioContext:
-    def __init__(self, base: str, scenario: dict, verbose: bool = False) -> None:
+    def __init__(
+        self,
+        base: str,
+        scenario: dict,
+        verbose: bool = False,
+        *,
+        require_debug: bool = False,
+    ) -> None:
         self.base = base.rstrip("/")
         self.scenario = scenario
         self.verbose = verbose
+        self.require_debug = require_debug
         self.channel = (scenario.get("channel") or DEFAULT_CHANNEL).strip()
         self.target_agent = (scenario.get("target_agent") or DEFAULT_AGENT).strip().lstrip("@")
         self.mention = (scenario.get("mention") or "").strip()
@@ -207,6 +215,8 @@ def step_assert_debug_context(ctx: ChatScenarioContext, step: dict) -> tuple[boo
         ctx.base, ctx.channel, sample, conversation_mode=mode, context_scope=scope_q
     )
     if not data:
+        if ctx.require_debug:
+            return False, "debug API unavailable (hub needs NEURAL_JUNKIE_DEBUG=1; use make server-regression)"
         if step.get("optional"):
             return True, "skipped (NEURAL_JUNKIE_DEBUG=1 not set on hub)"
         return False, "debug API unavailable (set NEURAL_JUNKIE_DEBUG=1 on hub)"
@@ -275,9 +285,10 @@ def run_scenario(
     *,
     verbose: bool = False,
     keep: bool = False,
+    require_debug: bool = False,
 ) -> bool:
     scenario = load_scenario(name)
-    ctx = ChatScenarioContext(base, scenario, verbose)
+    ctx = ChatScenarioContext(base, scenario, verbose, require_debug=require_debug)
 
     print(f"\n=== scenario: {name} ===")
     print(f"  hub={base}")
@@ -341,6 +352,11 @@ def main() -> int:
         default=[],
         help="Filter scenarios (repeatable). Scenario must include all listed tags.",
     )
+    p.add_argument(
+        "--require-debug",
+        action="store_true",
+        help="Fail assert_debug_context when hub debug API is off (even if step is optional)",
+    )
     args = p.parse_args()
 
     if args.list:
@@ -369,7 +385,13 @@ def main() -> int:
                 print(f"=== SKIP (optional): {n} — offline: {', '.join(missing)} ===\n")
                 skipped.append(n)
                 continue
-            if not run_scenario(base, n, verbose=args.verbose, keep=args.keep):
+            if not run_scenario(
+                base,
+                n,
+                verbose=args.verbose,
+                keep=args.keep,
+                require_debug=args.require_debug,
+            ):
                 failed.append(n)
         if skipped:
             print(f"Skipped optional: {', '.join(skipped)}", file=sys.stderr)
@@ -377,7 +399,13 @@ def main() -> int:
 
     if not args.scenario:
         p.error("specify --scenario <name> or --all")
-    ok = run_scenario(base, args.scenario, verbose=args.verbose, keep=args.keep)
+    ok = run_scenario(
+        base,
+        args.scenario,
+        verbose=args.verbose,
+        keep=args.keep,
+        require_debug=args.require_debug,
+    )
     return 0 if ok else 1
 
 

@@ -18,8 +18,11 @@ import {
 import {
   isApprovedAwaitingDispatch,
   isPlanningAwaitingFirstTurn,
+  planningStalledParticipantNames,
   taskNeedsFileDeliverable,
 } from '../utils/collaborationPanelState';
+import { buildCollabChannelOutboundMetadata } from '../utils/collaborationOutboundMetadata';
+import { loadWorkspaceContextMode } from '../utils/outboundChatMetadata';
 import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
@@ -85,6 +88,7 @@ export function CollaborationPanel({
   const [extendRounds, setExtendRounds] = useState('1');
   const [extendMessages, setExtendMessages] = useState('');
   const from = { name: username || 'User', type: 'human' };
+  const workspaceContextMode = loadWorkspaceContextMode();
 
   const c = collaboration;
   const extendCandidates =
@@ -94,6 +98,13 @@ export function CollaborationPanel({
         ? [c]
         : [];
   const collabChannel = c.channel?.trim() || channel;
+
+  const sendCollabCommand = async (content: string) => {
+    const meta = buildCollabChannelOutboundMetadata(c, content, {
+      contextMode: workspaceContextMode,
+    });
+    await api.sendMessage(collabChannel, content, from, 'question', meta);
+  };
   const completedTasks = c.tasks?.filter(t => t.status === 'completed').length ?? 0;
   const totalTasks = c.tasks?.length ?? 0;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -114,7 +125,7 @@ export function CollaborationPanel({
     }
     setIsSubmitting(true);
     try {
-      await api.sendMessage(collabChannel, `/resume-plan ${c.id.slice(0, 8)}`, from);
+      await sendCollabCommand(`/resume-plan ${c.id.slice(0, 8)}`);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -124,7 +135,7 @@ export function CollaborationPanel({
   const handleSubmitForReview = async () => {
     setIsSubmitting(true);
     try {
-      await api.sendMessage(collabChannel, `/submit-plan ${c.id.slice(0, 8)}`, from);
+      await sendCollabCommand(`/submit-plan ${c.id.slice(0, 8)}`);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -143,7 +154,20 @@ export function CollaborationPanel({
     (c.phase === 'reviewing' || c.phase === 'approved' || c.phase === 'executing');
   const approveBlocked = c.phase === 'reviewing' && planningRecapPending;
   const planningAwaitingFirstTurn = isPlanningAwaitingFirstTurn(c);
+  const planningStalled = planningStalledParticipantNames(c);
   const approvedAwaitingDispatch = isApprovedAwaitingDispatch(c);
+  const chatOnlyCompletedFileTasks =
+    c.tasks?.filter(
+      (t) =>
+        t.status === 'completed' &&
+        taskNeedsFileDeliverable(t) &&
+        !(t.output?.trim())
+    ) ?? [];
+  const executingStuck =
+    c.phase === 'executing' &&
+    totalTasks > 0 &&
+    completedTasks === 0 &&
+    (c.tasks?.some((t) => t.status === 'in_progress') ?? false);
   const submitForReviewEnabled = canSubmitCollaborationForReview(c.phase, c.discussion);
   const submitForReviewBlocked = c.phase === 'planning' && !submitForReviewEnabled;
 
@@ -151,7 +175,7 @@ export function CollaborationPanel({
     if (!feedback.trim()) return;
     setIsSubmitting(true);
     try {
-      await api.sendMessage(collabChannel, `/revise-plan ${c.id.slice(0, 8)} ${feedback}`, from);
+      await sendCollabCommand(`/revise-plan ${c.id.slice(0, 8)} ${feedback}`);
       setFeedback('');
       await onAfterCollaborationCommand?.();
     } finally {
@@ -162,7 +186,7 @@ export function CollaborationPanel({
   const handleCancel = async () => {
     setIsSubmitting(true);
     try {
-      await api.sendMessage(collabChannel, `/cancel-plan ${c.id.slice(0, 8)}`, from);
+      await sendCollabCommand(`/cancel-plan ${c.id.slice(0, 8)}`);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -182,7 +206,7 @@ export function CollaborationPanel({
     setIsSubmitting(true);
     try {
       const force = openTasks.length > 0 ? ' --force' : '';
-      await api.sendMessage(collabChannel, `/complete-collab ${c.id.slice(0, 8)}${force}`, from);
+      await sendCollabCommand(`/complete-collab ${c.id.slice(0, 8)}${force}`);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -238,11 +262,7 @@ export function CollaborationPanel({
     if (!title) return;
     setIsSubmitting(true);
     try {
-      await api.sendMessage(
-        collabChannel,
-        `/collab-rename ${c.id.slice(0, 8)} ${title}`,
-        from
-      );
+      await sendCollabCommand(`/collab-rename ${c.id.slice(0, 8)} ${title}`);
       setRenaming(false);
       await onAfterCollaborationCommand?.();
     } finally {
@@ -264,7 +284,7 @@ export function CollaborationPanel({
     }
     setIsSubmitting(true);
     try {
-      await api.sendMessage(collabChannel, cmd, from);
+      await sendCollabCommand(cmd);
       await onAfterCollaborationCommand?.();
     } finally {
       setIsSubmitting(false);
@@ -459,6 +479,28 @@ export function CollaborationPanel({
           </div>
         )}
 
+        {c.phase === 'planning' && planningStalled.length > 0 && (
+          <div
+            data-testid="collaboration-planning-stall-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #b45309',
+              backgroundColor: 'rgba(180, 83, 9, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
+              Waiting on {planningStalled.map((n) => `@${n}`).join(', ')}
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              These participants have not posted this round. Check agents are online and the model is reachable
+              (Ollama: <code style={{ fontSize: 11 }}>ollama serve</code>). Debug:{' '}
+              <code style={{ fontSize: 11 }}>make debug-collab COLAB={c.id.slice(0, 8)} LIVE=1</code>
+            </p>
+          </div>
+        )}
+
         {c.phase === 'planning' && planningAwaitingFirstTurn && (
           <div
             data-testid="collaboration-planning-wait-banner"
@@ -476,6 +518,50 @@ export function CollaborationPanel({
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
               The hub prompted the first participant. If nothing appears after ~30s, check that agents are online
               or run <code style={{ fontSize: 11 }}>make debug-collab LIVE=1</code>.
+            </p>
+          </div>
+        )}
+
+        {c.phase === 'executing' && executingStuck && (
+          <div
+            data-testid="collaboration-executing-stuck-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #b45309',
+              backgroundColor: 'rgba(180, 83, 9, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
+              Execution may be stuck
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              No tasks completed yet while one is in progress. Use <strong>Resume plan</strong> if the watchdog
+              stopped dispatching, or check hub logs and{' '}
+              <code style={{ fontSize: 11 }}>make debug-collab COLAB={c.id.slice(0, 8)} LIVE=1</code>.
+            </p>
+          </div>
+        )}
+
+        {c.phase === 'executing' && chatOnlyCompletedFileTasks.length > 0 && (
+          <div
+            data-testid="collaboration-file-deliverable-hint-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #b45309',
+              backgroundColor: 'rgba(180, 83, 9, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
+              File deliverable may be missing
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              {chatOnlyCompletedFileTasks.length} task(s) marked completed without file output. Approve pending
+              file changes in chat or ask the assignee to emit a [FILE_CHANGE] block. See{' '}
+              <code style={{ fontSize: 11 }}>docs/COLLABORATION.md</code> troubleshooting.
             </p>
           </div>
         )}

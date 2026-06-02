@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatWindow } from './ChatWindow';
 import { useChatStore } from '../stores/chatStore';
@@ -382,7 +382,11 @@ describe('ChatWindow collaboration wiring', () => {
   });
 
   it('auto-opens the collaboration panel on first collaboration_discussion with metadata', async () => {
-    const collab = makeCollaboration({ id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', phase: 'planning' });
+    const collab = makeCollaboration({
+      id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      phase: 'planning',
+      discussion: { total_message_count: 1, status: 'active' },
+    });
     apiHarness.fetchCollaborations.mockResolvedValue([collab]);
 
     render(<ChatWindow />);
@@ -399,12 +403,12 @@ describe('ChatWindow collaboration wiring', () => {
       timestamp: new Date().toISOString(),
       metadata: { collaboration_data: collab },
     };
-    await opts!.onMessage(msg);
-
-    await waitFor(() => {
-      expect(screen.getByText('Planning')).toBeInTheDocument();
-      expect(screen.getByText('Wire-test collaboration')).toBeInTheDocument();
+    await act(async () => {
+      await opts!.onMessage(msg);
     });
+
+    expect(await screen.findByText('Planning', {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText('Wire-test collaboration', {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('keeps the panel open read-only and toasts when collaboration completes over WS', async () => {

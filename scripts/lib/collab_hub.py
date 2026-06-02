@@ -706,6 +706,17 @@ def discussion_diagnosis(
     pool = agent_messages(msgs)
     counts = count_by_agent(pool)
     lines = [f"agent discussion: total={len(pool)} counts={counts}"]
+    gen_errors = sum(
+        1
+        for m in msgs
+        if isinstance(m, dict)
+        and (m.get("type") or "") == "collaboration_discussion"
+        and isinstance(m.get("metadata"), dict)
+        and m["metadata"].get("generation_error")
+    )
+    if gen_errors:
+        lines.append(f"  generation_error posts in channel: {gen_errors}")
+
     for name in required_agents or []:
         n = counts.get(name, 0)
         if n < 1:

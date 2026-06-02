@@ -3,6 +3,7 @@ import type { Collaboration } from '../types/protocol';
 import {
   isApprovedAwaitingDispatch,
   isPlanningAwaitingFirstTurn,
+  planningStalledParticipantNames,
   resolvePanelCollaboration,
   taskNeedsFileDeliverable,
 } from './collaborationPanelState';
@@ -69,6 +70,45 @@ describe('taskNeedsFileDeliverable', () => {
         status: 'in_progress',
       })
     ).toBe(true);
+  });
+});
+
+describe('planningStalledParticipantNames', () => {
+  it('lists participants with zero turns when discussion has started', () => {
+    const names = planningStalledParticipantNames(
+      collab({
+        phase: 'planning',
+        agents: [
+          {
+            agent_id: 'a1',
+            agent_name: 'BackendEngineer',
+            agent_type: 'backend',
+            expertise: [],
+            role: 'backend',
+          },
+          {
+            agent_id: 'a2',
+            agent_name: 'SoftwareArchitect',
+            agent_type: 'architecture',
+            expertise: [],
+            role: 'architect',
+          },
+        ],
+        discussion: {
+          id: 'd',
+          collaboration_id: 'cid-1',
+          participants: ['a1', 'a2'],
+          current_round: 1,
+          max_rounds: 2,
+          turn_budget: 1,
+          total_message_count: 2,
+          max_total_messages: 12,
+          status: 'active',
+          turns_this_round: { a1: 1, a2: 0 },
+        },
+      })
+    );
+    expect(names).toEqual(['SoftwareArchitect']);
   });
 });
 

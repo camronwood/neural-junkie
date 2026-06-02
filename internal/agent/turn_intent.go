@@ -72,6 +72,10 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		return IntentSubstantive
 	}
 
+	if userAffirmsPendingImplementation(content) && channelHasRecentImplementationAsk(history, msg.ID) {
+		return IntentTask
+	}
+
 	mode := EffectiveConversationMode(msg, channelType)
 
 	if hasCodeTaskSignals(content) {
@@ -202,6 +206,9 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) s
 func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnIntent) []*protocol.Message {
 	hasSummary := a.sessionSummaryBlock(msg.Channel) != ""
 	max := maxHistoryForIntent(intent, hasSummary)
+	if msg != nil && msg.IdeRouteAgentType() != "" && max < 12 {
+		max = 12
+	}
 	var raw []*protocol.Message
 	if msg.IsInThread() && a.Hub != nil {
 		threadID := msg.GetThreadID()

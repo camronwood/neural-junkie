@@ -1,0 +1,16 @@
+scenario	status	notes	updated_at
+resource-api-schema-planning	PENDING	batch aborted mid-run	2026-06-02T20:30:00Z
+solo-vs-collab-parity	PENDING	not run in batch	2026-06-02T20:30:00Z
+delivery-sandbox-auto-ack	PASS	imported from batch log	2026-06-02T20:44:22Z
+document-findings-execution	PASS	imported from batch log	2026-06-02T20:44:22Z
+execute-deliverable	PASS	imported from batch log	2026-06-02T20:44:22Z
+execution-no-stack-commands	FAIL	imported from batch log	2026-06-02T20:44:22Z
+multi-collab-isolation	PASS	imported from batch log	2026-06-02T20:44:22Z
+phoenix-resource-api-e2e	PASS	imported from batch log	2026-06-02T20:44:22Z
+plan-dependency-prose-regression	FAIL	imported from batch log	2026-06-02T20:44:22Z
+plan-distinct-deliverables-same-agent	FAIL	imported from batch log	2026-06-02T20:44:22Z
+plan-findings-task-regression	PASS	imported from batch log	2026-06-02T20:44:22Z
+plan-phoenix-combined-regression	FAIL	imported from batch log	2026-06-02T20:44:22Z
+planning-two-agent	PASS	imported from batch log	2026-06-02T20:44:22Z
+reject-collabs-subfolder	PASS	imported from batch log	2026-06-02T20:44:22Z
+resource-api-schema-regression	PASS		2026-06-02T20:51:39Z

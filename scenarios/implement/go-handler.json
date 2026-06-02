@@ -1,0 +1,31 @@
+{
+  "name": "go-handler",
+  "description": "IDE Agent implementation session on minimal Go fixture.",
+  "tags": ["implement", "backend", "go"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "minimal-repo" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "please implement a HelloWorld function in core/sample/main.go and call it from main",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation session|HelloWorld|file change|Grounding"]
+    }
+  ],
+  "cleanup": "clear"
+}

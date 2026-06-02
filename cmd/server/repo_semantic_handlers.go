@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/camronwood/neural-junkie/internal/workspacefiles"
+	"github.com/camronwood/neural-junkie/internal/codeindex"
 )
 
-// handleRepoSemanticSearch returns file chunks for @codebase (keyword search; embeddings later).
+// handleRepoSemanticSearch returns file chunks for @codebase (hybrid embed + keyword).
 func handleRepoSemanticSearch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -39,7 +37,13 @@ func handleRepoSemanticSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	paths, err := workspacefiles.Search(ctx, root, q, limit*3)
+
+	meta, _ := codeindex.Status(root)
+	if !meta.Ready && !meta.Building {
+		codeindex.BuildIndexAsync(root)
+	}
+
+	results, err := codeindex.Search(ctx, root, q, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -48,22 +52,30 @@ func handleRepoSemanticSearch(w http.ResponseWriter, r *http.Request) {
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}
-	var chunks []chunk
-	for _, rel := range paths {
-		if len(chunks) >= limit {
-			break
-		}
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		b, err := os.ReadFile(full)
-		if err != nil {
-			continue
-		}
-		content := string(b)
-		if len(content) > 4000 {
-			content = content[:4000] + "\n…"
-		}
-		chunks = append(chunks, chunk{Path: rel, Content: content})
+	chunks := make([]chunk, len(results))
+	for i, r := range results {
+		chunks[i] = chunk{Path: r.Path, Content: r.Content}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"chunks": chunks})
+}
+
+// handleRepoIndexStatus reports code index build state for a workspace.
+func handleRepoIndexStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	repoPath := strings.TrimSpace(r.URL.Query().Get("repo_path"))
+	if repoPath == "" {
+		http.Error(w, "repo_path required", http.StatusBadRequest)
+		return
+	}
+	meta, err := codeindex.Status(repoPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(meta)
 }

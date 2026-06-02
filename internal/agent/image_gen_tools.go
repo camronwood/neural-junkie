@@ -53,6 +53,9 @@ func (a *Agent) agentToolDefinitions() []ai.ClaudeToolDefinition {
 	if a.MCPServer != nil {
 		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer))...)
 	}
+	if a.hasWorkspaceTools() {
+		tools = append(tools, proposeFileEditToolDefinition())
+	}
 	return tools
 }
 
@@ -85,6 +88,9 @@ func (a *Agent) executeGenerateImageTool(ctx context.Context, msg *protocol.Mess
 func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, name string, input json.RawMessage) (string, error) {
 	if name == generateImageToolName {
 		return a.executeGenerateImageTool(ctx, msg, input)
+	}
+	if name == proposeFileEditToolName {
+		return a.executeProposeFileEditTool(ctx, msg, input)
 	}
 	mcpServer := mcpServerFromInterface(a.MCPServer)
 	if mcpServer == nil {
@@ -363,7 +369,7 @@ func (a *Agent) generateWithAgentTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	toolEff := a.toolCapableProvider(eff)
+	toolEff := a.toolCapableProvider(ctx, eff)
 	toolProvider, ok := toolEff.(ai.ToolCapableProvider)
 	if !ok || !toolProvider.SupportsTools() {
 		log.Printf("[%s] Tools requested but provider does not support tool calling; using standard response", a.Info.Name)

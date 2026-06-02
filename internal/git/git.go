@@ -25,6 +25,22 @@ type WorktreeStatus struct {
 	Untracked []string `json:"untracked"`
 }
 
+// RevParseHEAD returns the current git HEAD commit hash, or empty if unavailable.
+func RevParseHEAD(repoRoot string) (string, error) {
+	repoRoot, err := filepath.Abs(filepath.Clean(repoRoot))
+	if err != nil {
+		return "", err
+	}
+	if !IsRepo(repoRoot) {
+		return "", fmt.Errorf("not a git repository")
+	}
+	out, stderr, err := runGit(context.Background(), repoRoot, "rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse: %s: %w", strings.TrimSpace(stderr), err)
+	}
+	return strings.TrimSpace(out), nil
+}
+
 // IsRepo reports whether dir contains a .git directory or file.
 func IsRepo(dir string) bool {
 	gitDir := filepath.Join(dir, ".git")

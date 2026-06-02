@@ -1,0 +1,46 @@
+package hub
+
+import (
+	"log"
+	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/protocol"
+)
+
+const editorTrustAutoApply = "auto_apply_edits"
+
+func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filechange.FileChange, operation filechange.FileOperation, wsRoot string) {
+	if h == nil || msg == nil || change == nil || h.fileChangeManager == nil {
+		return
+	}
+	if msg.GetCollaborationID() != "" {
+		return
+	}
+	trust := strings.TrimSpace(msg.EditorAgentTrust())
+	if trust == "" {
+		if msg.Metadata != nil {
+			if t, ok := msg.Metadata["editor_agent_trust"].(string); ok {
+				trust = strings.TrimSpace(t)
+			}
+		}
+	}
+	if trust != editorTrustAutoApply {
+		return
+	}
+	if msg.IdeEditorMode() == "ask" {
+		return
+	}
+	if operation != filechange.FileOperationCreate && operation != filechange.FileOperationEdit {
+		return
+	}
+	approvedBy := "system"
+	if msg.From.ID != "" {
+		approvedBy = msg.From.ID
+	}
+	if _, err := h.fileChangeManager.ApproveFileChange(change.ID, approvedBy); err != nil {
+		log.Printf("[IDE] Auto-approve file change %s: %v", change.ID, err)
+		return
+	}
+	log.Printf("[IDE] Auto-approved file change %s (%s) trust=%s", change.ID, change.FilePath, trust)
+}

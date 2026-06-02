@@ -1,25 +1,17 @@
 package learning
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/embed"
 )
 
-type embedRecord struct {
-	Model      string    `json:"model"`
-	Vector     []float64 `json:"vector"`
-	EmbeddedAt time.Time `json:"embedded_at"`
-}
+type embedRecord = embed.Record
 
 type embedFile struct {
 	Entries map[string]embedRecord `json:"entries"`
@@ -27,9 +19,7 @@ type embedFile struct {
 
 // EmbedStore caches vectors in learning-embeddings.json.
 type EmbedStore struct {
-	mu   sync.RWMutex
-	path string
-	data embedFile
+	inner *embed.Store
 }
 
 func DefaultEmbedPath() string {
@@ -44,90 +34,40 @@ func NewEmbedStore(path string) (*EmbedStore, error) {
 	if path == "" {
 		path = DefaultEmbedPath()
 	}
-	es := &EmbedStore{path: path, data: embedFile{Entries: map[string]embedRecord{}}}
-	if err := es.load(); err != nil {
+	inner, err := embed.NewStore(path)
+	if err != nil {
 		return nil, err
 	}
-	return es, nil
-}
-
-func (es *EmbedStore) load() error {
-	es.mu.Lock()
-	defer es.mu.Unlock()
-	raw, err := os.ReadFile(es.path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			es.data.Entries = map[string]embedRecord{}
-			return nil
-		}
-		return err
-	}
-	if len(raw) == 0 {
-		es.data.Entries = map[string]embedRecord{}
-		return nil
-	}
-	return json.Unmarshal(raw, &es.data)
-}
-
-func (es *EmbedStore) saveLocked() error {
-	if err := os.MkdirAll(filepath.Dir(es.path), 0o755); err != nil {
-		return err
-	}
-	raw, err := json.MarshalIndent(es.data, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(es.path, raw, 0o644)
+	return &EmbedStore{inner: inner}, nil
 }
 
 func (es *EmbedStore) Get(id string) (embedRecord, bool) {
-	es.mu.RLock()
-	defer es.mu.RUnlock()
-	r, ok := es.data.Entries[id]
-	return r, ok
+	return es.inner.Get(id)
 }
 
 func (es *EmbedStore) Set(id, model string, vec []float64) error {
-	es.mu.Lock()
-	defer es.mu.Unlock()
-	if es.data.Entries == nil {
-		es.data.Entries = map[string]embedRecord{}
-	}
-	es.data.Entries[id] = embedRecord{Model: model, Vector: vec, EmbeddedAt: time.Now().UTC()}
-	return es.saveLocked()
+	return es.inner.Set(id, model, vec)
 }
 
 func (es *EmbedStore) Delete(id string) {
-	es.mu.Lock()
-	defer es.mu.Unlock()
-	delete(es.data.Entries, id)
-	_ = es.saveLocked()
+	es.inner.Delete(id)
 }
 
 func (es *EmbedStore) Count() int {
-	es.mu.RLock()
-	defer es.mu.RUnlock()
-	return len(es.data.Entries)
+	return es.inner.Count()
 }
 
 var (
 	globalEmbedStore *EmbedStore
-	embedEndpoint    = "http://localhost:11434"
-	embedModel       = DefaultEmbedModel
-	embedHTTP        = &http.Client{Timeout: 200 * time.Millisecond}
+	embedClient      *embed.Client
 	collabResolver   func(channel string) string
-	onEntryChanged   func(entry Entry) // async re-embed hook
+	onEntryChanged   func(entry Entry)
 )
 
 func SetEmbedStore(es *EmbedStore) { globalEmbedStore = es }
 
 func SetEmbedConfig(endpoint, model string) {
-	if endpoint != "" {
-		embedEndpoint = strings.TrimRight(endpoint, "/")
-	}
-	if model != "" {
-		embedModel = model
-	}
+	embedClient = embed.NewClient(endpoint, model)
 }
 
 func SetCollabResolver(fn func(channel string) string) { collabResolver = fn }
@@ -210,10 +150,10 @@ func topK(pool []Entry, query string, queryVec []float64, embedOK bool, k int) [
 	}
 	scored := make([]scoredEntry, 0, len(pool))
 	for _, e := range pool {
-		score := keywordScore(query, e.Content)
+		score := embed.KeywordScore(query, e.Content)
 		if embedOK && globalEmbedStore != nil {
 			if rec, ok := globalEmbedStore.Get(e.ID); ok && len(rec.Vector) > 0 {
-				score = cosineSimilarity(queryVec, rec.Vector)
+				score = embed.CosineSimilarity(queryVec, rec.Vector)
 			}
 		}
 		scored = append(scored, scoredEntry{entry: e, score: score})
@@ -231,58 +171,11 @@ func topK(pool []Entry, query string, queryVec []float64, embedOK bool, k int) [
 	return out
 }
 
-func keywordScore(query, content string) float64 {
-	if query == "" {
-		return 0
-	}
-	qTokens := tokenSet(query)
-	if len(qTokens) == 0 {
-		return 0
-	}
-	cTokens := tokenSet(content)
-	if len(cTokens) == 0 {
-		return 0
-	}
-	hits := 0
-	for t := range qTokens {
-		if cTokens[t] {
-			hits++
-		}
-	}
-	return float64(hits) / float64(len(qTokens))
-}
-
-func tokenSet(s string) map[string]bool {
-	out := map[string]bool{}
-	for _, t := range strings.Fields(strings.ToLower(s)) {
-		if len(t) > 1 {
-			out[t] = true
-		}
-	}
-	return out
-}
-
-func cosineSimilarity(a, b []float64) float64 {
-	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
-		return 0
-	}
-	var dot, na, nb float64
-	for i := range a {
-		dot += a[i] * b[i]
-		na += a[i] * a[i]
-		nb += b[i] * b[i]
-	}
-	if na == 0 || nb == 0 {
-		return 0
-	}
-	return dot / (math.Sqrt(na) * math.Sqrt(nb))
-}
-
 func embedQuery(ctx context.Context, text string) ([]float64, bool) {
-	if text == "" {
+	if text == "" || embedClient == nil {
 		return nil, false
 	}
-	vec, err := ollamaEmbed(ctx, text)
+	vec, err := embedClient.Embed(ctx, text, false)
 	return vec, err == nil && len(vec) > 0
 }
 
@@ -292,38 +185,21 @@ func ensureVector(ctx context.Context, id, content string) ([]float64, error) {
 			return rec.Vector, nil
 		}
 	}
-	vec, err := ollamaEmbed(ctx, content)
+	if embedClient == nil {
+		return nil, nil
+	}
+	vec, err := embedClient.Embed(ctx, content, true)
 	if err != nil {
 		return nil, err
 	}
 	if globalEmbedStore != nil {
-		_ = globalEmbedStore.Set(id, embedModel, vec)
+		model := embed.DefaultModel
+		if embedClient != nil {
+			model = embedClient.Model
+		}
+		_ = globalEmbedStore.Set(id, model, vec)
 	}
 	return vec, nil
-}
-
-func ollamaEmbed(ctx context.Context, text string) ([]float64, error) {
-	body, _ := json.Marshal(map[string]string{"model": embedModel, "prompt": text})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, embedEndpoint+"/api/embed", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := embedHTTP.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("embed status %d", resp.StatusCode)
-	}
-	var out struct {
-		Embedding []float64 `json:"embedding"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
-	}
-	return out.Embedding, nil
 }
 
 // QueryPreview runs retrieval for API debug (no prompt write).

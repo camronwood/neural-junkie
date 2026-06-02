@@ -11,7 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const maxToolLoopIterations = 8
+const maxToolLoopIterations = 8 // default; override via WithToolLoopMaxIterations
 
 // claudeToolResponseContent supports text and tool_use blocks from Claude.
 type claudeToolResponseContent struct {
@@ -68,7 +68,8 @@ func (c *ClaudeProvider) GenerateResponseWithTools(
 		maxTokens = 4096
 	}
 
-	for iter := 0; iter < maxToolLoopIterations; iter++ {
+	maxIter := ToolLoopMaxIterationsFromContext(ctx)
+	for iter := 0; iter < maxIter; iter++ {
 		reqBody := map[string]any{
 			"model":      c.Model,
 			"max_tokens": maxTokens,
@@ -138,6 +139,9 @@ func (c *ClaudeProvider) GenerateResponseWithTools(
 			if block.Type != "tool_use" {
 				continue
 			}
+			emitToolStep(ctx, ToolStepEvent{
+				Kind: "start", Name: block.Name, Iteration: iter + 1, MaxIterations: maxIter,
+			})
 			resultText, err := onToolUse(ctx, ToolUseRequest{
 				ID:    block.ID,
 				Name:  block.Name,
@@ -145,6 +149,17 @@ func (c *ClaudeProvider) GenerateResponseWithTools(
 			})
 			if err != nil {
 				resultText = fmt.Sprintf("Tool error: %v", err)
+				emitToolStep(ctx, ToolStepEvent{
+					Kind: "error", Name: block.Name, Iteration: iter + 1, MaxIterations: maxIter, Preview: resultText,
+				})
+			} else {
+				preview := resultText
+				if len(preview) > 200 {
+					preview = preview[:200] + "…"
+				}
+				emitToolStep(ctx, ToolStepEvent{
+					Kind: "result", Name: block.Name, Iteration: iter + 1, MaxIterations: maxIter, Preview: preview,
+				})
 			}
 			toolResults = append(toolResults, map[string]any{
 				"type":        "tool_result",
@@ -163,7 +178,7 @@ func (c *ClaudeProvider) GenerateResponseWithTools(
 		})
 	}
 
-	return "", fmt.Errorf("exceeded maximum tool loop iterations (%d)", maxToolLoopIterations)
+	return "", fmt.Errorf("exceeded maximum tool loop iterations (%d)", maxIter)
 }
 
 func joinStrings(parts []string) string {

@@ -1,7 +1,7 @@
 {
   "name": "task-flip-review",
   "description": "Casual hello then code-mode review should route as task (debug) and avoid chat-only blocks on turn 2.",
-  "tags": ["public", "assistant", "task"],
+  "tags": ["public", "assistant", "task", "debug"],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",

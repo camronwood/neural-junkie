@@ -56,6 +56,12 @@ desktop/node_modules/
 # Runtime session data / agent backups
 .neural-junkie/
 .nj-chat-attachments/
+/collabs/
+
+# Python / Node artifacts
+__pycache__/
+node_modules/
+yarn.lock
 
 # Local Go module cache (sandbox / CI)
 .gomodcache/
