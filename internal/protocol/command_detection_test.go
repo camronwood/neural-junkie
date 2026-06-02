@@ -23,6 +23,33 @@ func TestDetectCommandsKeepsRealShellInBashBlocks(t *testing.T) {
 	}
 }
 
+func TestDetectCommandsSkipsMCPToolNamesInBashBlocks(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "Run QC:\n\n```bash\nsummarize_scan_summary\n```\n"
+	suggestions := cd.DetectCommands(content, "BiologyExpert", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no shell suggestion for MCP tool name, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsMCPToolInInlineBackticks(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "Run `summarize_scan_analysis` on the open file.\n"
+	suggestions := cd.DetectCommands(content, "BiologyExpert", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no shell suggestion for inline MCP tool, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsMCPToolMultilineBash(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "```bash\nsummarize_scan_analysis\n/path/to/export\n```\n"
+	suggestions := cd.DetectCommands(content, "BiologyExpert", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no shell suggestion for MCP tool bash block, got %#v", suggestions)
+	}
+}
+
 func TestDetectCommandsSkipsCollabDeliverablePathOnly(t *testing.T) {
 	cd := NewCommandDetector(nil)
 	content := "```bash\ncollabs/902f2cf4-0626-4726-835a-4f1b715c23f6/schema-standardization.md\n```"

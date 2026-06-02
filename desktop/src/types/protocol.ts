@@ -309,6 +309,49 @@ export interface SlackConnectionResponse {
   bridge_connected: boolean;
   team_id?: string;
   team_name?: string;
+  owner_slack_user_id?: string;
+  owner_slack_user_name?: string;
+}
+
+export type SlackForwardRuleType = 'mention_of_me' | 'prefix' | 'reaction';
+
+export interface SlackForwardRule {
+  id?: string;
+  type: SlackForwardRuleType;
+  enabled: boolean;
+  slack_channel_ids?: string[];
+  prefix?: string;
+  emoji?: string;
+}
+
+export interface SlackWorkDayHours {
+  weekday: number;
+  start: string;
+  end: string;
+}
+
+export interface SlackHumanDMAwayConfig {
+  enabled?: boolean;
+  away_enabled?: boolean;
+  schedule_enabled?: boolean;
+  schedule_timezone?: string;
+  work_hours?: SlackWorkDayHours[];
+  reply_prefix?: string;
+  user_token_set?: boolean;
+  monitoring_status?: string;
+}
+
+export interface SlackInboxConfig {
+  enabled: boolean;
+  owner_slack_user_id?: string;
+  owner_slack_user_name?: string;
+  agent_id?: string;
+  agent_name?: string;
+  nj_channel?: string;
+  slack_dm_channel_id?: string;
+  reply_in_thread?: boolean;
+  forward_rules?: SlackForwardRule[];
+  human_dm_away?: SlackHumanDMAwayConfig;
 }
 
 export interface SlackStatus {
@@ -598,6 +641,9 @@ export interface TaskExecutionOptions {
   max_retries?: number;
   timeout_seconds?: number;
   context_paths?: string[];
+  expected_provider_id?: string;
+  expected_model?: string;
+  routing_reason?: string;
 }
 
 export interface TaskActionSpec {

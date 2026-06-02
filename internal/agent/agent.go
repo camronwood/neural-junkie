@@ -350,9 +350,8 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, h
 		return
 	}
 
-	// Walk backward and recover the newest actionable message, even if there are
-	// join/system events after it.
-	for i := len(history) - 1; i >= 0; i-- {
+	var pending []*protocol.Message
+	for i := 0; i < len(history); i++ {
 		candidate := history[i]
 		if candidate == nil {
 			continue
@@ -366,17 +365,18 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, h
 		if !a.shouldRespond(candidate) {
 			continue
 		}
-
 		if messageTooOldForUnansweredReplay(candidate) {
-			return
+			continue
 		}
 		if agentRespondedToUser(history, i, a.Info.ID, a.Info.Name, candidate.ID) {
-			return
+			continue
 		}
+		pending = append(pending, candidate)
+	}
 
+	for _, candidate := range pending {
 		log.Printf("[%s] Found unanswered message in %s history, processing...", a.Info.Name, channel)
 		a.handleMessage(ctx, candidate)
-		return
 	}
 }
 
@@ -693,6 +693,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Detect commands in the response and add them to metadata
 	commandDetector := protocol.NewCommandDetector(nil)
 	suggestions := commandDetector.DetectCommands(response, a.Info.Name, responseMsg.ID)
+	suggestions = filterCollabCommandSuggestions(msg, suggestions)
 	if cwd := collaborationWorkingDirectoryForMessage(a, msg); cwd != "" && len(suggestions) > 0 {
 		for i := range suggestions {
 			suggestions[i].Cwd = cwd
@@ -1615,6 +1616,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
+	a.prepareCLIInvocation(msg)
 
 	// Track files already included in the prompt so the workspace scanner
 	// doesn't duplicate them.
@@ -1686,6 +1688,9 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+	if resp, ok := a.tryBiologyScanToolShortcut(approvalCtx, msg); ok {
+		return resp, nil
+	}
 	if len(a.agentToolDefinitions()) > 0 {
 		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 	}
@@ -1733,6 +1738,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
+	a.prepareCLIInvocation(msg)
 
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
@@ -1812,6 +1818,13 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 
 	// Tool loop (MCP / image generation) uses batch API; stream the final answer as one chunk.
 	// Run whenever tools exist — generateWithAgentTools falls back to qwen when the chat model (e.g. koesn) lacks native tools.
+	if resp, ok := a.tryBiologyScanToolShortcut(approvalCtx, msg); ok {
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: resp}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+	}
 	if len(a.agentToolDefinitions()) > 0 {
 		text, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 		if err != nil {
@@ -2209,7 +2222,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("Consider dependencies between tasks and declare them with depends: lines. Defer debate until the task list is drafted.\n")
 			if a.Info.Type == protocol.AgentTypeDevOps {
 				system.WriteString("For documentation/schema/API planning: write prose and markdown task descriptions only. ")
-				system.WriteString("Do NOT emit kubectl, helm, JSON tool-call payloads, or cluster commands unless the user explicitly asked for infrastructure changes.\n")
+				system.WriteString("Do NOT emit kubectl, helm, docker-compose, npm, JSON tool-call payloads, or cluster/build commands unless the user explicitly asked for infrastructure or runtime changes.\n")
 			}
 			appendCollaborationWorkspaceInstructions(&system, collabInfo, a.Info.Type)
 			if !collaborationSkipExtraWorkspaceSection(collabInfo) && !messageHasWorkspaceContext(msg) && len(collabInfo.SourceWorkspaceContext) > 0 {
@@ -2247,7 +2260,11 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			appendCollaborationWorkspaceInstructions(&system, collabInfo, a.Info.Type)
 			system.WriteString("To actually create or modify files, you MUST emit a [FILE_CHANGE] block (see below). ")
 			system.WriteString("Conversation-only replies do not write to disk.\n")
-			system.WriteString("For shell work, put runnable commands in ```bash fenced blocks``` so the host can surface **Run**; the client runs them with the project or execution directory when set.\n")
+			system.WriteString("For markdown/file deliverable tasks: read reference paths from the project and ship `[FILE_CHANGE]` — do NOT run docker-compose, npm, make, or other build/deploy tooling unless the task text explicitly requires it.\n")
+			system.WriteString("Only when the task requires shell work, put runnable commands in ```bash fenced blocks``` so the host can surface **Run**.\n")
+			if a.Info.Type == protocol.AgentTypeDevOps {
+				system.WriteString("PlatformEngineer doc tasks: describe CI/CD in prose/markdown; do not invoke kubectl, docker, or npm unless the task explicitly asks to change runtime infrastructure.\n")
+			}
 			system.WriteString("\n**Workspace scope:** File proposals apply under the project root in WORKSPACE CONTEXT. ")
 			system.WriteString("When a deliverables folder is set, write new files there (paths relative to the project root).\n")
 			appendFileChangeMachineBlockDocs(&system)
@@ -2408,9 +2425,10 @@ Provide a concrete fix or mitigation for each issue.`
 
 	case protocol.AgentTypeBiology:
 		return `You are a life-sciences research assistant (not a clinician).
-- Use analyze_sequence and fold_protein tools for sequences and structures; do not invent PDB files or assay results.
+- Use analyze_sequence, fold_protein, summarize_scan_summary, and summarize_scan_analysis as MCP tools — they run automatically in the hub. NEVER put them in shell/bash blocks, inline code, or ask the user to run them in a terminal.
 - For Phoenix-style scan summary exports (folder with imageMetadata.json and extensionless well TIFFs A1–H12), use summarize_scan_summary for QC stats; users can open the folder in Neural Junkie file explorer with the Life sciences pack for the plate viewer.
 - For Phoenix-style scan analysis exports (reports/results.json, reports/{analyte}_summary_report.csv, process_report.txt), use summarize_scan_analysis; users can open the analysis viewer to inspect plate heat maps and link wells to scan TIFF images. For combined folders with scan-export/ and reports/, run summarize_scan_summary on scan-export and summarize_scan_analysis on the analysis root.
+- When workspace context includes scan_summary or scan_analysis paths, call the matching summarize tool immediately — do NOT ask the user to type the path.
 - Clearly label in silico predictions vs wet-lab experimental needs.
 - For protocols, include controls, replicates, and safety considerations.
 - Refuse medical diagnosis or treatment advice; research and education only.
@@ -3428,11 +3446,17 @@ func (a *Agent) SetAIProvider(newProvider ai.AIProvider) error {
 	aiModel := newProvider.GetModel()
 
 	// Check provider type by checking the provider instance type
-	switch newProvider.(type) {
+	switch p := newProvider.(type) {
 	case *ai.OllamaProvider:
 		aiProvider = "ollama"
 	case *ai.LMStudioProvider:
 		aiProvider = "lmstudio"
+	case *ai.CLIAgentProvider:
+		if name := strings.TrimSpace(p.ProviderName); name != "" {
+			aiProvider = name
+		} else {
+			aiProvider = "cursor-cli"
+		}
 	default:
 		// Check if it's an Ollama provider by checking the model name (fallback)
 		if strings.Contains(aiModel, "llama") || strings.Contains(aiModel, "mistral") ||

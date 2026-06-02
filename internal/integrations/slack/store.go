@@ -99,9 +99,11 @@ type PublicOAuthConfig struct {
 
 // SlackInstallMetadata is persisted after OAuth (non-secret workspace info).
 type SlackInstallMetadata struct {
-	TeamID    string `json:"team_id,omitempty"`
-	TeamName  string `json:"team_name,omitempty"`
-	BotUserID string `json:"bot_user_id,omitempty"`
+	TeamID          string `json:"team_id,omitempty"`
+	TeamName        string `json:"team_name,omitempty"`
+	BotUserID       string `json:"bot_user_id,omitempty"`
+	OwnerSlackUserID   string `json:"owner_slack_user_id,omitempty"`
+	OwnerSlackUserName string `json:"owner_slack_user_name,omitempty"`
 }
 
 func installPath() (string, error) {

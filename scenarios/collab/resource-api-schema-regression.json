@@ -27,10 +27,11 @@
     {
       "action": "assert_plan",
       "min_tasks": 2,
-      "max_tasks": 8,
+      "max_tasks": 4,
       "tasks_have_assignee": true,
       "tasks_have_file_deliverable": true,
       "min_file_tasks": 2,
+      "title_none_match": ["depends on task", "can be started independently", "should reference the schema"],
       "content_any_match": ["schema|standardiz|registr|markdown|resource\\s*api|scope\\.md|existing-schema"]
     },
     {"action": "assert_collab", "phase": "reviewing", "source_repo_path_nonempty": true},

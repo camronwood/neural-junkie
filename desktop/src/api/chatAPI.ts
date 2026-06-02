@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackForwardRule, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
 import {
   getHubBaseURL,
   hubAuthHeaders,
@@ -813,6 +813,15 @@ export class ChatAPI {
     return data.url;
   }
 
+  async getSlackUserDMOAuthURL(): Promise<string> {
+    const response = await this.hubFetch(`/api/slack/oauth/user-dm/start?json=1`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to get Slack user DM OAuth URL: ${response.statusText}`);
+    }
+    return data.url;
+  }
+
   async disconnectSlack(): Promise<void> {
     const response = await this.hubFetch(`/api/slack/disconnect`, { method: 'POST' });
     if (!response.ok) {
@@ -826,6 +835,51 @@ export class ChatAPI {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.error || `Slack restart failed: ${response.statusText}`);
+    }
+  }
+
+  async getSlackInbox(): Promise<SlackInboxConfig> {
+    const response = await this.hubFetch(`/api/slack/inbox`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Slack inbox: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async saveSlackInbox(body: SlackInboxConfig): Promise<SlackInboxConfig> {
+    const response = await this.hubFetch(`/api/slack/inbox`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to save Slack inbox: ${response.statusText}`);
+    }
+    return data;
+  }
+
+  /** Toggle manual away mode for human DM away (GET + merge + PUT). */
+  async setSlackInboxAwayEnabled(awayEnabled: boolean): Promise<SlackInboxConfig> {
+    const current = await this.getSlackInbox();
+    return this.saveSlackInbox({
+      ...current,
+      human_dm_away: {
+        ...current.human_dm_away,
+        away_enabled: awayEnabled,
+      },
+    });
+  }
+
+  async testSlackInboxDM(text?: string): Promise<void> {
+    const response = await this.hubFetch(`/api/slack/inbox/test-dm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: text ?? '' }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Failed to send inbox test DM: ${response.statusText}`);
     }
   }
 

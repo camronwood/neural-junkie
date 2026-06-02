@@ -7,6 +7,15 @@ export interface WorkspaceContext {
   open_files: OpenFileContext[];
   scan_summary?: ScanSummaryContext;
   scan_analysis?: ScanAnalysisContext;
+  active_editor?: ActiveEditorContext;
+}
+
+export interface ActiveEditorContext {
+  path: string;
+  view_mode?: string;
+  scan_summary_dir?: string;
+  scan_analysis_dir?: string;
+  is_active: boolean;
 }
 
 export interface OpenFileContext {

@@ -1,4 +1,8 @@
 import type { ChannelKind } from './inferContextScope';
+import {
+  messageReferencesOpenEditor,
+  messageRequestsScanTool,
+} from './inferContextScope';
 import { CONVERSATION_MODE_METADATA_KEY } from '../constants/promptMetadata';
 
 export type ConversationModeSetting = 'auto' | 'chat' | 'code';
@@ -45,9 +49,18 @@ export function conversationModeSettingLabel(mode: ConversationModeSetting): str
   }
 }
 
+export function hasScanOrEditorTaskSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  if (messageRequestsScanTool(text)) return true;
+  if (messageReferencesOpenEditor(text)) return true;
+  return false;
+}
+
 export function hasCodeTaskSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
+  if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
   if (CODE_VERBS_RE.test(text)) return true;
   if (FILE_PATH_RE.test(text)) return true;

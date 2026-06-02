@@ -180,7 +180,12 @@ func (a *Analyzer) buildDirectoryStructure(ctx context.Context, path string) (*D
 			if strings.HasPrefix(name, ".") && name != ".env.example" {
 				continue
 			}
-			if ShouldIgnore(name) {
+
+			entryRel, err := filepath.Rel(path, filepath.Join(currentPath, name))
+			if err != nil {
+				entryRel = name
+			}
+			if ShouldIgnoreEntry(entryRel, name) {
 				continue
 			}
 
@@ -586,6 +591,7 @@ func ShouldIgnore(name string) bool {
 		"target",
 		"dist",
 		"build",
+		"binaries",
 		"__pycache__",
 		".git",
 		".svn",
@@ -630,7 +636,11 @@ func (a *Analyzer) IsIndexStale(ctx context.Context, repoPath string, index *Rep
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		if !ShouldIgnore(info.Name()) {
+		relPath, relErr := filepath.Rel(repoPath, path)
+		if relErr != nil {
+			return nil
+		}
+		if !ShouldIgnoreEntry(relPath, info.Name()) {
 			currentFileCount++
 		}
 		return nil
@@ -680,12 +690,12 @@ func (a *Analyzer) IsIndexStale(ctx context.Context, repoPath string, index *Rep
 		if err != nil || info.IsDir() {
 			return nil
 		}
-		if ShouldIgnore(info.Name()) {
-			return nil
-		}
 
 		relPath, err := filepath.Rel(repoPath, path)
 		if err != nil {
+			return nil
+		}
+		if ShouldIgnoreEntry(relPath, info.Name()) {
 			return nil
 		}
 

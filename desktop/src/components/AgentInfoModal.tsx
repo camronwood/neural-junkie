@@ -31,6 +31,12 @@ interface AgentInfoModalProps {
   switchingProvider?: string | null;
   availableOllamaModels?: string[];
   availableLMStudioModels?: string[];
+  /** Disk-cached agent (My Agents tab): show full layout, edits require Load first. */
+  offlineMode?: boolean;
+  onLoadOfflineAgent?: () => void;
+  onDeleteOfflineAgent?: () => void;
+  offlineLoading?: boolean;
+  offlineDeleting?: boolean;
 }
 
 export function AgentInfoModal({ 
@@ -47,7 +53,12 @@ export function AgentInfoModal({
   onTrainLoRA,
   switchingProvider,
   availableOllamaModels = [],
-  availableLMStudioModels = []
+  availableLMStudioModels = [],
+  offlineMode = false,
+  onLoadOfflineAgent,
+  onDeleteOfflineAgent,
+  offlineLoading = false,
+  offlineDeleting = false,
 }: AgentInfoModalProps) {
   const serverAddr = useChatStore(s => s.serverAddr);
   const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
@@ -214,8 +225,9 @@ export function AgentInfoModal({
   }
 
   const agentColor = agent.type === 'loading' ? '#3b82f6' : getAgentColor(agent.type);
-  const isActive = agent.status === 'active';
+  const isActive = !offlineMode && agent.status === 'active';
   const isLoading = agent.status === 'loading';
+  const editsDisabled = offlineMode || isLoading;
 
   const getProviderIcon = (provider?: string) => {
     switch (provider) {
@@ -288,6 +300,12 @@ export function AgentInfoModal({
 
         {/* Content */}
         <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-6">
+          {offlineMode && (
+            <div className="rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Index is saved on disk; this agent is not running in the hub. Use <strong>Load agent</strong> to
+              chat, switch models, edit rules, or train LoRA.
+            </div>
+          )}
           {/* Basic Info */}
           <div className="space-y-4">
             <div>
@@ -316,7 +334,7 @@ export function AgentInfoModal({
                   style={{ backgroundColor: agentColor }}
                 />
                 <span className="text-sm text-slack-text">
-                  {isActive ? 'Active' : agent.status || 'Unknown'}
+                  {offlineMode ? 'Not loaded (cached)' : isActive ? 'Active' : agent.status || 'Unknown'}
                 </span>
                 {agent.is_paused && (
                   <span className="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-500">
@@ -386,9 +404,13 @@ export function AgentInfoModal({
                           const model = modelParts.join('::');
                           onProviderSwitch(agent.id, provider, model);
                         }}
-                        disabled={switchingProvider === agent.id}
+                        disabled={editsDisabled || switchingProvider === agent.id}
                         className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-slack-text focus:outline-none focus:ring-1 focus:ring-slack-accent"
-                        title="Switch AI provider"
+                        title={
+                          offlineMode
+                            ? 'Load agent to switch provider or model'
+                            : 'Switch AI provider'
+                        }
                       >
                         {selectValue &&
                           !selectValue.startsWith('claude::') &&
@@ -432,6 +454,11 @@ export function AgentInfoModal({
                           )}
                         </optgroup>
                       </select>
+                      {offlineMode && (
+                        <p className="text-xs text-slack-textMuted mt-1">
+                          Model is chosen when you load (defaults to Ollama). Switch here after the agent is active.
+                        </p>
+                      )}
                       {switchingProvider === agent.id && (
                         <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                       )}
@@ -547,6 +574,15 @@ export function AgentInfoModal({
               </div>
             )}
 
+            {agent.type === 'repo' && agent.repository_path && (
+              <div>
+                <h3 className="text-sm font-medium text-slack-textMuted mb-2">Repository</h3>
+                <p className="text-xs font-mono text-slack-text break-all bg-slack-bgHover rounded px-2 py-1.5">
+                  {agent.repository_path}
+                </p>
+              </div>
+            )}
+
             {/* Indexing Status for Repo Agents */}
             {agent.type === 'repo' && agent.indexing_status && (
               <div>
@@ -587,7 +623,7 @@ export function AgentInfoModal({
               </div>
             )}
 
-            {!isLoading && (
+            {!isLoading && isExpertAgent && (
               <div>
                 <h3 className="text-sm font-medium text-slack-textMuted mb-2">Agent rules (markdown)</h3>
                 <p className="text-xs text-slack-textMuted mb-2">
@@ -597,30 +633,37 @@ export function AgentInfoModal({
                   value={rulesDraft}
                   onChange={(e) => setRulesDraft(e.target.value)}
                   rows={6}
-                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text font-mono focus:outline-none focus:ring-1 focus:ring-slack-accent"
-                  placeholder="Example: Always cite file paths from this workspace."
+                  readOnly={editsDisabled}
+                  className="w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded text-sm text-slack-text font-mono focus:outline-none focus:ring-1 focus:ring-slack-accent disabled:opacity-70"
+                  placeholder={
+                    offlineMode
+                      ? 'Load agent to add rules (e.g. always cite file paths from this repo).'
+                      : 'Example: Always cite file paths from this workspace.'
+                  }
                 />
                 {rulesError && <p className="text-xs text-red-400 mt-1">{rulesError}</p>}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setRulesError(null);
-                    setSavingRules(true);
-                    try {
-                      const api = new ChatAPI(serverAddr);
-                      await api.setAgentCustomRulesMarkdown(agent.id, rulesDraft);
-                      onAfterRulesSaved?.();
-                    } catch (e) {
-                      setRulesError(e instanceof Error ? e.message : 'Save failed');
-                    } finally {
-                      setSavingRules(false);
-                    }
-                  }}
-                  disabled={savingRules}
-                  className="mt-2 px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:opacity-90 disabled:opacity-50"
-                >
-                  {savingRules ? 'Saving…' : 'Save agent rules'}
-                </button>
+                {!editsDisabled && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setRulesError(null);
+                      setSavingRules(true);
+                      try {
+                        const api = new ChatAPI(serverAddr);
+                        await api.setAgentCustomRulesMarkdown(agent.id, rulesDraft);
+                        onAfterRulesSaved?.();
+                      } catch (e) {
+                        setRulesError(e instanceof Error ? e.message : 'Save failed');
+                      } finally {
+                        setSavingRules(false);
+                      }
+                    }}
+                    disabled={savingRules}
+                    className="mt-2 px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:opacity-90 disabled:opacity-50"
+                  >
+                    {savingRules ? 'Saving…' : 'Save agent rules'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -695,22 +738,49 @@ export function AgentInfoModal({
         {/* Footer */}
         <div className="shrink-0 p-6 border-t border-slack-border bg-slack-bgHover">
           <div className="flex justify-between items-center gap-3">
-            <div className="flex gap-2">
-              {hasLoRATraining && onTrainLoRA && isExpertAgent && (
+            <div className="flex gap-2 flex-wrap">
+              {offlineMode && onLoadOfflineAgent && (
+                <button
+                  type="button"
+                  onClick={onLoadOfflineAgent}
+                  disabled={offlineLoading || offlineDeleting}
+                  className="px-4 py-2 text-sm bg-slack-accent hover:bg-slack-accentHover text-white rounded transition-colors disabled:opacity-50"
+                >
+                  {offlineLoading ? 'Loading…' : 'Load agent'}
+                </button>
+              )}
+              {offlineMode && onDeleteOfflineAgent && (
+                <button
+                  type="button"
+                  onClick={onDeleteOfflineAgent}
+                  disabled={offlineLoading || offlineDeleting}
+                  className="px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors border border-red-500/30 disabled:opacity-50"
+                >
+                  {offlineDeleting ? 'Deleting…' : 'Delete permanently'}
+                </button>
+              )}
+              {hasLoRATraining && isExpertAgent && (onTrainLoRA || offlineMode) && (
                 <button
                   type="button"
                   onClick={() => {
-                    onTrainLoRA(agent.id);
-                    onClose();
+                    if (!offlineMode && onTrainLoRA) {
+                      onTrainLoRA(agent.id);
+                      onClose();
+                    }
                   }}
-                  className="px-4 py-2 text-sm text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 rounded transition-colors border border-purple-500/30"
-                  title={`Train a LoRA adapter from ${agent.name} sessions`}
+                  disabled={offlineMode || !onTrainLoRA}
+                  className="px-4 py-2 text-sm text-purple-300 hover:text-purple-200 hover:bg-purple-500/10 rounded transition-colors border border-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    offlineMode
+                      ? 'Load agent and chat (10+ turns) before training LoRA'
+                      : `Train a LoRA adapter from ${agent.name} sessions`
+                  }
                 >
                   🎯 Train LoRA
                 </button>
               )}
               {/* Export Button - repo agents only */}
-              {agent.type === 'repo' && onExport && (
+              {!offlineMode && agent.type === 'repo' && onExport && (
                 <button
                   onClick={() => {
                     onExport(agent.name);
@@ -723,7 +793,7 @@ export function AgentInfoModal({
               )}
               
               {/* Remove — hide from channel only (can recall later) */}
-              {onRemove && agent.type !== 'moderator' && agent.type !== 'human' && (
+              {!offlineMode && onRemove && agent.type !== 'moderator' && agent.type !== 'human' && (
                 <button
                   type="button"
                   disabled={deletingAgent}
@@ -739,7 +809,7 @@ export function AgentInfoModal({
               )}
 
               {/* Delete — permanent */}
-              {onDelete && agent.type !== 'moderator' && agent.type !== 'human' && (
+              {!offlineMode && onDelete && agent.type !== 'moderator' && agent.type !== 'human' && (
                 <button
                   type="button"
                   disabled={deletingAgent}

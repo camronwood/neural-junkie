@@ -59,7 +59,8 @@ func (fce *FileChangeExecutor) executeCreate(change *FileChange) error {
 	}
 
 	// Write the file
-	if err := os.WriteFile(change.FilePath, []byte(change.NewContent), 0644); err != nil {
+	content := SanitizeFileChangeContent(change.NewContent)
+	if err := os.WriteFile(change.FilePath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 
@@ -79,7 +80,8 @@ func (fce *FileChangeExecutor) executeEdit(change *FileChange) error {
 	}
 
 	// Write the new content
-	if err := os.WriteFile(change.FilePath, []byte(change.NewContent), 0644); err != nil {
+	content := SanitizeFileChangeContent(change.NewContent)
+	if err := os.WriteFile(change.FilePath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

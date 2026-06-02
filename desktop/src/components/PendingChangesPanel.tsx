@@ -6,9 +6,11 @@ import type { FileChange } from '../types/protocol';
 
 interface PendingChangesPanelProps {
   onClose: () => void;
+  /** When set, open the diff preview for this change after the list loads. */
+  initialChangeId?: string | null;
 }
 
-export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
+export function PendingChangesPanel({ onClose, initialChangeId = null }: PendingChangesPanelProps) {
   const {
     pendingChanges,
     loading,
@@ -34,6 +36,19 @@ export function PendingChangesPanel({ onClose }: PendingChangesPanelProps) {
 
     return () => clearInterval(interval);
   }, [refreshChanges]);
+
+  useEffect(() => {
+    if (!initialChangeId || loading) {
+      return;
+    }
+    const change = (Array.isArray(pendingChanges) ? pendingChanges : []).find(
+      (c) => c.id === initialChangeId,
+    );
+    if (change && selectedChange?.id !== change.id) {
+      setSelectedChange(change);
+      selectChange(change.id);
+    }
+  }, [initialChangeId, loading, pendingChanges, selectChange, selectedChange?.id]);
 
   const handlePreview = (change: FileChange) => {
     setSelectedChange(change);

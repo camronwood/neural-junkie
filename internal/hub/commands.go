@@ -272,27 +272,10 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 
 	parts, flagModel, adapterRepo := parseCreateRepoAgentFlags(parts)
 	repoPath := parts[1]
-	agentName := ""
-	provider := "ollama" // Default to ollama
-	model := flagModel
-
-	// Parse arguments
-	if len(parts) >= 3 {
-		// Check if third argument is a provider
-		if parts[2] == "claude" || parts[2] == "ollama" || parts[2] == "lmstudio" || parts[2] == "huggingface" || parts[2] == "hf" {
-			provider = parts[2]
-			if len(parts) >= 4 {
-				model = parts[3]
-			}
-		} else {
-			// Third argument is agent name
-			agentName = protocol.NormalizeAgentName(strings.Join(parts[2:], " "))
-		}
-	}
+	agentName, provider, model := parseRepoAgentCreateArgs(parts, flagModel)
 
 	if agentName == "" {
-		// Generate name from repo path
-		agentName = protocol.NormalizeAgentName(filepath.Base(repoPath) + "Expert")
+		agentName = defaultRepoAgentName(repoPath)
 	}
 
 	// Validate path
@@ -4229,7 +4212,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	}
 	discussionCfg := flagParse.Discussion
 	if len(tail) < 2 {
-		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] [--allow-agent-adds] @Agent1 @Agent2 ... description\nAt least 2 agents and a description are required."), nil
+		return ch.systemResponse(msg.Channel, "❌ Usage: /collaborate [--rounds N] [--messages M] [--workspace] [--worktree] [--allow-agent-adds] @Agent1 @Agent2 ... description\nAt least 2 agents (max 3) and a description are required."), nil
 	}
 
 	cm := ch.hub.GetCollaborationManager()
@@ -4255,6 +4238,10 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		}
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not resolve enough agents. Unresolved: %s\nAvailable agents: %s",
 			strings.Join(unresolved, ", "), ch.hub.getAgentListString())), nil
+	}
+	if len(agentIDs) > collaboration.HardMaxAgentsPerCollaboration {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ At most %d agents can join a collaboration (you mentioned %d).\nPick 2–%d agents for /collaborate.",
+			collaboration.HardMaxAgentsPerCollaboration, len(agentIDs), collaboration.HardMaxAgentsPerCollaboration)), nil
 	}
 
 	// Extract description (everything after mentions)

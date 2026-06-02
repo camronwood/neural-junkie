@@ -231,8 +231,22 @@ go 1.21`,
 		t.Error("Expected repository agent to be active")
 	}
 
-	// Test completed successfully
-	t.Log("Repository agent indexing test completed")
+	// Verify persisted index exists (proves indexing wrote repo knowledge to cache)
+	storage, err := repo.NewStorage()
+	if err != nil {
+		t.Fatalf("storage: %v", err)
+	}
+	key, err := storage.GetCacheKeyForPath(testRepoPath)
+	if err != nil {
+		t.Fatalf("cache key: %v", err)
+	}
+	idx, err := storage.LoadIndex(key)
+	if err != nil || idx == nil {
+		t.Fatalf("expected cached index after indexing, err=%v", err)
+	}
+	if len(idx.SourceFiles) == 0 && len(idx.KeyFiles) == 0 {
+		t.Fatal("expected indexed source or key files in cache")
+	}
 
 	// Clean up immediately after test
 	cleanupRepoAgentCacheImmediate(t, testRepoPath)

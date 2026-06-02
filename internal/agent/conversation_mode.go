@@ -19,6 +19,8 @@ var (
 	taskVerbRE = regexp.MustCompile(`(?i)\b(review|refactor|debug|fix|implement|compile|lint|test|patch|edit|change|update|add|remove|rewrite|optimize|trace|diff|analyze|analyse)\b`)
 	filePathRE = regexp.MustCompile("(?:^|[\\s\"'`(])([./]?(?:[a-zA-Z0-9_-]+/)+[a-zA-Z0-9_-]+\\.[a-zA-Z0-9]+)")
 	greetingRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:hi|hello|hey|yo|sup|what'?s up|howdy|good (?:morning|afternoon|evening)|thanks|thank you|ok|okay|nice|cool)[!.?\s]*$`)
+	scanToolRE = regexp.MustCompile(`(?i)\b(summarize_scan_summary|summarize_scan_analysis|scan analysis|scan summary)\b`)
+	editorOpenRE = regexp.MustCompile(`(?i)\b(file i have open|open in my editor|in my editor|editor open|active tab|active file|have open)\b`)
 )
 
 // ConversationModeFromMessage returns chat/code/collab from outbound metadata (empty if unset).
@@ -30,10 +32,27 @@ func ConversationModeFromMessage(msg *protocol.Message) string {
 	return strings.TrimSpace(strings.ToLower(mode))
 }
 
+func hasScanOrEditorTaskSignals(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
+	if scanToolRE.MatchString(content) {
+		return true
+	}
+	if editorOpenRE.MatchString(content) {
+		return true
+	}
+	return userRequestsEditorDocumentReview(content)
+}
+
 func hasCodeTaskSignals(content string) bool {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return false
+	}
+	if hasScanOrEditorTaskSignals(content) {
+		return true
 	}
 	if strings.Contains(strings.ToLower(content), "@codebase") {
 		return true

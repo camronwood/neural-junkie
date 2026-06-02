@@ -45,12 +45,64 @@ func SearchRelevantFiles(query string, index *RepositoryIndex, maxFiles int) []*
 		limit = len(results)
 	}
 
+	if limit == 0 {
+		return defaultRelevantFiles(index, maxFiles)
+	}
+
 	files := make([]*SourceFile, limit)
 	for i := 0; i < limit; i++ {
 		files[i] = results[i].File
 	}
 
 	return files
+}
+
+// defaultRelevantFiles returns entry points and key paths when keyword search has no hits.
+func defaultRelevantFiles(index *RepositoryIndex, maxFiles int) []*SourceFile {
+	if index == nil || len(index.SourceFiles) == 0 || maxFiles <= 0 {
+		return []*SourceFile{}
+	}
+	results := make([]SearchResult, 0, len(index.SourceFiles))
+	for _, file := range index.SourceFiles {
+		score := 0
+		if isEntryPoint(getFileName(file.Path)) {
+			score += 50
+		}
+		if isConfigFile(getFileName(file.Path)) {
+			score += 25
+		}
+		if score > 0 {
+			results = append(results, SearchResult{File: file, Score: score})
+		}
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Score > results[j].Score
+	})
+	limit := maxFiles
+	if limit > len(results) {
+		limit = len(results)
+	}
+	if limit == 0 {
+		// Last resort: first N paths in stable sorted order
+		paths := make([]string, 0, len(index.SourceFiles))
+		for p := range index.SourceFiles {
+			paths = append(paths, p)
+		}
+		sort.Strings(paths)
+		if limit > len(paths) {
+			limit = len(paths)
+		}
+		out := make([]*SourceFile, limit)
+		for i := 0; i < limit; i++ {
+			out[i] = index.SourceFiles[paths[i]]
+		}
+		return out
+	}
+	out := make([]*SourceFile, limit)
+	for i := 0; i < limit; i++ {
+		out[i] = results[i].File
+	}
+	return out
 }
 
 // scoreFile calculates a relevance score for a file based on the query

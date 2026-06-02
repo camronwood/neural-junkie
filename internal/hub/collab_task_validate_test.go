@@ -88,3 +88,69 @@ func TestApprovePlanWarnsOnMissingTaskPaths(t *testing.T) {
 		t.Fatalf("expected auto-confirmed notice, got: %s", out.Content)
 	}
 }
+
+func TestApprovePlan_dropsDependencyProseTasks(t *testing.T) {
+	h := NewHub()
+	ch, err := NewCommandHandler(h)
+	if err != nil {
+		t.Fatalf("command handler: %v", err)
+	}
+	_ = h.CreateChannel("dep-prose", "dep prose", "tester")
+
+	a1 := &protocol.AgentInfo{ID: "be-1", Name: "BackendEngineer", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "arch-1", Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	a3 := &protocol.AgentInfo{ID: "plat-1", Name: "PlatformEngineer", Type: protocol.AgentTypeDevOps, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+	_ = h.RegisterAgent(a3)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration(
+		"schema docs",
+		[]string{"be-1", "arch-1", "plat-1"},
+		"dep-prose",
+		"tester",
+		collaboration.DiscussionConfig{},
+	)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	plan := `## Plan
+
+Task 1: @BackendEngineer - Write collabs/test/api_schema.md defining the API schema.
+Task 2: @SoftwareArchitect - Write collabs/test/markdown_doc_structure.md detailing structure.
+Task 3: @PlatformEngineer - Write collabs/test/ci_cd_pipeline.md outlining CI/CD.
+- Task 1 depends on Task 2 for the markdown structure and style guide.
+- Task 3 can be started independently but should reference the schema documents.
+`
+	if err := cm.UpdateArtifact(collab.ID, "arch-1", "SoftwareArchitect", plan); err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if _, err := cm.TransitionToReviewing(collab.ID); err != nil {
+		t.Fatalf("reviewing: %v", err)
+	}
+	completePlanningRecapForHubTest(t, cm, collab.ID)
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dep-prose",
+		protocol.AgentInfo{ID: "human", Name: "tester", Type: protocol.AgentTypeGeneral},
+		"/approve-plan "+collab.ID[:8],
+	)
+	if _, err := ch.handleApprovePlan(context.Background(), msg, strings.Fields(msg.Content)); err != nil {
+		t.Fatalf("handleApprovePlan: %v", err)
+	}
+	snap, err := cm.GetCollaborationSnapshot(collab.ID)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if len(snap.Tasks) != 3 {
+		t.Fatalf("expected 3 tasks after approve, got %d: %#v", len(snap.Tasks), snap.Tasks)
+	}
+	for _, task := range snap.Tasks {
+		lower := strings.ToLower(task.Title + " " + task.Description)
+		if strings.Contains(lower, "depends on") || strings.Contains(lower, "can be started") {
+			t.Fatalf("dependency prose became task: %+v", task)
+		}
+	}
+}

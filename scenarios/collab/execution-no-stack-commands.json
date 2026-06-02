@@ -1,0 +1,63 @@
+{
+  "name": "execution-no-stack-commands",
+  "description": "Markdown deliverable execution must not surface docker-compose/npm/kubectl Run suggestions despite decoy stack files in the tree (f7518f88 + stack decoy regression).",
+  "channel": "collab-scenarios",
+  "agents": "@ChatModerator @Assistant @PlatformEngineer",
+  "required_agents": ["Assistant", "PlatformEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\ndocker-compose.yml\npackage.json\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "4"],
+    "goal": "@ChatModerator @Assistant @PlatformEngineer Plan ONE task only: @Assistant Write collabs/<id>/findings.md with three bullets grounded in README.md and core/sample/main.go. Do NOT plan docker, npm, or deployment work — markdown file only."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 25},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 1,
+      "max_tasks": 2,
+      "tasks_have_file_deliverable": true,
+      "task_none_match": ["docker-compose", "npm install", "kubectl"]
+    },
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {"action": "wait_tasks", "settle_only": true, "timeout": "120s"},
+    {
+      "action": "assert_messages",
+      "phase": "executing",
+      "none_match": [
+        "docker-compose up",
+        "docker compose up",
+        "npm install",
+        "npm run",
+        "kubectl get",
+        "helm install"
+      ],
+      "deny_suggested_stack_commands": true,
+      "deny_failed_command_output": true
+    },
+    {
+      "action": "approve_file_changes",
+      "path_contains": "findings.md",
+      "target_rel": "collabs/<collab-id>/findings.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": 90
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/findings.md",
+      "min_bytes": 40,
+      "any_match": ["main\\.go|README|minimal"],
+      "none_match": ["docker-compose up", "npm install"]
+    }
+  ],
+  "cleanup": "cancel"
+}

@@ -73,7 +73,13 @@ func taskPassesExecutionQuality(t CollaborationTask) bool {
 	if combined == "" {
 		return false
 	}
-	if isWeakTaskFragment(title) || isWeakTaskFragment(desc) || isWeakTaskFragment(combined) {
+	if TaskRequiresFileDeliverable(t) {
+		return true
+	}
+	if isTaskDependencyProse(combined) {
+		return false
+	}
+	if isWeakTaskFragment(combined) {
 		return false
 	}
 	lower := strings.ToLower(combined)
@@ -118,6 +124,29 @@ func sameAssignee(a, b CollaborationTask) bool {
 }
 
 func tasksNearDuplicate(a, b CollaborationTask) bool {
+	pa := ReferencedDeliverablePaths(a)
+	pb := ReferencedDeliverablePaths(b)
+	if len(pa) > 0 && len(pb) > 0 {
+		// Same assignee with different file outputs are distinct tasks (e.g. synthesize vs findings.md).
+		setA := make(map[string]bool, len(pa))
+		for _, p := range pa {
+			setA[p] = true
+		}
+		overlap := false
+		for _, p := range pb {
+			if setA[p] {
+				overlap = true
+				break
+			}
+		}
+		if !overlap {
+			return false
+		}
+	}
+	if (len(pa) > 0) != (len(pb) > 0) {
+		// One file deliverable and one chat-only row — never collapse.
+		return false
+	}
 	ta := normalizeTaskCompareKey(a)
 	tb := normalizeTaskCompareKey(b)
 	if ta == "" || tb == "" {

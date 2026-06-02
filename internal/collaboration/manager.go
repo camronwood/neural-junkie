@@ -307,6 +307,9 @@ func (cm *CollaborationManager) AddParticipants(collabID string, agentIDs []stri
 		if _, already := existing[id]; already {
 			continue
 		}
+		if len(c.Agents)+len(added) >= HardMaxAgentsPerCollaboration {
+			return nil, fmt.Errorf("cannot add more agents: collaboration limit is %d", HardMaxAgentsPerCollaboration)
+		}
 
 		info, err := cm.hub.GetAgent(id)
 		if err != nil || info == nil {
@@ -438,6 +441,9 @@ func (cm *CollaborationManager) ApproveParticipantAddRequest(collabID, agentID s
 	info, err := cm.hub.GetAgent(agentID)
 	if err != nil || info == nil {
 		return nil, nil, fmt.Errorf("agent %s not found", agentID)
+	}
+	if len(c.Agents) >= HardMaxAgentsPerCollaboration {
+		return nil, nil, fmt.Errorf("cannot add more agents: collaboration limit is %d", HardMaxAgentsPerCollaboration)
 	}
 	participant := CollaborationAgent{
 		AgentID:   info.ID,
@@ -1013,6 +1019,7 @@ func (cm *CollaborationManager) SetTasks(collabID string, tasks []CollaborationT
 		normalizeTaskOnSave(&tasks[i])
 	}
 	NormalizeDependencies(tasks)
+	InferSynthesisTaskDependencies(tasks)
 	if err := ValidateDAG(tasks); err != nil {
 		return fmt.Errorf("invalid task graph: %w", err)
 	}
@@ -1120,6 +1127,11 @@ func (cm *CollaborationManager) EnsureExecutionTasks(collabID string) (assignees
 	if assignRoundRobinToUnassignedTasks(c.Tasks, c.Agents) {
 		c.UpdatedAt = time.Now()
 		log.Printf("[CollaborationManager] EnsureExecutionTasks: assigned participants to unassigned task(s) in %s", collabID[:8])
+		return true, nil
+	}
+	if InferSynthesisTaskDependencies(c.Tasks) {
+		c.UpdatedAt = time.Now()
+		log.Printf("[CollaborationManager] EnsureExecutionTasks: inferred synthesis task dependencies for %s", collabID[:8])
 		return true, nil
 	}
 	return false, nil

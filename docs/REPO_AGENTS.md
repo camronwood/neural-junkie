@@ -200,12 +200,15 @@ To ensure reasonable indexing times:
 - **Max Total Size**: 100MB
 - **Max Files**: 10,000 files
 
-Ignored directories:
-- `node_modules`, `vendor`, `target`
+Ignored directories and paths:
+- `node_modules`, `vendor`, `target`, `binaries`
 - `dist`, `build`, `__pycache__`
 - `.git`, `.svn`, `.hg`
 - `venv`, `env`, `.venv`
 - IDE directories (`.idea`, `.vscode`)
+- Root build outputs (`server`, `agent`, `cli`, `gui`, `tool-approval-hook`)
+- `docs/media` (marketing video assets)
+- Large non-source files (`.mp4`, `.mov`, `.webm`, `.mkv`, `.icns`)
 
 ## Agent Status Indicators
 

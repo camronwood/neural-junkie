@@ -34,6 +34,18 @@ func TestCollabPlanningSuppressMCPTools_DevOpsWithK8s(t *testing.T) {
 	}
 }
 
+func TestCollabPlanningSuppressMCPTools_DevOpsExecutionDocCollab(t *testing.T) {
+	info := CollaborationInfo{
+		Phase: "executing",
+		SourceWorkspaceContext: map[string]interface{}{
+			"file_tree": "resource-api/json_endpoints/\ncollabs/abc/api_schema.md\n",
+		},
+	}
+	if !collabPlanningSuppressMCPTools(info, protocol.AgentTypeDevOps) {
+		t.Fatal("expected MCP tools suppressed during executing doc collab without k8s assets")
+	}
+}
+
 func TestSanitizeCollabDiscussionResponse_ToolJSON(t *testing.T) {
 	raw := "```json\n{\"name\": \"kubectl_query\", \"arguments\": {\"namespace\": \"default\"}}\n```"
 	out := sanitizeCollabDiscussionResponse(raw, CollaborationInfo{Phase: "planning"}, protocol.AgentTypeDevOps)

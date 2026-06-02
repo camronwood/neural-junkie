@@ -81,3 +81,23 @@ func TestImageGenerationToolsDisabledWithoutFlag(t *testing.T) {
 		t.Fatalf("backend agent should not get image tools")
 	}
 }
+
+func TestParsePlaintextToolCall(t *testing.T) {
+	name, input, ok := parsePlaintextToolCall(`{"name":"summarize_scan_analysis","arguments":{"path":""}}`)
+	if !ok || name != "summarize_scan_analysis" {
+		t.Fatalf("parse failed: ok=%v name=%q", ok, name)
+	}
+	var args map[string]string
+	if err := json.Unmarshal(input, &args); err != nil {
+		t.Fatal(err)
+	}
+	if args["path"] != "" {
+		t.Fatalf("path = %q", args["path"])
+	}
+}
+
+func TestParsePlaintextToolCallSkipsNonToolJSON(t *testing.T) {
+	if _, _, ok := parsePlaintextToolCall(`{"foo":"bar"}`); ok {
+		t.Fatal("expected non-tool JSON to be ignored")
+	}
+}

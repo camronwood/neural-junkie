@@ -18,8 +18,9 @@ import {
 } from '../constants/promptMetadata';
 import { buildFileTreeString } from './workspaceContext';
 import type { ScanSummaryContext, ScanAnalysisContext, WorkspaceContext } from './workspaceContext';
-import { concentrationAt, validationAt } from './scanAnalysis';
-import { channelNameToKind, resolveContextScope, type ChannelKind } from './inferContextScope';
+import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisDirFromResultsPath, isScanAnalysisSummaryCSVPath } from './scanAnalysis';
+import { scanAnalysisDirFromCsvPath } from './scanAnalysisCsv';
+import { channelNameToKind, resolveContextScope, messageReferencesOpenEditor, messageRequestsScanTool, type ChannelKind } from './inferContextScope';
 import { resolveConversationMode } from './conversationMode';
 
 const FILE_PATH_RE =
@@ -60,7 +61,18 @@ function pathMatchesRef(tabPath: string, ref: string): boolean {
 }
 
 function buildScanSummaryContext(tab: EditorTab | undefined): ScanSummaryContext | undefined {
-  if (!tab || tab.viewMode !== 'scan-summary' || !tab.scanSummaryData) return undefined;
+  if (!tab || tab.viewMode !== 'scan-summary') return undefined;
+  const summaryDir = tab.scanSummaryDir ?? '';
+  if (!tab.scanSummaryData) {
+    if (!summaryDir) return undefined;
+    return {
+      summary_dir: summaryDir,
+      wells_count: 0,
+      analytes: [],
+      note:
+        'Phoenix scan summary viewer tab is active. Use summary_dir with summarize_scan_summary for QC.',
+    };
+  }
   const activeWellId =
     tab.scanSummaryInitialWell && tab.scanSummaryData.byWell.has(tab.scanSummaryInitialWell)
       ? tab.scanSummaryInitialWell
@@ -101,7 +113,39 @@ function buildScanSummaryContext(tab: EditorTab | undefined): ScanSummaryContext
 }
 
 function buildScanAnalysisContext(tab: EditorTab | undefined): ScanAnalysisContext | undefined {
-  if (!tab || tab.viewMode !== 'scan-analysis' || !tab.scanAnalysisData) return undefined;
+  if (!tab) return undefined;
+
+  if (tab.viewMode !== 'scan-analysis') {
+    const path = tab.path ?? '';
+    if (isScanAnalysisResultsPath(path)) {
+      return {
+        analysis_dir: scanAnalysisDirFromResultsPath(path),
+        analytes: [],
+        note:
+          'Phoenix scan analysis results.json is open in the editor. Use analysis_dir with summarize_scan_analysis for QC.',
+      };
+    }
+    if (isScanAnalysisSummaryCSVPath(path)) {
+      return {
+        analysis_dir: scanAnalysisDirFromCsvPath(path),
+        analytes: [],
+        note:
+          'Phoenix scan analysis summary CSV is open in the editor. Use analysis_dir with summarize_scan_analysis for QC.',
+      };
+    }
+    return undefined;
+  }
+
+  const analysisDir = tab.scanAnalysisDir ?? '';
+  if (!tab.scanAnalysisData) {
+    if (!analysisDir) return undefined;
+    return {
+      analysis_dir: analysisDir,
+      analytes: [],
+      note:
+        'Phoenix scan analysis viewer tab is active. Use analysis_dir with summarize_scan_analysis for QC.',
+    };
+  }
   const activeWellId = tab.scanAnalysisInitialWell ?? 'A1';
   const activeAnalyte = tab.scanAnalysisSelectedAnalyte ?? tab.scanAnalysisData.analytes[0] ?? '';
   const validation = validationAt(tab.scanAnalysisData, activeWellId, activeAnalyte);
@@ -153,6 +197,7 @@ export function trimWorkspaceContext(
     open_files: [],
     scan_summary: full.scan_summary,
     scan_analysis: full.scan_analysis,
+    active_editor: full.active_editor,
   };
   if (scope === 'hint') return base;
   if (scope === 'outline' || scope === 'focus' || scope === 'full') {
@@ -221,6 +266,15 @@ function loadFullWorkspaceContext(): WorkspaceContext {
     })),
     scan_summary: buildScanSummaryContext(activeTab),
     scan_analysis: buildScanAnalysisContext(activeTab),
+    active_editor: activeTab
+      ? {
+          path: activeTab.path,
+          view_mode: activeTab.viewMode,
+          scan_summary_dir: activeTab.scanSummaryDir,
+          scan_analysis_dir: activeTab.scanAnalysisDir,
+          is_active: true,
+        }
+      : undefined,
   };
 }
 
@@ -249,10 +303,13 @@ export function buildHumanOutboundMetadata(options: {
   }
 
   const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);
-  const activeTabPath = useEditorStore.getState().tabs.find(
+  const activeTab = useEditorStore.getState().tabs.find(
     (t) => t.id === useEditorStore.getState().activeTabId
-  )?.path;
+  );
+  const activeTabPath = activeTab?.path;
   const hasOpenTab = Boolean(activeTabPath);
+  const hasScanViewerTab =
+    activeTab?.viewMode === 'scan-analysis' || activeTab?.viewMode === 'scan-summary';
 
   const conversationModeSetting = options.conversationMode ?? 'auto';
   const resolvedConversationMode = resolveConversationMode(conversationModeSetting, message, {
@@ -271,11 +328,30 @@ export function buildHumanOutboundMetadata(options: {
     ideCoding,
   });
 
-  if (resolvedConversationMode === 'chat') {
+  const asksAboutOpenFile =
+    messageReferencesOpenEditor(message) ||
+    (/\bwhat\b/i.test(message) && /\bsee\b/i.test(message) && /\b(open|file)\b/i.test(message));
+
+  const needsOpenEditorContext =
+    contextMode !== 'off' &&
+    (messageRequestsScanTool(message) || asksAboutOpenFile || hasScanViewerTab);
+
+  if (needsOpenEditorContext) {
+    scope = activeTabPath || hasScanViewerTab ? 'focus' : 'hint';
+    reason = 'open editor or scan tool request';
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  } else if (resolvedConversationMode === 'chat') {
     scope = 'none';
     reason = 'conversation mode: chat';
   } else if (resolvedConversationMode === 'collab') {
     // scope follows collab / inferContextScope rules
+  } else if (
+    contextMode !== 'off' &&
+    hasScanViewerTab &&
+    (messageRequestsScanTool(message) || messageReferencesOpenEditor(message))
+  ) {
+    scope = 'focus';
+    reason = 'active scan viewer tab in editor';
   }
 
   meta[CONTEXT_SCOPE_KEY] = scope;

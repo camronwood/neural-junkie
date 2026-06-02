@@ -34,6 +34,22 @@ const OUTLINE_RE =
 const GENERAL_RE =
   /\b(aws|azure|gcp|sso|iam|cloudformation|terraform|kubernetes|explain (the )?concept|what is|who is better|who's better|how do i (use|set up)|best practices for)\b/i;
 
+/** Phoenix scan summary / analysis MCP tool requests. */
+const SCAN_TOOL_RE =
+  /\b(summarize_scan_summary|summarize_scan_analysis|scan summary|scan analysis|plate (viewer|qc|assay)|imageMetadata\.json|results\.json)\b/i;
+
+function hasScanToolSignals(text: string): boolean {
+  return SCAN_TOOL_RE.test(text);
+}
+
+export function messageRequestsScanTool(text: string): boolean {
+  return hasScanToolSignals(text);
+}
+
+export function messageReferencesOpenEditor(text: string): boolean {
+  return hasEditorDocumentSignals(text);
+}
+
 function detectFilePaths(text: string): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -104,6 +120,10 @@ export function resolveContextScope(input: InferContextScopeInput): InferContext
   }
   if (input.ideCoding) {
     return { scope: 'outline', reason: 'IDE layout — project tree' };
+  }
+
+  if (hasScanToolSignals(text) && input.activeTabPath) {
+    return { scope: 'focus', reason: 'scan summary/analysis tool request with open tab' };
   }
 
   // auto

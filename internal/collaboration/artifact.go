@@ -65,6 +65,7 @@ var (
 	assigneeParenRe             = regexp.MustCompile(`\(@([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)\)\s*$`)
 	subAssigneeBulletRe         = regexp.MustCompile(`^[-*]\s+\*\*@[^*]+\*\*:`)
 	detailedPlanBoundaryRe      = regexp.MustCompile(`(?i)^#{1,4}\s+detailed\s+plan\b`)
+	taskDependencyProseRe       = regexp.MustCompile(`(?i)^task\s+\d+\s+(?:depends\s+on|can\s+be\s+started|should\s+reference)\b`)
 )
 
 // ExtractPlanFromResponse attempts to extract a structured plan from an
@@ -251,6 +252,7 @@ func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []Col
 	}
 
 	NormalizeDependencies(tasks)
+	InferSynthesisTaskDependencies(tasks)
 	tasks = DedupeTasks(tasks)
 	AssignRoundRobinToUnassignedTasks(tasks, agents)
 	return tasks
@@ -320,7 +322,11 @@ func isTaskListLine(line string) bool {
 	}
 	lower := strings.ToLower(withoutPrefix)
 	if strings.HasPrefix(lower, "task ") {
-		return true
+		if isTaskDependencyProse(withoutPrefix) {
+			return false
+		}
+		// "Task N: @Agent - ..." rows only; dependency prose has no assignee.
+		return agentMentionRe.MatchString(withoutPrefix)
 	}
 	// Numbered plan steps like "1. @Architect, review docs/..." are not executable tasks.
 	if hasListPrefix && numberedPlanStepRe.MatchString(trimmed) {
@@ -397,7 +403,32 @@ func skipTaskSubBullets(lines []string, start int) int {
 	return i
 }
 
+// isTaskDependencyProse detects plan notes like "Task 1 depends on Task 2 ..." that are not executable tasks.
+func isTaskDependencyProse(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return false
+	}
+	rest := strings.TrimSpace(taskListPrefixRe.ReplaceAllString(trimmed, ""))
+	if taskDependencyProseRe.MatchString(rest) {
+		return true
+	}
+	lower := strings.ToLower(rest)
+	return strings.HasPrefix(lower, "depends on ") ||
+		strings.HasPrefix(lower, "can be started ") ||
+		strings.HasPrefix(lower, "should reference ")
+}
+
 func isWeakTaskFragment(desc string) bool {
+	// Explicit file deliverables (e.g. "Document findings in collabs/<id>/findings.md")
+	// are valid even when the prose sounds vague.
+	if TaskRequiresFileDeliverable(CollaborationTask{Description: desc}) {
+		return false
+	}
+	if len(ReferencedDeliverablePaths(CollaborationTask{Description: desc})) > 0 {
+		return false
+	}
+
 	lower := strings.ToLower(strings.TrimSpace(desc))
 	if strings.Contains(desc, "**:") || strings.HasPrefix(desc, "**") {
 		return true

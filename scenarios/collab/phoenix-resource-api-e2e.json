@@ -27,9 +27,9 @@
     {
       "action": "assert_plan",
       "min_tasks": 1,
-      "max_tasks": 8,
+      "max_tasks": 5,
       "tasks_have_assignee": true,
-      "title_none_match": ["task is to ", "specific actions", "example actions", "files to review"],
+      "title_none_match": ["task is to ", "specific actions", "example actions", "files to review", "depends on task", "can be started independently"],
       "content_any_match": ["schema|standardiz|registr|markdown|resource\\s*api|json_endpoints"]
     },
     {"action": "assert_collab", "phase": "reviewing", "source_repo_path_nonempty": true},

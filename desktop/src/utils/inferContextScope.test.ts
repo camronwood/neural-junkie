@@ -103,4 +103,15 @@ describe('resolveContextScope', () => {
     });
     expect(r.scope).toBe('hint');
   });
+
+  it('summarize_scan_analysis with open tab returns focus', () => {
+    const r = resolveContextScope({
+      message: 'use summarize_scan_analysis on the file I have open',
+      mode: 'auto',
+      channelKind: 'dm',
+      activeTabPath: '/data/plate-1/reports/results.json',
+    });
+    expect(r.scope).toBe('focus');
+    expect(r.reason).toContain('scan');
+  });
 });

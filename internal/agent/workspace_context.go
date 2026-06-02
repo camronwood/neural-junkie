@@ -491,6 +491,7 @@ func appendScanAnalysisContext(prompt *strings.Builder, ctxMap map[string]interf
 	prompt.WriteString("\nPhoenix scan analysis context:\n")
 	if dir, ok := scan["analysis_dir"].(string); ok && dir != "" {
 		prompt.WriteString(fmt.Sprintf("- Analysis directory: %s\n", dir))
+		prompt.WriteString(fmt.Sprintf("- Use summarize_scan_analysis with path %q when the user asks for scan QC on the open file.\n", dir))
 	}
 	if product, ok := scan["product_name"].(string); ok && product != "" {
 		prompt.WriteString(fmt.Sprintf("- Product: %s\n", product))

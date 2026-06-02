@@ -276,9 +276,17 @@ func IsUserLikeSender(from AgentInfo) bool {
 	return from.Type == "human" || (from.Type == AgentTypeGeneral && !strings.EqualFold(from.Name, "system"))
 }
 
+// IsSlackSender reports hub messages authored by the Slack bridge (from.ID slack:…).
+func IsSlackSender(from AgentInfo) bool {
+	return strings.HasPrefix(from.ID, "slack:")
+}
+
 // ShouldParseMentions determines if mention extraction should run at message
 // creation time.
 func ShouldParseMentions(msgType MessageType, from AgentInfo) bool {
+	if IsSlackSender(from) {
+		return false
+	}
 	return IsUserLikeSender(from) && IsActionableMentionType(msgType)
 }
 

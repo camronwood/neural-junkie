@@ -27,6 +27,9 @@ func ParseMentions(content string) []string {
 	for _, match := range matches {
 		if len(match) > 1 {
 			mention := strings.ToLower(match[1])
+			if IsSlackMentionToken(mention) {
+				continue
+			}
 			if !seen[mention] {
 				mentions = append(mentions, mention)
 				seen[mention] = true
@@ -35,6 +38,32 @@ func ParseMentions(content string) []string {
 	}
 
 	return mentions
+}
+
+// IsSlackMentionToken reports @tokens that look like Slack IDs (U0B5MLY2N2E → u0b5mly2n2e).
+// Real Slack IDs (users, bots, channels, etc.) are alphanumeric and always include a digit.
+// Without the digit requirement, long agent names like @SecurityExpert were misclassified.
+func IsSlackMentionToken(mention string) bool {
+	mention = strings.ToLower(strings.TrimSpace(mention))
+	if len(mention) < 9 {
+		return false
+	}
+	hasDigit := false
+	switch mention[0] {
+	case 'u', 'b', 'w', 'c', 't', 'd', 'e', 'g', 'f', 'p', 's', 'z':
+		for _, r := range mention[1:] {
+			if r >= '0' && r <= '9' {
+				hasDigit = true
+				continue
+			}
+			if r < 'a' || r > 'z' {
+				return false
+			}
+		}
+		return hasDigit
+	default:
+		return false
+	}
 }
 
 // NormalizeAgentName converts agent names to kebab-case format for @mention compatibility

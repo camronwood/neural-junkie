@@ -74,6 +74,9 @@ type CLIAgentProvider struct {
 
 	// ProviderName is the display name of the provider (e.g. "cursor-cli")
 	ProviderName string
+
+	// ApprovalMode controls headless trust flags for CLI agents ("interactive", "auto_edit", "yolo").
+	ApprovalMode string
 }
 
 // CLIAgentOption is a functional option for CLIAgentProvider configuration
@@ -188,15 +191,11 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 	defer cancel()
 
 	// Build command arguments: base args + the prompt
-	args := make([]string, len(c.BaseArgs))
-	copy(args, c.BaseArgs)
-	if model := c.EffectiveCLIModel(); model != "" {
-		args = prependCLIModelArgs(c.ProviderName, args, model)
-	}
+	args := c.buildCLIInvocationArgs(c.BaseArgs)
 	args = append(args, fullPrompt)
 
 	log.Printf("[CLIAgent/%s] Invoking: %s %v (workDir: %s, timeout: %s)",
-		c.ProviderName, c.Command, c.BaseArgs, c.WorkDir, c.Timeout)
+		c.ProviderName, c.Command, args[:len(args)-1], c.WorkDir, c.Timeout)
 
 	// Create command
 	cmd := exec.CommandContext(timeoutCtx, c.Command, args...)
@@ -302,6 +301,33 @@ func (c *CLIAgentProvider) useInteractiveMode() bool {
 	return c.ProviderName == "cursor-cli"
 }
 
+// buildCLIInvocationArgs prepends provider-specific flags (model, workspace trust) before base args.
+func (c *CLIAgentProvider) buildCLIInvocationArgs(baseArgs []string) []string {
+	args := make([]string, 0, len(baseArgs)+4)
+	args = append(args, c.cursorTrustArgs()...)
+	base := make([]string, len(baseArgs))
+	copy(base, baseArgs)
+	if model := c.EffectiveCLIModel(); model != "" {
+		base = prependCLIModelArgs(c.ProviderName, base, model)
+	}
+	args = append(args, base...)
+	return args
+}
+
+// cursorTrustArgs returns Cursor CLI workspace-trust flags for unattended hub invocations.
+func (c *CLIAgentProvider) cursorTrustArgs() []string {
+	if c.ProviderName != "cursor-cli" {
+		return nil
+	}
+	if os.Getenv("NEURAL_JUNKIE_CURSOR_TRUST") == "0" {
+		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(c.ApprovalMode), "interactive") {
+		return nil
+	}
+	return []string{"--trust"}
+}
+
 // GenerateResponseStream invokes the CLI agent and streams its stdout
 // in chunks back through the returned channel. Uses a pipe for stdout
 // and captures stderr separately so error dumps don't leak into chat.
@@ -322,11 +348,7 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 		return c.streamInteractiveMode(timeoutCtx, cancel, fullPrompt)
 	}
 
-	args := make([]string, len(c.BaseArgs))
-	copy(args, c.BaseArgs)
-	if model := c.EffectiveCLIModel(); model != "" {
-		args = prependCLIModelArgs(c.ProviderName, args, model)
-	}
+	args := c.buildCLIInvocationArgs(c.BaseArgs)
 	args = append(args, fullPrompt)
 
 	cmd := exec.CommandContext(timeoutCtx, c.Command, args...)
@@ -540,7 +562,7 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 // the subprocess detect a real terminal (isatty(1) == true) and emit tokens
 // incrementally rather than buffering the full response.
 func (c *CLIAgentProvider) streamInteractiveMode(ctx context.Context, cancel context.CancelFunc, prompt string) (<-chan StreamToken, error) {
-	args := []string{"--output-format", "text"}
+	args := c.buildCLIInvocationArgs([]string{"--output-format", "text"})
 	cmd := exec.CommandContext(ctx, c.Command, args...)
 	if c.WorkDir != "" {
 		cmd.Dir = c.WorkDir

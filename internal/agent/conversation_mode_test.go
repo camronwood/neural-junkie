@@ -61,6 +61,23 @@ func TestPromptPersonaTier_dm(t *testing.T) {
 	}
 }
 
+func TestClassifyTurnIntent_scanToolIsTask(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-b", protocol.AgentInfo{ID: "u", Name: "User"}, "Use summarize_scan_analysis on the file I have open")
+	msg.Metadata = map[string]interface{}{MetadataConversationMode: "chat"}
+	if got := classifyTurnIntent(msg, protocol.ChannelTypeDM, "bio1", nil); got != IntentTask {
+		t.Fatalf("got %v want task", got)
+	}
+}
+
+func TestHasScanOrEditorTaskSignals(t *testing.T) {
+	if !hasScanOrEditorTaskSignals("summarize_scan_analysis on my open file") {
+		t.Fatal("expected scan tool signal")
+	}
+	if !hasScanOrEditorTaskSignals("its open in my editor now") {
+		t.Fatal("expected editor signal")
+	}
+}
+
 func TestShouldIncludeToolingInPrompt_casualChat(t *testing.T) {
 	hub := shouldRespondTestHub{}
 	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"go"}, ai.NewMockProvider(), hub)

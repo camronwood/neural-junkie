@@ -17,6 +17,8 @@ import type {
   SlackPolicy,
   SlackConfigResponse,
   SlackConnectionResponse,
+  SlackInboxConfig,
+  SlackForwardRule,
 } from '../types/protocol';
 import { ChatAPI, type UserLearning } from '../api/chatAPI';
 import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
@@ -30,6 +32,60 @@ import { open } from '@tauri-apps/api/dialog';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function slackCanListChannelsFrom(
+  status: SlackStatus | null | undefined,
+  cfg: SlackConfigResponse | null | undefined
+): boolean {
+  return Boolean(cfg?.bot_token_set || status?.token_set || status?.configured);
+}
+
+function defaultSlackInboxForm(): SlackInboxConfig {
+  return {
+    enabled: false,
+    agent_id: '',
+    forward_rules: [
+      { id: 'mentions', type: 'mention_of_me', enabled: false, slack_channel_ids: [] },
+      { id: 'nj-prefix', type: 'prefix', enabled: false, prefix: 'nj:', slack_channel_ids: ['*'] },
+      { id: 'robot-react', type: 'reaction', enabled: false, emoji: 'robot_face', slack_channel_ids: [] },
+    ],
+    human_dm_away: {
+      enabled: false,
+      away_enabled: false,
+      schedule_enabled: false,
+      schedule_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles',
+    },
+  };
+}
+
+function mergeSlackInboxForm(inbox: SlackInboxConfig | null | undefined): SlackInboxConfig {
+  const base = defaultSlackInboxForm();
+  if (!inbox) return base;
+  const rules = (inbox.forward_rules?.length ? inbox.forward_rules : base.forward_rules) ?? base.forward_rules;
+  const byId = new Map(rules.map((r) => [r.id ?? r.type, r]));
+  for (const def of base.forward_rules ?? []) {
+    if (!byId.has(def.id ?? def.type)) {
+      byId.set(def.id ?? def.type, def);
+    }
+  }
+  return {
+    ...base,
+    ...inbox,
+    forward_rules: Array.from(byId.values()),
+    human_dm_away: { ...base.human_dm_away, ...inbox.human_dm_away },
+  };
+}
+
+function updateForwardRule(
+  inbox: SlackInboxConfig,
+  ruleId: string,
+  patch: Partial<SlackForwardRule>
+): SlackInboxConfig {
+  const rules = (inbox.forward_rules ?? []).map((r) =>
+    (r.id ?? r.type) === ruleId ? { ...r, ...patch } : r
+  );
+  return { ...inbox, forward_rules: rules };
 }
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
@@ -127,6 +183,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [slackChannelsLoading, setSlackChannelsLoading] = useState(false);
   const [slackChannelsError, setSlackChannelsError] = useState<string | null>(null);
   const [slackConnection, setSlackConnection] = useState<SlackConnectionResponse | null>(null);
+  const [slackInbox, setSlackInbox] = useState<SlackInboxConfig>(() => defaultSlackInboxForm());
   const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
   const [specialistModelsAdvancedOpen, setSpecialistModelsAdvancedOpen] = useState(false);
   const [packsLoading, setPacksLoading] = useState(false);
@@ -263,11 +320,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const api = new ChatAPI(hubHttp);
       const channels = await api.getSlackChannels();
-      const member = channels.filter((c) => c.is_member);
-      const sorted = [...member].sort((a, b) => a.name.localeCompare(b.name));
+      const sorted = [...channels].sort((a, b) => a.name.localeCompare(b.name));
       setSlackChannels(sorted);
-      if (sorted.length === 0 && channels.length > 0) {
-        setSlackChannelsError('No channels listed — invite the bot with /invite @YourBot first.');
+      if (sorted.length === 0) {
+        setSlackChannelsError(
+          'No channels found — invite the bot with /invite @YourBot in each channel first.'
+        );
       }
     } catch (e) {
       setSlackChannels([]);
@@ -281,17 +339,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSlackLoading(true);
     try {
       const api = new ChatAPI(hubHttp);
-      const [status, cfg, bindings, connection] = await Promise.all([
+      const [status, cfg, bindings, connection, inbox] = await Promise.all([
         api.getSlackStatus(),
         api.getSlackConfig(),
         api.getSlackBindings(),
         api.getSlackConnection(),
+        api.getSlackInbox().catch(() => defaultSlackInboxForm()),
       ]);
       setSlackStatus(status);
       setSlackConfig(cfg);
       setSlackBindings(bindings);
       setSlackConnection(connection);
-      if (status.configured && (status.connected || cfg.bot_token_set)) {
+      setSlackInbox(mergeSlackInboxForm(inbox));
+      if (slackCanListChannelsFrom(status, cfg)) {
         void loadSlackChannels();
       } else {
         setSlackChannels([]);
@@ -527,6 +587,131 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     } finally {
       setSlackBusy(false);
     }
+  };
+
+  const saveSlackInboxSettings = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const agent = agents.find((a) => a.id === slackInbox.agent_id);
+      const mentionIds =
+        slackInbox.forward_rules?.find((r) => r.type === 'mention_of_me')?.slack_channel_ids ?? [];
+      const forwardRules = (slackInbox.forward_rules ?? []).map((r) =>
+        r.type === 'reaction' && mentionIds.length > 0
+          ? { ...r, slack_channel_ids: mentionIds }
+          : r
+      );
+      const payload: SlackInboxConfig = {
+        ...slackInbox,
+        forward_rules: forwardRules,
+        agent_name: agent?.name,
+      };
+      await api.saveSlackInbox(payload);
+      await refreshSlackIntegration();
+      window.dispatchEvent(new Event('nj-slack-inbox-updated'));
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: true, message: 'Personal inbox saved.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Failed to save personal inbox',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const testSlackInboxDM = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.testSlackInboxDM();
+      setTestResults((prev) => ({
+        ...prev,
+        slack: { success: true, message: 'Test DM sent — check Slack.' },
+      }));
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'Inbox test DM failed',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const authorizeSlackUserDM = async () => {
+    setSlackBusy(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const url = await api.getSlackUserDMOAuthURL();
+      openLink(url);
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: true,
+          message: 'Authorize Slack DM access in your browser…',
+        },
+      }));
+      window.setTimeout(async () => {
+        try {
+          const inbox = await api.getSlackInbox();
+          setSlackInbox(mergeSlackInboxForm(inbox));
+        } catch {
+          /* ignore poll errors */
+        }
+      }, 4000);
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        slack: {
+          success: false,
+          message: e instanceof Error ? e.message : 'User DM authorization failed',
+        },
+      }));
+    } finally {
+      setSlackBusy(false);
+    }
+  };
+
+  const humanDMStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'monitoring_active':
+        return 'Monitoring active';
+      case 'not_authorized':
+        return 'Not authorized — click Authorize Slack DM access';
+      case 'inside_work_hours':
+        return 'Inside work hours (schedule)';
+      case 'away_off':
+        return 'Away mode off';
+      case 'inbox_not_ready':
+        return 'Enable personal inbox and pick an agent first';
+      case 'disabled':
+        return 'Disabled';
+      default:
+        return status ?? '';
+    }
+  };
+
+  const toggleMentionWatchChannel = (channelId: string) => {
+    setSlackInbox((prev) => {
+      const rules = prev.forward_rules ?? [];
+      const mention = rules.find((r) => r.id === 'mentions' || r.type === 'mention_of_me');
+      const ids = new Set(mention?.slack_channel_ids ?? []);
+      if (ids.has(channelId)) ids.delete(channelId);
+      else ids.add(channelId);
+      return updateForwardRule(prev, mention?.id ?? 'mentions', {
+        slack_channel_ids: Array.from(ids),
+      });
+    });
   };
 
   const saveGoogleOAuthSettings = async () => {
@@ -1672,6 +1857,30 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
               </div>
 
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Toolbar actions</h3>
+                <p className="text-sm text-slack-textMuted mb-3">
+                  On wide screens, show toolbar chips in the top bar or a right sidebar. Narrow windows
+                  always use the sidebar.
+                </p>
+                <div className="flex gap-2">
+                  {(['top', 'sidebar'] as const).map((placement) => (
+                    <button
+                      key={placement}
+                      type="button"
+                      onClick={() => updateLayoutSettings({ toolbarChipsPlacement: placement })}
+                      className={`px-3 py-1.5 text-sm rounded border ${
+                        (layoutSettings.toolbarChipsPlacement ?? 'top') === placement
+                          ? 'border-slack-accent bg-slack-accent/20 text-slack-text'
+                          : 'border-slack-border text-slack-textMuted hover:text-slack-text'
+                      }`}
+                    >
+                      {placement === 'top' ? 'Top bar' : 'Right sidebar'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
                 <div className="flex-1">
                   <div className="font-medium text-slack-text">Inline completion (ghost text)</div>
@@ -2563,6 +2772,266 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </button>
                   </div>
                 </details>
+                <h4 className="text-sm font-semibold text-slack-text mb-2 mt-4">Personal inbox</h4>
+                <p className="text-xs text-slack-textMuted mb-3">
+                  DM the NJ bot from Slack while away. Forwarded channel messages get agent replies in the
+                  original Slack thread.
+                </p>
+                <div className="p-4 mb-4 bg-slack-bgHover rounded-lg border border-slack-border space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-slack-text">Enable personal inbox</div>
+                      <div className="text-xs text-slack-textMuted">
+                        Owner:{' '}
+                        {slackInbox.owner_slack_user_name ||
+                          slackConnection?.owner_slack_user_name ||
+                          slackInbox.owner_slack_user_id ||
+                          slackConnection?.owner_slack_user_id ||
+                          'Connect Slack first'}
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={slackInbox.enabled}
+                      onChange={(e) =>
+                        setSlackInbox((prev) => ({ ...prev, enabled: e.target.checked }))
+                      }
+                      className="h-4 w-4 text-slack-accent"
+                    />
+                  </div>
+                  <select
+                    value={slackInbox.agent_id ?? ''}
+                    onChange={(e) =>
+                      setSlackInbox((prev) => ({ ...prev, agent_id: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-sm text-slack-text"
+                  >
+                    <option value="" className="bg-slack-bg text-slack-text">
+                      Select inbox agent…
+                    </option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id} className="bg-slack-bg text-slack-text">
+                        {a.name} ({a.type})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveSlackInboxSettings()}
+                      disabled={slackBusy}
+                      className="px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50 text-sm"
+                    >
+                      Save personal inbox
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void testSlackInboxDM()}
+                      disabled={slackBusy || !slackInbox.enabled}
+                      className="px-4 py-2 border border-slack-border rounded hover:bg-slack-bg text-sm text-slack-text disabled:opacity-50"
+                    >
+                      Test DM
+                    </button>
+                  </div>
+                  <div className="border-t border-slack-border pt-3 space-y-3">
+                    <div className="text-sm font-medium text-slack-text">Forwarding rules</div>
+                    <label className="flex items-start gap-2 text-sm text-slack-text">
+                      <input
+                        type="checkbox"
+                        checked={
+                          slackInbox.forward_rules?.find((r) => r.type === 'mention_of_me')?.enabled ??
+                          false
+                        }
+                        onChange={(e) =>
+                          setSlackInbox((prev) =>
+                            updateForwardRule(prev, 'mentions', { enabled: e.target.checked })
+                          )
+                        }
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-medium">@mention of me</span>
+                        <span className="block text-xs text-slack-textMuted">
+                          Forward when someone @mentions you in watched channels
+                        </span>
+                      </span>
+                    </label>
+                    {slackChannels.length > 0 && (
+                      <div className="max-h-28 overflow-y-auto border border-slack-border rounded p-2 space-y-1">
+                        {slackChannels.map((c) => {
+                          const mentionRule = slackInbox.forward_rules?.find(
+                            (r) => r.type === 'mention_of_me'
+                          );
+                          const checked = (mentionRule?.slack_channel_ids ?? []).includes(c.id);
+                          return (
+                            <label key={c.id} className="flex items-center gap-2 text-xs text-slack-text">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleMentionWatchChannel(c.id)}
+                              />
+                              {c.is_private ? '🔒' : '#'}
+                              {c.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <label className="flex items-start gap-2 text-sm text-slack-text">
+                      <input
+                        type="checkbox"
+                        checked={
+                          slackInbox.forward_rules?.find((r) => r.type === 'prefix')?.enabled ?? false
+                        }
+                        onChange={(e) =>
+                          setSlackInbox((prev) =>
+                            updateForwardRule(prev, 'nj-prefix', { enabled: e.target.checked })
+                          )
+                        }
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="font-medium">Prefix </span>
+                        <code className="text-xs bg-slack-bg px-1 rounded">nj:</code>
+                        <span className="block text-xs text-slack-textMuted">
+                          Start a line with nj: in any channel the bot is in
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm text-slack-text">
+                      <input
+                        type="checkbox"
+                        checked={
+                          slackInbox.forward_rules?.find((r) => r.type === 'reaction')?.enabled ?? false
+                        }
+                        onChange={(e) =>
+                          setSlackInbox((prev) =>
+                            updateForwardRule(prev, 'robot-react', { enabled: e.target.checked })
+                          )
+                        }
+                        className="mt-1"
+                      />
+                      <span className="flex-1">
+                        <span className="font-medium">Reaction </span>
+                        <input
+                          type="text"
+                          value={
+                            slackInbox.forward_rules?.find((r) => r.type === 'reaction')?.emoji ??
+                            'robot_face'
+                          }
+                          onChange={(e) =>
+                            setSlackInbox((prev) =>
+                              updateForwardRule(prev, 'robot-react', { emoji: e.target.value })
+                            )
+                          }
+                          className="ml-1 px-1 py-0.5 w-28 bg-slack-bg border border-slack-border rounded text-xs font-mono"
+                        />
+                        <span className="block text-xs text-slack-textMuted">
+                          You react with this emoji to forward a message (watchlist same as @mentions)
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                  <details className="border-t border-slack-border pt-3">
+                    <summary className="text-sm font-medium text-slack-text cursor-pointer">
+                      Human DM away mode
+                    </summary>
+                    <p className="text-xs text-slack-textMuted mt-2 mb-3">
+                      When away, NJ reads your 1:1 Slack DMs locally (encrypted token) and replies in the DM as
+                      &quot;Assistant (for you)&quot;. Someone must DM <strong>you</strong> directly — not note-to-self
+                      (&quot;Jot Something Down&quot;) and not the NJ bot.
+                    </p>
+                    <div className="space-y-3">
+                      <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
+                        <span>Enable human DM away mode</span>
+                        <input
+                          type="checkbox"
+                          checked={slackInbox.human_dm_away?.enabled ?? false}
+                          onChange={(e) =>
+                            setSlackInbox((prev) => ({
+                              ...prev,
+                              human_dm_away: { ...prev.human_dm_away, enabled: e.target.checked },
+                            }))
+                          }
+                          className="h-4 w-4 text-slack-accent"
+                        />
+                      </label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void authorizeSlackUserDM()}
+                          disabled={slackBusy || !(slackInbox.human_dm_away?.enabled ?? false)}
+                          className="px-3 py-1.5 text-xs border border-slack-border rounded hover:bg-slack-bg text-slack-text disabled:opacity-50"
+                        >
+                          Authorize Slack DM access
+                        </button>
+                        <span className="text-xs text-slack-textMuted">
+                          {slackInbox.human_dm_away?.user_token_set ? 'Authorized' : 'Not authorized'}
+                        </span>
+                      </div>
+                      <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
+                        <span>I&apos;m away now</span>
+                        <input
+                          type="checkbox"
+                          checked={slackInbox.human_dm_away?.away_enabled ?? false}
+                          onChange={(e) =>
+                            setSlackInbox((prev) => ({
+                              ...prev,
+                              human_dm_away: { ...prev.human_dm_away, away_enabled: e.target.checked },
+                            }))
+                          }
+                          disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
+                          className="h-4 w-4 text-slack-accent disabled:opacity-50"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3 text-sm text-slack-text">
+                        <span>
+                          Schedule (monitor outside Mon–Fri 9am–5pm)
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={slackInbox.human_dm_away?.schedule_enabled ?? false}
+                          onChange={(e) =>
+                            setSlackInbox((prev) => ({
+                              ...prev,
+                              human_dm_away: {
+                                ...prev.human_dm_away,
+                                schedule_enabled: e.target.checked,
+                              },
+                            }))
+                          }
+                          disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
+                          className="h-4 w-4 text-slack-accent disabled:opacity-50"
+                        />
+                      </label>
+                      <label className="block text-xs text-slack-text">
+                        Timezone
+                        <input
+                          type="text"
+                          value={
+                            slackInbox.human_dm_away?.schedule_timezone ??
+                            'America/Los_Angeles'
+                          }
+                          onChange={(e) =>
+                            setSlackInbox((prev) => ({
+                              ...prev,
+                              human_dm_away: {
+                                ...prev.human_dm_away,
+                                schedule_timezone: e.target.value,
+                              },
+                            }))
+                          }
+                          disabled={!(slackInbox.human_dm_away?.enabled ?? false)}
+                          className="mt-1 w-full px-2 py-1 bg-slack-bg border border-slack-border rounded font-mono text-xs disabled:opacity-50"
+                        />
+                      </label>
+                      <p className="text-xs text-slack-textMuted">
+                        Status:{' '}
+                        {humanDMStatusLabel(slackInbox.human_dm_away?.monitoring_status)}
+                      </p>
+                    </div>
+                  </details>
+                </div>
                 <h4 className="text-sm font-semibold text-slack-text mb-2">Channel bindings</h4>
                 <p className="text-xs text-slack-textMuted mb-3">
                   Pick a channel the bot is in, or paste a channel ID (C…) from Slack → channel → About.
@@ -2571,7 +3040,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <button
                     type="button"
                     onClick={() => void loadSlackChannels()}
-                    disabled={slackChannelsLoading || !slackStatus?.configured}
+                    disabled={slackChannelsLoading || !slackCanListChannelsFrom(slackStatus, slackConfig)}
                     className="px-3 py-1 text-xs border border-slack-border rounded hover:bg-slack-bgHover text-slack-text disabled:opacity-50"
                   >
                     {slackChannelsLoading ? 'Loading channels…' : 'Load Slack channels'}

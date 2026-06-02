@@ -112,6 +112,24 @@ func deriveLegacyKey(home string) []byte {
 	return sum[:]
 }
 
+// EncryptSecret encrypts a string for storage outside config.json.
+func EncryptSecret(plaintext string) (string, error) {
+	key, err := LoadOrCreateSecretsKey()
+	if err != nil {
+		return "", err
+	}
+	return encryptString(plaintext, key)
+}
+
+// DecryptSecret decrypts a string stored with EncryptSecret.
+func DecryptSecret(blob string) (string, error) {
+	key, err := LoadOrCreateSecretsKey()
+	if err != nil {
+		return "", err
+	}
+	return decryptString(blob, key)
+}
+
 // EncryptConfigSecrets encrypts sensitive fields in-place before persisting config.json.
 func (c *Config) EncryptSecretsBeforeSave() error {
 	key, err := LoadOrCreateSecretsKey()

@@ -389,10 +389,16 @@ func main() {
 	http.HandleFunc("/api/slack/test-post", corsMiddleware(handleSlackTestPost))
 	http.HandleFunc("/api/slack/oauth/start", corsMiddleware(handleSlackOAuthStart))
 	http.HandleFunc("/api/slack/oauth/callback", corsMiddleware(handleSlackOAuthCallback))
+	http.HandleFunc("/api/slack/oauth/user-dm/start", corsMiddleware(handleSlackOAuthUserDMStart))
+	http.HandleFunc("/api/slack/oauth/user-dm/callback", corsMiddleware(handleSlackOAuthUserDMCallback))
 	http.HandleFunc("/api/slack/disconnect", corsMiddleware(handleSlackDisconnect))
 	http.HandleFunc("/api/slack/restart", corsMiddleware(handleSlackRestart))
 	http.HandleFunc("/api/slack/channels", corsMiddleware(handleSlackChannels))
 	http.HandleFunc("/api/slack/diagnose", corsMiddleware(handleSlackDiagnose))
+	http.HandleFunc("/api/slack/inbox", corsMiddleware(handleSlackInbox))
+	http.HandleFunc("/api/slack/inbox/test-dm", corsMiddleware(handleSlackInboxTestDM))
+	http.HandleFunc("/api/slack/inbox/dm-debug", corsMiddleware(handleSlackInboxDMDebug))
+	http.HandleFunc("/api/slack/inbox/human-dm-debug", corsMiddleware(handleSlackInboxHumanDMDebug))
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))

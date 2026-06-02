@@ -77,6 +77,8 @@ export interface IntegrationSettings {
 
 export type LayoutPreset = 'team' | 'ide';
 export type IdeChatDock = 'right' | 'bottom';
+/** Wide screens only; viewports below lg always use the right toolbar rail. */
+export type ToolbarChipsPlacement = 'top' | 'sidebar';
 
 export interface LayoutSettings {
   /** team = Slack-style chat primary; ide = editor + agent dock primary */
@@ -101,6 +103,8 @@ export interface LayoutSettings {
   inlineCompletionModel?: string;
   /** Editor agent file-change trust: interactive | auto_apply_edits | yolo */
   editorAgentTrust?: 'interactive' | 'auto_apply_edits' | 'yolo';
+  /** Where toolbar action chips live on wide screens (lg+). */
+  toolbarChipsPlacement?: ToolbarChipsPlacement;
 }
 
 interface SettingsState {
@@ -196,6 +200,7 @@ const defaultLayoutSettings: LayoutSettings = {
   sidebarAgentsVisible: true,
   inlineCompletionEnabled: false,
   editorAgentTrust: 'interactive',
+  toolbarChipsPlacement: 'top',
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

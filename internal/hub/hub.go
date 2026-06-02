@@ -1075,6 +1075,17 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 	}
 
 	if status == collaboration.TaskCompleted {
+		policy := collabSnapshot.EffectiveExecutionPolicy().BlockedUpstreamPolicy
+		if !collaboration.UpstreamTasksComplete(*task, collabSnapshot.Tasks, policy) {
+			h.broadcastCollabSystem(msg.Channel, collabID, fmt.Sprintf(
+				"⚠️ **Task not marked complete** (`%s`) — @%s reported done but upstream task(s) are not finished yet.",
+				collabID[:8], msg.From.Name,
+			))
+			if task.Status != collaboration.TaskInProgress {
+				_, _ = h.collabManager.UpdateTaskStatusWithEffects(collabID, task.ID, collaboration.TaskInProgress, "Awaiting upstream tasks")
+			}
+			return
+		}
 		if collaboration.AgentReplyContainsStalePlanning(msg.Content) {
 			h.broadcastCollabSystem(msg.Channel, collabID, fmt.Sprintf(
 				"⚠️ **Task not marked complete** (`%s`) — @%s echoed planning/approval language during execution. Finish the assigned deliverable or use `/collab-task-done` when real output exists.",
@@ -2124,6 +2135,7 @@ func (h *Hub) ListCollaborationSnapshots(channel string, includeTerminal bool) [
 		if snap == nil {
 			continue
 		}
+		h.annotateCollaborationTaskRouting(snap)
 		if i < len(healFlags) && healFlags[i] &&
 			snap.Phase == collaboration.PhaseExecuting && len(snap.Tasks) > 0 &&
 			!snap.TasksDispatched &&
@@ -2227,6 +2239,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 	}
 	ch := snap.Channel
 	sent := 0
+	h.annotateCollaborationTaskRouting(snap)
 	for _, task := range snap.Tasks {
 		if include != nil && !include(task) {
 			continue
@@ -2293,6 +2306,13 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s%s\n\nComplete this task now. Ship concrete output ([FILE_CHANGE] and/or findings in the deliverables folder). End your reply with `TASK_STATUS: completed` or `TASK_STATUS: blocked`. @mention others only if blocked.",
 			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit), workspaceNote)
 		body += collaboration.TaskDispatchFileDeliverableNote(task)
+		for _, t := range snap.Tasks {
+			if t.ID == task.ID {
+				task = t
+				break
+			}
+		}
+		body += formatCollabTaskRoutingNote(task)
 		taskMsg := protocol.NewMessage(
 			protocol.MessageTypeCollabTask,
 			ch,
@@ -2339,6 +2359,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		} else if strings.TrimSpace(snap.SourceRepoPath) != "" {
 			taskMsg.Metadata["context_scope"] = "hint"
 		}
+		applyCollabTaskRoutingMetadata(task, taskMsg)
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
 			continue

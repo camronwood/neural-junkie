@@ -239,8 +239,10 @@ func (s *Storage) GetAllCachedRepos() ([]map[string]interface{}, error) {
 			cacheSize = index.TotalSize
 		}
 
-		// Generate agent name from path
 		agentName := filepath.Base(metadata.Path) + " Expert"
+		if len(metadata.AgentNames) > 0 {
+			agentName = metadata.AgentNames[0]
+		}
 
 		agent := map[string]interface{}{
 			"type":       "repo",

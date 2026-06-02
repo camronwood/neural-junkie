@@ -9,6 +9,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// hubMCPToolNames are in-process MCP tools that must never be offered as shell commands.
+var hubMCPToolNames = map[string]bool{
+	"summarize_scan_summary":  true,
+	"summarize_scan_analysis": true,
+	"analyze_sequence":        true,
+	"fold_protein":            true,
+}
+
 var bareFileRefExtensions = map[string]bool{
 	".md": true, ".markdown": true, ".txt": true, ".json": true, ".yaml": true, ".yml": true,
 	".xml": true, ".html": true, ".htm": true, ".csv": true, ".ts": true, ".tsx": true,
@@ -50,6 +58,9 @@ func (cd *CommandDetector) DetectCommands(content, agentName, messageID string) 
 	for _, match := range inlineMatches {
 		if len(match) > 1 {
 			command := strings.TrimSpace(match[1])
+			if isHubMCPToolCommand(command) {
+				continue
+			}
 			if cd.isShellCommand(command) {
 				suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
 				suggestions = append(suggestions, suggestion)
@@ -127,6 +138,15 @@ func substantiveCodeBlockLines(command string) []string {
 }
 
 // shouldSuggestCodeBlock filters ```bash``` blocks that are only file paths, not commands.
+func isHubMCPToolCommand(command string) bool {
+	line := strings.TrimSpace(strings.Split(command, "\n")[0])
+	if line == "" {
+		return false
+	}
+	first := strings.Fields(line)[0]
+	return hubMCPToolNames[strings.ToLower(first)]
+}
+
 func (cd *CommandDetector) shouldSuggestCodeBlock(command string) bool {
 	lines := substantiveCodeBlockLines(command)
 	if len(lines) == 0 {
@@ -136,6 +156,12 @@ func (cd *CommandDetector) shouldSuggestCodeBlock(command string) bool {
 		if looksLikeBareFileReference(line) {
 			return false
 		}
+		if isHubMCPToolCommand(line) {
+			return false
+		}
+	}
+	if len(lines) > 1 {
+		return true
 	}
 	if len(lines) == 1 {
 		line := lines[0]

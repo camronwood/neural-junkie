@@ -137,9 +137,6 @@ func sharedScanSummaryPath(msg *protocol.Message) (string, bool) {
 	}
 	workspacePath, _ := ctxMap["workspace_path"].(string)
 	workspacePath = strings.TrimSpace(workspacePath)
-	if workspacePath == "" {
-		return "", false
-	}
 
 	summaryDir := ""
 	if scan, ok := ctxMap["scan_summary"].(map[string]interface{}); ok {
@@ -150,14 +147,19 @@ func sharedScanSummaryPath(msg *protocol.Message) (string, bool) {
 			summaryDir, _ = analysis["linked_scan_dir"].(string)
 		}
 	}
-	summaryDir = strings.TrimSpace(summaryDir)
-	if summaryDir == "" {
-		return workspacePath, true
+	if strings.TrimSpace(summaryDir) == "" {
+		if p, ok := scanDirFromActiveEditor(ctxMap, workspacePath, "scan_summary_dir"); ok {
+			return p, true
+		}
+		if p, ok := scanDirFromOpenFiles(ctxMap, workspacePath, "scan_summary_dir"); ok {
+			return p, true
+		}
+		if workspacePath != "" && scanSummaryPathExists(workspacePath) {
+			return workspacePath, true
+		}
+		return "", false
 	}
-	if filepath.IsAbs(summaryDir) {
-		return summaryDir, true
-	}
-	return filepath.Join(workspacePath, summaryDir), true
+	return joinWorkspacePath(workspacePath, summaryDir), true
 }
 
 func scanSummaryPathExists(path string) bool {
@@ -217,9 +219,6 @@ func sharedScanAnalysisPath(msg *protocol.Message) (string, bool) {
 	}
 	workspacePath, _ := ctxMap["workspace_path"].(string)
 	workspacePath = strings.TrimSpace(workspacePath)
-	if workspacePath == "" {
-		return "", false
-	}
 
 	analysisDir := ""
 	if scan, ok := ctxMap["scan_analysis"].(map[string]interface{}); ok {
@@ -227,12 +226,123 @@ func sharedScanAnalysisPath(msg *protocol.Message) (string, bool) {
 	}
 	analysisDir = strings.TrimSpace(analysisDir)
 	if analysisDir == "" {
-		return workspacePath, true
+		if p, ok := scanDirFromActiveEditor(ctxMap, workspacePath, "scan_analysis_dir"); ok {
+			return p, true
+		}
+		if p, ok := scanPathFromActiveEditor(ctxMap, workspacePath); ok {
+			return p, true
+		}
+		if p, ok := scanDirFromOpenFiles(ctxMap, workspacePath, "scan_analysis_dir"); ok {
+			return p, true
+		}
+		if p, ok := scanPathFromOpenFiles(ctxMap, workspacePath); ok {
+			return p, true
+		}
+		if workspacePath != "" && scanAnalysisPathExists(workspacePath) {
+			return workspacePath, true
+		}
+		return "", false
 	}
-	if filepath.IsAbs(analysisDir) {
-		return analysisDir, true
+	return joinWorkspacePath(workspacePath, analysisDir), true
+}
+
+func joinWorkspacePath(workspacePath, dir string) string {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return workspacePath
 	}
-	return filepath.Join(workspacePath, analysisDir), true
+	if filepath.IsAbs(dir) {
+		return dir
+	}
+	if workspacePath == "" {
+		return dir
+	}
+	return filepath.Join(workspacePath, dir)
+}
+
+func scanDirFromActiveEditor(ctxMap map[string]interface{}, workspacePath, key string) (string, bool) {
+	editor, ok := ctxMap["active_editor"].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	dir, _ := editor[key].(string)
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return "", false
+	}
+	return joinWorkspacePath(workspacePath, dir), true
+}
+
+func scanPathFromActiveEditor(ctxMap map[string]interface{}, workspacePath string) (string, bool) {
+	editor, ok := ctxMap["active_editor"].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+	path, _ := editor["path"].(string)
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(path) && workspacePath != "" {
+		path = filepath.Join(workspacePath, path)
+	}
+	if scanAnalysisPathExists(path) {
+		return path, true
+	}
+	return "", false
+}
+
+func scanDirFromOpenFiles(ctxMap map[string]interface{}, workspacePath, key string) (string, bool) {
+	files, ok := ctxMap["open_files"].([]interface{})
+	if !ok {
+		return "", false
+	}
+	for _, f := range files {
+		fm, ok := f.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		isActive, _ := fm["is_active"].(bool)
+		if !isActive {
+			continue
+		}
+		dir, _ := fm[key].(string)
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
+		}
+		return joinWorkspacePath(workspacePath, dir), true
+	}
+	return "", false
+}
+
+func scanPathFromOpenFiles(ctxMap map[string]interface{}, workspacePath string) (string, bool) {
+	files, ok := ctxMap["open_files"].([]interface{})
+	if !ok {
+		return "", false
+	}
+	for _, f := range files {
+		fm, ok := f.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		isActive, _ := fm["is_active"].(bool)
+		if !isActive {
+			continue
+		}
+		path, _ := fm["path"].(string)
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if !filepath.IsAbs(path) && workspacePath != "" {
+			path = filepath.Join(workspacePath, path)
+		}
+		if scanAnalysisPathExists(path) {
+			return path, true
+		}
+	}
+	return "", false
 }
 
 func scanAnalysisPathExists(path string) bool {
@@ -257,12 +367,95 @@ func (a *Agent) generateWithAgentTools(
 	toolProvider, ok := toolEff.(ai.ToolCapableProvider)
 	if !ok || !toolProvider.SupportsTools() {
 		log.Printf("[%s] Tools requested but provider does not support tool calling; using standard response", a.Info.Name)
-		return eff.GenerateResponse(ctx, prompt, histMsgs)
+		text, err := eff.GenerateResponse(ctx, prompt, histMsgs)
+		if err != nil {
+			return "", err
+		}
+		if recovered, ok := a.recoverPlaintextToolResponse(ctx, msg, text); ok {
+			log.Printf("[%s] Recovered plaintext MCP tool call from chat model response", a.Info.Name)
+			return recovered, nil
+		}
+		return text, nil
 	}
 
-	return toolProvider.GenerateResponseWithTools(ctx, prompt, histMsgs, tools,
+	text, err := toolProvider.GenerateResponseWithTools(ctx, prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
 			log.Printf("[%s] Tool call: %s", a.Info.Name, req.Name)
 			return a.executeAgentTool(ctx, msg, req.Name, req.Input)
 		})
+	if err != nil {
+		return "", err
+	}
+	if recovered, ok := a.recoverPlaintextToolResponse(ctx, msg, text); ok {
+		log.Printf("[%s] Recovered plaintext MCP tool call from tool-loop model response", a.Info.Name)
+		return recovered, nil
+	}
+	return text, nil
+}
+
+// parsePlaintextToolCall detects when a model returned a JSON tool invocation in chat text
+// instead of using native tool calling (common with OpenBio / nj-bio chat models).
+func parsePlaintextToolCall(text string) (name string, input json.RawMessage, ok bool) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", nil, false
+	}
+	if strings.HasPrefix(text, "```") {
+		text = strings.TrimPrefix(text, "```json")
+		text = strings.TrimPrefix(text, "```")
+		text = strings.TrimSuffix(text, "```")
+		text = strings.TrimSpace(text)
+	}
+	var payload struct {
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+		Input     map[string]interface{} `json:"input"`
+	}
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		return "", nil, false
+	}
+	name = strings.TrimSpace(payload.Name)
+	if name == "" {
+		return "", nil, false
+	}
+	args := payload.Arguments
+	if args == nil {
+		args = payload.Input
+	}
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	raw, err := json.Marshal(args)
+	if err != nil {
+		return "", nil, false
+	}
+	return name, raw, true
+}
+
+func (a *Agent) agentToolNames() map[string]bool {
+	names := make(map[string]bool)
+	for _, td := range a.agentToolDefinitions() {
+		names[td.Name] = true
+	}
+	return names
+}
+
+// recoverPlaintextToolResponse executes a tool when the model returned JSON in plain text.
+func (a *Agent) recoverPlaintextToolResponse(ctx context.Context, msg *protocol.Message, text string) (string, bool) {
+	name, input, ok := parsePlaintextToolCall(text)
+	if !ok {
+		return "", false
+	}
+	tools := a.agentToolNames()
+	if !tools[name] {
+		return "", false
+	}
+	result, err := a.executeAgentTool(ctx, msg, name, input)
+	if err != nil {
+		return fmt.Sprintf("Tool `%s` failed: %v", name, err), true
+	}
+	if strings.TrimSpace(result) == "" {
+		return fmt.Sprintf("Tool `%s` completed with no output.", name), true
+	}
+	return result, true
 }

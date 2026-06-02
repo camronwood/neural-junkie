@@ -58,7 +58,12 @@ func workspaceContextHasScanSummary(msg *protocol.Message) bool {
 		return false
 	}
 	scan, ok := ctxMap["scan_summary"].(map[string]interface{})
-	return ok && len(scan) > 0
+	if ok && len(scan) > 0 {
+		if dir, _ := scan["summary_dir"].(string); strings.TrimSpace(dir) != "" {
+			return true
+		}
+	}
+	return openFilesHaveScanDir(ctxMap, "scan_summary_dir")
 }
 
 // appendWorkspaceReviewGuidance steers any agent to use shared editor context
@@ -71,13 +76,17 @@ func appendWorkspaceReviewGuidance(prompt *strings.Builder, msg *protocol.Messag
 	reviewIntent := userRequestsEditorDocumentReview(msg.Content)
 	hasFiles := workspaceContextHasOpenFiles(msg)
 	hasScanSummary := workspaceContextHasScanSummary(msg)
+	hasScanAnalysis := workspaceContextHasScanAnalysis(msg)
 
 	switch {
-	case (scope == ContextScopeFocus || scope == ContextScopeFull) && (reviewIntent || hasFiles || hasScanSummary):
+	case (scope == ContextScopeFocus || scope == ContextScopeFull) && (reviewIntent || hasFiles || hasScanSummary || hasScanAnalysis):
 		prompt.WriteString("\n=== DOCUMENT / CODE REVIEW (this turn) ===\n")
 		prompt.WriteString("The user shared workspace context (see WORKSPACE CONTEXT). ")
-		prompt.WriteString("When they ask whether you can see files, answer by naming exactly what is visible: project name/path, file tree, open file metadata, file contents, scan-summary metadata, or attached images. ")
+		prompt.WriteString("When they ask whether you can see files, answer by naming exactly what is visible: project name/path, file tree, open file metadata, file contents, scan-summary metadata, scan-analysis metadata, or attached images. ")
 		prompt.WriteString("Do NOT say you cannot access their editor or files when workspace_context is present. ")
+		if hasScanAnalysis || hasScanSummary {
+			prompt.WriteString("When they ask to run summarize_scan_analysis or summarize_scan_summary on the open file, use the analysis_dir or summary_dir from workspace context — do NOT ask them to type the path. ")
+		}
 		prompt.WriteString("If an open file has empty content or image pixels were not attached, say that specifically and ask for the missing file/image rather than denying all file access.\n\n")
 	case scope == ContextScopeHint && reviewIntent:
 		prompt.WriteString("\n=== EDITOR CONTEXT (limited) ===\n")

@@ -25,7 +25,6 @@ import {
   cycleConversationModeSetting,
   formatContextIndicator,
   loadConversationModeSetting,
-  conversationModeSettingLabel,
   resolveConversationMode,
   CONVERSATION_MODE_STORAGE_KEY,
 } from '../utils/conversationMode';
@@ -41,6 +40,10 @@ import {
 import { HubDataAccessModal } from './HubDataAccessModal';
 import { shouldSendChannelJoinMessage } from '../utils/joinMessage';
 import { devLog } from '../utils/devLog';
+import {
+  registeredFileChangeId,
+  shouldPromptFileChangeApproval,
+} from '../utils/fileChangeApprovalPrompt';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
 import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
@@ -76,20 +79,9 @@ import { ModelLibraryModal } from './ModelLibraryModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
-import {
-  PendingChangesIcon,
-  MyAgentsIcon,
-  FilesIcon,
-  EditorIcon,
-  TerminalIcon,
-  GitIcon,
-  ModelLibraryIcon,
-  SettingsIcon,
-  LogoutIcon,
-  LeftSidebarIcon,
-  TaskManagementIcon,
-  ChatPanelIcon,
-} from './Icons';
+import { LeftSidebarIcon, RightSidebarIcon } from './Icons';
+import { ChatToolbarActions } from './ChatToolbarActions';
+import { ChatToolbarSidebar } from './ChatToolbarSidebar';
 import type {
   AssistantReminder,
   AssistantTask,
@@ -219,6 +211,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
   const devPackEnabled = hasIdeV2;
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
+  const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainChatResize = useHorizontalPanelResize({
     storageKey: 'main-chat-panel-width',
     defaultWidth: 420,
@@ -328,6 +321,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
+  const [pendingChangePreviewId, setPendingChangePreviewId] = useState<string | null>(null);
   const { pendingChanges, fetchPendingChanges } = useFileChangeStore(
     (s) => ({
       pendingChanges: s.pendingChanges,
@@ -340,6 +334,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [channelSidebarOpen, setChannelSidebarOpen] = useState<boolean>(() => {
     return localStorage.getItem('channel-sidebar-open') !== 'false';
   });
+  const [toolbarSidebarOpen, setToolbarSidebarOpen] = useState<boolean>(() => {
+    return localStorage.getItem('toolbar-sidebar-open') === 'true';
+  });
+  const [isWideViewport, setIsWideViewport] = useState(() =>
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 1024px)').matches
+      : true
+  );
 
   // State for create channel modal
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
@@ -455,6 +457,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
   const handledLearningProposalsRef = useRef<Set<string>>(new Set());
+  const handledFileChangeApprovalsRef = useRef<Set<string>>(new Set());
   const handledParticipantRequestPromptsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -481,6 +484,26 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   useEffect(() => {
     localStorage.removeItem('main-chat-area-width');
   }, []);
+
+  const preferSidebarChips = toolbarChipsPlacement === 'sidebar';
+  const useSidebarChips = !isWideViewport || preferSidebarChips;
+  const showTopToolbarChips = isWideViewport && !preferSidebarChips;
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setIsWideViewport(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!useSidebarChips) {
+      setToolbarSidebarOpen(false);
+      localStorage.setItem('toolbar-sidebar-open', 'false');
+    }
+  }, [useSidebarChips]);
 
   // Keyboard shortcuts for sidebar toggles
   useEffect(() => {
@@ -978,6 +1001,38 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }, 300);
   }, [loadAgents, loadCounts]);
 
+  const promptFileChangeApproval = useCallback(
+    async (message: Message) => {
+      if (
+        !shouldPromptFileChangeApproval(
+          message,
+          useChatStore.getState().channel,
+          collaborationsByIDRef.current,
+        )
+      ) {
+        return;
+      }
+      const changeId = registeredFileChangeId(message);
+      if (!changeId || handledFileChangeApprovalsRef.current.has(message.id)) {
+        return;
+      }
+      handledFileChangeApprovalsRef.current.add(message.id);
+      try {
+        await fetchPendingChanges(username || 'default');
+      } catch (error) {
+        console.error('[ChatWindow] fetch pending file changes failed:', error);
+      }
+      setPendingChangePreviewId(changeId);
+      setPendingChangesOpen(true);
+      addToast({
+        type: 'info',
+        title: 'File change needs approval',
+        message: `${message.from.name} proposed a file change. Review and approve to apply it.`,
+      });
+    },
+    [addToast, fetchPendingChanges, username],
+  );
+
   // WebSocket connection
   const { status } = useWebSocket({
     url: wsURL,
@@ -1190,6 +1245,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             message: `Activity in #${message.channel} — switch there to see messages.`,
           });
         }
+        if (message.type === 'file_change') {
+          await promptFileChangeApproval(message);
+        }
       } else {
         // Message belongs to the active channel (never wrap addMessage in startTransition —
         // high-frequency agent_status updates can starve transitions and leave the chat empty).
@@ -1261,6 +1319,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           handledLearningProposalsRef.current.add(message.id);
           setLearningProposal(clientAction as LearningProposalAction);
           setLearningProposalOpen(true);
+        }
+
+        if (message.type === 'file_change') {
+          await promptFileChangeApproval(message);
         }
       }
       
@@ -1780,6 +1842,85 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     return () => window.clearInterval(id);
   }, [activeCollab?.id, activeCollab?.channel, channel, loadCollaborations]);
 
+  const toggleToolbarSidebar = useCallback(() => {
+    setToolbarSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('toolbar-sidebar-open', String(next));
+      return next;
+    });
+  }, []);
+
+  const toggleChannelSidebar = useCallback(() => {
+    setChannelSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('channel-sidebar-open', String(next));
+      return next;
+    });
+  }, []);
+
+  const toolbarActionsProps = useMemo(
+    () => ({
+      onOpenCommandPalette: openCommandPalette,
+      chatPanelVisible,
+      onToggleChatPanel: () => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible }),
+      conversationModeSetting,
+      onCycleConversationMode: () => {
+        const next = cycleConversationModeSetting(conversationModeSetting);
+        setConversationModeSetting(next);
+        localStorage.setItem(CONVERSATION_MODE_STORAGE_KEY, next);
+      },
+      workspaceContextMode,
+      onCycleWorkspaceContext: () => {
+        const next = cycleWorkspaceContextMode(workspaceContextMode);
+        setWorkspaceContextMode(next);
+        localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
+      },
+      workspaceContextButtonTitle: `Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`,
+      onOpenPendingChanges: () => setPendingChangesOpen(true),
+      onOpenFileExplorer: () => setFileExplorerOpen(true),
+      onOpenCodeEditor: () => setCodeEditorOpen(true),
+      taskManagementOpen,
+      onToggleTaskManagement: () => setTaskManagementOpen((o) => !o),
+      onNewRunbook: () => void handleNewRunbook(),
+      onOpenMyAgents: () => setMyAgentsPanelOpen(true),
+      totalAgentsCount,
+      devPackEnabled,
+      onOpenProblems: () => setProblemsOpen(true),
+      gitModalOpen,
+      onToggleGitModal: () => setGitModalOpen((open) => !open),
+      ideLayout,
+      onToggleIdeLayout: () => {
+        const next: LayoutPreset = ideLayout ? 'team' : 'ide';
+        void updateLayoutSettings(panelsForPreset(next));
+      },
+      ideLayoutButtonTitle: `Layout: ${layoutPresetLabel(ideLayout ? 'ide' : 'team')} (click to switch)`,
+      onOpenModelLibrary: () => setModelLibraryOpen(true),
+      onOpenSettings,
+      onLogout: onLogout ? handleLogout : undefined,
+      username,
+      serverAddr,
+    }),
+    [
+      openCommandPalette,
+      chatPanelVisible,
+      updateLayoutSettings,
+      conversationModeSetting,
+      workspaceContextMode,
+      contextScopePreview.scope,
+      taskManagementOpen,
+      handleNewRunbook,
+      totalAgentsCount,
+      devPackEnabled,
+      gitModalOpen,
+      ideLayout,
+      onOpenSettings,
+      onLogout,
+      handleLogout,
+      username,
+      serverAddr,
+    ]
+  );
+
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-screen bg-slack-bg">
@@ -1840,282 +1981,43 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         </div>
         
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center gap-1" aria-label="Navigation and commands">
+        <div className="flex items-center gap-1.5 shrink-0" aria-label="Sidebar toggles">
+          <button
+            type="button"
+            onClick={toggleChannelSidebar}
+            className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
+              channelSidebarOpen
+                ? 'bg-slack-accent text-white'
+                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
+            }`}
+            title="Toggle channels sidebar (⌘B)"
+            aria-label="Toggle channels sidebar"
+            aria-pressed={channelSidebarOpen}
+          >
+            <LeftSidebarIcon className="w-3.5 h-3.5" />
+          </button>
+          {useSidebarChips && (
             <button
               type="button"
-              onClick={() => {
-                const next = !channelSidebarOpen;
-                setChannelSidebarOpen(next);
-                localStorage.setItem('channel-sidebar-open', String(next));
-              }}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
-                channelSidebarOpen
+              onClick={toggleToolbarSidebar}
+              className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
+                toolbarSidebarOpen
                   ? 'bg-slack-accent text-white'
                   : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
               }`}
-              title="Toggle channels sidebar (⌘B)"
-              aria-label="Toggle channels sidebar"
-              aria-pressed={channelSidebarOpen}
+              title={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
+              aria-label={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
+              aria-pressed={toolbarSidebarOpen}
             >
-              <LeftSidebarIcon className="w-3.5 h-3.5" />
+              <RightSidebarIcon className="w-3.5 h-3.5" />
             </button>
-
-            <button
-              type="button"
-              onClick={openCommandPalette}
-              className="w-7 h-7 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors flex items-center justify-center font-mono text-xs font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
-              title="Command palette (Cmd+Shift+P / Ctrl+Shift+P)"
-              aria-label="Open command palette with Cmd+Shift+P or Ctrl+Shift+P"
-            >
-              P
-            </button>
-          </div>
-
-          <div className="w-px h-5 bg-slack-border mx-0.5" />
-
-          <div className="flex items-center gap-1" aria-label="File workspace tools">
-            <button
-              type="button"
-              onClick={() => void updateLayoutSettings({ chatPanelVisible: !chatPanelVisible })}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent ${
-                chatPanelVisible
-                  ? 'bg-slack-accent text-white'
-                  : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-              }`}
-              title={chatPanelVisible ? 'Hide main chat' : 'Show main chat'}
-              aria-label={chatPanelVisible ? 'Hide main chat panel' : 'Show main chat panel'}
-              aria-pressed={chatPanelVisible}
-            >
-              <ChatPanelIcon className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const next = cycleConversationModeSetting(conversationModeSetting);
-                setConversationModeSetting(next);
-                localStorage.setItem(CONVERSATION_MODE_STORAGE_KEY, next);
-              }}
-              className={`px-2 h-7 rounded text-[11px] font-medium transition-colors ${
-                conversationModeSetting !== 'auto'
-                  ? 'bg-sky-600 hover:bg-sky-700 text-white ring-1 ring-sky-400 ring-offset-1 ring-offset-slack-bg'
-                  : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
-              }`}
-              title={`Conversation mode: ${conversationModeSettingLabel(conversationModeSetting)} (click to cycle Auto / Chat / Code)`}
-              aria-label={`Conversation mode ${conversationModeSettingLabel(conversationModeSetting)}`}
-            >
-              {conversationModeSettingLabel(conversationModeSetting)}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const next = cycleWorkspaceContextMode(workspaceContextMode);
-                setWorkspaceContextMode(next);
-                localStorage.setItem(WORKSPACE_CONTEXT_MODE_KEY, next);
-              }}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center relative ${
-                workspaceContextMode !== 'off'
-                  ? 'bg-purple-600 hover:bg-purple-700 text-white ring-1 ring-purple-400 ring-offset-1 ring-offset-slack-bg'
-                  : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
-              }`}
-              title={`Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`}
-              aria-label={`Workspace context mode ${workspaceContextModeLabel(workspaceContextMode)}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-              </svg>
-              {workspaceContextMode === 'auto' && (
-                <span className="absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full h-2 w-2 border border-slack-bg" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPendingChangesOpen(true)}
-              className="w-7 h-7 bg-orange-600 hover:bg-orange-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400"
-              title="Pending changes"
-              aria-label="Open pending file changes"
-            >
-              <PendingChangesIcon className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFileExplorerOpen(true)}
-              className="w-7 h-7 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400"
-              title="File explorer"
-              aria-label="Open file explorer"
-            >
-              <FilesIcon className="w-3.5 h-3.5" />
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => setCodeEditorOpen(true)}
-              className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
-              title="Code editor"
-              aria-label="Open code editor"
-            >
-              <EditorIcon className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="w-px h-5 bg-slack-border mx-0.5" />
-
-          <div className="flex items-center gap-1" aria-label="Collaboration and agents">
-            <button
-              type="button"
-              onClick={() => setTaskManagementOpen(true)}
-              className={`w-7 h-7 rounded transition-colors flex items-center justify-center ${
-                taskManagementOpen ? 'bg-violet-600 hover:bg-violet-700' : 'bg-violet-700/80 hover:bg-violet-700'
-              } text-white`}
-              title="Task management (⌘⇧T)"
-              aria-label="Open task management"
-              aria-pressed={taskManagementOpen}
-            >
-              <TaskManagementIcon className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void handleNewRunbook()}
-              className="w-7 h-7 rounded transition-colors flex items-center justify-center bg-slate-600 hover:bg-slate-500 text-white text-[10px] font-bold"
-              title="New runbook (task DAG)"
-              aria-label="Create new runbook"
-            >
-              RB
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => setMyAgentsPanelOpen(true)}
-              className="w-7 h-7 bg-slack-accent hover:bg-slack-accentHover text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
-              title="My agents"
-              aria-label="Open my agents"
-            >
-              <MyAgentsIcon className="w-3.5 h-3.5" />
-              {totalAgentsCount > 0 && (
-                <span className="absolute -bottom-0.5 -right-0.5 bg-white text-slack-accent text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
-                  {totalAgentsCount}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="w-px h-5 bg-slack-border mx-0.5" />
-
-          <div className="flex items-center gap-1" aria-label="Developer tools">
-            {devPackEnabled && (
-              <button
-                type="button"
-                onClick={() => setProblemsOpen(true)}
-                className="w-7 h-7 bg-purple-600 hover:bg-purple-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
-                title="Problems"
-                aria-label="Open problems panel"
-              >
-                <span className="text-xs font-bold">!</span>
-              </button>
-            )}
-
-            {devPackEnabled && (
-              <button
-                type="button"
-                onClick={() => setGitModalOpen((open) => !open)}
-                className={`w-7 h-7 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 ${
-                  gitModalOpen
-                    ? 'bg-orange-500 ring-2 ring-orange-300/60 text-white'
-                    : 'bg-orange-600 hover:bg-orange-500 text-white'
-                }`}
-                title="Git (source control)"
-                aria-label={gitModalOpen ? 'Close git panel' : 'Open git panel'}
-                aria-pressed={gitModalOpen}
-              >
-                <GitIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {devPackEnabled && (
-              <button
-                type="button"
-                onClick={() => {
-                  const next: LayoutPreset = ideLayout ? 'team' : 'ide';
-                  void updateLayoutSettings(panelsForPreset(next));
-                }}
-                className={`w-7 h-7 rounded text-[10px] font-bold transition-colors ${
-                  ideLayout
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
-                }`}
-                title={`Layout: ${layoutPresetLabel(ideLayout ? 'ide' : 'team')} (click to switch)`}
-                aria-label="Toggle IDE vs team layout"
-              >
-                IDE
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => useTerminalStore.getState().togglePanel()}
-              className="w-7 h-7 bg-gray-600 hover:bg-gray-700 text-white rounded transition-colors flex items-center justify-center relative focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-400"
-              title="Terminal (⌘J)"
-              aria-label="Toggle terminal panel"
-            >
-              <TerminalIcon className="w-3.5 h-3.5" />
-              {useTerminalStore.getState().suggestedCommands.length > 0 && (
-                <span className="absolute -bottom-0.5 -right-0.5 bg-yellow-500 text-black text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
-                  {useTerminalStore.getState().suggestedCommands.length}
-                </span>
-              )}
-            </button>
-          </div>
-          
-          <div className="w-px h-5 bg-slack-border mx-0.5" />
-
-          <div className="flex items-center gap-1" aria-label="Models and account">
-            <button
-              type="button"
-              onClick={() => setModelLibraryOpen(true)}
-              className="w-7 h-7 bg-amber-600 hover:bg-amber-500 text-white rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
-              title="Model library (Ctrl+Shift+M or ⌘⇧M)"
-              aria-label="Open model library"
-            >
-              <ModelLibraryIcon className="w-3.5 h-3.5" />
-            </button>
-
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="w-7 h-7 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slack-accent"
-                title="Settings (⌘,)"
-                aria-label="Open settings"
-              >
-                <SettingsIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
-            
-            {onLogout && (
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-7 h-7 text-slack-textMuted hover:text-red-500 hover:bg-red-500/10 rounded transition-colors flex items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
-                title="Logout"
-                aria-label="Log out"
-              >
-                <LogoutIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div className="w-px h-5 bg-slack-border mx-0.5" />
-          
-          <div className="text-xs text-slack-textMuted">
-            <span className="font-medium text-slack-text">{username}</span>
-            <span className="mx-1">•</span>
-            <span>{serverAddr}</span>
-          </div>
+          )}
+          {showTopToolbarChips && (
+            <>
+              <div className="w-px h-5 bg-slack-border mx-0.5 shrink-0" />
+              <ChatToolbarActions layout="horizontal" {...toolbarActionsProps} />
+            </>
+          )}
         </div>
       </div>
 
@@ -2461,8 +2363,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {/* Pending Changes Panel */}
         {pendingChangesOpen && (
           <PendingChangesPanel
-            onClose={() => setPendingChangesOpen(false)}
+            initialChangeId={pendingChangePreviewId}
+            onClose={() => {
+              setPendingChangesOpen(false);
+              setPendingChangePreviewId(null);
+            }}
           />
+        )}
+
+        {useSidebarChips && (
+          <ChatToolbarSidebar open={toolbarSidebarOpen}>
+            <ChatToolbarActions layout="vertical" {...toolbarActionsProps} />
+          </ChatToolbarSidebar>
         )}
       </div>
 

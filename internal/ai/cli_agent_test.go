@@ -71,6 +71,41 @@ func TestNewGeminiCLIProvider_DefaultTimeoutCapped(t *testing.T) {
 	}
 }
 
+func TestCursorTrustArgs_defaultYolo(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_CURSOR_TRUST", "")
+	p := &CLIAgentProvider{ProviderName: "cursor-cli", ApprovalMode: "yolo"}
+	got := p.cursorTrustArgs()
+	if len(got) != 1 || got[0] != "--trust" {
+		t.Fatalf("cursorTrustArgs() = %v, want [--trust]", got)
+	}
+}
+
+func TestCursorTrustArgs_interactiveSkipsTrust(t *testing.T) {
+	p := &CLIAgentProvider{ProviderName: "cursor-cli", ApprovalMode: "interactive"}
+	if len(p.cursorTrustArgs()) != 0 {
+		t.Fatalf("expected no trust args in interactive mode, got %v", p.cursorTrustArgs())
+	}
+}
+
+func TestBuildCLIInvocationArgs_prependsTrustForCursor(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_CURSOR_TRUST", "")
+	p := &CLIAgentProvider{
+		ProviderName: "cursor-cli",
+		ApprovalMode: "yolo",
+		BaseArgs:     []string{"-p", "--output-format", "text"},
+	}
+	got := p.buildCLIInvocationArgs(p.BaseArgs)
+	wantPrefix := []string{"--trust", "-p", "--output-format", "text"}
+	if len(got) != len(wantPrefix) {
+		t.Fatalf("args = %v, want %v", got, wantPrefix)
+	}
+	for i := range wantPrefix {
+		if got[i] != wantPrefix[i] {
+			t.Fatalf("args[%d] = %q, want %q (full: %v)", i, got[i], wantPrefix[i], got)
+		}
+	}
+}
+
 func TestShouldUsePTYStreaming_GeminiDefaultOff(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_DISABLE_CLI_PTY", "")
 	t.Setenv("NEURAL_JUNKIE_GEMINI_CLI_PTY", "")

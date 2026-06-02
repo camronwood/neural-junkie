@@ -1,0 +1,53 @@
+{
+  "name": "document-findings-execution",
+  "description": "Task phrased as 'Document findings in collabs/<id>/findings.md' (no Write verb) must dispatch and produce a file deliverable.",
+  "channel": "collab-scenarios",
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
+    "goal": "@ChatModerator @Assistant Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 1,
+      "max_tasks": 2,
+      "tasks_have_file_deliverable": true,
+      "content_any_match": ["findings\\.md"]
+    },
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {
+      "action": "assert_deliverable_stubs",
+      "min_stubs": 1,
+      "require_plan_md": true,
+      "skip_names": ["README.md", "planning-summary.md", "session-summary.md", "plan.md"]
+    },
+    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {"action": "wait_tasks", "settle_only": true, "timeout": "120s"},
+    {
+      "action": "approve_file_changes",
+      "path_match": "findings.md",
+      "target_rel": "collabs/<collab-id>/findings.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/findings.md",
+      "must_exist": true,
+      "min_bytes": 30,
+      "deny_task_status": true
+    }
+  ],
+  "cleanup": "cancel"
+}

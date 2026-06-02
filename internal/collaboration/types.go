@@ -88,6 +88,7 @@ const (
 	HardMaxTimeout       = 30 * time.Minute
 
 	MaxConcurrentCollaborations  = 3
+	HardMaxAgentsPerCollaboration = 3
 	MaxTasksPerCollaboration     = 10
 	HardMaxTasksPerCollaboration = 25
 	// MaxExecutionMessages caps agent chat posts during the executing phase.
@@ -160,11 +161,14 @@ type GraphLayout map[string]GraphLayoutNode
 
 // TaskExecutionOptions configures per-task agent execution.
 type TaskExecutionOptions struct {
-	ProviderID       string   `json:"provider_id,omitempty"`
-	RequiresApproval bool     `json:"requires_approval,omitempty"`
-	MaxRetries       int      `json:"max_retries,omitempty"`
-	TimeoutSeconds   int      `json:"timeout_seconds,omitempty"`
-	ContextPaths     []string `json:"context_paths,omitempty"`
+	ProviderID          string   `json:"provider_id,omitempty"`
+	RequiresApproval    bool     `json:"requires_approval,omitempty"`
+	MaxRetries          int      `json:"max_retries,omitempty"`
+	TimeoutSeconds      int      `json:"timeout_seconds,omitempty"`
+	ContextPaths        []string `json:"context_paths,omitempty"`
+	ExpectedProviderID  string   `json:"expected_provider_id,omitempty"`
+	ExpectedModel       string   `json:"expected_model,omitempty"`
+	RoutingReason       string   `json:"routing_reason,omitempty"`
 }
 
 // TaskActionSpec defines a hub-executed action step.

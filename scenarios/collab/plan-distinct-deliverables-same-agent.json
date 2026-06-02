@@ -1,0 +1,45 @@
+{
+  "name": "plan-distinct-deliverables-same-agent",
+  "description": "Same assignee with different deliverable paths must not collapse into one task during approve-plan.",
+  "channel": "collab-scenarios",
+  "agents": "@SoftwareArchitect @BackendEngineer",
+  "required_agents": ["SoftwareArchitect", "BackendEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "5"],
+    "goal": "@SoftwareArchitect @BackendEngineer Produce exactly three tasks: Task 1 @SoftwareArchitect Write collabs/<id>/schema-outline.md; Task 2 @SoftwareArchitect Write collabs/<id>/doc-standards.md (different file, same architect); Task 3 @BackendEngineer Write collabs/<id>/api-notes.md. Do not merge the two architect tasks."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_discussion",
+      "min_total": 2,
+      "min_per_agent": 1,
+      "required_agents": ["SoftwareArchitect", "BackendEngineer"],
+      "timeout": "150s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 3,
+      "max_tasks": 4,
+      "tasks_have_assignee": true,
+      "tasks_have_file_deliverable": true,
+      "assignee_min_tasks": {"SoftwareArchitect": 2},
+      "content_any_match": ["schema-outline\\.md", "doc-standards\\.md"]
+    },
+    {"action": "approve_plan"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 3,
+      "max_tasks": 4,
+      "assignee_min_tasks": {"SoftwareArchitect": 2}
+    }
+  ],
+  "cleanup": "cancel"
+}

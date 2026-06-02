@@ -1,6 +1,6 @@
 .PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora
 
-# Bundled Neural Junkie Slack app (maintainer: ../scripts/slack-creds-to-vendor.sh)
+# Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
 GOOGLE_VENDOR_JSON := internal/google/meetnotes/vendor/oauth.json
 SERVER_GO_BUILD_TAGS :=
@@ -28,8 +28,8 @@ help: ## Show this help
 docs: ## Show documentation guide
 	@cat DOCS.md
 
-slack-vendor-json: ## Generate gitignored vendor/oauth.json from ../scripts/.slack-creds
-	@bash ../scripts/slack-creds-to-vendor.sh
+slack-vendor-json: ## Generate gitignored vendor/oauth.json from sandbox scripts/.slack-creds
+	@bash ../../sandbox/scripts/slack-creds-to-vendor.sh
 
 slack-vendor-check: ## Fail if vendor/oauth.json is missing (release / CI)
 	@test -f $(SLACK_VENDOR_JSON) || (echo "❌ Missing $(SLACK_VENDOR_JSON) — run: make slack-vendor-json" >&2; exit 1)
@@ -112,6 +112,19 @@ collab-scenarios: ## Run all live collab scenarios under scenarios/collab/
 collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-agent template)
 	@chmod +x scripts/collab-scenario-matrix.sh
 	@./scripts/collab-scenario-matrix.sh
+
+collab-scenario-regression: ## Run collab edge-case regression scenarios (plan parser + execution guards)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-dependency-prose-regression $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-findings-task-regression $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-distinct-deliverables-same-agent $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario document-findings-execution $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execution-no-stack-commands $(if $(VERBOSE),--verbose,)
+
+test-collab-plan: ## Deterministic Go tests for collab plan parsing regressions (CI-safe)
+	@go test ./internal/collaboration/... ./internal/hub/... -count=1 -run 'Regression|DependencyProse|Findings|4ea36409|f7518f88|DocumentFindings|DistinctDeliverable|StackTool|FilterCollab|SuppressMCP'
+
+test-scenario-assert: ## Python unit tests for scenario assertion helpers
+	@cd scripts/lib && python3 -m unittest scenario_assert_test.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make chat-scenario SCENARIO=greeting-chat-mode [VERBOSE=1] [KEEP=1]"; exit 1; fi

@@ -49,6 +49,9 @@ func HubPublicBaseURL() string {
 // OAuthCallbackPath is the Slack OAuth redirect path on the hub.
 const OAuthCallbackPath = "/api/slack/oauth/callback"
 
+// UserDMOAuthCallbackPath is the redirect path for human-DM user token OAuth.
+const UserDMOAuthCallbackPath = "/api/slack/oauth/user-dm/callback"
+
 // HubOAuthRedirectURL builds the redirect_uri for Slack OAuth from the hub base URL.
 func HubOAuthRedirectURL() string {
 	base := HubPublicBaseURL()
@@ -56,6 +59,15 @@ func HubOAuthRedirectURL() string {
 		return ""
 	}
 	return base + OAuthCallbackPath
+}
+
+// HubUserDMOAuthRedirectURL builds the redirect_uri for user-scope OAuth.
+func HubUserDMOAuthRedirectURL() string {
+	base := HubPublicBaseURL()
+	if base == "" {
+		return ""
+	}
+	return base + UserDMOAuthCallbackPath
 }
 
 func parseBundledVendor() (*bundledVendorCredentials, bool) {

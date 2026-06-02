@@ -15,6 +15,7 @@ import {
   isSidebarChannelDeleted,
 } from '../utils/sidebarVisibility';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
+import { useSlackAwayChip } from '../hooks/useSlackAwayChip';
 
 interface ChannelSidebarProps {
   channels: Channel[];
@@ -151,6 +152,7 @@ export function ChannelSidebar({
   const settings = useSettingsStore(s => s.settings);
   const settingsLoaded = useSettingsStore(s => s.isLoaded);
   const updateSettings = useSettingsStore(s => s.updateSettings);
+  const slackAway = useSlackAwayChip();
 
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -562,22 +564,49 @@ export function ChannelSidebar({
       <div className="px-3 py-2 border-b border-white/10">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-white truncate">Neural Junkie</h2>
-          <button
-            type="button"
-            onClick={() => void updateLayoutSettings({ sidebarAgentsVisible: !sidebarAgentsVisible })}
-            className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
-              sidebarAgentsVisible
-                ? 'border-white/20 text-white/70 hover:bg-white/10'
-                : 'border-slack-accent/50 text-slack-accent hover:bg-white/10'
-            }`}
-            title={
-              sidebarAgentsVisible
-                ? 'Hide agent shortcuts under Direct Messages'
-                : 'Show agent shortcuts under Direct Messages'
-            }
-          >
-            {sidebarAgentsVisible ? 'Agents' : 'Agents off'}
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {slackAway.visible && (
+              <button
+                type="button"
+                onClick={() => void slackAway.toggle()}
+                disabled={slackAway.toggling || slackAway.loading}
+                className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border disabled:opacity-50 ${
+                  slackAway.awayEnabled
+                    ? slackAway.monitoringActive
+                      ? 'border-amber-400/70 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30'
+                      : 'border-amber-400/40 bg-amber-500/10 text-amber-200/80 hover:bg-amber-500/20'
+                    : 'border-white/20 text-white/50 hover:bg-white/10 hover:text-white/70'
+                }`}
+                title={
+                  slackAway.awayEnabled
+                    ? slackAway.monitoringActive
+                      ? 'Away on — monitoring human Slack DMs. Click to turn off.'
+                      : 'Away on — click to turn off manual away mode.'
+                    : slackAway.monitoringActive
+                      ? 'Monitoring via schedule. Click to turn on manual away.'
+                      : 'Away off — click to monitor human Slack DMs while away.'
+                }
+              >
+                {slackAway.toggling ? '…' : slackAway.awayEnabled ? 'Away' : 'Away off'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void updateLayoutSettings({ sidebarAgentsVisible: !sidebarAgentsVisible })}
+              className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                sidebarAgentsVisible
+                  ? 'border-white/20 text-white/70 hover:bg-white/10'
+                  : 'border-slack-accent/50 text-slack-accent hover:bg-white/10'
+              }`}
+              title={
+                sidebarAgentsVisible
+                  ? 'Hide agent shortcuts under Direct Messages'
+                  : 'Show agent shortcuts under Direct Messages'
+              }
+            >
+              {sidebarAgentsVisible ? 'Agents' : 'Agents off'}
+            </button>
+          </div>
         </div>
         <div className="mt-2 flex items-center gap-1">
           <input

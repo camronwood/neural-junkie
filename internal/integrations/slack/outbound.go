@@ -44,7 +44,7 @@ func isSlackInboundEcho(msg *protocol.Message) bool {
 		return true
 	}
 	if msg.Metadata != nil {
-		if src, _ := msg.Metadata["source"].(string); src == "slack" {
+		if src, _ := msg.Metadata["source"].(string); src == "slack" || src == "slack_inbox" || src == "slack_human_dm" {
 			return true
 		}
 	}
@@ -143,4 +143,132 @@ func ThreadTSForOutbound(msg *protocol.Message, threads *ThreadMap, binding *Bin
 		}
 	}
 	return ""
+}
+
+// ShouldPostInboxToSlack returns whether a hub inbox message should post to Slack.
+func ShouldPostInboxToSlack(msg *protocol.Message, inbox *InboxConfig) bool {
+	if msg == nil || inbox == nil || !inbox.Enabled {
+		return false
+	}
+	if msg.Channel != inbox.NJChannel {
+		return false
+	}
+	if isSlackInboundEcho(msg) {
+		return false
+	}
+	switch msg.Type {
+	case protocol.MessageTypeAnswer, protocol.MessageTypeChat, protocol.MessageTypeQuestion:
+		if strings.TrimSpace(msg.Content) == "" && ExtractGeneratedImage(msg) == nil {
+			return false
+		}
+	case protocol.MessageTypeFileChange, protocol.MessageTypeToolApproval:
+		if msg.From.ID != inbox.AgentID {
+			return false
+		}
+		return true
+	default:
+		return false
+	}
+	if msg.From.ID == inbox.AgentID {
+		return true
+	}
+	return isNJHumanSender(msg)
+}
+
+// InboxOutboundTarget resolves Slack channel and thread for an inbox hub message.
+func InboxOutboundTarget(msg *protocol.Message, inbox *InboxConfig, threads *ThreadMap) (channelID, threadTS string) {
+	if msg == nil || inbox == nil {
+		return "", ""
+	}
+	if ch := msg.SlackReplyChannelID(); ch != "" {
+		return ch, msg.SlackReplyThreadTS()
+	}
+	if threads != nil {
+		if msg.ReplyTo != "" {
+			if ch, ts, _, ok := threads.InboxReplyRoute(msg.ReplyTo); ok {
+				return ch, ts
+			}
+		}
+		tid := msg.GetThreadID()
+		if tid == "" {
+			tid = msg.ThreadID
+		}
+		if tid != "" {
+			if ch, ts, _, ok := threads.InboxReplyRoute(tid); ok {
+				return ch, ts
+			}
+			if ts := threads.SlackThreadTS(tid); ts != "" {
+				dm := inbox.SlackDMChannelID
+				if dm == "" {
+					dm = chFromInboxDefault(inbox, msg)
+				}
+				return dm, ts
+			}
+		}
+	}
+	dm := inbox.SlackDMChannelID
+	if dm == "" {
+		dm = chFromInboxDefault(inbox, msg)
+	}
+	ts := ""
+	if threads != nil && dm != "" {
+		ts = threads.ChannelParentTS(dm)
+	}
+	return dm, ts
+}
+
+func chFromInboxDefault(inbox *InboxConfig, msg *protocol.Message) string {
+	if msg != nil && msg.Metadata != nil {
+		if ch, _ := msg.Metadata[protocol.SlackMetaReplyChannelID].(string); ch != "" {
+			return ch
+		}
+	}
+	return inbox.SlackDMChannelID
+}
+
+// OutboundInboxSlackUsername picks display name for inbox outbound posts.
+func OutboundInboxSlackUsername(msg *protocol.Message, inbox *InboxConfig, bridgeDisplayName string) string {
+	if msg != nil && inbox != nil && msg.From.ID == inbox.AgentID {
+		if n := strings.TrimSpace(msg.From.Name); n != "" {
+			return sanitizeSlackPostUsername(n)
+		}
+	}
+	if isNJHumanSender(msg) {
+		if n := strings.TrimSpace(msg.From.Name); n != "" {
+			return sanitizeSlackPostUsername(n)
+		}
+	}
+	return sanitizeSlackPostUsername(bridgeDisplayName)
+}
+
+// InboxOutboundHumanDM reports whether an agent reply should post via the user token.
+func InboxOutboundHumanDM(msg *protocol.Message, threads *ThreadMap) bool {
+	if msg == nil || threads == nil {
+		return false
+	}
+	if msg.ReplyTo != "" {
+		if _, _, human, ok := threads.InboxReplyRoute(msg.ReplyTo); ok && human {
+			return true
+		}
+	}
+	tid := msg.GetThreadID()
+	if tid == "" {
+		tid = msg.ThreadID
+	}
+	if tid != "" {
+		if _, _, human, ok := threads.InboxReplyRoute(tid); ok && human {
+			return true
+		}
+	}
+	return false
+}
+
+// FormatHumanDMOutboundText prefixes agent text for human-DM replies.
+func FormatHumanDMOutboundText(msg *protocol.Message, inbox *InboxConfig) string {
+	text := FormatSlackText(msg)
+	if inbox == nil {
+		return text
+	}
+	prefix := HumanDMReplyPrefix(inbox.HumanDMAway, inbox.OwnerSlackUserName)
+	return prefix + text
 }

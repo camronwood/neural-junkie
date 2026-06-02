@@ -3,6 +3,7 @@ package slack
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -18,6 +19,14 @@ type ThreadMap struct {
 	njMessageTS map[string]string
 	// slack channel ID -> parent ts for outbound when NJ has no ReplyTo/ThreadID (human replies in NJ UI)
 	channelParent map[string]string
+	// nj message or thread root id -> Slack reply target for personal inbox outbound
+	inboxReply map[string]inboxReplyRoute
+}
+
+type inboxReplyRoute struct {
+	ChannelID string `json:"channel_id"`
+	ThreadTS  string `json:"thread_ts"`
+	HumanDM   bool   `json:"human_dm,omitempty"`
 }
 
 // NewThreadMap loads thread mappings from disk.
@@ -27,11 +36,12 @@ func NewThreadMap() (*ThreadMap, error) {
 		return nil, err
 	}
 	t := &ThreadMap{
-		filePath:    p,
-		roots:       make(map[string]map[string]string),
-		njToSlack:   make(map[string]string),
+		filePath:      p,
+		roots:         make(map[string]map[string]string),
+		njToSlack:     make(map[string]string),
 		njMessageTS:   make(map[string]string),
 		channelParent: make(map[string]string),
+		inboxReply:    make(map[string]inboxReplyRoute),
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
@@ -41,10 +51,11 @@ func NewThreadMap() (*ThreadMap, error) {
 		return nil, err
 	}
 	var payload struct {
-		Roots       map[string]map[string]string `json:"roots"`
-		NJToSlack   map[string]string            `json:"nj_to_slack"`
+		Roots         map[string]map[string]string `json:"roots"`
+		NJToSlack     map[string]string            `json:"nj_to_slack"`
 		NJMessageTS   map[string]string            `json:"nj_message_ts"`
 		ChannelParent map[string]string            `json:"channel_parent"`
+		InboxReply    map[string]inboxReplyRoute   `json:"inbox_reply"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, err
@@ -61,21 +72,26 @@ func NewThreadMap() (*ThreadMap, error) {
 	if payload.ChannelParent != nil {
 		t.channelParent = payload.ChannelParent
 	}
+	if payload.InboxReply != nil {
+		t.inboxReply = payload.InboxReply
+	}
 	return t, nil
 }
 
 func (t *ThreadMap) save() error {
 	t.mu.RLock()
 	payload := struct {
-		Roots       map[string]map[string]string `json:"roots"`
-		NJToSlack   map[string]string            `json:"nj_to_slack"`
+		Roots         map[string]map[string]string `json:"roots"`
+		NJToSlack     map[string]string            `json:"nj_to_slack"`
 		NJMessageTS   map[string]string            `json:"nj_message_ts"`
 		ChannelParent map[string]string            `json:"channel_parent"`
+		InboxReply    map[string]inboxReplyRoute   `json:"inbox_reply"`
 	}{
 		Roots:         t.roots,
 		NJToSlack:     t.njToSlack,
 		NJMessageTS:   t.njMessageTS,
 		ChannelParent: t.channelParent,
+		InboxReply:    t.inboxReply,
 	}
 	t.mu.RUnlock()
 	data, err := json.MarshalIndent(payload, "", "  ")
@@ -197,4 +213,51 @@ func (t *ThreadMap) RegisterOutbound(njThreadID, slackTS string) error {
 	t.njToSlack[njThreadID] = slackTS
 	t.mu.Unlock()
 	return t.save()
+}
+
+// RegisterInboxReplyRoute records where inbox agent replies should post in Slack.
+func (t *ThreadMap) RegisterInboxReplyRoute(njMessageOrThreadID, slackChannelID, threadTS string) error {
+	return t.registerInboxReplyRoute(njMessageOrThreadID, slackChannelID, threadTS, false)
+}
+
+// RegisterHumanDMReplyRoute records a human-DM reply target (user-token outbound).
+func (t *ThreadMap) RegisterHumanDMReplyRoute(njMessageOrThreadID, slackChannelID, threadTS string) error {
+	return t.registerInboxReplyRoute(njMessageOrThreadID, slackChannelID, threadTS, true)
+}
+
+func (t *ThreadMap) registerInboxReplyRoute(njMessageOrThreadID, slackChannelID, threadTS string, humanDM bool) error {
+	njMessageOrThreadID = strings.TrimSpace(njMessageOrThreadID)
+	slackChannelID = strings.TrimSpace(slackChannelID)
+	if njMessageOrThreadID == "" || slackChannelID == "" {
+		return nil
+	}
+	t.mu.Lock()
+	if t.inboxReply == nil {
+		t.inboxReply = make(map[string]inboxReplyRoute)
+	}
+	t.inboxReply[njMessageOrThreadID] = inboxReplyRoute{
+		ChannelID: slackChannelID,
+		ThreadTS:  strings.TrimSpace(threadTS),
+		HumanDM:   humanDM,
+	}
+	t.mu.Unlock()
+	return t.save()
+}
+
+// InboxReplyRoute returns the Slack reply target for an NJ message or thread id.
+func (t *ThreadMap) InboxReplyRoute(njMessageOrThreadID string) (channelID, threadTS string, humanDM, ok bool) {
+	njMessageOrThreadID = strings.TrimSpace(njMessageOrThreadID)
+	if njMessageOrThreadID == "" {
+		return "", "", false, false
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.inboxReply == nil {
+		return "", "", false, false
+	}
+	r, found := t.inboxReply[njMessageOrThreadID]
+	if !found {
+		return "", "", false, false
+	}
+	return r.ChannelID, r.ThreadTS, r.HumanDM, true
 }

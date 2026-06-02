@@ -24,7 +24,7 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
-from lib.scenario_assert import check_text_patterns  # noqa: E402
+from lib.scenario_assert import check_text_patterns, looks_like_stack_tool_command  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "collab"
 DEFAULT_CHANNEL = "collab-scenarios"
@@ -330,6 +330,20 @@ def step_assert_messages(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
             if "findings.md" in content and "command not found" in content:
                 return False, "findings.md was executed as shell command"
 
+    if step.get("deny_suggested_stack_commands"):
+        for m in pool:
+            meta = m.get("metadata") or {}
+            raw_cmds = meta.get("suggested_commands") or []
+            if not isinstance(raw_cmds, list):
+                continue
+            for item in raw_cmds:
+                if not isinstance(item, dict):
+                    continue
+                cmd = (item.get("command") or "").strip()
+                if looks_like_stack_tool_command(cmd):
+                    who = (m.get("from") or {}).get("name", "?")
+                    return False, f"stack command suggestion from {who}: {cmd[:100]!r}"
+
     return True, "message assertions ok"
 
 
@@ -400,6 +414,29 @@ def step_assert_plan(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
             title = (t.get("title") or "").lower()
             if title.startswith(prefix.lower()):
                 return False, f"weak task title: {t.get('title')!r}"
+
+    for pattern in step.get("task_none_match") or []:
+        for t in tasks:
+            if not isinstance(t, dict):
+                continue
+            combined = f"{t.get('title') or ''} {t.get('description') or ''}"
+            if re.search(pattern, combined, re.I):
+                return False, f"task_none_match {pattern!r}: {combined[:100]!r}"
+
+    assignee_min = step.get("assignee_min_tasks") or {}
+    if isinstance(assignee_min, dict):
+        for assignee, min_n in assignee_min.items():
+            want = int(min_n)
+            if want <= 0:
+                continue
+            count = sum(
+                1
+                for t in tasks
+                if isinstance(t, dict)
+                and (t.get("assigned_name") or "").strip().lower() == assignee.strip().lower()
+            )
+            if count < want:
+                return False, f"assignee {assignee!r} tasks={count} want >={want}"
 
     plan_text = content + "\n" + "\n".join(
         (t.get("title") or "") for t in tasks if isinstance(t, dict)

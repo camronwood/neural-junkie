@@ -18,10 +18,33 @@ func TaskRequiresFileDeliverable(t CollaborationTask) bool {
 	if combined == "" {
 		return false
 	}
-	if !taskFileVerbRE.MatchString(combined) && !strings.Contains(strings.ToLower(combined), "[file_change]") {
+	lower := strings.ToLower(combined)
+	// Explicit collabs/<id>/*.md paths count even without "write/create" verbs (e.g. "Document findings in collabs/.../findings.md").
+	if strings.Contains(lower, "collabs/") && taskFileExtRE.MatchString(combined) {
+		return true
+	}
+	if !taskFileVerbRE.MatchString(combined) && !strings.Contains(lower, "[file_change]") {
 		return false
 	}
-	return taskFileExtRE.MatchString(combined) || strings.Contains(strings.ToLower(combined), "collabs/")
+	return taskFileExtRE.MatchString(combined) || strings.Contains(lower, "collabs/")
+}
+
+// TaskLooksLikeMarkdownDeliverable is true when the assigned deliverable is prose/docs (.md).
+func TaskLooksLikeMarkdownDeliverable(t CollaborationTask) bool {
+	if !TaskRequiresFileDeliverable(t) {
+		return false
+	}
+	combined := strings.ToLower(strings.TrimSpace(t.Title + " " + t.Description))
+	if strings.Contains(combined, ".md") || strings.Contains(combined, ".markdown") {
+		return true
+	}
+	for _, p := range ReferencedDeliverablePaths(t) {
+		ext := strings.ToLower(filepath.Ext(p))
+		if ext == ".md" || ext == ".markdown" {
+			return true
+		}
+	}
+	return false
 }
 
 // ReferencedDeliverablePaths extracts repo-relative paths from task text.
@@ -45,7 +68,11 @@ func TaskDispatchFileDeliverableNote(t CollaborationTask) string {
 	if !TaskRequiresFileDeliverable(t) {
 		return ""
 	}
-	return "\n\n**Deliverable required:** Emit a canonical `[FILE_CHANGE]` block before `TASK_STATUS: completed`:\n" +
+	note := "\n\n**Deliverable required:** Emit a canonical `[FILE_CHANGE]` block before `TASK_STATUS: completed`:\n" +
 		"```\n[FILE_CHANGE]\noperation: create\npath: collabs/<id>/file.md\n```new\n<file content>\n```\n[/FILE_CHANGE]\n```\n" +
 		"Conversation-only or inline `[FILE_CHANGE] path` without a hub proposal does not write to disk until approved in Pending changes."
+	if TaskLooksLikeMarkdownDeliverable(t) {
+		note += "\n\n**Do not run build/deploy tooling** (docker-compose, npm, make, kubectl, etc.) unless this task text explicitly asks you to build, deploy, or execute the app. Read reference files from the project; ship the markdown via `[FILE_CHANGE]`."
+	}
+	return note
 }

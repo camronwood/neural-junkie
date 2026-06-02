@@ -1,0 +1,8 @@
+{
+  "name": "minimal-fixture",
+  "private": true,
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"no tests\""
+  }
+}

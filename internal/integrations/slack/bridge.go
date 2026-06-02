@@ -22,6 +22,8 @@ type Bridge struct {
 	hub      HubClient
 	ensure   AgentEnsurer
 	bindings *BindingStore
+	inbox    *InboxStore
+	userTokens *UserTokenStore
 	threads  *ThreadMap
 
 	api       *slackapi.Client
@@ -29,10 +31,13 @@ type Bridge struct {
 	botUserID string
 	teamID    string
 
-	mu          sync.Mutex
-	outbound    map[string]context.CancelFunc
-	displayName string
-	iconURL     string
+	mu                   sync.Mutex
+	outbound               map[string]context.CancelFunc
+	inboxOutboundCancel    context.CancelFunc
+	lastInboxEnsureKey     string
+	lastInboxOutboundKey   string
+	displayName            string
+	iconURL                string
 
 	socketConnected atomic.Bool
 	seenInbound     sync.Map // channelID:slackTS → struct{}, dedupe duplicate Socket Mode events
@@ -51,6 +56,14 @@ func NewBridge(cfg *config.Config, hub HubClient, ensure AgentEnsurer) (*Bridge,
 	if err != nil {
 		return nil, err
 	}
+	inbox, err := NewInboxStore()
+	if err != nil {
+		return nil, err
+	}
+	userTokens, err := NewUserTokenStore()
+	if err != nil {
+		return nil, err
+	}
 	threads, err := NewThreadMap()
 	if err != nil {
 		return nil, err
@@ -63,6 +76,8 @@ func NewBridge(cfg *config.Config, hub HubClient, ensure AgentEnsurer) (*Bridge,
 		hub:         hub,
 		ensure:      ensure,
 		bindings:    bindings,
+		inbox:       inbox,
+		userTokens:  userTokens,
 		threads:     threads,
 		api:         api,
 		socket:      socket,
@@ -122,8 +137,18 @@ func (b *Bridge) Start(parent context.Context) error {
 	if err := ApplyAllBindings(ctx, b.hub, b.ensure, b.bindings); err != nil {
 		log.Printf("[slack] apply bindings: %v", err)
 	}
+	if inboxCfg := b.inbox.Get(); inboxCfg.Enabled {
+		ReconcileInboxAgentID(b.inbox, b.hub)
+		inboxCfg = b.inbox.Get()
+		if err := ApplyInbox(ctx, b.hub, b.ensure, inboxCfg); err != nil {
+			log.Printf("[slack] apply inbox: %v", err)
+		}
+	}
 	b.refreshOutboundSubscriptions()
+	b.refreshInboxOutboundSubscription()
 
+	go b.runInboxDMPoll(ctx)
+	go b.runHumanDMPoll(ctx)
 	go b.runSocketMode(ctx)
 	return nil
 }
@@ -139,6 +164,10 @@ func (b *Bridge) Stop() {
 		c()
 	}
 	b.outbound = make(map[string]context.CancelFunc)
+	if b.inboxOutboundCancel != nil {
+		b.inboxOutboundCancel()
+		b.inboxOutboundCancel = nil
+	}
 	b.mu.Unlock()
 }
 
@@ -229,6 +258,11 @@ func (b *Bridge) handleEventsAPI(ctx context.Context, event slackevents.EventsAP
 			b.handleAppMention(ctx, m)
 			return
 		}
+	case string(slackevents.ReactionAdded):
+		if ev, ok := event.InnerEvent.Data.(*slackevents.ReactionAddedEvent); ok {
+			b.handleReactionAdded(ctx, ev)
+			return
+		}
 	default:
 		if InboundDebugEnabled() && innerType != "" {
 			log.Printf("[slack] unhandled event type %q (subscribe in Slack → Event Subscriptions?)", innerType)
@@ -246,7 +280,7 @@ func (b *Bridge) handleAppMention(ctx context.Context, m *slackevents.AppMention
 		ThreadTS:     m.ThreadTimeStamp,
 		IsAppMention: true,
 	}
-	b.processInbound(ctx, in)
+	b.routeInbound(ctx, in)
 }
 
 func (b *Bridge) handleMessage(ctx context.Context, m *slackevents.MessageEvent, forceMention bool) {
@@ -263,70 +297,11 @@ func (b *Bridge) handleMessage(ctx context.Context, m *slackevents.MessageEvent,
 	if forceMention {
 		in.IsAppMention = true
 	}
-	b.processInbound(ctx, in)
+	b.routeInbound(ctx, in)
 }
 
 func (b *Bridge) processInbound(ctx context.Context, in InboundInput) {
-	if ShouldIgnoreInbound(in, b.botUserID) {
-		if InboundDebugEnabled() {
-			log.Printf("[slack] inbound ignored channel=%s (bot/subtype/empty)", in.ChannelID)
-		}
-		return
-	}
-	binding, ok := b.bindings.GetBySlackChannel(in.ChannelID)
-	if !ok {
-		if InboundDebugEnabled() {
-			log.Printf("[slack] inbound ignored channel=%s (no binding; bound ids: %s)",
-				in.ChannelID, b.boundSlackChannelIDs())
-		}
-		return
-	}
-	if !ShouldTriggerAgent(in, binding, b.botUserID) {
-		log.Printf("[slack] inbound ignored channel=%s (policy %q — use always, or @mention the bot / app_mention)",
-			in.ChannelID, binding.Policy)
-		return
-	}
-	if in.SlackTS != "" {
-		dedupeKey := in.ChannelID + ":" + in.SlackTS
-		if _, loaded := b.seenInbound.LoadOrStore(dedupeKey, struct{}{}); loaded {
-			if InboundDebugEnabled() {
-				log.Printf("[slack] inbound dedupe channel=%s ts=%s", in.ChannelID, in.SlackTS)
-			}
-			return
-		}
-	}
-	active := *binding
-	if resolved, err := b.hub.ResolveAgentID(active.AgentID, active.AgentName); err == nil {
-		active.AgentID = resolved
-	} else if InboundDebugEnabled() {
-		log.Printf("[slack] inbound agent resolve: %v", err)
-	}
-	b.resolveInboundUserIdentity(&in)
-	msg := BuildHubMessage(in, &active, b.threads, b.botUserID)
-	if err := b.hub.SendMessage(msg); err != nil {
-		log.Printf("[slack] SendMessage: %v", err)
-		return
-	}
-	agentShort := active.AgentID
-	if len(agentShort) > 8 {
-		agentShort = agentShort[:8]
-	}
-	log.Printf("[slack] inbound → hub %s from %s (agent %s)", active.NJChannel, in.UserName, agentShort)
-	if msg.ID != "" && in.SlackTS != "" {
-		_ = b.threads.RegisterNJMessageSlackTS(msg.ID, in.SlackTS)
-	}
-	parentTS := in.SlackTS
-	if in.ThreadTS != "" {
-		parentTS = in.ThreadTS
-	}
-	_ = b.threads.RegisterChannelParent(in.ChannelID, parentTS)
-	if msg.IsThreadReply && in.ThreadTS != "" {
-		rootID := msg.ThreadID
-		if rootID == "" {
-			rootID = in.ThreadTS
-		}
-		_ = b.threads.RegisterInboundRoot(in.ChannelID, in.ThreadTS, rootID)
-	}
+	b.routeInbound(ctx, in)
 }
 
 func (b *Bridge) runOutbound(ctx context.Context, njChannel string) {
@@ -365,9 +340,6 @@ func (b *Bridge) runOutbound(ctx context.Context, njChannel string) {
 }
 
 func (b *Bridge) postSlack(channelID, text, threadTS, username string, hubMsg *protocol.Message) {
-	if hubMsg == nil {
-		return
-	}
 	if strings.TrimSpace(text) != "" {
 		opts := []slackapi.MsgOption{
 			slackapi.MsgOptionText(text, false),
@@ -386,10 +358,13 @@ func (b *Bridge) postSlack(channelID, text, threadTS, username string, hubMsg *p
 		}
 		_, ts, err := b.api.PostMessage(channelID, opts...)
 		if err != nil {
-			log.Printf("[slack] postMessage: %v", err)
-		} else {
+			log.Printf("[slack] postMessage channel=%s thread=%s: %v", channelID, threadTS, err)
+		} else if hubMsg != nil {
 			b.registerOutboundSlackTS(hubMsg, ts)
 		}
+	}
+	if hubMsg == nil {
+		return
 	}
 	if img := ExtractGeneratedImage(hubMsg); img != nil {
 		title := strings.TrimSpace(hubMsg.From.Name)
@@ -400,6 +375,44 @@ func (b *Bridge) postSlack(channelID, text, threadTS, username string, hubMsg *p
 			log.Printf("[slack] upload image: %v", err)
 		}
 	}
+}
+
+func (b *Bridge) userAPIClient() (*slackapi.Client, error) {
+	if b.userTokens == nil {
+		return nil, fmt.Errorf("user token store unavailable")
+	}
+	tok, err := b.userTokens.AccessToken()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(tok) == "" {
+		return nil, fmt.Errorf("user token not authorized")
+	}
+	return slackapi.New(tok), nil
+}
+
+func (b *Bridge) postUserSlack(channelID, text string) {
+	channelID = strings.TrimSpace(channelID)
+	text = strings.TrimSpace(text)
+	if channelID == "" || text == "" {
+		return
+	}
+	client, err := b.userAPIClient()
+	if err != nil {
+		log.Printf("[slack] human_dm post: %v", err)
+		return
+	}
+	opts := []slackapi.MsgOption{slackapi.MsgOptionText(text, false)}
+	if _, _, err := client.PostMessage(channelID, opts...); err != nil {
+		log.Printf("[slack] human_dm postMessage channel=%s: %v", channelID, err)
+	} else if InboundDebugEnabled() {
+		log.Printf("[slack] human_dm postMessage channel=%s ok", channelID)
+	}
+}
+
+// UserTokenAuthorized reports whether the owner user token is stored.
+func (b *Bridge) UserTokenAuthorized() bool {
+	return b.userTokens != nil && b.userTokens.HasToken()
 }
 
 func (b *Bridge) registerOutboundSlackTS(hubMsg *protocol.Message, ts string) {
@@ -461,6 +474,7 @@ func (b *Bridge) Status() map[string]interface{} {
 		"bot_user_id":      b.botUserID,
 		"team_id":          b.teamID,
 		"bindings_count":   len(b.bindings.List()),
+		"inbox_enabled":    b.inbox != nil && b.inbox.Get().Enabled,
 		"display_name":     b.displayName,
 	}
 }

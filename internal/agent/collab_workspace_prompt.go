@@ -47,6 +47,7 @@ func appendCollaborationWorkspaceInstructions(b *strings.Builder, info Collabora
 	b.WriteString("- Lead with progress, decisions, and answers to the goal — not file inventories or repeated \"grounding\" preambles.\n")
 	b.WriteString("- Cite specific paths only when they support a point (one or two examples is enough).\n")
 	b.WriteString("- Do NOT recommend kubectl, Helm, or Kubernetes unless the file tree or open files show k8s/Helm usage.\n")
+	b.WriteString("- Do NOT suggest or run docker-compose, npm, yarn, make, or similar build/deploy commands just because those files appear in the tree — use them only when the assigned task explicitly requires running or deploying something.\n")
 	b.WriteString("- Do NOT start with \"Grounding: I loaded N files\"; the user cares about outcomes, not how many files you opened.\n")
 	if focus := collaborationWorkspaceFocusHint(goal); focus != "" {
 		b.WriteString(focus)
@@ -113,16 +114,18 @@ func isCollabTurnPromptForAgent(msg *protocol.Message, collabID, agentID string,
 	return msg.IsMentioned(agentID) || collab.IsAgentTurn(collabID, agentID)
 }
 
-// collabPlanningSuppressMCPTools hides DevOps MCP tool catalogs during planning when
-// the shared workspace does not look like a Kubernetes repo (doc/API collabs).
+// collabPlanningSuppressMCPTools hides DevOps MCP tool catalogs during planning and
+// execution when the shared workspace does not look like a Kubernetes repo (doc/API collabs).
 func collabPlanningSuppressMCPTools(info CollaborationInfo, agentType protocol.AgentType) bool {
-	if info.Phase != "planning" {
-		return false
-	}
 	if agentType != protocol.AgentTypeDevOps {
 		return false
 	}
-	return !stackSignalsKubernetes(fileTreeFromWorkspaceContext(info.SourceWorkspaceContext))
+	switch info.Phase {
+	case "planning", "executing":
+		return !stackSignalsKubernetes(fileTreeFromWorkspaceContext(info.SourceWorkspaceContext))
+	default:
+		return false
+	}
 }
 
 // sanitizeCollabDiscussionResponse replaces raw tool-call JSON mistaken for chat

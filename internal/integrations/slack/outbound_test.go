@@ -129,3 +129,19 @@ func TestThreadTSForOutboundChannelParent(t *testing.T) {
 		t.Fatalf("channel parent thread ts: got %q", got)
 	}
 }
+
+func TestShouldPostInboxToSlackAgentIDMatch(t *testing.T) {
+	inbox := &InboxConfig{
+		Enabled:   true,
+		NJChannel: "slack:inbox:U1",
+		AgentID:   "agent-live",
+	}
+	agentMsg := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:inbox:U1", protocol.AgentInfo{ID: "agent-live"}, "hello")
+	if !ShouldPostInboxToSlack(agentMsg, inbox) {
+		t.Fatal("expected matching agent to post")
+	}
+	stale := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:inbox:U1", protocol.AgentInfo{ID: "agent-live-new"}, "hello")
+	if ShouldPostInboxToSlack(stale, inbox) {
+		t.Fatal("expected stale inbox agent_id to skip until reconciled")
+	}
+}

@@ -22,6 +22,12 @@ describe('conversationMode', () => {
     expect(inferResolvedConversationMode('review cmd/server/main.go')).toBe('code');
   });
 
+  it('infers code for scan tool requests', () => {
+    expect(
+      inferResolvedConversationMode('Use summarize_scan_analysis on the file I have open please')
+    ).toBe('code');
+  });
+
   it('honors explicit chat setting', () => {
     expect(resolveConversationMode('chat', 'review main.go')).toBe('chat');
   });

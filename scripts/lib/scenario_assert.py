@@ -4,6 +4,20 @@ from __future__ import annotations
 
 import re
 
+# Mirrors internal/protocol/command_context.go stack-tool prefixes for scenario checks.
+_STACK_CMD_HEAD_RE = re.compile(
+    r"^\s*(docker(?:-compose)?|compose|npm|yarn|pnpm|npx|kubectl|helm|terraform|make|mvn|gradle)\b",
+    re.I,
+)
+
+
+def looks_like_stack_tool_command(command: str) -> bool:
+    command = (command or "").strip()
+    if not command:
+        return False
+    first_line = command.split("\n", 1)[0].strip()
+    return bool(_STACK_CMD_HEAD_RE.match(first_line))
+
 
 def check_text_patterns(
     text: str,

@@ -52,10 +52,31 @@ export function CachedAgentInfoModal({
               <div className="text-slack-text font-mono text-xs break-all">{agent.path}</div>
             </div>
           )}
-          <div className="flex gap-4 text-slack-textMuted text-xs">
+          <div className="flex gap-4 text-slack-textMuted text-xs flex-wrap">
             {agent.last_used && <span>Last used: {new Date(agent.last_used).toLocaleString()}</span>}
             {agent.cache_size > 0 && <span>Cache: {(agent.cache_size / 1024).toFixed(1)} KB</span>}
+            {agent.metadata?.file_count != null && (
+              <span>{agent.metadata.file_count} indexed files</span>
+            )}
           </div>
+          {agent.metadata?.agent_names && agent.metadata.agent_names.length > 0 && (
+            <div>
+              <div className="text-slack-textMuted text-xs mb-1">Saved agent names</div>
+              <div className="text-slack-text text-xs">{agent.metadata.agent_names.join(', ')}</div>
+            </div>
+          )}
+          {agent.metadata?.code_patterns && agent.metadata.code_patterns.length > 0 && (
+            <div>
+              <div className="text-slack-textMuted text-xs mb-1">Detected patterns</div>
+              <div className="flex flex-wrap gap-1">
+                {agent.metadata.code_patterns.slice(0, 8).map((p) => (
+                  <span key={p} className="text-[10px] px-2 py-0.5 rounded bg-slack-bgHover text-slack-textMuted">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           <p className="text-xs text-slack-textMuted">
             This agent is saved on disk but not running. Load it to chat, or delete to remove its cache entry.
           </p>

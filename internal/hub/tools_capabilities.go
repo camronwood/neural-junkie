@@ -9,6 +9,50 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// resolveDMAgentForChannel returns the agent for dm-<user>-<agent> when channel.Agents is empty
+// (e.g. after hub restart before the agent re-joins the DM).
+func (ch *CommandHandler) resolveDMAgentForChannel(channel string) *protocol.AgentInfo {
+	channel = strings.TrimSpace(channel)
+	if !strings.HasPrefix(strings.ToLower(channel), "dm-") {
+		return nil
+	}
+	parts := strings.SplitN(channel, "-", 3)
+	if len(parts) != 3 {
+		return nil
+	}
+	slug := strings.TrimSpace(parts[2])
+	if slug == "" {
+		return nil
+	}
+	// Channel slug is lowercase with no spaces (BiologyExpert → biologyexpert).
+	if ag := ch.hub.FindLiveAgentByDisplayName(slug, ""); ag != nil {
+		return ag
+	}
+	// Fallback: match agents whose slugified display name equals the channel slug.
+	for _, info := range ch.hub.ListAgents() {
+		if info == nil {
+			continue
+		}
+		if slugifyAgentName(info.Name) == strings.ToLower(slug) {
+			cp := *info
+			return &cp
+		}
+	}
+	return nil
+}
+
+func slugifyAgentName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	var b strings.Builder
+	b.Grow(len(name))
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // GetAgentToolCapabilities returns tool and model routing info for an agent.
 func (ch *CommandHandler) GetAgentToolCapabilities(agentID string) (protocol.AgentToolCapabilities, error) {
 	agentID = strings.TrimSpace(agentID)
@@ -39,6 +83,11 @@ func (ch *CommandHandler) ListChannelToolCapabilities(channel string) (protocol.
 	channelAgents, err := ch.hub.GetChannelAgents(channel)
 	if err != nil {
 		return protocol.ChannelToolsResponse{}, err
+	}
+	if len(channelAgents) == 0 {
+		if dmAgent := ch.resolveDMAgentForChannel(channel); dmAgent != nil {
+			channelAgents = []protocol.AgentInfo{*dmAgent}
+		}
 	}
 
 	out := protocol.ChannelToolsResponse{Channel: channel}

@@ -100,6 +100,7 @@ vi.mock('../stores/settingsStore', () => {
       pendingChangesPanelVisible: false,
       editorAgentMode: 'agent',
       sidebarAgentsVisible: true,
+      toolbarChipsPlacement: 'top',
     },
     updateLayoutSettings: vi.fn(),
     loadLayoutSettings: vi.fn(),

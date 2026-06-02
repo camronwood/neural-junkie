@@ -15,11 +15,68 @@ type ChannelInfo struct {
 	IsMember  bool   `json:"is_member"`
 }
 
-// ListChannels returns channels the bot is a member of (or can see).
+// ListChannels returns channels the bot is a member of.
 func ListChannels(api *slackapi.Client) ([]ChannelInfo, error) {
 	if api == nil {
 		return nil, fmt.Errorf("slack api client required")
 	}
+	auth, err := api.AuthTest()
+	if err != nil {
+		return nil, fmt.Errorf("slack auth.test: %w", err)
+	}
+	if out, err := listBotMemberChannels(api, auth.UserID); err == nil {
+		return out, nil
+	} else if !shouldFallbackChannelList(err) {
+		return nil, err
+	}
+	return listMemberChannelsFromAll(api)
+}
+
+func shouldFallbackChannelList(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "missing_scope") ||
+		strings.Contains(msg, "not_allowed_token_type") ||
+		strings.Contains(msg, "method_not_supported")
+}
+
+func channelInfoFrom(ch slackapi.Channel, isMember bool) ChannelInfo {
+	return ChannelInfo{
+		ID:        ch.ID,
+		Name:      ch.Name,
+		IsPrivate: ch.IsPrivate,
+		IsMember:  isMember,
+	}
+}
+
+func listBotMemberChannels(api *slackapi.Client, botUserID string) ([]ChannelInfo, error) {
+	var out []ChannelInfo
+	cursor := ""
+	for {
+		channels, next, err := api.GetConversationsForUser(&slackapi.GetConversationsForUserParameters{
+			UserID:          botUserID,
+			Types:           []string{"public_channel", "private_channel"},
+			ExcludeArchived: true,
+			Limit:           200,
+			Cursor:          cursor,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, ch := range channels {
+			out = append(out, channelInfoFrom(ch, true))
+		}
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+	return out, nil
+}
+
+func listMemberChannelsFromAll(api *slackapi.Client) ([]ChannelInfo, error) {
 	var out []ChannelInfo
 	cursor := ""
 	for {
@@ -33,12 +90,10 @@ func ListChannels(api *slackapi.Client) ([]ChannelInfo, error) {
 			return nil, err
 		}
 		for _, ch := range channels {
-			out = append(out, ChannelInfo{
-				ID:        ch.ID,
-				Name:      ch.Name,
-				IsPrivate: ch.IsPrivate,
-				IsMember:  ch.IsMember,
-			})
+			if !ch.IsMember {
+				continue
+			}
+			out = append(out, channelInfoFrom(ch, true))
 		}
 		if next == "" {
 			break

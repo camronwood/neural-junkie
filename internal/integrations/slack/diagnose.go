@@ -21,6 +21,8 @@ type DiagnoseResult struct {
 	AuthTestOK         bool   `json:"auth_test_ok"`
 	SocketOpenOK       bool   `json:"socket_open_ok"`
 	SocketOpenError    string `json:"socket_open_error,omitempty"`
+	InboxDMHistoryOK   bool   `json:"inbox_dm_history_ok,omitempty"`
+	InboxDMHistoryHint string `json:"inbox_dm_history_hint,omitempty"`
 	InboundEventSubs   []string `json:"inbound_event_subscriptions_required,omitempty"`
 	Recommendations    []string `json:"recommendations,omitempty"`
 }
@@ -29,7 +31,9 @@ type DiagnoseResult struct {
 var inboundEventSubscriptionsRequired = []string{
 	"message.channels",
 	"message.groups",
+	"message.im",
 	"app_mention",
+	"reaction_added",
 }
 
 func tokenHint(tok, wantPrefix string) (ok bool, hint string) {
@@ -115,11 +119,68 @@ func Diagnose(cfg *config.Config) DiagnoseResult {
 	} else {
 		out.SocketOpenOK = true
 		out.InboundEventSubs = inboundEventSubscriptionsRequired
+		checkInboxDMHistory(api, &out)
 		out.Recommendations = append(out.Recommendations,
-			"Inbound: api.slack.com → Your App → Event Subscriptions → Enable Events → Subscribe to bot events: message.channels, message.groups (required for private #channels), app_mention. Then reinstall app to workspace if you added scopes.",
-			"Invite @neural_junkie to the channel; binding channel ID must match Slack → channel → About (C…).",
-			"Hub debug: NEURAL_JUNKIE_SLACK_DEBUG=1 then post in Slack; logs show [slack] event message or unhandled event type.",
+			"Inbound: api.slack.com → Event Subscriptions → Subscribe to bot events: message.channels, message.groups, message.im (DM inbox), app_mention. Reinstall after scope changes.",
+			"Personal inbox DMs require message.im (real-time) or im:history (NJ polls every 2s as fallback).",
+			"Invite @neural_junkie to bound channels; binding channel ID must match Slack → channel → About (C…).",
+			"Hub debug: NEURAL_JUNKIE_SLACK_DEBUG=1 then post in Slack; logs show [slack] im inbound or inbox DM poll.",
 		)
 	}
 	return out
+}
+
+func checkInboxDMHistory(api *slackapi.Client, out *DiagnoseResult) {
+	store, err := NewInboxStore()
+	if err != nil || store == nil {
+		return
+	}
+	inbox := store.Get()
+	if !inbox.Enabled {
+		return
+	}
+	channelID := strings.TrimSpace(inbox.SlackDMChannelID)
+	if channelID == "" {
+		owner := strings.TrimSpace(inbox.OwnerSlackUserID)
+		if owner == "" {
+			out.InboxDMHistoryHint = "open a DM with the bot once, or save inbox settings after OAuth"
+			return
+		}
+		auth, err := api.AuthTest()
+		if err != nil {
+			out.InboxDMHistoryHint = "auth.test: " + err.Error()
+			return
+		}
+		ch, _, _, err := api.OpenConversation(&slackapi.OpenConversationParameters{
+			Users: []string{owner, auth.UserID},
+		})
+		if err != nil {
+			out.InboxDMHistoryHint = "im:read/im:history may be missing — " + err.Error()
+			out.Recommendations = append(out.Recommendations,
+				"Add bot scope im:history, reinstall the app, then DM the bot once.",
+			)
+			return
+		}
+		if ch != nil {
+			channelID = ch.ID
+		}
+	}
+	if channelID == "" {
+		return
+	}
+	_, err = api.GetConversationHistory(&slackapi.GetConversationHistoryParameters{
+		ChannelID: channelID,
+		Limit:     1,
+	})
+	if err != nil {
+		out.InboxDMHistoryHint = err.Error()
+		if strings.Contains(strings.ToLower(err.Error()), "missing_scope") {
+			out.Recommendations = append(out.Recommendations,
+				"Add bot scope im:history for personal inbox DMs; reinstall the app to the workspace.",
+			)
+		}
+		return
+	}
+	out.InboxDMHistoryOK = true
+	out.InboxDMHistoryHint = "ok"
 }

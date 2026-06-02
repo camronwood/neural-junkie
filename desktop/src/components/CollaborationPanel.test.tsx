@@ -506,6 +506,34 @@ describe('CollaborationPanel', () => {
     expect(screen.getByText(/@unassigned/)).toBeInTheDocument();
   });
 
+  it('shows expected model routing on tasks when present', () => {
+    const collab = makeCollaboration({
+      phase: 'executing',
+      tasks: [
+        {
+          id: 'task-routing',
+          title: 'Identify schema files',
+          description: 'Find OpenAPI specs',
+          assigned_to: 'ag1',
+          assigned_name: 'RustExpert',
+          status: 'pending',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          options: {
+            expected_model: 'qwen2.5:3b',
+            expected_provider_id: 'ollama-local',
+            routing_reason: 'light_local_model',
+          },
+        },
+      ],
+    });
+
+    render(<CollaborationPanel collaboration={collab} onClose={() => {}} />);
+
+    expect(screen.getByText(/Model: qwen2\.5:3b/)).toBeInTheDocument();
+    expect(screen.getByText(/light_local_model/)).toBeInTheDocument();
+  });
+
   it('terminal phases hide action footer', () => {
     const completed = makeCollaboration({ phase: 'completed', discussion: discussion() });
     const { unmount: u1 } = render(<CollaborationPanel collaboration={completed} onClose={() => {}} />);

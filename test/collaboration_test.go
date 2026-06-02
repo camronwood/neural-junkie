@@ -163,6 +163,39 @@ func TestCreateCollaborationRequiresMinAgents(t *testing.T) {
 	}
 }
 
+func TestCreateCollaborationMaxAgents(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	hub.addAgent("a3", "Agent3", protocol.AgentTypeDevOps, nil)
+	hub.addAgent("a4", "Agent4", protocol.AgentTypeSecurity, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	_, err := cm.CreateCollaboration("too many", []string{"a1", "a2", "a3", "a4"}, "general", "user", collaboration.DiscussionConfig{})
+	if err == nil {
+		t.Fatal("expected error when exceeding HardMaxAgentsPerCollaboration")
+	}
+}
+
+func TestAddParticipantsRespectsMaxAgents(t *testing.T) {
+	hub := newMockCollabHub()
+	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)
+	hub.addAgent("a2", "Agent2", protocol.AgentTypeFrontend, nil)
+	hub.addAgent("a3", "Agent3", protocol.AgentTypeDevOps, nil)
+	hub.addAgent("a4", "Agent4", protocol.AgentTypeSecurity, nil)
+
+	cm := collaboration.NewCollaborationManager(hub)
+	collab, err := cm.CreateCollaboration("cap", []string{"a1", "a2", "a3"}, "general", "user", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("CreateCollaboration: %v", err)
+	}
+
+	_, err = cm.AddParticipants(collab.ID, []string{"a4"})
+	if err == nil {
+		t.Fatal("expected error when adding a fourth agent")
+	}
+}
+
 func TestMaxConcurrentCollaborations(t *testing.T) {
 	hub := newMockCollabHub()
 	hub.addAgent("a1", "Agent1", protocol.AgentTypeBackend, nil)

@@ -101,6 +101,10 @@ func (cm *CollaborationManager) createCollaborationCore(
 	if opts.Source != SourceRunbook && len(allIDs) < 2 {
 		return nil, fmt.Errorf("at least 2 agents are required for a collaboration")
 	}
+	if len(allIDs) > HardMaxAgentsPerCollaboration {
+		return nil, fmt.Errorf("at most %d agents are allowed per collaboration (got %d)",
+			HardMaxAgentsPerCollaboration, len(allIDs))
+	}
 
 	cfg = cfg.Normalized()
 	agents := make([]CollaborationAgent, 0, len(allIDs))

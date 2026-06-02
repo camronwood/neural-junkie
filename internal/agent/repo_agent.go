@@ -91,6 +91,13 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 		baseAgent.MCPServer = repoMCP
 	}
 
+	// Route channel messages through repo-specific Q&A (buildRepoPrompt + index),
+	// not the generic Agent tool-calling path.
+	baseAgent.SetMessageInterceptor(func(ctx context.Context, msg *protocol.Message) bool {
+		repoAgent.handleMessage(ctx, msg)
+		return true
+	})
+
 	return repoAgent, nil
 }
 
@@ -190,11 +197,21 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 		log.Printf("[%s] Failed to save index: %v", ra.Info.Name, err)
 	}
 
-	// Save metadata
+	// Save metadata (preserve other agent names that share this repo cache)
+	agentNames := []string{ra.Info.Name}
+	if existing, metaErr := ra.storage.LoadMetadata(cacheKey); metaErr == nil && existing != nil {
+		seen := map[string]bool{ra.Info.Name: true}
+		for _, n := range existing.AgentNames {
+			if n != "" && !seen[n] {
+				agentNames = append(agentNames, n)
+				seen[n] = true
+			}
+		}
+	}
 	metadata := &repo.RepoMetadata{
 		Path:       ra.repoPath,
 		CacheKey:   cacheKey,
-		AgentNames: []string{ra.Info.Name},
+		AgentNames: agentNames,
 	}
 	if err := ra.storage.SaveMetadata(cacheKey, metadata); err != nil {
 		log.Printf("[%s] Failed to save metadata: %v", ra.Info.Name, err)
@@ -647,10 +664,12 @@ func (ra *RepoAgent) buildRepoPrompt(msg *protocol.Message, index *repo.Reposito
 	prompt.WriteString("5. Be specific and cite actual files/code/line numbers when possible\n")
 	prompt.WriteString("6. If you reference code, quote the relevant parts directly\n\n")
 
-	prompt.WriteString(fmt.Sprintf("## Question from %s\n%s\n\n", msg.From.Name, msg.Content))
-	prompt.WriteString("Provide a helpful, specific answer with code examples based on your knowledge of this repository.")
+	systemPart := prompt.String()
+	var userPart strings.Builder
+	userPart.WriteString(fmt.Sprintf("## Question from %s\n%s\n\n", msg.From.Name, msg.Content))
+	userPart.WriteString("Provide a helpful, specific answer with code examples based on your knowledge of this repository.")
 
-	return prompt.String()
+	return systemPart + ai.SystemPromptSeparator + userPart.String()
 }
 
 // buildExpertise builds the expertise list based on repository analysis

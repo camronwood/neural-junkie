@@ -8,7 +8,11 @@ import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI } from '../api/chatAPI';
 import type { CachedAgentInfo, AgentInfo } from '../types/protocol';
 import { AgentInfoModal } from './AgentInfoModal';
-import { CachedAgentInfoModal } from './CachedAgentInfoModal';
+import { cachedAgentToAgentInfo } from '../utils/cachedAgentToAgentInfo';
+import {
+  findLiveAgentForCached,
+  isCachedAgentAlreadyLoaded,
+} from '../utils/cachedAgentLoaded';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
@@ -174,10 +178,16 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
     removed_from: undefined,
   }));
 
+  const isCachedLoaded = (cached: CachedAgentInfo) =>
+    isCachedAgentAlreadyLoaded(cached, agents, loadingAgents);
+
+  // Hide disk-cache rows that already have a live hub agent (same repo path or name).
+  const unloadedMyAgents = myAgents.filter((cached) => !isCachedLoaded(cached));
+
   const listSource = activeTab === 'active'
     ? ([...activeAgents, ...loadingAgentsList] as AgentInfo[])
     : activeTab === 'my-agents'
-      ? myAgents
+      ? unloadedMyAgents
       : removedAgents;
 
   // Filter and search agents based on active tab
@@ -238,9 +248,11 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
       // Construct appropriate command based on agent type
       let command = '';
       switch (agent.type) {
-        case 'repo':
-          command = `/create-repo-agent ${agent.path} ${agent.name}`;
+        case 'repo': {
+          const namePart = agent.name ? ` ${agent.name}` : '';
+          command = `/create-repo-agent ${agent.path}${namePart} ollama`;
           break;
+        }
         case 'confluence':
           // Extract space key from path or metadata
           const spaceKey = agent.metadata?.space_key || agent.path;
@@ -275,11 +287,10 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
       onClose();
     } catch (error) {
       console.error('Failed to load agent:', error);
-    } finally {
-      setLoadingAgent(null);
-      // Remove from global loading state
       const { removeLoadingAgent } = useChatStore.getState();
       removeLoadingAgent(agent.name);
+    } finally {
+      setLoadingAgent(null);
     }
   };
 
@@ -578,7 +589,7 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
                   : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
               }`}
             >
-              My Agents ({myAgents.length})
+              My Agents ({unloadedMyAgents.length})
             </button>
             <button
               onClick={() => setActiveTab('removed')}
@@ -797,14 +808,29 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
                           </button>
                         )}
                         <span className="px-3 py-1 text-xs rounded bg-slack-bg text-slack-textMuted border border-slack-border">
-                          online
+                          {'indexing_status' in agent &&
+                          (agent as AgentInfo).type === 'repo' &&
+                          (agent as AgentInfo).indexing_status &&
+                          (agent as AgentInfo).indexing_status !== 'ready'
+                            ? `${(agent as AgentInfo).indexing_status}${(agent as AgentInfo).index_progress != null ? ` ${(agent as AgentInfo).index_progress}%` : ''}`
+                            : 'online'}
                         </span>
                       </div>
                     ) : activeTab === 'my-agents' ? (
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           type="button"
-                          onClick={() => setCachedInfoAgent(agent as CachedAgentInfo)}
+                          onClick={() => {
+                            const cached = agent as CachedAgentInfo;
+                            const live = findLiveAgentForCached(cached, agents);
+                            if (live) {
+                              setInfoAgentId(live.id);
+                              fetchOllamaModels().then(setAvailableOllamaModels).catch(() => {});
+                              fetchLMStudioModels().then(setAvailableLMStudioModels).catch(() => {});
+                            } else {
+                              setCachedInfoAgent(cached);
+                            }
+                          }}
                           disabled={loadingAgent === agent.name || deletingCachedAgent}
                           className="text-slack-textMuted hover:text-slack-text transition-colors disabled:opacity-40"
                           title={`View ${agent.name} details`}
@@ -818,14 +844,16 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
                             />
                           </svg>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleLoadAgent(agent as CachedAgentInfo)}
-                          disabled={loadingAgent === agent.name || deletingCachedAgent}
-                          className="px-3 py-1 bg-slack-accent hover:bg-slack-accentHover text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {loadingAgent === agent.name ? 'Loading...' : 'Load'}
-                        </button>
+                        {!isCachedLoaded(agent as CachedAgentInfo) && (
+                          <button
+                            type="button"
+                            onClick={() => handleLoadAgent(agent as CachedAgentInfo)}
+                            disabled={loadingAgent === agent.name || deletingCachedAgent}
+                            className="px-3 py-1 bg-slack-accent hover:bg-slack-accentHover text-white text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {loadingAgent === agent.name ? 'Loading...' : 'Load'}
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <button
@@ -861,11 +889,11 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
             onClose={() => setInfoAgentId(null)}
             onProviderSwitch={handleProviderSwitch}
             onExport={handleExportAgent}
+            onTrainLoRA={onTrainLoRA}
             onRemove={handleRemoveAgent}
             onDelete={handleDeleteAgent}
             deletingAgent={deletingAgentId === infoAgentId}
             onApprovalModeChange={handleApprovalModeChange}
-            onTrainLoRA={onTrainLoRA}
             onAfterRulesSaved={async () => {
               try {
                 const fresh = await api.fetchAgents({ includeToolCounts: true });
@@ -880,19 +908,21 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
           />
         )}
 
-        {cachedInfoAgent && (
-          <CachedAgentInfoModal
-            agent={cachedInfoAgent}
+        {cachedInfoAgent && !isCachedLoaded(cachedInfoAgent) && (
+          <AgentInfoModal
+            agent={cachedAgentToAgentInfo(cachedInfoAgent)}
             isOpen={!!cachedInfoAgent}
             onClose={() => setCachedInfoAgent(null)}
-            onLoad={(cached) => {
-              void handleLoadAgent(cached);
-            }}
-            onDelete={(cached) => {
-              void handleDeleteCachedAgent(cached);
-            }}
-            loading={loadingAgent === cachedInfoAgent.name}
-            deleting={deletingCachedAgent}
+            offlineMode
+            onLoadOfflineAgent={() => void handleLoadAgent(cachedInfoAgent)}
+            onDeleteOfflineAgent={() => void handleDeleteCachedAgent(cachedInfoAgent)}
+            offlineLoading={loadingAgent === cachedInfoAgent.name}
+            offlineDeleting={deletingCachedAgent}
+            onTrainLoRA={onTrainLoRA}
+            onProviderSwitch={handleProviderSwitch}
+            switchingProvider={switchingProvider}
+            availableOllamaModels={availableOllamaModels}
+            availableLMStudioModels={availableLMStudioModels}
           />
         )}
       </div>

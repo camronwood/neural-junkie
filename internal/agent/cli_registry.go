@@ -157,7 +157,7 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		},
 		EnvVars:      []string{"CURSOR_API_KEY"},
 		WorkDirEnv:   "CURSOR_WORK_DIR",
-		ApprovalMode: "",
+		ApprovalMode: "yolo",
 		InstallHint:  "Install with: curl https://cursor.com/install -fsS | bash",
 		JoinMessage:  "Cursor CLI agent online. I can analyze codebases, generate code, refactor, and run shell commands using Cursor's agent capabilities. @mention me to get started.",
 	},

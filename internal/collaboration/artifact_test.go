@@ -184,6 +184,44 @@ func TestExtractTasksFromPlanRejectsWeakFragmentBullets(t *testing.T) {
 	}
 }
 
+func TestExtractTasksFromPlan_keepsDocumentFindingsWithDeliverablePath(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "asst-1", AgentName: "Assistant", AgentType: protocol.AgentTypeAssistant},
+	}
+	planContent := `## Plan
+
+Task 5: @Assistant - Document findings and next steps in collabs/abc-123/findings.md
+`
+	tasks := ExtractTasksFromPlan(planContent, agents)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d: %#v", len(tasks), tasks)
+	}
+	if isWeakTaskFragment(tasks[0].Description) {
+		t.Fatalf("task with collabs/ path should not be weak: %q", tasks[0].Description)
+	}
+}
+
+func TestNormalizeAndValidateTasksForExecution_keepsDocumentFindingsTask(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "asst-1", AgentName: "Assistant", AgentType: protocol.AgentTypeAssistant},
+	}
+	plan := `## Plan
+
+Task 5: @Assistant - Document findings and next steps in collabs/abc-123/findings.md
+`
+	c := &Collaboration{
+		ID:             "abc-123",
+		Description:    "Produce a markdown document",
+		Agents:         agents,
+		SourceRepoPath: "/tmp/project",
+		Plan:           &SharedArtifact{Content: plan},
+	}
+	tasks, _ := NormalizeAndValidateTasksForExecution(c)
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d: %#v", len(tasks), tasks)
+	}
+}
+
 func TestExtractTasksFromPlanSanitizesAssetMentionAssignee(t *testing.T) {
 	agents := []CollaborationAgent{
 		{AgentID: "gemini-1", AgentName: "Gemini", AgentType: protocol.AgentTypeCLI},

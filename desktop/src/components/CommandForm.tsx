@@ -301,8 +301,11 @@ export function CommandForm({
   const collabWorkspaceOk =
     collabWorkspaceMode !== 'path' || collabRepoPath.trim().length > 0;
 
+const MAX_COLLAB_AGENTS = 3;
+
   const canSubmit = isCollaborateCommand
     ? selectedCollaborators.size >= 2 &&
+      selectedCollaborators.size <= MAX_COLLAB_AGENTS &&
       !!values.description?.trim() &&
       collabNumericOptsOk &&
       collabWorkspaceOk
@@ -315,7 +318,7 @@ export function CommandForm({
       const next = new Set(prev);
       if (next.has(agentID)) {
         next.delete(agentID);
-      } else {
+      } else if (next.size < MAX_COLLAB_AGENTS) {
         next.add(agentID);
       }
       return next;
@@ -752,7 +755,7 @@ export function CommandForm({
             <div>
               <label className="block text-xs font-medium text-slack-textMuted mb-1">
                 agents<span className="text-red-400 ml-0.5">*</span>
-                <span className="ml-1 opacity-60">({selectedCollaborators.size} selected, min 2)</span>
+                <span className="ml-1 opacity-60">({selectedCollaborators.size} selected, 2–{MAX_COLLAB_AGENTS})</span>
               </label>
               <div className="max-h-28 sm:max-h-40 overflow-y-auto overscroll-contain border border-slack-border rounded bg-slack-bgHover p-1 space-y-0.5">
                 {selectableCollaborators.map(agent => {

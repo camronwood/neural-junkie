@@ -446,6 +446,8 @@ make collab-scenario-matrix
 
 Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`** to apply pending hub file proposals (`POST /api/file-changes/approve/{id}`) before `assert_files`. **`assert_files`** can require grounded content (`any_match` / `none_match` on file body) and reject `TASK_STATUS` lines in deliverables. Set **`NJ_SCENARIO_ALLOW_FILE_FALLBACK=1`** only for local debugging when agents omit canonical `[FILE_CHANGE]` proposals.
 
+**Regression bundles:** `make test-collab-plan` (deterministic Go, CI-safe) and `make collab-scenario-regression` (live hub edge-case scenarios).
+
 **Scenarios**
 
 | Name | Purpose |
@@ -454,8 +456,16 @@ Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`
 | `multi-collab-isolation` | Planning while another collab executes |
 | `reject-collabs-subfolder` | Workspace guard for `collabs/<uuid>` paths |
 | `execute-deliverable` | Fixture repo execution + grounded `findings.md` |
-| `resource-api-schema-planning` | Your resource API schema prompt (`@Assistant @Gemini @PlatformEngineer`) |
-| `delivery-sandbox-auto-ack` | Approve on `--workspace` sandbox auto-acks and dispatches tasks (no `workspace_ack` step) |
+| `resource-api-schema-planning` | Resource API schema prompt with explicit lanes |
+| `resource-api-schema-regression` | Phoenix-style bound workspace + deliverable stubs |
+| `delivery-sandbox-auto-ack` | Approve on `--workspace` sandbox auto-acks and dispatches tasks |
+| `plan-dependency-prose-regression` | Dependency bullets must not become tasks (f7518f88) |
+| `plan-findings-task-regression` | "Document findings in …/findings.md" kept as task (4ea36409) |
+| `plan-distinct-deliverables-same-agent` | Same assignee + different paths must not merge |
+| `document-findings-execution` | "Document findings" phrasing dispatches file deliverable |
+| `execution-no-stack-commands` | No docker/npm/kubectl Run suggestions on markdown tasks |
+| `plan-phoenix-combined-regression` | Full Phoenix-style combined regression (needs `NEURAL_JUNKIE_SCENARIO_REPO`) |
+| `phoenix-resource-api-e2e` | End-to-end Phoenix resource API collab |
 
 **Environment**
 
@@ -477,7 +487,8 @@ Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`
   - **`Grounding: I loaded` in planning-two-agent:** usually means the agent scanned your open editor workspace during a no-repo collab — fixed when no source workspace is bound; restart hub after upgrade.
   - **`multi-collab-isolation` setup cancelled:** do not run scenarios in parallel; the isolation blocker must stay executing on `collab-scenario-blocker`.
   - **`any_match` keywords:** use a single combined regex in scenario JSON (e.g. `schema|standardiz|registr`) — each list entry must match somewhere in agent messages.
-  - **`require_hub_approval` with approved=0:** agent used chat-only `[FILE_CHANGE] path` without a hub proposal — upgrade hub for loose FILE_CHANGE parsing or approve in Pending changes manually.
+  - **`deny_suggested_stack_commands`:** agent surfaced docker/npm/kubectl in message metadata `suggested_commands` during a markdown doc task — upgrade hub after stack-command filter fix.
+  - **`assignee_min_tasks` / `task_none_match`:** plan parser merged tasks or kept dependency prose — see `make test-collab-plan` for deterministic repro.
 - Use `make debug-collab COLAB=<id8> LIVE=1` or `python3 scripts/debug-collab.py messages --channel collab-... --live` for full history.
 - `KEEP=1` leaves the collab active: `make collab-scenario SCENARIO=planning-two-agent KEEP=1`
 

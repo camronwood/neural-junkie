@@ -7,9 +7,23 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// TaskRoutingPlan is the predicted provider/model for a collaboration task.
+type TaskRoutingPlan struct {
+	ProviderID string
+	Model      string
+	Reason     string
+}
+
+// TaskRoutingOverrides carries explicit per-task routing metadata when set.
+type TaskRoutingOverrides struct {
+	ProviderID  string
+	OllamaModel string
+}
+
 // CollabRouting optionally overrides the AI provider for collaboration execution tasks.
 type CollabRouting interface {
 	EffectiveAI(ctx context.Context, base ai.AIProvider, info protocol.AgentInfo, collab CollaborationInfo, msg *protocol.Message) ai.AIProvider
+	PlanTask(ctx context.Context, assignee protocol.AgentInfo, taskText string, overrides TaskRoutingOverrides) TaskRoutingPlan
 }
 
 var globalCollabRouting CollabRouting
@@ -17,6 +31,11 @@ var globalCollabRouting CollabRouting
 // SetGlobalCollabRouting registers the server implementation (e.g. from cmd/server).
 func SetGlobalCollabRouting(r CollabRouting) {
 	globalCollabRouting = r
+}
+
+// GlobalCollabRouting returns the registered collaboration routing implementation.
+func GlobalCollabRouting() CollabRouting {
+	return globalCollabRouting
 }
 
 // EffectiveAIProvider returns the provider to use for this message (collab routing or base).

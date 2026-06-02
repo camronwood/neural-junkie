@@ -61,6 +61,10 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		return IntentMeta
 	}
 
+	if hasScanOrEditorTaskSignals(content) || requestedBiologyScanTool(content) != "" {
+		return IntentTask
+	}
+
 	if channelType == protocol.ChannelTypeCollaboration {
 		return IntentSubstantive
 	}

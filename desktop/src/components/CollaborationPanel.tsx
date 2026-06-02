@@ -615,6 +615,15 @@ export function CollaborationPanel({
                     <div style={{ fontSize: 12, color: 'var(--text-secondary, #999)', marginTop: 2 }}>
                       Assigned to @{task.assigned_name || 'unassigned'}
                     </div>
+                    {task.options?.expected_model || task.options?.expected_provider_id ? (
+                      <div style={{ fontSize: 11, color: '#a5b4fc', marginTop: 4 }}>
+                        Model: {task.options.expected_model || 'agent default'}
+                        {task.options.expected_provider_id
+                          ? ` · provider ${task.options.expected_provider_id}`
+                          : ''}
+                        {task.options.routing_reason ? ` · ${task.options.routing_reason}` : ''}
+                      </div>
+                    ) : null}
                     {c.tasks && taskOrchestrationLabel(task, c.tasks, c.phase) ? (
                       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                         {taskOrchestrationLabel(task, c.tasks, c.phase)}

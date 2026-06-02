@@ -150,12 +150,13 @@ func TestCreateRepoAgentCommand(t *testing.T) {
 	}
 
 	// Wait for indexing to complete to avoid background writes during test cleanup.
-	deadline := time.Now().Add(2 * time.Second)
+	wantName := protocol.NormalizeAgentName("TestRepoAgent")
+	deadline := time.Now().Add(5 * time.Second)
 	ready := false
 	for time.Now().Before(deadline) {
 		agents := h.ListAgents()
 		for _, a := range agents {
-			if strings.EqualFold(a.Name, "TestRepoAgent") &&
+			if a.Name == wantName &&
 				a.Type == protocol.AgentTypeRepo &&
 				a.IndexingStatus == string(protocol.IndexingStatusReady) {
 				ready = true
@@ -170,6 +171,48 @@ func TestCreateRepoAgentCommand(t *testing.T) {
 	if !ready {
 		t.Fatal("Expected repo agent indexing to complete")
 	}
+}
+
+// TestCreateRepoAgentOllamaSuffixNotInName ensures "ollama" is parsed as provider, not part of the name.
+func TestCreateRepoAgentOllamaSuffixNotInName(t *testing.T) {
+	useIsolatedRepoStorage(t)
+
+	h := hub.NewHub()
+	handler, err := hub.NewCommandHandler(h)
+	if err != nil {
+		t.Fatalf("command handler: %v", err)
+	}
+	h.CreateChannel("test-channel", "Test channel", "test-project")
+	testRepoPath := t.TempDir()
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"test-channel",
+		protocol.AgentInfo{ID: "user-123", Name: "TestUser", Type: protocol.AgentTypeGeneral},
+		fmt.Sprintf("/create-repo-agent %s MyExpert ollama --model llama3.1", testRepoPath),
+	)
+	ctx := context.Background()
+	if _, err := handler.ProcessCommand(ctx, msg); err != nil {
+		t.Fatalf("ProcessCommand: %v", err)
+	}
+
+	wantName := protocol.NormalizeAgentName("MyExpert")
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, a := range h.ListAgents() {
+			if a.Type == protocol.AgentTypeRepo && a.Name == wantName {
+				if strings.HasSuffix(a.Name, "-ollama") {
+					t.Fatalf("agent name should not end with -ollama, got %q", a.Name)
+				}
+				if a.IndexingStatus != string(protocol.IndexingStatusReady) {
+					break
+				}
+				return
+			}
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("expected repo agent %q to be registered and ready", wantName)
 }
 
 func TestSwitchProviderUpdatesRuntimeAgent(t *testing.T) {

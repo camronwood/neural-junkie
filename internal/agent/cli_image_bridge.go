@@ -19,12 +19,9 @@ func (a *Agent) isCLIAgent() bool {
 }
 
 // resolveCLIWorkDir returns the subprocess working directory for CLI agents.
+// Priority: explicit WorkDirEnv override, then message/collaboration workspace,
+// then the provider default from hub startup, then process cwd.
 func (a *Agent) resolveCLIWorkDir(msg *protocol.Message) string {
-	if p, ok := a.GetAIProvider().(*ai.CLIAgentProvider); ok {
-		if wd := strings.TrimSpace(p.WorkDir); wd != "" {
-			return wd
-		}
-	}
 	provider := strings.ToLower(strings.TrimSpace(a.Info.AIProvider))
 	for _, cfg := range cliAgentRegistry {
 		if cfg.ProviderName == provider && cfg.WorkDirEnv != "" {
@@ -36,8 +33,40 @@ func (a *Agent) resolveCLIWorkDir(msg *protocol.Message) string {
 	if ws := a.resolveWorkspacePath(msg); ws != "" {
 		return ws
 	}
+	if p, ok := a.GetAIProvider().(*ai.CLIAgentProvider); ok {
+		if wd := strings.TrimSpace(p.WorkDir); wd != "" {
+			return wd
+		}
+	}
 	wd, _ := os.Getwd()
 	return wd
+}
+
+// prepareCLIInvocation applies per-message workdir and approval mode before a CLI subprocess runs.
+func (a *Agent) prepareCLIInvocation(msg *protocol.Message) {
+	if !a.isCLIAgent() {
+		return
+	}
+	p, ok := a.GetAIProvider().(*ai.CLIAgentProvider)
+	if !ok {
+		return
+	}
+	if wd := a.resolveCLIWorkDir(msg); wd != "" {
+		p.WorkDir = wd
+	}
+	mode := strings.TrimSpace(a.Info.ApprovalMode)
+	if mode == "" {
+		provider := strings.ToLower(strings.TrimSpace(a.Info.AIProvider))
+		for _, cfg := range cliAgentRegistry {
+			if cfg.ProviderName == provider && strings.TrimSpace(cfg.ApprovalMode) != "" {
+				mode = cfg.ApprovalMode
+				break
+			}
+		}
+	}
+	if mode != "" {
+		p.ApprovalMode = mode
+	}
 }
 
 func extensionForImageMIME(mime string) string {

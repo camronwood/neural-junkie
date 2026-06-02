@@ -1,0 +1,50 @@
+{
+  "name": "plan-findings-task-regression",
+  "description": "Plan parser must keep 'Document findings in collabs/<id>/findings.md' as a real task (4ea36409 regression).",
+  "channel": "collab-scenarios",
+  "agents": "@Assistant @BackendEngineer @SoftwareArchitect",
+  "required_agents": ["Assistant", "BackendEngineer", "SoftwareArchitect"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "6"],
+    "goal": "@Assistant @BackendEngineer @SoftwareArchitect Plan 4–5 tasks for API schema documentation under collabs/<id>/. MUST include these exact deliverables: Task 1 @BackendEngineer Write collabs/<id>/api_schema.md; Task 2 @SoftwareArchitect Write collabs/<id>/standards.md; Task 3 @Assistant Write collabs/<id>/summary.md; Task 4 Document findings in collabs/<id>/findings.md (any assignee). Use - Task N: @Agent - description format only for real tasks."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_discussion",
+      "min_total": 2,
+      "min_per_agent": 1,
+      "required_agents": ["Assistant", "BackendEngineer", "SoftwareArchitect"],
+      "timeout": "180s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 3,
+      "max_tasks": 6,
+      "tasks_have_assignee": true,
+      "tasks_have_file_deliverable": true,
+      "min_file_tasks": 3,
+      "content_any_match": ["findings\\.md", "api_schema|standards|summary"],
+      "task_none_match": ["depends on task 2", "can be started independently"],
+      "title_none_match": ["depends on task", "can be started"]
+    },
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {"action": "assert_collab", "phase": "executing", "source_repo_path_nonempty": true},
+    {
+      "action": "assert_plan",
+      "min_tasks": 3,
+      "max_tasks": 6,
+      "task_none_match": ["depends on task 2", "can be started independently"]
+    }
+  ],
+  "cleanup": "cancel"
+}

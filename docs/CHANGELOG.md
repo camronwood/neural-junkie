@@ -6,6 +6,11 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Added
+- **Slack personal inbox** — DM the NJ bot from Slack mobile; messages route to a private hub channel and your chosen agent. OAuth captures the installing user as owner.
+- **Slack selective forwarding** — Optional rules: `@mention of me` in watched channels, `nj:` prefix, or reaction emoji. Forwarded messages get agent replies in the **original Slack thread**; direct DMs reply in the bot DM thread.
+- **Slack human DM away mode (opt-in)** — Separate user OAuth token reads your 1:1 Slack DMs while away (manual toggle or outside work hours). Agent replies in the same DM thread with a labeled prefix (`Assistant (for you): …`) via the user token. Distinct from bot personal inbox and note-to-self.
+
 ### Context model v2
 
 - **Conversation Context Stack** — documented in [CONTEXT_MODEL.md](CONTEXT_MODEL.md): mode → intent → memory → grounding → persona → budget pipeline.

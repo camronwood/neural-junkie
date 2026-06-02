@@ -128,25 +128,47 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
    - `chat:write.customize`
    - `users:read`
    - `channels:read` + `groups:read` (enables channel picker in Settings)
-5. **OAuth & Permissions** → Redirect URLs (loopback):
+   - `im:history` (personal inbox — read DMs with the bot)
+   - `reactions:read` (reaction forwarding)
+5. **OAuth & Permissions** → **User Token Scopes** (human DM away mode only — separate authorize step in Settings):
+   - `im:history`
+   - `im:read`
+   - `chat:write`
+   - `users:read`
+6. **OAuth & Permissions** → Redirect URLs (loopback):
    - `http://localhost:18765/api/slack/oauth/callback`
+   - `http://localhost:18765/api/slack/oauth/user-dm/callback`
    - Add `http://127.0.0.1:<port>/api/slack/oauth/callback` if you use a non-default hub port
-6. **Event Subscriptions** → **Enable Events** (required for **inbound**; Socket Mode does not auto-subscribe):
+7. **Event Subscriptions** → **Enable Events** (required for **inbound**; Socket Mode does not auto-subscribe):
    - Under **Subscribe to bot events**, add:
      - `message.channels` — public channels
      - **`message.groups`** — **private channels** (e.g. `#neural-junkie`)
+     - **`message.im`** — **DMs with the bot** (personal inbox)
      - `app_mention` — when users @the bot
+     - `reaction_added` — when you react to forward a message (optional)
    - Save changes. If you added new bot scopes, **reinstall the app** to the workspace.
-7. Invite the bot to channels you want to bind (`/invite @YourBot`).
+8. Invite the bot to channels you want to bind (`/invite @YourBot`).
 
-**Outbound works but nothing appears in NJ?** Almost always missing step 6 (`message.groups` for private channels) or wrong `C…` in the binding. Run `GET /api/slack/diagnose` or `./scripts/slack-dev-test.sh diagnose`.
+**Personal inbox:** After Connect Slack, open **Settings → Integrations → Slack → Personal inbox**, pick an agent, and DM the bot from Slack mobile. No channel binding required for DMs.
+
+**Bot DM vs human DM vs note-to-self:**
+
+| Scenario | Who reads it | How NJ replies |
+|----------|--------------|----------------|
+| You DM **@Neural Junkie** (the bot) | Bot token (`xoxb`) | In your bot DM thread |
+| Someone DMs **you** while you're away | User token (`xoxp`, opt-in) | In that human DM timeline with `Assistant (for …):` prefix |
+| **Note-to-self** (Slack “You”) | Not supported in v1 | — |
+
+**Outbound works but nothing appears in NJ?** Almost always missing step 7 (`message.groups` for private channels) or wrong `C…` in the binding. Run `GET /api/slack/diagnose` or `./scripts/slack-dev-test.sh diagnose`.
 
 ### Release checklist (Slack console)
 
 - [ ] Socket Mode on; app token scope `connections:write`
 - [ ] Redirect URL `http://localhost:18765/api/slack/oauth/callback` (and custom port if documented)
-- [ ] Bot scopes listed in step 4 above
-- [ ] Event subscriptions: `message.channels`, `message.groups`, `app_mention`
+- [ ] Bot scopes listed in step 4 above (including `im:history`, `reactions:read`)
+- [ ] User token scopes listed in step 5 (human DM away mode)
+- [ ] Redirect URLs include `/api/slack/oauth/user-dm/callback`
+- [ ] Event subscriptions: `message.channels`, `message.groups`, `message.im`, `app_mention`, `reaction_added`
 - [ ] Reinstall app to workspace after scope changes
 - [ ] `vendor/oauth.json` generated locally; `go build -tags slackvendor` for release artifacts
 - [ ] GitHub Actions secrets `SLACK_VENDOR_*` set; release workflow builds with `-tags slackvendor`
@@ -174,7 +196,50 @@ Environment overrides:
 - `NEURAL_JUNKIE_SLACK_DISPLAY_NAME`
 - `NEURAL_JUNKIE_SLACK_CLIENT_ID` / `NEURAL_JUNKIE_SLACK_CLIENT_SECRET` (dev without bundled build)
 
-Install metadata after OAuth: `~/.neural-junkie/slack/install.json` (`team_id`, `team_name`, `bot_user_id`). **Disconnect** clears the bot token and install metadata but keeps the bundled app token in config.
+Install metadata after OAuth: `~/.neural-junkie/slack/install.json` (`team_id`, `team_name`, `bot_user_id`, `owner_slack_user_id`). **Disconnect** clears the bot token and install metadata but keeps the bundled app token in config.
+
+## Personal inbox
+
+Config lives in `~/.neural-junkie/slack/inbox.json`. The OAuth installer becomes the **owner**; only their Slack user ID can use the personal DM inbox.
+
+| Inbound source | NJ hub channel | Agent reply in Slack |
+|----------------|----------------|----------------------|
+| DM with bot | `slack:inbox:U…` | Owner bot DM thread |
+| Human DM (away mode) | `slack:inbox:U…` | **Peer's IM channel** (user token, labeled prefix, main timeline) |
+| Forwarded channel message | `slack:inbox:U…` | **Source channel/thread** |
+| Channel binding (below) | `slack:C…` | Binding channel (unchanged) |
+
+**Forwarding rules** (optional, in inbox config):
+
+| Rule | Trigger |
+|------|---------|
+| `mention_of_me` | Someone `@mentions` you in watched channels |
+| `prefix` | Line starts with `nj:` (default) in any channel the bot is in |
+| `reaction` | You add the configured emoji (default `robot_face`) |
+
+If a channel has **both** a channel binding and a forward rule, the **binding wins** (no double-processing).
+
+Enable via **Settings → Integrations → Slack → Personal inbox** or `PUT /api/slack/inbox`.
+
+### Human DM away mode (opt-in)
+
+When you're away, NJ can monitor **human-to-human** 1:1 DMs using a **separate user OAuth token** stored encrypted at `~/.neural-junkie/slack/user_token.json`. This is independent of the bot personal inbox.
+
+**Activation** (all required):
+
+1. Personal inbox enabled with an agent
+2. **Human DM away mode** enabled in Settings
+3. **Authorize Slack DM access** (user OAuth)
+4. Either **I'm away now** is on, **or** **Schedule** is on and current time is **outside** configured work hours (default Mon–Fri 9am–5pm in your timezone)
+
+Replies post in the same IM as a normal message: `Assistant (for {your name}): {agent text}` (prefix configurable in inbox config). Human DMs do not use Slack threads; bot inbox and channel forwards may still reply in-thread when enabled.
+
+**Privacy:** The user token never leaves the hub; the desktop only sees `user_token_set: true/false`. Disconnect Slack or disable the feature to clear the token.
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/slack/oauth/user-dm/start` | GET | User DM OAuth (`?json=1` returns URL) |
+| `/api/slack/oauth/user-dm/callback` | GET | User DM OAuth callback |
 
 ## Channel bindings
 
@@ -206,6 +271,10 @@ Repo, CLI, and MCP-enabled specialists can be assigned. Tool and file-change **a
 | `/api/slack/disconnect` | POST | Stop bridge, clear bot token (keeps app token) |
 | `/api/slack/restart` | POST | Restart bridge after config change |
 | `/api/slack/channels` | GET | List Slack channels the bot is in |
+| `/api/slack/inbox` | GET/PUT | Personal inbox config, forward rules, human DM away |
+| `/api/slack/inbox/test-dm` | POST | Test message to owner bot DM |
+| `/api/slack/oauth/user-dm/start` | GET | User DM away OAuth (`?json=1` returns URL) |
+| `/api/slack/oauth/user-dm/callback` | GET | User DM away OAuth callback |
 | `/api/slack/diagnose` | GET | Troubleshooting hints |
 
 ## Related

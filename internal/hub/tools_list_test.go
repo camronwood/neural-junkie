@@ -84,3 +84,48 @@ func TestListChannelToolCapabilitiesSkipsModerator(t *testing.T) {
 		}
 	}
 }
+
+func TestListChannelToolCapabilitiesResolvesDMAgentWithoutJoin(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.Enabled = true
+	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Packs.Enabled[config.PackLifeSciences] = true
+	cfg.SyncAgentsFromPacks()
+	mcp.SetAppConfig(cfg)
+
+	h := NewHub()
+	ch, err := NewCommandHandler(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bioMCP, err := biologymcp.NewBiologyMCP()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ollama := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
+	bioAgent := agent.NewBiologyAgent("BiologyExpert", ollama, h)
+	bioAgent.MCPServer = bioMCP
+	bioAgent.Info.ID = "bio-dm-id"
+	ch.runtimeAgents[bioAgent.Info.ID] = bioAgent
+	if err := h.RegisterAgent(&bioAgent.Info); err != nil {
+		t.Fatal(err)
+	}
+
+	dmName := "dm-camron-biologyexpert"
+	h.CreateChannelWithType(dmName, "Direct message with BiologyExpert", "", protocol.ChannelTypeDM, "camron")
+	// Intentionally do not AddAgentToChannel — simulates hub restart before re-join.
+
+	resp, err := ch.ListChannelToolCapabilities(dmName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Agents) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(resp.Agents))
+	}
+	if resp.Agents[0].ToolCount == 0 {
+		t.Fatalf("expected biology tools, got %+v", resp.Agents[0])
+	}
+}

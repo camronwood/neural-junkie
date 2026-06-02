@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-CREDS="${ROOT}/scripts/.slack-creds"
+SANDBOX="$(cd "${ROOT}/../sandbox" 2>/dev/null && pwd)"
+CREDS="${SLACK_CREDS:-${SANDBOX}/scripts/.slack-creds}"
 REPO="${GITHUB_REPO:-camronwood/neural-junkie}"
 
 if [[ ! -f "$CREDS" ]]; then
@@ -29,9 +30,9 @@ def grab(label, pattern):
 
 grab("client_id", r"Client\s*ID[:\s]+(\S+)")
 grab("client_secret", r"Client\s*Secret[:\s]+(\S+)")
-grab("app_token", r"(?:slack\s*)?app\s*token[:\s]+(xapp-\S+)",)
+grab("app_token", r"NJ app token:\s*\n(xapp-\S+)",)
 if "app_token" not in fields:
-    grab("app_token", r"(xapp-\S+)")
+    grab("app_token", r"(?:slack\s*)?app\s*token[:\s]+(xapp-\S+)",)
 
 missing = [k for k in ("client_id", "client_secret", "app_token") if k not in fields]
 if missing:

@@ -66,7 +66,7 @@ func (fcm *FileChangeManager) ProposeFileChange(operation FileOperation, filePat
 		OldPath:     oldPath,
 		NewPath:     newPath,
 		OldContent:  oldContent,
-		NewContent:  newContent,
+		NewContent:  SanitizeFileChangeContent(newContent),
 		Agent:       agent,
 		Channel:     channel,
 		Status:      FileChangeStatusPending,
