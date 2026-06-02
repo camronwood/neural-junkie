@@ -82,6 +82,7 @@ import type { LoraTrainPrefill } from './LoraTrainingPanel';
 import { LeftSidebarIcon, RightSidebarIcon } from './Icons';
 import { ChatToolbarActions } from './ChatToolbarActions';
 import { ChatToolbarSidebar } from './ChatToolbarSidebar';
+import { ChatFindBar } from './ChatFindBar';
 import type {
   AssistantReminder,
   AssistantTask,
@@ -114,6 +115,7 @@ import { getHubBaseURL } from '../config/hubUrl';
 import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
+import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
   buildIdeDispatchPayload,
@@ -212,10 +214,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const devPackEnabled = hasIdeV2;
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
+  const mainContentRef = useRef<HTMLDivElement>(null);
   const mainChatResize = useHorizontalPanelResize({
     storageKey: 'main-chat-panel-width',
     defaultWidth: 420,
     minWidth: 260,
+    maxWidthRatio: 0.9,
+    getMaxWidth: () => {
+      const el = mainContentRef.current;
+      if (!el) return window.innerWidth * 0.9;
+      return Math.max(260, el.clientWidth - 320);
+    },
     edge: 'left',
   });
   const fetchPacks = usePacksStore((s) => s.fetchPacks);
@@ -367,6 +376,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
   const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
+  const [chatFindOpen, setChatFindOpen] = useState(false);
   const [hubAccessPending, setHubAccessPending] = useState<{
     mode: 'main' | 'thread';
     threadId?: string;
@@ -523,6 +533,20 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // ⌘F / Ctrl+F — in-chat find (Monaco keeps its own find when editor focused)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest('.monaco-editor')) return;
+        e.preventDefault();
+        setChatFindOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   
   const api = useMemo(() => new ChatAPI(serverAddr), [serverAddr]);
   const hubHttp = useMemo(
@@ -539,17 +563,36 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     loadLayoutSettings();
   }, [loadLayoutSettings]);
 
-  // Apply layout settings when they change (including initial mount and real-time updates)
+  // Apply layout settings when specific panel keys change (not whole object — avoids chat toggle resetting files/editor).
   useEffect(() => {
     if (layoutSettings) {
-      // Apply panel visibility from settings
       setFileExplorerOpen(layoutSettings.filesPanelVisible);
+    }
+  }, [layoutSettings?.filesPanelVisible]);
+
+  useEffect(() => {
+    if (layoutSettings) {
       setCodeEditorOpen(layoutSettings.editorPanelVisible);
+    }
+  }, [layoutSettings?.editorPanelVisible]);
+
+  useEffect(() => {
+    if (layoutSettings) {
       setPanelOpen(layoutSettings.terminalPanelVisible);
+    }
+  }, [layoutSettings?.terminalPanelVisible, setPanelOpen]);
+
+  useEffect(() => {
+    if (layoutSettings) {
       setMyAgentsPanelOpen(layoutSettings.myAgentsPanelVisible);
+    }
+  }, [layoutSettings?.myAgentsPanelVisible, setMyAgentsPanelOpen]);
+
+  useEffect(() => {
+    if (layoutSettings) {
       setPendingChangesOpen(layoutSettings.pendingChangesPanelVisible);
     }
-  }, [layoutSettings, setPanelOpen, setMyAgentsPanelOpen, setPendingChangesOpen]);
+  }, [layoutSettings?.pendingChangesPanelVisible, setPendingChangesOpen]);
 
   // Load agents function
   const loadAgents = useCallback(async () => {
@@ -849,7 +892,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       addToast({ type: 'error', title: 'No agents', message: 'Add at least one active agent before creating a runbook.' });
       return;
     }
-    const picked = pool.slice(0, Math.min(4, pool.length));
+    const currentChannel = channels.find((c) => c.name === channel);
+    const channelAgentIds = new Set(
+      currentChannel?.agents?.map((a) => a.id) ?? currentChannel?.members ?? []
+    );
+    const channelPool = pool.filter((a) => channelAgentIds.has(a.id));
+    const pickFrom = channelPool.length > 0 ? channelPool : pool;
+    const picked = pickFrom.slice(0, Math.min(MAX_COLLAB_AGENTS, pickFrom.length));
     try {
       const result = await api.createRunbook({
         description: 'New runbook',
@@ -874,7 +923,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         message: e instanceof Error ? e.message : String(e),
       });
     }
-  }, [agents, api, channel, username, addToast, loadCollaborations, handleSwitchChannel]);
+  }, [agents, api, channel, channels, username, addToast, loadCollaborations, handleSwitchChannel]);
 
   // Create a custom channel
   const handleCreateChannel = useCallback(async (name: string, description: string, agentIds: string[]) => {
@@ -1877,8 +1926,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       },
       workspaceContextButtonTitle: `Workspace context: ${workspaceContextModeLabel(workspaceContextMode)} (click to cycle). Next send: ${contextScopePreview.scope}`,
       onOpenPendingChanges: () => setPendingChangesOpen(true),
-      onOpenFileExplorer: () => setFileExplorerOpen(true),
-      onOpenCodeEditor: () => setCodeEditorOpen(true),
+      onOpenFileExplorer: () => {
+        setFileExplorerOpen(true);
+        void updateLayoutSettings({ filesPanelVisible: true });
+      },
+      onOpenCodeEditor: () => {
+        setCodeEditorOpen(true);
+        void updateLayoutSettings({ editorPanelVisible: true });
+      },
       taskManagementOpen,
       onToggleTaskManagement: () => setTaskManagementOpen((o) => !o),
       onNewRunbook: () => void handleNewRunbook(),
@@ -1971,14 +2026,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             <div className={`w-1.5 h-1.5 rounded-full ${getStatusColor()}`} />
             <span className="text-slack-textMuted">{getStatusText()}</span>
           </div>
-          <input
-            type="search"
-            value={messageSearchQuery}
-            onChange={(e) => setMessageSearchQuery(e.target.value)}
-            placeholder="Search chat…"
-            aria-label="Search messages in this channel"
-            className="ml-2 w-44 sm:w-56 rounded-md border border-slack-border bg-slack-bg px-2 py-1 text-xs text-slack-text placeholder:text-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
-          />
         </div>
         
         <div className="flex items-center gap-1.5 shrink-0" aria-label="Sidebar toggles">
@@ -2022,7 +2069,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-1 min-w-0 overflow-hidden" data-testid="chat-main-content-row">
+        <div ref={mainContentRef} className="flex flex-1 min-w-0 overflow-hidden" data-testid="chat-main-inner-column">
         {/* Channel Sidebar */}
         {channelSidebarOpen && (
           <ChannelSidebar
@@ -2127,6 +2175,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           )}
 
         {/* Messages */}
+        {chatFindOpen && (
+          <ChatFindBar
+            query={messageSearchQuery}
+            onQueryChange={setMessageSearchQuery}
+            onClose={() => {
+              setChatFindOpen(false);
+              setMessageSearchQuery('');
+            }}
+          />
+        )}
         <MessageList key={channel} searchQuery={messageSearchQuery} />
 
         <div className="flex-shrink-0">
@@ -2371,8 +2429,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
+        </div>
+
         {useSidebarChips && (
-          <ChatToolbarSidebar open={toolbarSidebarOpen}>
+          <ChatToolbarSidebar open={toolbarSidebarOpen} className="self-stretch h-full">
             <ChatToolbarActions layout="vertical" {...toolbarActionsProps} />
           </ChatToolbarSidebar>
         )}

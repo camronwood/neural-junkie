@@ -38,12 +38,23 @@ const GENERAL_RE =
 const SCAN_TOOL_RE =
   /\b(summarize_scan_summary|summarize_scan_analysis|scan summary|scan analysis|plate (viewer|qc|assay)|imageMetadata\.json|results\.json)\b/i;
 
+/** User asks whether the agent can see their workspace / open project. */
+const WORKSPACE_VISIBILITY_RE =
+  /\b(can you see|do you see|are you able to see).{0,48}(workspace|project|repo|codebase|files?\s+open|what i have open)\b/i;
+
 function hasScanToolSignals(text: string): boolean {
   return SCAN_TOOL_RE.test(text);
 }
 
 export function messageRequestsScanTool(text: string): boolean {
   return hasScanToolSignals(text);
+}
+
+export function messageAsksWorkspaceVisibility(text: string): boolean {
+  const t = (text ?? '').trim();
+  if (!t) return false;
+  if (WORKSPACE_VISIBILITY_RE.test(t)) return true;
+  return /\bsee my (workspace|project|repo|codebase)\b/i.test(t);
 }
 
 export function messageReferencesOpenEditor(text: string): boolean {
@@ -142,6 +153,12 @@ export function resolveContextScope(input: InferContextScopeInput): InferContext
   }
   if (hasOutlineSignals(text)) {
     return { scope: 'outline', reason: 'structure or architecture question' };
+  }
+  if (messageAsksWorkspaceVisibility(text)) {
+    if (input.activeTabPath) {
+      return { scope: 'focus', reason: 'workspace visibility question with open tab' };
+    }
+    return { scope: 'outline', reason: 'workspace visibility question' };
   }
   if (hasGeneralSignals(text) || text.length < 12) {
     return { scope: 'none', reason: 'general or short message' };

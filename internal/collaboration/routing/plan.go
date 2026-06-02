@@ -3,6 +3,7 @@ package routing
 import (
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/config"
 )
 
@@ -80,7 +81,7 @@ func PlanTask(in PlanInput) PlanResult {
 		}
 	}
 
-	if LooksLightweightCollabTask(in.TaskText) {
+	if !keepAgentModelForCollabTask(in.TaskText) && LooksLightweightCollabTask(in.TaskText) {
 		tag, reason := SelectLightOllamaTag(in.InstalledOllamaTags)
 		if tag != "" {
 			return PlanResult{
@@ -92,12 +93,32 @@ func PlanTask(in PlanInput) PlanResult {
 		}
 	}
 
+	modelReason := "agent_default_model"
+	if keepAgentModelForCollabTask(in.TaskText) && LooksLightweightCollabTask(in.TaskText) {
+		modelReason = "deliverable_task_keep_agent_model"
+	}
 	return PlanResult{
 		ProviderID:     providerID,
 		ProviderReason: providerReason,
 		OllamaModel:    strings.TrimSpace(in.AgentModel),
-		ModelReason:    "agent_default_model",
+		ModelReason:    modelReason,
 	}
+}
+
+// keepAgentModelForCollabTask skips light local model downgrades for tasks that need full agent quality.
+func keepAgentModelForCollabTask(taskText string) bool {
+	taskText = strings.TrimSpace(taskText)
+	if taskText == "" {
+		return false
+	}
+	task := collaboration.CollaborationTask{Title: taskText, Description: taskText}
+	if collaboration.TaskRequiresFileDeliverable(task) {
+		return true
+	}
+	if synthesisKeywords(strings.ToLower(taskText)) {
+		return true
+	}
+	return false
 }
 
 // ExpectedModel returns the model label to show for a planned route.

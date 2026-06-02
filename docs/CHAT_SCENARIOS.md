@@ -2,48 +2,82 @@
 
 General **1:1 / channel chat** regression harness — separate from collaboration scenarios in [COLLABORATION.md](COLLABORATION.md). Tests multi-turn conversation quality with real agents (not mocks).
 
-**CI (Layer A):** `internal/agent/chat_quality_router_test.go` — table-driven router tests (intent, mode, closure, tooling, history caps). Runs via `make test-go`.
+## Two layers
 
-**Local (Layer B):** JSON scenarios under `scenarios/chat/` driven by `scripts/chat-scenarios.py`.
+| Layer | What | When |
+|-------|------|------|
+| **A — CI** | `internal/agent/chat_quality_router_test.go`, `chat_quality_coverage_test.go`, shortcut/echo unit tests | `make test-go` (every commit) |
+| **B — Live** | JSON under `scenarios/chat/` + `scripts/chat-scenarios.py` | Local / pre-release with hub + Ollama |
+
+Layer A catches **routing** (intent, mode, closure, history caps, workspace visibility classification, scan shortcut heuristics, deterministic reply helpers).
+
+Layer B catches **multi-turn behavior** (echo, workspace visibility answers, fake package hallucinations, tool dumps on greetings).
 
 ## Prerequisites
 
 - Hub running: `make server` or `make gui`
-- **Assistant** (or agents named in scenario `required_agents`) online and not paused
+- Agents in each scenario's `required_agents` online and not paused
 - Models configured (e.g. Ollama) for agents that use local LLMs
-- Optional: `NEURAL_JUNKIE_DEBUG=1` on the hub for `assert_debug_context` steps (`task-flip-review`)
-- For sweeps: **start the hub** with `NEURAL_JUNKIE_RATE_LIMIT=0` (e.g. `NEURAL_JUNKIE_RATE_LIMIT=0 make server`). The Makefile only sets this on the scenario client, not on a already-running hub.
+- Optional: `NEURAL_JUNKIE_DEBUG=1` on the hub for `assert_debug_context` steps
+- For sweeps: start the hub with `NEURAL_JUNKIE_RATE_LIMIT=0`. The Makefile sets this on the scenario client only.
 
 ## Commands
 
 ```bash
-# List scenarios
+# List scenarios (name + tags)
+make chat-scenarios-list
 python3 scripts/chat-scenarios.py --list
+python3 scripts/chat-scenarios.py --list --tag dm --tag regression
 
 # One scenario
-make chat-scenario SCENARIO=greeting-chat-mode
+make chat-scenario SCENARIO=dm-backend-workspace VERBOSE=1
 
-# All chat scenarios
+# All scenarios
 make chat-scenarios
 
-# Keep history for inspection
-make chat-scenario SCENARIO=thanks-closure KEEP=1 VERBOSE=1
+# Filter by tag (scenario must include ALL listed tags)
+make chat-scenarios-dm
+make chat-scenarios-regression
+NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag backend --tag workspace
 ```
 
-Environment:
+Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 
-- `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
+## Agent & channel coverage
 
-## Scenarios
+| Scenario | Channel | Agent | Tags |
+|----------|---------|-------|------|
+| `greeting-chat-mode` | public | Assistant | public, assistant, greeting |
+| `thanks-closure` | public | Assistant | public, assistant, closure |
+| `already-said-closure` | public | Assistant | public, assistant, closure, regression |
+| `casual-opinion-chat` | public | Assistant | public, assistant, chat |
+| `task-flip-review` | public | Assistant | public, assistant, task |
+| `public-backend-theme-workspace` | public | BackendEngineer | public, backend, workspace, regression |
+| `dm-greeting` | DM | Assistant | dm, assistant, greeting |
+| `dm-backend-workspace` | DM | BackendEngineer | dm, backend, workspace, regression |
+| `dm-backend-echo-followup` | DM | BackendEngineer | dm, backend, echo, regression |
+| `dm-frontend-greeting` | DM | FrontendEngineer | dm, frontend, greeting |
+| `dm-frontend-code-task` | DM | FrontendEngineer | dm, frontend, task |
+| `dm-security-review` | DM | SecurityReviewer | dm, security, task |
+| `dm-architect-outline` | DM | SoftwareArchitect | dm, architecture, substantive |
+| `dm-platform-greeting` | DM | PlatformEngineer | dm, devops, greeting |
+| `dm-database-greeting` | DM | DatabaseSpecialist | dm, database, greeting |
+| `dm-code-reviewer-task` | DM | CodeReviewer | dm, code-review, task |
+| `dm-biology-greeting` | DM | BiologyExpert | dm, biology, greeting, life-sciences *(optional)* |
 
-| Name | Channel | Purpose |
-|------|---------|---------|
-| `greeting-chat-mode` | public `chat-scenarios` | Chat mode hello; no MCP/tool dumps; reply length cap |
-| `thanks-closure` | public | Substantive Q → `ok thanks` → canned closure |
-| `already-said-closure` | public | “I know you said that already” → won't-repeat closure |
-| `casual-opinion-chat` | public | Chat mode opinion; no grounding/tool spam |
-| `task-flip-review` | public | Hello then `review …` with code mode; debug intent `task` |
-| `dm-greeting` | DM via API | Real DM channel; same structural checks as greeting |
+Scenarios marked `"optional": true` **skip** (exit 0) when required agents are offline (e.g. BiologyExpert without life-sciences pack).
+
+## Regression scenarios (run before release)
+
+These cover the conversation bugs we hit in production chat:
+
+- **`dm-backend-workspace`** / **`public-backend-theme-workspace`** — theme ask → “can you see my workspace?” must not return fake `golang.org/x/themes` / Gin advice
+- **`dm-backend-echo-followup`** — “What?” after a long reply must not quote the first user message
+- **`already-said-closure`** — “I know you said that already” → canned won't-repeat closure
+
+```bash
+make chat-scenarios-regression
+```
 
 ## Scenario JSON
 
@@ -51,35 +85,51 @@ Steps: `send`, `wait_reply`, `assert_messages`, `assert_reply_count`, `assert_de
 
 ```json
 {
-  "channel": "chat-scenarios",
-  "channel_type": "public",
-  "mention": "@Assistant",
-  "required_agents": ["Assistant"],
+  "name": "dm-backend-workspace",
+  "tags": ["dm", "backend", "workspace", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
   "steps": [
-    { "action": "send", "content": "hello", "metadata": { "conversation_mode": "chat" } },
-    { "action": "wait_reply", "from": "Assistant", "timeout": "90s" },
-    { "action": "assert_messages", "last_reply_only": true, "none_match": ["MCP"] }
+    {
+      "action": "send",
+      "content": "can you see my workspace I have open?",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "90s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "any_match": ["workspace context|file tree|Yes — I have"],
+      "none_match": ["golang.org/x/themes", "gin-gonic"]
+    }
   ],
   "cleanup": "clear"
 }
 ```
 
-DM scenarios use `"channel_type": "dm"`, `"dm_user": "ChatScenario"`, `"target_agent": "Assistant"` (no `channel` name — created via `/api/channels/create`).
+Public scenarios use `"channel": "chat-scenarios"`, `"mention": "@AgentName"`, and `ensure_channel_with_agents` to join agents.
 
-Public scenarios call `ensure_channel_with_agents`: the runner creates `chat-scenarios` (if needed) and **joins** each `required_agents` entry via `/api/channels/join` so in-process agents subscribe within ~2s.
+DM scenarios use `"channel_type": "dm"` — channel created via `/api/channels/create`.
+
+## Adding a scenario
+
+1. Copy a similar JSON from `scenarios/chat/`.
+2. Set `tags`, `target_agent`, `required_agents`, and assertions (`any_match` / `none_match`).
+3. Run `make chat-scenario SCENARIO=your-name VERBOSE=1`.
+4. Add a matching **Layer A** case in `chat_quality_router_test.go` or `chat_quality_coverage_test.go` if the bug was routing-related.
 
 ## Interpreting failures
 
-- The runner prints per-step pass/fail.
-- On failure, the last ~12 transcript lines are dumped to stderr.
-- Common issues:
-  - **Agent offline:** start hub with Assistant enabled; check `GET /api/agents`.
-  - **Timeout on wait_reply:** model slow or agent did not respond to mention; increase `timeout` or check logs.
-  - **assert_debug_context:** hub needs `NEURAL_JUNKIE_DEBUG=1`.
-  - **HTTP 429:** restart hub with `NEURAL_JUNKIE_RATE_LIMIT=0`.
+- Per-step ✓/✗ in stdout; last ~12 transcript lines on failure.
+- **Agent offline:** check `GET /api/agents`; optional scenarios skip instead of fail.
+- **Timeout:** increase `timeout` or check agent logs.
+- **assert_debug_context:** hub needs `NEURAL_JUNKIE_DEBUG=1`.
+- **HTTP 429:** restart hub with `NEURAL_JUNKIE_RATE_LIMIT=0`.
 
 ## Related
 
-- [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack (what Layer A asserts)
-- [COLLABORATION.md](COLLABORATION.md) — collab scenario harness (`scenarios/collab/`)
-- [LEARNING_LORA_TEST_HARNESS.md](LEARNING_LORA_TEST_HARNESS.md) — personal learning + LoRA scenarios (`scenarios/learning/`)
+- [CONTEXT_MODEL.md](CONTEXT_MODEL.md) — Conversation Context Stack (Layer A)
+- [COLLABORATION.md](COLLABORATION.md) — collab scenario harness
+- [marketing/CONVERSATIONAL-TEST-HARNESS.md](marketing/CONVERSATIONAL-TEST-HARNESS.md) — overview

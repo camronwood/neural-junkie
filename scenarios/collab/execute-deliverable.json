@@ -1,6 +1,6 @@
 {
   "name": "execute-deliverable",
-  "description": "Approve plan, ack workspace on fixture repo, hub-approve findings.md grounded in minimal-repo (main.go).",
+  "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo (main.go).",
   "channel": "collab-scenarios",
   "workspace": {
     "fixture": "minimal-repo",
@@ -31,15 +31,6 @@
       "deny_task_status_blocked": true,
       "deny_failed_command_output": true,
       "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
-    },
-    {
-      "action": "approve_file_changes",
-      "path_match": "findings.md",
-      "target_rel": "collabs/<collab-id>/findings.md",
-      "expect_path": "collabs/<collab-id>/findings.md",
-      "require_hub_approval": true,
-      "from_discussion_fallback": false,
-      "timeout": "120s"
     },
     {
       "action": "assert_files",

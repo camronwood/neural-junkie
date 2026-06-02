@@ -28,7 +28,8 @@ const (
 )
 
 const (
-	maxUserRulesMarkdownBytes = 32 * 1024
+	maxUserRulesMarkdownBytes   = 32 * 1024
+	compactUserRulesMarkdownBytes = 3 * 1024
 	// Total JSON size for prompt_attachments after marshal (approximate guard).
 	maxPromptAttachmentsBytes = 400 * 1024
 	maxPerAttachmentContent     = 120 * 1024
@@ -37,20 +38,27 @@ const (
 
 // AppendUserAndAgentRules writes global (message metadata) and per-agent markdown
 // into the system portion of a prompt, before ai.SystemPromptSeparator.
-func AppendUserAndAgentRules(system *strings.Builder, msg *protocol.Message, self *protocol.AgentInfo) {
-	if msg == nil || msg.Metadata == nil {
-		if self != nil && strings.TrimSpace(self.CustomRulesMarkdown) != "" {
-			writeAgentOnlyRules(system, self)
-		}
-		return
+// hubUserRulesFallback is used when metadata lacks user_rules_markdown.
+// maxUserRulesBytes caps global rules (0 = maxUserRulesMarkdownBytes).
+func AppendUserAndAgentRules(system *strings.Builder, msg *protocol.Message, self *protocol.AgentInfo, hubUserRulesFallback string, maxUserRulesBytes int) {
+	maxBytes := maxUserRulesMarkdownBytes
+	if maxUserRulesBytes > 0 {
+		maxBytes = maxUserRulesBytes
 	}
 
-	raw, ok := msg.Metadata[MetadataUserRulesMarkdown]
 	userRules := ""
-	if ok && raw != nil {
-		if s, ok := raw.(string); ok {
-			userRules = strings.TrimSpace(s)
+	if msg != nil && msg.Metadata != nil {
+		if raw, ok := msg.Metadata[MetadataUserRulesMarkdown]; ok && raw != nil {
+			if s, ok := raw.(string); ok {
+				userRules = strings.TrimSpace(s)
+			}
 		}
+	}
+	if userRules == "" {
+		userRules = strings.TrimSpace(hubUserRulesFallback)
+	}
+	if len(userRules) > maxBytes {
+		userRules = truncateStringBytes(userRules, maxBytes)
 	}
 
 	agentRules := ""
@@ -132,7 +140,7 @@ func AppendPromptAttachments(user *strings.Builder, msg *protocol.Message) {
 // PrependRulesAndAttachmentsForMonolithic prepends rules and attachments for agents that use a single prompt string.
 func PrependRulesAndAttachmentsForMonolithic(sb *strings.Builder, msg *protocol.Message, self *protocol.AgentInfo) {
 	var rules strings.Builder
-	AppendUserAndAgentRules(&rules, msg, self)
+	AppendUserAndAgentRules(&rules, msg, self, ResolveUserRulesHubFallback(msg), 0)
 	if rules.Len() > 0 {
 		sb.WriteString(rules.String())
 	}

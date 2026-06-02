@@ -35,6 +35,7 @@ func (a *Agent) buildCompactAssistantOllamaPrompt(msg *protocol.Message) string 
 	system.WriteString("Answer ONLY the user's latest message. ")
 	system.WriteString("Do not repeat or re-answer earlier questions from the conversation.\n")
 	system.WriteString("Meeting notes and emails are loaded when the user asks about meetings or email.\n")
+	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
 
 	var user strings.Builder
 	user.WriteString(strings.TrimSpace(msg.Content))

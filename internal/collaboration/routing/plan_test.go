@@ -64,6 +64,25 @@ func TestPlanTaskSecurityLoRA(t *testing.T) {
 	}
 }
 
+func TestPlanTaskFileDeliverableKeepsAgentDefault(t *testing.T) {
+	installed := map[string]struct{}{"qwen2.5:3b": {}}
+	got := PlanTask(PlanInput{
+		TaskText:            "Identify schema files in resource-api/ and Write collabs/abc123/schema.md defining the API schema",
+		AgentModel:          "qwen2.5:7b",
+		DefaultProviderID:   "ollama-local",
+		InstalledOllamaTags: installed,
+		Providers: []config.ProviderConfig{
+			{ID: "ollama-local", Type: "ollama"},
+		},
+	})
+	if got.OllamaModel != "qwen2.5:7b" {
+		t.Fatalf("model = %q, want agent default qwen2.5:7b", got.OllamaModel)
+	}
+	if got.ModelReason != "deliverable_task_keep_agent_model" {
+		t.Fatalf("model reason = %q, want deliverable_task_keep_agent_model", got.ModelReason)
+	}
+}
+
 func TestExpectedModelNonOllamaProvider(t *testing.T) {
 	providers := []config.ProviderConfig{
 		{ID: "claude-main", Type: "anthropic"},

@@ -8,7 +8,7 @@ import (
 )
 
 func TestMaybeUpdateTaskStatus_blocksCompletionWhenUpstreamOpen(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "upstream-guard"
 	_ = h.CreateChannel(chName, "test", "tester")
 

@@ -11,18 +11,20 @@ import {
   applyNodeChanges,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CollaborationTask } from '../../types/protocol';
 import {
   applyEdgeConnect,
   applyEdgeRemove,
   autoLayoutDagre,
   edgeIsActive,
+  effectiveDependencies,
   loadLayout,
   positionsFromNodes,
   saveLayout,
   tasksToFlow,
   validateDAG,
+  type GraphLayoutFromCollab,
   type RunbookTaskNodeData,
 } from '../../utils/runbookDAG';
 import { RunbookTaskNode } from './RunbookTaskNode';
@@ -34,6 +36,7 @@ interface RunbookGraphCanvasProps {
   tasks: CollaborationTask[];
   phase: string;
   editable: boolean;
+  serverLayout?: GraphLayoutFromCollab;
   onTasksChange: (tasks: CollaborationTask[]) => void;
   selectedTaskId: string | null;
   onSelectTask: (id: string | null) => void;
@@ -46,6 +49,7 @@ export function RunbookGraphCanvas({
   tasks,
   phase,
   editable,
+  serverLayout,
   onTasksChange,
   selectedTaskId,
   onSelectTask,
@@ -90,18 +94,30 @@ export function RunbookGraphCanvas({
     [tasks, phase, editable, selectedTaskId, taskById]
   );
 
-  const [layoutMap, setLayoutMap] = useState(() => loadLayout(collaborationId));
+  const [layoutMap, setLayoutMap] = useState(() => loadLayout(collaborationId, serverLayout));
   const initial = buildNodesEdges(layoutMap);
   const [nodes, setNodes] = useState<Node<RunbookTaskNodeData>[]>(initial.nodes);
   const [edges, setEdges] = useState<Edge[]>(initial.edges);
+  const autoLayoutAppliedRef = useRef(false);
 
   useEffect(() => {
-    const map = loadLayout(collaborationId);
+    autoLayoutAppliedRef.current = false;
+  }, [collaborationId]);
+
+  useEffect(() => {
+    let map = loadLayout(collaborationId, serverLayout);
+    const hasEdges = tasks.some((t) => effectiveDependencies(t).length > 0);
+    const hasSavedLayout = Object.keys(map).length > 0;
+    if (hasEdges && !hasSavedLayout && !autoLayoutAppliedRef.current) {
+      map = autoLayoutDagre(tasks, map);
+      saveLayout(collaborationId, map);
+      autoLayoutAppliedRef.current = true;
+    }
     setLayoutMap(map);
     const built = buildNodesEdges(map);
     setNodes(built.nodes);
     setEdges(built.edges);
-  }, [tasks, collaborationId, buildNodesEdges, layoutVersion]);
+  }, [tasks, collaborationId, serverLayout, buildNodesEdges, layoutVersion]);
 
   useEffect(() => {
     const v = validateDAG(tasks);

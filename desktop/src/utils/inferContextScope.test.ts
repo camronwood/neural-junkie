@@ -104,6 +104,22 @@ describe('resolveContextScope', () => {
     expect(r.scope).toBe('hint');
   });
 
+  it('workspace visibility returns outline or focus', () => {
+    const r = resolveContextScope({
+      message: 'can you see my workspace?',
+      mode: 'auto',
+      channelKind: 'dm',
+    });
+    expect(r.scope).toBe('outline');
+    const withTab = resolveContextScope({
+      message: 'can you see my workspace?',
+      mode: 'auto',
+      channelKind: 'dm',
+      activeTabPath: '/Users/me/proj/main.tsx',
+    });
+    expect(withTab.scope).toBe('focus');
+  });
+
   it('summarize_scan_analysis with open tab returns focus', () => {
     const r = resolveContextScope({
       message: 'use summarize_scan_analysis on the file I have open',

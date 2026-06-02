@@ -91,9 +91,21 @@ func (cm *CollaborationManager) createCollaborationCore(
 			agentIDSet[t.AssignedTo] = true
 		}
 	}
+	// Preserve agentIDs order (map iteration is nondeterministic and breaks round-robin).
 	allIDs := make([]string, 0, len(agentIDSet))
-	for id := range agentIDSet {
-		allIDs = append(allIDs, id)
+	seenID := make(map[string]bool, len(agentIDSet))
+	for _, id := range agentIDs {
+		if agentIDSet[id] && !seenID[id] {
+			seenID[id] = true
+			allIDs = append(allIDs, id)
+		}
+	}
+	for _, t := range opts.InitialTasks {
+		id := t.AssignedTo
+		if id != "" && agentIDSet[id] && !seenID[id] {
+			seenID[id] = true
+			allIDs = append(allIDs, id)
+		}
 	}
 	if len(allIDs) < 1 {
 		return nil, fmt.Errorf("at least 1 agent is required")

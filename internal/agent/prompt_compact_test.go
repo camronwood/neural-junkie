@@ -17,6 +17,9 @@ func TestLooksLikeOllamaPromptLeak(t *testing.T) {
 }
 
 func TestBuildCompactOllamaPrompt(t *testing.T) {
+	SetUserRulesLookup(func(string) string { return "Prefer short answers." })
+	t.Cleanup(func() { SetUserRulesLookup(nil) })
+
 	a := &Agent{
 		Info: protocol.AgentInfo{
 			Name:       "BiologyExpert",
@@ -36,5 +39,8 @@ func TestBuildCompactOllamaPrompt(t *testing.T) {
 	}
 	if strings.Contains(prompt, "WORKSPACE CONTEXT") {
 		t.Fatal("compact prompt should not include workspace context")
+	}
+	if !strings.Contains(prompt, "USER-CONFIGURED RULES") {
+		t.Fatal("compact prompt should include capped user rules")
 	}
 }

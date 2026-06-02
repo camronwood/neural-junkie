@@ -131,6 +131,7 @@ export function RunbookGraphModal({
             tasks={tasks}
             phase={collaboration.phase}
             editable={editable}
+            serverLayout={collaboration.graph_layout}
             onTasksChange={onTasksChange}
             selectedTaskId={selectedTaskId}
             onSelectTask={setSelectedTaskId}

@@ -721,6 +721,8 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	learning.MaybeSuggestAfterAgentReply(msg.Channel, a.Info.ID, a.Info.Name, string(a.Info.Type), msg.Content, response)
 	log.Printf("[%s] ✅ Response sent successfully!", a.Info.Name)
+	// Keep local history in sync with hub (own replies are ignored on Subscribe).
+	a.addToHistory(responseMsg)
 	a.MaybePostHubGeneratedImageForCLI(msg, responseHasImage)
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusCompleted)
 
@@ -1613,6 +1615,10 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 			return resp, nil
 		}
 	}
+	if resp, ok := a.tryWorkspaceVisibilityResponse(msg); ok {
+		log.Printf("[%s] Workspace visibility (no LLM): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, nil
+	}
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
@@ -1712,8 +1718,15 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 			return retry, nil
 		}
 	}
-
-	return response, nil
+	if looksLikeEchoOfPriorUserTurn(msg, response, history) {
+		retry, err2 := eff.GenerateResponse(approvalCtx, a.buildEchoRetryPrompt(msg), nil)
+		if err2 == nil && strings.TrimSpace(retry) != "" &&
+			!looksLikeEchoOfPriorUserTurn(msg, retry, nil) {
+			log.Printf("[%s] Prior-turn echo detected; used echo retry", a.Info.Name)
+			return retry, nil
+		}
+	}
+	return a.finalizeWorkspaceVisibilityReply(msg, response), nil
 }
 
 // generateResponseStreaming builds the same prompt as generateResponse but
@@ -1734,6 +1747,10 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			log.Printf("[%s] Conversational closure (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
 			return resp, "", "", nil
 		}
+	}
+	if resp, ok := a.tryWorkspaceVisibilityResponse(msg); ok {
+		log.Printf("[%s] Workspace visibility (no LLM stream): %q", a.Info.Name, truncateForLog(msg.Content, 60))
+		return resp, "", "", nil
 	}
 	if eff == nil {
 		eff = a.GetAIProvider()
@@ -1830,6 +1847,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if err != nil {
 			return "", "", "", err
 		}
+		text = a.finalizeWorkspaceVisibilityReply(msg, text)
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: text}
 		tokenCh <- ai.StreamToken{Done: true}
@@ -1885,6 +1903,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			log.Printf("[%s] Ollama reply looked like prompt/context echo; retrying", a.Info.Name)
 			continue
 		}
+		text = a.finalizeWorkspaceVisibilityReply(msg, text)
 		return text, id, reasoning, nil
 	}
 
@@ -2329,7 +2348,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 		}
 	}
 
-	AppendUserAndAgentRules(&system, msg, &a.Info)
+	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), 0)
 	userID := learning.SlugUserID(msg.From.Name)
 	if protocol.IsUserLikeSender(msg.From) {
 		userID = learning.SlugUserID(msg.From.Name)

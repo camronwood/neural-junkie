@@ -21,7 +21,7 @@
     {
       "type": "export_import_learnings",
       "min_added": 0,
-      "expect_skipped": 1
+      "min_skipped": 1
     }
   ]
 }

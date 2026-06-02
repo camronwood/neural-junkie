@@ -7,8 +7,18 @@ interface UseHorizontalPanelResizeOptions {
   defaultWidth: number;
   minWidth: number;
   maxWidthRatio?: number;
+  /** When set, overrides maxWidthRatio for clamp (e.g. container-based max). */
+  getMaxWidth?: () => number;
   /** Handle on left edge (panel on right) or right edge (panel on left). */
   edge: ResizeEdge;
+}
+
+function resolveMaxWidth(maxWidthRatio: number, getMaxWidth?: () => number): number {
+  if (getMaxWidth) {
+    const w = getMaxWidth();
+    if (Number.isFinite(w) && w > 0) return w;
+  }
+  return window.innerWidth * maxWidthRatio;
 }
 
 export function useHorizontalPanelResize({
@@ -16,13 +26,17 @@ export function useHorizontalPanelResize({
   defaultWidth,
   minWidth,
   maxWidthRatio = 0.65,
+  getMaxWidth,
   edge,
 }: UseHorizontalPanelResizeOptions) {
+  const getMaxWidthRef = useRef(getMaxWidth);
+  getMaxWidthRef.current = getMaxWidth;
+
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(storageKey);
     const parsed = saved ? parseInt(saved, 10) : defaultWidth;
     if (!Number.isFinite(parsed)) return defaultWidth;
-    const max = window.innerWidth * maxWidthRatio;
+    const max = resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current);
     if (parsed > max) return defaultWidth;
     return Math.max(minWidth, parsed);
   });
@@ -43,7 +57,7 @@ export function useHorizontalPanelResize({
         edge === 'left'
           ? resizeStartX.current - e.clientX
           : e.clientX - resizeStartX.current;
-      const max = window.innerWidth * maxWidthRatio;
+      const max = resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current);
       const next = Math.min(max, Math.max(minWidth, resizeStartWidth.current + delta));
       setWidth(next);
     };

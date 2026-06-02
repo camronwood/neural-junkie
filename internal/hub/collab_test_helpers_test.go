@@ -1,10 +1,22 @@
 package hub
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/testutil"
 )
+
+// newTestHub creates a hub with isolated home and collaboration assets directories.
+func newTestHub(t *testing.T) *Hub {
+	t.Helper()
+	home := testutil.IsolateNeuralJunkieHome(t)
+	assetsRoot := filepath.Join(home, "collaborations")
+	h := NewHub()
+	h.SetCollaborationAssetsRootResolver(func() string { return assetsRoot })
+	return h
+}
 
 // completePlanningRecapForHubTest marks planning recap complete so ApprovePlan succeeds in hub tests.
 func completePlanningRecapForHubTest(t *testing.T, cm *collaboration.CollaborationManager, collabID string) {

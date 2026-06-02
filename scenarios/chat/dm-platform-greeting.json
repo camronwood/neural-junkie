@@ -1,0 +1,25 @@
+{
+  "name": "dm-platform-greeting",
+  "description": "PlatformEngineer DM casual greeting.",
+  "tags": ["dm", "devops", "greeting"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "PlatformEngineer",
+  "required_agents": ["PlatformEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "hey",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "PlatformEngineer", "timeout": "90s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "PlatformEngineer",
+      "none_match": ["MCP", "terraform apply"],
+      "max_chars": 1200
+    }
+  ],
+  "cleanup": "clear"
+}

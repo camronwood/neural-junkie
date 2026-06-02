@@ -312,6 +312,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         console.error('Failed to save settings:', error);
       }
     }
+    if ('userRulesMarkdown' in partial) {
+      try {
+        const api = new ChatAPI();
+        await api.setUserRulesMarkdown(newSettings.userRulesMarkdown ?? '');
+      } catch (error) {
+        console.error('Failed to sync user rules to hub:', error);
+      }
+    }
   },
   
   resetSettings: async () => {

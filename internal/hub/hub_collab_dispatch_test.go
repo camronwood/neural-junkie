@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -216,7 +217,7 @@ func TestAgentMentionCreatesParticipantRequestWhenEnabled(t *testing.T) {
 }
 
 func TestDispatchCollabTaskMessagesSkipsWhenAlreadyDispatched(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "test-collab-skip"
 	_ = h.CreateChannel(chName, "collab", "test")
 
@@ -247,6 +248,48 @@ func TestDispatchCollabTaskMessagesSkipsWhenAlreadyDispatched(t *testing.T) {
 	}
 }
 
+func TestDispatchTaskIncludesCollaborationGoal(t *testing.T) {
+	h := newTestHub(t)
+	chName := "test-collab-goal"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeAssistant, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeArchitecture, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	goal := "Standardize resource API schema and write findings to collabs folder"
+	collab, err := cm.CreateCollaboration(goal, []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	now := time.Now()
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Write findings", Description: "Write collabs/test/findings.md", AssignedTo: "a1", AssignedName: "AgentA", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+	})
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
+	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
+
+	snap, _ := cm.GetCollaborationSnapshot(collab.ID)
+	h.dispatchReadyCollabTasks(snap, nil, false)
+
+	msgs, _ := h.GetMessages(chName, 50)
+	for _, m := range msgs {
+		if m == nil || m.Type != protocol.MessageTypeCollabTask {
+			continue
+		}
+		if !strings.Contains(m.Content, "Collaboration goal (original ask)") {
+			t.Fatalf("task prompt missing goal header: %s", m.Content)
+		}
+		if !strings.Contains(m.Content, goal) {
+			t.Fatalf("task prompt missing original goal text: %s", m.Content)
+		}
+		return
+	}
+	t.Fatal("expected collab_task message with collaboration goal")
+}
+
 func countMessageType(msgs []*protocol.Message, typ protocol.MessageType) int {
 	n := 0
 	for _, m := range msgs {
@@ -258,7 +301,7 @@ func countMessageType(msgs []*protocol.Message, typ protocol.MessageType) int {
 }
 
 func TestDispatchWaveDAGOnlyReadyTasks(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "test-collab-dag-wave"
 	_ = h.CreateChannel(chName, "collab", "test")
 
@@ -310,7 +353,7 @@ func TestDispatchWaveDAGOnlyReadyTasks(t *testing.T) {
 }
 
 func TestSendMessageTaskCompleteDispatchesDependentWave(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "test-collab-complete-wave"
 	_ = h.CreateChannel(chName, "collab", "test")
 
@@ -366,8 +409,56 @@ func TestSendMessageTaskCompleteDispatchesDependentWave(t *testing.T) {
 	}
 }
 
+func TestDispatchCollabTaskIncludesUserRulesMetadata(t *testing.T) {
+	h := newTestHub(t)
+	chName := "test-collab-user-rules"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	if err := h.SetUserRulesMarkdown("tester", "Always cite sources."); err != nil {
+		t.Fatal(err)
+	}
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("rules test", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	now := time.Now()
+	_ = cm.SetTasks(collab.ID, []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Task", Description: "Do work", AssignedTo: "a1", AssignedName: "AgentA", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+		{ID: "t2", Title: "Task B", Description: "Support", AssignedTo: "a2", AssignedName: "AgentB", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+	})
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
+	_, _, _ = cm.AcknowledgeWorkspace(collab.ID)
+
+	snap, _ := cm.GetCollaborationSnapshot(collab.ID)
+	h.dispatchReadyCollabTasks(snap, nil, false)
+
+	msgs, _ := h.GetMessages(chName, 50)
+	for _, m := range msgs {
+		if m == nil || m.Type != protocol.MessageTypeCollabTask {
+			continue
+		}
+		raw, ok := m.Metadata[agent.MetadataUserRulesMarkdown]
+		if !ok {
+			t.Fatal("expected user_rules_markdown on collab task message")
+		}
+		s, ok := raw.(string)
+		if !ok || s != "Always cite sources." {
+			t.Fatalf("unexpected rules metadata: %#v", raw)
+		}
+		return
+	}
+	t.Fatal("expected collab_task message with user rules metadata")
+}
+
 func TestDispatchHandoffIncludesUpstreamOutput(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "test-collab-handoff"
 	_ = h.CreateChannel(chName, "collab", "test")
 

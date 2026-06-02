@@ -5,6 +5,7 @@ import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { parseDMDisplayName } from '../utils/dmChannelDisplay';
+import { buildSidebarDMRows } from '../utils/sidebarDmRows';
 import { channelSidebarLabel, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
 import {
   agentSidebarHideKey,
@@ -194,7 +195,9 @@ export function ChannelSidebar({
     .filter(c => c.type === 'dm')
     .filter(c => !(settingsLoaded && isSidebarChannelDeleted(settings, c)))
     .filter(c => isDmChannelVisibleInSidebar(c, agents))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) =>
+      parseDMDisplayName(a).localeCompare(parseDMDisplayName(b), undefined, { sensitivity: 'base' })
+    );
 
   const collaborationChannelLabel = (ch: Channel): string => {
     const desc = (ch.description || '').trim();
@@ -259,14 +262,19 @@ export function ChannelSidebar({
         a.name.toLowerCase().includes(normalizedQuery) ||
         a.type.toLowerCase().includes(normalizedQuery)
       );
-    });
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+  const sidebarDMRows = buildSidebarDMRows(
+    filteredDMChannels,
+    sidebarAgentsVisible ? filteredAgentsWithoutDM : []
+  );
 
   const hasSearchResults =
     filteredPublicChannels.length > 0 ||
     filteredCustomChannels.length > 0 ||
     filteredCollaborationChannels.length > 0 ||
-    filteredDMChannels.length > 0 ||
-    (sidebarAgentsVisible && filteredAgentsWithoutDM.length > 0);
+    sidebarDMRows.length > 0;
 
   useEffect(() => {
     const onWindowResize = () => {
@@ -536,7 +544,6 @@ export function ChannelSidebar({
           {isHiddenShortcut && (
             <span className="text-[10px] uppercase text-white/50 shrink-0">hidden</span>
           )}
-          <span className="ml-auto text-xs opacity-50 shrink-0">{agent.type}</span>
         </button>
         <button
           type="button"
@@ -680,15 +687,13 @@ export function ChannelSidebar({
             </button>
           </div>
           <div className="space-y-0.5">
-            {/* Active DM channels first */}
-            {filteredDMChannels.map(ch => (
-              <DMItem key={ch.id} ch={ch} />
-            ))}
-
-            {sidebarAgentsVisible &&
-              filteredAgentsWithoutDM.map(agent => (
-                <AgentDMEntry key={agent.id} agent={agent} />
-              ))}
+            {sidebarDMRows.map((row) =>
+              row.kind === 'channel' ? (
+                <DMItem key={row.channel.id} ch={row.channel} />
+              ) : (
+                <AgentDMEntry key={row.agent.id} agent={row.agent} />
+              )
+            )}
           </div>
         </div>
 

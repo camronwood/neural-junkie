@@ -23,7 +23,7 @@ func (a *Agent) useCompactOllamaPrompt(msg *protocol.Message) bool {
 }
 
 // buildCompactOllamaPrompt builds a short system+user prompt for nj-bio and similar models.
-// Workspace context and long user rules are omitted — they blow past nj-bio's useful context window.
+// Workspace context is omitted; user rules are capped for small context windows.
 func (a *Agent) buildCompactOllamaPrompt(msg *protocol.Message) string {
 	var system strings.Builder
 	system.WriteString(fmt.Sprintf("You are %s, a life-sciences research assistant in Neural Junkie.\n", a.Info.Name))
@@ -36,6 +36,7 @@ func (a *Agent) buildCompactOllamaPrompt(msg *protocol.Message) string {
 		system.WriteString(typeInstructions)
 		system.WriteString("\n")
 	}
+	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
 
 	var user strings.Builder
 	user.WriteString(strings.TrimSpace(msg.Content))

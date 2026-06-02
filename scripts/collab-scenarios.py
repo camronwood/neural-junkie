@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -716,6 +717,80 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     return True
 
 
+def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
+    solo = scenario.get("solo_leg")
+    if not isinstance(solo, dict):
+        return True
+
+    ctx.workspace_root = ctx.resolve_workspace_root()
+    if not ctx.workspace_root:
+        print("  FAIL [solo]: no workspace root", file=sys.stderr)
+        return False
+
+    channel = (solo.get("channel") or f"{ctx.channel}-solo").strip()
+    if not hub.ensure_channel(ctx.base, channel, "Solo parity leg"):
+        print(f"  FAIL [solo]: could not ensure channel {channel!r}", file=sys.stderr)
+        return False
+
+    output_rel = (solo.get("output_rel") or "collabs/parity-solo/findings.md").strip()
+    message = (solo.get("message") or "").strip()
+    if not message:
+        print("  FAIL [solo]: empty message", file=sys.stderr)
+        return False
+
+    print(f"  solo leg: channel={channel} output={output_rel}")
+    meta = ctx.build_send_metadata()
+    code, _ = hub.send_message(ctx.base, channel, message, metadata=meta)
+    if code != 200:
+        print(f"  FAIL [solo]: send ({code})", file=sys.stderr)
+        return False
+
+    timeout = hub.parse_timeout(solo.get("timeout", "300s"))
+    min_bytes = int(solo.get("min_bytes", 40))
+    deadline = time.time() + timeout
+    full = Path(ctx.workspace_root) / output_rel
+    while time.time() < deadline:
+        if full.is_file() and full.stat().st_size >= min_bytes:
+            body = full.read_text(encoding="utf-8", errors="replace")
+            ok, detail = check_text_patterns(
+                body,
+                any_match=solo.get("any_match"),
+                none_match=solo.get("none_match"),
+                label="solo file",
+            )
+            if ok:
+                print(f"  ✓ solo leg: {full} ({detail})")
+                return True
+            print(f"  FAIL [solo]: {detail}", file=sys.stderr)
+            return False
+        time.sleep(hub.POLL_INTERVAL)
+
+    print(f"  FAIL [solo]: timeout waiting for {full}", file=sys.stderr)
+    return False
+
+
+def cleanup_scenario_workspace(ctx: ScenarioContext) -> None:
+    if not ctx.workspace_root or not ctx.collab_id:
+        return
+    collab_dir = Path(ctx.workspace_root) / "collabs" / ctx.collab_id
+    if collab_dir.is_dir():
+        shutil.rmtree(collab_dir, ignore_errors=True)
+
+
+def cleanup_scenario_collabs(base: str, ctx: ScenarioContext, *, keep: bool) -> None:
+    if keep:
+        if ctx.collab_id:
+            print(f"  --keep: collab {ctx.collab_id[:8]} left active")
+        return
+    if ctx.collab_id and ctx.collab_channel:
+        hub.send_message(base, ctx.collab_channel, f"/cancel-plan {ctx.collab_id[:8]}")
+        hub.wait_phase(base, ctx.collab_channel, ctx.collab_id, "cancelled", 10)
+    for extra in ctx.extra_collabs:
+        hub.cancel_collab(base, extra)
+    cleanup_scenario_workspace(ctx)
+    print("  ✓ cleanup: cancelled and removed workspace artifacts")
+
+
 def run_scenario(
     base: str,
     name: str,
@@ -733,59 +808,58 @@ def run_scenario(
     print(f"\n=== scenario: {name} ===")
     print(f"  hub={base} channel={channel} agents={agents}")
 
-    health = hub.check_health(base)
-    if not health:
-        print("  FAIL: hub not healthy", file=sys.stderr)
-        return False
-
-    if not hub.ensure_channel(base, channel):
-        print(f"  FAIL: could not ensure channel {channel!r}", file=sys.stderr)
-        return False
-
-    required = scenario.get("required_agents") or []
-    if required:
-        ok_agents, missing = hub.verify_agents_online(base, required)
-        if not ok_agents:
-            print(f"  FAIL: required agents offline: {', '.join(missing)}", file=sys.stderr)
-            print("  Start hub with CLI agents or set NJ_COLLAB_SCENARIO_AGENTS", file=sys.stderr)
+    try:
+        health = hub.check_health(base)
+        if not health:
+            print("  FAIL: hub not healthy", file=sys.stderr)
             return False
 
-    if not hub.free_scenario_capacity(base, channel):
-        print("  FAIL: collab capacity full", file=sys.stderr)
-        return False
-
-    setup = scenario.get("setup")
-    if isinstance(setup, dict) and setup.get("action") == "executing_blocker":
-        if not run_setup_blocker(ctx, setup, agents):
+        if not hub.ensure_channel(base, channel):
+            print(f"  FAIL: could not ensure channel {channel!r}", file=sys.stderr)
             return False
 
-    started = start_collaboration(ctx, channel, scenario, agents)
-    if not started:
-        return False
-    ctx.collab_id, ctx.collab_channel = started
-    print(f"  started collab {ctx.collab_id[:8]} → {ctx.collab_channel}")
+        required = scenario.get("required_agents") or []
+        if required:
+            ok_agents, missing = hub.verify_agents_online(base, required)
+            if not ok_agents:
+                print(f"  FAIL: required agents offline: {', '.join(missing)}", file=sys.stderr)
+                print("  Start hub with CLI agents or set NJ_COLLAB_SCENARIO_AGENTS", file=sys.stderr)
+                return False
 
-    all_ok = True
-    for i, step in enumerate(scenario.get("steps") or [], 1):
-        if not run_step(ctx, step, f"{i}"):
-            all_ok = False
-            break
+        if not hub.free_scenario_capacity(base, channel):
+            print("  FAIL: collab capacity full", file=sys.stderr)
+            return False
 
-    cleanup = scenario.get("cleanup", "cancel")
-    if cleanup == "cancel" and not keep:
-        hub.send_message(base, ctx.collab_channel, f"/cancel-plan {ctx.collab_id[:8]}")
-        hub.wait_phase(base, ctx.collab_channel, ctx.collab_id, "cancelled", 10)
-        for extra in ctx.extra_collabs:
-            hub.cancel_collab(base, extra)
-        print("  ✓ cleanup: cancelled")
-    elif keep:
-        print(f"  --keep: collab {ctx.collab_id[:8]} left active")
+        if not run_solo_parity_leg(ctx, scenario):
+            print(f"=== FAIL: {name} (solo leg) ===\n", file=sys.stderr)
+            return False
 
-    if all_ok:
-        print(f"=== PASS: {name} ===\n")
-    else:
-        print(f"=== FAIL: {name} ===\n", file=sys.stderr)
-    return all_ok
+        setup = scenario.get("setup")
+        if isinstance(setup, dict) and setup.get("action") == "executing_blocker":
+            if not run_setup_blocker(ctx, setup, agents):
+                return False
+
+        started = start_collaboration(ctx, channel, scenario, agents)
+        if not started:
+            return False
+        ctx.collab_id, ctx.collab_channel = started
+        print(f"  started collab {ctx.collab_id[:8]} → {ctx.collab_channel}")
+
+        all_ok = True
+        for i, step in enumerate(scenario.get("steps") or [], 1):
+            if not run_step(ctx, step, f"{i}"):
+                all_ok = False
+                break
+
+        if all_ok:
+            print(f"=== PASS: {name} ===\n")
+        else:
+            print(f"=== FAIL: {name} ===\n", file=sys.stderr)
+        return all_ok
+    finally:
+        cleanup = scenario.get("cleanup", "cancel")
+        if cleanup == "cancel":
+            cleanup_scenario_collabs(base, ctx, keep=keep)
 
 
 def main() -> int:

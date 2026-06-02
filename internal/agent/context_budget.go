@@ -9,9 +9,14 @@ import (
 const defaultContextBudgetBytes = 32 * 1024
 
 const (
-	maxBudgetSessionSummary = 2 * 1024
-	maxBudgetHistoryBody    = 12 * 1024
+	maxBudgetSessionSummary   = 2 * 1024
+	maxBudgetHistoryBody      = 12 * 1024
 	maxBudgetWorkspaceOutline = 4 * 1024
+)
+
+const (
+	rulesSectionStart = "=== USER-CONFIGURED RULES ==="
+	rulesSectionEnd   = "=== END USER-CONFIGURED RULES ==="
 )
 
 // ContextBudgetStats records truncation applied to a prompt.
@@ -45,9 +50,11 @@ func applyContextBudget(prompt string) (string, ContextBudgetStats) {
 		return prompt, stats
 	}
 
+	systemPart, rulesBlock := peelProtectedRulesSection(systemPart)
 	systemPart = truncateMarkedSection(systemPart, "=== SESSION SUMMARY ===", maxBudgetSessionSummary)
 	systemPart = truncateMarkedSection(systemPart, "=== WORKSPACE CONTEXT ===", maxBudgetWorkspaceOutline)
 	systemPart = truncateMarkedSection(systemPart, "Grounding requirement:", maxBudgetWorkspaceOutline)
+	systemPart = rulesBlock + systemPart
 
 	combined := systemPart + ai.SystemPromptSeparator + userPart
 	if len(combined) <= limit {
@@ -57,14 +64,20 @@ func applyContextBudget(prompt string) (string, ContextBudgetStats) {
 	}
 
 	if len(systemPart) > limit/2 {
+		systemPart, rulesBlock = peelProtectedRulesSection(systemPart)
 		systemPart = systemPart[:limit/2] + "\n…(system context truncated)\n"
+		systemPart = rulesBlock + systemPart
 		stats.Truncated = true
 	}
 	combined = systemPart + ai.SystemPromptSeparator + userPart
 	if len(combined) > limit && len(userPart) < limit/4 {
 		over := len(combined) - limit
 		if over < len(systemPart) {
-			systemPart = systemPart[:len(systemPart)-over] + "\n…(truncated)\n"
+			systemPart, rulesBlock = peelProtectedRulesSection(systemPart)
+			if over < len(systemPart) {
+				systemPart = systemPart[:len(systemPart)-over] + "\n…(truncated)\n"
+			}
+			systemPart = rulesBlock + systemPart
 			combined = systemPart + ai.SystemPromptSeparator + userPart
 		}
 	}
@@ -89,4 +102,22 @@ func truncateMarkedSection(body, marker string, maxBytes int) string {
 	}
 	replacement := section[:maxBytes] + "\n…(section truncated)\n"
 	return body[:idx] + replacement + body[sectionEnd:]
+}
+
+func peelProtectedRulesSection(body string) (rest, rules string) {
+	start := strings.Index(body, rulesSectionStart)
+	if start < 0 {
+		return body, ""
+	}
+	endRel := strings.Index(body[start:], rulesSectionEnd)
+	if endRel < 0 {
+		return body, ""
+	}
+	end := start + endRel + len(rulesSectionEnd)
+	for end < len(body) && (body[end] == '\n' || body[end] == '\r') {
+		end++
+	}
+	rules = body[start:end]
+	rest = body[:start] + body[end:]
+	return rest, rules
 }

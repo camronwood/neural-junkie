@@ -467,10 +467,13 @@ def fetch_debug_context(
     message: str,
     *,
     conversation_mode: str | None = None,
+    context_scope: str | None = None,
 ) -> dict | None:
     q: dict[str, str] = {"channel": channel, "message": message}
     if conversation_mode:
         q["conversation_mode"] = conversation_mode
+    if context_scope:
+        q["context_scope"] = context_scope
     query = urllib.parse.urlencode(q)
     code, data = hub_request(base, "GET", f"/api/debug/channel-context?{query}")
     if code == 200 and isinstance(data, dict):

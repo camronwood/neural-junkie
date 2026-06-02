@@ -1,0 +1,39 @@
+{
+  "name": "dm-backend-workspace",
+  "description": "BackendEngineer DM: theme ask then workspace visibility — no fake Go packages or echo.",
+  "tags": ["dm", "backend", "workspace", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I want to add theme support to this app I am working on now",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "can you see my workspace I have open?",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "90s" },
+    {
+      "action": "assert_debug_context",
+      "message": "can you see my workspace I have open?",
+      "conversation_mode": "code",
+      "context_scope": "outline",
+      "resolved_intent": "substantive",
+      "optional": true
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "BackendEngineer",
+      "any_match": ["workspace context|file tree|Yes — I have|Project:"],
+      "none_match": ["golang.org/x/themes", "gin-gonic", "go get github.com/gin", "successfully added theme"]
+    }
+  ],
+  "cleanup": "clear"
+}

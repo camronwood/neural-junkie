@@ -24,9 +24,19 @@ func (h *Hub) collabTaskDeliverableSatisfied(snap *collaboration.Collaboration, 
 		root = strings.TrimSpace(snap.WorkingDirectory)
 	}
 	for _, rel := range collaboration.ReferencedDeliverablePaths(*task) {
+		rel = filepath.ToSlash(strings.Trim(rel, "`\"' "))
+		if rel == "" {
+			continue
+		}
+		if collaboration.UsesProjectCollabDir(snap) && strings.TrimSpace(snap.SourceRepoPath) != "" {
+			abs := filepath.Join(snap.SourceRepoPath, filepath.FromSlash(rel))
+			if st, err := os.Stat(abs); err == nil && !st.IsDir() {
+				return true
+			}
+		}
 		if root != "" {
-			rel = collaboration.NormalizeDeliverableRelPathForRoot(snap, rel)
-			abs := filepath.Join(root, filepath.FromSlash(rel))
+			norm := collaboration.NormalizeDeliverableRelPathForRoot(snap, rel)
+			abs := filepath.Join(root, filepath.FromSlash(norm))
 			if st, err := os.Stat(abs); err == nil && !st.IsDir() {
 				return true
 			}

@@ -6,10 +6,17 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.21] - 2026-06-02
+
 ### Added
 - **Slack personal inbox** — DM the NJ bot from Slack mobile; messages route to a private hub channel and your chosen agent. OAuth captures the installing user as owner.
 - **Slack selective forwarding** — Optional rules: `@mention of me` in watched channels, `nj:` prefix, or reaction emoji. Forwarded messages get agent replies in the **original Slack thread**; direct DMs reply in the bot DM thread.
 - **Slack human DM away mode (opt-in)** — Separate user OAuth token reads your 1:1 Slack DMs while away (manual toggle or outside work hours). Agent replies in the same DM thread with a labeled prefix (`Assistant (for you): …`) via the user token. Distinct from bot personal inbox and note-to-self.
+- **User rules API** — `GET`/`PUT` `/api/user-rules` for per-user markdown rules injected into prompts.
+- **Chat find bar** — in-channel search across messages (desktop).
+- **Live chat scenarios** — DM and public workspace/echo/closure regressions under `scenarios/chat/`; `make chat-scenarios`, `make chat-scenarios-regression`.
+- **Collab routing matrix** — `make collab-routing-matrix`, `solo-vs-collab-parity` scenario.
+- **Test isolation** — `internal/testutil` temp-home pattern for hub/server/integration tests; see [TESTING.md](TESTING.md).
 
 ### Context model v2
 
@@ -20,7 +27,17 @@ All notable changes to Neural Junkie.
 - **Broader session summaries** — rolling summaries on public channels and `dm-*` specialist slugs, not only typed DM/custom channels.
 - **Thread-scoped history** — agents in threads use thread messages for LLM history instead of full channel noise.
 - **Context budget** — ~32KB prompt cap with section-aware truncation before LLM calls.
+- **Workspace visibility** — deterministic replies for “can you see my workspace?” with streaming/tool-path fallback when models ignore the question.
 - **Baseline fixes** — `@mention` overrides IDE route; session persist slimming for `workspace_context`.
+
+### Changed
+- **Collaboration agent order** — preserve `@mention` order when creating collaborations (fixes nondeterministic round-robin assignees).
+- **Scenario runners** — chat scenarios inject `workspace_context` when `context_scope` is set; learning query URLs are properly encoded.
+
+### Fixed
+- **Echo follow-ups** — “What?” after a long reply no longer quotes the first user message.
+- **Closure** — “I know you said that already” returns canned won't-repeat responses.
+- **Slack OAuth tests** — hermetic temp home dir for env-vs-user-file resolution tests.
 
 ## [1.0.0-beta.20] - 2026-05-30
 

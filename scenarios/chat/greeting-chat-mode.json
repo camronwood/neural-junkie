@@ -1,6 +1,7 @@
 {
   "name": "greeting-chat-mode",
   "description": "Chat mode greeting stays short without tooling blocks in the reply.",
+  "tags": ["public", "assistant", "greeting"],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",

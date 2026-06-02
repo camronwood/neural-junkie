@@ -369,6 +369,7 @@ func main() {
 	http.HandleFunc("/api/lora/train/", corsMiddleware(handleLoraTrainRoute))
 	http.HandleFunc("/api/learnings", corsMiddleware(handleLearningsRoute))
 	http.HandleFunc("/api/learnings/", corsMiddleware(handleLearningsRoute))
+	http.HandleFunc("/api/user-rules", corsMiddleware(handleUserRules))
 
 	// Command palette metadata
 	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
@@ -464,6 +465,22 @@ func main() {
 				if n := chatHub.PruneMessagesOlderThan(24 * time.Hour); n > 0 {
 					log.Printf("🧹 Periodic prune: removed %d message(s) older than 24h", n)
 				}
+			}
+		}
+	}()
+
+	// Collaboration idle watchdog (post-approve stall healing).
+	sessionSaverWG.Add(1)
+	go func() {
+		defer sessionSaverWG.Done()
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sessionSaverCtx.Done():
+				return
+			case <-ticker.C:
+				chatHub.TickCollaborationIdleWatchdog(time.Now())
 			}
 		}
 	}()
@@ -2825,16 +2842,20 @@ func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 	}
 	if sample := strings.TrimSpace(r.URL.Query().Get("message")); sample != "" {
 		msg := protocol.NewMessage(protocol.MessageTypeQuestion, channel, protocol.AgentInfo{ID: "debug", Name: "Debug", Type: "human"}, sample)
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
 		if mode := strings.TrimSpace(r.URL.Query().Get("conversation_mode")); mode != "" {
-			if msg.Metadata == nil {
-				msg.Metadata = map[string]interface{}{}
-			}
 			msg.Metadata[agent.MetadataConversationMode] = mode
+		}
+		if scope := strings.TrimSpace(r.URL.Query().Get("context_scope")); scope != "" {
+			msg.Metadata[agent.MetadataContextScope] = scope
 		}
 		chType := chatHub.GetChannelType(channel)
 		intent := classifyTurnIntentForDebug(msg, chType)
 		out["conversation_mode"] = agent.EffectiveConversationMode(msg, chType)
 		out["resolved_intent"] = intent.String()
+		out["context_scope"] = agent.ResolveContextScope(msg)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)

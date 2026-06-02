@@ -347,7 +347,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• When asked about system features or how to do things in the chat room, use the SYSTEM COMMANDS and SYSTEM KNOWLEDGE sections above to give accurate answers\n")
 	prompt.WriteString("• NEVER give generic answers about external tools (like GitHub Actions) when the user is asking about THIS system's capabilities\n\n")
 
-	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info)
+	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
 
 	// Insert system/user separator -- everything above is system context,
 	// everything below is the user's actual message and workspace data.
@@ -1357,7 +1357,7 @@ func (a *AssistantAgent) buildMeetingContextPrompt(msg *protocol.Message) string
 
 	var prompt strings.Builder
 
-	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info)
+	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
 
 	prompt.WriteString("You are the Assistant, a helpful AI in the Neural Junkie multi-agent collaboration system.\n\n")
 	prompt.WriteString("=== YOUR ROLE ===\n")

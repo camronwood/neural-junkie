@@ -5,10 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/scananalysis"
+)
+
+// openScanTaskRE matches explicit Phoenix scan tool/QC requests — not bare "summarize".
+var openScanTaskRE = regexp.MustCompile(
+	`(?i)(\bsummarize_scan_(?:analysis|summary)\b|\bscan\s+(?:analysis|summary)\b|` +
+		`\b(?:plate|scan)\s+qc\b|\bscan\s+quality\b|` +
+		`\bresults\.json\b|\bsummary_report\.csv\b|\bimagemetadata\.json\b)`,
 )
 
 func requestedBiologyScanTool(content string) string {
@@ -24,23 +32,19 @@ func requestedBiologyScanTool(content string) string {
 }
 
 func userAsksAboutOpenScanFile(content string) bool {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return false
+	}
 	if userRequestsEditorDocumentReview(content) {
 		return true
 	}
-	lower := strings.ToLower(strings.TrimSpace(content))
+	lower := strings.ToLower(content)
 	if strings.Contains(lower, "what") && strings.Contains(lower, "see") &&
 		(strings.Contains(lower, "open") || strings.Contains(lower, "file")) {
 		return true
 	}
-	for _, m := range []string{
-		"summarize", "scan analysis", "scan summary", "qc", "quality check",
-		"results.json", "summary_report.csv",
-	} {
-		if strings.Contains(lower, m) {
-			return true
-		}
-	}
-	return false
+	return openScanTaskRE.MatchString(content)
 }
 
 func workspaceContextHasScanAnalysis(msg *protocol.Message) bool {

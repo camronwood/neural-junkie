@@ -1,0 +1,30 @@
+{
+  "name": "dm-security-review",
+  "description": "SecurityReviewer DM path-based review is a code task.",
+  "tags": ["dm", "security", "task"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "SecurityReviewer",
+  "required_agents": ["SecurityReviewer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "review cmd/server/main.go for auth vulnerabilities",
+      "metadata": { "conversation_mode": "code" }
+    },
+    { "action": "wait_reply", "from": "SecurityReviewer", "timeout": "120s" },
+    {
+      "action": "assert_debug_context",
+      "message": "review cmd/server/main.go for auth vulnerabilities",
+      "resolved_intent": "task",
+      "optional": true
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "SecurityReviewer",
+      "max_chars": 8000
+    }
+  ],
+  "cleanup": "clear"
+}

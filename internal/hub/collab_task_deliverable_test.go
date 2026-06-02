@@ -8,7 +8,7 @@ import (
 )
 
 func TestMaybeWarnPrematureTaskCompletion_BlocksWithoutProposal(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "deliverable-guard"
 	_ = h.CreateChannel(chName, "test", "tester")
 
@@ -55,7 +55,7 @@ func TestMaybeWarnPrematureTaskCompletion_BlocksWithoutProposal(t *testing.T) {
 }
 
 func TestMaybeWarnPrematureTaskCompletion_AllowsWithFileChange(t *testing.T) {
-	h := NewHub()
+	h := newTestHub(t)
 	chName := "deliverable-ok"
 	_ = h.CreateChannel(chName, "test", "tester")
 

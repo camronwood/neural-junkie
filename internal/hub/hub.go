@@ -183,6 +183,9 @@ type Hub struct {
 	// Per-agent custom rules (markdown), persisted on disk
 	agentRulesStore *agent.AgentCustomRulesStorage
 
+	// Global user rules (markdown), persisted on disk keyed by username or default
+	userRulesStore *agent.UserRulesStorage
+
 	// Session snapshot save synchronization and observability.
 	sessionSaveMu   sync.Mutex
 	sessionHealthMu sync.RWMutex
@@ -196,6 +199,11 @@ type Hub struct {
 
 	// channelHolds: user interject (Stop) — agents defer new turns until a human message.
 	channelHolds map[string]ChannelHold
+
+	// Collaboration idle watchdog (in-memory, not persisted).
+	collabWatchdogMu           sync.Mutex
+	collabWatchdogRedispatch   map[string]int
+	collabWatchdogAutoAckTried map[string]bool
 
 	mu sync.RWMutex
 }
@@ -214,6 +222,8 @@ func NewHub() *Hub {
 		removedAgents:            make(map[string]*protocol.AgentInfo),
 		channelContext:           make(map[string]*ChannelContextState),
 		channelHolds:             make(map[string]ChannelHold),
+		collabWatchdogRedispatch: make(map[string]int),
+		collabWatchdogAutoAckTried: make(map[string]bool),
 		channelSummaryRefreshGen: make(map[string]uint64),
 	}
 
@@ -252,6 +262,20 @@ func NewHub() *Hub {
 	} else {
 		hub.agentRulesStore = rulesStore
 	}
+
+	userRulesStore, err := agent.NewUserRulesStorage()
+	if err != nil {
+		log.Printf("Warning: user rules storage unavailable: %v", err)
+	} else {
+		hub.userRulesStore = userRulesStore
+	}
+
+	agent.SetUserRulesLookup(func(username string) string {
+		if hub.userRulesStore == nil {
+			return ""
+		}
+		return hub.userRulesStore.Resolve(username)
+	})
 
 	return hub
 }
@@ -1502,6 +1526,37 @@ func (h *Hub) SetAgentCustomRulesMarkdown(agentID, markdown string) error {
 	return nil
 }
 
+// ResolveUserRulesMarkdown returns persisted global user rules for username (with default fallback).
+func (h *Hub) ResolveUserRulesMarkdown(username string) string {
+	if h.userRulesStore == nil {
+		return ""
+	}
+	return h.userRulesStore.Resolve(username)
+}
+
+// GetUserRulesMarkdown returns rules for the session user (API GET).
+func (h *Hub) GetUserRulesMarkdown(username string) string {
+	return h.ResolveUserRulesMarkdown(username)
+}
+
+// SetUserRulesMarkdown persists global user rules for username (empty username → default key).
+func (h *Hub) SetUserRulesMarkdown(username, markdown string) error {
+	if h.userRulesStore == nil {
+		return fmt.Errorf("user rules storage unavailable")
+	}
+	return h.userRulesStore.Set(username, markdown)
+}
+
+func (h *Hub) collabUserRulesMarkdown(snap *collaboration.Collaboration, inheritFrom *protocol.Message) string {
+	username := ""
+	if inheritFrom != nil && protocol.IsUserLikeSender(inheritFrom.From) {
+		username = inheritFrom.From.Name
+	} else if snap != nil {
+		username = snap.CreatedBy
+	}
+	return h.ResolveUserRulesMarkdown(username)
+}
+
 // syncAgentInfoCopiesInChannelsLocked updates channel member snapshots when AgentInfo mutates.
 // Caller must hold h.mu write lock.
 func (h *Hub) syncAgentInfoCopiesInChannelsLocked(agentID string, ag *protocol.AgentInfo) {
@@ -2303,8 +2358,7 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 				snap.SourceRepoPath, rel, outDir, rel,
 			)
 		}
-		body := fmt.Sprintf("@%s -- Your assigned task:\n\n**%s**\n\n%s%s%s\n\nComplete this task now. Ship concrete output ([FILE_CHANGE] and/or findings in the deliverables folder). End your reply with `TASK_STATUS: completed` or `TASK_STATUS: blocked`. @mention others only if blocked.",
-			mentionName, task.Title, task.Description, collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit), workspaceNote)
+		body := formatCollabTaskDispatchBody(snap, task, mentionName, handoffLimit, workspaceNote)
 		body += collaboration.TaskDispatchFileDeliverableNote(task)
 		for _, t := range snap.Tasks {
 			if t.ID == task.ID {
@@ -2360,6 +2414,11 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			taskMsg.Metadata["context_scope"] = "hint"
 		}
 		applyCollabTaskRoutingMetadata(task, taskMsg)
+		if rules := h.collabUserRulesMarkdown(snap, inheritFrom); rules != "" {
+			if _, ok := taskMsg.Metadata[agent.MetadataUserRulesMarkdown]; !ok {
+				taskMsg.Metadata[agent.MetadataUserRulesMarkdown] = rules
+			}
+		}
 		if err := h.SendMessage(taskMsg); err != nil {
 			log.Printf("[Collaboration] Failed to send task message (redispatch): %v", err)
 			continue
@@ -2375,6 +2434,30 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 		_ = h.collabManager.MarkTasksDispatched(collabID)
 	}
 	return sent
+}
+
+func formatCollabTaskDispatchBody(snap *collaboration.Collaboration, task collaboration.CollaborationTask, mentionName string, handoffLimit int, workspaceNote string) string {
+	var b strings.Builder
+	b.WriteString("@")
+	b.WriteString(mentionName)
+	b.WriteString(" -- ")
+	if snap != nil {
+		if goal := strings.TrimSpace(snap.Description); goal != "" {
+			b.WriteString("**Collaboration goal (original ask):** ")
+			b.WriteString(goal)
+			b.WriteString("\n\n")
+		}
+	}
+	b.WriteString("**Your assigned task:**\n\n**")
+	b.WriteString(task.Title)
+	b.WriteString("**\n\n")
+	b.WriteString(task.Description)
+	if snap != nil {
+		b.WriteString(collaboration.FormatDependencyHandoffWithLimit(task, snap.Tasks, handoffLimit))
+	}
+	b.WriteString(workspaceNote)
+	b.WriteString("\n\nComplete this task now. Ship concrete output ([FILE_CHANGE] and/or findings in the deliverables folder). End your reply with `TASK_STATUS: completed` or `TASK_STATUS: blocked`. @mention others only if blocked.")
+	return b.String()
 }
 
 // NewCollaborationClientAdapter creates an adapter that implements
@@ -2582,6 +2665,8 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 
 	log.Printf("[FileChange] Registered %s proposal for %s (change ID: %s) from %s",
 		proposal.Operation, filePath, change.ID, msg.From.Name)
+
+	h.maybeAutoApproveCollabFileChange(msg, change, operation, wsRoot)
 }
 
 // resolveWorkspacePath resolves a potentially relative file path against the provided workspace root.

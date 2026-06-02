@@ -53,6 +53,41 @@ func TestRequestedBiologyScanToolFromTurn_followUp(t *testing.T) {
 	}
 }
 
+func TestUserAsksAboutOpenScanFile_noBareSummarize(t *testing.T) {
+	if userAsksAboutOpenScanFile("can you summarize IL-6 levels?") {
+		t.Fatal("bare summarize should not trigger scan shortcut heuristics")
+	}
+	if userAsksAboutOpenScanFile("thanks, that helps") {
+		t.Fatal("closure should not trigger scan shortcut heuristics")
+	}
+	if !userAsksAboutOpenScanFile("please summarize_scan_analysis on the open export") {
+		t.Fatal("explicit tool name should match")
+	}
+	if !userAsksAboutOpenScanFile("run scan analysis QC on the plate") {
+		t.Fatal("scan analysis phrase should match")
+	}
+}
+
+func TestResolveBiologyScanTool_unrelatedFollowUp(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{Name: "BiologyExpert", Type: protocol.AgentTypeBiology}}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"dm-u-b",
+		protocol.AgentInfo{Name: "Camron", Type: "human"},
+		"what is the dilution factor for IL-6?",
+	)
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{
+			"scan_analysis": map[string]interface{}{
+				"analysis_dir": "/Users/me/Downloads/summary-test",
+			},
+		},
+	}
+	if got := a.resolveBiologyScanToolForTurn(msg); got != "" {
+		t.Fatalf("got %q want empty for unrelated follow-up", got)
+	}
+}
+
 func TestResolveBiologyScanToolForOpenFileQuestion(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{Name: "BiologyExpert", Type: protocol.AgentTypeBiology}}
 	msg := protocol.NewMessage(

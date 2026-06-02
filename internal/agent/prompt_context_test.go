@@ -1,0 +1,89 @@
+package agent
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/protocol"
+)
+
+func TestAppendUserAndAgentRules_fromMetadata(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"hello")
+	msg.Metadata = map[string]any{
+		MetadataUserRulesMarkdown: "Always reply in bullet points.",
+	}
+	self := &protocol.AgentInfo{Name: "Assistant", CustomRulesMarkdown: "Be concise."}
+
+	var b strings.Builder
+	AppendUserAndAgentRules(&b, msg, self, "", 0)
+	out := b.String()
+	if !strings.Contains(out, "Always reply in bullet points.") {
+		t.Fatalf("expected user rules in prompt: %q", out)
+	}
+	if !strings.Contains(out, "Be concise.") {
+		t.Fatalf("expected agent rules in prompt: %q", out)
+	}
+}
+
+func TestAppendUserAndAgentRules_hubFallback(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeCollabTask, "collab-1",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"task body")
+
+	var b strings.Builder
+	AppendUserAndAgentRules(&b, msg, &protocol.AgentInfo{Name: "Backend"}, "Use British spelling.", 0)
+	out := b.String()
+	if !strings.Contains(out, "British spelling") {
+		t.Fatalf("expected hub fallback rules: %q", out)
+	}
+}
+
+func TestAppendUserAndAgentRules_metadataWinsOverFallback(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"hello")
+	msg.Metadata = map[string]any{MetadataUserRulesMarkdown: "from metadata"}
+
+	var b strings.Builder
+	AppendUserAndAgentRules(&b, msg, nil, "from fallback", 0)
+	if strings.Contains(b.String(), "from fallback") {
+		t.Fatal("metadata should win over hub fallback")
+	}
+}
+
+func TestAppendUserAndAgentRules_compactCap(t *testing.T) {
+	long := strings.Repeat("x", 5000)
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"hello")
+	msg.Metadata = map[string]any{MetadataUserRulesMarkdown: long}
+
+	var b strings.Builder
+	AppendUserAndAgentRules(&b, msg, nil, "", compactUserRulesMarkdownBytes)
+	out := b.String()
+	if len(out) > compactUserRulesMarkdownBytes+512 {
+		t.Fatalf("compact rules block too large: %d bytes", len(out))
+	}
+	if !strings.Contains(out, "[truncated") {
+		t.Fatal("expected truncation marker for compact cap")
+	}
+}
+
+func TestResolveUserRulesHubFallback(t *testing.T) {
+	SetUserRulesLookup(func(username string) string {
+		if username == "Camron" {
+			return "Prefer markdown links."
+		}
+		return ""
+	})
+	t.Cleanup(func() { SetUserRulesLookup(nil) })
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"hi")
+	if got := ResolveUserRulesHubFallback(msg); got != "Prefer markdown links." {
+		t.Fatalf("got %q", got)
+	}
+}

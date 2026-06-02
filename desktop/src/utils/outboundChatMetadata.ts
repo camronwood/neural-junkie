@@ -20,7 +20,14 @@ import { buildFileTreeString } from './workspaceContext';
 import type { ScanSummaryContext, ScanAnalysisContext, WorkspaceContext } from './workspaceContext';
 import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisDirFromResultsPath, isScanAnalysisSummaryCSVPath } from './scanAnalysis';
 import { scanAnalysisDirFromCsvPath } from './scanAnalysisCsv';
-import { channelNameToKind, resolveContextScope, messageReferencesOpenEditor, messageRequestsScanTool, type ChannelKind } from './inferContextScope';
+import {
+  channelNameToKind,
+  resolveContextScope,
+  messageReferencesOpenEditor,
+  messageRequestsScanTool,
+  messageAsksWorkspaceVisibility,
+  type ChannelKind,
+} from './inferContextScope';
 import { resolveConversationMode } from './conversationMode';
 
 const FILE_PATH_RE =
@@ -334,12 +341,17 @@ export function buildHumanOutboundMetadata(options: {
 
   const needsOpenEditorContext =
     contextMode !== 'off' &&
-    (messageRequestsScanTool(message) || asksAboutOpenFile || hasScanViewerTab);
+    (messageRequestsScanTool(message) || asksAboutOpenFile);
 
   if (needsOpenEditorContext) {
     scope = activeTabPath || hasScanViewerTab ? 'focus' : 'hint';
     reason = 'open editor or scan tool request';
     meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  } else if (messageAsksWorkspaceVisibility(message) && contextMode !== 'off') {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'workspace visibility question';
+    }
   } else if (resolvedConversationMode === 'chat') {
     scope = 'none';
     reason = 'conversation mode: chat';

@@ -1,0 +1,24 @@
+{
+  "name": "dm-code-reviewer-task",
+  "description": "CodeReviewer DM file review path.",
+  "tags": ["dm", "code-review", "task"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "CodeReviewer",
+  "required_agents": ["CodeReviewer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "review internal/agent/agent.go",
+      "metadata": { "conversation_mode": "code" }
+    },
+    { "action": "wait_reply", "from": "CodeReviewer", "timeout": "120s" },
+    {
+      "action": "assert_debug_context",
+      "message": "review internal/agent/agent.go",
+      "resolved_intent": "task",
+      "optional": true
+    }
+  ],
+  "cleanup": "clear"
+}

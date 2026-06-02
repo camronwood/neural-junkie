@@ -18,6 +18,7 @@ import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { isTauriRuntime } from '../utils/promptAttachments';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
+import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 
 const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
 
@@ -300,8 +301,6 @@ export function CommandForm({
 
   const collabWorkspaceOk =
     collabWorkspaceMode !== 'path' || collabRepoPath.trim().length > 0;
-
-const MAX_COLLAB_AGENTS = 3;
 
   const canSubmit = isCollaborateCommand
     ? selectedCollaborators.size >= 2 &&

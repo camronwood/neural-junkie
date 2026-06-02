@@ -113,6 +113,15 @@ collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-
 	@chmod +x scripts/collab-scenario-matrix.sh
 	@./scripts/collab-scenario-matrix.sh
 
+collab-routing-matrix: ## A/B smart routing on execute-deliverable (needs live hub + agents)
+	@chmod +x scripts/collab-routing-matrix.sh
+	@NEURAL_JUNKIE_RATE_LIMIT=0 ./scripts/collab-routing-matrix.sh
+
+collab-parity: ## Solo vs collab deliverable parity on minimal-repo fixture
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario solo-vs-collab-parity \
+		$(if $(PROFILE),--profile $(PROFILE),--profile fast,) \
+		$(if $(VERBOSE),--verbose,)
+
 collab-scenario-regression: ## Run collab edge-case regression scenarios (plan parser + execution guards)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-dependency-prose-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-findings-task-regression $(if $(VERBOSE),--verbose,)
@@ -135,6 +144,17 @@ chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=
 chat-scenarios: ## Run all live chat scenarios under scenarios/chat/
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all \
 		$(if $(VERBOSE),--verbose,)
+
+chat-scenarios-dm: ## Run DM chat scenarios only (--tag dm)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag dm \
+		$(if $(VERBOSE),--verbose,)
+
+chat-scenarios-regression: ## Run regression-tagged chat scenarios (workspace, echo, closure)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag regression \
+		$(if $(VERBOSE),--verbose,)
+
+chat-scenarios-list: ## List chat scenarios and tags
+	@python3 scripts/chat-scenarios.py --list
 
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."

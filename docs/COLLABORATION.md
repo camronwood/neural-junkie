@@ -324,9 +324,30 @@ Use this when you want **files and finished tasks**, not a long planning thread:
 2. **Task shape** — **3–6** lines like `- Task 1: @SoftwareArchitect - Write collabs/<collab-id>/schema.md …` (verb + path). Avoid meta lines (“document findings”, “specific actions”).
 3. **Workspace** — use `--workspace` (or runbook with a bound repo) so deliverables land under `collabs/<collab-id>/` in your project.
 4. **Approve** — sandbox + bound repo: tasks dispatch on approve. Worktree: approve, then **Continue**.
-5. **Files** — agents must emit **`[FILE_CHANGE]`**; approve proposals in **Pending changes**. `TASK_STATUS: completed` alone does not write to disk; file-shaped tasks may stay **in progress** until a proposal or existing file is detected.
+5. **Files** — agents must emit **`[FILE_CHANGE]`**. By default, proposals under `collabs/<collab-id>/` are **auto-approved** during execution (`collaboration.auto_approve_deliverables` in Settings → AI Providers). Disable that toggle to review every deliverable in **Pending changes**. `TASK_STATUS: completed` alone does not write to disk; file-shaped tasks may stay **in progress** until a proposal or on-disk file is detected.
 
-**Harness:** `make collab-scenario SCENARIO=delivery-sandbox-auto-ack` (auto-ack on approve), `execute-deliverable` (end-to-end file), `resource-api-schema-planning` (plan quality).
+**Model routing:** Collaboration **smart routing** (Settings) switches the **provider** per execution task. **Light local model downgrades** (for example `qwen2.5:3b`) are **not** applied to file-deliverable tasks — those always use the assignee's configured model.
+
+**Post-approve watchdog:** Every 30s the hub retries auto workspace ack, dispatches ready pending tasks, and redispatches idle `in_progress` tasks (90s idle, max 2 redispatches per task). If work still stalls, chat shows a `/resume-plan` hint.
+
+**Harness:**
+
+| Command | Purpose |
+|---------|---------|
+| `make collab-scenario SCENARIO=delivery-sandbox-auto-ack` | Auto-ack on approve |
+| `make collab-scenario SCENARIO=execute-deliverable` | End-to-end file deliverable (auto-approve) |
+| `make collab-parity` | Solo @Assistant vs collab on same fixture |
+| `make collab-routing-matrix` | A/B smart routing on/off (`execute-deliverable`) |
+| `make collab-scenario SCENARIO=resource-api-schema-planning` | Plan quality |
+
+### Post-approve troubleshooting
+
+| Symptom | Likely cause | What to do |
+|---------|--------------|------------|
+| “Waiting for workspace confirmation” after approve | Workspace not acked (worktree, no `--workspace`, or auto-ack failed) | Click **Continue** or `/ack-collab-workspace <id>` |
+| Tasks listed but no agent activity | Dispatch blocked or assignee not responding | Check panel for `workspace_acknowledged` and `tasks_dispatched`; run `/resume-plan <id>` |
+| Agent says done, task still open | No `[FILE_CHANGE]` or file not under `collabs/<id>/` | Wait for auto-approve or approve in Pending changes; check task warnings in chat |
+| Idle after task dispatched | Agent stuck or rate-limited | Watchdog redispatches after ~90s; use `/resume-plan` after repeated warnings |
 
 ## Collaboration Data Model
 

@@ -16,6 +16,20 @@ export type RunbookTaskNodeData = {
 
 export type DAGValidation = { ok: true } | { ok: false; error: string };
 
+/** Merge dependencies from task.dependencies and dependency_edges (deduped). */
+export function effectiveDependencies(task: CollaborationTask): string[] {
+  const deps = [...(task.dependencies ?? [])];
+  const seen = new Set(deps);
+  for (const edge of task.dependency_edges ?? []) {
+    const from = edge.from_task_id?.trim();
+    if (from && !seen.has(from)) {
+      seen.add(from);
+      deps.push(from);
+    }
+  }
+  return deps;
+}
+
 export function layoutStorageKey(collaborationId: string): string {
   return `${LAYOUT_STORAGE_PREFIX}${collaborationId}`;
 }
@@ -62,7 +76,7 @@ export function validateDAG(tasks: CollaborationTask[]): DAGValidation {
   }
   for (let i = 0; i < tasks.length; i++) {
     const t = tasks[i];
-    for (const dep of t.dependencies ?? []) {
+    for (const dep of effectiveDependencies(t)) {
       if (dep === t.id) {
         return { ok: false, error: `Task ${i + 1} depends on itself` };
       }
@@ -83,7 +97,7 @@ export function validateDAG(tasks: CollaborationTask[]): DAGValidation {
     state.set(id, 1);
     const idx = ids.get(id)!;
     const task = tasks[idx];
-    for (const dep of task.dependencies ?? []) {
+    for (const dep of effectiveDependencies(task)) {
       const err = visit(dep);
       if (!err.ok) return err;
     }
@@ -119,7 +133,7 @@ export function tasksToFlow(
   });
   const edges: Edge[] = [];
   for (const task of tasks) {
-    for (const depId of task.dependencies ?? []) {
+    for (const depId of effectiveDependencies(task)) {
       edges.push({
         id: `${depId}->${task.id}`,
         source: depId,
@@ -198,7 +212,7 @@ export function autoLayoutDagre(
     g.setNode(task.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
   for (const task of tasks) {
-    for (const depId of task.dependencies ?? []) {
+    for (const depId of effectiveDependencies(task)) {
       g.setEdge(depId, task.id);
     }
   }

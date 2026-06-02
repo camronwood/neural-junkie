@@ -57,8 +57,11 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		}
 	}
 
-	if userAsksAboutPromptContext(content) || userAsksAboutModelIdentity(content) {
+	if userAsksAboutModelIdentity(content) {
 		return IntentMeta
+	}
+	if userAsksAboutPromptContext(content) || userAsksAboutWorkspaceVisibility(content) {
+		return IntentSubstantive
 	}
 
 	if hasScanOrEditorTaskSignals(content) || requestedBiologyScanTool(content) != "" {
@@ -75,18 +78,22 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		return IntentTask
 	}
 
+	if greetingRE.MatchString(content) {
+		return IntentLowSignal
+	}
+
 	if mode == ConversationModeChat {
-		if strings.Contains(content, "?") && len(content) >= 40 {
-			return IntentSubstantive
+		if strings.Contains(content, "?") {
+			// Short clarifications (What?, see my workspace?) vs mid-length casual opinions.
+			if len(content) < 30 || len(content) >= 40 {
+				return IntentSubstantive
+			}
+			return IntentLowSignal
 		}
 		return IntentLowSignal
 	}
 
 	if ContextScopeFromMessage(msg) == ContextScopeNone && !strings.Contains(content, "?") && len(content) < 80 {
-		return IntentLowSignal
-	}
-
-	if greetingRE.MatchString(content) {
 		return IntentLowSignal
 	}
 
@@ -157,8 +164,12 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	if block := a.sessionSummaryBlock(msg.Channel); block != "" && !userAsksAboutModelIdentity(msg.Content) {
 		b.WriteString(block)
 	}
+	fallback := ResolveUserRulesHubFallback(msg)
+	AppendUserAndAgentRules(&b, msg, &a.Info, fallback, 0)
 	b.WriteString("Respond briefly and naturally to the user's latest message only.\n")
-	b.WriteString("Do not repeat long prior answers or re-derive facts already covered in the session summary.\n\n")
+	b.WriteString("Do not repeat long prior answers or re-derive facts already covered in the session summary.\n")
+	b.WriteString("Never quote or restate the USER MESSAGE verbatim as your entire reply. ")
+	b.WriteString("Do not claim work was completed unless you actually did it this turn.\n\n")
 	b.WriteString("USER MESSAGE:\n")
 	b.WriteString(strings.TrimSpace(msg.Content))
 	return b.String()
@@ -211,6 +222,9 @@ func (a *Agent) conversationHistoryForIntent(msg *protocol.Message, intent TurnI
 		}
 	} else {
 		base = historyForGeneration(raw, msg.ID)
+		if a.useOllamaContextGuardrails(msg) || hasSummary {
+			base = recentUserHistoryOnly(base, max)
+		}
 	}
 	return trimHistoryTail(base, max)
 }

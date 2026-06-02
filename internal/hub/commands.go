@@ -4662,9 +4662,11 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	}
 	ch.hub.persistCollaborationReviewAssets(collabID)
 
+	var autoAckErr error
 	if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && !collabSnap.WorkspaceAcknowledged {
 		if err := ch.hub.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
 			log.Printf("[Collaboration] Auto workspace ack for %s: %v", collabID[:8], err)
+			autoAckErr = err
 		} else {
 			collabSnap, err = cm.GetCollaborationSnapshot(collabID)
 			if err != nil || collabSnap == nil {
@@ -4697,6 +4699,12 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 			taskSummary.WriteString("\n**Tasks dispatched** — workspace was auto-confirmed (bound project repo).\n")
 		}
 	} else {
+		if autoAckErr != nil {
+			taskSummary.WriteString(fmt.Sprintf(
+				"\n⚠️ **Auto workspace confirmation failed** — %v. Use **Continue** or `/ack-collab-workspace %s` before tasks can run.\n",
+				autoAckErr, collabID[:8],
+			))
+		}
 		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree {
 			if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
 				taskSummary.WriteString(fmt.Sprintf("\n**Git worktree:** `%s` (branch `%s`)\n", collabSnap.WorkingDirectory, collabSnap.WorktreeBranch))

@@ -48,6 +48,10 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 		warnings = append(warnings, w)
 	}
 
+	if proseWarnings := ApplyPlanDependencyProse(planContent, tasks); len(proseWarnings) > 0 {
+		warnings = append(warnings, proseWarnings...)
+	}
+
 	return tasks, warnings
 }
 

@@ -54,3 +54,61 @@ func TestMaxHistoryForIntent_withSummary(t *testing.T) {
 		t.Fatal("expected 4 history rows when summary present")
 	}
 }
+
+func TestClassifyTurnIntent_shortQuestionsSubstantive(t *testing.T) {
+	cases := []struct {
+		content string
+		want    TurnIntent
+	}{
+		{"What?", IntentSubstantive},
+		{"can you see my workspace?", IntentSubstantive},
+		{"yes thats what I said?", IntentSubstantive}, // len 22 < 30
+		{"what information do you get when I send you a prompt?", IntentSubstantive},
+		{"what model are you?", IntentMeta},
+	}
+	for _, tc := range cases {
+		msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-u-be", protocol.AgentInfo{ID: "u", Name: "User"}, tc.content)
+		msg.Metadata = map[string]interface{}{MetadataConversationMode: ConversationModeChat}
+		got := classifyTurnIntent(msg, protocol.ChannelTypeDM, "backend-id", nil)
+		if got != tc.want {
+			t.Fatalf("content %q: got %v want %v", tc.content, got, tc.want)
+		}
+	}
+}
+
+func TestUserAsksAboutWorkspaceVisibility(t *testing.T) {
+	if !userAsksAboutWorkspaceVisibility("can you see my workspace?") {
+		t.Fatal("expected workspace visibility")
+	}
+	if userAsksAboutWorkspaceVisibility("What?") {
+		t.Fatal("expected false for confused follow-up")
+	}
+}
+
+func TestConversationHistoryForIntent_biologyOllamaUserOnly(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{
+			Name:       "BiologyExpert",
+			Type:       protocol.AgentTypeBiology,
+			AIProvider: "ollama",
+			AIModel:    "koesn/llama3-openbiollm-8b:latest",
+		},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"dm-u-b": {
+					protocol.NewMessage(protocol.MessageTypeChat, "dm-u-b", protocol.AgentInfo{Name: "User", Type: "human"}, "first question"),
+					protocol.NewMessage(protocol.MessageTypeChat, "dm-u-b", protocol.AgentInfo{Name: "BiologyExpert", Type: protocol.AgentTypeBiology}, "long prior answer"),
+					protocol.NewMessage(protocol.MessageTypeChat, "dm-u-b", protocol.AgentInfo{Name: "User", Type: "human"}, "follow up"),
+				},
+			},
+		},
+	}
+	current := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-b", protocol.AgentInfo{Name: "User", Type: "human"}, "follow up")
+	current.ID = "current-id"
+	hist := a.conversationHistoryForIntent(current, IntentSubstantive)
+	for _, m := range hist {
+		if m != nil && m.From.Name == "BiologyExpert" {
+			t.Fatalf("biology ollama history should be user-only, got agent line: %q", m.Content)
+		}
+	}
+}

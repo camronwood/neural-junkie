@@ -1,12 +1,14 @@
 import type { CollaborationTask } from '../types/protocol';
+import { effectiveDependencies } from './runbookDAG';
 
 export function taskBlockedByTitles(task: CollaborationTask, tasks: CollaborationTask[]): string[] {
-  if (!task.dependencies?.length) {
+  const deps = effectiveDependencies(task);
+  if (!deps.length) {
     return [];
   }
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const titles: string[] = [];
-  for (const depId of task.dependencies) {
+  for (const depId of deps) {
     const dep = byId.get(depId);
     if (dep && dep.status !== 'completed') {
       titles.push(dep.title || depId.slice(0, 8));

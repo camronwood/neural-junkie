@@ -82,15 +82,26 @@ func appendWorkspaceReviewGuidance(prompt *strings.Builder, msg *protocol.Messag
 	case (scope == ContextScopeFocus || scope == ContextScopeFull) && (reviewIntent || hasFiles || hasScanSummary || hasScanAnalysis):
 		prompt.WriteString("\n=== DOCUMENT / CODE REVIEW (this turn) ===\n")
 		prompt.WriteString("The user shared workspace context (see WORKSPACE CONTEXT). ")
-		prompt.WriteString("When they ask whether you can see files, answer by naming exactly what is visible: project name/path, file tree, open file metadata, file contents, scan-summary metadata, scan-analysis metadata, or attached images. ")
+		prompt.WriteString("When they ask whether you can see files or the workspace, answer by naming exactly what is visible: project name/path, file tree, open file metadata, file contents, scan-summary metadata, scan-analysis metadata, or attached images. ")
 		prompt.WriteString("Do NOT say you cannot access their editor or files when workspace_context is present. ")
 		if hasScanAnalysis || hasScanSummary {
 			prompt.WriteString("When they ask to run summarize_scan_analysis or summarize_scan_summary on the open file, use the analysis_dir or summary_dir from workspace context — do NOT ask them to type the path. ")
 		}
-		prompt.WriteString("If an open file has empty content or image pixels were not attached, say that specifically and ask for the missing file/image rather than denying all file access.\n\n")
+		prompt.WriteString("If an open file has empty content or image pixels were not attached, say that specifically and ask for the missing file/image rather than denying all file access.\n")
+		appendWorkspaceStackGrounding(prompt)
+		prompt.WriteString("\n")
+	case (scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull) &&
+		messageHasWorkspaceContext(msg) && ResolveContextScope(msg) != ContextScopeNone:
+		appendWorkspaceStackGrounding(prompt)
+		prompt.WriteString("\n")
 	case scope == ContextScopeHint && reviewIntent:
 		prompt.WriteString("\n=== EDITOR CONTEXT (limited) ===\n")
 		prompt.WriteString("The user asked to review something in their editor, but only a project hint was shared (no file bodies). ")
 		prompt.WriteString("Ask them to mention a file path, enable workspace focus, or paste the content — do not invent file contents.\n\n")
 	}
+}
+
+func appendWorkspaceStackGrounding(prompt *strings.Builder) {
+	prompt.WriteString("**Stack grounding:** Infer languages and frameworks from the file tree and open files. ")
+	prompt.WriteString("Do NOT invent packages (e.g. `golang.org/x/themes`), generic Gin/Bootstrap tutorials, or dependencies that are not in WORKSPACE CONTEXT.\n")
 }

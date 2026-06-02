@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/repo"
+	"github.com/camronwood/neural-junkie/internal/testutil"
 )
 
 // useIsolatedRepoStorage redirects repo storage to a temp directory for the
@@ -14,9 +15,8 @@ import (
 // Call this at the start of any test that creates repo agents or uses repo.NewStorage().
 func useIsolatedRepoStorage(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
-	t.Setenv("NEURAL_JUNKIE_REPO_DIR", dir)
-	return dir
+	home := testutil.IsolateNeuralJunkieHome(t)
+	return filepath.Join(home, "repos")
 }
 
 // cleanupRepoAgentCache registers a t.Cleanup to remove the repo agent cache for repoPath.

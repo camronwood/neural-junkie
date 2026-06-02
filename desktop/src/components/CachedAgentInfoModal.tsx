@@ -69,7 +69,7 @@ export function CachedAgentInfoModal({
             <div>
               <div className="text-slack-textMuted text-xs mb-1">Detected patterns</div>
               <div className="flex flex-wrap gap-1">
-                {agent.metadata.code_patterns.slice(0, 8).map((p) => (
+                {agent.metadata.code_patterns.slice(0, 8).map((p: string) => (
                   <span key={p} className="text-[10px] px-2 py-0.5 rounded bg-slack-bgHover text-slack-textMuted">
                     {p}
                   </span>

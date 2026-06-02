@@ -28,12 +28,17 @@ func TestResolveOAuthAppBundledExampleNotUsed(t *testing.T) {
 }
 
 func TestResolveOAuthAppEnv(t *testing.T) {
+	useTempHomeDir(t)
 	t.Setenv("NEURAL_JUNKIE_SLACK_CLIENT_ID", "cid-test")
 	t.Setenv("NEURAL_JUNKIE_SLACK_CLIENT_SECRET", "secret-test")
 	SetHubPublicBaseURL("http://localhost:18765")
 	o, src := ResolveOAuthApp(nil)
 	if src != OAuthSourceEnv || o == nil || o.ClientID != "cid-test" {
-		t.Fatalf("env resolve: src=%s o=%+v", src, o)
+		cid := ""
+		if o != nil {
+			cid = o.ClientID
+		}
+		t.Fatalf("env resolve: src=%s clientID=%q", src, cid)
 	}
 	if o.RedirectURL != "http://localhost:18765/api/slack/oauth/callback" {
 		t.Fatalf("redirect = %q", o.RedirectURL)

@@ -1,0 +1,24 @@
+{
+  "name": "dm-database-greeting",
+  "description": "DatabaseSpecialist DM greeting.",
+  "tags": ["dm", "database", "greeting"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "DatabaseSpecialist",
+  "required_agents": ["DatabaseSpecialist"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "hello",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "DatabaseSpecialist", "timeout": "90s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "DatabaseSpecialist",
+      "max_chars": 1200
+    }
+  ],
+  "cleanup": "clear"
+}

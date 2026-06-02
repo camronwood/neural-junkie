@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, SlackForwardRule, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
 import {
   getHubBaseURL,
   hubAuthHeaders,
@@ -2055,6 +2055,27 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(`Failed to save agent rules: ${response.statusText}`);
     }
+  }
+
+  async setUserRulesMarkdown(markdown: string): Promise<void> {
+    const response = await this.hubFetch('/api/user-rules', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markdown }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save user rules: ${response.statusText}`);
+    }
+  }
+
+  async getUserRulesMarkdown(): Promise<string> {
+    const response = await this.hubFetch('/api/user-rules');
+    if (!response.ok) {
+      throw new Error(`Failed to load user rules: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { markdown?: string };
+    return data.markdown ?? '';
   }
 
   // File change API methods

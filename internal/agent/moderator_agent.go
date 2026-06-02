@@ -299,7 +299,7 @@ func (m *ModeratorAgent) buildModeratorPrompt(msg *protocol.Message) string {
 	system.WriteString("• Direct users to appropriate agent types for technical questions\n")
 	system.WriteString("• Be encouraging and patient\n")
 
-	AppendUserAndAgentRules(&system, msg, &m.Agent.Info)
+	AppendUserAndAgentRules(&system, msg, &m.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
 
 	// ── USER SECTION ──
 	user.WriteString(fmt.Sprintf("User question from %s:\n%s\n\n", msg.From.Name, msg.Content))

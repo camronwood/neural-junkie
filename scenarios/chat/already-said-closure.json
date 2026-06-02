@@ -1,6 +1,7 @@
 {
   "name": "already-said-closure",
   "description": "User says the agent already answered; expect canned won't-repeat style closure.",
+  "tags": ["public", "assistant", "closure", "regression"],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",

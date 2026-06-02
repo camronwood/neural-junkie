@@ -1,6 +1,7 @@
 {
   "name": "dm-greeting",
   "description": "Real DM channel greeting stays conversational without tooling dumps.",
+  "tags": ["dm", "assistant", "greeting"],
   "channel_type": "dm",
   "dm_user": "ChatScenario",
   "target_agent": "Assistant",

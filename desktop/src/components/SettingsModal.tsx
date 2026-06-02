@@ -62,7 +62,10 @@ function defaultSlackInboxForm(): SlackInboxConfig {
 function mergeSlackInboxForm(inbox: SlackInboxConfig | null | undefined): SlackInboxConfig {
   const base = defaultSlackInboxForm();
   if (!inbox) return base;
-  const rules = (inbox.forward_rules?.length ? inbox.forward_rules : base.forward_rules) ?? base.forward_rules;
+  const rules =
+    (inbox.forward_rules?.length ? inbox.forward_rules : base.forward_rules) ??
+    base.forward_rules ??
+    [];
   const byId = new Map(rules.map((r) => [r.id ?? r.type, r]));
   for (const def of base.forward_rules ?? []) {
     if (!byId.has(def.id ?? def.type)) {
@@ -145,6 +148,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [isSwitching, setIsSwitching] = useState(false);
   const [collabSmartRouting, setCollabSmartRouting] = useState(false);
+  const [collabAutoApproveDeliverables, setCollabAutoApproveDeliverables] = useState(true);
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
   const [delegationEnabled, setDelegationEnabled] = useState(false);
@@ -856,6 +860,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+          setCollabAutoApproveDeliverables(cfg.collaboration?.auto_approve_deliverables !== false);
           setDelegationEnabled(!!cfg.delegation?.enabled);
           const root =
             typeof cfg.collaboration?.assets_root === 'string' ? cfg.collaboration.assets_root : '';
@@ -1063,6 +1068,38 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         throw new Error(await put.text());
       }
       setCollabSmartRouting(enabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollabRoutingSaving(false);
+    }
+  };
+
+  const handleCollabAutoApproveToggle = async (enabled: boolean) => {
+    setCollabRoutingSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      const r = await fetch(`${hubHttp}/api/settings`);
+      if (!r.ok) {
+        throw new Error(await r.text());
+      }
+      const cfg = await r.json();
+      const next = {
+        ...cfg,
+        collaboration: {
+          ...(cfg.collaboration ?? {}),
+          auto_approve_deliverables: enabled,
+        },
+      };
+      const put = await fetch(`${hubHttp}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!put.ok) {
+        throw new Error(await put.text());
+      }
+      setCollabAutoApproveDeliverables(enabled);
     } catch (e) {
       setCollabRoutingErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -3540,6 +3577,16 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     className="rounded border-slack-border"
                   />
                   <span className="text-slack-text">Enable smart routing for collaboration tasks</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer mt-4">
+                  <input
+                    type="checkbox"
+                    checked={collabAutoApproveDeliverables}
+                    disabled={collabRoutingSaving}
+                    onChange={(e) => void handleCollabAutoApproveToggle(e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-slack-text">Auto-approve deliverables under collabs/&lt;id&gt;/</span>
                 </label>
                 {collabRoutingErr && (
                   <p className="text-sm text-red-600 mt-2">{collabRoutingErr}</p>

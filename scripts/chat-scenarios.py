@@ -29,6 +29,28 @@ DEFAULT_AGENT = "Assistant"
 DEFAULT_FROM = "ChatScenario"
 
 
+def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
+    """Mirror desktop sends: context_scope without workspace_context cannot trigger visibility replies."""
+    if not meta:
+        return None
+    out = dict(meta)
+    scope = str(out.get("context_scope") or "").strip().lower()
+    if scope in ("", "none") or out.get("workspace_context"):
+        return out
+    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
+    root = os.environ.get("NEURAL_JUNKIE_SCENARIO_REPO", str(ROOT)).strip()
+    fixture = (ws_cfg.get("fixture") or "").strip()
+    if fixture:
+        root = str((ROOT / "scenarios" / "fixtures" / fixture).resolve())
+    out["workspace_context"] = {
+        "workspace_name": Path(root).name,
+        "workspace_path": root,
+        "file_tree": ws_cfg.get("file_tree") or "desktop/\ninternal/\ncmd/\n",
+        "open_files": ws_cfg.get("open_files") or [],
+    }
+    return out
+
+
 class ChatScenarioContext:
     def __init__(self, base: str, scenario: dict, verbose: bool = False) -> None:
         self.base = base.rstrip("/")
@@ -56,13 +78,36 @@ def load_scenario(name: str) -> dict:
     if not path.is_file():
         raise FileNotFoundError(f"scenario not found: {path}")
     with path.open(encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if isinstance(data, dict) and not data.get("name"):
+        data["name"] = name
+    return data
 
 
-def list_scenarios() -> list[str]:
+def scenario_tags(scenario: dict) -> list[str]:
+    raw = scenario.get("tags")
+    if not isinstance(raw, list):
+        return []
+    return [str(t).strip().lower() for t in raw if str(t).strip()]
+
+
+def list_scenarios(tags: list[str] | None = None) -> list[str]:
     if not SCENARIOS_DIR.is_dir():
         return []
-    return sorted(p.stem for p in SCENARIOS_DIR.glob("*.json"))
+    names = sorted(p.stem for p in SCENARIOS_DIR.glob("*.json"))
+    if not tags:
+        return names
+    want = {t.strip().lower() for t in tags if t.strip()}
+    out = []
+    for name in names:
+        try:
+            sc = load_scenario(name)
+        except (OSError, json.JSONDecodeError):
+            continue
+        have = set(scenario_tags(sc))
+        if want <= have:
+            out.append(name)
+    return out
 
 
 def dump_transcript(ctx: ChatScenarioContext, tail: int = 12) -> None:
@@ -79,7 +124,7 @@ def step_send(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     content = ctx.format_send_content(step.get("content") or "")
     if not content:
         return False, "send: empty content"
-    meta = step.get("metadata")
+    meta = enrich_send_metadata(step.get("metadata"), ctx.scenario)
     from_name = (step.get("from") or DEFAULT_FROM).strip()
     # Baseline before send so instant replies (e.g. closure) still satisfy wait_reply.
     ctx.baseline_agent_count = hub.count_chat_agent_messages(
@@ -156,7 +201,11 @@ def step_assert_debug_context(ctx: ChatScenarioContext, step: dict) -> tuple[boo
     if not sample:
         return False, "assert_debug_context: message required"
     mode = (step.get("conversation_mode") or "").strip() or None
-    data = hub.fetch_debug_context(ctx.base, ctx.channel, sample, conversation_mode=mode)
+    scope_q = (step.get("context_scope") or (step.get("metadata") or {}).get("context_scope") or "")
+    scope_q = str(scope_q).strip() or None
+    data = hub.fetch_debug_context(
+        ctx.base, ctx.channel, sample, conversation_mode=mode, context_scope=scope_q
+    )
     if not data:
         if step.get("optional"):
             return True, "skipped (NEURAL_JUNKIE_DEBUG=1 not set on hub)"
@@ -169,6 +218,10 @@ def step_assert_debug_context(ctx: ChatScenarioContext, step: dict) -> tuple[boo
         got = (data.get("conversation_mode") or "").strip()
         if got != want:
             return False, f"conversation_mode: got {got!r} want {want!r}"
+    if want := step.get("context_scope"):
+        got = (data.get("context_scope") or "").strip()
+        if got != str(want):
+            return False, f"context_scope: got {got!r} want {want!r}"
     return True, "debug context ok"
 
 
@@ -237,6 +290,9 @@ def run_scenario(
     required = scenario.get("required_agents") or [ctx.target_agent]
     ok_agents, missing = hub.verify_agents_online(base, required)
     if not ok_agents:
+        if scenario.get("optional"):
+            print(f"=== SKIP (optional): {name} — offline: {', '.join(missing)} ===\n")
+            return True
         print(f"  FAIL: required agents offline: {', '.join(missing)}", file=sys.stderr)
         return False
 
@@ -279,25 +335,44 @@ def main() -> int:
     p.add_argument("--hub", default=hub.DEFAULT_HUB)
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--keep", action="store_true", help="Do not clear channel history after run")
+    p.add_argument(
+        "--tag",
+        action="append",
+        default=[],
+        help="Filter scenarios (repeatable). Scenario must include all listed tags.",
+    )
     args = p.parse_args()
 
     if args.list:
-        for n in list_scenarios():
-            print(n)
+        for n in list_scenarios(args.tag or None):
+            sc = load_scenario(n)
+            tags = ",".join(scenario_tags(sc)) or "-"
+            opt = " (optional)" if sc.get("optional") else ""
+            print(f"{n}\t{tags}{opt}")
         return 0
 
     base = args.hub.rstrip("/")
     if args.all:
-        names = list_scenarios()
+        names = list_scenarios(args.tag or None)
         if not names:
             print("No scenarios found", file=sys.stderr)
             return 1
         failed = []
+        skipped = []
         for i, n in enumerate(names):
             if i > 0:
                 time.sleep(3.0)
+            scenario = load_scenario(n)
+            required = scenario.get("required_agents") or [scenario.get("target_agent") or DEFAULT_AGENT]
+            ok_agents, missing = hub.verify_agents_online(base, required)
+            if not ok_agents and scenario.get("optional"):
+                print(f"=== SKIP (optional): {n} — offline: {', '.join(missing)} ===\n")
+                skipped.append(n)
+                continue
             if not run_scenario(base, n, verbose=args.verbose, keep=args.keep):
                 failed.append(n)
+        if skipped:
+            print(f"Skipped optional: {', '.join(skipped)}", file=sys.stderr)
         return 1 if failed else 0
 
     if not args.scenario:

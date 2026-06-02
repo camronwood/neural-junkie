@@ -1,6 +1,6 @@
 {
-  "updated": "2026-05-29T21:21:32Z",
-  "count": 31,
+  "updated": "2026-06-02T15:40:29Z",
+  "count": 33,
   "items": [
     {
       "id": "neural-junkie-beta-download-ad-1080",
@@ -10,6 +10,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-beta-download-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-beta21-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-beta21-ad-1200.png",
+      "title": "Beta21 Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-beta21-ad-1200.png"
     },
     {
       "id": "neural-junkie-biology-pack-ad-1080",
@@ -106,6 +115,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-lora-ad-1200.png"
+    },
+    {
+      "id": "neural-junkie-mcp-lora-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-mcp-lora-ad-1200.png",
+      "title": "Mcp Lora Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-mcp-lora-ad-1200.png"
     },
     {
       "id": "neural-junkie-nondev-collaborate-ad-1080",

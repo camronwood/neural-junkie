@@ -62,10 +62,21 @@ type CollaborationConfig struct {
 	// SmartRoutingEnabled selects a configured AI provider per collaboration
 	// execution task (MessageTypeCollabTask with task_id) using a static heuristic.
 	SmartRoutingEnabled bool `json:"smart_routing_enabled"`
+	// AutoApproveDeliverables auto-approves [FILE_CHANGE] proposals under collabs/<id>/
+	// during executing collaborations. Nil/absent defaults to true.
+	AutoApproveDeliverables *bool `json:"auto_approve_deliverables,omitempty"`
 	// AssetsRoot is the parent directory for per-collaboration execution sandboxes.
 	// Each run uses <AssetsRoot>/<collaboration-id>/. Empty uses ~/.neural-junkie/collaborations.
 	// Overridden by NEURAL_JUNKIE_COLLAB_ASSETS_DIR when set.
 	AssetsRoot string `json:"assets_root,omitempty"`
+}
+
+// AutoApproveDeliverablesEnabled reports whether collab deliverable files are auto-approved.
+func (c CollaborationConfig) AutoApproveDeliverablesEnabled() bool {
+	if c.AutoApproveDeliverables == nil {
+		return true
+	}
+	return *c.AutoApproveDeliverables
 }
 
 // FeaturesConfig toggles optional product features (pack-gated elsewhere).
@@ -120,13 +131,18 @@ func DefaultConfig() *Config {
 			AutoCheck: true,
 		},
 		Collaboration: CollaborationConfig{
-			SmartRoutingEnabled: false,
+			SmartRoutingEnabled:     false,
+			AutoApproveDeliverables: boolPtr(true),
 		},
 		Delegation: DefaultDelegationConfig(),
 		Features:   FeaturesConfig{PersonalLearningEnabled: false},
 		Packs:      DefaultPacksConfig(),
 		MCP:        DefaultMCPConfig(),
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func configDir() (string, error) {

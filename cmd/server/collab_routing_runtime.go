@@ -106,6 +106,10 @@ func applyCollabModelOverrides(ctx context.Context, p ai.AIProvider, info protoc
 
 	plan := routing.PlanTask(buildCollabPlanInput(ctx, info, msg.Content, overrides))
 	tag := strings.TrimSpace(plan.OllamaModel)
+	if plan.ModelReason == "deliverable_task_keep_agent_model" {
+		log.Printf("[collab-routing] %s: model=%s reason=deliverable_task_keep_agent_model (provider=%s)", info.Name, tag, providerReason)
+		return p
+	}
 	if tag == "" || strings.TrimSpace(plan.ModelReason) == "agent_default_model" {
 		return p
 	}

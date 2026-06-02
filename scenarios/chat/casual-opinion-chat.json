@@ -1,6 +1,7 @@
 {
   "name": "casual-opinion-chat",
   "description": "Chat mode opinion question should not dump workspace/tool blocks.",
+  "tags": ["public", "assistant", "chat"],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",

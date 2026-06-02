@@ -10,11 +10,13 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlencode
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPTS_DIR.parent
@@ -192,18 +194,18 @@ def run_step(base: str, scenario: dict, step: dict, ctx: dict) -> None:
         raise RuntimeError("assert_learning_proposal: no proposal metadata on recent messages")
 
     if stype == "assert_learning_query":
-        params = []
+        params: list[tuple[str, str]] = []
         if step.get("agent_id"):
-            params.append(f"agent_id={step['agent_id']}")
+            params.append(("agent_id", str(step["agent_id"])))
         if step.get("q"):
-            params.append(f"q={step['q']}")
+            params.append(("q", str(step["q"])))
         if step.get("scope"):
-            params.append(f"scope={step['scope']}")
+            params.append(("scope", str(step["scope"])))
         if step.get("collaboration_id"):
-            params.append(f"collaboration_id={step['collaboration_id']}")
+            params.append(("collaboration_id", str(step["collaboration_id"])))
         if step.get("channel"):
-            params.append(f"channel={step['channel']}")
-        q = "?" + "&".join(params)
+            params.append(("channel", str(step["channel"])))
+        q = "?" + urlencode(params) if params else ""
         code, body = hub.hub_request(base, "GET", f"/api/learnings/query{q}")
         if code != 200 or not isinstance(body, dict):
             raise RuntimeError(f"assert_learning_query failed: {code} {body}")
@@ -235,6 +237,9 @@ def run_step(base: str, scenario: dict, step: dict, ctx: dict) -> None:
             raise RuntimeError(f"expected added >= {min_added}, got {added}")
         if "expect_skipped" in step and skipped != int(step["expect_skipped"]):
             raise RuntimeError(f"expected skipped {step['expect_skipped']}, got {skipped}")
+        min_skipped = step.get("min_skipped")
+        if min_skipped is not None and skipped < int(min_skipped):
+            raise RuntimeError(f"expected skipped >= {min_skipped}, got {skipped}")
         return
 
     if stype == "assert_expert_context":
@@ -260,19 +265,54 @@ def run_step(base: str, scenario: dict, step: dict, ctx: dict) -> None:
     raise RuntimeError(f"unknown step type: {stype}")
 
 
-def run_scenario(base: str, name: str, verbose: bool = False) -> None:
+def fetch_settings(base: str) -> dict | None:
+    code, cfg = hub.hub_request(base, "GET", "/api/settings")
+    if code != 200 or not isinstance(cfg, dict):
+        return None
+    return cfg
+
+
+def restore_settings(base: str, original: dict | None) -> None:
+    if original is None:
+        return
+    code, out = hub.hub_request(base, "PUT", "/api/settings", original)
+    if code != 200:
+        print(f"  warning: failed to restore settings ({code}): {out}", file=sys.stderr)
+
+
+def delete_created_learnings(base: str, learnings: list) -> None:
+    for row in learnings:
+        if not isinstance(row, dict):
+            continue
+        lid = row.get("id")
+        if not lid:
+            continue
+        code, out = hub.hub_request(base, "DELETE", f"/api/learnings/{lid}")
+        if code != 200:
+            print(f"  warning: failed to delete learning {lid} ({code}): {out}", file=sys.stderr)
+
+
+def run_scenario(base: str, name: str, verbose: bool = False, keep: bool = False) -> None:
     scenario = load_scenario(name)
     if not hub.check_health(base):
         raise SystemExit(f"hub not reachable at {base}")
     ctx: dict = {}
+    original_settings = fetch_settings(base)
     if verbose:
         print(f"=== {name} ===")
-    for i, step in enumerate(scenario.get("steps") or []):
+    try:
+        for i, step in enumerate(scenario.get("steps") or []):
+            if verbose:
+                print(f"  step {i + 1}: {step.get('type')}")
+            run_step(base, scenario, step, ctx)
         if verbose:
-            print(f"  step {i + 1}: {step.get('type')}")
-        run_step(base, scenario, step, ctx)
-    if verbose:
-        print(f"OK {name}")
+            print(f"OK {name}")
+    finally:
+        if not keep:
+            delete_created_learnings(base, ctx.get("learnings") or [])
+            restore_settings(base, copy.deepcopy(original_settings) if original_settings else None)
+        elif verbose:
+            print("  --keep: settings and learnings left in place")
 
 
 def main() -> None:
@@ -282,7 +322,13 @@ def main() -> None:
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--scenario")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--keep",
+        action="store_true",
+        help="Do not delete learnings or restore settings after run",
+    )
     args = parser.parse_args()
+    keep = args.keep or os.environ.get("KEEP", "").strip() in ("1", "true", "yes")
 
     if args.list:
         for name in list_scenarios():
@@ -296,7 +342,7 @@ def main() -> None:
     failed = 0
     for name in names:
         try:
-            run_scenario(args.hub, name, verbose=args.verbose)
+            run_scenario(args.hub, name, verbose=args.verbose, keep=keep)
             print(f"PASS {name}")
         except Exception as e:
             failed += 1

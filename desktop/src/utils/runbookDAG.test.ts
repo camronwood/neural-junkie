@@ -64,6 +64,21 @@ describe('tasksToFlow', () => {
     expect(edges[0].source).toBe('a');
     expect(edges[0].target).toBe('b');
   });
+
+  it('builds edges from dependency_edges when dependencies empty', () => {
+    const tasks = [
+      task({ id: 'a', title: 'A' }),
+      {
+        ...task({ id: 'b', title: 'B' }),
+        dependencies: undefined,
+        dependency_edges: [{ from_task_id: 'a' }],
+      },
+    ];
+    const { edges } = tasksToFlow(tasks, {});
+    expect(edges).toHaveLength(1);
+    expect(edges[0].source).toBe('a');
+    expect(edges[0].target).toBe('b');
+  });
 });
 
 describe('applyEdgeConnect', () => {
