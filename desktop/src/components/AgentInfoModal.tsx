@@ -134,7 +134,7 @@ export function AgentInfoModal({
     setLearningsError(null);
     const api = new ChatAPI(serverAddr);
     void api
-      .fetchLearnings(agent.id)
+      .fetchLearnings({ agentId: agent.id, agentType: agent.type, agentName: agent.name })
       .then((rows) => {
         if (!cancelled) setLearnings(rows);
       })
@@ -867,7 +867,11 @@ export function AgentInfoModal({
           }}
           onSaved={async () => {
             const api = new ChatAPI(serverAddr);
-            const rows = await api.fetchLearnings(agent.id);
+            const rows = await api.fetchLearnings({
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+            });
             setLearnings(rows);
             setEditLearning(null);
           }}

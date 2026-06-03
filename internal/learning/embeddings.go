@@ -107,6 +107,9 @@ func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (g
 		return nil, nil, nil, nil
 	}
 	userID := pctx.UserID
+	if globalStore != nil {
+		userID = globalStore.ResolveUserID(userID)
+	}
 	query := strings.TrimSpace(pctx.Query)
 	collabID := pctx.CollaborationID
 	if collabID == "" && pctx.Channel != "" {
@@ -114,8 +117,18 @@ func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (g
 		pctx.CollaborationID = collabID
 	}
 
+	agentType := pctx.AgentType
+	agentName := pctx.AgentName
+
 	poolGlobal := globalStore.ListFiltered(Filter{UserID: userID, Scope: ScopeGlobal, IncludeLegacy: true})
-	poolAgent := globalStore.ListFiltered(Filter{UserID: userID, Scope: ScopeAgent, AgentID: agentID, IncludeLegacy: true})
+	poolAgent := globalStore.ListFiltered(Filter{
+		UserID:        userID,
+		Scope:         ScopeAgent,
+		AgentID:       agentID,
+		AgentType:     agentType,
+		AgentName:     agentName,
+		IncludeLegacy: true,
+	})
 	poolCollab := []Entry{}
 	if collabID != "" {
 		poolCollab = globalStore.ListFiltered(Filter{UserID: userID, Scope: ScopeCollaboration, CollaborationID: collabID, IncludeLegacy: true})

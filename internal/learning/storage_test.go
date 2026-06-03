@@ -31,7 +31,7 @@ func TestStoreAddListForget(t *testing.T) {
 	if len(list) != 1 || list[0].Content != "Prefer tabs" {
 		t.Fatalf("unexpected list: %+v", list)
 	}
-	if store.CountForAgent("agent-a") != 1 {
+	if store.CountForAgent("agent-a", "", "") != 1 {
 		t.Fatal("expected count 1")
 	}
 	if len(store.List("agent-b")) != 0 {
@@ -108,3 +108,21 @@ func TestStoreScopeAndUpdate(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestStoreResolveUserID_soleUserFallback(t *testing.T) {
+	store, err := NewStore(filepath.Join(t.TempDir(), "learnings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Add(Entry{
+		AgentID:  "assistant-1",
+		UserID:   "camron",
+		Content:  "My name is Camron.",
+		Category: CategoryFact,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.ResolveUserID("camronwood"); got != "camron" {
+		t.Fatalf("ResolveUserID(camronwood) = %q, want camron", got)
+	}
+}

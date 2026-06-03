@@ -37,6 +37,7 @@ func (a *Agent) buildCompactOllamaPrompt(msg *protocol.Message) string {
 		system.WriteString("\n")
 	}
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
+	AppendLearningsForMessage(&system, msg, &a.Info)
 
 	var user strings.Builder
 	user.WriteString(strings.TrimSpace(msg.Content))

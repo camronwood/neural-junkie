@@ -624,6 +624,7 @@ func (h *Hub) LeaveChannel(agentID, channelName string) error {
 // SendMessage sends a message to a channel
 func (h *Hub) SendMessage(msg *protocol.Message) error {
 	h.inheritCollaborationFromChannel(msg)
+	agent.AttachUserRulesMetadataIfMissing(msg)
 	if msg != nil && msg.IdeRouteAgentType() != "" && msg.Channel != "" {
 		h.MarkChannelDurable(msg.Channel)
 	}
@@ -650,6 +651,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		mentionStrings = protocol.ParseMentions(msg.Content)
 	}
 	hasInvalidMentions := false
+	isDMInbound := protocol.IsUserLikeSender(msg.From) && h.isChannelDM(msg.Channel)
 
 	if len(mentionStrings) > 0 {
 		// Resolve mentions and check for unresolved ones
@@ -660,7 +662,7 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		h.maybeRequestCollaborationParticipants(msg, agentIDs)
 
 		// Send system messages for unresolved mentions (user-authored mentions only).
-		if allowMentionValidationErrors {
+		if allowMentionValidationErrors && !isDMInbound {
 			for _, mention := range mentionStrings {
 				if !resolvedMentions[mention] {
 					hasInvalidMentions = true
@@ -690,16 +692,24 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		// If all mentions were invalid, don't process the message further
 		// This prevents agents from responding to invalid @mentions
 		if allowMentionValidationErrors && hasInvalidMentions && len(agentIDs) == 0 {
-			// Set mentions to a dummy value so agents will see HasMentions() = true
-			// but IsMentioned(agentID) = false, preventing all agents from responding
-			msg.Mentions = []string{"__INVALID__"}
+			if isDMInbound {
+				h.normalizeDMMentionRouting(msg, mentionStrings, agentIDs)
+			} else {
+				// Set mentions to a dummy value so agents will see HasMentions() = true
+				// but IsMentioned(agentID) = false, preventing all agents from responding
+				msg.Mentions = []string{"__INVALID__"}
 
-			// Store the message for history so user can see what they typed
-			h.mu.Lock()
-			h.appendChannelMessageLocked(msg.Channel, msg)
-			h.mu.Unlock()
-			return nil
+				// Store the message for history so user can see what they typed
+				h.mu.Lock()
+				h.appendChannelMessageLocked(msg.Channel, msg)
+				h.mu.Unlock()
+				return nil
+			}
 		}
+	}
+
+	if isDMInbound {
+		h.normalizeDMMentionRouting(msg, mentionStrings, msg.Mentions)
 	}
 
 	// Check if it's a command - process commands from both chat and question types
@@ -1561,6 +1571,25 @@ func (h *Hub) collabUserRulesMarkdown(snap *collaboration.Collaboration, inherit
 		username = snap.CreatedBy
 	}
 	return h.ResolveUserRulesMarkdown(username)
+}
+
+// AnnotateInboundUserMessage stamps session identity and injects persisted user rules for human senders.
+// sessionUsername is the authenticated hub session name when the message arrived via the API.
+func (h *Hub) AnnotateInboundUserMessage(msg *protocol.Message, sessionUsername string) {
+	h.annotateInboundUserMessage(msg, sessionUsername)
+}
+
+func (h *Hub) annotateInboundUserMessage(msg *protocol.Message, sessionUsername string) {
+	if msg == nil || !protocol.IsUserLikeSender(msg.From) {
+		return
+	}
+	if sessionUsername = strings.TrimSpace(sessionUsername); sessionUsername != "" {
+		if msg.Metadata == nil {
+			msg.Metadata = make(map[string]interface{})
+		}
+		msg.Metadata[agent.MetadataHubSessionUsername] = sessionUsername
+	}
+	agent.AttachUserRulesMetadataIfMissing(msg)
 }
 
 // syncAgentInfoCopiesInChannelsLocked updates channel member snapshots when AgentInfo mutates.
@@ -2649,6 +2678,17 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 
 	// Bind executor to the resolved workspace root from the message context.
 	h.fileChangeManager.GetExecutor().SetWorkspaceRoot(wsRoot)
+
+	manifest := agent.DetectStackManifest(wsRoot)
+	proposal.FilePath = agent.RedirectProposalPath(proposal.FilePath, manifest)
+	propOp := agent.ProposalOpCreate
+	if operation == filechange.FileOperationEdit {
+		propOp = agent.ProposalOpEdit
+	}
+	if err := agent.ValidateProposal(wsRoot, proposal.FilePath, propOp, manifest); err != nil {
+		log.Printf("[FileChange] Preflight rejected %q: %v", proposal.FilePath, err)
+		return
+	}
 
 	// Register with FileChangeManager
 	change, err := h.fileChangeManager.ProposeFileChange(

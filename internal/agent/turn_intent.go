@@ -170,6 +170,7 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	}
 	fallback := ResolveUserRulesHubFallback(msg)
 	AppendUserAndAgentRules(&b, msg, &a.Info, fallback, 0)
+	AppendLearningsForMessage(&b, msg, &a.Info)
 	b.WriteString("Respond briefly and naturally to the user's latest message only.\n")
 	b.WriteString("Do not repeat long prior answers or re-derive facts already covered in the session summary.\n")
 	b.WriteString("Never quote or restate the USER MESSAGE verbatim as your entire reply. ")

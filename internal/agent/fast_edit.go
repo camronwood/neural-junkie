@@ -12,6 +12,6 @@ func RunFastEdit(ctx context.Context, a *Agent, channel string, userMsg *protoco
 	if err != nil {
 		return "", false, err
 	}
-	cleaned, ok, err := a.maybeSubmitFileChangeFromResponse(resp, channel, userMsg)
+	cleaned, ok, err := a.maybeSubmitFileChangeFromResponse(ctx, resp, channel, userMsg)
 	return cleaned, ok, err
 }

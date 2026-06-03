@@ -81,9 +81,46 @@ func TestResolveUserRulesHubFallback(t *testing.T) {
 	t.Cleanup(func() { SetUserRulesLookup(nil) })
 
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test",
+		protocol.AgentInfo{ID: "u1", Name: "camronwood", Type: protocol.AgentTypeGeneral},
+		"hi")
+	msg.Metadata = map[string]any{MetadataHubSessionUsername: "Camron"}
+	if got := ResolveUserRulesHubFallback(msg); got != "Prefer markdown links." {
+		t.Fatalf("session username lookup got %q", got)
+	}
+}
+
+func TestResolveUserRulesHubFallback_senderName(t *testing.T) {
+	SetUserRulesLookup(func(username string) string {
+		if username == "Camron" {
+			return "Prefer markdown links."
+		}
+		return ""
+	})
+	t.Cleanup(func() { SetUserRulesLookup(nil) })
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test",
 		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
 		"hi")
 	if got := ResolveUserRulesHubFallback(msg); got != "Prefer markdown links." {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAttachUserRulesMetadataIfMissing(t *testing.T) {
+	SetUserRulesLookup(func(username string) string {
+		return "Always cite sources."
+	})
+	t.Cleanup(func() { SetUserRulesLookup(nil) })
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general",
+		protocol.AgentInfo{ID: "u1", Name: "Camron", Type: protocol.AgentTypeGeneral},
+		"hello")
+	AttachUserRulesMetadataIfMissing(msg)
+	raw, ok := msg.Metadata[MetadataUserRulesMarkdown]
+	if !ok {
+		t.Fatal("expected user rules metadata")
+	}
+	if raw.(string) != "Always cite sources." {
+		t.Fatalf("got %q", raw)
 	}
 }

@@ -2330,8 +2330,16 @@ export class ChatAPI {
     return response.json();
   }
 
-  async fetchLearnings(agentId?: string): Promise<UserLearning[]> {
-    const q = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : '';
+  async fetchLearnings(options?: {
+    agentId?: string;
+    agentType?: string;
+    agentName?: string;
+  }): Promise<UserLearning[]> {
+    const params = new URLSearchParams();
+    if (options?.agentId) params.set('agent_id', options.agentId);
+    if (options?.agentType) params.set('agent_type', options.agentType);
+    if (options?.agentName) params.set('agent_name', options.agentName);
+    const q = params.toString() ? `?${params.toString()}` : '';
     const response = await this.hubFetch(`/api/learnings${q}`);
     if (!response.ok) {
       const t = await response.text();

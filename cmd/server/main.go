@@ -1812,7 +1812,8 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if _, ok := ensureMutationAccess(w, r, req.Channel); !ok {
+	sess, ok := ensureMutationAccess(w, r, req.Channel)
+	if !ok {
 		return
 	}
 
@@ -1885,6 +1886,8 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		agent.SanitizeInboundMessageMetadata(msg)
 	}
+
+	chatHub.AnnotateInboundUserMessage(msg, sess.Username)
 
 	if err := chatHub.SendMessage(msg); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1974,6 +1977,11 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 		return
 	}
 
+	sess, ok := ensureMutationAccess(w, r, req.Channel)
+	if !ok {
+		return
+	}
+
 	senderID, senderName, senderType := defaultHumanSender()
 
 	if req.From != nil {
@@ -2009,6 +2017,8 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 		}
 		agent.SanitizeInboundMessageMetadata(msg)
 	}
+
+	chatHub.AnnotateInboundUserMessage(msg, sess.Username)
 
 	if err := chatHub.SendMessage(msg); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

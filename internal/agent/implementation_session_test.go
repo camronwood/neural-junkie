@@ -25,16 +25,39 @@ func TestShouldRunImplementationSession(t *testing.T) {
 	}
 }
 
-func TestDetectVerifyCommand(t *testing.T) {
+func TestDetectVerifyCommands_go(t *testing.T) {
 	dir := t.TempDir()
-	if cmd := detectVerifyCommand(dir); cmd != "" {
-		t.Fatalf("empty dir: %q", cmd)
-	}
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if cmd := detectVerifyCommand(dir); cmd != "go test ./..." {
-		t.Fatalf("got %q", cmd)
+	cmds := detectVerifyCommands(dir)
+	if len(cmds) != 1 || cmds[0] != "go test ./..." {
+		t.Fatalf("got %v", cmds)
+	}
+}
+
+func TestDetectVerifyCommands_nodeBuild(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts":{"build":"vite build","test":"node test.js"}}`)
+	writeFile(t, dir, "tsconfig.json", `{}`)
+	cmds := detectVerifyCommands(dir)
+	if len(cmds) < 2 {
+		t.Fatalf("expected build + test, got %v", cmds)
+	}
+	if cmds[0] != "npm run build" {
+		t.Fatalf("first cmd: got %q", cmds[0])
+	}
+}
+
+func TestGroundingSatisfied(t *testing.T) {
+	t.Parallel()
+	st := &ImplementationSessionState{StackManifest: &StackManifest{EntryPoint: "src/App.tsx"}}
+	if !st.groundingSatisfied() {
+		t.Fatal("entry point should satisfy grounding")
+	}
+	st2 := &ImplementationSessionState{}
+	if st2.groundingSatisfied() {
+		t.Fatal("empty state should not satisfy grounding")
 	}
 }
 

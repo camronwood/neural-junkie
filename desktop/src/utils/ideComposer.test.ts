@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildIdeDispatchPayload } from './ideComposer';
+import {
+  buildIdeDispatchPayload,
+  buildImplementationSessionMetadata,
+  pickAgentTypeForImplementation,
+} from './ideComposer';
 
 describe('buildIdeDispatchPayload', () => {
   it('sets implementation_session for agent mode code tasks', () => {

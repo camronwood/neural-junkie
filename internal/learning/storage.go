@@ -128,11 +128,81 @@ func (s *Store) matchesUser(e Entry, userID string, includeLegacy bool) bool {
 	return includeLegacy && e.UserID == ""
 }
 
+// hasEntriesForUser reports whether any active learning is stored under userID.
+func (s *Store) hasEntriesForUser(userID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, e := range s.data.Entries {
+		if e.Active && e.UserID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+// entryMatchesAgent reports whether an agent-scoped learning applies to a runtime agent.
+// Matches by ID first, then stable type+name (survives hub restarts that reissue UUIDs).
+func entryMatchesAgent(e Entry, agentID, agentType, agentName string) bool {
+	if e.Scope != ScopeAgent {
+		return true
+	}
+	if agentID != "" && e.AgentID == agentID {
+		return true
+	}
+	eType := strings.TrimSpace(strings.ToLower(e.AgentType))
+	eName := strings.TrimSpace(strings.ToLower(e.AgentName))
+	wantType := strings.TrimSpace(strings.ToLower(agentType))
+	wantName := strings.TrimSpace(strings.ToLower(agentName))
+	if wantType != "" && wantName != "" && eType == wantType && eName == wantName {
+		return true
+	}
+	return false
+}
+
+// ResolveUserID maps a requested username slug to the stored user_id when they differ
+// (e.g. login renamed from "Camron" to "camronwood" on a single-user hub).
+func (s *Store) ResolveUserID(requested string) string {
+	requested = SlugUserID(requested)
+	if requested != "" && s.hasEntriesForUser(requested) {
+		return requested
+	}
+	if sole := s.soleActiveUserID(); sole != "" {
+		return sole
+	}
+	return requested
+}
+
+func (s *Store) soleActiveUserID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var found string
+	for _, e := range s.data.Entries {
+		if !e.Active {
+			continue
+		}
+		uid := strings.TrimSpace(e.UserID)
+		if uid == "" {
+			continue
+		}
+		if found == "" {
+			found = uid
+			continue
+		}
+		if found != uid {
+			return ""
+		}
+	}
+	return found
+}
+
 func (s *Store) List(agentID string) []Entry {
 	return s.ListFiltered(Filter{AgentID: agentID, IncludeLegacy: true})
 }
 
 func (s *Store) ListFiltered(f Filter) []Entry {
+	if f.UserID != "" {
+		f.UserID = s.ResolveUserID(f.UserID)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]Entry, 0)
@@ -143,8 +213,10 @@ func (s *Store) ListFiltered(f Filter) []Entry {
 		if f.Scope != "" && e.Scope != f.Scope {
 			continue
 		}
-		if f.AgentID != "" && e.Scope == ScopeAgent && e.AgentID != f.AgentID {
-			continue
+		if f.AgentID != "" || f.AgentType != "" || f.AgentName != "" {
+			if e.Scope == ScopeAgent && !entryMatchesAgent(e, f.AgentID, f.AgentType, f.AgentName) {
+				continue
+			}
 		}
 		if f.CollaborationID != "" && e.CollaborationID != f.CollaborationID {
 			continue
@@ -307,8 +379,13 @@ func (s *Store) RecordUse(ids []string) {
 	_ = s.saveLocked()
 }
 
-func (s *Store) CountForAgent(agentID string) int {
-	return len(s.List(agentID))
+func (s *Store) CountForAgent(agentID, agentType, agentName string) int {
+	return len(s.ListFiltered(Filter{
+		AgentID:       agentID,
+		AgentType:     agentType,
+		AgentName:     agentName,
+		IncludeLegacy: true,
+	}))
 }
 
 func (s *Store) CountByScope(userID string, scope Scope) int {

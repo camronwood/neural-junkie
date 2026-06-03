@@ -330,6 +330,13 @@ func (ca *ConfluenceAgent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 
+	if ca.isDMChannel(msg.Channel) {
+		if msg.From.Name == "System" || msg.From.ID == "system" || msg.From.ID == ca.Info.ID {
+			return false
+		}
+		return DMHumanMessageShouldRespond(msg, ca.Info.ID)
+	}
+
 	// Always respond if mentioned (non-collaboration-scoped messages)
 	if msg.IsMentioned(ca.Info.ID) {
 		return true

@@ -119,9 +119,11 @@ import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
   buildIdeDispatchPayload,
+  buildImplementationSessionMetadata,
   ideRoutingChipLabel,
   mergeCodebaseAttachments,
 } from '../utils/ideComposer';
+import { hasCodeTaskSignals } from '../utils/conversationMode';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
@@ -1579,6 +1581,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           ws?.path,
           idePayload.metadata
         );
+      } else if (
+        devPackEnabled &&
+        (layoutSettings.editorAgentMode ?? 'agent') === 'agent' &&
+        hasCodeTaskSignals(content)
+      ) {
+        const ws =
+          explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+          explorerWorkspaces[0];
+        composerMeta = buildImplementationSessionMetadata({
+          content,
+          agents,
+          activeTab: activeEditorTab,
+          editorAgentMode: layoutSettings.editorAgentMode ?? 'agent',
+          editorAgentTrust: layoutSettings.editorAgentTrust ?? 'interactive',
+          composerMetadata: composerMeta,
+        });
+        if (ws?.path) {
+          composerMeta = await mergeCodebaseAttachments(api, content, ws.path, composerMeta);
+        }
       }
 
       const mergedMetadata = buildHumanOutboundMetadata({
@@ -2287,9 +2308,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             isClosedCollaborationChannel
               ? 'Collaboration closed — read-only (slash commands still work)'
               : status === 'connected'
-                ? ideLayout && devPackEnabled
-                  ? 'Ask about the project — routes by open file; @mention to pick an agent…'
-                  : 'Type your message here...'
+                ? activeChannelMeta?.type === 'dm'
+                  ? 'Message this agent directly — no @mention needed…'
+                  : ideLayout && devPackEnabled
+                    ? 'Ask about the project — routes by open file; @mention to pick an agent…'
+                    : 'Type your message here...'
                 : 'Connecting...'
           }
           agents={agents}

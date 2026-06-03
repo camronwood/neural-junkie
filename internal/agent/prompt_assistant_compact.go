@@ -36,6 +36,7 @@ func (a *Agent) buildCompactAssistantOllamaPrompt(msg *protocol.Message) string 
 	system.WriteString("Do not repeat or re-answer earlier questions from the conversation.\n")
 	system.WriteString("Meeting notes and emails are loaded when the user asks about meetings or email.\n")
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
+	AppendLearningsForMessage(&system, msg, &a.Info)
 
 	var user strings.Builder
 	user.WriteString(strings.TrimSpace(msg.Content))
@@ -47,12 +48,15 @@ func (a *Agent) buildCompactAssistantOllamaPrompt(msg *protocol.Message) string 
 
 // buildUltraCompactAssistantOllamaPrompt is the last-resort retry prompt (no history).
 func (a *Agent) buildUltraCompactAssistantOllamaPrompt(msg *protocol.Message) string {
-	system := fmt.Sprintf(
+	var system strings.Builder
+	fmt.Fprintf(&system,
 		"You are the Assistant (%q / %q). Reply in 1-3 sentences to the user only. Do not mention prior topics.\n",
 		a.Info.AIModel, a.Info.AIProvider,
 	)
+	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
+	AppendLearningsForMessage(&system, msg, &a.Info)
 	user := strings.TrimSpace(msg.Content)
-	return system + ai.SystemPromptSeparator + user
+	return system.String() + ai.SystemPromptSeparator + user
 }
 
 // userAsksAboutModelIdentity detects questions about which LLM/model the agent runs.

@@ -30,3 +30,20 @@ func TestUserRulesStorageResolveDefaultFallback(t *testing.T) {
 		t.Fatalf("Resolve(Other) = %q, want default fallback", got)
 	}
 }
+
+func TestUserRulesStorageSoleUserFallback(t *testing.T) {
+	home := testutil.IsolateNeuralJunkieHome(t)
+	path := filepath.Join(home, ".neural-junkie", "user-rules.json")
+	store, err := NewUserRulesStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.path = path
+
+	if err := store.Set("Camron", "camron rules only"); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Resolve("camronwood"); got != "camron rules only" {
+		t.Fatalf("Resolve(camronwood) = %q, want sole-user fallback", got)
+	}
+}

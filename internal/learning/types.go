@@ -62,6 +62,8 @@ type Entry struct {
 // Filter selects active learnings for list/query.
 type Filter struct {
 	AgentID         string
+	AgentType       string
+	AgentName       string
 	UserID          string
 	Scope           Scope
 	CollaborationID string
@@ -80,6 +82,8 @@ type UpdatePatch struct {
 type PromptContext struct {
 	Query           string
 	UserID          string
+	AgentType       string
+	AgentName       string
 	Channel         string
 	CollaborationID string
 }

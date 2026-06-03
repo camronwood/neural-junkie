@@ -18,7 +18,7 @@ func RunDevAgentTurn(
 	if err != nil {
 		return "", false, err
 	}
-	cleaned, ok, err := a.maybeSubmitFileChangeFromResponse(resp, channel, userMsg)
+	cleaned, ok, err := a.maybeSubmitFileChangeFromResponse(ctx, resp, channel, userMsg)
 	return cleaned, ok, err
 }
 

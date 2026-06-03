@@ -55,12 +55,30 @@ func handleLearningsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := learningUserID(r)
+	agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
+	agentType := strings.TrimSpace(r.URL.Query().Get("agent_type"))
+	agentName := strings.TrimSpace(r.URL.Query().Get("agent_name"))
+	if agentID != "" && chatHub != nil {
+		if info, err := chatHub.GetAgent(agentID); err == nil {
+			if agentType == "" {
+				agentType = string(info.Type)
+			}
+			if agentName == "" {
+				agentName = info.Name
+			}
+		}
+	}
+	if learningStore != nil {
+		userID = learningStore.ResolveUserID(userID)
+	}
 	f := learning.Filter{
-		AgentID:       strings.TrimSpace(r.URL.Query().Get("agent_id")),
-		UserID:        userID,
-		Scope:         learning.Scope(strings.TrimSpace(r.URL.Query().Get("scope"))),
+		AgentID:         agentID,
+		AgentType:       agentType,
+		AgentName:       agentName,
+		UserID:          userID,
+		Scope:           learning.Scope(strings.TrimSpace(r.URL.Query().Get("scope"))),
 		CollaborationID: strings.TrimSpace(r.URL.Query().Get("collaboration_id")),
-		IncludeLegacy: true,
+		IncludeLegacy:   true,
 	}
 	writeJSON(w, http.StatusOK, learningStore.ListFiltered(f))
 }
@@ -194,6 +212,15 @@ func handleLearningsQuery(w http.ResponseWriter, r *http.Request) {
 		Channel:         channel,
 		CollaborationID: collabID,
 	}
+	if agentID != "" && chatHub != nil {
+		if info, err := chatHub.GetAgent(agentID); err == nil {
+			pctx.AgentType = string(info.Type)
+			pctx.AgentName = info.Name
+		}
+	}
+	if learningStore != nil {
+		pctx.UserID = learningStore.ResolveUserID(pctx.UserID)
+	}
 	results := learning.QueryPreview(ctx, pctx, agentID, scope)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"query":   q,
@@ -267,13 +294,26 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid := learningUserID(r)
+	agentType := strings.TrimSpace(r.URL.Query().Get("agent_type"))
+	agentName := strings.TrimSpace(r.URL.Query().Get("agent_name"))
+	if chatHub != nil {
+		if info, err := chatHub.GetAgent(agentID); err == nil {
+			if agentType == "" {
+				agentType = string(info.Type)
+			}
+			if agentName == "" {
+				agentName = info.Name
+			}
+		}
+	}
 	count := 0
 	globalCount := 0
 	collabCount := 0
 	if learningStore != nil {
-		count = learningStore.CountForAgent(agentID)
-		globalCount = learningStore.CountByScope(uid, learning.ScopeGlobal)
-		collabCount = learningStore.CountByScope(uid, learning.ScopeCollaboration)
+		resolvedUID := learningStore.ResolveUserID(uid)
+		count = learningStore.CountForAgent(agentID, agentType, agentName)
+		globalCount = learningStore.CountByScope(resolvedUID, learning.ScopeGlobal)
+		collabCount = learningStore.CountByScope(resolvedUID, learning.ScopeCollaboration)
 	}
 	ready := false
 	previewRows := 0

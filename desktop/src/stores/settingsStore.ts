@@ -118,6 +118,8 @@ interface SettingsState {
   
   // Actions
   loadSettings: () => Promise<void>;
+  /** Pull persisted user rules from the hub after login (hub is source of truth). */
+  syncUserRulesFromHub: () => Promise<void>;
   updateFontSize: (size: number) => Promise<void>;
   updateFontSizeScope: (scope: FontSizeScope) => Promise<void>;
   updateColorTheme: (theme: ColorTheme) => Promise<void>;
@@ -249,6 +251,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         isLoaded: true,
         store: null 
       });
+    }
+  },
+
+  syncUserRulesFromHub: async () => {
+    try {
+      const api = new ChatAPI();
+      const hubRules = (await api.getUserRulesMarkdown()).trim();
+      const local = (get().settings.userRulesMarkdown ?? '').trim();
+      if (!hubRules || hubRules === local) {
+        return;
+      }
+      const { store } = get();
+      const newSettings = { ...get().settings, userRulesMarkdown: hubRules };
+      set({ settings: newSettings });
+      if (store) {
+        await store.set('settings', newSettings);
+        await store.save();
+      }
+    } catch (error) {
+      console.error('Failed to sync user rules from hub:', error);
     }
   },
   

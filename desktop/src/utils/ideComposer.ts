@@ -79,6 +79,57 @@ export function applyIdeAskPrefix(content: string, mode: EditorAgentMode): strin
   return `[ASK mode — read-only tools, no file edits]\n${content}`;
 }
 
+/** Resolve specialist slug from @mention or active editor tab. */
+export function pickAgentTypeForImplementation(
+  content: string,
+  activeTab: EditorTab | null,
+  agents: AgentInfo[]
+): string {
+  const mentionRe = /@([A-Za-z][\w-]*)/;
+  const m = mentionRe.exec(content);
+  if (m) {
+    const needle = m[1].toLowerCase();
+    const match = agents.find(
+      (a) =>
+        a.name.toLowerCase() === needle ||
+        a.name.toLowerCase().startsWith(needle) ||
+        a.type.toLowerCase() === needle
+    );
+    if (match?.type) return match.type;
+  }
+  return pickAgentTypeFromTab(activeTab);
+}
+
+/**
+ * Metadata for implementation sessions (IDE layout or team channel with workspace shared).
+ * Does not inject @mentions — routing uses `ide_route_agent_type` when the user did not @mention.
+ */
+export function buildImplementationSessionMetadata(options: {
+  content: string;
+  agents: AgentInfo[];
+  activeTab: EditorTab | null;
+  editorAgentMode: EditorAgentMode;
+  editorAgentTrust: string;
+  composerMetadata?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const hasExplicitMention = /@\w/.test(options.content);
+  const agentType = pickAgentTypeForImplementation(
+    options.content,
+    options.activeTab,
+    options.agents
+  );
+  const metadata: Record<string, unknown> = {
+    ...(options.composerMetadata ?? {}),
+    ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
+    [EDITOR_MODE_KEY]: options.editorAgentMode,
+    [EDITOR_AGENT_TRUST_KEY]: options.editorAgentTrust,
+  };
+  if (options.editorAgentMode === 'agent' && hasCodeTaskSignals(options.content)) {
+    metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+  }
+  return metadata;
+}
+
 /**
  * Prepare content + routing metadata for IDE layout sends on the main channel.
  * Does not inject @mentions — routing uses `ide_route_agent_type` only so an
@@ -92,18 +143,8 @@ export function buildIdeDispatchPayload(options: {
   editorAgentTrust: string;
   composerMetadata?: Record<string, unknown>;
 }): { content: string; metadata: Record<string, unknown> } {
-  const agentType = pickAgentTypeFromTab(options.activeTab);
-  const hasExplicitMention = /@\w/.test(options.content);
   const content = applyIdeAskPrefix(options.content, options.editorAgentMode);
-  const metadata: Record<string, unknown> = {
-    ...(options.composerMetadata ?? {}),
-    ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
-    [EDITOR_MODE_KEY]: options.editorAgentMode,
-    [EDITOR_AGENT_TRUST_KEY]: options.editorAgentTrust,
-  };
-  if (options.editorAgentMode === 'agent' && hasCodeTaskSignals(options.content)) {
-    metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
-  }
+  const metadata = buildImplementationSessionMetadata(options);
   return { content, metadata };
 }
 

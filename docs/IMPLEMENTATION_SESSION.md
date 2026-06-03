@@ -15,11 +15,24 @@ Desktop sets `implementation_session: true` automatically when Agent mode + code
 
 ## Loop
 
-1. **Discover** — workspace MCP tools (`read_file`, `grep`, `glob_file_search`, `semantic_search`) up to 20 tool iterations
-2. **Edit** — `propose_file_edit` tool or `[FILE_CHANGE]` blocks (up to 3 rounds)
-3. **Apply** — file-change pipeline; auto-apply when `editor_agent_trust=auto_apply_edits`
-4. **Verify** — auto `go test ./...` or `npm test --if-present` when manifest present
-5. **Repair** — one extra round if verify fails
+1. **Stack manifest** — auto-detect React/Vue/Vite/Tauri/Tailwind, entry point, extension census; inject into round-0 prompt
+2. **Discover** — seed files (`package.json`, `tailwind.config.js`, `src/App.tsx`, …) plus MCP tools (`read_file`, `grep`, `glob_file_search`, `semantic_search`) up to 20 tool iterations
+3. **Grounding gate** — proposals blocked until seeds loaded (≥2), a discover tool ran, or stack manifest has an entry point
+4. **Edit** — `propose_file_edit` tool or `[FILE_CHANGE]` blocks (up to 3 rounds); **preflight** rejects wrong-stack paths (e.g. `.vue` in a React repo)
+5. **Apply** — file-change pipeline; auto-apply when `editor_agent_trust=auto_apply_edits`
+6. **Verify** — only when trust is `auto_apply_edits`: `npm run build` (or `npx tsc --noEmit`) then `npm test --if-present` for Node; `go test ./...` / `cargo test` for other stacks
+7. **Repair** — one extra round if preflight or verify fails
+
+Interactive trust skips verify (proposals await manual approval).
+
+## Session summary headers
+
+| Outcome | Message prefix |
+|---------|----------------|
+| Proposals only (interactive) | `proposals submitted for approval` |
+| Auto-applied + verify passed | `applied and verified` |
+| Auto-applied + verify failed | `applied but verification failed` |
+| No file changes | `finished without file changes` |
 
 ## Provider routing
 
@@ -34,6 +47,7 @@ Settings → **AI Providers → Implementation sessions**
 ```bash
 make implement-scenarios-list
 make implement-scenario SCENARIO=go-handler
+make implement-scenario SCENARIO=react-theme-toggle
 make implement-scenarios
 ```
 

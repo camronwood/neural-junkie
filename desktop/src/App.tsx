@@ -24,7 +24,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewParams, setPreviewParams] = useState<{ workspaceId: string; filePath: string } | null>(null);
-  const { settings, loadSettings } = useSettingsStore();
+  const { settings, loadSettings, syncUserRulesFromHub } = useSettingsStore();
   const { togglePanel } = useTerminalStore();
   const { setUsername, setChannel, setServerAddr } = useChatStore(
     (s) => ({
@@ -109,6 +109,7 @@ function App() {
           setUsername(savedCredentials.username);
           setChannel(savedCredentials.channel);
           setServerAddr(savedCredentials.serverAddr);
+          await syncUserRulesFromHub();
           setPhase('chat');
           return;
         }

@@ -578,7 +578,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if implSessionProposed {
 		proposedFileChange = true
 	} else {
-		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(response, msg.Channel, msg)
+		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
 	}
 	if proposalErr != nil {
 		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
@@ -1198,7 +1198,7 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 
 	// DM channels: answer the human before any collaboration turn logic. The user
 	// is always talking to this agent in a 1:1 room.
-	if a.effectiveChannelType(msg.Channel) == protocol.ChannelTypeDM {
+	if a.isDMChannel(msg.Channel) {
 		isFromAgent := msg.From.Type == protocol.AgentTypeFrontend ||
 			msg.From.Type == protocol.AgentTypeBackend ||
 			msg.From.Type == protocol.AgentTypeDatabase ||
@@ -1215,11 +1215,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			msg.From.Type == protocol.AgentTypeCLI ||
 			msg.From.Type == protocol.AgentTypeConfluence
 		if !isFromAgent {
-			if msg.HasMentions() {
-				return msg.IsMentioned(a.Info.ID)
+			if DMHumanMessageShouldRespond(msg, a.Info.ID) {
+				log.Printf("[%s] ✅ DM CHANNEL - will respond", a.Info.Name)
+				return true
 			}
-			log.Printf("[%s] ✅ DM CHANNEL - will respond", a.Info.Name)
-			return true
+			return false
 		}
 		return false
 	}
@@ -2369,6 +2369,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	}
 
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), 0)
+	AppendLearningsForMessage(&system, msg, &a.Info)
 	if ws := a.resolveWorkspacePath(msg); ws != "" {
 		if projectRules := LoadProjectRulesMarkdown(ws); projectRules != "" {
 			system.WriteString("\n=== PROJECT RULES ===\n")
@@ -2376,24 +2377,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("\n=== END PROJECT RULES ===\n\n")
 		}
 	}
-	userID := learning.SlugUserID(msg.From.Name)
-	if protocol.IsUserLikeSender(msg.From) {
-		userID = learning.SlugUserID(msg.From.Name)
-	}
-	pctx := learning.PromptContext{
-		Query:   strings.TrimSpace(msg.Content),
-		UserID:  userID,
-		Channel: msg.Channel,
-	}
-	if pr := learning.AppendForAgent(&system, &a.Info, pctx); pr.Count > 0 {
-		if msg.Metadata == nil {
-			msg.Metadata = map[string]any{}
-		}
-		msg.Metadata["injected_learnings_count"] = pr.Count
-		if len(pr.IDs) > 0 {
-			msg.Metadata["injected_learning_ids"] = pr.IDs
-		}
-	}
+	AppendLearningsForMessage(&system, msg, &a.Info)
 
 	// ── USER SECTION ────────────────────────────────────────────────────
 
@@ -2981,7 +2965,7 @@ func sanitizeInternalToolNames(response string) string {
 	return replacer.Replace(response)
 }
 
-func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
+func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
 	match := fileChangeBlockRegex.FindStringSubmatch(response)
 	if len(match) < 2 {
 		if loose, ok := parseLooseFileChange(response); ok {
@@ -2994,7 +2978,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 			}
 			if !isValidFileChangeRelPath(path) {
 				log.Printf("[%s] loose_file_change_rejected(path=%q)", a.Info.Name, loose.Path)
-			} else if err := a.proposeFileChangePreferEditOrCreate(channel, path, loose.NewContent, sourceMsg); err != nil {
+			} else if err := a.proposeFileChangePreferEditOrCreate(ctx, channel, path, loose.NewContent, sourceMsg); err != nil {
 				return response, false, err
 			} else {
 				log.Printf("[%s] loose_file_change_used(path=%s)", a.Info.Name, path)
@@ -3026,18 +3010,27 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 
 		switch {
 		case wantCreate && namedPath != "":
+			if err := a.validateProposalForSession(ctx, sourceMsg, namedPath, ProposalOpCreate); err != nil {
+				return response, false, err
+			}
 			if err := a.proposeFileCreateInChannel(channel, namedPath, newContent); err != nil {
 				return response, false, err
 			}
 			log.Printf("[%s] fallback_path_used(operation=create,target=%s)", a.Info.Name, namedPath)
 			return response, true, nil
 		case activePath != "":
+			if err := a.validateProposalForSession(ctx, sourceMsg, activePath, ProposalOpEdit); err != nil {
+				return response, false, err
+			}
 			if err := a.proposeFileEditInChannel(channel, activePath, "", newContent); err != nil {
 				return response, false, err
 			}
 			log.Printf("[%s] fallback_path_used(operation=edit,target=%s)", a.Info.Name, activePath)
 			return response, true, nil
 		case namedPath != "":
+			if err := a.validateProposalForSession(ctx, sourceMsg, namedPath, ProposalOpCreate); err != nil {
+				return response, false, err
+			}
 			if err := a.proposeFileCreateInChannel(channel, namedPath, newContent); err != nil {
 				return response, false, err
 			}
@@ -3053,10 +3046,12 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 	if err != nil && sourceMsg != nil && userRequestsImplementationForMessage(a, sourceMsg) {
 		if alt := preferImplementationTargetPath(sourceMsg.Content, "", a.Info.Type); alt != "" {
 			if body := stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(match[1])); strings.TrimSpace(body) != "" {
-				if err2 := a.proposeFileEditInChannel(channel, alt, "", body); err2 == nil {
-					log.Printf("[%s] implement_path_recovery(edit,target=%s)", a.Info.Name, alt)
-					cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
-					return cleaned, true, nil
+				if err2 := a.validateProposalForSession(ctx, sourceMsg, alt, ProposalOpEdit); err2 == nil {
+					if err2 = a.proposeFileEditInChannel(channel, alt, "", body); err2 == nil {
+						log.Printf("[%s] implement_path_recovery(edit,target=%s)", a.Info.Name, alt)
+						cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+						return cleaned, true, nil
+					}
 				}
 			}
 		}
@@ -3070,10 +3065,15 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(response, channel string, sour
 
 	switch directive.Operation {
 	case "create":
-		if err := a.proposeFileChangePreferEditOrCreate(channel, directive.Path, directive.NewContent, sourceMsg); err != nil {
+		directive.Path = a.ResolveProposalPath(ctx, sourceMsg, directive.Path)
+		if err := a.proposeFileChangePreferEditOrCreate(ctx, channel, directive.Path, directive.NewContent, sourceMsg); err != nil {
 			return response, false, err
 		}
 	case "edit":
+		directive.Path = a.ResolveProposalPath(ctx, sourceMsg, directive.Path)
+		if err := a.validateProposalForSession(ctx, sourceMsg, directive.Path, ProposalOpEdit); err != nil {
+			return response, false, err
+		}
 		if err := a.proposeFileEditInChannel(channel, directive.Path, directive.OldContent, directive.NewContent); err != nil {
 			return response, false, err
 		}
@@ -3398,14 +3398,18 @@ func (a *Agent) ProposeFileCreate(path, content string) error {
 	return a.proposeFileCreateInChannel(a.Context.CurrentChannel, path, content)
 }
 
-func (a *Agent) proposeFileChangePreferEditOrCreate(channel, path, content string, sourceMsg *protocol.Message) error {
-	path = normalizeFileChangeRelPath(path)
+func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel, path, content string, sourceMsg *protocol.Message) error {
+	path = a.ResolveProposalPath(ctx, sourceMsg, path)
 	if !isValidFileChangeRelPath(path) {
 		return fmt.Errorf("invalid file change path: %q", path)
 	}
 	wsPath := ""
 	if sourceMsg != nil {
 		wsPath = a.resolveWorkspacePath(sourceMsg)
+	}
+	op := InferProposalOperation(wsPath, path)
+	if err := a.validateProposalForSession(ctx, sourceMsg, path, op); err != nil {
+		return err
 	}
 	if wsPath != "" {
 		resolved := filepath.Join(wsPath, path)

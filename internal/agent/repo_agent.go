@@ -456,6 +456,21 @@ func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
 		return false
 	}
 
+	if ra.isDMChannel(msg.Channel) {
+		isFromAgent := msg.From.Type == protocol.AgentTypeFrontend ||
+			msg.From.Type == protocol.AgentTypeBackend ||
+			msg.From.Type == protocol.AgentTypeDatabase ||
+			msg.From.Type == protocol.AgentTypeSecurity ||
+			msg.From.Type == protocol.AgentTypeArchitecture ||
+			msg.From.Type == protocol.AgentTypeCodeReview ||
+			msg.From.Type == protocol.AgentTypeDevOps ||
+			msg.From.Type == protocol.AgentTypeRepo
+		if !isFromAgent && DMHumanMessageShouldRespond(msg, ra.Info.ID) {
+			return true
+		}
+		return false
+	}
+
 	// Check if message is from another agent (not a human)
 	isFromAgent := msg.From.Type == protocol.AgentTypeFrontend ||
 		msg.From.Type == protocol.AgentTypeBackend ||

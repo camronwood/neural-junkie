@@ -12,6 +12,8 @@ import (
 // Metadata keys for client-supplied prompt context (must match desktop).
 const (
 	MetadataUserRulesMarkdown    = "user_rules_markdown"
+	// MetadataHubSessionUsername is the authenticated hub session display name (may differ from msg.From.Name).
+	MetadataHubSessionUsername   = "hub_session_username"
 	MetadataPromptAttachments    = "prompt_attachments"
 	MetadataGrantedHubDataAccess = "granted_hub_data_access"
 	MetadataContextScope         = "context_scope"

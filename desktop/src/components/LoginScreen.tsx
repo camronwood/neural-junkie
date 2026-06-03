@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { ChatAPI } from '../api/chatAPI';
 import { saveCredentials, loadCredentials } from '../utils/secureStorage';
 import { getHubBaseURL, setHubSessionToken } from '../config/hubUrl';
@@ -20,6 +21,7 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
     }),
     shallow
   );
+  const syncUserRulesFromHub = useSettingsStore((s) => s.syncUserRulesFromHub);
   
   const [nameInput, setNameInput] = useState('');
   const [channelInput, setChannelInput] = useState(channel);
@@ -79,6 +81,8 @@ export function LoginScreen({ onConnect }: LoginScreenProps) {
       setUsername(name);
       setChannel(chan);
       setServerAddr(server);
+
+      await syncUserRulesFromHub();
 
       // Save credentials if Remember Me is checked
       try {

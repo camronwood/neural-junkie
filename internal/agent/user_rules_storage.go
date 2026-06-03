@@ -89,6 +89,27 @@ func (s *UserRulesStorage) Resolve(username string) string {
 	if v, ok := rules[UserRulesDefaultKey]; ok {
 		return strings.TrimSpace(v)
 	}
+	return soleUserRulesFallback(rules)
+}
+
+// soleUserRulesFallback returns rules when exactly one non-default key exists.
+// Helps local single-user installs where the login name changed after rules were saved.
+func soleUserRulesFallback(rules map[string]string) string {
+	var found string
+	count := 0
+	for k, v := range rules {
+		if k == UserRulesDefaultKey || strings.TrimSpace(v) == "" {
+			continue
+		}
+		found = strings.TrimSpace(v)
+		count++
+		if count > 1 {
+			return ""
+		}
+	}
+	if count == 1 {
+		return found
+	}
 	return ""
 }
 
@@ -132,14 +153,65 @@ func SetUserRulesLookup(fn func(username string) string) {
 	userRulesLookup = fn
 }
 
+// UsernamesForRulesLookup returns candidate usernames for hub rules lookup, in priority order.
+func UsernamesForRulesLookup(msg *protocol.Message) []string {
+	if msg == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var names []string
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	if msg.Metadata != nil {
+		if raw, ok := msg.Metadata[MetadataHubSessionUsername]; ok {
+			if s, ok := raw.(string); ok {
+				add(s)
+			}
+		}
+	}
+	if protocol.IsUserLikeSender(msg.From) {
+		add(msg.From.Name)
+	}
+	return names
+}
+
 // ResolveUserRulesHubFallback loads persisted global rules for a message sender (or default).
 func ResolveUserRulesHubFallback(msg *protocol.Message) string {
 	if userRulesLookup == nil || msg == nil {
 		return ""
 	}
-	name := ""
-	if protocol.IsUserLikeSender(msg.From) {
-		name = msg.From.Name
+	for _, name := range UsernamesForRulesLookup(msg) {
+		if rules := strings.TrimSpace(userRulesLookup(name)); rules != "" {
+			return rules
+		}
 	}
-	return userRulesLookup(name)
+	return ""
+}
+
+// AttachUserRulesMetadataIfMissing writes hub-resolved rules onto msg.Metadata when absent.
+func AttachUserRulesMetadataIfMissing(msg *protocol.Message) {
+	if msg == nil || !protocol.IsUserLikeSender(msg.From) {
+		return
+	}
+	if msg.Metadata != nil {
+		if raw, ok := msg.Metadata[MetadataUserRulesMarkdown]; ok {
+			if s, ok := raw.(string); ok && strings.TrimSpace(s) != "" {
+				return
+			}
+		}
+	}
+	rules := ResolveUserRulesHubFallback(msg)
+	if rules == "" {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	msg.Metadata[MetadataUserRulesMarkdown] = rules
 }

