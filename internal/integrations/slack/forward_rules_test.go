@@ -107,4 +107,13 @@ func TestShouldPostInboxToSlack(t *testing.T) {
 	if ShouldPostInboxToSlack(echo, inbox) {
 		t.Fatal("expected echo skipped")
 	}
+	errMsg := protocol.NewMessage(protocol.MessageTypeSystemInfo, "slack:inbox:U1", protocol.AgentInfo{ID: "a1"}, "Ollama is not running")
+	errMsg.SetErrorMetadata("provider_unavailable", true)
+	if !ShouldPostInboxToSlack(errMsg, inbox) {
+		t.Fatal("expected generation error to post to Slack")
+	}
+	plainSys := protocol.NewMessage(protocol.MessageTypeSystemInfo, "slack:inbox:U1", protocol.AgentInfo{ID: "a1"}, "status")
+	if ShouldPostInboxToSlack(plainSys, inbox) {
+		t.Fatal("expected system info without error_code to skip")
+	}
 }

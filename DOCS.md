@@ -26,6 +26,7 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 | Release history | [CHANGELOG.md](docs/CHANGELOG.md) |
 | Roadmap / ideas | [FUTURE_ENHANCEMENTS.md](docs/FUTURE_ENHANCEMENTS.md) |
 | Current status | [STATUS.md](docs/STATUS.md) |
+| Known issues (beta) | [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) · [known-issues.html](docs/known-issues.html) |
 
 ## Marketing / publish copy (`docs/marketing/`)
 
@@ -39,7 +40,8 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 ## Static site
 
 - **Marketing / landing:** [docs/index.html](docs/index.html) + [docs/css/landing.css](docs/css/landing.css)
-- **Feature deep dives (static HTML):** [docs/features/](docs/features/) — six capability pages + [index](docs/features/index.html), linked from the landing “What you get” cards.
+- **Known issues (living beta list):** [known-issues.html](docs/known-issues.html) — edit alongside [KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md); remove rows when fixed.
+- **Feature deep dives (static HTML):** [docs/features/](docs/features/) — capability pages + [index](docs/features/index.html), linked from the landing “What you get” cards.
 - **Hub** (when `make server` is running): Web chat at `/`.
 - **Optional static preview** of `public/index.html`: serve the **repository root** with a simple HTTP server so `../assets/screenshots/` resolves (footer in that file explains the URL pattern).
 

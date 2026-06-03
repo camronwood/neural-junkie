@@ -28,3 +28,25 @@ func TestShouldProcessHumanDMMessage(t *testing.T) {
 		t.Fatal("expected subtype skipped")
 	}
 }
+
+func TestHumanDMIsNoteToSelf(t *testing.T) {
+	owner := "U_OWNER"
+	tests := []struct {
+		name      string
+		peer      string
+		members   []string
+		wantSelf  bool
+	}{
+		{"jot solo", owner, []string{owner}, true},
+		{"jot empty members", owner, nil, true},
+		{"peer dm", "U_PEER", []string{owner, "U_PEER"}, false},
+		{"owner user field but two members", owner, []string{owner, "U_PEER"}, false},
+		{"single non-owner member", "U_PEER", []string{"U_PEER"}, false},
+	}
+	for _, tc := range tests {
+		got := humanDMIsNoteToSelf(owner, tc.peer, tc.members)
+		if got != tc.wantSelf {
+			t.Fatalf("%s: got %v want %v", tc.name, got, tc.wantSelf)
+		}
+	}
+}

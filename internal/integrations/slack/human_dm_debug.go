@@ -52,38 +52,27 @@ func (b *Bridge) HumanDMDebugInfo() (HumanDMDebug, error) {
 	}
 
 	ownerID := strings.TrimSpace(inbox.OwnerSlackUserID)
-	cursor := ""
-	for {
-		channels, next, err := client.GetConversations(&slackapi.GetConversationsParameters{
-			Types:           []string{"im"},
-			Limit:           50,
-			Cursor:          cursor,
-			ExcludeArchived: true,
-		})
-		if err != nil {
-			return out, fmt.Errorf("conversations.list: %w", err)
+	channels, err := listHumanDMConversations(client)
+	if err != nil {
+		return out, fmt.Errorf("conversations.list: %w", err)
+	}
+	for _, ch := range channels {
+		entry := HumanDMChannelDebug{ChannelID: ch.ID, PeerUserID: ch.User}
+		selfDM := b.isSelfDMChannel(client, ch, ownerID) && !b.humanDMChannelHasPeerMessages(client, ch.ID, ownerID)
+		entry.Kind, entry.Skipped = classifyHumanDMChannel(ch.ID, ch.User, botDM, ownerID, selfDM)
+		if !entry.Skipped {
+			out.PeerChannelCount++
 		}
-		for _, ch := range channels {
-			entry := HumanDMChannelDebug{ChannelID: ch.ID, PeerUserID: ch.User}
-			entry.Kind, entry.Skipped = classifyHumanDMChannel(ch.ID, ch.User, botDM, ownerID, b.isSelfDMChannel(client, ch, ownerID))
-			if !entry.Skipped {
-				out.PeerChannelCount++
-			}
-			if hist, err := client.GetConversationHistory(&slackapi.GetConversationHistoryParameters{
-				ChannelID: ch.ID,
-				Limit:     1,
-			}); err == nil && len(hist.Messages) > 0 {
-				m := hist.Messages[0]
-				entry.LatestUser = m.User
-				entry.LatestText = strings.TrimSpace(m.Text)
-				entry.LatestTS = m.Timestamp
-			}
-			out.Channels = append(out.Channels, entry)
+		if hist, err := client.GetConversationHistory(&slackapi.GetConversationHistoryParameters{
+			ChannelID: ch.ID,
+			Limit:     1,
+		}); err == nil && len(hist.Messages) > 0 {
+			m := hist.Messages[0]
+			entry.LatestUser = m.User
+			entry.LatestText = strings.TrimSpace(m.Text)
+			entry.LatestTS = m.Timestamp
 		}
-		cursor = next
-		if cursor == "" {
-			break
-		}
+		out.Channels = append(out.Channels, entry)
 	}
 
 	switch {
@@ -109,8 +98,12 @@ func classifyHumanDMChannel(channelID, peerUserID, botDM, ownerID string, selfDM
 	if peerUserID == "USLACKBOT" {
 		return "slackbot", true
 	}
-	if strings.TrimSpace(peerUserID) == ownerID || selfDM {
+	if selfDM {
 		return "note_to_self", true
+	}
+	if strings.TrimSpace(peerUserID) == ownerID {
+		// ch.User is owner but members API shows a real peer conversation.
+		return "peer", false
 	}
 	return "peer", false
 }

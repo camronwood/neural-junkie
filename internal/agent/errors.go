@@ -62,5 +62,8 @@ func classifyUserFacingError(err error) (message, code string, retryable bool) {
 	if strings.Contains(lower, "executable file not found") || strings.Contains(lower, "is not installed") && strings.Contains(lower, "cli") {
 		return "I couldn't run the configured CLI agent because it is not available on this machine.", "provider_unavailable", false
 	}
+	if strings.Contains(lower, "connection refused") && strings.Contains(lower, "11434") {
+		return "Ollama is not running on this machine (localhost:11434). Start it with `ollama serve`, then send your message again.", "provider_unavailable", true
+	}
 	return "Sorry, I encountered an error while generating a response. Please try again.", "provider_error", true
 }

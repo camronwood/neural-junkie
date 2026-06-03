@@ -13,6 +13,7 @@ func TestClassifyHumanDMChannel(t *testing.T) {
 	}{
 		{"D_BOT", "U_BOT", false, "bot", true},
 		{"D1", owner, true, "note_to_self", true},
+		{"D1b", owner, false, "peer", false},
 		{"D2", "USLACKBOT", false, "slackbot", true},
 		{"D3", "U_PEER", false, "peer", false},
 	}

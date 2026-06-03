@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Known issues &amp; limitations — Neural Junkie</title>
+  <meta name="description" content="Open beta honesty: known bugs, flaky collaboration scenarios, and intentional limits in Neural Junkie. Updated as we fix things." />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">Landing</a>
+        <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">Download beta.21</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Known issues
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Known issues &amp; limitations</h1>
+      <p class="feature-deep-lead">
+        Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
+        Last updated <time datetime="2026-06-03">June 3, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">v1.0.0-beta.21</a>.
+        Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
+      </p>
+    </header>
+
+    <nav class="release-jump issues-jump" aria-label="Jump to section">
+      <span class="release-jump-label">Sections</span>
+      <a href="#collaboration">Collaboration</a>
+      <span aria-hidden="true">·</span>
+      <a href="#chat-context">Chat &amp; context</a>
+      <span aria-hidden="true">·</span>
+      <a href="#integrations">Integrations</a>
+      <span aria-hidden="true">·</span>
+      <a href="#desktop-ide">Desktop &amp; IDE</a>
+      <span aria-hidden="true">·</span>
+      <a href="#hub-providers">Hub &amp; providers</a>
+      <span aria-hidden="true">·</span>
+      <a href="#quality">How we test</a>
+    </nav>
+
+    <article class="feature-prose">
+      <p class="issues-legend">
+        <span class="issue-badge issue-badge--active">Active</span> confirmed bug or regression &nbsp;
+        <span class="issue-badge issue-badge--investigating">Investigating</span> repro unclear or fix in progress &nbsp;
+        <span class="issue-badge issue-badge--limitation">Limitation</span> by design or environment
+      </p>
+
+      <p>
+        <strong>Report something new:</strong>
+        <a href="https://github.com/camronwood/neural-junkie/issues">GitHub Issues</a> —
+        for <code>/collaborate</code>, say which phase stuck: planning, review, workspace gate, execution, or files.
+      </p>
+
+      <h2 id="collaboration">Collaboration</h2>
+      <p>Multi-agent collab is the hardest surface to make reliable. See also <a href="features/multi-agent-collaboration.html">Collaboration guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a>.</p>
+
+      <ul class="issues-list">
+        <!-- ISSUE: collab-plan-zero-tasks — remove when plan parser scenarios PASS -->
+        <li class="issue-item" id="collab-plan-zero-tasks">
+          <span class="issue-badge issue-badge--active">Active</span>
+          <strong>Planning sometimes yields zero tasks</strong>
+          <p>Live harness scenarios can finish discussion but fail <code>assert_plan: tasks=0</code> — plan parser / discussion → plan artifact. Affected names include <code>plan-dependency-prose-regression</code>, <code>plan-distinct-deliverables-same-agent</code>, <code>plan-phoenix-combined-regression</code>. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-sweep-2026-06-02.md">Sweep log (2026-06-02)</a>.</p>
+        </li>
+        <!-- ISSUE: collab-deliverable-size -->
+        <li class="issue-item" id="collab-deliverable-size">
+          <span class="issue-badge issue-badge--active">Active</span>
+          <strong>Deliverable file too small for harness</strong>
+          <p><code>execution-no-stack-commands</code> may fail when <code>findings.md</code> exists but content is below assertion thresholds.</p>
+        </li>
+        <!-- ISSUE: collab-solo-parity -->
+        <li class="issue-item" id="collab-solo-parity">
+          <span class="issue-badge issue-badge--investigating">Investigating</span>
+          <strong>Solo vs collab parity</strong>
+          <p><code>solo-vs-collab-parity</code> — solo channel leg did not land a file before timeout in a spot check; full serial sweep pending.</p>
+        </li>
+        <!-- ISSUE: collab-phoenix-planning -->
+        <li class="issue-item" id="collab-phoenix-planning">
+          <span class="issue-badge issue-badge--investigating">Investigating</span>
+          <strong>Phoenix-style planning scenario</strong>
+          <p><code>resource-api-schema-planning</code> not completed in last batch run (aborted mid-sweep).</p>
+        </li>
+        <!-- ISSUE: collab-chat-not-disk -->
+        <li class="issue-item" id="collab-chat-not-disk">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Chat does not write files</strong>
+          <p>Execution success means <strong>approved file-change proposals</strong>, not polished markdown in the thread. <code>TASK_STATUS: completed</code> alone does not create files.</p>
+        </li>
+        <!-- ISSUE: collab-workspace-gate -->
+        <li class="issue-item" id="collab-workspace-gate">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Workspace confirmation gate</strong>
+          <p>After you approve the plan, task prompts wait until you <strong>Continue</strong> in the desktop or run <code>/ack-collab-workspace</code>. Until then, execution can look “stuck.”</p>
+        </li>
+        <!-- ISSUE: collab-model-variance -->
+        <li class="issue-item" id="collab-model-variance">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Model variance</strong>
+          <p>Local Ollama models differ in silence, speed, and plan quality. The hub enforces phase budgets and fallbacks; it cannot force a perfect task list from every model.</p>
+        </li>
+        <!-- ISSUE: collab-smart-routing-scope -->
+        <li class="issue-item" id="collab-smart-routing-scope">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Smart routing scope</strong>
+          <p>Collaboration smart routing applies to <strong>execution tasks only</strong> — not planning turns or normal channel chat.</p>
+        </li>
+      </ul>
+
+      <h2 id="chat-context">Chat &amp; context</h2>
+      <ul class="issues-list">
+        <!-- ISSUE: context-v2-edge-cases -->
+        <li class="issue-item" id="context-v2-edge-cases">
+          <span class="issue-badge issue-badge--active">Active</span>
+          <strong>Context model v2 edge cases</strong>
+          <p>Chat/Code composer mode and workspace visibility shipped in beta.21 — report bad answers when asked whether agents can see your workspace. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">CONTEXT_MODEL.md</a></p>
+        </li>
+        <!-- ISSUE: hub-history-bounded -->
+        <li class="issue-item" id="hub-history-bounded">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Bounded message history</strong>
+          <p>Per-channel history is pruned over time; the hub is not a full searchable archive. Session metadata restores from <code>last-session.json</code>.</p>
+        </li>
+      </ul>
+
+      <h2 id="integrations">Integrations</h2>
+      <ul class="issues-list">
+        <!-- ISSUE: slack-inbox-docs -->
+        <li class="issue-item" id="slack-inbox-docs">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Slack inbox docs lag</strong>
+          <p>Personal inbox and forwarding (beta.21) are in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">SLACK_INTEGRATION.md</a>; the <a href="features/slack-connect.html">Slack Connect guide</a> does not cover them yet.</p>
+        </li>
+        <!-- ISSUE: slack-bridge-local -->
+        <li class="issue-item" id="slack-bridge-local">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Slack needs local hub</strong>
+          <p>Socket Mode bridge runs in-process — the hub must be running on your machine.</p>
+        </li>
+        <!-- ISSUE: confluence-setup -->
+        <li class="issue-item" id="confluence-setup">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Confluence setup cost</strong>
+          <p>Doc agents need Cloud credentials, indexing time, and reasonable space size for good answers.</p>
+        </li>
+      </ul>
+
+      <h2 id="desktop-ide">Desktop, IDE &amp; packs</h2>
+      <ul class="issues-list">
+        <!-- ISSUE: web-ui-thin -->
+        <li class="issue-item" id="web-ui-thin">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Web UI is thin</strong>
+          <p>Browser chat at <code>/</code> lacks the full desktop workspace, palette, and file-approval flows.</p>
+        </li>
+        <!-- ISSUE: git-dev-pack -->
+        <li class="issue-item" id="git-dev-pack">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Git requires dev pack</strong>
+          <p>In-app Git needs the Software development pack, <code>git</code> on PATH, and a git workspace.</p>
+        </li>
+        <!-- ISSUE: ide-v3-beta -->
+        <li class="issue-item" id="ide-v3-beta">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>IDE v2/v3 beta</strong>
+          <p>Layout presets, diagnostics, and Ask/Agent routing are evolving. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V3.md">IDE_V3.md</a></p>
+        </li>
+        <!-- ISSUE: pack-layout-first -->
+        <li class="issue-item" id="pack-layout-first">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>First enabled pack sets layout</strong>
+          <p>With multiple domain packs on, the first pack you enable picks IDE vs team layout.</p>
+        </li>
+      </ul>
+
+      <h2 id="hub-providers">Hub, agents &amp; providers</h2>
+      <ul class="issues-list">
+        <!-- ISSUE: single-hub -->
+        <li class="issue-item" id="single-hub">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Single hub instance</strong>
+          <p>No distributed or multi-region deployment model yet.</p>
+        </li>
+        <!-- ISSUE: standalone-agent-polling -->
+        <li class="issue-item" id="standalone-agent-polling">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Standalone agents poll</strong>
+          <p><code>cmd/agent</code> processes use HTTP polling; in-process hub agents get lower-latency push delivery.</p>
+        </li>
+        <!-- ISSUE: pause-not-abort -->
+        <li class="issue-item" id="pause-not-abort">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Pause ≠ abort</strong>
+          <p><code>/pause-agent</code> updates roster state; it does not cancel an active LLM request.</p>
+        </li>
+        <!-- ISSUE: lmstudio-tools -->
+        <li class="issue-item" id="lmstudio-tools">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Tool calling varies by provider</strong>
+          <p>MCP tools are best supported on Ollama (selected flows) and Claude; LM Studio / generic OpenAI-compat is limited.</p>
+        </li>
+        <!-- ISSUE: windows-ollama -->
+        <li class="issue-item" id="windows-ollama">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Windows Ollama install</strong>
+          <p>In-app Ollama install is macOS/Linux; Windows users install Ollama manually or use cloud APIs.</p>
+        </li>
+        <!-- ISSUE: macos-notarized -->
+        <li class="issue-item" id="macos-notarized">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>macOS Gatekeeper</strong>
+          <p>Builds are ad-hoc signed, not notarized — use <strong>Right-click → Open</strong> on first launch if blocked.</p>
+        </li>
+      </ul>
+
+      <h2 id="quality">How we test (and close items)</h2>
+      <ul class="feature-list feature-list--tight">
+        <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code></li>
+        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a></li>
+        <li><strong>Chat scenarios</strong> — <code>make chat-scenarios-regression</code> (beta.21+)</li>
+      </ul>
+      <p>When a scenario flips to <strong>PASS</strong>, delete the matching <code>&lt;li&gt;</code> here and the row in <code>KNOWN_ISSUES.md</code>, then note the fix in <a href="release-notes.html">release notes</a>.</p>
+
+      <aside class="repo-links">
+        <h2>Related docs</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md">KNOWN_ISSUES.md</a> — same list for maintainers</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STATUS.md">STATUS.md</a> — broader project status</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/COLLABORATION-LINKEDIN.md">Why collab is hard to ship</a> — engineering narrative</li>
+          <li><a href="features/multi-agent-collaboration.html">Collaboration feature guide</a></li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="more-site">
+      <h2 id="more-site">More on this site</h2>
+      <div class="feature-nav-grid">
+        <a href="index.html">Landing <span>Overview</span></a>
+        <a href="features/index.html">Feature guides <span>Deep dives</span></a>
+        <a href="release-notes.html">Release notes <span>What shipped</span></a>
+        <a href="known-issues.html" aria-current="page">Known issues <span>Honest beta list</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

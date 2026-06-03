@@ -166,6 +166,13 @@ func ShouldPostInboxToSlack(msg *protocol.Message, inbox *InboxConfig) bool {
 			return false
 		}
 		return true
+	case protocol.MessageTypeSystemInfo:
+		// Relay generation failures (e.g. Ollama down) so Slack inbox / human-DM away
+		// users see feedback instead of silence.
+		if msg.From.ID != inbox.AgentID || strings.TrimSpace(msg.Content) == "" {
+			return false
+		}
+		return msg.GetErrorCode() != ""
 	default:
 		return false
 	}

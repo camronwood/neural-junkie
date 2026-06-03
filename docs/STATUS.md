@@ -74,6 +74,8 @@ Neural Junkie is a working multi-agent collaboration system used for daily devel
 
 ## Known Limitations
 
+**Public tracker:** [KNOWN_ISSUES.md](KNOWN_ISSUES.md) (repo) and [known-issues.html](known-issues.html) (marketing site). Remove items there when fixed.
+
 - **Hub-local persistence** -- Session metadata, channels, and agent registrations restore from `last-session.json`; per-channel message history is bounded and pruned over time (not a full durable message archive).
 - **Single server** -- No distributed deployment
 - **Session auth** -- Optional `NEURAL_JUNKIE_AUTH_REQUIRED=1` and channel ACLs; see [SECURITY.md](SECURITY.md)
