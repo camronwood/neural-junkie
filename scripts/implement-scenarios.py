@@ -174,6 +174,8 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
         return False
     if not ensure_channel(ctx):
         return False
+    # In-process agents discover new channels on a ~1s tick; allow subscribe before send.
+    time.sleep(3.0)
     all_ok = True
     combined_steps = list(scenario.get("setup") or []) + list(scenario.get("steps") or [])
     for i, step in enumerate(combined_steps, 1):

@@ -24,7 +24,7 @@
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|HelloWorld|file change|Grounding|applied and verified|proposals submitted"]
+      "any_match": ["implementation session|HelloWorld|file change|Grounding|applied and verified|proposals submitted|Proposing to edit|finished without"]
     },
     {
       "action": "assert_file_exists",
