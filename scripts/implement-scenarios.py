@@ -175,7 +175,8 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
     if not ensure_channel(ctx):
         return False
     all_ok = True
-    for i, step in enumerate(scenario.get("steps") or [], 1):
+    combined_steps = list(scenario.get("setup") or []) + list(scenario.get("steps") or [])
+    for i, step in enumerate(combined_steps, 1):
         action = (step.get("action") or "").strip()
         fn = HANDLERS.get(action)
         if not fn:

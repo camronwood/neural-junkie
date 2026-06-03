@@ -11,7 +11,10 @@ All of the following:
 - Implementation intent (`please implement`, theme/feature verbs, or continuation after prior ask)
 - Specialist agent that can ship `[FILE_CHANGE]` proposals
 
-Desktop sets `implementation_session: true` automatically when Agent mode + code task signals (`buildIdeDispatchPayload`).
+Desktop sets `implementation_session: true` automatically when Agent mode + code task signals:
+
+- **IDE layout** — [`buildIdeDispatchPayload`](../desktop/src/utils/ideComposer.ts)
+- **Team / general channels** — same metadata via `buildImplementationSessionMetadata` when the dev pack is enabled, workspace is shared, and the composer is in Agent mode
 
 ## Loop
 
@@ -39,8 +42,10 @@ Interactive trust skips verify (proposals await manual approval).
 Settings → **AI Providers → Implementation sessions**
 
 - Local Ollama first (`implementation.routing_enabled`)
-- Tool-loop model default: `qwen2.5-coder:7b`
-- Fallback provider IDs in hub config (`implementation.fallback_provider_ids`)
+- Tool-loop model default: `qwen2.5-coder:7b` — pull before live runs: `ollama pull qwen2.5-coder:7b`
+- Fallback provider IDs in hub config (`implementation.fallback_provider_ids`) — e.g. Claude direct when local 7B flakes on multi-file tasks
+
+Restart the hub after changing implementation routing or agent code (`make server-regression`, not `make start-all` for scenario sweeps).
 
 ## Scenarios
 

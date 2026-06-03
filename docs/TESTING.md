@@ -17,8 +17,24 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios, Phoenix with real repo |
 | Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` |
 | Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
+| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (≥4/5 PASS) |
 
 See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORATION.md).
+
+## Phase 1 acceptance (~80% Cursor “implement this feature”)
+
+**Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen2.5-coder:7b` or Settings → Implementation tool model).
+
+```bash
+ollama serve
+ollama pull qwen2.5-coder:7b   # if not already present
+make server-regression         # terminal 1
+make implement-scenarios       # terminal 2 — need ≥4/5 PASS
+```
+
+Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
+
+**Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and honest session summary (`applied and verified` or `proposals submitted`).
 
 ## Test tiers
 
@@ -48,13 +64,14 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen2.5:7b`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
-5. `make chat-scenarios-regression`
-6. `make chat-scenarios-debug`
-7. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
-8. `make learning-scenarios`
-9. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
-10. Optional: `LIVE=1 make slack-smoke` (runs `scripts/slack-live-smoke.sh`)
-11. Optional: `@Cursor` smoke when `agent` binary on PATH
+5. `make implement-scenarios` (Phase 1 implement gate — ≥4/5 PASS)
+6. `make chat-scenarios-regression`
+7. `make chat-scenarios-debug`
+8. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
+9. `make learning-scenarios`
+10. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
+11. Optional: `LIVE=1 make slack-smoke` (runs `scripts/slack-live-smoke.sh`)
+12. Optional: `@Cursor` smoke when `agent` binary on PATH
 
 Quick reference: `make test-regression-live` prints the live steps.
 

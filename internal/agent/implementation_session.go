@@ -365,6 +365,24 @@ func hasPackageScript(wsPath, name string) bool {
 	return ok
 }
 
+func sessionFilesOnDisk(wsPath string, paths []string) bool {
+	wsPath = strings.TrimSpace(wsPath)
+	if wsPath == "" || len(paths) == 0 {
+		return false
+	}
+	for _, rel := range paths {
+		rel = strings.TrimSpace(rel)
+		if rel == "" {
+			return false
+		}
+		info, err := os.Stat(filepath.Join(wsPath, rel))
+		if err != nil || info.IsDir() {
+			return false
+		}
+	}
+	return true
+}
+
 func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *ImplementationSessionState, proposed bool, msg *protocol.Message) string {
 	var b strings.Builder
 	trust := ""
@@ -374,17 +392,21 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 	if state != nil && state.TrustMode != "" {
 		trust = state.TrustMode
 	}
+	applied := false
+	if proposed && msg != nil && trust == editorTrustAutoApply {
+		applied = sessionFilesOnDisk(a.resolveWorkspacePath(msg), state.FilesChanged)
+	}
 
 	switch {
 	case !proposed:
 		b.WriteString("Implementation session finished without file changes.\n\n")
-	case trust == editorTrustAutoApply && state != nil && state.VerifyFailed:
+	case trust == editorTrustAutoApply && state != nil && applied && state.VerifyFailed:
 		if len(state.FilesChanged) > 0 {
 			b.WriteString(fmt.Sprintf("Implementation session complete — applied but verification failed (changes to: %s).\n\n", strings.Join(state.FilesChanged, ", ")))
 		} else {
 			b.WriteString("Implementation session complete — applied but verification failed.\n\n")
 		}
-	case trust == editorTrustAutoApply && state != nil && !state.VerifyFailed && !state.VerifySkipped:
+	case trust == editorTrustAutoApply && state != nil && applied && !state.VerifyFailed && !state.VerifySkipped:
 		if len(state.FilesChanged) > 0 {
 			b.WriteString(fmt.Sprintf("Implementation session complete — applied and verified (changes to: %s).\n\n", strings.Join(state.FilesChanged, ", ")))
 		} else {

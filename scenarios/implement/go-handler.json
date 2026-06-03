@@ -24,7 +24,12 @@
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|HelloWorld|file change|Grounding"]
+      "any_match": ["implementation session|HelloWorld|file change|Grounding|applied and verified|proposals submitted"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "core/sample/main.go",
+      "contains": "HelloWorld"
     }
   ],
   "cleanup": "clear"

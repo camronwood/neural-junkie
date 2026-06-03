@@ -36,7 +36,12 @@
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation|PrintVersion|Grounding"]
+      "any_match": ["implementation|PrintVersion|Grounding|applied and verified|proposals submitted"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "core/sample/main.go",
+      "contains": "PrintVersion"
     }
   ],
   "cleanup": "clear"

@@ -1,0 +1,37 @@
+{
+  "name": "general-workspace-implement",
+  "description": "Team-channel style: workspace_context + implementation_session metadata (no IDE layout UI).",
+  "tags": ["implement", "frontend", "workspace"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "workspace": { "fixture": "react-tailwind-minimal" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "implement light/dark theme toggle in the sidebar for this project",
+      "metadata": {
+        "editor_mode": "agent",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code",
+        "ide_route_agent_type": "frontend"
+      }
+    },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "assert_messages",
+      "from": "FrontendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation session|applied and verified|proposals submitted|darkMode|theme"],
+      "none_match": ["\\.vue", "App\\.vue", "ThemeToggle\\.vue", "src-tauri/tailwind"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "tailwind.config.js",
+      "contains": "darkMode"
+    }
+  ],
+  "cleanup": "clear"
+}

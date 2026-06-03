@@ -24,7 +24,12 @@
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|theme|FILE_CHANGE|file change"]
+      "any_match": ["implementation session|theme|FILE_CHANGE|file change|applied and verified|proposals submitted"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/theme.css",
+      "contains": "dark"
     }
   ],
   "cleanup": "clear"

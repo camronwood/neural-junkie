@@ -101,6 +101,26 @@ func (a *Agent) inferProposalOp(wsPath, path string, op ProposalOperation) Propo
 	return op
 }
 
+// attachIdeSessionMetadataToProposal copies IDE session fields from the triggering user message
+// so hub auto-approve (maybeAutoApproveIDEFileChange) sees editor_agent_trust on the proposal message.
+func attachIdeSessionMetadataToProposal(msg *protocol.Message, sourceMsg *protocol.Message) {
+	if msg == nil || sourceMsg == nil {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	if t := sourceMsg.EditorAgentTrust(); t != "" {
+		msg.Metadata["editor_agent_trust"] = t
+	}
+	if m := sourceMsg.IdeEditorMode(); m != "" {
+		msg.Metadata["editor_mode"] = m
+	}
+	if sourceMsg.ImplementationSession() {
+		msg.Metadata[protocol.IdeMetaImplementationSession] = true
+	}
+}
+
 func formatPreflightRepairNote(errors []string, manifest *StackManifest) string {
 	if len(errors) == 0 {
 		note := "Proposal preflight failed. Use paths that match the stack manifest and existing files."
