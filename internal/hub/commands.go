@@ -378,7 +378,7 @@ func (ch *CommandHandler) handleCreateRepoAgent(ctx context.Context, msg *protoc
 	// Auto-create workspace for the repository
 	if ch.hub.GetWorkspaceManager() != nil {
 		workspaceName := agentName // Use agent name as workspace name
-		_, err := ch.hub.GetWorkspaceManager().AddWorkspace(workspaceName, absPath)
+		_, err := ch.hub.GetWorkspaceManager().AddWorkspace(workspaceName, absPath, AddWorkspaceOptions{Create: false})
 		if err != nil {
 			log.Printf("Warning: failed to auto-create workspace for repo agent: %v", err)
 		} else {
@@ -816,7 +816,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel,
 			"Usage: `/create-expert <type> [name ...] [provider] [model]`\n\n"+
 				"**Preset types** (curated engineering specialists):\n"+
-				"• `backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `biology`, `assistant`\n\n"+
+				"• `backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `biology`, `cad`, `assistant`\n\n"+
 				"• Legacy explicit slugs also work when the development pack is enabled: `rust`, `database`\n\n"+
 				"**Custom experts:** use any other slug (e.g. `guitar`, `legal-advice`).\n\n"+
 				"The expert is created in a **private DM** with you — it is **not** added to this channel. Invite the agent from the channel member UI when you want help here.\n\n"+
@@ -1734,7 +1734,7 @@ func (ch *CommandHandler) handleAddWorkspace(ctx context.Context, msg *protocol.
 	if wm == nil {
 		return ch.systemResponse(msg.Channel, "❌ Workspace manager is not available"), nil
 	}
-	ws, err := wm.AddWorkspace(name, path)
+	ws, err := wm.AddWorkspace(name, path, AddWorkspaceOptions{Create: false})
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to add workspace: %v", err)), nil
 	}
@@ -3599,10 +3599,10 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		// ── Expert Agents ─────────────────────────────────────────────
 		{
 			Name:        "/create-expert",
-			Description: "Create a specialist agent (backend, frontend, devops, security, architecture, code-review, biology, assistant)",
+			Description: "Create a specialist agent (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant)",
 			Category:    "Expert Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "type", Description: "Expert type (backend, frontend, devops, security, architecture, code-review, biology, assistant)", Type: "string", Required: true, Options: []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "biology", "assistant"}},
+				{Name: "type", Description: "Expert type (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant)", Type: "string", Required: true, Options: []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "biology", "cad", "assistant"}},
 				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},

@@ -50,6 +50,24 @@ func TestDetectCommandsSkipsMCPToolMultilineBash(t *testing.T) {
 	}
 }
 
+func TestDetectCommandsSkipsBiologyPanelQCToolInBashBlocks(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "```bash\nsummarize_panel_qc /path/to/analysis\n```\n"
+	suggestions := cd.DetectCommands(content, "BiologyExpert", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no shell suggestion for summarize_panel_qc, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsRun12PlexQCInline(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "Call `run_12plex_qc` on the analysis folder.\n"
+	suggestions := cd.DetectCommands(content, "BiologyExpert", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no shell suggestion for run_12plex_qc, got %#v", suggestions)
+	}
+}
+
 func TestDetectCommandsSkipsCollabDeliverablePathOnly(t *testing.T) {
 	cd := NewCommandDetector(nil)
 	content := "```bash\ncollabs/902f2cf4-0626-4726-835a-4f1b715c23f6/schema-standardization.md\n```"

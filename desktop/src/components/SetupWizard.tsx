@@ -143,9 +143,11 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
         name:
           wizardTrack === 'lifeSciences'
             ? 'Local Ollama (Bio 8B)'
-            : wizardTrack === 'general'
-              ? 'Local Ollama (utility)'
-              : 'Local Ollama (Coder)',
+            : wizardTrack === 'cad'
+              ? 'Local Ollama (CAD)'
+              : wizardTrack === 'general'
+                ? 'Local Ollama (utility)'
+                : 'Local Ollama (Coder)',
         endpoint: 'http://localhost:11434',
         model: defaultOllamaModel,
       });
@@ -249,6 +251,15 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                 <div className="font-medium text-white">Life sciences &amp; lab work</div>
                 <div className="text-xs text-gray-400">
                   Neural Junkie Bio 8B, BiologyExpert, sequence tools, and structure prediction.
+                </div>
+              </button>
+              <button
+                onClick={() => selectTrack('cad')}
+                className="p-4 rounded-lg border border-gray-700 hover:border-indigo-500 text-left space-y-2 transition-colors"
+              >
+                <div className="font-medium text-white">CAD &amp; mechanical design</div>
+                <div className="text-xs text-gray-400">
+                  CADExpert, OpenSCAD workbench, and Qwen Coder models. Requires OpenSCAD installed.
                 </div>
               </button>
               <button

@@ -514,6 +514,32 @@ struct PromptAttachmentRead {
     content: String,
 }
 
+const MAX_PACK_ZIP_BYTES: usize = 10 << 20; // 10 MiB — matches hub internal/packs
+
+/// Read a customer pack zip as base64 (dialog paths are outside Tauri fs allowlist).
+#[tauri::command]
+fn read_pack_zip_base64(absolute_path: String) -> Result<String, String> {
+    let path = absolute_path.trim();
+    if path.is_empty() {
+        return Err("empty path".into());
+    }
+    let meta = std::fs::metadata(path).map_err(|e| format!("{}: {}", path, e))?;
+    if !meta.is_file() {
+        return Err(format!("not a file: {}", path));
+    }
+    if meta.len() as usize > MAX_PACK_ZIP_BYTES {
+        return Err(format!(
+            "pack zip exceeds {} bytes",
+            MAX_PACK_ZIP_BYTES
+        ));
+    }
+    let data = std::fs::read(path).map_err(|e| format!("read {}: {}", path, e))?;
+    Ok(base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        data,
+    ))
+}
+
 /// Read text files from absolute paths for chat prompt attachments (drag-and-drop from Finder).
 #[tauri::command]
 async fn read_prompt_attachment_paths(paths: Vec<String>) -> Result<Vec<PromptAttachmentRead>, String> {
@@ -878,6 +904,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            read_pack_zip_base64,
             read_prompt_attachment_paths,
             execute_command,
             create_pty_session,

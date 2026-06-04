@@ -6,6 +6,7 @@ type WizardTrack string
 const (
 	WizardTrackDeveloper    WizardTrack = "developer"
 	WizardTrackLifeSciences WizardTrack = "lifeSciences"
+	WizardTrackCAD          WizardTrack = "cad"
 	WizardTrackGeneral      WizardTrack = "general"
 )
 
@@ -32,6 +33,16 @@ const (
 	BioHFRepo = "aaditya/Llama3-OpenBioLLM-8B"
 	// BioHFGGUFRepo is the GGUF catalog repo for local import.
 	BioHFGGUFRepo = "aaditya/OpenBioLLM-Llama3-8B-GGUF"
+	// CadOllamaChatModel is the balanced-tier default for CADExpert OpenSCAD authoring.
+	CadOllamaChatModel = "qwen2.5-coder:14b"
+	// CadOllamaChatModelLight is the light-tier CAD chat model.
+	CadOllamaChatModelLight = "qwen2.5-coder:7b"
+	// CadOllamaChatModelQuality is the quality-tier branded OpenSCAD instruct tag.
+	CadOllamaChatModelQuality = "nj-cad:27b"
+	// CadOllamaToolModel runs MCP CAD tools when the chat model lacks native tool calling.
+	CadOllamaToolModel = "qwen2.5:7b"
+	// CadOllamaTag is the canonical Ollama name for optional OpenSCAD-instruct GGUF import.
+	CadOllamaTag = "nj-cad:27b"
 )
 
 // WizardProfileFor returns defaults for developer, life sciences, or general setup.
@@ -46,6 +57,18 @@ func WizardProfileFor(track WizardTrack) WizardProfile {
 			CloudAnthropic: "claude-3-5-sonnet-20241022",
 			DefaultAgents: []AgentConfig{
 				{Type: "biology", Name: "BiologyExpert", Enabled: true},
+				{Type: "assistant", Name: "Assistant", Enabled: true},
+			},
+		}
+	case WizardTrackCAD:
+		return WizardProfile{
+			Track:          WizardTrackCAD,
+			OllamaModel:    CadOllamaChatModel,
+			ModelsToEnsure: []string{CadOllamaChatModel, CadOllamaChatModelLight, CadOllamaToolModel},
+			HFHostedModel:  "",
+			CloudAnthropic: "claude-3-5-sonnet-20241022",
+			DefaultAgents: []AgentConfig{
+				{Type: "cad", Name: "CADExpert", Enabled: true},
 				{Type: "assistant", Name: "Assistant", Enabled: true},
 			},
 		}
@@ -85,6 +108,9 @@ func (c *Config) ApplyWizardProfile(track WizardTrack, ollamaLocal bool) {
 	case WizardTrackLifeSciences:
 		_ = c.InstallPack(PackLifeSciences)
 		_ = c.SetPackEnabled(PackLifeSciences, true)
+	case WizardTrackCAD:
+		_ = c.InstallPack(PackCAD)
+		_ = c.SetPackEnabled(PackCAD, true)
 	case WizardTrackDeveloper:
 		_ = c.InstallPack(PackSoftwareDevelopment)
 		_ = c.SetPackEnabled(PackSoftwareDevelopment, true)

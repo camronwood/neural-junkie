@@ -17,6 +17,7 @@ import (
 var presetExpertTypes = map[string]protocol.AgentType{
 	"rust":         protocol.AgentTypeRust,
 	"biology":      protocol.AgentTypeBiology,
+	"cad":          protocol.AgentTypeCAD,
 	"backend":      protocol.AgentTypeBackend,
 	"frontend":     protocol.AgentTypeFrontend,
 	"devops":       protocol.AgentTypeDevOps,

@@ -176,5 +176,14 @@
     "size_hint": "~4.9 GB (Q4)",
     "icon_key": "bio",
     "publisher": "OpenBioLLM"
+  },
+  {
+    "name": "nj-cad:27b",
+    "title": "Neural Junkie CAD 27B (OpenSCAD instruct)",
+    "description": "Optional quality-tier OpenSCAD instruct GGUF. CADExpert uses qwen2.5:7b for MCP tools when the chat model lacks native tool calling.",
+    "tags": ["cad"],
+    "size_hint": "~16.5 GB (Q4)",
+    "icon_key": "cad",
+    "publisher": "Neural Junkie"
   }
 ]

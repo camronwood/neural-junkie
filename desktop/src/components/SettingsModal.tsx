@@ -196,6 +196,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [specialistModelsAdvancedOpen, setSpecialistModelsAdvancedOpen] = useState(false);
   const [packsLoading, setPacksLoading] = useState(false);
   const bioPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_SUMMARY_API));
+  const cadPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.CAD_API));
   const hasPersonalLearning = usePacksStore((s) => s.hasCapability(PACK_CAP.PERSONAL_LEARNING));
   const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
   const [packsErr, setPacksErr] = useState<string | null>(null);
@@ -216,6 +217,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [bioMaxAnalyze, setBioMaxAnalyze] = useState('10000');
   const [bioEsmfoldModel, setBioEsmfoldModel] = useState('facebook/esmfold_v1');
   const [bioArtifactsDir, setBioArtifactsDir] = useState('');
+  const [bioSecondaryToolsPath, setBioSecondaryToolsPath] = useState('');
+  const [bioPythonExecutable, setBioPythonExecutable] = useState('python3');
+  const [bioCumulativeQCDir, setBioCumulativeQCDir] = useState('');
+  const [bioDefaultPanelProfile, setBioDefaultPanelProfile] = useState('human-inflammatory-12plex-v1');
+  const [cadOpenSCADPath, setCadOpenSCADPath] = useState('openscad');
+  const [cadFreeCADPath, setCadFreeCADPath] = useState('');
+  const [cadArtifactsDir, setCadArtifactsDir] = useState('');
+  const [cadRenderTimeout, setCadRenderTimeout] = useState('120');
+  const [cadChatModel, setCadChatModel] = useState('qwen2.5-coder:14b');
+  const [cadToolModel, setCadToolModel] = useState('qwen2.5:7b');
+  const [cadSettingsSaving, setCadSettingsSaving] = useState(false);
+  const [cadSettingsErr, setCadSettingsErr] = useState<string | null>(null);
+  const [cadSettingsOk, setCadSettingsOk] = useState<string | null>(null);
+  const [cadTestResult, setCadTestResult] = useState<string | null>(null);
   const [bioSettingsSaving, setBioSettingsSaving] = useState(false);
   const [bioSettingsErr, setBioSettingsErr] = useState<string | null>(null);
   const [bioSettingsOk, setBioSettingsOk] = useState<string | null>(null);
@@ -895,6 +910,17 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           setBioMaxAnalyze(String(bio.max_analyze_length || 10000));
           setBioEsmfoldModel(bio.esmfold_model || 'facebook/esmfold_v1');
           setBioArtifactsDir(bio.artifacts_dir || '');
+          setBioSecondaryToolsPath(bio.secondary_analysis_tools_path || '');
+          setBioPythonExecutable(bio.python_executable || 'python3');
+          setBioCumulativeQCDir(bio.cumulative_qc_dir || '');
+          setBioDefaultPanelProfile(bio.default_panel_profile || 'human-inflammatory-12plex-v1');
+          const cadCfg = cfg.mcp?.cad ?? {};
+          setCadOpenSCADPath(cadCfg.openscad_path || 'openscad');
+          setCadFreeCADPath(cadCfg.freecad_path || '');
+          setCadArtifactsDir(cadCfg.artifacts_dir || '');
+          setCadRenderTimeout(String(cadCfg.render_timeout_sec || 120));
+          setCadChatModel(cadCfg.chat_model || 'qwen2.5-coder:14b');
+          setCadToolModel(cadCfg.tool_model || 'qwen2.5:7b');
           const agentRows = Array.isArray(cfg.agents) ? cfg.agents : [];
           setConfiguredAgents(
             agentRows.filter((a: { enabled?: boolean }) => a.enabled !== false)
@@ -1217,6 +1243,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             max_fold_length: maxFold,
             max_analyze_length: maxAnalyze,
             artifacts_dir: bioArtifactsDir.trim(),
+            secondary_analysis_tools_path: bioSecondaryToolsPath.trim(),
+            python_executable: bioPythonExecutable.trim() || 'python3',
+            cumulative_qc_dir: bioCumulativeQCDir.trim(),
+            default_panel_profile: bioDefaultPanelProfile.trim() || 'human-inflammatory-12plex-v1',
           },
         },
       }));
@@ -1225,6 +1255,49 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setBioSettingsErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBioSettingsSaving(false);
+    }
+  };
+
+  const saveCadMcpSettings = async () => {
+    setCadSettingsSaving(true);
+    setCadSettingsErr(null);
+    setCadSettingsOk(null);
+    try {
+      const timeout = parseInt(cadRenderTimeout, 10);
+      if (!Number.isFinite(timeout) || timeout <= 0) {
+        throw new Error('Render timeout must be a positive integer');
+      }
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        mcp: {
+          ...(cfg.mcp as object | undefined),
+          enabled: mcpEnabled,
+          cad: {
+            openscad_path: cadOpenSCADPath.trim() || 'openscad',
+            freecad_path: cadFreeCADPath.trim(),
+            artifacts_dir: cadArtifactsDir.trim(),
+            render_timeout_sec: timeout,
+            chat_model: cadChatModel.trim() || 'qwen2.5-coder:14b',
+            tool_model: cadToolModel.trim() || 'qwen2.5:7b',
+          },
+        },
+      }));
+      setCadSettingsOk('CAD tool settings saved. Restart CADExpert if it is already running.');
+    } catch (e) {
+      setCadSettingsErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCadSettingsSaving(false);
+    }
+  };
+
+  const testCadOpenSCAD = async () => {
+    setCadTestResult(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const res = await api.testOpenSCAD(cadOpenSCADPath.trim() || undefined);
+      setCadTestResult(res.ok ? res.message : `Failed: ${res.message}`);
+    } catch (e) {
+      setCadTestResult(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -3423,6 +3496,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       ['code-review', 'CodeReviewer'],
                       ['architecture', 'SoftwareArchitect'],
                       ['biology', 'BiologyExpert'],
+                      ['cad', 'CADExpert'],
                       ['rust', 'RustExpert'],
                     ].map(([key, label]) => (
                       <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
@@ -3484,6 +3558,45 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
                       />
                     </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">Secondary analysis tools path</span>
+                      <input
+                        type="text"
+                        value={bioSecondaryToolsPath}
+                        onChange={(e) => setBioSecondaryToolsPath(e.target.value)}
+                        placeholder="/path/to/secondary-analysis-tools"
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Python executable</span>
+                      <input
+                        type="text"
+                        value={bioPythonExecutable}
+                        onChange={(e) => setBioPythonExecutable(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Default panel profile</span>
+                      <input
+                        type="text"
+                        value={bioDefaultPanelProfile}
+                        onChange={(e) => setBioDefaultPanelProfile(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">
+                        Cumulative QC folder override (empty = workspace/.neural-junkie/cumulative-qc)
+                      </span>
+                      <input
+                        type="text"
+                        value={bioCumulativeQCDir}
+                        onChange={(e) => setBioCumulativeQCDir(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
                   </div>
                   <button
                     type="button"
@@ -3495,6 +3608,92 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </button>
                   {bioSettingsErr && <p className="text-sm text-red-600 mt-2">{bioSettingsErr}</p>}
                   {bioSettingsOk && <p className="text-sm text-green-600 mt-2">{bioSettingsOk}</p>}
+                </div>
+              )}
+
+              {cadPackTools && (
+                <div className="border border-slack-border rounded-lg p-6">
+                  <h3 className="text-lg font-semibold text-slack-text mb-2">CAD tools</h3>
+                  <p className="text-sm text-slack-textMuted mb-4">
+                    OpenSCAD rendering for <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">render_openscad</code> and the CAD workbench. Install OpenSCAD from{' '}
+                    <a href="https://openscad.org" className="text-slack-accent hover:underline" target="_blank" rel="noreferrer">openscad.org</a>.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">OpenSCAD path</span>
+                      <input
+                        type="text"
+                        value={cadOpenSCADPath}
+                        onChange={(e) => setCadOpenSCADPath(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Chat model</span>
+                      <input
+                        type="text"
+                        value={cadChatModel}
+                        onChange={(e) => setCadChatModel(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Tool model</span>
+                      <input
+                        type="text"
+                        value={cadToolModel}
+                        onChange={(e) => setCadToolModel(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Render timeout (sec)</span>
+                      <input
+                        type="number"
+                        value={cadRenderTimeout}
+                        onChange={(e) => setCadRenderTimeout(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text"
+                      />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">Artifacts directory (empty = ~/.neural-junkie/cad)</span>
+                      <input
+                        type="text"
+                        value={cadArtifactsDir}
+                        onChange={(e) => setCadArtifactsDir(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm sm:col-span-2">
+                      <span className="text-slack-textMuted">FreeCAD path (optional, for STEP export)</span>
+                      <input
+                        type="text"
+                        value={cadFreeCADPath}
+                        onChange={(e) => setCadFreeCADPath(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void saveCadMcpSettings()}
+                      disabled={cadSettingsSaving}
+                      className="px-4 py-2 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+                    >
+                      {cadSettingsSaving ? 'Saving…' : 'Save CAD tools'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void testCadOpenSCAD()}
+                      className="px-4 py-2 text-sm border border-slack-border rounded text-slack-text hover:bg-slack-bgHover"
+                    >
+                      Test OpenSCAD
+                    </button>
+                  </div>
+                  {cadSettingsErr && <p className="text-sm text-red-600 mt-2">{cadSettingsErr}</p>}
+                  {cadSettingsOk && <p className="text-sm text-green-600 mt-2">{cadSettingsOk}</p>}
+                  {cadTestResult && <p className="text-sm text-slack-textMuted mt-2 font-mono whitespace-pre-wrap">{cadTestResult}</p>}
                 </div>
               )}
             </div>

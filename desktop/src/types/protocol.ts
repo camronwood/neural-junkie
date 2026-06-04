@@ -33,6 +33,7 @@ export type AgentType =
   | 'architecture'
   | 'code-review'
   | 'biology'
+  | 'cad'
   | 'general'
   | 'repo'
   | 'expert'
@@ -454,6 +455,8 @@ export function getAgentColor(type: AgentType): string {
       return '#06b6d4'; // Cyan
     case 'biology':
       return '#14b8a6'; // Teal for life sciences
+    case 'cad':
+      return '#6366f1'; // Indigo for CAD
     case 'expert':
       return '#af77ca'; // Purple for custom domain experts
     case 'moderator':

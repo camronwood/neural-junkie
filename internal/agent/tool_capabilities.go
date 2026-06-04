@@ -33,7 +33,7 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 
 	eff := a.GetAIProvider()
 	out.ChatNativeTools = providerSupportsTools(eff)
-	loopModel, usesFallback := effectiveToolLoopModel(eff)
+	loopModel, usesFallback := a.effectiveToolLoopModel(eff)
 	out.ToolLoopModel = loopModel
 	out.ToolLoopUsesFallback = usesFallback
 
@@ -105,7 +105,7 @@ func providerSupportsTools(eff ai.AIProvider) bool {
 	return ok && tp.SupportsTools()
 }
 
-func effectiveToolLoopModel(eff ai.AIProvider) (model string, usesFallback bool) {
+func (a *Agent) effectiveToolLoopModel(eff ai.AIProvider) (model string, usesFallback bool) {
 	if eff == nil {
 		return "", false
 	}
@@ -113,18 +113,22 @@ func effectiveToolLoopModel(eff ai.AIProvider) (model string, usesFallback bool)
 	if providerSupportsTools(eff) {
 		return chatModel, false
 	}
-	toolEff := toolCapableProviderForDescribe(eff)
+	fallbackModel := domainToolFallbackModel(a.Info.Type)
+	toolEff := toolCapableProviderForDescribe(eff, fallbackModel)
 	if toolEff != nil && providerSupportsTools(toolEff) {
 		return modelNameFromProvider(toolEff), modelNameFromProvider(toolEff) != chatModel
 	}
 	return chatModel, false
 }
 
-func toolCapableProviderForDescribe(eff ai.AIProvider) ai.AIProvider {
+func toolCapableProviderForDescribe(eff ai.AIProvider, fallbackModel string) ai.AIProvider {
 	if providerSupportsTools(eff) {
 		return eff
 	}
-	if fb := ollamaFallbackProvider(eff, ai.OllamaBiologyFallbackModel); fb != nil {
+	if fallbackModel == "" {
+		fallbackModel = ai.OllamaBiologyFallbackModel
+	}
+	if fb := ollamaFallbackProvider(eff, fallbackModel); fb != nil {
 		if tp, ok := fb.(ai.ToolCapableProvider); ok && tp.SupportsTools() {
 			return fb
 		}

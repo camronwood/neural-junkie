@@ -1,0 +1,24 @@
+{
+  "name": "dm-cad-greeting",
+  "description": "CADExpert DM greeting (requires CAD pack).",
+  "tags": ["dm", "cad", "greeting"],
+  "optional": true,
+  "target_agent": "CADExpert",
+  "steps": [
+    {
+      "action": "send",
+      "content": "Hello — what can you help me design?"
+    },
+    {
+      "action": "wait_reply",
+      "from": "CADExpert",
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_messages",
+      "from": "CADExpert",
+      "last_reply_only": true,
+      "any_match": ["OpenSCAD", "CAD", "model", "design", "parametric"]
+    }
+  ]
+}

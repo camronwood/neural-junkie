@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -22,6 +23,14 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	if path == "catalog" {
 		handlePacksCatalog(w, r)
+		return
+	}
+	if path == "install-zip" {
+		handlePackInstallZip(w, r)
+		return
+	}
+	if path == "customer-context" {
+		handleCustomerPackContext(w, r)
 		return
 	}
 	parts := strings.Split(path, "/")
@@ -62,6 +71,65 @@ func handlePacksCatalog(w http.ResponseWriter, r *http.Request) {
 		"packs":       rows,
 		"catalog_url": packs.CatalogURL(),
 	})
+}
+
+func handlePackInstallZip(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !hub.RequireHubAccess(w, r) {
+		return
+	}
+	var body struct {
+		PackZipBase64 string `json:"pack_zip_base64"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	raw := strings.TrimSpace(body.PackZipBase64)
+	if raw == "" {
+		http.Error(w, "pack_zip_base64 required", http.StatusBadRequest)
+		return
+	}
+	data, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		http.Error(w, "invalid base64 zip payload", http.StatusBadRequest)
+		return
+	}
+	m, err := appConfig.InstallPackFromZip(data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := appConfig.Save(); err != nil {
+		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writePacksMutationResponse(w, m.ID, map[string]any{
+		"pack_id":   m.ID,
+		"title":     m.Title,
+		"version":   m.Version,
+		"custom":    m.IsCustomerPack(),
+		"publisher": m.Publisher,
+		"installed": true,
+		"enabled":   false,
+	})
+}
+
+func handleCustomerPackContext(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	ctxs, err := appConfig.EnabledCustomerPackContexts()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"packs": ctxs})
 }
 
 func handlePackInstall(w http.ResponseWriter, r *http.Request, packID string) {

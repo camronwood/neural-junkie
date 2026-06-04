@@ -158,54 +158,6 @@ func (wm *WorkspaceManager) saveWorkspacesLocked() error {
 	return nil
 }
 
-// AddWorkspace adds a new workspace
-func (wm *WorkspaceManager) AddWorkspace(name, path string) (*Workspace, error) {
-	// Validate path exists
-	if _, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("path does not exist: %w", err)
-	}
-
-	// Resolve absolute path
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve absolute path: %w", err)
-	}
-
-	// Check if workspace already exists
-	for _, workspace := range wm.workspaces {
-		if workspace.Path == absPath {
-			return workspace, nil // Return existing workspace
-		}
-	}
-
-	workspace := &Workspace{
-		ID:        fmt.Sprintf("workspace_%d", time.Now().Unix()),
-		Name:      name,
-		Path:      absPath,
-		CreatedAt: time.Now(),
-		LastUsed:  time.Now(),
-	}
-
-	// Check if it's a git repository
-	if _, err := os.Stat(filepath.Join(absPath, ".git")); err == nil {
-		workspace.IsGitRepo = true
-	}
-
-	wm.mutex.Lock()
-	wm.workspaces[workspace.ID] = workspace
-	err = wm.saveWorkspacesLocked()
-	if err != nil {
-		delete(wm.workspaces, workspace.ID)
-	}
-	wm.mutex.Unlock()
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to save workspace: %w", err)
-	}
-
-	return workspace, nil
-}
-
 // GetWorkspace gets a workspace by ID
 func (wm *WorkspaceManager) GetWorkspace(id string) (*Workspace, bool) {
 	wm.mutex.RLock()

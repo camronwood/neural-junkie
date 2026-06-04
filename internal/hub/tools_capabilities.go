@@ -135,7 +135,7 @@ func formatChannelToolsList(resp protocol.ChannelToolsResponse) string {
 	}
 	if withTools == 0 {
 		b.WriteString("No agents in this channel currently expose hub MCP tools.\n\n")
-		b.WriteString("• Enable **Life sciences** or **Software development** in Settings → Domain packs\n")
+		b.WriteString("• Enable **Life sciences** or **CAD** or **Software development** in Settings → Domain packs\n")
 		b.WriteString("• Invite a specialist (e.g. `/create-expert biology` or add BiologyExpert to this channel)\n")
 		b.WriteString("• Open agent **ℹ️** in the sidebar for per-agent tool details\n")
 		return b.String()

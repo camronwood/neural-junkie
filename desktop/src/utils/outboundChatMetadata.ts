@@ -17,7 +17,7 @@ import {
   USER_RULES_METADATA_KEY,
 } from '../constants/promptMetadata';
 import { buildFileTreeString } from './workspaceContext';
-import type { ScanSummaryContext, ScanAnalysisContext, WorkspaceContext } from './workspaceContext';
+import type { ScanSummaryContext, ScanAnalysisContext, CadContext, WorkspaceContext } from './workspaceContext';
 import { concentrationAt, validationAt, isScanAnalysisResultsPath, scanAnalysisDirFromResultsPath, isScanAnalysisSummaryCSVPath } from './scanAnalysis';
 import { scanAnalysisDirFromCsvPath } from './scanAnalysisCsv';
 import {
@@ -66,6 +66,17 @@ function pathMatchesRef(tabPath: string, ref: string): boolean {
   if (tabPath === ref || tabPath.endsWith('/' + ref) || tabPath.endsWith(ref)) return true;
   const base = ref.split('/').pop();
   return base != null && tabPath.endsWith('/' + base);
+}
+
+function buildCadContext(tab: EditorTab | undefined): CadContext | undefined {
+  if (!tab || tab.viewMode !== 'cad-workbench') return undefined;
+  const scadPath = tab.cadScadPath ?? tab.path;
+  if (!scadPath) return undefined;
+  return {
+    scad_path: scadPath,
+    project_id: tab.cadProjectId,
+    note: 'CAD workbench tab is active. Use this scad_path with write_openscad, render_openscad, and list_openscad_params.',
+  };
 }
 
 function buildScanSummaryContext(tab: EditorTab | undefined): ScanSummaryContext | undefined {
@@ -151,7 +162,9 @@ function buildScanAnalysisContext(tab: EditorTab | undefined): ScanAnalysisConte
       analysis_dir: analysisDir,
       analytes: [],
       note:
-        'Phoenix scan analysis viewer tab is active. Use analysis_dir with summarize_scan_analysis for QC.',
+        'Phoenix scan analysis viewer tab is active. Use analysis_dir with summarize_scan_analysis or run_12plex_qc for QC.',
+      panel_qc_overall_pass: tab.panelQCReport?.overall_pass,
+      panel_qc_analyte_count: tab.panelQCReport?.analytes?.length,
     };
   }
   const activeWellId = tab.scanAnalysisInitialWell ?? 'A1';
@@ -187,7 +200,8 @@ function buildScanAnalysisContext(tab: EditorTab | undefined): ScanAnalysisConte
         }
       : undefined,
     note:
-      'Phoenix scan analysis results were shared. Concentrations may require dilution factor adjustment.',
+      'Phoenix scan analysis results were shared. Concentrations may require dilution factor adjustment. Use run_12plex_qc for SOP QC.',
+    panel_qc_overall_pass: tab.panelQCReport?.overall_pass,
   };
 }
 
@@ -274,6 +288,7 @@ function loadFullWorkspaceContext(): WorkspaceContext {
     })),
     scan_summary: buildScanSummaryContext(activeTab),
     scan_analysis: buildScanAnalysisContext(activeTab),
+    cad: buildCadContext(activeTab),
     active_editor: activeTab
       ? {
           path: activeTab.path,
@@ -284,6 +299,13 @@ function loadFullWorkspaceContext(): WorkspaceContext {
         }
       : undefined,
   };
+}
+
+function messageRequestsCADWorkspace(message: string): boolean {
+  return (
+    /\b(create|write|save|make|generate|add|update|edit|render|export)\b/i.test(message) &&
+    /\b(\.scad|openscad|cad|stl|3d|model|mesh|ball|cube|sphere|part)\b/i.test(message)
+  );
 }
 
 /**
@@ -358,6 +380,11 @@ export function buildHumanOutboundMetadata(options: {
     if (scope === 'none' || scope === 'hint') {
       scope = activeTabPath ? 'focus' : 'outline';
       reason = 'workspace visibility question';
+    }
+  } else if (messageRequestsCADWorkspace(message) && contextMode !== 'off') {
+    if (scope === 'none' || scope === 'hint') {
+      scope = 'hint';
+      reason = 'CAD file operation needs workspace path';
     }
   } else if (resolvedConversationMode === 'chat' && contextMode !== 'always') {
     scope = 'none';

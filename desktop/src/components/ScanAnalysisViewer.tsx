@@ -4,6 +4,8 @@ import { getHubBaseURL } from '../config/hubUrl';
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { useToastStore } from '../stores/toastStore';
+import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 import {
   analyteColor,
   concentrationAt,
@@ -23,8 +25,19 @@ import {
 } from '../utils/scanAnalysisPlot';
 import { parseScanSummaryMetadata } from '../utils/scanSummary';
 import { normalizeScanLinkInput, validateScanLink, scanMetadataRelativePath } from '../utils/scanAnalysisLink';
-import { isTauriRuntime } from '../utils/promptAttachments';
 import { workspaceAbsolutePath, workspaceRelativePath } from '../utils/editorFileKind';
+import { formatConcDisplay } from '../utils/scanAnalysisHelpers';
+import type { PanelQCReport } from '../utils/secondaryAnalysis';
+import {
+  formatBiologyExpertQcPrompt,
+  panelQcExportRelativePaths,
+  panelQcJsonContent,
+  panelQcToCsv,
+  qcFailureWellsForAnalyte,
+  qcReportRelativePath,
+} from '../utils/panelQcUtils';
+import { isTauriRuntime } from '../utils/promptAttachments';
+import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 
 interface ScanAnalysisViewerProps {
   workspaceId: string;
@@ -87,7 +100,12 @@ export function ScanAnalysisViewer({
     openScanSummary,
     activateScanWell,
     findLinkedScanTab,
+    setPanelQCReport,
   } = useEditorStore();
+  const panelQCReport = useEditorStore((s) => s.tabs.find((t) => t.id === tabId)?.panelQCReport);
+  const refreshTreeForPath = useFileExplorerStore((s) => s.refreshTreeForPath);
+  const hasSecondaryQC = usePacksStore((s) => s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_VIEWER));
+  const requestComposerPrefill = useComposerPrefillStore((s) => s.requestPrefill);
 
   const [selectedWell, setSelectedWell] = useState(initialWell);
   const [selectedAnalyte, setSelectedAnalyte] = useState(
@@ -99,6 +117,8 @@ export function ScanAnalysisViewer({
   const [calibrationSrc, setCalibrationSrc] = useState<string | null>(null);
   const [processReport, setProcessReport] = useState<string | null>(null);
   const [showProcessReport, setShowProcessReport] = useState(false);
+  const [showQCReport, setShowQCReport] = useState(true);
+  const [qcRunning, setQcRunning] = useState(false);
   const [showFitParams, setShowFitParams] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [linkingScan, setLinkingScan] = useState(false);
@@ -174,6 +194,29 @@ export function ScanAnalysisViewer({
   useEffect(() => {
     void loadProcessReport();
   }, [loadProcessReport]);
+
+  useEffect(() => {
+    if (panelQCReport) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const raw = await api.fetchFileContent(workspaceId, qcReportRelativePath(analysisDir));
+        if (cancelled || !raw) return;
+        const parsed = JSON.parse(raw) as PanelQCReport;
+        if (parsed?.analytes) setPanelQCReport(tabId, parsed);
+      } catch {
+        /* no saved report */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, analysisDir, tabId, panelQCReport, setPanelQCReport]);
+
+  const qcFailureWells = useMemo(() => {
+    if (!panelQCReport || gridMode !== 'qcFailures') return new Set<string>();
+    return qcFailureWellsForAnalyte(panelQCReport, selectedAnalyte);
+  }, [panelQCReport, gridMode, selectedAnalyte]);
 
   const handleOpenScanImage = async () => {
     if (!linkedScanDir) {
@@ -283,6 +326,86 @@ export function ScanAnalysisViewer({
     }
   };
 
+  const handleRun12PlexQC = async () => {
+    setQcRunning(true);
+    try {
+      const report = await api.run12PlexQC({
+        workspace_id: workspaceId,
+        analysis_dir: analysisDir,
+        write_report: true,
+      });
+      setPanelQCReport(tabId, report);
+      setGridMode('qcFailures');
+      await refreshTreeForPath(workspaceId, qcReportRelativePath(analysisDir));
+      addToast({
+        type: report.overall_pass ? 'success' : 'info',
+        title: '12-Plex QC',
+        message: report.overall_pass ? 'Plate passed SOP QC' : 'Plate failed one or more QC checks',
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: '12-Plex QC',
+        message: err instanceof Error ? err.message : 'QC failed',
+      });
+    } finally {
+      setQcRunning(false);
+    }
+  };
+
+  const handleExportQcJson = async () => {
+    if (!panelQCReport) return;
+    const { json } = panelQcExportRelativePaths(analysisDir, runLabel);
+    try {
+      await api.saveFileContent(workspaceId, json, panelQcJsonContent(panelQCReport));
+      await refreshTreeForPath(workspaceId, json);
+      addToast({
+        type: 'success',
+        title: 'Export JSON',
+        message: `Saved ${json}`,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Export JSON',
+        message: err instanceof Error ? err.message : 'Export failed',
+      });
+    }
+  };
+
+  const handleExportQcCsv = async () => {
+    if (!panelQCReport) return;
+    const { csv } = panelQcExportRelativePaths(analysisDir, runLabel);
+    try {
+      await api.saveFileContent(workspaceId, csv, panelQcToCsv(panelQCReport));
+      await refreshTreeForPath(workspaceId, csv);
+      addToast({
+        type: 'success',
+        title: 'Export CSV',
+        message: `Saved ${csv}`,
+      });
+    } catch (err) {
+      addToast({
+        type: 'error',
+        title: 'Export CSV',
+        message: err instanceof Error ? err.message : 'Export failed',
+      });
+    }
+  };
+
+  const handleAskBiologyExpert = () => {
+    if (!panelQCReport) {
+      addToast({ type: 'info', title: '12-Plex QC', message: 'Run QC first.' });
+      return;
+    }
+    requestComposerPrefill(formatBiologyExpertQcPrompt(panelQCReport, analysisDir));
+    addToast({
+      type: 'info',
+      title: 'BiologyExpert',
+      message: 'QC summary added to chat composer — send when ready.',
+    });
+  };
+
   const standardRows = data.standardReport[selectedAnalyte] ?? [];
   const unknownRows = data.unknownReport[selectedAnalyte] ?? [];
   const loq = data.limitsOfQuant[selectedAnalyte];
@@ -301,6 +424,43 @@ export function ScanAnalysisViewer({
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2 text-xs">
+            {hasSecondaryQC && (
+              <>
+                <button
+                  type="button"
+                  className="px-2 py-1 rounded border border-purple-600/50 text-purple-300 hover:bg-purple-600/20 disabled:opacity-50"
+                  disabled={qcRunning}
+                  onClick={() => void handleRun12PlexQC()}
+                >
+                  {qcRunning ? 'QC…' : 'Run 12-Plex QC'}
+                </button>
+                {panelQCReport && (
+                  <>
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded border border-slack-border hover:border-slack-accent"
+                      onClick={() => void handleExportQcJson()}
+                    >
+                      Export JSON
+                    </button>
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded border border-slack-border hover:border-slack-accent"
+                      onClick={() => void handleExportQcCsv()}
+                    >
+                      Export CSV
+                    </button>
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded border border-teal-600/50 text-teal-300 hover:bg-teal-600/20"
+                      onClick={handleAskBiologyExpert}
+                    >
+                      Ask BiologyExpert
+                    </button>
+                  </>
+                )}
+              </>
+            )}
             <button
               type="button"
               className="px-2 py-1 rounded border border-slack-border hover:border-slack-accent disabled:opacity-40"
@@ -353,7 +513,7 @@ export function ScanAnalysisViewer({
       <div className="flex flex-1 min-h-0">
         <div className="w-44 flex-shrink-0 border-r border-slack-border overflow-auto p-2 space-y-2">
           <div className="text-[10px] font-semibold text-slack-textMuted">Plate mode</div>
-          {(['concentration', 'intensity', 'loq', 'wellType'] as PlateGridMode[]).map((mode) => (
+          {(['concentration', 'intensity', 'loq', 'wellType', ...(panelQCReport ? (['qcFailures'] as const) : [])] as PlateGridMode[]).map((mode) => (
             <label key={mode} className="flex items-center gap-1 text-[10px] cursor-pointer">
               <input
                 type="radio"
@@ -361,7 +521,7 @@ export function ScanAnalysisViewer({
                 checked={gridMode === mode}
                 onChange={() => setGridMode(mode)}
               />
-              {mode}
+              {mode === 'qcFailures' ? 'QC failures' : mode}
             </label>
           ))}
           <div
@@ -383,7 +543,9 @@ export function ScanAnalysisViewer({
                   const wellId = `${row}${col}`;
                   const cellVal = plateCellValue(data, wellId, selectedAnalyte, gridMode);
                   let bg = '#1f2937';
-                  if (gridMode === 'concentration') {
+                  if (gridMode === 'qcFailures') {
+                    bg = qcFailureWells.has(wellId) ? '#dc2626' : '#1f2937';
+                  } else if (gridMode === 'concentration') {
                     bg = concColor(cellVal as number | null, concRange.min, concRange.max);
                   } else if (gridMode === 'intensity' && typeof cellVal === 'number') {
                     bg = concColor(cellVal, 0, cellVal * 2 || 1);
@@ -416,7 +578,9 @@ export function ScanAnalysisViewer({
 
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <div className="flex-shrink-0 border-b border-slack-border px-2 py-1 flex flex-wrap gap-1">
-            {data.analytes.map((a) => (
+            {data.analytes.map((a) => {
+              const analyteQc = panelQCReport?.analytes.find((r) => r.analyte === a);
+              return (
               <button
                 key={a}
                 type="button"
@@ -429,8 +593,13 @@ export function ScanAnalysisViewer({
                 style={selectedAnalyte === a ? { backgroundColor: analyteColor(a) } : undefined}
               >
                 {a}
+                {analyteQc && (
+                  <span className={analyteQc.pass ? ' text-green-300' : ' text-red-300'}>
+                    {analyteQc.pass ? ' ✓' : ' ✗'}
+                  </span>
+                )}
               </button>
-            ))}
+            );})}
           </div>
           <div className="flex-1 overflow-auto p-3 space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -509,7 +678,7 @@ export function ScanAnalysisViewer({
               <>
                 <div><span className="text-slack-textMuted">Label:</span> {wellRow.wellLabel}</div>
                 <div><span className="text-slack-textMuted">Type:</span> {wellRow.wellType}</div>
-                <div><span className="text-slack-textMuted">Signal:</span> {wellRow.signal.toFixed(1)}</div>
+                <div><span className="text-slack-textMuted">Signal:</span> {formatConcDisplay(wellRow.signal)}</div>
                 <div>
                   <span className="text-slack-textMuted">{selectedAnalyte}:</span>{' '}
                   {formatConc(concentrationAt(data, selectedWell, selectedAnalyte))} pg/ml
@@ -549,12 +718,48 @@ export function ScanAnalysisViewer({
           <div className="overflow-auto max-h-32 p-2 text-[10px] font-mono">
             {spots.map((s, i) => (
               <div key={i} className="truncate">
-                r{s.row}c{s.column} sig={s.signal.toFixed(0)} bg={s.background.toFixed(0)}
+                r{s.row}c{s.column} sig={formatConcDisplay(s.signal)} bg={formatConcDisplay(s.background)}
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      {panelQCReport && (
+        <div className="flex-shrink-0 border-t border-slack-border">
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1 text-xs font-semibold hover:bg-slack-bgHover flex items-center gap-2"
+            onClick={() => setShowQCReport((v) => !v)}
+          >
+            <span className={panelQCReport.overall_pass ? 'text-green-400' : 'text-red-400'}>
+              12-Plex QC: {panelQCReport.overall_pass ? 'PASS' : 'FAIL'}
+            </span>
+            {showQCReport ? '▾' : '▸'}
+          </button>
+          {showQCReport && (
+            <div className="px-3 pb-2 max-h-48 overflow-auto space-y-2">
+              {panelQCReport.analytes.map((a) => (
+                <div key={a.analyte} className="text-[10px] border border-slack-border/50 rounded p-1">
+                  <div className="font-semibold flex justify-between">
+                    <span>{a.analyte}</span>
+                    <span className={a.pass ? 'text-green-400' : 'text-red-400'}>
+                      {a.pass ? 'Pass' : 'Fail'}
+                    </span>
+                  </div>
+                  {a.checks
+                    .filter((c) => !c.pass)
+                    .map((c) => (
+                      <div key={c.name} className="text-red-300/90 font-mono">
+                        {c.name}: {c.detail || c.value}
+                      </div>
+                    ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {processReport && (
         <div className="flex-shrink-0 border-t border-slack-border">

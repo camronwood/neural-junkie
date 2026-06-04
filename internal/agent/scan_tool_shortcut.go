@@ -22,6 +22,10 @@ var openScanTaskRE = regexp.MustCompile(
 func requestedBiologyScanTool(content string) string {
 	lower := strings.ToLower(strings.TrimSpace(content))
 	switch {
+	case strings.Contains(lower, "summarize_panel_qc"):
+		return "summarize_panel_qc"
+	case strings.Contains(lower, "run_12plex_qc"):
+		return "run_12plex_qc"
 	case strings.Contains(lower, "summarize_scan_analysis"):
 		return "summarize_scan_analysis"
 	case strings.Contains(lower, "summarize_scan_summary"):
@@ -200,7 +204,7 @@ func (a *Agent) tryBiologyScanToolShortcut(ctx context.Context, msg *protocol.Me
 		ok   bool
 	)
 	switch toolName {
-	case "summarize_scan_analysis":
+	case "summarize_scan_analysis", "run_12plex_qc", "summarize_panel_qc":
 		path, ok = sharedScanAnalysisPath(msg)
 	case "summarize_scan_summary":
 		path, ok = sharedScanSummaryPath(msg)

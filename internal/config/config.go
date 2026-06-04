@@ -116,6 +116,7 @@ type Config struct {
 	Delegation     DelegationConfig     `json:"delegation"`
 	Features       FeaturesConfig       `json:"features"`
 	Slack          SlackConfig          `json:"slack"`
+	Phoenix        PhoenixConfig        `json:"phoenix"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -509,6 +510,12 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 		m := strings.TrimSpace(copy.Model)
 		if m == "" || m == BioOllamaTag {
 			copy.Model = BioOllamaChatModel
+		}
+	}
+	if a.Type == "cad" && c.IsPackEnabled(PackCAD) {
+		m := strings.TrimSpace(copy.Model)
+		if m == "" || m == CadOllamaTag {
+			copy.Model = c.CadMCPSettings().ChatModelOrDefault()
 		}
 	}
 	if m := strings.TrimSpace(a.Model); m != "" {

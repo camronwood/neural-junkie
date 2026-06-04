@@ -78,6 +78,43 @@ func (b *BiologyMCP) registerTools() {
 		nil,
 	), b.handleSummarizeScanAnalysis)
 
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"run_12plex_qc",
+		"Run Human Inflammatory 12-Plex SOP QC on a Phoenix-style scan analysis export. Returns per-analyte pass/fail for LLOQ, ULOQ, intraplate CV, column/row deviation, and spike recovery.",
+		mcp.CreateStringInputSchema("path", "Absolute or workspace path to scan analysis directory or reports/results.json"),
+		nil,
+	), b.handleRun12PlexQC)
+
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"summarize_panel_qc",
+		"Alias for run_12plex_qc — returns 12-Plex SOP QC pass/fail markdown for a scan analysis export.",
+		mcp.CreateStringInputSchema("path", "Absolute or workspace path to scan analysis directory"),
+		nil,
+	), b.handleSummarizePanelQC)
+
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"summarize_comparator_output",
+		"Summarize a Plate Comparator Analysis output folder (Summary Statistics/LLOQs_and_ULOQs.csv and per-plate stats).",
+		mcp.CreateStringInputSchema("path", "Absolute or workspace path to Comparator Analysis folder"),
+		nil,
+	), b.handleSummarizeComparatorOutput)
+
+	b.mcpServer.AddTool(mcp.CreateTool(
+		"run_secondary_analysis",
+		"Run a secondary analysis workflow. Supports 12plex_qc and summarize_comparator inline; other workflows (comparator, endogenous, std_curves, print_order) use the Secondary Analysis panel.",
+		mcp.CreateObjectInputSchema(map[string]interface{}{
+			"workflow": map[string]interface{}{
+				"type":        "string",
+				"description": "Workflow name: 12plex_qc, summarize_comparator, comparator, endogenous, std_curves, print_order",
+			},
+			"config_json": map[string]interface{}{
+				"type":        "string",
+				"description": "JSON object with workflow-specific paths and options",
+			},
+		}, []string{"workflow"}),
+		nil,
+	), b.handleRunSecondaryAnalysis)
+
 	log.Printf("Registered %d Biology MCP tools", len(b.mcpServer.ListTools()))
 }
 
@@ -113,6 +150,53 @@ func (b *BiologyMCP) handleSummarizeScanAnalysis(ctx context.Context, request mc
 	out, err := summarizeScanAnalysisPath(path)
 	if err != nil {
 		return mcp.HandleToolError(err, "summarize_scan_analysis"), nil
+	}
+	return mcp.HandleToolSuccess(out), nil
+}
+
+func (b *BiologyMCP) handleRun12PlexQC(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
+		return mcp.HandleToolError(err, "run_12plex_qc"), nil
+	}
+	out, err := run12PlexQCPath(request.GetString("path", ""), false)
+	if err != nil {
+		return mcp.HandleToolError(err, "run_12plex_qc"), nil
+	}
+	return mcp.HandleToolSuccess(out), nil
+}
+
+func (b *BiologyMCP) handleSummarizePanelQC(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
+		return mcp.HandleToolError(err, "summarize_panel_qc"), nil
+	}
+	out, err := summarizePanelQCPath(request.GetString("path", ""))
+	if err != nil {
+		return mcp.HandleToolError(err, "summarize_panel_qc"), nil
+	}
+	return mcp.HandleToolSuccess(out), nil
+}
+
+func (b *BiologyMCP) handleSummarizeComparatorOutput(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
+		return mcp.HandleToolError(err, "summarize_comparator_output"), nil
+	}
+	out, err := summarizeComparatorOutputPath(request.GetString("path", ""))
+	if err != nil {
+		return mcp.HandleToolError(err, "summarize_comparator_output"), nil
+	}
+	return mcp.HandleToolSuccess(out), nil
+}
+
+func (b *BiologyMCP) handleRunSecondaryAnalysis(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := mcp.ValidateToolInput(request, []string{"workflow"}); err != nil {
+		return mcp.HandleToolError(err, "run_secondary_analysis"), nil
+	}
+	out, err := runSecondaryAnalysisWorkflow(
+		request.GetString("workflow", ""),
+		request.GetString("config_json", "{}"),
+	)
+	if err != nil {
+		return mcp.HandleToolError(err, "run_secondary_analysis"), nil
 	}
 	return mcp.HandleToolSuccess(out), nil
 }

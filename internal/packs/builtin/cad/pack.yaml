@@ -1,0 +1,23 @@
+id: cad
+version: "1.0.0"
+title: CAD
+description: CADExpert, OpenSCAD parametric modeling, 3D preview workbench, and export.
+layout_profile: team
+capabilities:
+  - cad-api
+  - cad-viewer
+  - cad-workbench
+agents:
+  - type: cad
+    name: CADExpert
+    implementation: builtin/cad
+models_to_ensure:
+  - qwen2.5-coder:14b
+  - qwen2.5-coder:7b
+  - qwen2.5:7b
+  - nj-cad:27b
+ollama_model: qwen2.5-coder:14b
+expert_slug: cad
+expert_label: CAD / Mechanical design
+mcp_agents:
+  - cad

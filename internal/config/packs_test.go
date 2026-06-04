@@ -42,6 +42,33 @@ func TestSyncAgentsFromPacksLifeSciences(t *testing.T) {
 	}
 }
 
+func TestSyncAgentsFromPacksCAD(t *testing.T) {
+	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackCAD)
+	cfg.Packs.Enabled[PackCAD] = true
+	cfg.SyncAgentsFromPacks()
+
+	if !cfg.AgentTypeEnabled("cad") {
+		t.Fatal("expected cad enabled")
+	}
+	foundChat := false
+	foundTool := false
+	for _, m := range cfg.Ollama.ModelsToEnsure {
+		if m == CadOllamaChatModel {
+			foundChat = true
+		}
+		if m == CadOllamaToolModel {
+			foundTool = true
+		}
+	}
+	if !foundChat {
+		t.Fatalf("expected %s in models_to_ensure", CadOllamaChatModel)
+	}
+	if !foundTool {
+		t.Fatalf("expected %s in models_to_ensure", CadOllamaToolModel)
+	}
+}
+
 func TestSyncAgentsFromPacksDisabled(t *testing.T) {
 	cfg := DefaultConfig()
 	installTestPack(t, cfg, PackLifeSciences)
@@ -179,6 +206,9 @@ func TestPresetExpertAllowed(t *testing.T) {
 	}
 	if cfg.PresetExpertAllowed("biology") {
 		t.Fatal("biology should be blocked when life-sciences off")
+	}
+	if cfg.PresetExpertAllowed("cad") {
+		t.Fatal("cad should be blocked when CAD pack off")
 	}
 	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true

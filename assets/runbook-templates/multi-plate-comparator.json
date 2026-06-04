@@ -1,0 +1,22 @@
+{
+  "name": "multi-plate-comparator",
+  "title": "Multi-plate comparator study",
+  "description": "Compare multiple Phoenix -summary exports and review Summary Statistics. Research use only.",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "title": "Select plates and conditions",
+      "description": "Confirm which -summary folders and condition labels the user wants compared. Use the Secondary Analysis panel comparator workflow when paths are ready.",
+      "kind": "agent"
+    },
+    {
+      "title": "Review comparator output",
+      "description": "After comparator completes, use summarize_comparator_output on the Comparator Analysis folder. Summarize LLOQ/ULOQ trends and interplate statistics.",
+      "kind": "agent"
+    }
+  ]
+}

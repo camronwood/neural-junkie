@@ -1,0 +1,30 @@
+{
+  "description": "Fixed prompts for CAD LLM OpenSCAD compile evaluation (Phase 0).",
+  "prompts": [
+    {
+      "id": "simple-cube",
+      "prompt": "Create a parametric 20mm cube with OpenSCAD Customizer section Dimensions.",
+      "expect_compile": true
+    },
+    {
+      "id": "box-lid",
+      "prompt": "Parametric box with removable lid, 80x50x30mm outer, 2mm wall thickness.",
+      "expect_compile": true
+    },
+    {
+      "id": "phone-stand",
+      "prompt": "Phone stand with adjustable angle variable and stable base, printable on FDM.",
+      "expect_compile": true
+    },
+    {
+      "id": "bracket",
+      "prompt": "L-bracket with mounting holes for M3 screws, parametric leg lengths.",
+      "expect_compile": true
+    }
+  ],
+  "candidate_models": [
+    "qwen2.5-coder:7b",
+    "qwen2.5-coder:14b",
+    "nj-cad:27b"
+  ]
+}

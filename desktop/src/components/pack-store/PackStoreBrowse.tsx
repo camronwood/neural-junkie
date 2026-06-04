@@ -3,6 +3,9 @@ import type { InstallPackLoRAResult } from '../../api/chatAPI';
 import { usePacksStore } from '../../stores/packsStore';
 import { PACK_CAP } from '../../stores/packCapabilities';
 
+import { CustomPackInstall } from './CustomPackInstall';
+import { PhoenixImportPanel } from './PhoenixImportPanel';
+
 export function PackStoreBrowse() {
   const catalog = usePacksStore((s) => s.catalog);
   const loading = usePacksStore((s) => s.loading);
@@ -49,6 +52,8 @@ export function PackStoreBrowse() {
 
   return (
     <div className="space-y-4">
+      <CustomPackInstall />
+      <PhoenixImportPanel />
       {(error || actionError) && (
         <p className="text-sm text-red-400">{actionError ?? error}</p>
       )}
@@ -59,7 +64,11 @@ export function PackStoreBrowse() {
           const results = loraResults[entry.id];
           let primaryLabel = 'Install';
           let primaryAction: () => void = () => run(entry.id, () => installPack(entry.id));
-          if (entry.installed && !entry.enabled) {
+          if (entry.custom && entry.installed) {
+            primaryLabel = entry.enabled ? 'Disable' : 'Enable';
+            primaryAction = () =>
+              run(entry.id, () => setPackEnabled(entry.id, !entry.enabled));
+          } else if (entry.installed && !entry.enabled) {
             primaryLabel = 'Enable';
             primaryAction = () => run(entry.id, () => setPackEnabled(entry.id, true));
           } else if (entry.installed && entry.enabled) {
@@ -78,6 +87,9 @@ export function PackStoreBrowse() {
               <p className="text-xs text-gray-400 mt-2 flex-1">{entry.description}</p>
               <p className="text-[10px] text-gray-500 mt-2 font-mono">v{entry.version}</p>
               <div className="flex flex-wrap gap-1 mt-2">
+                {entry.custom && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-900/50 text-teal-200">Custom</span>
+                )}
                 {entry.installed && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">Installed</span>
                 )}
@@ -90,6 +102,11 @@ export function PackStoreBrowse() {
                   </span>
                 )}
               </div>
+              {entry.requires_packs && entry.requires_packs.length > 0 && (
+                <p className="text-[10px] text-amber-400/90 mt-2">
+                  Requires: {entry.requires_packs.join(', ')}
+                </p>
+              )}
               {loraCount > 0 && !entry.installed && (
                 <p className="text-[10px] text-gray-500 mt-2">Install pack first to compose pack LoRAs.</p>
               )}

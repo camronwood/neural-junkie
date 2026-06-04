@@ -1,12 +1,15 @@
 id: life-sciences
 version: "1.0.0"
 title: Life sciences
-description: OpenBioLLM chat (koesn), BiologyExpert, sequence analysis, ESMFold structure prediction, and scan summary viewer for plate assay exports (research use only).
+description: OpenBioLLM chat (koesn), BiologyExpert, sequence analysis, ESMFold structure prediction, scan summary/analysis viewers, and secondary analysis (12-Plex QC, comparator, endogenous). Research use only.
 layout_profile: team
 capabilities:
   - scan-summary-api
   - scan-summary-viewer
   - scan-analysis-viewer
+  - secondary-analysis-api
+  - secondary-analysis-viewer
+  - secondary-analysis-python
 agents:
   - type: biology
     name: BiologyExpert

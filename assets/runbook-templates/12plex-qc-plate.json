@@ -1,0 +1,22 @@
+{
+  "name": "12plex-qc-plate",
+  "title": "12-Plex QC plate review",
+  "description": "Run SOP QC on an open Phoenix scan analysis export and interpret pass/fail results. Research use only.",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "title": "Run 12-Plex QC",
+      "description": "Use run_12plex_qc or summarize_panel_qc on the user's scan analysis folder path. Report overall pass/fail and per-analyte failures.",
+      "kind": "agent"
+    },
+    {
+      "title": "Interpret QC failures",
+      "description": "For any failed checks (LLOQ, ULOQ, CV, column/row deviation, spike recovery), explain likely causes and recommended next steps.",
+      "kind": "agent"
+    }
+  ]
+}

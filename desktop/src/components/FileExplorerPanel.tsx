@@ -35,12 +35,16 @@ import {
 } from '../utils/scanAnalysis';
 import { analyteFromSummaryCsvPath } from '../utils/scanAnalysisCsv';
 import { loadScanAnalysisData, analysisDirFromFilePath } from '../utils/scanAnalysisLoad';
+import { isComparatorAnalysisPath } from '../utils/secondaryAnalysis';
+import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { workspacesForTabBar } from '../utils/workspaceOrder';
 import { ViewportContextMenu } from './ViewportContextMenu';
 import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
 import { WorkspaceTabBar } from './WorkspaceTabBar';
 import { devLog } from '../utils/devLog';
+import { qcReportRelativePath } from '../utils/panelQcUtils';
 
 interface FileExplorerPanelProps {
   onClose: () => void;
@@ -67,6 +71,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     addWorkspace,
     setActiveWorkspace,
     loadFiles,
+    refreshTreeForPath,
     toggleExpanded,
     setSelectedPath,
     createFile,
@@ -79,9 +84,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile, openScanSummary, openScanAnalysis } = useEditorStore();
+  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openComparatorAnalysis, setPanelQCReport } =
+    useEditorStore();
   const hasScanSummary = usePacksStore((s) => s.hasCapability('scan-summary-viewer'));
   const hasScanAnalysis = usePacksStore((s) => s.hasCapability('scan-analysis-viewer'));
+  const hasSecondaryAnalysis = usePacksStore((s) => s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_VIEWER));
+  const hasCadWorkbench = usePacksStore((s) => s.hasCapability('cad-workbench'));
+  const addToBasket = useSecondaryAnalysisStore((s) => s.addToBasket);
+  const setPanelOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
   const { addToast } = useToastStore();
 
   // Resize state
@@ -104,9 +114,11 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
   // State for adding new workspace
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
+  const [workspaceAddMode, setWorkspaceAddMode] = useState<'create' | 'link'>('create');
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspacePath, setNewWorkspacePath] = useState('');
+  const [newWorkspaceParentPath, setNewWorkspaceParentPath] = useState('');
 
   // State for file operations
   const [contextMenu, setContextMenu] = useState<{
@@ -178,20 +190,23 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     resizeStartWidth.current = currentWidthRef.current;
   };
 
-  const handleBrowseDirectory = async () => {
+  const handleBrowseDirectory = async (target: 'link' | 'parent' = 'link') => {
     try {
       const selected = await open({
         directory: true,
         multiple: false,
-        title: 'Select Workspace Directory',
+        title: target === 'parent' ? 'Select parent folder for new workspace' : 'Select Workspace Directory',
       });
-      
+
       if (selected && typeof selected === 'string') {
-        setNewWorkspacePath(selected);
-        // Auto-populate name from directory if empty
-        if (!newWorkspaceName) {
-          const dirName = selected.split('/').pop() || '';
-          setNewWorkspaceName(dirName);
+        if (target === 'parent') {
+          setNewWorkspaceParentPath(selected);
+        } else {
+          setNewWorkspacePath(selected);
+          if (!newWorkspaceName) {
+            const dirName = selected.split('/').pop() || '';
+            setNewWorkspaceName(dirName);
+          }
         }
       }
     } catch (error) {
@@ -199,16 +214,43 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     }
   };
 
+  const resetAddWorkspaceForm = () => {
+    setShowAddWorkspace(false);
+    setWorkspaceAddMode('create');
+    setNewWorkspaceName('');
+    setNewWorkspacePath('');
+    setNewWorkspaceParentPath('');
+  };
+
   const handleAddWorkspace = async () => {
-    if (!newWorkspaceName || !newWorkspacePath) return;
-    
+    if (!newWorkspaceName.trim()) return;
+    if (workspaceAddMode === 'link' && !newWorkspacePath.trim()) return;
+
     try {
-      await addWorkspace(newWorkspaceName, newWorkspacePath);
-      setShowAddWorkspace(false);
-      setNewWorkspaceName('');
-      setNewWorkspacePath('');
+      if (workspaceAddMode === 'create') {
+        await addWorkspace(newWorkspaceName.trim(), '', {
+          create: true,
+          parentPath: newWorkspaceParentPath.trim() || undefined,
+        });
+      } else {
+        await addWorkspace(newWorkspaceName.trim(), newWorkspacePath.trim());
+      }
+      addToast({
+        type: 'success',
+        title: 'Workspace added',
+        message:
+          workspaceAddMode === 'create'
+            ? `Created "${newWorkspaceName.trim()}"`
+            : `Linked "${newWorkspaceName.trim()}"`,
+      });
+      resetAddWorkspaceForm();
     } catch (error) {
       console.error('Failed to add workspace:', error);
+      addToast({
+        type: 'error',
+        title: 'Workspace failed',
+        message: error instanceof Error ? error.message : 'Failed to add workspace',
+      });
     }
   };
 
@@ -386,6 +428,13 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
         }
         const opened = await tryOpenScanSummaryFile(activeWorkspace.id, file.path);
         if (opened) {
+          setSelectedPath(file.path);
+          return;
+        }
+        if (hasCadWorkbench && !file.is_dir && file.path.toLowerCase().endsWith('.scad')) {
+          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+          openCadWorkbench(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
           setSelectedPath(file.path);
           return;
         }
@@ -693,6 +742,100 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     closeContextMenu();
   };
 
+  const contextMenuIsComparator = (): boolean => {
+    if (!contextMenu?.isDir || !contextMenu.path) return false;
+    const base = contextMenu.path.split('/').pop() ?? contextMenu.path;
+    return isComparatorAnalysisPath(base) || isComparatorAnalysisPath(contextMenu.path);
+  };
+
+  const contextMenuSummaryDir = (): string => {
+    if (!contextMenu) return '';
+    if (isScanAnalysisResultsPath(contextMenu.path) || isScanAnalysisSummaryCSVPath(contextMenu.path)) {
+      return analysisDirFromFilePath(contextMenu.path);
+    }
+    if (contextMenu.isDir) {
+      let d = contextMenu.path === '/' || contextMenu.path === '.' ? '' : contextMenu.path;
+      if (d.endsWith(`/${SCAN_ANALYSIS_REPORTS_DIR}`)) {
+        d = d.replace(/[/\\]reports$/, '');
+      }
+      return d;
+    }
+    return '';
+  };
+
+  const handleRun12PlexQCFromMenu = async () => {
+    if (!contextMenu || !activeWorkspaceId || !hasSecondaryAnalysis) return;
+    const analysisDir = contextMenuSummaryDir();
+    closeContextMenu();
+    try {
+      const report = await api.run12PlexQC({
+        workspace_id: activeWorkspaceId,
+        analysis_dir: analysisDir,
+        write_report: true,
+      });
+      await refreshTreeForPath(activeWorkspaceId, qcReportRelativePath(analysisDir));
+      addToast({
+        type: report.overall_pass ? 'success' : 'info',
+        title: '12-Plex QC',
+        message: report.overall_pass
+          ? `${analysisDir || 'Plate'} passed SOP QC`
+          : `${analysisDir || 'Plate'} failed one or more QC checks`,
+      });
+      await openScanAnalysisAtPath(activeWorkspaceId, analysisDir);
+      const tab = useEditorStore
+        .getState()
+        .tabs.find(
+          (t) =>
+            t.workspaceId === activeWorkspaceId &&
+            t.viewMode === 'scan-analysis' &&
+            t.scanAnalysisDir === analysisDir
+        );
+      if (tab) setPanelQCReport(tab.id, report);
+    } catch (e) {
+      addToast({
+        type: 'error',
+        title: '12-Plex QC',
+        message: e instanceof Error ? e.message : 'QC failed',
+      });
+    }
+  };
+
+  const handleAddToAnalysisBasket = () => {
+    const dir = contextMenuSummaryDir();
+    if (!dir) return;
+    addToBasket(dir);
+    setPanelOpen(true);
+    addToast({ type: 'success', title: 'Analysis basket', message: `Added ${dir}` });
+    closeContextMenu();
+  };
+
+  const handleOpenComparatorFromMenu = () => {
+    if (!contextMenu || !activeWorkspaceId || !contextMenu.isDir) return;
+    const dir =
+      contextMenu.path === '/' || contextMenu.path === '.' ? '' : contextMenu.path.replace(/\/$/, '');
+    openComparatorAnalysis(activeWorkspaceId, dir);
+    if (onFileOpen) onFileOpen();
+    closeContextMenu();
+  };
+
+  const handleOpenSecondaryPanel = () => {
+    setPanelOpen(true);
+    closeContextMenu();
+  };
+
+  const handleOpenCadFromMenu = async () => {
+    if (!contextMenu || !activeWorkspaceId || contextMenu.isDir) return;
+    if (!contextMenu.path.toLowerCase().endsWith('.scad')) return;
+    try {
+      const content = await api.fetchFileContent(activeWorkspaceId, contextMenu.path);
+      openCadWorkbench(activeWorkspaceId, contextMenu.path, content);
+      closeContextMenu();
+      if (onFileOpen) onFileOpen();
+    } catch (e) {
+      addToast({ type: 'error', title: 'CAD workbench', message: e instanceof Error ? e.message : 'Failed to open' });
+    }
+  };
+
   const contextMenuIsScanSummary = (): boolean => {
     if (!contextMenu || !activeWorkspaceId) return false;
     if (isScanSummaryMetadataPath(contextMenu.path) || isScanSummaryWellPath(contextMenu.path)) {
@@ -964,8 +1107,36 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       {/* Add Workspace Modal */}
       {showAddWorkspace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-slack-bg border border-slack-border rounded p-6 w-96">
+          <div className="bg-slack-bg border border-slack-border rounded p-6 w-[28rem] max-w-[95vw]">
             <h3 className="text-lg font-bold text-slack-text mb-4">Add Workspace</h3>
+            <div className="flex rounded-md border border-slack-border overflow-hidden text-xs mb-4" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workspaceAddMode === 'create'}
+                onClick={() => setWorkspaceAddMode('create')}
+                className={`flex-1 px-3 py-1.5 font-medium ${
+                  workspaceAddMode === 'create'
+                    ? 'bg-slack-accent text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+              >
+                Create new
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workspaceAddMode === 'link'}
+                onClick={() => setWorkspaceAddMode('link')}
+                className={`flex-1 px-3 py-1.5 font-medium ${
+                  workspaceAddMode === 'link'
+                    ? 'bg-slack-accent text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+              >
+                Link existing
+              </button>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slack-text mb-1">
@@ -976,41 +1147,76 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
                   value={newWorkspaceName}
                   onChange={(e) => setNewWorkspaceName(e.target.value)}
                   className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text focus:outline-none focus:border-slack-accent"
-                  placeholder="Workspace name"
+                  placeholder="Phoenix run 2026-06-04"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slack-text mb-1">
-                  Path
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newWorkspacePath}
-                    onChange={(e) => setNewWorkspacePath(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text focus:outline-none focus:border-slack-accent"
-                    placeholder="/path/to/workspace"
-                  />
-                  <button
-                    onClick={handleBrowseDirectory}
-                    className="px-3 py-2 bg-slack-bgHover hover:bg-slack-accent text-slack-text hover:text-white rounded transition-colors"
-                    title="Browse for directory"
-                  >
-                    📁 Browse
-                  </button>
+              {workspaceAddMode === 'create' ? (
+                <div>
+                  <label className="block text-sm font-medium text-slack-text mb-1">
+                    Location (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newWorkspaceParentPath}
+                      onChange={(e) => setNewWorkspaceParentPath(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text focus:outline-none focus:border-slack-accent font-mono text-xs"
+                      placeholder="~/.neural-junkie/workspaces (default)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleBrowseDirectory('parent')}
+                      className="px-3 py-2 bg-slack-bgHover hover:bg-slack-accent text-slack-text hover:text-white rounded transition-colors"
+                      title="Browse for parent folder"
+                    >
+                      📁
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slack-textMuted">
+                    Creates a new folder from the name. Default root:{' '}
+                    <code className="font-mono">~/.neural-junkie/workspaces/</code>
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slack-text mb-1">
+                    Path
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newWorkspacePath}
+                      onChange={(e) => setNewWorkspacePath(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text focus:outline-none focus:border-slack-accent font-mono text-xs"
+                      placeholder="/path/to/existing/folder"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleBrowseDirectory('link')}
+                      className="px-3 py-2 bg-slack-bgHover hover:bg-slack-accent text-slack-text hover:text-white rounded transition-colors"
+                      title="Browse for directory"
+                    >
+                      📁
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2 mt-6">
               <button
-                onClick={handleAddWorkspace}
-                disabled={!newWorkspaceName || !newWorkspacePath}
+                type="button"
+                onClick={() => void handleAddWorkspace()}
+                disabled={
+                  !newWorkspaceName.trim() ||
+                  (workspaceAddMode === 'link' && !newWorkspacePath.trim())
+                }
                 className="px-4 py-2 bg-slack-accent hover:bg-slack-accentHover text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Add
+                {workspaceAddMode === 'create' ? 'Create' : 'Add'}
               </button>
               <button
-                onClick={() => setShowAddWorkspace(false)}
+                type="button"
+                onClick={resetAddWorkspaceForm}
                 className="px-4 py-2 bg-slack-bgHover text-slack-text text-sm rounded transition-colors"
               >
                 Cancel
@@ -1033,6 +1239,55 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
               className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
             >
               📊 Open scan analysis
+            </button>
+          )}
+
+          {hasSecondaryAnalysis && contextMenuIsScanAnalysis() && contextMenu?.isDir && (
+            <>
+              <button
+                onClick={() => void handleRun12PlexQCFromMenu()}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                ✅ Run 12-Plex QC
+              </button>
+              <button
+                onClick={handleAddToAnalysisBasket}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                🧪 Add to analysis basket
+              </button>
+              <button
+                onClick={handleOpenSecondaryPanel}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                📋 Secondary analysis panel…
+              </button>
+            </>
+          )}
+
+          {hasSecondaryAnalysis && contextMenuIsComparator() && (
+            <>
+              <button
+                onClick={handleOpenComparatorFromMenu}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                📈 Open comparator analysis
+              </button>
+              <button
+                onClick={handleOpenSecondaryPanel}
+                className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+              >
+                🧬 Run endogenous analysis…
+              </button>
+            </>
+          )}
+
+          {hasCadWorkbench && !contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.scad') && (
+            <button
+              onClick={() => void handleOpenCadFromMenu()}
+              className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+            >
+              📐 Open CAD workbench
             </button>
           )}
 

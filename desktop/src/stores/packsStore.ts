@@ -18,6 +18,7 @@ interface PacksState {
   fetchPacks: () => Promise<void>;
   fetchPackCatalog: () => Promise<void>;
   installPack: (packId: string) => Promise<void>;
+  installPackFromZip: (packZipBase64: string) => Promise<PacksAPIResponse>;
   installPackLoRAs: (packId: string) => Promise<InstallPackLoRAsResponse>;
   uninstallPack: (packId: string) => Promise<void>;
   setPackEnabled: (packId: string, enabled: boolean) => Promise<void>;
@@ -80,6 +81,14 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     const data = await api.installPack(packId);
     get().applyPacksResponse(data);
     await get().fetchPackCatalog();
+  },
+
+  installPackFromZip: async (packZipBase64) => {
+    const api = new ChatAPI(getHubBaseURL());
+    const data = await api.installPackFromZip(packZipBase64);
+    get().applyPacksResponse(data);
+    await get().fetchPackCatalog();
+    return data;
   },
 
   installPackLoRAs: async (packId) => {

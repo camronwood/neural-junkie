@@ -32,6 +32,8 @@ export interface ChatToolbarActionsProps {
   onOpenPendingChanges: () => void;
   onOpenFileExplorer: () => void;
   onOpenCodeEditor: () => void;
+  phoenixPackInstalled?: boolean;
+  onOpenPhoenix?: () => void;
   taskManagementOpen: boolean;
   onToggleTaskManagement: () => void;
   onNewRunbook: () => void;
@@ -74,6 +76,8 @@ export function ChatToolbarActions({
   onOpenPendingChanges,
   onOpenFileExplorer,
   onOpenCodeEditor,
+  phoenixPackInstalled,
+  onOpenPhoenix,
   taskManagementOpen,
   onToggleTaskManagement,
   onNewRunbook,
@@ -197,6 +201,18 @@ export function ChatToolbarActions({
         >
           <EditorIcon className="w-3.5 h-3.5" />
         </button>
+
+        {phoenixPackInstalled && onOpenPhoenix && (
+          <button
+            type="button"
+            onClick={onOpenPhoenix}
+            className={`${iconBtn} bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold focus-visible:outline-indigo-400`}
+            title="Phoenix TIM — sign in, browse, download"
+            aria-label="Open Phoenix TIM browser"
+          >
+            PHX
+          </button>
+        )}
       </div>
 
       <ToolbarDivider layout={layout} />

@@ -490,6 +490,10 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             setAttachError(null);
             clearPendingImages();
           },
+          setDraftText: (text: string) => {
+            updateMessage(text);
+            setTimeout(() => textareaRef.current?.focus(), 0);
+          },
           insertMentionText: (agentName: string) => {
             const cursorPos = textareaRef.current?.selectionStart || message.length;
             const beforeCursor = message.substring(0, cursorPos);

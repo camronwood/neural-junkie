@@ -7,6 +7,36 @@ import (
 	"testing"
 )
 
+func TestParseResultsStringSignal(t *testing.T) {
+	raw := []byte(`{
+		"header_data": {},
+		"experiment_data": {"product_name": "test"},
+		"unknown_report_data": {
+			"IL-6": [{
+				"analyte": "IL-6",
+				"well_label": "unk1",
+				"replicates": [
+					{"replicate_index": 0, "signal": "12345.67", "concentration": "1.5"}
+				]
+			}]
+		}
+	}`)
+	doc, err := ParseResults(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := doc.UnknownReport["IL-6"]
+	if len(rows) != 1 || len(rows[0].Replicates) != 1 {
+		t.Fatal("expected one unknown row with one replicate")
+	}
+	if got := rows[0].Replicates[0].Signal; got != 12345.67 {
+		t.Fatalf("signal: got %v want 12345.67", got)
+	}
+	if rows[0].Replicates[0].Concentration == nil || *rows[0].Replicates[0].Concentration != 1.5 {
+		t.Fatalf("concentration: got %v want 1.5", rows[0].Replicates[0].Concentration)
+	}
+}
+
 func TestNormalizeJSONNaN(t *testing.T) {
 	raw := []byte(`{"header_data":{},"experiment_data":{"product_name":"test"},"validation_data":[{"analyte":"IL-6","signal":1,"well_row":"A","well_column":1,"well_type":"unknown","well_label":"unk1","calculated_concentration": NaN}]}`)
 	out := NormalizeJSONNaN(raw)

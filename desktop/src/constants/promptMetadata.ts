@@ -23,6 +23,7 @@ export const EDITOR_AGENT_TRUST_KEY = 'editor_agent_trust';
 export const IMPLEMENTATION_SESSION_METADATA_KEY = 'implementation_session';
 export const IMPLEMENTATION_SESSION_COMPLETE_KEY = 'implementation_session_complete';
 export const IMPLEMENTATION_FILES_CHANGED_KEY = 'implementation_files_changed';
+export const CAD_FILES_WRITTEN_KEY = 'cad_files_written';
 
 export interface PromptAttachmentPayload {
   path: string;

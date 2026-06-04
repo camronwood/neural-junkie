@@ -78,6 +78,10 @@ CLI agents (Cursor, Gemini, Claude CLI) use external toolsets; the UI notes that
 
 - `summarize_scan_summary(path)` — QC summary for Phoenix-style scan summary folders (`imageMetadata.json` + well TIFFs)
 - `summarize_scan_analysis(path)` — QC summary for Phoenix-style analysis exports (`reports/results.json`, `reports/{analyte}_summary_report.csv`, and `process_report.txt`)
+- `run_12plex_qc(path)` — Human Inflammatory 12-Plex SOP QC (LLOQ, ULOQ, CV, column/row, spike recovery)
+- `summarize_panel_qc(path)` — alias for `run_12plex_qc`
+- `summarize_comparator_output(path)` — summary of Plate Comparator Analysis output folder
+- `run_secondary_analysis(workflow, config_json)` — inline `12plex_qc` / `summarize_comparator`; other workflows use Secondary Analysis panel
 
 **Tools:**
 - `analyze_sequence(sequence)` — DNA/RNA/protein validation and summary

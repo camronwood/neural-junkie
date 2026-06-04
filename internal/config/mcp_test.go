@@ -63,3 +63,33 @@ func TestBiologyMCPSettingsDefaults(t *testing.T) {
 		t.Fatalf("fold len default: %d", b.MaxFoldLengthOrDefault())
 	}
 }
+
+func TestMCPEnabledForAgentCADPack(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.InstallPack(PackCAD); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Packs.Enabled[PackCAD] = true
+	cfg.SyncAgentsFromPacks()
+	if !cfg.MCPEnabledForAgent("cad") {
+		t.Fatal("expected cad MCP when CAD pack on")
+	}
+	cfg.Packs.Enabled[PackCAD] = false
+	cfg.SyncAgentsFromPacks()
+	if cfg.MCPEnabledForAgent("cad") {
+		t.Fatal("expected cad MCP off when pack off")
+	}
+}
+
+func TestCadMCPSettingsDefaults(t *testing.T) {
+	c := CadMCPConfig{}
+	if c.OpenSCADPathOrDefault() != "openscad" {
+		t.Fatalf("openscad path default: %s", c.OpenSCADPathOrDefault())
+	}
+	if c.ChatModelOrDefault() != CadOllamaChatModel {
+		t.Fatalf("chat model default: %s", c.ChatModelOrDefault())
+	}
+	if c.ToolModelOrDefault() != CadOllamaToolModel {
+		t.Fatalf("tool model default: %s", c.ToolModelOrDefault())
+	}
+}

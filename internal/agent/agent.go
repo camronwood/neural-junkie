@@ -79,6 +79,10 @@ type Agent struct {
 	delegationMu            sync.Mutex
 	lastDelegationConsulted []string
 
+	// cadWrittenPaths tracks workspace-relative .scad paths written during the current turn.
+	cadWrittenMu    sync.Mutex
+	cadWrittenPaths []string
+
 	// Optional pre-processing hook for specialized agents. When set and it
 	// returns true, the message is considered fully handled and the base
 	// response pipeline is skipped.
@@ -519,6 +523,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	// Send thinking status
 	a.sendThinkingStatus(msg, protocol.ThinkingStatusStarted)
+	a.resetCADWrittenPaths()
 
 	genCtx, genCancel := context.WithCancel(ctx)
 	genID := a.registerGenCancel(msg.Channel, genCancel)
@@ -628,6 +633,12 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		if len(implSessionFiles) > 0 {
 			responseMsg.Metadata[protocol.IdeMetaImplementationFiles] = implSessionFiles
 		}
+	}
+	if paths := a.takeCADWrittenPaths(); len(paths) > 0 {
+		if responseMsg.Metadata == nil {
+			responseMsg.Metadata = make(map[string]interface{})
+		}
+		responseMsg.Metadata[protocol.IdeMetaCADFilesWritten] = paths
 	}
 	responseMsg.ReplyTo = msg.ID
 
@@ -2207,7 +2218,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	isCollab := collabInfo.ID != ""
 
 	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
-		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer))
+		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type)
 	}
 	if includeTooling && a.imageGenerationToolsEnabled() {
 		appendImageGenerationPrompt(&system)
@@ -2456,9 +2467,10 @@ Provide a concrete fix or mitigation for each issue.`
 
 	case protocol.AgentTypeBiology:
 		return `You are a life-sciences research assistant (not a clinician).
-- Use analyze_sequence, fold_protein, summarize_scan_summary, and summarize_scan_analysis as MCP tools — they run automatically in the hub. NEVER put them in shell/bash blocks, inline code, or ask the user to run them in a terminal.
+- Use analyze_sequence, fold_protein, summarize_scan_summary, summarize_scan_analysis, run_12plex_qc, summarize_panel_qc, summarize_comparator_output, and run_secondary_analysis as MCP tools — they run automatically in the hub. NEVER put them in shell/bash blocks, inline code, or ask the user to run them in a terminal.
 - For Phoenix-style scan summary exports (folder with imageMetadata.json and extensionless well TIFFs A1–H12), use summarize_scan_summary for QC stats; users can open the folder in Neural Junkie file explorer with the Life sciences pack for the plate viewer.
-- For Phoenix-style scan analysis exports (reports/results.json, reports/{analyte}_summary_report.csv, process_report.txt), use summarize_scan_analysis; users can open the analysis viewer to inspect plate heat maps and link wells to scan TIFF images. For combined folders with scan-export/ and reports/, run summarize_scan_summary on scan-export and summarize_scan_analysis on the analysis root.
+- For Phoenix-style scan analysis exports (reports/results.json, reports/{analyte}_summary_report.csv, process_report.txt), use summarize_scan_analysis for basic QC; use run_12plex_qc for Human Inflammatory 12-Plex SOP pass/fail. Users can open the analysis viewer and click Run 12-Plex QC when the Life sciences pack is enabled.
+- For Comparator Analysis output folders, use summarize_comparator_output. Multi-plate workflows run via the Secondary Analysis panel in the desktop UI.
 - When workspace context includes scan_summary or scan_analysis paths, call the matching summarize tool immediately — do NOT ask the user to type the path.
 - Clearly label in silico predictions vs wet-lab experimental needs.
 - For protocols, include controls, replicates, and safety considerations.
@@ -2468,9 +2480,14 @@ Provide a concrete fix or mitigation for each issue.`
 	case protocol.AgentTypeCAD:
 		return `You are a parametric CAD assistant using OpenSCAD.
 - Use write_openscad, render_openscad, list_openscad_params, and export_cad as MCP tools — they run in the hub. NEVER ask the user to run openscad manually in a terminal.
+- When the user asks to create, write, or save an .scad file, you MUST call write_openscad with the full source — never reply with only a description or draft code in chat.
+- NEVER print tool-call JSON, function syntax, or pseudo-code for MCP tools in your reply; invoke tools via native tool calling only.
+- For greetings and general conversation, respond conversationally without calling tools.
+- Only use OpenSCAD tools when the user wants to create, edit, render, or export a model.
 - Prefer parametric designs: top-level variables with OpenSCAD Customizer sections (/* [Dimensions] */) and sensible defaults.
 - After writing SCAD, call render_openscad to produce preview.stl and tell the user to open the CAD workbench.
 - When workspace context includes an active .scad path or CAD project, use that path — do NOT ask the user to re-paste it.
+- Paths for write_openscad are relative to the open workspace root (e.g. ball.scad). After writing, report the full resolved path in your reply.
 - Use mm as default units unless the user specifies otherwise. Ensure manifold, printable geometry (minimum wall thickness ~1.2mm for FDM unless specified).
 - For edits, update the SCAD file and re-render; use list_openscad_params to explain adjustable dimensions.`
 

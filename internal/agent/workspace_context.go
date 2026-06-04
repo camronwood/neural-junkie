@@ -390,6 +390,7 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 	}
 	appendScanSummaryContext(prompt, ctxMap)
 	appendScanAnalysisContext(prompt, ctxMap)
+	appendCadContext(prompt, ctxMap)
 
 	includeTree := scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull
 	if includeTree {
@@ -552,6 +553,28 @@ func appendScanAnalysisContext(prompt *strings.Builder, ctxMap map[string]interf
 			}
 			prompt.WriteString("\n")
 		}
+	}
+}
+
+func appendCadContext(prompt *strings.Builder, ctxMap map[string]interface{}) {
+	raw, ok := ctxMap["cad"]
+	if !ok || raw == nil {
+		return
+	}
+	cad, ok := raw.(map[string]interface{})
+	if !ok {
+		return
+	}
+	prompt.WriteString("\nCAD workbench context:\n")
+	if path, ok := cad["scad_path"].(string); ok && path != "" {
+		prompt.WriteString(fmt.Sprintf("- OpenSCAD file: %s\n", path))
+		prompt.WriteString(fmt.Sprintf("- Use write_openscad / render_openscad with path %q when the user asks to model or update the part.\n", path))
+	}
+	if pid, ok := cad["project_id"].(string); ok && pid != "" {
+		prompt.WriteString(fmt.Sprintf("- Project id: %s\n", pid))
+	}
+	if note, ok := cad["note"].(string); ok && note != "" {
+		prompt.WriteString(fmt.Sprintf("- Note: %s\n", note))
 	}
 }
 

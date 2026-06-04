@@ -6,16 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/google/uuid"
 )
 
 // hubMCPToolNames are in-process MCP tools that must never be offered as shell commands.
-var hubMCPToolNames = map[string]bool{
-	"summarize_scan_summary":  true,
-	"summarize_scan_analysis": true,
-	"analyze_sequence":        true,
-	"fold_protein":            true,
-}
+// Canonical list lives in internal/mcp/tool_names.go.
 
 var bareFileRefExtensions = map[string]bool{
 	".md": true, ".markdown": true, ".txt": true, ".json": true, ".yaml": true, ".yml": true,
@@ -144,7 +140,7 @@ func isHubMCPToolCommand(command string) bool {
 		return false
 	}
 	first := strings.Fields(line)[0]
-	return hubMCPToolNames[strings.ToLower(first)]
+	return mcp.IsHubMCPToolName(first)
 }
 
 func (cd *CommandDetector) shouldSuggestCodeBlock(command string) bool {

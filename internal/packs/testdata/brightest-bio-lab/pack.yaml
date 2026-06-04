@@ -1,0 +1,21 @@
+id: brightest-bio-lab
+version: "1.0.1"
+title: Brightest Bio Lab data pack
+description: >-
+  Import Phoenix scans and analyses via bbio, then use the Life sciences pack
+  for scan summary/analysis viewers and 12-Plex QC.
+publisher: Brightest Bio
+pack_kind: customer
+layout_profile: team
+capabilities:
+  - customer-pack
+  - phoenix-import
+requires_packs:
+  - life-sciences
+settings_overlay:
+  phoenix_environment: dev
+  phoenix_auth_config_path: /Users/camronwood/development/phoenix-tim-test-suite/.phoenix-customer-cli-creds
+  python_executable: python3
+assets:
+  workspace_guide: assets/WORKSPACE.md
+  runbooks_glob: assets/runbooks/*.md

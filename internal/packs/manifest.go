@@ -11,20 +11,25 @@ import (
 
 // Manifest is the on-disk pack.yaml schema.
 type Manifest struct {
-	ID             string         `yaml:"id"`
-	Version        string         `yaml:"version"`
-	Title          string         `yaml:"title"`
-	Description    string         `yaml:"description"`
-	LayoutProfile  string         `yaml:"layout_profile"` // team | ide
-	Capabilities   []string       `yaml:"capabilities"`
-	Agents         []AgentSpec    `yaml:"agents"`
-	ModelsToEnsure []string       `yaml:"models_to_ensure"`
-	OllamaModel    string         `yaml:"ollama_model"`
-	ExpertSlug     string         `yaml:"expert_slug"`
-	ExpertLabel    string         `yaml:"expert_label"`
-	ExpertPresets  []ExpertPreset `yaml:"expert_presets"`
-	MCPAgents      []string       `yaml:"mcp_agents"`
-	LoRAAdapters   []LoRAAdapterSpec `yaml:"lora_adapters,omitempty"`
+	ID              string            `yaml:"id"`
+	Version         string            `yaml:"version"`
+	Title           string            `yaml:"title"`
+	Description     string            `yaml:"description"`
+	Publisher       string            `yaml:"publisher,omitempty"`
+	PackKind        string            `yaml:"pack_kind,omitempty"` // customer | domain
+	LayoutProfile   string            `yaml:"layout_profile"` // team | ide
+	Capabilities    []string          `yaml:"capabilities"`
+	RequiresPacks   []string          `yaml:"requires_packs,omitempty"`
+	SettingsOverlay map[string]string `yaml:"settings_overlay,omitempty"`
+	Assets          PackAssetsSpec    `yaml:"assets,omitempty"`
+	Agents          []AgentSpec       `yaml:"agents"`
+	ModelsToEnsure  []string          `yaml:"models_to_ensure"`
+	OllamaModel     string            `yaml:"ollama_model"`
+	ExpertSlug      string            `yaml:"expert_slug"`
+	ExpertLabel     string            `yaml:"expert_label"`
+	ExpertPresets   []ExpertPreset    `yaml:"expert_presets"`
+	MCPAgents       []string          `yaml:"mcp_agents"`
+	LoRAAdapters    []LoRAAdapterSpec `yaml:"lora_adapters,omitempty"`
 }
 
 // AgentSpec declares one in-process specialist from a pack.

@@ -12,6 +12,7 @@ const (
 	PackLifeSciences        = "life-sciences"
 	PackSoftwareDevelopment = "software-development"
 	PackSpecialistTuning    = "specialist-tuning"
+	PackCAD                 = "cad"
 )
 
 // DevOllamaCodeModel is the recommended local model for software-development specialists.
@@ -25,9 +26,10 @@ var legacyDevSpecialistTypes = []string{"rust"}
 
 // PacksConfig stores installed packs, enable toggles, and layout ownership.
 type PacksConfig struct {
-	Installed   []string        `json:"installed,omitempty"`
-	Enabled     map[string]bool `json:"enabled"`
-	LayoutOwner string          `json:"layout_owner,omitempty"`
+	Installed        []string                       `json:"installed,omitempty"`
+	Enabled          map[string]bool                `json:"enabled"`
+	LayoutOwner      string                         `json:"layout_owner,omitempty"`
+	AppliedOverlays  map[string]map[string]string     `json:"applied_overlays,omitempty"`
 }
 
 // DomainPack describes an installed pack merged from its manifest.
@@ -350,21 +352,62 @@ func (c *Config) setPackEnabledLocked(packID string, enabled bool) error {
 		c.Packs.Enabled = make(map[string]bool)
 	}
 	wasEnabled := c.packEnabledLocked(packID)
-	c.Packs.Enabled[packID] = enabled
 	if enabled && !wasEnabled {
-		if c.countEnabledPacksLocked() == 1 {
+		if err := c.validatePackRequirementsLocked(packID); err != nil {
+			return err
+		}
+		if err := c.applyPackSettingsOverlayLocked(packID); err != nil {
+			return err
+		}
+	}
+	c.Packs.Enabled[packID] = enabled
+	if !enabled && wasEnabled {
+		c.revertPackSettingsOverlayLocked(packID)
+	}
+	if enabled && !wasEnabled {
+		m, _ := c.installedManifestLocked(packID)
+		if m != nil && !m.IsCustomerPack() && c.countEnabledNonCustomerPacksLocked() == 1 {
 			c.Packs.LayoutOwner = packID
 		}
 	}
 	if !enabled {
 		if c.Packs.LayoutOwner == packID {
-			c.Packs.LayoutOwner = c.firstEnabledPackLocked()
+			c.Packs.LayoutOwner = c.firstEnabledLayoutOwnerLocked()
 		}
 		if c.countEnabledPacksLocked() == 0 {
 			c.Packs.LayoutOwner = ""
 		}
 	}
 	return nil
+}
+
+func (c *Config) countEnabledNonCustomerPacksLocked() int {
+	n := 0
+	for _, id := range c.Packs.Installed {
+		if !c.Packs.Enabled[id] {
+			continue
+		}
+		m, err := c.installedManifestLocked(id)
+		if err == nil && m != nil && m.IsCustomerPack() {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+func (c *Config) firstEnabledLayoutOwnerLocked() string {
+	for _, id := range c.Packs.Installed {
+		if !c.Packs.Enabled[id] {
+			continue
+		}
+		m, err := c.installedManifestLocked(id)
+		if err == nil && m != nil && m.IsCustomerPack() {
+			continue
+		}
+		return id
+	}
+	return c.firstEnabledPackLocked()
 }
 
 func (c *Config) firstEnabledPackLocked() string {
@@ -394,7 +437,7 @@ func (c *Config) MigrateInstalledPacks() {
 		c.Packs.Enabled = make(map[string]bool)
 	}
 	// Legacy: packs.enabled keys without installed — treat as installed+enabled.
-	for _, id := range []string{PackSoftwareDevelopment, PackLifeSciences} {
+	for _, id := range []string{PackSoftwareDevelopment, PackLifeSciences, PackCAD} {
 		if c.Packs.Enabled[id] {
 			if !c.packInstalledLocked(id) {
 				_ = packs.InstallOfficialPack(id)
@@ -688,6 +731,9 @@ func hfhubSpecialistTag(agentType string) string {
 	if t == "biology" {
 		return "nj-biology:8b"
 	}
+	if t == "cad" {
+		return "nj-cad:27b"
+	}
 	return "nj-" + t + ":14b"
 }
 
@@ -754,6 +800,8 @@ func (c *Config) PresetExpertDeniedMessage(slug string) string {
 	switch slug {
 	case "biology":
 		return "Biology experts require the **Life sciences** pack. Install and enable it in Settings → Domain packs."
+	case "cad":
+		return "CAD experts require the **CAD** pack. Install and enable it in Settings → Domain packs."
 	default:
 		if isDevPackExpertSlug(slug) {
 			return "Software development specialists require the **Software development** pack. Install and enable it in Settings → Domain packs."
@@ -775,6 +823,9 @@ func (c *Config) PresetExpertAllowed(slug string) bool {
 	}
 	if slug == "biology" {
 		return c.IsPackEnabled(PackLifeSciences)
+	}
+	if slug == "cad" {
+		return c.IsPackEnabled(PackCAD)
 	}
 	if isDevPackExpertSlug(slug) {
 		return c.IsPackEnabled(PackSoftwareDevelopment)
@@ -809,6 +860,8 @@ type PackStatus struct {
 	ExpertSlug     string   `json:"expert_slug,omitempty"`
 	ExpertLabel    string   `json:"expert_label,omitempty"`
 	Version        string   `json:"version,omitempty"`
+	Custom         bool     `json:"custom,omitempty"`
+	RequiresPacks  []string `json:"requires_packs,omitempty"`
 }
 
 // PackCatalogStatus is a store row from GET /api/packs/catalog.
@@ -822,6 +875,8 @@ type PackCatalogStatus struct {
 	Builtin          bool     `json:"builtin,omitempty"`
 	Installed        bool     `json:"installed"`
 	Enabled          bool     `json:"enabled"`
+	Custom           bool     `json:"custom,omitempty"`
+	RequiresPacks    []string `json:"requires_packs,omitempty"`
 	LoRAAdapterCount int      `json:"lora_adapter_count,omitempty"`
 	LoRABaseTags     []string `json:"lora_base_tags,omitempty"`
 }
@@ -848,10 +903,18 @@ func (c *Config) ListPackStatus() PacksAPIResponse {
 }
 
 func (c *Config) packStatusFromDomain(pack DomainPack) PackStatus {
-	m, _ := packs.LoadBuiltinManifest(pack.ID)
 	ver := ""
-	if m != nil {
+	custom := false
+	var requires []string
+	if m, err := c.InstalledPackManifestByID(pack.ID); err == nil && m != nil {
 		ver = m.Version
+		custom = m.IsCustomerPack()
+		requires = append([]string(nil), m.RequiresPacks...)
+	} else if m, err := packs.LoadBuiltinManifest(pack.ID); err == nil && m != nil {
+		ver = m.Version
+	}
+	if !custom && !IsCatalogPackID(pack.ID) {
+		custom = true
 	}
 	return PackStatus{
 		ID:            pack.ID,
@@ -864,6 +927,8 @@ func (c *Config) packStatusFromDomain(pack DomainPack) PackStatus {
 		ExpertSlug:    pack.ExpertSlug,
 		ExpertLabel:   pack.ExpertLabel,
 		Version:       ver,
+		Custom:        custom,
+		RequiresPacks: requires,
 	}
 }
 
@@ -904,6 +969,34 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 						row.LoRABaseTags = append(row.LoRABaseTags, tag)
 					}
 				}
+			}
+		}
+		out = append(out, row)
+	}
+	seen := make(map[string]struct{}, len(out))
+	for _, row := range out {
+		seen[row.ID] = struct{}{}
+	}
+	for _, pack := range c.PackCatalog() {
+		if _, ok := seen[pack.ID]; ok {
+			continue
+		}
+		m, _ := c.InstalledPackManifestByID(pack.ID)
+		row := PackCatalogStatus{
+			ID:          pack.ID,
+			Title:       pack.Title,
+			Description: pack.Description,
+			Publisher:   "",
+			Installed:   true,
+			Enabled:     c.IsPackEnabled(pack.ID),
+			Custom:      true,
+		}
+		if m != nil {
+			row.Version = m.Version
+			row.Publisher = m.Publisher
+			row.RequiresPacks = append([]string(nil), m.RequiresPacks...)
+			if !m.IsCustomerPack() {
+				row.Custom = !IsCatalogPackID(pack.ID)
 			}
 		}
 		out = append(out, row)

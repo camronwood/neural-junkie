@@ -25,6 +25,8 @@ export interface PackStatus {
   expert_slug?: string;
   expert_label?: string;
   version?: string;
+  custom?: boolean;
+  requires_packs?: string[];
 }
 
 export interface PackCatalogEntry {
@@ -35,6 +37,8 @@ export interface PackCatalogEntry {
   icon_key?: string;
   publisher?: string;
   builtin?: boolean;
+  custom?: boolean;
+  requires_packs?: string[];
   installed: boolean;
   enabled: boolean;
   lora_adapter_count?: number;
@@ -141,6 +145,7 @@ export interface LoraTrainStartRequest {
 
 export interface PacksAPIResponse {
   packs: PackStatus[];
+  pack_id?: string;
   layout_owner?: string;
   layout_profile?: string;
   capabilities?: string[];
@@ -151,6 +156,16 @@ export interface ExpertPresetOption {
   label: string;
   from_pack?: string;
 }
+
+export type CadParam = {
+  name: string;
+  value: string;
+  section?: string;
+  comment?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+};
 
 export class ChatAPI {
   private baseURL: string;
@@ -1511,13 +1526,22 @@ export class ChatAPI {
     return response.json();
   }
 
-  async addWorkspace(name: string, path: string): Promise<any> {
+  async addWorkspace(
+    name: string,
+    path: string,
+    options?: { create?: boolean; parentPath?: string },
+  ): Promise<any> {
     const response = await this.hubFetch(`/api/workspaces`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name, path }),
+      body: JSON.stringify({
+        name,
+        path,
+        create: options?.create === true,
+        parent_path: options?.parentPath?.trim() || undefined,
+      }),
     });
 
     if (!response.ok) {
@@ -1632,6 +1656,104 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(`Failed to save file content: ${response.statusText}`);
     }
+  }
+
+  async renderCAD(body: {
+    workspace: string;
+    path: string;
+    project_id?: string;
+    params?: Record<string, string>;
+    output_path?: string;
+  }): Promise<{ content_base64: string; params?: unknown[]; scad_path?: string; stl_path?: string }> {
+    const response = await this.hubFetch('/api/cad/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `CAD render failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchCADMesh(
+    workspaceId: string,
+    scadPath: string,
+    projectId?: string
+  ): Promise<{ content_base64: string }> {
+    const params = new URLSearchParams({ workspace: workspaceId, path: scadPath });
+    if (projectId) params.set('project_id', projectId);
+    const response = await this.hubFetch(`/api/cad/mesh?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  }
+
+  async fetchCADParams(
+    workspaceId: string,
+    scadPath: string,
+    projectId?: string
+  ): Promise<{ params: CadParam[] }> {
+    const params = new URLSearchParams({ workspace: workspaceId, path: scadPath });
+    if (projectId) params.set('project_id', projectId);
+    const response = await this.hubFetch(`/api/cad/params?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  }
+
+  async fetchCADVersions(projectId: string): Promise<{ versions: Array<{ id: string; label: string; created_at: string }> }> {
+    const response = await this.hubFetch(`/api/cad/versions?project_id=${encodeURIComponent(projectId)}`);
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  }
+
+  async saveCADVersion(body: {
+    workspace: string;
+    path: string;
+    project_id: string;
+    label: string;
+    params?: Record<string, string>;
+  }): Promise<unknown> {
+    const response = await this.hubFetch('/api/cad/versions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  }
+
+  async restoreCADVersion(
+    projectId: string,
+    versionId: string
+  ): Promise<{ content?: string; scad_path?: string }> {
+    const response = await this.hubFetch('/api/cad/versions/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, version_id: versionId }),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+    return response.json();
+  }
+
+  async testOpenSCAD(path?: string): Promise<{ ok: boolean; message: string }> {
+    const response = await this.hubFetch('/api/cad/test-openscad', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: path ?? '' }),
+    });
+    const data = (await response.json()) as { ok: boolean; message: string };
+    return data;
   }
 
   async createFile(workspaceId: string, path: string, content: string = ''): Promise<void> {
@@ -2213,6 +2335,19 @@ export class ChatAPI {
     return this.parsePacksMutationResponse(await response.json());
   }
 
+  async installPackFromZip(packZipBase64: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/install-zip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack_zip_base64: packZipBase64 }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
   async installPackLoRAs(packId: string): Promise<InstallPackLoRAsResponse> {
     const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install-loras`, {
       method: 'POST',
@@ -2248,9 +2383,131 @@ export class ChatAPI {
     return this.parsePacksMutationResponse(await response.json());
   }
 
+  async fetchPhoenixStatus(): Promise<{
+    environment: string;
+    credentials_path?: string;
+    authenticated: boolean;
+    logged_in: boolean;
+    identity?: string;
+    hint?: string;
+  }> {
+    const response = await this.hubFetch('/api/phoenix/status');
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchPhoenixAnalyses(): Promise<Array<{ id: string; label: string }>> {
+    const response = await this.hubFetch('/api/phoenix/analyses');
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = (await response.json()) as { analyses?: Array<{ id: string; label: string }> };
+    return data.analyses ?? [];
+  }
+
+  async fetchPhoenixScanResults(): Promise<Array<{ id: string; label: string }>> {
+    const response = await this.hubFetch('/api/phoenix/scan-results');
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = (await response.json()) as { scan_results?: Array<{ id: string; label: string }> };
+    return data.scan_results ?? [];
+  }
+
+  async phoenixLoginStart(): Promise<{
+    session_id: string;
+    user_code: string;
+    verification_url: string;
+    expires_in: number;
+    environment: string;
+  }> {
+    const response = await this.hubFetch('/api/phoenix/login/start', { method: 'POST' });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async phoenixLoginPoll(sessionId: string): Promise<{
+    status: string;
+    identity?: string;
+    hint?: string;
+    expires_in?: number;
+  }> {
+    const response = await this.hubFetch(
+      `/api/phoenix/login/poll?session_id=${encodeURIComponent(sessionId)}`,
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async phoenixLogout(): Promise<void> {
+    const response = await this.hubFetch('/api/phoenix/logout', { method: 'POST' });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+  }
+
+  async phoenixImport(body: {
+    workspace_id: string;
+    analysis_id: string;
+    scan_results_id?: string;
+    output_dir?: string;
+  }): Promise<{
+    analysis_dir: string;
+    scan_export_dir?: string;
+    scan_results_id?: string;
+    files_written?: string[];
+    attachment_notes?: string[];
+  }> {
+    const response = await this.hubFetch('/api/phoenix/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async phoenixImportScan(body: {
+    workspace_id: string;
+    scan_results_id: string;
+    output_dir?: string;
+  }): Promise<{
+    analysis_dir: string;
+    scan_export_dir?: string;
+    scan_results_id?: string;
+    files_written?: string[];
+  }> {
+    const response = await this.hubFetch('/api/phoenix/import-scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
   private parsePacksMutationResponse(data: Record<string, unknown>): PacksAPIResponse {
     return {
       packs: (data.packs as PackStatus[]) ?? [],
+      pack_id: data.pack_id as string | undefined,
       layout_owner: data.layout_owner as string | undefined,
       layout_profile: data.layout_profile as string | undefined,
       capabilities: (data.capabilities as string[]) ?? [],
@@ -2323,6 +2580,82 @@ export class ChatAPI {
 
   async fetchLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
     const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async run12PlexQC(body: {
+    workspace_id: string;
+    analysis_dir: string;
+    write_report?: boolean;
+  }): Promise<import('../utils/secondaryAnalysis').PanelQCReport> {
+    const response = await this.hubFetch('/api/secondary-analysis/12plex-qc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async runSecondaryAnalysis(body: {
+    workflow: string;
+    workspace_id: string;
+    config?: Record<string, unknown>;
+  }): Promise<import('../utils/secondaryAnalysis').SecondaryAnalysisJob> {
+    const response = await this.hubFetch('/api/secondary-analysis/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchSecondaryAnalysisJob(
+    jobId: string
+  ): Promise<import('../utils/secondaryAnalysis').SecondaryAnalysisJob> {
+    const response = await this.hubFetch(
+      `/api/secondary-analysis/jobs/${encodeURIComponent(jobId)}`
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async cancelSecondaryAnalysisJob(
+    jobId: string
+  ): Promise<import('../utils/secondaryAnalysis').SecondaryAnalysisJob> {
+    const response = await this.hubFetch(
+      `/api/secondary-analysis/jobs/${encodeURIComponent(jobId)}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchComparatorSummary(
+    workspaceId: string,
+    dir: string
+  ): Promise<import('../utils/secondaryAnalysis').ComparatorSummary> {
+    const params = new URLSearchParams({ workspace: workspaceId, dir });
+    const response = await this.hubFetch(
+      `/api/secondary-analysis/comparator-summary?${params.toString()}`
+    );
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

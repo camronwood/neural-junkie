@@ -98,7 +98,17 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	input = rewriteScanSummaryToolInput(msg, name, input)
 	input = rewriteScanAnalysisToolInput(msg, name, input)
-	return executeMCPTool(ctx, mcpServer, name, input)
+	input = a.rewriteCADToolInput(msg, name, input)
+	wsRoot := a.resolveWorkspacePath(msg)
+	writtenPath := ""
+	if name == "write_openscad" {
+		writtenPath = cadWrittenPathFromToolInput(wsRoot, input)
+	}
+	result, err := executeMCPTool(ctx, mcpServer, name, input)
+	if err == nil && writtenPath != "" {
+		a.trackCADFileWritten(wsRoot, writtenPath)
+	}
+	return result, err
 }
 
 func rewriteScanSummaryToolInput(msg *protocol.Message, name string, input json.RawMessage) json.RawMessage {
@@ -402,15 +412,129 @@ func (a *Agent) generateWithAgentTools(
 // parsePlaintextToolCall detects when a model returned a JSON tool invocation in chat text
 // instead of using native tool calling (common with OpenBio / nj-bio chat models).
 func parsePlaintextToolCall(text string) (name string, input json.RawMessage, ok bool) {
+	for _, candidate := range plaintextToolCallCandidates(text) {
+		if name, input, ok = tryParsePlaintextToolCallJSON(candidate); ok {
+			return name, input, true
+		}
+	}
+	return "", nil, false
+}
+
+func plaintextToolCallCandidates(text string) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	var candidates []string
+	seen := make(map[string]bool)
+	add := func(s string) {
+		s = strings.TrimSpace(s)
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		candidates = append(candidates, s)
+	}
+
+	add(stripOuterCodeFence(text))
+	for _, block := range extractInlineCodeFences(text) {
+		add(block)
+	}
+	for _, obj := range extractJSONObjectStrings(text) {
+		add(obj)
+	}
+	return candidates
+}
+
+func stripOuterCodeFence(text string) string {
+	text = strings.TrimSpace(text)
+	if !strings.HasPrefix(text, "```") {
+		return text
+	}
+	text = strings.TrimPrefix(text, "```json")
+	text = strings.TrimPrefix(text, "```")
+	text = strings.TrimSuffix(text, "```")
+	return strings.TrimSpace(text)
+}
+
+func extractInlineCodeFences(text string) []string {
+	var blocks []string
+	rest := text
+	for {
+		idx := strings.Index(rest, "```")
+		if idx < 0 {
+			break
+		}
+		rest = rest[idx+3:]
+		if strings.HasPrefix(rest, "json") {
+			rest = rest[4:]
+		}
+		end := strings.Index(rest, "```")
+		if end < 0 {
+			break
+		}
+		blocks = append(blocks, strings.TrimSpace(rest[:end]))
+		rest = rest[end+3:]
+	}
+	return blocks
+}
+
+func extractJSONObjectStrings(text string) []string {
+	var out []string
+	for i := 0; i < len(text); i++ {
+		if text[i] != '{' {
+			continue
+		}
+		if end, ok := balancedJSONObjectEnd(text, i); ok {
+			out = append(out, text[i:end+1])
+			i = end
+		}
+	}
+	return out
+}
+
+func balancedJSONObjectEnd(s string, start int) (end int, ok bool) {
+	if start >= len(s) || s[start] != '{' {
+		return 0, false
+	}
+	depth := 0
+	inString := false
+	escape := false
+	for j := start; j < len(s); j++ {
+		c := s[j]
+		if escape {
+			escape = false
+			continue
+		}
+		if inString {
+			if c == '\\' {
+				escape = true
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return j, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func tryParsePlaintextToolCallJSON(text string) (name string, input json.RawMessage, ok bool) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return "", nil, false
-	}
-	if strings.HasPrefix(text, "```") {
-		text = strings.TrimPrefix(text, "```json")
-		text = strings.TrimPrefix(text, "```")
-		text = strings.TrimSuffix(text, "```")
-		text = strings.TrimSpace(text)
 	}
 	var payload struct {
 		Name      string                 `json:"name"`

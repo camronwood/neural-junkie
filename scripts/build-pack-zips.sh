@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${ROOT}/dist/packs"
 mkdir -p "$OUT"
-for id in software-development life-sciences; do
+for id in software-development life-sciences cad; do
   src="${ROOT}/internal/packs/builtin/${id}"
   (cd "$src" && zip -r "${OUT}/${id}-1.0.0.zip" .)
   echo "Wrote ${OUT}/${id}-1.0.0.zip"

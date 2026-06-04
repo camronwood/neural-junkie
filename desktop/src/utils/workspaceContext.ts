@@ -7,7 +7,14 @@ export interface WorkspaceContext {
   open_files: OpenFileContext[];
   scan_summary?: ScanSummaryContext;
   scan_analysis?: ScanAnalysisContext;
+  cad?: CadContext;
   active_editor?: ActiveEditorContext;
+}
+
+export interface CadContext {
+  scad_path: string;
+  project_id?: string;
+  note: string;
 }
 
 export interface ActiveEditorContext {
@@ -74,6 +81,8 @@ export interface ScanAnalysisContext {
   active_analyte?: string;
   active_well?: ScanAnalysisWellContext;
   linked_scan_dir?: string;
+  panel_qc_overall_pass?: boolean;
+  panel_qc_analyte_count?: number;
   note: string;
 }
 

@@ -18,7 +18,7 @@ export const SCAN_ANALYSIS_REPORTS_DIR = 'reports';
 export const SCAN_ANALYSIS_PLOTS_DIR = 'plots';
 export const SCAN_ANALYSIS_PROCESS_REPORT = 'reports/process_report.txt';
 
-export type PlateGridMode = 'concentration' | 'intensity' | 'loq' | 'wellType';
+export type PlateGridMode = 'concentration' | 'intensity' | 'loq' | 'wellType' | 'qcFailures';
 
 export interface ScanAnalysisHeader {
   analysisDate?: string;
@@ -453,6 +453,8 @@ export function plateCellValue(
     }
     case 'wellType':
       return row.wellType;
+    case 'qcFailures':
+      return null;
     default:
       return null;
   }

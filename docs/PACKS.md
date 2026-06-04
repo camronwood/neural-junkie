@@ -29,9 +29,13 @@ Upload `dist/packs/*.zip` to a GitHub Release tagged **`packs-v1.0.0`** (or upda
 
 Until that release exists, installs still work via the **builtin** fallback shipped in the hub binary.
 
+**Customer / private packs:** sideload zip via Settings → Domain packs. See [PACKS_CUSTOM.md](./PACKS_CUSTOM.md).
+
 ## API
 
 - `GET /api/packs/catalog` — store rows + `catalog_url`
 - `POST /api/packs/{id}/install` — download or builtin install (does not enable)
+- `POST /api/packs/install-zip` — install customer pack from base64 zip (see [PACKS_CUSTOM.md](./PACKS_CUSTOM.md))
+- `GET /api/packs/customer-context` — enabled customer pack workspace guides
 - `PUT /api/packs/{id}` — enable/disable
 - `DELETE /api/packs/{id}` — uninstall

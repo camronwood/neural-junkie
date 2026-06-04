@@ -7,6 +7,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/mcp/architecture"
 	"github.com/camronwood/neural-junkie/internal/mcp/backend"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
+	"github.com/camronwood/neural-junkie/internal/mcp/cad"
 	"github.com/camronwood/neural-junkie/internal/mcp/codereview"
 	"github.com/camronwood/neural-junkie/internal/mcp/database"
 	"github.com/camronwood/neural-junkie/internal/mcp/devops"
@@ -27,11 +28,24 @@ func attachWorkspaceTools(agent *Agent, srv MCPServerInterface) {
 }
 
 func startAgentMCP(agent *Agent, label string, srv MCPServerInterface) {
+	startAgentMCPWithOptions(agent, label, srv, true)
+}
+
+// startDomainAgentMCP starts a domain-pack MCP server without workspace file tools.
+// Domain tools take explicit paths from chat/workspace context; listing the repo on
+// every turn causes spurious list_dir failures when no folder is open.
+func startDomainAgentMCP(agent *Agent, label string, srv MCPServerInterface) {
+	startAgentMCPWithOptions(agent, label, srv, false)
+}
+
+func startAgentMCPWithOptions(agent *Agent, label string, srv MCPServerInterface, attachWorkspace bool) {
 	if agent == nil || srv == nil {
 		return
 	}
 	agent.MCPServer = srv
-	attachWorkspaceTools(agent, srv)
+	if attachWorkspace {
+		attachWorkspaceTools(agent, srv)
+	}
 	if err := srv.Start(); err != nil {
 		log.Printf("Failed to start %s MCP server: %v", label, err)
 	} else {
@@ -246,6 +260,25 @@ func NewBiologyAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return agent
 }
 
+// NewCADAgent creates a CAD agent with OpenSCAD MCP tools.
+func NewCADAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"OpenSCAD", "Parametric Modeling", "Mechanical Design",
+		"3D Printing", "CSG Modeling", "CAD Workbench",
+	}
+
+	agent := NewAgent(protocol.AgentTypeCAD, name, expertise, ai, hub)
+
+	cadMCP, err := cad.NewCADMCP()
+	if err != nil {
+		log.Printf("Failed to create CAD MCP server: %v", err)
+	} else {
+		startDomainAgentMCP(agent, "CAD", cadMCP)
+	}
+
+	return agent
+}
+
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
@@ -285,6 +318,8 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewCodeReviewAgent(name, ai, hub), nil
 	case protocol.AgentTypeBiology:
 		return NewBiologyAgent(name, ai, hub), nil
+	case protocol.AgentTypeCAD:
+		return NewCADAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeModerator:

@@ -14,7 +14,7 @@ import (
 var embeddedFS embed.FS
 
 // BuiltinIDs are official pack ids shipped with the hub.
-var BuiltinIDs = []string{"software-development", "life-sciences", "specialist-tuning"}
+var BuiltinIDs = []string{"software-development", "life-sciences", "specialist-tuning", "cad"}
 
 // LoadBuiltinManifest returns the embedded pack.yaml for an official pack id.
 func LoadBuiltinManifest(packID string) (*Manifest, error) {

@@ -21,6 +21,9 @@ Install and enable this pack from **Settings → Domain packs → Pack store**. 
 | **summarize_scan_summary** | BiologyExpert MCP tool for QC stats on a scan summary folder |
 | **Scan analysis viewer** | Open Phoenix-style analysis exports (`reports/results.json`, plots, per-analyte CSVs) with plate heat maps and QC tables |
 | **summarize_scan_analysis** | BiologyExpert MCP tool for analysis QC (LOQ counts, dilution factor, analyte list) |
+| **run_12plex_qc** | BiologyExpert MCP tool for Human Inflammatory 12-Plex SOP QC (pass/fail per analyte) |
+| **Secondary analysis panel** | Multi-plate comparator, endogenous, std curves, print order (Python jobs via Settings path) |
+| **Comparator analysis viewer** | Open `Comparator Analysis */` folders with Summary Statistics tables |
 
 ## Enable the pack
 
@@ -137,6 +140,23 @@ With the Life sciences pack enabled:
 
 BiologyExpert can run **`summarize_scan_analysis`** with the analysis folder path, `reports/results.json`, or a `reports/{analyte}_summary_report.csv` file for QC markdown (LOQ pass/fail counts, dilution factor reminder, process report excerpt). When a sibling **`scan-export/`** folder exists, the summary includes the linked scan path for **`summarize_scan_summary`**.
 
+## Secondary analysis (12-Plex QC and multi-plate workflows)
+
+With **secondary-analysis-api**, **secondary-analysis-viewer**, and **secondary-analysis-python** capabilities:
+
+1. **Run 12-Plex QC** — scan analysis viewer or file explorer context menu (native Go). QC failure overlay mode, JSON/CSV export, **Ask BiologyExpert**. Persists `reports/qc_12plex_report.json`.
+2. **Secondary Analysis panel** — basket with editable condition labels; workflows: comparator (heatmaps, std curves, spike recovery via JSON or `Experiment_Details.csv`), endogenous, std curves, print order, 12-Plex Excel/cumulative, SPC charts. Job history stored in `{workspace}/.neural-junkie/secondary-analysis-history.json`. Outputs under `{workspace}/.neural-junkie/analysis-runs/{job_id}/`.
+3. **Comparator viewer** — LLOQ/ULOQ table, plate summary stats, interplate CSVs, artifact PNG preview.
+4. **Settings → Life sciences tools** — `secondary_analysis_tools_path`, `python_executable`, optional `cumulative_qc_dir`.
+
+BiologyExpert MCP: **`run_12plex_qc`**, **`summarize_panel_qc`**, **`summarize_comparator_output`**, **`run_secondary_analysis`** (sync Python CLI for comparator/endogenous/std curves/print order/Excel/SPC when tools path is configured).
+
+Runbook templates: **12plex-qc-plate**, **multi-plate-comparator**, **endogenous-study**.
+
+Automated smoke: `./scripts/smoke-secondary-analysis.sh` (Go QC tests, vitest, Python CLI smoke when SAT repo is present).
+
+**Comparator requirements:** each `-summary` folder needs a sibling `-validation` folder with `reports/validation_report.csv`.
+
 ## Smoke test checklist
 
 1. Life sciences wizard → Ollama → enable BiologyExpert.
@@ -149,6 +169,11 @@ BiologyExpert can run **`summarize_scan_analysis`** with the analysis folder pat
 8. Add a scan analysis folder (or `summary (5)`-style export) → open analysis viewer → confirm IL-6 plate map and QC tables.
 9. Link scan + analysis → well click → **View scan image** opens TIFF; scan sidebar shows concentrations.
 10. Ask BiologyExpert to summarize analysis path → confirm `summarize_scan_analysis` output with dilution note.
+11. Click **Run 12-Plex QC** in scan analysis viewer → confirm per-analyte pass/fail panel.
+12. Add folders to analysis basket → run comparator from Secondary Analysis panel (requires Python tools path in Settings).
+13. Open Comparator Analysis output → confirm comparator viewer and LLOQ table.
+14. Import runbook **12plex-qc-plate** → BiologyExpert runs QC workflow.
+15. Configure `secondary_analysis_tools_path` in Settings → Life sciences tools → verify Python job completes.
 
 ## Out of scope (v1)
 

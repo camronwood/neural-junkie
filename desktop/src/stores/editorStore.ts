@@ -5,10 +5,11 @@ import type { ScanSummaryData } from '../utils/scanSummary';
 import { isScanSummaryWellPath, SCAN_SUMMARY_METADATA_FILE } from '../utils/scanSummary';
 import type { ScanAnalysisData } from '../utils/scanAnalysis';
 import { isScanAnalysisResultsPath, SCAN_ANALYSIS_RESULTS_FILE } from '../utils/scanAnalysis';
+import type { PanelQCReport } from '../utils/secondaryAnalysis';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'image' | 'scan-summary' | 'scan-analysis';
+export type EditorTabViewMode = 'text' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench';
 
 export interface EditorTab {
   id: string;
@@ -37,6 +38,13 @@ export interface EditorTab {
   linkedScanDir?: string;
   /** Linked analysis directory when viewing scan summary. */
   linkedAnalysisDir?: string;
+  /** 12-Plex QC report cached on scan analysis tab. */
+  panelQCReport?: PanelQCReport;
+  /** Relative path to Comparator Analysis output folder. */
+  comparatorAnalysisDir?: string;
+  /** CAD workbench: relative .scad path in workspace. */
+  cadScadPath?: string;
+  cadProjectId?: string;
 }
 
 export interface OpenFileOptions {
@@ -93,6 +101,14 @@ interface EditorState {
       selectedAnalyte?: string;
       linkedScanDir?: string;
     }
+  ) => void;
+  openComparatorAnalysis: (workspaceId: string, analysisDir: string) => void;
+  setPanelQCReport: (tabId: string, report: PanelQCReport | undefined) => void;
+  openCadWorkbench: (
+    workspaceId: string,
+    scadPath: string,
+    content: string,
+    options?: { projectId?: string }
   ) => void;
   linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
   linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
@@ -152,7 +168,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -287,6 +303,113 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  openComparatorAnalysis: (workspaceId, analysisDir) => {
+    const state = get();
+    const path = `${analysisDir.replace(/\/$/, '')}/Summary Statistics/LLOQs_and_ULOQs.csv`;
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'comparator-analysis' &&
+        t.comparatorAnalysisDir === analysisDir
+    );
+    if (existingTab) {
+      set({ activeTabId: existingTab.id });
+      return;
+    }
+    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path,
+      content: '',
+      isDirty: false,
+      viewMode: 'comparator-analysis',
+      comparatorAnalysisDir: analysisDir,
+    };
+    set({
+      tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
+  setPanelQCReport: (tabId, report) => {
+    set({
+      tabs: get().tabs.map((t) => (t.id === tabId ? { ...t, panelQCReport: report } : t)),
+    });
+  },
+
+  openCadWorkbench: (workspaceId, scadPath, content, options) => {
+    const state = get();
+    const normalized = scadPath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'cad-workbench' &&
+        (t.cadScadPath ?? t.path).replace(/\\/g, '/').replace(/^\/+/, '') === normalized
+    );
+    if (existingTab) {
+      set({
+        activeTabId: existingTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === existingTab.id
+            ? { ...t, path: normalized, cadScadPath: normalized, content, isDirty: false }
+            : t
+        ),
+      });
+      return;
+    }
+
+    const activeTab = state.activeTabId
+      ? state.tabs.find((t) => t.id === state.activeTabId)
+      : null;
+    if (
+      activeTab?.viewMode === 'cad-workbench' &&
+      activeTab.workspaceId === workspaceId &&
+      (activeTab.cadScadPath ?? activeTab.path).replace(/\\/g, '/').replace(/^\/+/, '') !== normalized
+    ) {
+      set({
+        activeTabId: activeTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === activeTab.id
+            ? {
+                ...t,
+                path: normalized,
+                cadScadPath: normalized,
+                content,
+                isDirty: false,
+                contentSyncKey: (t.contentSyncKey ?? 0) + 1,
+                cadProjectId: options?.projectId ?? t.cadProjectId,
+              }
+            : t
+        ),
+      });
+      return;
+    }
+
+    const staleTextTab = state.tabs.find(
+      (t) => t.workspaceId === workspaceId && t.viewMode === 'text' && t.path.replace(/\\/g, '/').replace(/^\/+/, '') === normalized
+    );
+    const tabId =
+      staleTextTab?.id ?? `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path: normalized,
+      content,
+      isDirty: false,
+      viewMode: 'cad-workbench',
+      cadScadPath: normalized,
+      cadProjectId: options?.projectId,
+    };
+    set({
+      tabs: staleTextTab
+        ? state.tabs.map((t) => (t.id === staleTextTab.id ? newTab : t))
+        : [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
   linkScanToAnalysisTab: (tabId, scanDir) => {
     set({
       tabs: get().tabs.map((t) =>
@@ -384,7 +507,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab;
-        if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary') return tab;
+        if (tab.viewMode === 'cad-workbench') {
+          return tab.content === content ? tab : { ...tab, content, isDirty: false };
+        }
+        if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
         if (tab.content === content) return tab;
         return { ...tab, content, isDirty: true };
       }),
@@ -427,7 +553,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const tab = state.getTabById(tabId);
     if (!tab) return false;
-    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary') return true;
+    if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench') return true;
 
     set({ saving: true, error: null });
     
@@ -456,7 +582,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveAllTabs: async () => {
     const state = get();
     const dirtyTabs = state.tabs.filter(
-      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary'
+      (tab) => tab.isDirty && tab.viewMode !== 'image' && tab.viewMode !== 'scan-summary' && tab.viewMode !== 'scan-analysis' && tab.viewMode !== 'comparator-analysis' && tab.viewMode !== 'cad-workbench'
     );
     
     if (dirtyTabs.length === 0) return true;
@@ -504,6 +630,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             : t
         ),
       }));
+      return;
+    }
+
+    if (tab.viewMode === 'cad-workbench') {
+      try {
+        const latestContent = await api.fetchFileContent(workspaceId, path);
+        set(current => ({
+          tabs: current.tabs.map(t =>
+            t.id === tab.id
+              ? {
+                  ...t,
+                  content: latestContent,
+                  isDirty: false,
+                  contentSyncKey: (t.contentSyncKey ?? 0) + 1,
+                }
+              : t
+          ),
+        }));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to refresh file from disk';
+        set({ error: errorMessage });
+      }
       return;
     }
 
@@ -573,8 +721,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   
   getTabByPath: (workspaceId, path) => {
     const state = get();
+    const normalized = path.replace(/\\/g, '/');
     const matches = state.tabs.filter(
-      (tab) => tab.workspaceId === workspaceId && tab.path === path
+      (tab) =>
+        tab.workspaceId === workspaceId &&
+        (tab.path === normalized || tab.cadScadPath === normalized)
     );
     if (matches.length === 0) return null;
     return matches.find((t) => t.viewMode === 'scan-summary') ?? matches[0];

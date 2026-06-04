@@ -38,7 +38,7 @@ func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func
 	if err != nil {
 		t.Fatal(err)
 	}
-	ws, err := workspaceManager.AddWorkspace("scan-test", dir)
+	ws, err := workspaceManager.AddWorkspace("scan-test", dir, hub.AddWorkspaceOptions{Create: false})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -297,6 +297,16 @@ func main() {
 	http.HandleFunc("/api/file-rename", corsMiddleware(localOnly(handleFileRename)))
 	http.HandleFunc("/api/file-delete", corsMiddleware(localOnly(handleFileDelete)))
 	http.HandleFunc("/api/scan-summary/well-image", corsMiddleware(handleScanSummaryWellImage))
+	http.HandleFunc("/api/secondary-analysis/", corsMiddleware(handleSecondaryAnalysisRoute))
+	http.HandleFunc("/api/secondary-analysis", corsMiddleware(handleSecondaryAnalysisRoute))
+	http.HandleFunc("/api/phoenix/", corsMiddleware(handlePhoenixRoute))
+	http.HandleFunc("/api/phoenix", corsMiddleware(handlePhoenixRoute))
+	http.HandleFunc("/api/cad/render", corsMiddleware(handleCADRender))
+	http.HandleFunc("/api/cad/mesh", corsMiddleware(handleCADMesh))
+	http.HandleFunc("/api/cad/params", corsMiddleware(handleCADParams))
+	http.HandleFunc("/api/cad/versions", corsMiddleware(handleCADVersions))
+	http.HandleFunc("/api/cad/versions/restore", corsMiddleware(handleCADVersionRestore))
+	http.HandleFunc("/api/cad/test-openscad", corsMiddleware(handleCADTestOpenSCAD))
 	http.HandleFunc("/api/git-status", corsMiddleware(handleGitStatus))
 	http.HandleFunc("/api/git-diff", corsMiddleware(handleGitDiff))
 	http.HandleFunc("/api/git-commit", corsMiddleware(handleGitCommit))
@@ -3389,14 +3399,19 @@ func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(workspaces)
 	case "POST":
 		var req struct {
-			Name string `json:"name"`
-			Path string `json:"path"`
+			Name       string `json:"name"`
+			Path       string `json:"path"`
+			Create     bool   `json:"create"`
+			ParentPath string `json:"parent_path"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
-		workspace, err := workspaceManager.AddWorkspace(req.Name, req.Path)
+		workspace, err := workspaceManager.AddWorkspace(req.Name, req.Path, hub.AddWorkspaceOptions{
+			Create:     req.Create,
+			ParentPath: req.ParentPath,
+		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

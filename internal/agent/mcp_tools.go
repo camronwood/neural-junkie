@@ -93,7 +93,7 @@ func formatCallToolResult(result *mcpgo.CallToolResult) string {
 }
 
 // appendMCPToolsPrompt adds dynamic tool descriptions to the system prompt.
-func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer) {
+func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, agentType protocol.AgentType) {
 	if mcpServer == nil {
 		return
 	}
@@ -102,15 +102,33 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer) 
 		return
 	}
 	system.WriteString("AVAILABLE TOOLS:\n")
-	system.WriteString("You have access to the following diagnostic and analysis tools:\n")
+	switch agentType {
+	case protocol.AgentTypeCAD:
+		system.WriteString("You have access to the following OpenSCAD tools:\n")
+	case protocol.AgentTypeBiology:
+		system.WriteString("You have access to the following life-sciences analysis tools:\n")
+	default:
+		system.WriteString("You have access to the following diagnostic and analysis tools:\n")
+	}
 	for _, st := range tools {
 		if st == nil {
 			continue
 		}
 		system.WriteString(fmt.Sprintf("- %s: %s\n", st.Tool.Name, st.Tool.Description))
 	}
-	system.WriteString("\nUse these tools to provide data-driven answers. When diagnosing issues,\n")
-	system.WriteString("USE THE TOOLS to get actual data rather than guessing.\n\n")
+	switch agentType {
+	case protocol.AgentTypeCAD:
+		system.WriteString("\nUse OpenSCAD tools when the user asks you to model, edit, render, or export geometry.\n")
+		system.WriteString("When the user asks to create or write an .scad file, call write_openscad immediately — do not paste SCAD-only replies without calling the tool.\n")
+		system.WriteString("Never print tool-call JSON or pseudo tool syntax in chat; use native tool calling only.\n")
+		system.WriteString("For greetings, questions, and general chat, respond conversationally without calling tools.\n\n")
+	case protocol.AgentTypeBiology:
+		system.WriteString("\nUse biology tools when the user asks about sequences, structures, or scan data.\n")
+		system.WriteString("When workspace context includes scan paths, call the matching summarize tool immediately.\n\n")
+	default:
+		system.WriteString("\nUse these tools to provide data-driven answers. When diagnosing issues,\n")
+		system.WriteString("USE THE TOOLS to get actual data rather than guessing.\n\n")
+	}
 }
 
 // generateWithMCPTools runs the AI provider tool loop when supported.

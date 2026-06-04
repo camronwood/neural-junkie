@@ -1,0 +1,22 @@
+{
+  "name": "endogenous-study",
+  "title": "Endogenous analysis study",
+  "description": "Run endogenous analysis on a Comparator Analysis output folder. Research use only.",
+  "execution_policy": {
+    "blocked_upstream_policy": "block",
+    "strict_task_status": true,
+    "max_concurrent_tasks": 2
+  },
+  "tasks": [
+    {
+      "title": "Validate comparator input",
+      "description": "Confirm the Comparator Analysis folder contains Summary Statistics/LLOQs_and_ULOQs.csv and spike recovery data if applicable.",
+      "kind": "agent"
+    },
+    {
+      "title": "Run endogenous analysis",
+      "description": "Guide the user to run endogenous workflow from the Secondary Analysis panel, then summarize the output CSV concentrations vs LOD/LLOQ.",
+      "kind": "agent"
+    }
+  ]
+}

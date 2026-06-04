@@ -83,11 +83,13 @@ interface FileExplorerState {
   
   // Actions
   loadWorkspaces: () => Promise<void>;
-  addWorkspace: (name: string, path: string) => Promise<Workspace>;
+  addWorkspace: (name: string, path: string, options?: { create?: boolean; parentPath?: string }) => Promise<Workspace>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
   setActiveWorkspace: (workspaceId: string) => void;
   
   loadFiles: (workspaceId: string, path?: string) => Promise<void>;
+  /** Reload root and expanded dirs along writtenPath so new files appear in the tree. */
+  refreshTreeForPath: (workspaceId: string, writtenPath: string) => Promise<void>;
   toggleExpanded: (path: string) => void;
   setSelectedPath: (path: string | null) => void;
   
@@ -145,9 +147,9 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     }
   },
   
-  addWorkspace: async (name, path) => {
+  addWorkspace: async (name, path, options) => {
     try {
-      const workspace = await api.addWorkspace(name, path);
+      const workspace = await api.addWorkspace(name, path, options);
       set((state) => {
         const exists = state.workspaces.some((w) => w.id === workspace.id);
         const workspaces = exists
@@ -196,6 +198,27 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     set({ activeWorkspaceId: workspaceId });
   },
   
+  refreshTreeForPath: async (workspaceId, writtenPath) => {
+    const normalized = writtenPath.replace(/\\/g, '/').replace(/^\/+/, '');
+    const dirParts = normalized.includes('/')
+      ? normalized.split('/').slice(0, -1).filter(Boolean)
+      : [];
+    const prefixes: string[] = [];
+    let acc = '';
+    for (const part of dirParts) {
+      acc = acc ? `${acc}/${part}` : part;
+      prefixes.push(acc);
+    }
+
+    const { loadFiles } = get();
+    // Only reload root + ancestors of the new file. Reloading every expanded folder
+    // can issue dozens of hub calls and freeze or crash the Tauri webview.
+    await loadFiles(workspaceId, '/');
+    for (const p of prefixes) {
+      await loadFiles(workspaceId, p);
+    }
+  },
+
   loadFiles: async (workspaceId, path = '/') => {
     devLog('FileExplorerStore: Loading files for workspace:', workspaceId, 'path:', path);
     const isRoot = path === '/' || path === '';
@@ -259,8 +282,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   createFile: async (workspaceId, path, content = '') => {
     try {
       await api.createFile(workspaceId, path, content);
-      // Refresh file tree after creation
-      await get().loadFiles(workspaceId);
+      await get().refreshTreeForPath(workspaceId, path);
     } catch (error) {
       console.error('Failed to create file:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to create file' });
@@ -271,8 +293,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   createFolder: async (workspaceId, path) => {
     try {
       await api.createFile(workspaceId, path, ''); // Create empty file as folder
-      // Refresh file tree after creation
-      await get().loadFiles(workspaceId);
+      await get().refreshTreeForPath(workspaceId, path);
     } catch (error) {
       console.error('Failed to create folder:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to create folder' });
@@ -283,8 +304,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   renameFile: async (workspaceId, oldPath, newPath) => {
     try {
       await api.renameFile(workspaceId, oldPath, newPath);
-      // Refresh file tree after rename
-      await get().loadFiles(workspaceId);
+      await get().refreshTreeForPath(workspaceId, newPath);
     } catch (error) {
       console.error('Failed to rename file:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to rename file' });
@@ -295,8 +315,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   deleteFile: async (workspaceId, path) => {
     try {
       await api.deleteFile(workspaceId, path);
-      // Refresh file tree after deletion
-      await get().loadFiles(workspaceId);
+      await get().refreshTreeForPath(workspaceId, path);
     } catch (error) {
       console.error('Failed to delete file:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to delete file' });

@@ -13,7 +13,8 @@ import (
 
 func TestEffectiveToolLoopModelKoesnUsesQwenFallback(t *testing.T) {
 	eff := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
-	model, fallback := effectiveToolLoopModel(eff)
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBiology}}
+	model, fallback := a.effectiveToolLoopModel(eff)
 	if !fallback {
 		t.Fatal("expected fallback for koesn chat model")
 	}
@@ -24,12 +25,30 @@ func TestEffectiveToolLoopModelKoesnUsesQwenFallback(t *testing.T) {
 
 func TestEffectiveToolLoopModelQwenNoFallback(t *testing.T) {
 	eff := ai.NewOllamaProviderWithConfig("http://localhost:11434", "qwen2.5:7b")
-	model, fallback := effectiveToolLoopModel(eff)
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBiology}}
+	model, fallback := a.effectiveToolLoopModel(eff)
 	if fallback {
 		t.Fatal("expected no fallback for qwen")
 	}
 	if model != "qwen2.5:7b" {
 		t.Fatalf("got %q", model)
+	}
+}
+
+func TestEffectiveToolLoopModelCADUsesConfiguredToolModel(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.CAD.ToolModel = "custom-cad-tool:7b"
+	mcp.SetAppConfig(cfg)
+	t.Cleanup(func() { mcp.SetAppConfig(nil) })
+
+	eff := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeCAD}}
+	model, fallback := a.effectiveToolLoopModel(eff)
+	if !fallback {
+		t.Fatal("expected fallback for non-tool chat model")
+	}
+	if model != "custom-cad-tool:7b" {
+		t.Fatalf("got tool loop model %q, want custom-cad-tool:7b", model)
 	}
 }
 

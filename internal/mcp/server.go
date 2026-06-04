@@ -29,6 +29,7 @@ var defaultPorts = map[string]int{
 	"RUST":         8088,
 	"CODE_REVIEW":  8089,
 	"ARCHITECTURE": 8090,
+	"CAD":          8091,
 }
 
 // NormalizeAgentType maps agent type strings to MCP port config keys (e.g. code-review -> CODE_REVIEW).
@@ -151,6 +152,15 @@ func CreateMultiStringInputSchema(params map[string]string) mcpgo.ToolInputSchem
 		required = append(required, name)
 	}
 
+	return mcpgo.ToolInputSchema{
+		Type:       "object",
+		Properties: properties,
+		Required:   required,
+	}
+}
+
+// CreateObjectInputSchema builds a tool schema from property maps and required keys.
+func CreateObjectInputSchema(properties map[string]interface{}, required []string) mcpgo.ToolInputSchema {
 	return mcpgo.ToolInputSchema{
 		Type:       "object",
 		Properties: properties,

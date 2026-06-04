@@ -16,7 +16,10 @@ import { getHubBaseURL } from '../config/hubUrl';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
+import { CadWorkbench } from './CadWorkbench';
 import { ScanAnalysisViewer } from './ScanAnalysisViewer';
+import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
+import { ErrorBoundary } from './ErrorBoundary';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { getMonacoThemeId, registerMonacoThemes } from '../utils/editorThemes';
 
@@ -185,7 +188,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isImageTab = activeTab?.viewMode === 'image';
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
   const isScanAnalysisTab = activeTab?.viewMode === 'scan-analysis';
-  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab;
+  const isCadWorkbenchTab = activeTab?.viewMode === 'cad-workbench';
+  const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab;
 
   useEffect(() => {
     if (!activeTabId) {
@@ -234,7 +238,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -311,7 +315,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -437,8 +441,10 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
+    if (tab.viewMode === 'cad-workbench') return '📐';
     if (tab.viewMode === 'scan-summary') return '🔬';
     if (tab.viewMode === 'scan-analysis') return '📊';
+    if (tab.viewMode === 'comparator-analysis') return '📈';
     const ext = (tab.path ?? '').split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
@@ -585,15 +591,36 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
       <div className="flex-1 min-h-0">
         {activeTab ? (
           activeTab.viewMode === 'scan-analysis' && activeTab.scanAnalysisData != null ? (
-            <ScanAnalysisViewer
-              workspaceId={activeTab.workspaceId}
-              analysisDir={activeTab.scanAnalysisDir ?? ''}
-              data={activeTab.scanAnalysisData}
-              initialWell={activeTab.scanAnalysisInitialWell ?? 'A1'}
-              initialAnalyte={activeTab.scanAnalysisSelectedAnalyte}
-              linkedScanDir={activeTab.linkedScanDir}
-              tabId={activeTab.id}
-            />
+            <ErrorBoundary
+              fallback={
+                <div className="p-4 text-sm text-red-300">
+                  Scan analysis viewer crashed. Close this tab and reopen the analysis folder.
+                </div>
+              }
+            >
+              <ScanAnalysisViewer
+                workspaceId={activeTab.workspaceId}
+                analysisDir={activeTab.scanAnalysisDir ?? ''}
+                data={activeTab.scanAnalysisData}
+                initialWell={activeTab.scanAnalysisInitialWell ?? 'A1'}
+                initialAnalyte={activeTab.scanAnalysisSelectedAnalyte}
+                linkedScanDir={activeTab.linkedScanDir}
+                tabId={activeTab.id}
+              />
+            </ErrorBoundary>
+          ) : activeTab.viewMode === 'comparator-analysis' ? (
+            <ErrorBoundary
+              fallback={
+                <div className="p-4 text-sm text-red-300">
+                  Comparator viewer crashed. Close this tab and reopen the analysis output folder.
+                </div>
+              }
+            >
+              <ComparatorAnalysisViewer
+                workspaceId={activeTab.workspaceId}
+                analysisDir={activeTab.comparatorAnalysisDir ?? ''}
+              />
+            </ErrorBoundary>
           ) : activeTab.viewMode === 'scan-summary' && activeTab.scanSummaryData != null ? (
             <ScanSummaryViewer
               workspaceId={activeTab.workspaceId}
@@ -601,6 +628,15 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               data={activeTab.scanSummaryData}
               initialWell={activeTab.scanSummaryInitialWell ?? 'A1'}
               linkedAnalysisDir={activeTab.linkedAnalysisDir}
+            />
+          ) : activeTab.viewMode === 'cad-workbench' && activeTab.cadScadPath ? (
+            <CadWorkbench
+              key={`${activeTab.id}:${activeTab.cadScadPath}`}
+              workspaceId={activeTab.workspaceId}
+              scadPath={activeTab.cadScadPath}
+              initialContent={activeTab.content}
+              projectId={activeTab.cadProjectId}
+              tabId={activeTab.id}
             />
           ) : activeTab.viewMode === 'image' ? (
             activeTab.imageSrc ? (
@@ -643,7 +679,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
             <span>{activeTab.path}</span>
             {isPreviewTab ? (
               <span className="px-2 py-1 bg-slack-bg rounded text-xs">
-                {isScanAnalysisTab ? 'Scan analysis' : isScanSummaryTab ? 'Scan summary' : 'Preview only'}
+                {isCadWorkbenchTab ? 'CAD workbench' : isScanAnalysisTab ? 'Scan analysis' : isScanSummaryTab ? 'Scan summary' : 'Preview only'}
               </span>
             ) : (
               activeTab.language && (

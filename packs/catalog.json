@@ -23,6 +23,16 @@
       "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/life-sciences-1.0.0.zip"
     },
     {
+      "id": "cad",
+      "version": "1.0.0",
+      "title": "CAD",
+      "description": "CADExpert, OpenSCAD parametric modeling, 3D preview workbench, and export.",
+      "icon_key": "cad",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/cad-1.0.0.zip"
+    },
+    {
       "id": "specialist-tuning",
       "version": "1.0.0",
       "title": "Specialist tuning",

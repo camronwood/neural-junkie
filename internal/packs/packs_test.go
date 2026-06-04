@@ -87,3 +87,24 @@ func TestLifeSciencesNoLoRAAdapters(t *testing.T) {
 		t.Fatalf("expected no lora adapters on life-sciences pack, got %d", len(m.LoRAAdapters))
 	}
 }
+
+func TestCADPackCapabilities(t *testing.T) {
+	m, err := LoadBuiltinManifest("cad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.LoRAAdapters) != 0 {
+		t.Fatalf("expected no lora adapters on cad pack, got %d", len(m.LoRAAdapters))
+	}
+	for _, cap := range []string{"cad-api", "cad-viewer", "cad-workbench"} {
+		if !m.HasCapability(cap) {
+			t.Fatalf("expected capability %s", cap)
+		}
+	}
+	if m.DefaultLayoutProfile() != "team" {
+		t.Fatalf("expected team layout, got %s", m.DefaultLayoutProfile())
+	}
+	if m.ExpertSlug != "cad" {
+		t.Fatalf("expected expert_slug cad, got %s", m.ExpertSlug)
+	}
+}

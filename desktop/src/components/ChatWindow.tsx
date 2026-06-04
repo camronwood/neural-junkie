@@ -4,6 +4,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { usePacksStore } from '../stores/packsStore';
+import { PACK_CAP } from '../stores/packCapabilities';
 import { GitModal } from './GitPanel';
 import { QuickOpenModal } from './QuickOpenModal';
 import { SymbolModal } from './SymbolModal';
@@ -12,6 +13,7 @@ import { FastEditModal } from './FastEditModal';
 import { useEditorStore } from '../stores/editorStore';
 import { getLanguageFromPath } from '../utils/editorLanguage';
 import { useToastStore } from '../stores/toastStore';
+import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
 import {
@@ -31,7 +33,7 @@ import {
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
 import { METADATA_CHANNEL_HOLD } from '../types/protocol';
-import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_COMPLETE_KEY } from '../constants/promptMetadata';
+import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_COMPLETE_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
   hasGrantedHubDataAccess,
@@ -44,6 +46,10 @@ import {
   registeredFileChangeId,
   shouldPromptFileChangeApproval,
 } from '../utils/fileChangeApprovalPrompt';
+import {
+  fileChangeProposalPaths,
+  refreshFileExplorerForPaths,
+} from '../utils/refreshFileExplorer';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useSidebarAutoUnhide } from '../hooks/useSidebarAutoUnhide';
 import { agentSidebarHideKey } from '../utils/dmChannelDisplay';
@@ -75,7 +81,10 @@ import {
 import { RunbookBuilderPanel } from './RunbookBuilderPanel';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
+import { SecondaryAnalysisPanel } from './SecondaryAnalysisPanel';
+import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
 import { ModelLibraryModal } from './ModelLibraryModal';
+import { PhoenixBrowserModal } from './PhoenixBrowserModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
 import type { LoraTrainPrefill } from './LoraTrainingPanel';
@@ -210,11 +219,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [fastEditOpen, setFastEditOpen] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [gitModalOpen, setGitModalOpen] = useState(false);
+  const [phoenixModalOpen, setPhoenixModalOpen] = useState(false);
   const layoutProfile = usePacksStore((s) => s.layoutProfile);
   const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
   const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
   const devPackEnabled = hasIdeV2;
+  const phoenixPackInstalled = usePacksStore((s) =>
+    s.packs.some(
+      (p) =>
+        p.installed &&
+        (p.capabilities?.includes(PACK_CAP.PHOENIX_IMPORT) || (p.custom && p.id.includes('brightest-bio'))),
+    ),
+  );
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -294,6 +311,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           console.error('[impl-session] open changed file:', relPath, e);
         }
       }
+      await refreshFileExplorerForPaths(ws.id, paths);
       setCodeEditorOpen(true);
       setFileExplorerOpen(true);
       void useFileChangeStore.getState().fetchPendingChanges(username || 'default');
@@ -305,6 +323,23 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       revealLineInEditor,
       username,
     ]
+  );
+
+  const handleCADFilesWritten = useCallback(
+    async (metadata?: Record<string, unknown>) => {
+      const raw = metadata?.[CAD_FILES_WRITTEN_KEY];
+      const paths = Array.isArray(raw)
+        ? raw.filter((p): p is string => typeof p === 'string' && p.trim() !== '')
+        : [];
+      if (paths.length === 0) return;
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      if (!ws) return;
+      await refreshFileExplorerForPaths(ws.id, paths);
+      setFileExplorerOpen(true);
+    },
+    [activeWorkspaceId, explorerWorkspaces]
   );
 
   const handleOpenAtLine = useCallback(
@@ -412,6 +447,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const activeCollabRef = useRef<Collaboration | null>(null);
   const collaborationsByIDRef = useRef<Record<string, Collaboration>>({});
   const [taskManagementOpen, setTaskManagementOpen] = useState(false);
+  const secondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.panelOpen);
+  const setSecondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
   const [collaborationsByID, setCollaborationsByID] = useState<Record<string, Collaboration>>({});
   const [assistantTasks, setAssistantTasks] = useState<AssistantTask[]>([]);
   const [assistantReminders, setAssistantReminders] = useState<AssistantReminder[]>([]);
@@ -449,6 +486,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     loadConversationModeSetting()
   );
   const [composerDraft, setComposerDraft] = useState('');
+  const composerPrefillPending = useComposerPrefillStore((s) => s.pendingText);
+  const consumeComposerPrefill = useComposerPrefillStore((s) => s.consumePrefill);
+
+  useEffect(() => {
+    if (!composerPrefillPending) return;
+    const text = consumeComposerPrefill();
+    if (!text) return;
+    setComposerDraft(text);
+    const input = inputRef.current as (HTMLTextAreaElement & { setDraftText?: (t: string) => void }) | null;
+    input?.setDraftText?.(text);
+  }, [composerPrefillPending, consumeComposerPrefill]);
 
   const activeChannelMeta = useMemo(
     () => channels.find((c) => c.name === channel),
@@ -1095,6 +1143,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }, 300);
   }, [loadAgents, loadCounts]);
 
+  const refreshExplorerForFileChange = useCallback(
+    (message: Message) => {
+      const paths = fileChangeProposalPaths(message);
+      if (paths.length === 0) return;
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      if (!ws) return;
+      void refreshFileExplorerForPaths(ws.id, paths);
+      for (const relPath of paths) {
+        void useEditorStore.getState().refreshTabFromDisk(ws.id, relPath);
+      }
+    },
+    [activeWorkspaceId, explorerWorkspaces]
+  );
+
   const promptFileChangeApproval = useCallback(
     async (message: Message) => {
       if (
@@ -1340,6 +1404,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           });
         }
         if (message.type === 'file_change') {
+          refreshExplorerForFileChange(message);
           await promptFileChangeApproval(message);
         }
       } else {
@@ -1351,6 +1416,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           void handleImplementationSessionComplete(
             message.metadata as Record<string, unknown> | undefined
           );
+        }
+
+        if (message.metadata?.[CAD_FILES_WRITTEN_KEY]) {
+          void handleCADFilesWritten(message.metadata as Record<string, unknown> | undefined);
         }
 
         if (message.metadata?.suggested_commands) {
@@ -1422,6 +1491,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         }
 
         if (message.type === 'file_change') {
+          refreshExplorerForFileChange(message);
           await promptFileChangeApproval(message);
         }
       }
@@ -2004,6 +2074,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         setCodeEditorOpen(true);
         void updateLayoutSettings({ editorPanelVisible: true });
       },
+      phoenixPackInstalled,
+      onOpenPhoenix: phoenixPackInstalled ? () => setPhoenixModalOpen(true) : undefined,
       taskManagementOpen,
       onToggleTaskManagement: () => setTaskManagementOpen((o) => !o),
       onNewRunbook: () => void handleNewRunbook(),
@@ -2036,6 +2108,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       handleNewRunbook,
       totalAgentsCount,
       devPackEnabled,
+      phoenixPackInstalled,
       gitModalOpen,
       ideLayout,
       onOpenSettings,
@@ -2183,7 +2256,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         )}
 
         {/* Keep chat pinned to the right when the editor is hidden (editor flex-1 normally fills this gap). */}
-        {ideLayout && !codeEditorOpen && (
+        {ideLayout && !codeEditorOpen && chatPanelVisible && (
           <div className="flex-1 min-w-0" aria-hidden="true" />
         )}
 
@@ -2485,6 +2558,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
+        {secondaryAnalysisOpen && (
+          <SecondaryAnalysisPanel onClose={() => setSecondaryAnalysisOpen(false)} />
+        )}
+
         {/* My Agents Panel - slides in from right */}
         {myAgentsPanelOpen && (
           <MyAgentsPanel
@@ -2628,6 +2705,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         initialTab={modelLibraryInitialTab}
         loraTrainPrefill={loraTrainPrefill}
       />
+
+      <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setPhoenixModalOpen(false)} />
 
       <LearningProposalModal
         isOpen={learningProposalOpen}
