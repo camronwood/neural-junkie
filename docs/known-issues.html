@@ -24,7 +24,7 @@
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">Download beta.21</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download beta.22</a>
       </nav>
     </div>
   </header>
@@ -37,7 +37,7 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
-        Last updated <time datetime="2026-06-03">June 3, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">v1.0.0-beta.21</a>.
+        Last updated <time datetime="2026-06-05">June 5, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">v1.0.0-beta.22</a>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -216,11 +216,11 @@
           <strong>Tool calling varies by provider</strong>
           <p>MCP tools are best supported on Ollama (selected flows) and Claude; LM Studio / generic OpenAI-compat is limited.</p>
         </li>
-        <!-- ISSUE: windows-ollama -->
-        <li class="issue-item" id="windows-ollama">
+        <!-- ISSUE: ollama-model-pull -->
+        <li class="issue-item" id="ollama-model-pull">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Windows Ollama install</strong>
-          <p>In-app Ollama install is macOS/Linux; Windows users install Ollama manually or use cloud APIs.</p>
+          <strong>Ollama model download</strong>
+          <p>Installers bundle the Ollama <em>runtime</em> only; models are pulled on first use (one-time download, can be several GB).</p>
         </li>
         <!-- ISSUE: macos-notarized -->
         <li class="issue-item" id="macos-notarized">

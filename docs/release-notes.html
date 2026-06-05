@@ -26,7 +26,7 @@
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">Download beta.21</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download beta.22</a>
       </nav>
     </div>
   </header>
@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">v1.0.0-beta.21</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">v1.0.0-beta.22</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-22">1.0.0-beta.22</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-21">1.0.0-beta.21</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-20">1.0.0-beta.20</a>
@@ -96,6 +98,22 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-22" class="release-version-heading">1.0.0-beta.22 <span class="release-date">— 2026-06-05</span></h2>
+
+      <p><strong>Install-and-go local AI.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">GitHub Releases</a>. Ollama runtime is bundled on macOS, Windows, and Linux; the app auto-starts <code>ollama serve</code> on launch. First run still pulls a default model once (internet required). Plus Pack Dev Studio fixes and an editable CSV table in the code editor.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Bundled Ollama</strong> — runtime shipped in installers; models stored in app data. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">DOWNLOAD.md</a>.</li>
+        <li><strong>CSV table editor</strong> — editable grid for exported <code>.csv</code> files (Table/Text toggle in the code editor).</li>
+        <li><strong>Pack Dev Studio fixes</strong> — live YAML validation, dev-link/reload edge cases, multi-pack test selector. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">PACKS_CUSTOM.md</a>.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Setup wizard</strong> — reflects bundled Ollama on production installers; Windows no longer needs a separate Ollama install.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-21" class="release-version-heading">1.0.0-beta.21 <span class="release-date">— 2026-06-02</span></h2>
 
       <p><strong>Slack inbox, context model v2, and chat regressions.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21">GitHub Releases</a>. Personal Slack inbox and forwarding, conversation mode + workspace visibility fixes, and expanded live scenario harnesses for chat and collab.</p>
