@@ -4,7 +4,6 @@ import { usePacksStore } from '../../stores/packsStore';
 import { PACK_CAP } from '../../stores/packCapabilities';
 
 import { CustomPackInstall } from './CustomPackInstall';
-import { PhoenixImportPanel } from './PhoenixImportPanel';
 
 export function PackStoreBrowse() {
   const catalog = usePacksStore((s) => s.catalog);
@@ -53,7 +52,6 @@ export function PackStoreBrowse() {
   return (
     <div className="space-y-4">
       <CustomPackInstall />
-      <PhoenixImportPanel />
       {(error || actionError) && (
         <p className="text-sm text-red-400">{actionError ?? error}</p>
       )}

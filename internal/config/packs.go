@@ -30,6 +30,7 @@ type PacksConfig struct {
 	Enabled          map[string]bool                `json:"enabled"`
 	LayoutOwner      string                         `json:"layout_owner,omitempty"`
 	AppliedOverlays  map[string]map[string]string     `json:"applied_overlays,omitempty"`
+	DevSources       map[string]string              `json:"dev_sources,omitempty"` // pack_id -> absolute dev folder
 }
 
 // DomainPack describes an installed pack merged from its manifest.
@@ -862,6 +863,8 @@ type PackStatus struct {
 	Version        string   `json:"version,omitempty"`
 	Custom         bool     `json:"custom,omitempty"`
 	RequiresPacks  []string `json:"requires_packs,omitempty"`
+	DevLinked      bool     `json:"dev_linked,omitempty"`
+	DevSourcePath  string   `json:"dev_source_path,omitempty"`
 }
 
 // PackCatalogStatus is a store row from GET /api/packs/catalog.
@@ -916,6 +919,7 @@ func (c *Config) packStatusFromDomain(pack DomainPack) PackStatus {
 	if !custom && !IsCatalogPackID(pack.ID) {
 		custom = true
 	}
+	devPath := c.DevSourcePath(pack.ID)
 	return PackStatus{
 		ID:            pack.ID,
 		Title:         pack.Title,
@@ -929,6 +933,8 @@ func (c *Config) packStatusFromDomain(pack DomainPack) PackStatus {
 		Version:       ver,
 		Custom:        custom,
 		RequiresPacks: requires,
+		DevLinked:     devPath != "",
+		DevSourcePath: devPath,
 	}
 }
 

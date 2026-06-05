@@ -133,6 +133,8 @@ import {
   mergeCodebaseAttachments,
 } from '../utils/ideComposer';
 import { hasCodeTaskSignals } from '../utils/conversationMode';
+import { hasImplementationContinuationSignals } from '../utils/implementationContinuation';
+import { hasCodeReviewSignals } from '../utils/codeReviewSignals';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
@@ -225,13 +227,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
   const devPackEnabled = hasIdeV2;
-  const phoenixPackInstalled = usePacksStore((s) =>
-    s.packs.some(
-      (p) =>
-        p.installed &&
-        (p.capabilities?.includes(PACK_CAP.PHOENIX_IMPORT) || (p.custom && p.id.includes('brightest-bio'))),
-    ),
-  );
+  const phoenixPackInstalled = usePacksStore((s) => s.hasCapability(PACK_CAP.PHOENIX_IMPORT));
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -1654,7 +1650,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       } else if (
         devPackEnabled &&
         (layoutSettings.editorAgentMode ?? 'agent') === 'agent' &&
-        hasCodeTaskSignals(content)
+        !hasCodeReviewSignals(content) &&
+        (hasCodeTaskSignals(content) || hasImplementationContinuationSignals(content))
       ) {
         const ws =
           explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??

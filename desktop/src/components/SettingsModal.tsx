@@ -22,6 +22,7 @@ import type {
 } from '../types/protocol';
 import { ChatAPI, type UserLearning } from '../api/chatAPI';
 import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
+import { PackDevStudio } from './pack-store/dev/PackDevStudio';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import { agentSidebarHideKey, parseDMDisplayName } from '../utils/dmChannelDisplay';
@@ -3470,6 +3471,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 {packsErr && <p className="text-sm text-red-600 mb-2">{packsErr}</p>}
                 <PackStoreBrowse />
               </div>
+
+              <PackDevStudio />
 
               <div className="border border-slack-border rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-slack-text mb-2">MCP specialist tools</h3>

@@ -1,5 +1,13 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
-import { ChatAPI, type PackCatalogEntry, type PackStatus, type PacksAPIResponse, type InstallPackLoRAsResponse } from '../api/chatAPI';
+import {
+  ChatAPI,
+  type PackCatalogEntry,
+  type PackStatus,
+  type PacksAPIResponse,
+  type InstallPackLoRAsResponse,
+  type PackValidationReport,
+  type CustomerPackContextResponse,
+} from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { PackCapability } from './packCapabilities';
 
@@ -22,6 +30,15 @@ interface PacksState {
   installPackLoRAs: (packId: string) => Promise<InstallPackLoRAsResponse>;
   uninstallPack: (packId: string) => Promise<void>;
   setPackEnabled: (packId: string, enabled: boolean) => Promise<void>;
+  validatePack: (body: {
+    pack_zip_base64?: string;
+    pack_dir?: string;
+    pack_yaml?: string;
+  }) => Promise<PackValidationReport>;
+  devLinkPack: (packDir: string) => Promise<PacksAPIResponse>;
+  devReloadPack: (packId: string) => Promise<PacksAPIResponse>;
+  devUnlinkPack: (packId: string) => Promise<PacksAPIResponse>;
+  fetchCustomerPackContext: () => Promise<CustomerPackContextResponse>;
   hasCapability: (cap: PackCapability | string) => boolean;
   /** @deprecated use hasCapability(PACK_CAP.SCAN_SUMMARY_VIEWER) */
   lifeSciencesEnabled: () => boolean;
@@ -103,6 +120,40 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     const data = await api.uninstallPack(packId);
     get().applyPacksResponse(data);
     await get().fetchPackCatalog();
+  },
+
+  validatePack: async (body) => {
+    const api = new ChatAPI(getHubBaseURL());
+    return api.validatePack(body);
+  },
+
+  devLinkPack: async (packDir) => {
+    const api = new ChatAPI(getHubBaseURL());
+    const data = await api.devLinkPack(packDir);
+    get().applyPacksResponse(data);
+    await get().fetchPackCatalog();
+    return data;
+  },
+
+  devReloadPack: async (packId) => {
+    const api = new ChatAPI(getHubBaseURL());
+    const data = await api.devReloadPack(packId);
+    get().applyPacksResponse(data);
+    await get().fetchPackCatalog();
+    return data;
+  },
+
+  devUnlinkPack: async (packId) => {
+    const api = new ChatAPI(getHubBaseURL());
+    const data = await api.devUnlinkPack(packId);
+    get().applyPacksResponse(data);
+    await get().fetchPackCatalog();
+    return data;
+  },
+
+  fetchCustomerPackContext: async () => {
+    const api = new ChatAPI(getHubBaseURL());
+    return api.fetchCustomerPackContext();
   },
 
   setPackEnabled: async (packId, enabled) => {

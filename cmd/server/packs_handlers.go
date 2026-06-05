@@ -29,6 +29,22 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handlePackInstallZip(w, r)
 		return
 	}
+	if path == "validate" {
+		handlePackValidate(w, r)
+		return
+	}
+	if path == "dev-link" {
+		handlePackDevLink(w, r)
+		return
+	}
+	if path == "dev-reload" {
+		handlePackDevReload(w, r)
+		return
+	}
+	if path == "dev-unlink" {
+		handlePackDevUnlink(w, r)
+		return
+	}
 	if path == "customer-context" {
 		handleCustomerPackContext(w, r)
 		return
@@ -115,6 +131,171 @@ func handlePackInstallZip(w http.ResponseWriter, r *http.Request) {
 		"publisher": m.Publisher,
 		"installed": true,
 		"enabled":   false,
+	})
+}
+
+func handlePackValidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !hub.RequireHubAccess(w, r) {
+		return
+	}
+	var body struct {
+		PackZipBase64 string `json:"pack_zip_base64"`
+		PackDir       string `json:"pack_dir"`
+		PackYAML      string `json:"pack_yaml"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	var report *packs.ValidationReport
+	var err error
+	switch {
+	case strings.TrimSpace(body.PackZipBase64) != "":
+		data, decErr := base64.StdEncoding.DecodeString(strings.TrimSpace(body.PackZipBase64))
+		if decErr != nil {
+			http.Error(w, "invalid base64 zip payload", http.StatusBadRequest)
+			return
+		}
+		report, err = appConfig.ValidatePackZip(data)
+	case strings.TrimSpace(body.PackDir) != "":
+		report, err = appConfig.ValidatePackDir(strings.TrimSpace(body.PackDir))
+	case strings.TrimSpace(body.PackYAML) != "":
+		report, err = appConfig.ValidatePackYAML(body.PackYAML, strings.TrimSpace(body.PackDir))
+	default:
+		http.Error(w, "pack_zip_base64, pack_dir, or pack_yaml required", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(report)
+}
+
+func handlePackDevLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !hub.RequireHubAccess(w, r) {
+		return
+	}
+	var body struct {
+		PackDir string `json:"pack_dir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	m, err := appConfig.DevLinkPack(strings.TrimSpace(body.PackDir))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := appConfig.Save(); err != nil {
+		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writePacksMutationResponse(w, m.ID, map[string]any{
+		"pack_id":         m.ID,
+		"title":           m.Title,
+		"version":         m.Version,
+		"custom":          m.IsCustomerPack(),
+		"dev_linked":      true,
+		"dev_source_path": appConfig.DevSourcePath(m.ID),
+		"installed":       true,
+		"enabled":         false,
+	})
+}
+
+func handlePackDevReload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !hub.RequireHubAccess(w, r) {
+		return
+	}
+	var body struct {
+		PackID string `json:"pack_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	packID := strings.TrimSpace(body.PackID)
+	if packID == "" {
+		http.Error(w, "pack_id required", http.StatusBadRequest)
+		return
+	}
+	m, err := appConfig.DevReloadPack(packID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if appConfig.IsPackEnabled(packID) {
+		if err := appConfig.SetPackEnabled(packID, true); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		syncMCPFromConfig()
+		globalProviderCache.Clear()
+		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
+			ch.SetProviderRegistry(appConfig, globalProviderCache)
+		}
+		if err := appConfig.Save(); err != nil {
+			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		reconcileConfiguredSpecialists()
+		initializeConfiguredAgents()
+	} else if err := appConfig.Save(); err != nil {
+		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writePacksMutationResponse(w, m.ID, map[string]any{
+		"pack_id":         m.ID,
+		"dev_linked":      true,
+		"dev_source_path": appConfig.DevSourcePath(m.ID),
+	})
+}
+
+func handlePackDevUnlink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !hub.RequireHubAccess(w, r) {
+		return
+	}
+	var body struct {
+		PackID string `json:"pack_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	packID := strings.TrimSpace(body.PackID)
+	if packID == "" {
+		http.Error(w, "pack_id required", http.StatusBadRequest)
+		return
+	}
+	if err := appConfig.DevUnlinkPack(packID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := appConfig.Save(); err != nil {
+		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writePacksMutationResponse(w, packID, map[string]any{
+		"pack_id":    packID,
+		"dev_linked": false,
 	})
 }
 

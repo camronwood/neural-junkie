@@ -27,6 +27,57 @@ export interface PackStatus {
   version?: string;
   custom?: boolean;
   requires_packs?: string[];
+  dev_linked?: boolean;
+  dev_source_path?: string;
+}
+
+export interface PackManifestSummary {
+  id: string;
+  version?: string;
+  title: string;
+  description?: string;
+  publisher?: string;
+  pack_kind?: string;
+  layout_profile?: string;
+  capabilities?: string[];
+  requires_packs?: string[];
+  settings_overlay?: Record<string, string>;
+  agents?: Array<{ type: string; name?: string; implementation?: string; ollama_model?: string }>;
+  mcp_agents?: string[];
+}
+
+export interface PackValidationReport {
+  valid: boolean;
+  errors?: string[];
+  warnings?: string[];
+  manifest?: PackManifestSummary;
+  assets: {
+    workspace_guide_found: boolean;
+    workspace_guide_path?: string;
+    workspace_guide_preview?: string;
+    runbooks_count: number;
+    runbook_paths?: string[];
+  };
+  resolved_overlay?: Record<string, string>;
+  requires_packs?: Array<{ id: string; installed: boolean; enabled: boolean }>;
+  preview?: {
+    agents?: Array<{ type: string; name?: string }>;
+    effective_capabilities?: string[];
+  };
+}
+
+export interface CustomerPackContext {
+  id: string;
+  title: string;
+  publisher?: string;
+  version?: string;
+  requires_packs?: string[];
+  workspace_guide?: string;
+  settings_overlay?: Record<string, string>;
+}
+
+export interface CustomerPackContextResponse {
+  packs: CustomerPackContext[];
 }
 
 export interface PackCatalogEntry {
@@ -2381,6 +2432,71 @@ export class ChatAPI {
       throw new Error(t.trim() || response.statusText);
     }
     return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async validatePack(body: {
+    pack_zip_base64?: string;
+    pack_dir?: string;
+    pack_yaml?: string;
+  }): Promise<PackValidationReport> {
+    const response = await this.hubFetch(`/api/packs/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async devLinkPack(packDir: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/dev-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack_dir: packDir }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async devReloadPack(packId: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/dev-reload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack_id: packId }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async devUnlinkPack(packId: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/dev-unlink`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack_id: packId }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async fetchCustomerPackContext(): Promise<CustomerPackContextResponse> {
+    const response = await this.hubFetch(`/api/packs/customer-context`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
   }
 
   async fetchPhoenixStatus(): Promise<{

@@ -19,4 +19,28 @@ describe('packsStore', () => {
     usePacksStore.setState({ layoutProfile: 'ide' });
     expect(usePacksStore.getState().layoutProfile).toBe('ide');
   });
+
+  it('exposes dev_linked on pack status', () => {
+    usePacksStore.setState({
+      packs: [
+        {
+          id: 'acme-lab',
+          title: 'Acme Lab',
+          description: '',
+          installed: true,
+          enabled: false,
+          custom: true,
+          dev_linked: true,
+          dev_source_path: '/tmp/acme-lab',
+        },
+      ],
+      catalog: [],
+      capabilities: [],
+      layoutOwner: '',
+      layoutProfile: 'team',
+    });
+    const pack = usePacksStore.getState().packs[0];
+    expect(pack.dev_linked).toBe(true);
+    expect(pack.dev_source_path).toBe('/tmp/acme-lab');
+  });
 });
