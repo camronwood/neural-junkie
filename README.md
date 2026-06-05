@@ -14,7 +14,7 @@
 
 > Stop talking to LLMs. Start running a digital hive-mind.
 
-High-octane agent orchestration for developers who hate waiting. Plug into a synchronized team of specialized AI nodes that crawl your repos, wield your tools, and solve complex problems in real-time.
+Multi-agent orchestration for teams and individuals — local-first AI, custom experts, Slack integration, and collaboration with human approval.
 
 ## The Nervous System
 
@@ -53,7 +53,12 @@ graph TB
 ## What's In the Box
 
 - **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
-- **Agent Types** -- Frontend, Backend, Platform/DevOps, Security, Architecture, Code Review, Repo, Confluence, and Moderator/Assistant (auto-started); plus on-demand **Expert** and **CLI** agents via commands
+- **Install-and-go local AI (beta.22)** -- Ollama runtime bundled in macOS, Windows, and Linux installers
+- **Domain packs** -- Software development, Life sciences, CAD, and Specialist tuning from the pack store; custom packs via Pack Dev Studio
+- **Slack Connect** -- Channel mirroring, personal inbox, selective forwarding (beta.21+)
+- **Personal learning v2** -- User-confirmed scoped memory with embedding retrieval (Specialist tuning pack)
+- **Multi-agent collaboration** -- Bounded planning/execution with `/collaborate`, runbooks, and approval workflow
+- **Custom experts** -- Any domain via `/create-expert`; not limited to engineering specialists
 - **Dynamic AI Providers** -- Ollama (managed), Claude, LM Studio, and any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)
 - **First-Run Setup Wizard** -- Guided onboarding to configure your AI backend and enable agents
 - **Auto-Updates** -- In-app update notifications with one-click install via Tauri updater
@@ -67,7 +72,7 @@ graph TB
 - **@Mention System** -- Direct questions to specific agents by name or type
 - **Threaded Conversations** -- Reply in threads to keep complex discussions organized
 - **Agent Review** -- Get a second opinion by @mentioning another agent in a reply
-- **Multi-Agent Collaboration** -- Bounded agent-to-agent planning/execution with `/collaborate`, shared plans, task delegation, and approval workflow
+- **Engineering specialists** -- Backend, frontend, platform, security, architecture, and code review (Software development pack); plus Moderator, Assistant, repo, Confluence, and CLI agents
 
 ## Screenshots
 
@@ -91,7 +96,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.18](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.18) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -104,7 +109,7 @@ The Go hub is bundled as a Tauri sidecar — you do **not** need Go installed to
 
 **macOS:** Builds are ad-hoc signed but not notarized; use **Right-click → Open** the first time if Gatekeeper warns.
 
-**Windows:** Install [Ollama](https://ollama.com) manually or use a cloud API key in the setup wizard (in-app Ollama install is macOS/Linux only).
+**Ollama:** Installers bundle the Ollama runtime on macOS, Windows, and Linux. First run pulls a default model once (internet required that one time). Cloud APIs remain optional in the wizard.
 
 **Quick start after install:** [docs/DOWNLOAD.md](docs/DOWNLOAD.md)
 
@@ -150,7 +155,7 @@ go run cmd/cli/main.go --channel general --message "Your question"
 
 Neural Junkie supports local and cloud AI providers. You need at least one. The **Setup Wizard** walks you through this on first launch, or configure later in **Settings > AI Providers**.
 
-**Ollama (Local, Free)** -- Neural Junkie can detect, install, start, and pull models for Ollama automatically.
+**Ollama (Local, Free)** -- Installers bundle the Ollama runtime (beta.22+). The app auto-starts `ollama serve` and walks you through a one-time model pull. For source builds:
 ```bash
 # Or install manually: https://ollama.ai
 make pull-models     # Downloads qwen2.5-coder:14b + qwen2.5:7b

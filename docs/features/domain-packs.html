@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Domain packs — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie domain packs: install Software development, Life sciences, CAD, or Specialist tuning from the pack store. Multiple packs, custom customer packs via Pack Dev Studio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html#domain-packs">Home section</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Domain packs
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Domain packs</h1>
+      <p class="feature-deep-lead">Neural Junkie stays lean out of the box — <strong>Moderator</strong>, <strong>Assistant</strong>, and CLI agents only. Install official packs from <strong>Settings → Domain packs → Pack store</strong> to add specialists, models, MCP tools, and layout presets for the work you actually do.</p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="../media/gallery/ads/neural-junkie-domain-packs-ad-1080.png"
+        alt="Domain packs: install specialists and tools from the pack store"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2>Official packs</h2>
+      <ul>
+        <li><strong>Software development</strong> — six engineering specialists, dev MCP tools, Git in the app, IDE layout with symbols, diagnostics, and fast edit. See <a href="ide-v3.html">IDE v3 guide</a>.</li>
+        <li><strong>Life sciences</strong> — BiologyExpert, OpenBioLLM, sequence tools, protein folding, scan-summary QC. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences doc</a>.</li>
+        <li><strong>CAD</strong> — CADExpert, OpenSCAD workbench, param sliders, Three.js STL preview. Requires OpenSCAD on PATH. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CAD_PACK.md">CAD pack doc</a>.</li>
+        <li><strong>Specialist tuning</strong> — LoRA training from chat and collabs, personal learning opt-in, adapter compose in Ollama. Pairs with <a href="personal-learning.html">Personal learning</a>.</li>
+      </ul>
+
+      <h2>Install flow</h2>
+      <ol>
+        <li>Open <strong>Settings → Domain packs → Pack store</strong>.</li>
+        <li>Click <strong>Install</strong> on a pack — hub downloads from GitHub Releases or uses an embedded fallback when offline.</li>
+        <li>Toggle the pack <strong>on</strong>. You can enable <strong>multiple packs</strong>; the first pack you turn on sets IDE vs team layout.</li>
+      </ol>
+
+      <h2>Custom and customer packs</h2>
+      <p><strong>Pack Dev Studio</strong> (Settings → Domain packs) lets you author <code>pack.yaml</code>, live-validate YAML, dev-link a folder, and test overlays before sideloading a zip. Customer packs install via <strong>Install zip</strong> or <code>POST /api/packs/install-zip</code>. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">PACKS_CUSTOM.md</a>.</p>
+
+      <h2>What stays universal</h2>
+      <p>Moderator, Assistant, Slack Connect, collaboration, and custom experts via <code>/create-expert</code> work regardless of which packs you enable. Packs add depth — they do not gate the core chat experience.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a> — catalog URLs and API.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-19">Release notes → beta.19</a> — pack store launch.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-22">Release notes → beta.22</a> — Pack Dev Studio fixes.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="ide-v3.html">IDE v3 <span>Ask/Agent, @codebase</span></a>
+        <a href="personal-learning.html">Personal learning <span>Scoped memory</span></a>
+        <a href="bundled-ollama.html">Install-and-go local AI <span>Bundled Ollama</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Custom domains</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

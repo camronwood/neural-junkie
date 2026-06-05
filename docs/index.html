@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Neural Junkie — Multi-agent AI for developers</title>
-  <meta name="description" content="Neural Junkie — native desktop + Go hub for multi-agent AI: repo &amp; Confluence experts, workspace tabs and quick switcher, Assistant meeting context, file-change approvals, bounded collaboration, curated model library, MCP export, and a Slack-style workspace." />
-  <meta property="og:title" content="Neural Junkie — Multi-agent AI for developers" />
-  <meta property="og:description" content="Orchestrate specialists, repo agents, and docs-aware agents from one Tauri app. Command palette, threaded chat, approve file edits, run /collaborate plans, and wire your own models — open source, early access." />
+  <title>Neural Junkie — Multi-agent AI workspace</title>
+  <meta name="description" content="Neural Junkie — install-and-go local AI with bundled Ollama. Multi-agent chat, custom experts, Slack Connect, bounded collaboration, domain packs, and personal learning — open source desktop app for teams and individuals." />
+  <meta property="og:title" content="Neural Junkie — Multi-agent AI workspace" />
+  <meta property="og:description" content="Download once, run locally. Orchestrate specialists and custom experts from a Slack-style desktop app — Slack mirroring, collaboration with approval gates, domain packs, and smarter chat. Open source beta." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
@@ -22,8 +22,8 @@
 
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
-      <strong>v1.0.0-beta.22 available</strong>
-      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download installers</a> for macOS, Windows, and Linux — <strong>Ollama bundled</strong> (install and go), <strong>Pack Dev Studio</strong> fixes, and an editable <strong>CSV table editor</strong>. One-time model pull on first run. Or <span class="dev-banner-highlight">build from source</span>. Feedback and <a href="https://github.com/camronwood/neural-junkie/pulls">pull requests</a> welcome.</span>
+      <strong>v1.0.0-beta.22 — install and go</strong>
+      <span><a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download</a> for macOS, Windows, and Linux — <strong>Ollama bundled</strong>, four official <a href="features/domain-packs.html">domain packs</a>, Slack inbox, and smarter chat. One-time model pull on first run. Or <span class="dev-banner-highlight">build from source</span>. <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> and <a href="https://github.com/camronwood/neural-junkie/pulls">PRs</a> welcome.</span>
     </div>
   </div>
 
@@ -52,7 +52,7 @@
         <p class="hero-badge">Open source · Local-first · v1.0.0-beta.22</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
-          <strong>Neural Junkie</strong> is a native desktop app and Go hub for <strong>multi-agent orchestration</strong> — specialized agents for your stack, repo-aware context, command palette workflows, and workflows that actually ship. <strong>Open beta:</strong> install on macOS, Windows, or Linux — no clone required.
+          <strong>Neural Junkie</strong> is a native desktop workspace for <strong>multi-agent AI</strong> — custom experts for any domain, team chat habits, Slack mirroring, and structured collaboration with human approval. <strong>Install-and-go local AI:</strong> beta.22 bundles Ollama on macOS, Windows, and Linux — download, pull a model once, no terminal setup.
         </p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download for macOS / Windows / Linux</a>
@@ -69,11 +69,11 @@
 
     <div class="stack-strip">
       <div class="wrap stack-inner">
-        <span><strong>Desktop</strong> Slack-style UI + command palette</span>
+        <span><strong>Local-first</strong> bundled Ollama + optional cloud</span>
         <span aria-hidden="true">·</span>
-        <span><strong>Hub</strong> channels, persistence, 50+ commands</span>
+        <span><strong>Teams</strong> Slack Connect + threaded chat</span>
         <span aria-hidden="true">·</span>
-        <span><strong>Agents</strong> repo, Confluence, specialists, collaborate</span>
+        <span><strong>You</strong> custom experts, learning, collaboration</span>
       </div>
     </div>
 
@@ -81,9 +81,9 @@
       <div class="wrap">
         <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-06-05">v1.0.0-beta.22</time></p>
         <nav class="flagship-jump" aria-label="Jump to flagship features">
+          <a href="#bundled-ollama">⚡ Install-and-go AI</a>
           <a href="#slack-connect">⎘ Slack Connect</a>
           <a href="#multi-agent-collaboration">🤝 Collaboration</a>
-          <a href="#model-app-store">🛍 Model App Store</a>
           <a href="#domain-packs">📦 Domain packs</a>
         </nav>
       </div>
@@ -95,17 +95,18 @@
           <p class="feature-spotlight-kicker">Slack integration</p>
           <h2 id="slack-connect-heading">Your team stays in Slack. Agents stay in sync.</h2>
           <p class="feature-spotlight-lead">
-            <strong>Slack Connect</strong> mirrors bound channels into Neural Junkie with <strong>two-way threading</strong>: @mentions and channel lines route to the agent you choose — Cursor, Assistant, repo experts, or any configured <strong>Claude / GPT / Gemini / Ollama</strong> backend. Bind with a channel picker; OAuth ships bundled for simple setup.
+            <strong>Slack Connect</strong> mirrors bound channels into Neural Junkie with <strong>two-way threading</strong>: @mentions and channel lines route to the agent you choose — Assistant, custom experts, repo agents, or any configured <strong>Claude / GPT / Gemini / Ollama</strong> backend. <strong>Personal inbox</strong> (beta.21): DM the NJ bot from Slack mobile; replies land in a private hub channel. Optional <strong>forwarding rules</strong> and away-mode human DM replies keep you covered when you are not at the desk.
           </p>
           <ul class="feature-list feature-list--tight">
             <li><strong>Per-channel policy</strong> — always-on, questions-only, or @mention routing.</li>
+            <li><strong>Mobile → agent</strong> — DM the bot; pick which agent answers in NJ.</li>
+            <li><strong>Forward from channels</strong> — @mention, <code>nj:</code> prefix, or reaction emoji rules.</li>
             <li><strong>Real names in NJ</strong> — Slack channels show as <code>#cursor-test</code>, not opaque IDs.</li>
-            <li><strong>Images &amp; threads</strong> — agent file paths and generated art can post back to Slack threads.</li>
           </ul>
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/slack-connect.html">Slack deep dive →</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Setup guide</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-15">Beta.15 notes</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-21">Beta.21 notes</a>
           </div>
         </div>
         <figure class="feature-spotlight-visual">
@@ -143,17 +144,13 @@
           <p class="feature-spotlight-kicker">Multi-agent collaboration</p>
           <h2 id="collab-heading">Run structured agent projects, not endless @mention chains</h2>
           <p class="feature-spotlight-lead">
-            <code>/collaborate</code> turns a goal into a <strong>bounded session</strong>: shared plan, review rounds, human approval, then execution with per-agent tasks, an <strong>on-disk sandbox</strong>, and explicit <strong>workspace confirmation</strong> before agents touch your tree. Optional <strong>smart routing</strong> picks the right provider for execution tasks only.
+            <code>/collaborate</code> turns a goal into a <strong>bounded session</strong>: shared plan, review rounds, human approval, then execution with per-agent tasks and explicit <strong>workspace confirmation</strong> before agents touch your files. Great for research write-ups, cross-functional plans, and multi-step projects — not just code.
           </p>
           <ul class="feature-list feature-list--tight">
             <li><strong>Phases you control</strong> — planning → review → approve → execute with visible status.</li>
             <li><strong>Runbooks &amp; HTTP actions</strong> — wire automations when plans need more than chat.</li>
-            <li><strong>Desktop collaboration UI</strong> — task board, plan history, and channel scoped to the session.</li>
-            <li><strong>beta.22</strong> — Ollama bundled in installers (all platforms), Pack Dev Studio polish, editable CSV table in the code editor. <a href="known-issues.html">Known issues</a> lists what we are still fixing.</li>
-            <li><strong>beta.21</strong> — Slack inbox &amp; forwarding, context model v2, workspace visibility, live chat/collab scenario regressions.</li>
-            <li><strong>beta.20</strong> — personal learning v2: scoped memory, embedding retrieval, export/import.</li>
-            <li><strong>beta.19</strong> — planning/dispatch banners, file-deliverable hints on tasks, and loose <code>[FILE_CHANGE]</code> lines register as proposals.</li>
-            <li><strong>beta.18</strong> — binds the real repo root (not <code>collabs/&lt;id&gt;/</code>), parses structured task lists, and requires <code>TASK_STATUS</code> + deliverables during execution.</li>
+            <li><strong>Personal learning</strong> — collaboration-scoped memory when Specialist tuning is on.</li>
+            <li><strong>beta.22</strong> — bundled Ollama on all platforms; Pack Dev Studio for custom packs. <a href="known-issues.html">Known issues</a> lists what we are still fixing.</li>
           </ul>
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/multi-agent-collaboration.html">Collaboration deep dive →</a>
@@ -183,45 +180,37 @@
       </div>
     </section>
 
-    <section class="feature-spotlight" id="model-app-store" aria-labelledby="model-app-store-heading">
+    <section class="feature-spotlight" id="bundled-ollama" aria-labelledby="bundled-ollama-heading">
       <div class="wrap feature-spotlight-inner">
         <div class="feature-spotlight-copy">
-          <p class="feature-spotlight-kicker">Model App Store</p>
-          <h2 id="model-app-store-heading">Browse and install models like apps</h2>
+          <p class="feature-spotlight-kicker">Install-and-go local AI</p>
+          <h2 id="bundled-ollama-heading">Download once. Run locally. No Ollama install step.</h2>
           <p class="feature-spotlight-lead">
-            Open the toolbar <strong>Model library</strong> (⇧⌘M) for an app-store grid of curated <strong>Ollama</strong> and <strong>Hugging Face</strong> models. Install with progress, open a detail page for the full flow, then <strong>Use for agents</strong> to wire qwen2.5-coder, Llama, hosted HF inference, or local GGUF imports — no terminal tag hunting.
+            Beta.22 installers ship the <strong>Ollama runtime</strong> on macOS, Windows, and Linux. Open Neural Junkie, complete the wizard, pull a default model once, and your agents run on your hardware — private by default, cloud optional. After first run, browse more models in the built-in <strong>Model library</strong>.
           </p>
           <ul class="feature-list feature-list--tight">
-            <li><strong>Ollama tab</strong> — pull, delete, and assign from the embedded catalog.</li>
-            <li><strong>Hugging Face tab</strong> — hosted inference or download → import to Ollama.</li>
-            <li><strong>Per-agent routing</strong> — mix local and cloud providers after you pick a model.</li>
+            <li><strong>Auto-start</strong> — production app runs <code>ollama serve</code> with models in app data.</li>
+            <li><strong>Windows included</strong> — no separate Ollama download required anymore.</li>
+            <li><strong>Model library</strong> — curated Ollama + Hugging Face grid (⇧⌘M) when you want more than the default.</li>
+            <li><strong>Cloud when you need it</strong> — Claude, OpenAI-compatible APIs, and per-agent routing in Settings.</li>
           </ul>
           <div class="feature-spotlight-actions">
-            <a class="btn btn-primary" href="features/model-app-store.html">Model App Store deep dive →</a>
-            <a class="btn btn-ghost" href="features/providers-mcp-packaging.html">Providers &amp; MCP</a>
-            <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
-        <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+            <a class="btn btn-primary" href="features/bundled-ollama.html">Local AI deep dive →</a>
+            <a class="btn btn-ghost" href="features/model-app-store.html">Model App Store</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-22">Beta.22 notes</a>
           </div>
         </div>
         <figure class="feature-spotlight-visual">
-          <div class="spotlight-art spotlight-art--models" role="img" aria-label="Model library grid with Ollama and Hugging Face tabs">
-            <div class="spotlight-art__store">
-              <div class="spotlight-art__tabs" aria-hidden="true">
-                <span class="spotlight-art__tab spotlight-art__tab--on">Ollama</span>
-                <span class="spotlight-art__tab">Hugging Face</span>
-              </div>
-              <div class="spotlight-art__grid" aria-hidden="true">
-                <span class="spotlight-art__tile"></span>
-                <span class="spotlight-art__tile spotlight-art__tile--hi"></span>
-                <span class="spotlight-art__tile"></span>
-                <span class="spotlight-art__tile"></span>
-                <span class="spotlight-art__tile"></span>
-                <span class="spotlight-art__tile"></span>
-              </div>
-              <span class="spotlight-art__cta" aria-hidden="true">Use for agents</span>
+          <div class="spotlight-art spotlight-art--ollama" role="img" aria-label="Install, pull model once, chat locally">
+            <div class="spotlight-art__ollama">
+              <span class="spotlight-art__ollama-step">Download installer</span>
+              <span class="spotlight-art__ollama-arrow" aria-hidden="true">↓</span>
+              <span class="spotlight-art__ollama-step spotlight-art__ollama-step--on">Pull model once</span>
+              <span class="spotlight-art__ollama-arrow" aria-hidden="true">↓</span>
+              <span class="spotlight-art__ollama-step spotlight-art__ollama-step--on">Multi-agent chat</span>
             </div>
           </div>
-          <figcaption>Install once, assign to agents — local-first with optional cloud burst.</figcaption>
+          <figcaption>Runtime bundled — models pulled on first use (one-time download).</figcaption>
         </figure>
       </div>
     </section>
@@ -230,34 +219,38 @@
       <div class="wrap feature-spotlight-inner">
         <div class="feature-spotlight-copy">
           <p class="feature-spotlight-kicker">Domain packs</p>
-          <h2 id="domain-packs-heading">Install packs from the store — engineering, life sciences, or both</h2>
+          <h2 id="domain-packs-heading">Install packs for the work you do — engineering, research, design, or tuning</h2>
           <p class="feature-spotlight-lead">
-            Open <strong>Settings → Domain packs → Pack store</strong> to install official packs from GitHub (embedded fallback when offline). Enable <strong>multiple packs</strong>; the <strong>first pack you turn on</strong> sets IDE vs team layout. Chat and orchestration stay primary; packs add specialists, models, and tools.
+            Open <strong>Settings → Domain packs → Pack store</strong> to install official packs from GitHub (embedded fallback when offline). Enable <strong>multiple packs</strong>; the <strong>first pack you turn on</strong> sets IDE vs team layout. Chat, Slack, and custom experts stay available either way.
           </p>
-          <div class="packs-grid" role="list">
+          <div class="packs-grid packs-grid--quad" role="list">
             <article class="pack-card pack-card--dev" role="listitem">
               <h3 class="pack-card-title">Software development</h3>
-              <p class="pack-card-blurb">Six broad engineering specialists (backend, frontend, platform, security, architecture, code review), dev MCP tools, and <strong>IDE v2</strong> when the pack is on.</p>
-              <ul class="feature-list feature-list--tight">
-                <li><strong>Git SCM</strong> — stage, unstage, diff viewer, commit from the app.</li>
-                <li><strong>⌘P / ⌘⇧O</strong> — quick open files and jump to symbols.</li>
-                <li><strong>Problems + ⌘K</strong> — TS/JS diagnostics; fast edit with inline hunks.</li>
-              </ul>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Dev pack guide</a>
-              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V2.md">IDE v2</a>
+              <p class="pack-card-blurb">Engineering specialists, Git in the app, IDE v3 (Ask/Agent, <code>@codebase</code>), implementation sessions.</p>
+              <a class="btn btn-ghost btn-sm" href="features/ide-v3.html">IDE v3 guide</a>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Dev pack doc</a>
             </article>
             <article class="pack-card pack-card--bio" role="listitem">
               <h3 class="pack-card-title">Life sciences</h3>
-              <p class="pack-card-blurb"><strong>BiologyExpert</strong>, OpenBioLLM, sequence tools, protein folding, and scan-summary QC for plate readers.</p>
-              <ul class="feature-list feature-list--tight">
-                <li><strong>Bio MCP</strong> — <code>analyze_sequence</code>, <code>fold_protein</code>, runbooks.</li>
-                <li><strong>Scan summary viewer</strong> — well TIFF preview from <code>imageMetadata.json</code>.</li>
-                <li><strong>Models</strong> — OpenBioLLM 8B + tool runner wired on enable.</li>
-              </ul>
+              <p class="pack-card-blurb">BiologyExpert, OpenBioLLM, sequence tools, protein folding, scan-summary QC for lab workflows.</p>
               <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Life sciences guide</a>
             </article>
+            <article class="pack-card pack-card--cad" role="listitem">
+              <h3 class="pack-card-title">CAD</h3>
+              <p class="pack-card-blurb">CADExpert, OpenSCAD workbench, param sliders, Three.js STL preview — parametric design in chat.</p>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CAD_PACK.md">CAD pack guide</a>
+            </article>
+            <article class="pack-card pack-card--lora" role="listitem">
+              <h3 class="pack-card-title">Specialist tuning</h3>
+              <p class="pack-card-blurb">LoRA training from chat and collabs, personal learning opt-in, adapter compose in Ollama.</p>
+              <a class="btn btn-ghost btn-sm" href="features/personal-learning.html">Personal learning</a>
+            </article>
           </div>
-          <p class="packs-exclusive"><strong>Pack store (beta.19):</strong> install from GitHub in <strong>Settings → Domain packs</strong>. Moderator, Assistant, and CLI agents stay available either way. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a>.</p>
+          <p class="packs-exclusive"><strong>Custom packs:</strong> Pack Dev Studio + sideload zip for customer bundles. See <a href="features/domain-packs.html">Domain packs guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a>.</p>
+          <div class="feature-spotlight-actions">
+            <a class="btn btn-primary" href="features/domain-packs.html">Domain packs deep dive →</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">Pack Dev Studio</a>
+          </div>
         </div>
         <figure class="feature-spotlight-visual">
           <div class="spotlight-art spotlight-art--packs" role="img" aria-label="Domain pack store: Software development and Life sciences packs installable from GitHub">
@@ -282,10 +275,37 @@
       </div>
     </section>
 
+    <section id="smarter-chat" aria-labelledby="smarter-chat-heading">
+      <div class="wrap">
+        <h2 id="smarter-chat-heading">Smarter chat — context that fits the moment</h2>
+        <p class="section-intro">Long conversations need more than a bigger prompt window. Neural Junkie routes intent, scopes workspace attachment, and lets you save facts you want agents to remember.</p>
+        <div class="grid-3 highlights-grid">
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">💬</div>
+            <h3>Chat / Code composer</h3>
+            <p><strong>Auto, Chat, or Code</strong> mode on each send. Chat skips heavy tooling for casual turns; Code enables workspace and file workflows. Thread-scoped history keeps side topics focused.</p>
+            <p class="card-cta"><a class="card-link" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">Context model doc →</a></p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">🧠</div>
+            <h3>Personal learning</h3>
+            <p>User-confirmed memory with <strong>agent, global, and collaboration</strong> scopes. Ollama embedding retrieval injects the right notes per turn — nothing saved without your approval.</p>
+            <p class="card-cta"><a class="card-link" href="features/personal-learning.html">Deep dive →</a></p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">📋</div>
+            <h3>User rules &amp; find</h3>
+            <p>Per-user markdown rules via Settings/API shape every prompt. In-channel <strong>find bar</strong> searches message history so you can recover decisions without scrolling forever.</p>
+            <p class="card-cta"><a class="card-link" href="release-notes.html#v1-0-0-beta-21">Beta.21 notes →</a></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section-alt" aria-labelledby="capabilities-heading">
       <div class="wrap">
         <h2 id="capabilities-heading">Everything else in the workspace</h2>
-        <p class="section-intro">Beyond <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, the <a href="#model-app-store">Model App Store</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, repo workflow, command palette, and provider wiring that tie it together.</p>
+        <p class="section-intro">Beyond <a href="#bundled-ollama">local AI</a>, <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, experts, commands, and provider wiring that tie it together.</p>
         <div class="grid-3 highlights-grid">
           <article class="card">
             <div class="card-icon" aria-hidden="true">🖥️</div>
@@ -295,8 +315,8 @@
           </article>
           <article class="card">
             <div class="card-icon" aria-hidden="true">🎯</div>
-            <h3>Specialists + any expert you define</h3>
-            <p>Curated engineering specialists ship with the hub — or spin up a <strong>custom domain expert</strong> (guitar teacher, legal advisor, anything) via <code>/create-expert</code> or a DM. Add <strong>repo</strong>, <strong>Confluence</strong>, and <strong>CLI</strong>-backed agents when you need more muscle.</p>
+            <h3>Custom experts + specialists</h3>
+            <p>Spin up a <strong>custom domain expert</strong> for any topic via <code>/create-expert</code> or a DM. Enable domain packs for deeper tooling; add repo, Confluence, and CLI agents when you need more.</p>
             <p class="card-cta"><a class="card-link" href="features/agents-and-experts.html">Deep dive →</a></p>
           </article>
           <article class="card">
@@ -312,10 +332,16 @@
             <p class="card-cta"><a class="card-link" href="features/file-changes-workspaces.html">Deep dive →</a></p>
           </article>
           <article class="card">
-            <div class="card-icon" aria-hidden="true">🤝</div>
-            <h3>Multi-agent collaboration</h3>
-            <p><code>/collaborate</code> sessions with plans, review, sandbox execution, and optional smart routing — featured on the <a href="#multi-agent-collaboration">home page</a>.</p>
-            <p class="card-cta"><a class="card-link" href="features/multi-agent-collaboration.html">Deep dive →</a></p>
+            <div class="card-icon" aria-hidden="true">🛍</div>
+            <h3>Model App Store</h3>
+            <p>Toolbar <strong>Model library</strong> (⇧⌘M): curated Ollama and Hugging Face grid, install progress, <strong>Use for agents</strong> — extends bundled Ollama after first run.</p>
+            <p class="card-cta"><a class="card-link" href="features/model-app-store.html">Deep dive →</a></p>
+          </article>
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">📊</div>
+            <h3>Runbook builder</h3>
+            <p>Visual task graphs with dependencies, agent assignments, and HTTP action nodes — import markdown runbooks or start from the desktop <strong>RB</strong> button.</p>
+            <p class="card-cta"><a class="card-link" href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md#runbook-builder-desktop">Runbook docs →</a></p>
           </article>
           <article class="card">
             <div class="card-icon" aria-hidden="true">🔌</div>
@@ -389,7 +415,7 @@
     <section class="section-alt" aria-labelledby="workflow-heading">
       <div class="wrap">
         <h2 id="workflow-heading">How you actually work in it</h2>
-        <p class="section-intro">Same habits as team chat — with agent-native superpowers wired in.</p>
+        <p class="section-intro">Same habits as team chat — with agent-native superpowers for individuals and groups.</p>
         <div class="grid-2">
           <div class="workflow-block">
             <h3 class="workflow-title">Routing &amp; context</h3>
@@ -397,7 +423,7 @@
               <li><strong>@mentions</strong> by agent name or type so the right specialist answers.</li>
               <li><strong>Threads</strong> for side discussions without spamming the channel.</li>
               <li><strong>Agent review</strong> — pull a second opinion by @mentioning another agent in a thread reply.</li>
-              <li><strong>Meeting &amp; assistant flows</strong> — reminders, tasks, notes, Google Meet ingest, and workspace-grounded follow-ups for long-running work.</li>
+              <li><strong>Assistant flows</strong> — reminders, tasks, notes, meeting ingest, and workspace-grounded follow-ups.</li>
             </ul>
           </div>
           <div class="workflow-block">
@@ -429,8 +455,11 @@
           <span class="doc-strip-label">Learn more in the repo:</span>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">Getting started</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+          <a class="btn btn-ghost btn-sm" href="features/bundled-ollama.html">Install-and-go AI</a>
           <a class="btn btn-ghost btn-sm" href="features/slack-connect.html">Slack Connect</a>
           <a class="btn btn-ghost btn-sm" href="features/multi-agent-collaboration.html">Collaboration</a>
+          <a class="btn btn-ghost btn-sm" href="features/domain-packs.html">Domain packs</a>
+          <a class="btn btn-ghost btn-sm" href="features/personal-learning.html">Personal learning</a>
           <a class="btn btn-ghost btn-sm" href="features/model-app-store.html">Model App Store</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Slack (repo)</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/REPO_AGENTS.md">Repo agents</a>
@@ -449,7 +478,7 @@
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
           <p class="release-landing-version"><strong>v1.0.0-beta.22</strong> <time datetime="2026-06-05">June 5, 2026</time></p>
-          <p class="release-landing-summary">Install-and-go local AI — Ollama runtime bundled on macOS, Windows, and Linux. Pack Dev Studio fixes for custom customer packs. Editable CSV table view in the code editor. First launch still pulls a default model once.</p>
+          <p class="release-landing-summary">Install-and-go local AI — Ollama runtime bundled on macOS, Windows, and Linux. Four official domain packs, Pack Dev Studio for custom packs, Slack inbox, context model v2, and personal learning v2. First launch still pulls a default model once.</p>
           <p class="release-landing-actions">
             <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download v1.0.0-beta.22</a>
             <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-22">Release notes</a>

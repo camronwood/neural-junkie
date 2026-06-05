@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IDE v3 — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie IDE v3: IDE layout preset, Ask/Agent composer, @codebase search, implementation sessions, and editor trust modes for software development pack users." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="domain-packs.html">Domain packs</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · IDE v3
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>IDE v3 — project work in main chat</h1>
+      <p class="feature-deep-lead">When the <strong>Software development</strong> pack is on, switch to <strong>IDE layout</strong> for files, editor, and main chat in one surface. IDE v3 routes coding work through the channel you already use — with Ask/Agent modes, semantic <code>@codebase</code> search, and bounded implementation sessions.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Layout presets</h2>
+      <table class="release-install-table">
+        <thead><tr><th>Preset</th><th>Best for</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Team</strong></td><td>Chat-first — collaboration, Slack, custom experts, general work</td></tr>
+          <tr><td><strong>IDE</strong></td><td>Project-first — open files, editor focus, coding specialists in main chat</td></tr>
+        </tbody>
+      </table>
+      <p>Toggle in <strong>Settings → Layout</strong> or the toolbar <strong>IDE</strong> button. First enabled domain pack influences default layout when multiple packs are on.</p>
+
+      <h2>Main chat in IDE mode</h2>
+      <ul>
+        <li><strong>Implicit routing</strong> — open a Go file and backend context attaches; TS/CSS routes frontend — unless you @ a specific agent.</li>
+        <li><strong>Ask / Agent</strong> — Ask adds read-only guidance; Agent allows file-change proposals through the normal approval flow.</li>
+        <li><strong>@codebase</strong> — hybrid embedding + keyword repo search attached as prompt context.</li>
+        <li><strong>Focus context</strong> — active tab, buffer, and selection when scoped.</li>
+      </ul>
+
+      <h2>Implementation sessions</h2>
+      <p>In <strong>Agent</strong> mode, scoped multi-step coding runs as bounded <strong>implementation sessions</strong>: read → edit → verify → optional repair — without an unbounded agent loop. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IMPLEMENTATION_SESSION.md">IMPLEMENTATION_SESSION.md</a>.</p>
+
+      <h2>Keyboard shortcuts</h2>
+      <ul>
+        <li><strong>⌘K</strong> — fast edit (single-turn)</li>
+        <li><strong>⌘L</strong> — focus main chat composer (IDE layout)</li>
+        <li><strong>⌘P</strong> — quick open · <strong>⌘⇧O</strong> — go to symbol · <strong>⌘J</strong> — terminal</li>
+      </ul>
+
+      <h2>Editor trust</h2>
+      <p><strong>Settings → Layout → Editor trust</strong>: <code>interactive</code> (approve in Pending changes), <code>auto_apply_edits</code>, or reserved <code>yolo</code> for future tool parity.</p>
+
+      <h2>Built on IDE v2</h2>
+      <p>Git stage/unstage, diff viewer, Problems panel, inline hunks, Rust/Python diagnostics, and CSV table view in the editor. See <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V2.md">IDE_V2.md</a>.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V3.md">IDE_V3.md</a></li>
+          <li><a href="domain-packs.html">Domain packs</a> — enable Software development.</li>
+          <li><a href="file-changes-workspaces.html">File changes</a> — approval workflow.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="desktop-workspace.html">Desktop workspace <span>Panels &amp; palette</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Diffs &amp; approval</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Multi-agent plans</span></a>
+        <a href="domain-packs.html">Domain packs <span>Dev pack install</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

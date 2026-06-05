@@ -1,89 +1,99 @@
 # Project Status
 
-**Last Updated:** May 2026
+**Last Updated:** June 2026
 
-## Current State: Active Development
+## Current State: Active Development (Open Beta)
 
-Neural Junkie is a working multi-agent collaboration system used for daily development workflows.
+Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.0.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22).
+
+**Marketing site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 
 ## Working Features
 
 ### Core System
 - WebSocket-based real-time communication
-- Multi-channel support with message history
+- Multi-channel support with message history (bounded per channel)
 - Agent registration, presence tracking, and lifecycle management
 - Thread support (create, reply, subscribe)
 - 50+ command actions with command palette UI and slash-form transport compatibility
 - Session persistence and recovery
 - File change proposal and approval workflow
-- Workspace management
+- Workspace management with quick switcher (beta.17+)
+- Context model v2 — Chat/Code composer, turn intent, thread-scoped history (beta.21+)
+- In-channel message find bar (beta.21+)
+- User rules API (`GET`/`PUT` `/api/user-rules`)
 
-### Agent Types (10)
-- **Moderator** -- Auto-started, chat guidance, command help, safety-net timer
-- **Assistant** -- Reminders, tasks, notes, meetings, scheduling (persistent storage)
-- **Frontend** (FrontendEngineer) -- web/desktop UI, accessibility, design systems, visual QA
-- **Backend** (BackendEngineer) -- APIs, services, integrations, business logic, performance
-- **Platform** (PlatformEngineer) -- deployment, CI/CD, cloud infrastructure, observability
-- **Security** (SecurityReviewer) -- auth, encryption, threat modeling, OWASP, compliance
-- **Architecture** (SoftwareArchitect) -- system design, service boundaries, migrations
-- **Code Review** (CodeReviewer) -- correctness, tests, maintainability, regressions
-- **Repository Expert** -- Codebase indexing, file watching, project-specific Q&A
-- **Confluence Agent** -- Confluence Cloud space indexing and documentation search
-- **Cursor CLI Agent** -- Cursor CLI integration for code analysis
+### Agent Types
+- **Moderator** — Auto-started, chat guidance, command help, safety-net timer
+- **Assistant** — Reminders, tasks, notes, meetings, scheduling, workspace grounding
+- **Custom experts** — Any domain via `/create-expert` or DM
+- **Engineering specialists** (Software development pack) — Backend, frontend, platform, security, architecture, code review
+- **Domain pack experts** — BiologyExpert, CADExpert, etc. per enabled pack
+- **Repository Expert** — Codebase indexing, file watching, project-specific Q&A
+- **Confluence Agent** — Confluence Cloud space indexing and documentation search
+- **CLI agents** — 12 auto-detected types (Cursor, Claude, Gemini, Copilot, Codex, Aider, …)
 
 ### AI Providers
-- **Ollama** -- Local inference, model listing, connection testing
-- **Claude** -- Anthropic API direct or via AI Hub proxy
-- **LM Studio** -- Local OpenAI-compatible server
-- **Mock** -- Rule-based responses for testing
-- Per-agent provider switching, global provider switching
+- **Bundled Ollama (beta.22)** — Runtime shipped in installers; auto-start on launch
+- **Model library** — Curated Ollama + Hugging Face catalog in desktop toolbar
+- **Claude** — Anthropic API direct or via AI Hub proxy
+- **LM Studio** — Local OpenAI-compatible server
+- **OpenAI-compatible** — Groq, Together, Azure, Amazon Q, etc.
+- Per-agent provider switching, global provider switching, optional collaboration smart routing (execution tasks only)
 
-### Desktop performance
-- Assistant state refresh while the task panel is open: every 30s (reduced from 10s).
-- Markdown preview polling for the active file: every 8s (reduced from 2s).
-- Parsed markdown parts for large messages are LRU-cached to avoid repeat work when messages re-render.
-
-### User Interfaces
-- **Desktop App** -- Tauri + React + TypeScript with Tailwind CSS
-  - Command palette with Cmd+Shift+P/Ctrl+Shift+P access, search, and argument forms
-  - File explorer, code editor, terminal panel
-  - Thread panel, pending changes panel
-  - Settings modal (appearance, layout, integrations, AI providers)
-  - @mention autocomplete, Mermaid diagram rendering
-- **Web UI** -- Built-in HTML chat client served by the hub (`/`)
-- **Terminal Chat** -- Interactive WebSocket-based CLI
-- **CLI Tool** -- Scripting, automation, MCP resource server
+### Domain Packs (official)
+- **Software development** — IDE v2/v3, Git in app, implementation sessions
+- **Life sciences** — OpenBioLLM, sequence tools, scan summary viewer
+- **CAD** — OpenSCAD workbench, CADExpert, STL preview
+- **Specialist tuning** — LoRA training, personal learning v2
+- **Pack store** — Install from GitHub; **Pack Dev Studio** for custom/customer packs
 
 ### Integrations
-- **Confluence Cloud** -- Space indexing, page search, documentation Q&A
-- **MCP Export/Import** -- Export agent knowledge to MCP format for sharing
+- **Slack Connect** — Channel bind, two-way threads, bundled OAuth
+- **Slack inbox & forwarding (beta.21)** — Mobile DM to bot, selective channel forward, away-mode human DMs
+- **Confluence Cloud** — Space indexing, page search, documentation Q&A
+- **MCP Export/Import** — Export agent knowledge to MCP format for sharing
+- **Google Meet notes** — Assistant meeting ingest (bundled OAuth in release builds)
+
+### Collaboration
+- Phases: planning → review → approved → executing → completed/cancelled
+- Runbook builder with graph view and HTTP action nodes
+- Git worktree execution mode (`--worktree`)
+- Workspace confirmation gate before task dispatch
+- Personal learning scoped to collaboration when enabled
+
+### User Interfaces
+- **Desktop App** — Tauri + React; command palette, file explorer, code editor, terminal, threads, pending changes, collaboration panel
+- **Web UI** — Lightweight chat client at `/` (not full workspace)
+- **Terminal Chat** — Interactive WebSocket-based CLI
+- **CLI Tool** — Scripting, automation, MCP resource server
 
 ## Performance
 
-- Message latency: < 500ms end-to-end
+- Message latency: < 500ms end-to-end (typical local hub)
 - Tested with 10+ concurrent agents
-- Stable memory with built-in cache cleanup (100 messages per channel)
+- Stable memory with built-in cache cleanup (100 messages per channel in-memory)
 - Repository index caching with staleness detection
+- Assistant state refresh: 30s while task panel open; markdown preview poll: 8s
 
 ## Test Coverage
 
 - Unit tests across core packages
 - Integration tests for message flow, commands, deduplication
+- Live scenario harnesses: `make chat-scenarios-regression`, `make collab-smoke`, collab matrix
 - Agent-specific tests (repo, expert, assistant, moderator, hub, review)
-- Architecture and thread-safety tests
 
 ## Known Limitations
 
 **Public tracker:** [KNOWN_ISSUES.md](KNOWN_ISSUES.md) (repo) and [known-issues.html](known-issues.html) (marketing site). Remove items there when fixed.
 
-- **Hub-local persistence** -- Session metadata, channels, and agent registrations restore from `last-session.json`; per-channel message history is bounded and pruned over time (not a full durable message archive).
-- **Single server** -- No distributed deployment
-- **Session auth** -- Optional `NEURAL_JUNKIE_AUTH_REQUIRED=1` and channel ACLs; see [SECURITY.md](SECURITY.md)
-- **Domain packs** -- Installable plugins from Pack store; multiple packs can be enabled; first enabled pack owns UI layout
-- **Agent polling** -- Standalone `cmd/agent` processes use HTTP polling; in-process runtime agents use hub push delivery
-- **Git endpoints** -- Require Software development pack; need `git` on PATH and a git workspace
-- **IDE v2/v2c** -- IDE layout preset, symbol index, Rust/Python diagnostics, inline completion, plus v2a/v2b features. See [IDE_V2.md](IDE_V2.md)
-- **IDE v3** -- IDE layout + main chat routing (Ask/Agent, @codebase, auto specialist), review bar, editor trust. See [IDE_V3.md](IDE_V3.md)
+- **Hub-local persistence** — Bounded message history; not a full durable archive
+- **Single server** — No distributed deployment
+- **Session auth** — Optional `NEURAL_JUNKIE_AUTH_REQUIRED=1`; see [SECURITY.md](SECURITY.md)
+- **Domain packs** — Multiple packs can be enabled; first enabled pack owns UI layout
+- **Collaboration variance** — Local models vary in plan quality; see known issues for active scenario gaps
+- **IDE v2/v3** — Beta; see [IDE_V2.md](IDE_V2.md) / [IDE_V3.md](IDE_V3.md)
+- **macOS** — Ad-hoc signed, not notarized
 
 ## Documentation
 

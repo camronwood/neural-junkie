@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Install-and-go local AI — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie beta.22 bundles Ollama on macOS, Windows, and Linux. Download, open, pull a model once, and run multi-agent chat locally — no separate runtime install." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html#bundled-ollama">Home section</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Install-and-go local AI
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Install-and-go local AI</h1>
+      <p class="feature-deep-lead">Starting with <strong>v1.0.0-beta.22</strong>, macOS, Windows, and Linux installers ship the <strong>Ollama runtime</strong>. Open Neural Junkie, complete the setup wizard, pull a default model once, and your agents run on your machine — no separate Ollama download or terminal setup.</p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="../media/gallery/ads/neural-junkie-local-ai-tokens-ad-1080.png"
+        alt="Local AI in Neural Junkie: bundled runtime and model library"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2>What happens on first launch</h2>
+      <ol>
+        <li>Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">GitHub Releases</a> (.dmg, .msi, AppImage, or .deb).</li>
+        <li>The app auto-starts <code>ollama serve</code> with models stored in app data (not your global Ollama install, if you have one).</li>
+        <li>The setup wizard offers <strong>local</strong> or <strong>cloud</strong> — local pulls a suggested default model once (internet required that one time).</li>
+        <li>Chat with Moderator, spin up custom experts, or bind Slack — same hub, local inference.</li>
+      </ol>
+
+      <h2>Why it matters</h2>
+      <ul>
+        <li><strong>Fewer steps</strong> — especially on Windows, where a separate Ollama install used to be required.</li>
+        <li><strong>Privacy-friendly default</strong> — run assistants and specialists on hardware you control; add cloud keys only when you want burst capacity.</li>
+        <li><strong>Model library still built in</strong> — open the toolbar <strong>Model library</strong> (⇧⌘M) to browse curated Ollama and Hugging Face entries after the first pull. See <a href="model-app-store.html">Model App Store guide</a>.</li>
+      </ul>
+
+      <h2>Limits to know</h2>
+      <ul>
+        <li>Installers bundle the <strong>runtime</strong>, not every model — first model pull can be several GB.</li>
+        <li>macOS builds are ad-hoc signed, not notarized — use Right-click → Open if Gatekeeper warns.</li>
+        <li>Cloud providers (Claude, OpenAI-compatible APIs) remain optional in Settings.</li>
+      </ul>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">DOWNLOAD.md</a> — install table and troubleshooting.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-22">Release notes → beta.22</a></li>
+          <li><a href="model-app-store.html">Model App Store</a> — install more models after first run.</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="model-app-store.html">Model App Store <span>Ollama &amp; Hugging Face</span></a>
+        <a href="domain-packs.html">Domain packs <span>Install specialists &amp; tools</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Custom domains, CLI</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Cloud + export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

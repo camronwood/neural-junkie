@@ -19,7 +19,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 
 1. Open **Neural Junkie**.
 2. Complete the **setup wizard**:
-   - Pick **Software development** or **Life sciences & lab work** (Bio 8B + BiologyExpert). See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
+   - Pick a focus track or skip — install **domain packs** later from Settings (Software development, Life sciences, CAD, Specialist tuning). See [BIOLOGY_PACK.md](BIOLOGY_PACK.md) for life sciences.
    - Choose **Ollama (local)** — bundled Ollama starts automatically; pull the suggested default model when prompted.
    - Or pick **cloud** and enter an API key (no local model pull).
 3. Sign in on the login screen (pick a username and channel — local dev defaults are fine).

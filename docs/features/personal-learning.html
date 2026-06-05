@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Personal learning — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie personal learning v2: user-confirmed memory with agent, global, and collaboration scopes, Ollama embedding retrieval, and export/import." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html#smarter-chat">Home section</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Personal learning
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Personal learning</h1>
+      <p class="feature-deep-lead">Teach your experts what to remember — on your terms. <strong>Personal learning v2</strong> stores user-confirmed notes with scoped retrieval so agents pick up preferences, project facts, and collaboration context without silent training on every chat line.</p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="../media/gallery/ads/neural-junkie-session-memory-ad-1080.png"
+        alt="Session memory and personal learning in Neural Junkie"
+        loading="lazy"
+        decoding="async"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2>How it works</h2>
+      <ul>
+        <li><strong>Opt-in</strong> — requires the <strong>Specialist tuning</strong> pack plus Settings toggle. Nothing persists without your approval in the modal.</li>
+        <li><strong>Scopes</strong> — <code>agent</code> (one expert), <code>global</code> (all your experts), or <code>collaboration</code> (one collab session).</li>
+        <li><strong>Retrieval</strong> — Ollama embeddings (default <code>nomic-embed-text</code>) with keyword fallback when offline; top-k injection per turn, not dump-all.</li>
+        <li><strong>Lifecycle</strong> — edit, export/import JSON bundles, optional agent-suggested proposals (still need confirmation).</li>
+      </ul>
+
+      <h2>Where you manage it</h2>
+      <ul>
+        <li>Approval modal with scope toggle when an agent proposes a learning.</li>
+        <li><strong>Settings</strong> grouped lists and per-agent info with scope badges.</li>
+        <li>LoRA train preview can include up to 50 confirmed learnings (<code>include_learnings=1</code>).</li>
+      </ul>
+
+      <h2>Privacy posture</h2>
+      <p>Learnings are stored under <code>~/.neural-junkie/learnings.json</code> with per-user isolation in v2. This is complementary to rolling session summaries (context model) — learnings are durable facts you explicitly save; summaries compress recent conversation.</p>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PERSONAL_LEARNING_V2.md">PERSONAL_LEARNING_V2.md</a></li>
+          <li><a href="domain-packs.html">Domain packs</a> — Specialist tuning pack.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-20">Release notes → beta.20</a></li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="domain-packs.html">Domain packs <span>Specialist tuning</span></a>
+        <a href="agents-and-experts.html">Agents &amp; experts <span>Custom experts</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Collab-scoped memory</span></a>
+        <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">Context model <span>Repo doc</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

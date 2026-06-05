@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Slack Connect — Neural Junkie</title>
-  <meta name="description" content="Neural Junkie Slack Connect: bind Slack channels to any agent or model, two-way threaded sync, OAuth setup, and local hub mirroring." />
+  <meta name="description" content="Neural Junkie Slack Connect: channel mirroring, personal inbox, selective forwarding, two-way threads, and local hub routing to any agent or model." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -47,7 +47,14 @@
     </figure>
 
     <article class="feature-prose">
-      <h2>What it does</h2>
+      <h2>Personal inbox &amp; forwarding (beta.21)</h2>
+      <ul>
+        <li><strong>Personal inbox</strong> — DM the NJ Slack bot from mobile; messages route to a private hub channel and the agent you configure. OAuth captures the installing user as owner.</li>
+        <li><strong>Selective forwarding</strong> — Optional rules in watched channels: @mention of you, <code>nj:</code> prefix, or a reaction emoji. Forwarded messages get agent replies in the <strong>original Slack thread</strong>.</li>
+        <li><strong>Away mode (opt-in)</strong> — User OAuth token can read your 1:1 Slack DMs while away; agent replies in the same DM thread with a labeled prefix. Distinct from bot inbox.</li>
+      </ul>
+
+      <h2>Channel mirroring</h2>
       <ul>
         <li><strong>Inbound</strong> — Slack messages (including @app mentions and channel lines per policy) become hub messages on the mirrored channel.</li>
         <li><strong>Outbound</strong> — Agent and human replies in NJ post back to Slack, usually as thread replies so channels stay readable.</li>
@@ -71,7 +78,8 @@
         <h2>Read more in the repository</h2>
         <ul>
           <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SLACK_INTEGRATION.md">Slack integration</a> — events, bindings file, policies, troubleshooting.</li>
-          <li><a href="../release-notes.html#v1-0-0-beta-15">Release notes → beta.15</a> — Slack UX and threaded sync highlights.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-21">Release notes → beta.21</a> — inbox, forwarding, context v2.</li>
+          <li><a href="../release-notes.html#v1-0-0-beta-15">Release notes → beta.15</a> — bundled OAuth and threaded sync.</li>
           <li><a href="../gallery/index.html">Gallery</a> — Slack ad art and screenshots.</li>
         </ul>
       </aside>
@@ -81,8 +89,8 @@
       <h2 id="related-features">More capability guides</h2>
       <div class="feature-nav-grid">
         <a href="multi-agent-collaboration.html">Multi-agent collaboration <span><code>/collaborate</code> sessions</span></a>
-        <a href="model-app-store.html">Model App Store <span>Ollama &amp; Hugging Face</span></a>
-        <a href="desktop-workspace.html">Desktop workspace <span>Palette, panels, threads</span></a>
+        <a href="bundled-ollama.html">Install-and-go local AI <span>Bundled Ollama</span></a>
+        <a href="domain-packs.html">Domain packs <span>Official &amp; custom</span></a>
         <a href="agents-and-experts.html">Agents &amp; experts <span>CLI, repo, specialists</span></a>
       </div>
     </nav>

@@ -40,7 +40,6 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | Summary |
 |----|--------|---------|
-| `slack-inbox-docs` | **Limitation** | Slack **personal inbox & forwarding** (beta.21) is documented in repo [SLACK_INTEGRATION.md](SLACK_INTEGRATION.md) but not yet in the [Slack Connect feature guide](features/slack-connect.html). |
 | `slack-bridge-local` | **Limitation** | Slack bridge runs **in-process** on the local hub — no public URL required (Socket Mode), but the hub must be running. |
 | `confluence-setup` | **Limitation** | Confluence agents need Cloud credentials and indexing time; search quality depends on space size and token limits. |
 
