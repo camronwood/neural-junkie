@@ -161,10 +161,11 @@ func handlePackValidate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		report, err = appConfig.ValidatePackZip(data)
+	case strings.TrimSpace(body.PackYAML) != "":
+		// Prefer in-memory YAML (editor live validate); pack_dir is the asset root.
+		report, err = appConfig.ValidatePackYAML(body.PackYAML, strings.TrimSpace(body.PackDir))
 	case strings.TrimSpace(body.PackDir) != "":
 		report, err = appConfig.ValidatePackDir(strings.TrimSpace(body.PackDir))
-	case strings.TrimSpace(body.PackYAML) != "":
-		report, err = appConfig.ValidatePackYAML(body.PackYAML, strings.TrimSpace(body.PackDir))
 	default:
 		http.Error(w, "pack_zip_base64, pack_dir, or pack_yaml required", http.StatusBadRequest)
 		return
@@ -239,22 +240,15 @@ func handlePackDevReload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if appConfig.IsPackEnabled(packID) {
-		if err := appConfig.SetPackEnabled(packID, true); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		syncMCPFromConfig()
 		globalProviderCache.Clear()
 		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
 			ch.SetProviderRegistry(appConfig, globalProviderCache)
 		}
-		if err := appConfig.Save(); err != nil {
-			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
 		reconcileConfiguredSpecialists()
 		initializeConfiguredAgents()
-	} else if err := appConfig.Save(); err != nil {
+	}
+	if err := appConfig.Save(); err != nil {
 		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

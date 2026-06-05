@@ -47,6 +47,20 @@ func TestValidateZipBytes_noInstall(t *testing.T) {
 	}
 }
 
+func TestValidateYAML_usesEditorTextOverDisk(t *testing.T) {
+	dir := filepath.Join("testdata", "brightest-bio-lab")
+	report, err := ValidateYAML("id: editor-only-pack\ntitle: Editor Title\npack_kind: customer\ncapabilities:\n  - customer-pack\n", dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Valid {
+		t.Fatalf("expected valid, errors=%v", report.Errors)
+	}
+	if report.Manifest == nil || report.Manifest.ID != "editor-only-pack" {
+		t.Fatalf("expected editor manifest id, got %+v", report.Manifest)
+	}
+}
+
 func TestValidateYAML_missingTitle(t *testing.T) {
 	report, err := ValidateYAML("id: test-pack\n", "", nil)
 	if err != nil {

@@ -6,6 +6,17 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.22] - 2026-06-05
+
+### Added
+- **Bundled Ollama** — macOS, Windows, and Linux installers ship the Ollama runtime; production app auto-starts `ollama serve` with models stored in app data. First run still pulls a default model once (internet required).
+- **CSV table editor** — editable grid view for exported `.csv` files in the code editor (Table/Text toggle); scan summary CSVs still open in the analysis viewer.
+- **Pack Dev Studio fixes** — live YAML validation prefers editor text over disk; dev-link preserves enabled state; dev-reload refreshes overlays; multi-pack test selector.
+
+### Changed
+- **Setup wizard** — Ollama step reflects bundled runtime on production installers; Windows no longer requires a separate Ollama install.
+- **Release CI** — fetches Ollama v0.30.5 per platform before Tauri bundle.
+
 ## [1.0.0-beta.21] - 2026-06-02
 
 ### Added

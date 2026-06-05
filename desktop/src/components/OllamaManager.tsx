@@ -9,6 +9,7 @@ interface OllamaManagerProps {
 interface OllamaStatus {
   installed: boolean;
   running: boolean;
+  bundled?: boolean;
   version?: string;
   path?: string;
 }
@@ -53,7 +54,15 @@ export function OllamaManager({ serverAddr, showLibraryHint = true }: OllamaMana
               className={`w-2 h-2 rounded-full ${status.running ? 'bg-green-400' : status.installed ? 'bg-yellow-400' : 'bg-red-400'}`}
             />
             <span className="text-sm text-gray-300">
-              {status.running ? 'Running' : status.installed ? 'Installed (stopped)' : 'Not installed'}
+              {status.running
+                ? status.bundled
+                  ? 'Running (bundled)'
+                  : 'Running'
+                : status.installed
+                  ? status.bundled
+                    ? 'Bundled (stopped)'
+                    : 'Installed (stopped)'
+                  : 'Not installed'}
             </span>
             {status.version && <span className="text-xs text-gray-600">{status.version}</span>}
           </div>

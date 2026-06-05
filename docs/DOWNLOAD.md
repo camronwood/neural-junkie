@@ -1,6 +1,6 @@
-# Download and first run (v1.0.0-beta.21)
+# Download and first run (v1.0.0-beta.22)
 
-Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21) — no Go, Node, or Rust required for the desktop app.
+Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22) — no Go, Node, or Rust required for the desktop app.
 
 ## 1. Install
 
@@ -13,15 +13,15 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 
 **macOS:** Builds are ad-hoc signed but not notarized. If Gatekeeper blocks the app, right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
 
-**Windows:** Install [Ollama](https://ollama.com) yourself, or choose a cloud provider in the wizard. The app cannot auto-install Ollama on Windows.
+**Ollama:** Installers bundle the Ollama runtime on macOS, Windows, and Linux. You still need a **one-time model pull** on first run (internet required once). Cloud APIs remain optional in the wizard.
 
 ## 2. First launch
 
 1. Open **Neural Junkie**.
 2. Complete the **setup wizard**:
    - Pick **Software development** or **Life sciences & lab work** (Bio 8B + BiologyExpert). See [BIOLOGY_PACK.md](BIOLOGY_PACK.md).
-   - **macOS / Linux:** choose **Ollama (local)** — the wizard can install or start Ollama and pull a default model.
-   - **Windows:** install Ollama from [ollama.com](https://ollama.com) first, or pick **cloud** and enter an API key.
+   - Choose **Ollama (local)** — bundled Ollama starts automatically; pull the suggested default model when prompted.
+   - Or pick **cloud** and enter an API key (no local model pull).
 3. Sign in on the login screen (pick a username and channel — local dev defaults are fine).
 
 The bundled hub listens on **`http://localhost:18765`** (started by the desktop app).
@@ -46,7 +46,8 @@ The bundled hub listens on **`http://localhost:18765`** (started by the desktop 
 | App won’t open (macOS) | Right-click → **Open**; check **Privacy & Security** |
 | No AI responses | Settings → **AI Providers** — confirm Ollama is running or cloud key is set |
 | Hub unreachable | Quit and relaunch the app; check nothing else is using port **18765** |
-| Windows + Ollama | Install Ollama manually; ensure `ollama` is on your PATH |
+| Model pull fails | Check internet; retry from setup wizard or **Settings → Ollama** |
+| Large download size | Installers include Ollama GPU runtimes (~1–2 GB per platform) |
 
 **Build from source instead?** See [GETTING_STARTED.md](GETTING_STARTED.md).
 

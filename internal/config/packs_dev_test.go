@@ -52,6 +52,31 @@ func TestDevReloadPack(t *testing.T) {
 	}
 }
 
+func TestDevLinkPreservesEnabledState(t *testing.T) {
+	cfg := testConfig(t)
+	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")
+	if err := cfg.InstallPack(PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetPackEnabled(PackLifeSciences, true); err != nil {
+		t.Fatal(err)
+	}
+	m, err := cfg.DevLinkPack(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetPackEnabled(m.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	m2, err := cfg.DevLinkPack(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.IsPackEnabled(m2.ID) {
+		t.Fatal("expected dev-link to preserve enabled state")
+	}
+}
+
 func TestValidatePackDir_requiresPacksStatus(t *testing.T) {
 	cfg := testConfig(t)
 	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")

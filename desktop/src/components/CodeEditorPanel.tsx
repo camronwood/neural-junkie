@@ -22,6 +22,8 @@ import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
 import { ErrorBoundary } from './ErrorBoundary';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { getMonacoThemeId, registerMonacoThemes } from '../utils/editorThemes';
+import { CsvTableViewer } from './CsvTableViewer';
+import { isEditableCsvPath } from '../utils/csvTable';
 
 function tabLabel(tab: EditorTab): string {
   const path = tab.path ?? '';
@@ -53,6 +55,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     saveTab,
     saveAllTabs,
     closeTab,
+    setTabViewMode,
+    updateTabContent,
   } = useEditorStore(
     (s) => ({
       tabs: s.tabs,
@@ -64,6 +68,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
       saveTab: s.saveTab,
       saveAllTabs: s.saveAllTabs,
       closeTab: s.closeTab,
+      setTabViewMode: s.setTabViewMode,
+      updateTabContent: s.updateTabContent,
     }),
     shallow
   );
@@ -189,6 +195,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';
   const isScanAnalysisTab = activeTab?.viewMode === 'scan-analysis';
   const isCadWorkbenchTab = activeTab?.viewMode === 'cad-workbench';
+  const isCsvTableTab = activeTab?.viewMode === 'csv-table';
+  const isCsvFileTab = activeTab ? isEditableCsvPath(activeTab.path) : false;
   const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab;
 
   useEffect(() => {
@@ -238,7 +246,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -315,7 +323,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
   const handleSave = useCallback(async () => {
     const tab = useEditorStore.getState().getActiveTab();
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || useEditorStore.getState().saving) return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || useEditorStore.getState().saving) return;
 
     const success = await saveTab(tab.id);
     if (success) {
@@ -445,6 +453,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     if (tab.viewMode === 'scan-summary') return '🔬';
     if (tab.viewMode === 'scan-analysis') return '📊';
     if (tab.viewMode === 'comparator-analysis') return '📈';
+    if (tab.viewMode === 'csv-table') return '🧮';
     const ext = (tab.path ?? '').split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
@@ -460,6 +469,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
       json: '📋',
       md: '📝',
       txt: '📄',
+      csv: '🧮',
       yml: '⚙️',
       yaml: '⚙️',
       png: '🖼️',
@@ -638,6 +648,11 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               projectId={activeTab.cadProjectId}
               tabId={activeTab.id}
             />
+          ) : activeTab.viewMode === 'csv-table' ? (
+            <CsvTableViewer
+              content={activeTab.content}
+              onContentChange={(csv) => updateTabContent(activeTab.id, csv)}
+            />
           ) : activeTab.viewMode === 'image' ? (
             activeTab.imageSrc ? (
               <EditorImagePreview
@@ -681,10 +696,32 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               <span className="px-2 py-1 bg-slack-bg rounded text-xs">
                 {isCadWorkbenchTab ? 'CAD workbench' : isScanAnalysisTab ? 'Scan analysis' : isScanSummaryTab ? 'Scan summary' : 'Preview only'}
               </span>
+            ) : isCsvTableTab ? (
+              <span className="px-2 py-1 bg-slack-bg rounded text-xs">CSV table</span>
             ) : (
               activeTab.language && (
                 <span className="px-2 py-1 bg-slack-bg rounded text-xs">{activeTab.language}</span>
               )
+            )}
+            {isCsvFileTab && (
+              <div className="flex rounded border border-slack-border overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTabViewMode(activeTab.id, 'csv-table')}
+                  className={`px-2 py-0.5 ${isCsvTableTab ? 'bg-slack-accent text-white' : 'text-slack-textMuted hover:bg-slack-bgHover'}`}
+                >
+                  Table
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTabViewMode(activeTab.id, 'text')
+                  }
+                  className={`px-2 py-0.5 border-l border-slack-border ${!isCsvTableTab ? 'bg-slack-accent text-white' : 'text-slack-textMuted hover:bg-slack-bgHover'}`}
+                >
+                  Text
+                </button>
+              </div>
             )}
           </div>
           {!isPreviewTab && (

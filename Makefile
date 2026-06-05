@@ -464,7 +464,11 @@ demo-repo-agent: setup-env ## Run repository agent demo (usage: make demo-repo-a
 
 SIDECAR_DIR := desktop/src-tauri/binaries
 
-.PHONY: build-server-mac-arm build-server-mac-intel build-server-linux bundle-mac bundle-linux bundle release
+.PHONY: fetch-ollama build-server-mac-arm build-server-mac-intel build-server-linux bundle-mac bundle-linux bundle release
+
+fetch-ollama: ## Download Ollama runtime for current platform (bundled in installers)
+	@chmod +x scripts/fetch-ollama.sh
+	@./scripts/fetch-ollama.sh
 
 build-server-mac-arm: ## Cross-compile server for macOS Apple Silicon
 	@echo "🔨 Building server for macOS arm64..."
@@ -486,18 +490,19 @@ build-sidecar: ## Build server sidecar for current platform
 	@mkdir -p $(SIDECAR_DIR)
 	@go build $(SERVER_GO_TAGS) -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) ./cmd/server
 
-bundle-mac: build-server-mac-arm ## Build production desktop app for macOS
+bundle-mac: build-server-mac-arm fetch-ollama ## Build production desktop app for macOS
 	@echo "📦 Building macOS bundle..."
 	@cd desktop && npm run tauri:build
 	@echo "✅ macOS bundle ready at desktop/src-tauri/target/release/bundle/"
 
-bundle-linux: build-server-linux ## Build production desktop app for Linux
+bundle-linux: build-server-linux fetch-ollama ## Build production desktop app for Linux
 	@echo "📦 Building Linux bundle..."
 	@cd desktop && npm run tauri:build
 	@echo "✅ Linux bundle ready at desktop/src-tauri/target/release/bundle/"
 
 bundle: ## Build bundles for current platform
 	@$(MAKE) build-sidecar
+	@$(MAKE) fetch-ollama
 	@cd desktop && npm run tauri:build
 
 release: ## Tag and push a release (usage: make release VERSION=1.2.0)

@@ -933,8 +933,121 @@ async fn open_markdown_preview(
 use std::sync::atomic::{AtomicBool, Ordering};
 
 type SidecarChild = Arc<Mutex<Option<tauri::api::process::CommandChild>>>;
+type OllamaChild = Arc<Mutex<Option<std::process::Child>>>;
 
 static SIDECAR_READY: AtomicBool = AtomicBool::new(false);
+
+fn target_triple() -> &'static str {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    return "aarch64-apple-darwin";
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    return "x86_64-apple-darwin";
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    return "x86_64-unknown-linux-gnu";
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    return "x86_64-pc-windows-msvc";
+    #[allow(unreachable_code)]
+    "unknown"
+}
+
+fn bundled_ollama_runtime_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let rel = format!("ollama/{}", target_triple());
+    app.path_resolver().resolve_resource(&rel)
+}
+
+fn bundled_ollama_binary(runtime_dir: &std::path::Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        return runtime_dir.join("ollama.exe");
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let nested = runtime_dir.join("bin").join("ollama");
+        if nested.exists() {
+            return nested;
+        }
+        runtime_dir.join("ollama")
+    }
+}
+
+fn ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
+    app.path_resolver()
+        .app_data_dir()
+        .map(|p| p.join("ollama-models"))
+        .unwrap_or_else(|| default_home().join(".neural-junkie").join("ollama-models"))
+}
+
+fn wait_for_ollama_health(timeout: std::time::Duration) -> bool {
+    let start = Instant::now();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .unwrap();
+    while start.elapsed() < timeout {
+        if let Ok(resp) = client.get("http://127.0.0.1:11434/api/tags").send() {
+            if resp.status().is_success() {
+                return true;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+    false
+}
+
+fn spawn_bundled_ollama(
+    app: &tauri::AppHandle,
+    ollama_state: &OllamaChild,
+) -> Option<PathBuf> {
+    let runtime_dir = bundled_ollama_runtime_dir(app)?;
+    let binary = bundled_ollama_binary(&runtime_dir);
+    if !binary.exists() {
+        eprintln!(
+            "Bundled Ollama runtime missing binary at {}",
+            binary.display()
+        );
+        return None;
+    }
+
+    let models_dir = ollama_models_dir(app);
+    if let Err(e) = std::fs::create_dir_all(&models_dir) {
+        eprintln!("Failed to create Ollama models dir: {}", e);
+        return None;
+    }
+
+    let mut cmd = Command::new(&binary);
+    cmd.arg("serve");
+    cmd.current_dir(&runtime_dir);
+    cmd.env("OLLAMA_HOST", "127.0.0.1:11434");
+    cmd.env("OLLAMA_MODELS", &models_dir);
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::piped());
+
+    match cmd.spawn() {
+        Ok(mut child) => {
+            if let Some(stderr) = child.stderr.take() {
+                std::thread::spawn(move || {
+                    use std::io::{BufRead, BufReader};
+                    let reader = BufReader::new(stderr);
+                    for line in reader.lines().flatten() {
+                        eprintln!("[ollama] {}", line);
+                    }
+                });
+            }
+            *ollama_state.lock().unwrap() = Some(child);
+            if wait_for_ollama_health(std::time::Duration::from_secs(45)) {
+                eprintln!("Bundled Ollama server ready at http://127.0.0.1:11434");
+                Some(binary)
+            } else {
+                eprintln!("Bundled Ollama started but health check timed out");
+                Some(binary)
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to start bundled Ollama: {}", e);
+            None
+        }
+    }
+}
 
 fn dev_hub_health_url() -> String {
     let base = std::env::var("NEURAL_JUNKIE_HUB_URL")
@@ -966,9 +1079,25 @@ fn wait_for_server_health(timeout: std::time::Duration) -> bool {
     false
 }
 
-fn spawn_sidecar() -> Result<tauri::api::process::CommandChild, String> {
+fn spawn_sidecar(
+    app: &tauri::AppHandle,
+    bundled_ollama: Option<&PathBuf>,
+) -> Result<tauri::api::process::CommandChild, String> {
+    let mut envs = HashMap::from([
+        ("OLLAMA_HOST".to_string(), "127.0.0.1:11434".to_string()),
+    ]);
+    if let Some(models_dir) = ollama_models_dir(app).to_str() {
+        envs.insert("OLLAMA_MODELS".to_string(), models_dir.to_string());
+    }
+    if let Some(bin) = bundled_ollama {
+        if let Some(path) = bin.to_str() {
+            envs.insert("NJ_BUNDLED_OLLAMA".to_string(), path.to_string());
+        }
+    }
+
     let (mut rx, child) = tauri::api::process::Command::new_sidecar("nj-server")
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?
+        .envs(envs)
         .spawn()
         .map_err(|e| format!("Failed to spawn sidecar: {}", e))?;
 
@@ -1051,8 +1180,10 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(Arc::new(Mutex::new(HashMap::<String, PtySession>::new())) as PtySessions)
         .manage(Arc::new(Mutex::new(None::<tauri::api::process::CommandChild>)) as SidecarChild)
+        .manage(Arc::new(Mutex::new(None::<std::process::Child>)) as OllamaChild)
         .setup(|app| {
             let sidecar_state = app.state::<SidecarChild>().inner().clone();
+            let ollama_state = app.state::<OllamaChild>().inner().clone();
             let app_handle = app.handle();
 
             std::thread::spawn(move || {
@@ -1073,7 +1204,9 @@ fn main() {
                     return;
                 }
 
-                match spawn_sidecar() {
+                let bundled_ollama = spawn_bundled_ollama(&app_handle, &ollama_state);
+
+                match spawn_sidecar(&app_handle, bundled_ollama.as_ref()) {
                     Ok(child) => {
                         *sidecar_state.lock().unwrap() = Some(child);
 
@@ -1095,11 +1228,16 @@ fn main() {
         })
         .on_window_event(|event| {
             if let tauri::WindowEvent::Destroyed = event.event() {
-                let sidecar = event.window().state::<SidecarChild>();
-                let child = sidecar.lock().unwrap().take();
-                if let Some(child) = child {
+                let app = event.window().app_handle();
+                let sidecar_state = app.state::<SidecarChild>().inner().clone();
+                if let Some(child) = sidecar_state.lock().unwrap().take() {
                     let _ = child.kill();
                 }
+                let ollama_state = app.state::<OllamaChild>().inner().clone();
+                let ollama_child = ollama_state.lock().unwrap().take();
+                if let Some(mut child) = ollama_child {
+                    let _ = child.kill();
+                };
             }
         })
         .invoke_handler(tauri::generate_handler![

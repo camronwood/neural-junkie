@@ -12,6 +12,7 @@ import { ProblemsPanel } from './ProblemsPanel';
 import { FastEditModal } from './FastEditModal';
 import { useEditorStore } from '../stores/editorStore';
 import { getLanguageFromPath } from '../utils/editorLanguage';
+import { isEditableCsvPath } from '../utils/csvTable';
 import { useToastStore } from '../stores/toastStore';
 import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 import { ChatAPI } from '../api/chatAPI';
@@ -269,7 +270,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       try {
         const api = new ChatAPI(getHubBaseURL());
         const content = await api.fetchFileContent(ws.id, path);
-        openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
+        if (isEditableCsvPath(path)) {
+          openFileInEditor(ws.id, path, content, 'plaintext', { viewMode: 'csv-table' });
+        } else {
+          openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
+        }
         setCodeEditorOpen(true);
         setFileExplorerOpen(true);
       } catch (e) {
@@ -301,7 +306,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             revealLineInEditor(ws.id, relPath, 1);
           } else {
             const content = await chatApi.fetchFileContent(ws.id, relPath);
-            openFileInEditor(ws.id, relPath, content, getLanguageFromPath(relPath));
+            if (isEditableCsvPath(relPath)) {
+              openFileInEditor(ws.id, relPath, content, 'plaintext', { viewMode: 'csv-table' });
+            } else {
+              openFileInEditor(ws.id, relPath, content, getLanguageFromPath(relPath));
+            }
           }
         } catch (e) {
           console.error('[impl-session] open changed file:', relPath, e);
@@ -347,7 +356,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       try {
         const api = new ChatAPI(getHubBaseURL());
         const content = await api.fetchFileContent(ws.id, path);
-        openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
+        if (isEditableCsvPath(path)) {
+          openFileInEditor(ws.id, path, content, 'plaintext', { viewMode: 'csv-table' });
+        } else {
+          openFileInEditor(ws.id, path, content, getLanguageFromPath(path));
+        }
         revealLineInEditor(ws.id, path, line);
         setCodeEditorOpen(true);
         setFileExplorerOpen(true);

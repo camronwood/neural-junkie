@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-03 · **Current beta:** [v1.0.0-beta.21](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.21)
+**Last updated:** 2026-06-05 · **Current beta:** [v1.0.0-beta.22](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -65,7 +65,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `standalone-agent-polling` | **Limitation** | `cmd/agent` processes use **HTTP polling**; in-process hub agents get push delivery (lower latency). |
 | `pause-not-abort` | **Limitation** | `/pause-agent` marks an agent paused in the roster; it does **not** abort an in-flight LLM call. |
 | `lmstudio-tools` | **Limitation** | MCP tool calling is strongest on **Ollama** (selected flows) and **Claude**; LM Studio / generic OpenAI-compat tool use is limited. |
-| `windows-ollama` | **Limitation** | In-app Ollama install helper is **macOS/Linux**; Windows users install Ollama manually or use cloud APIs. |
+| `ollama-model-pull` | **Limitation** | Installers bundle the Ollama **runtime** only; models are pulled on first use (one-time download, can be several GB). |
 | `macos-notarized` | **Limitation** | macOS builds are **ad-hoc signed**, not notarized — use **Right-click → Open** if Gatekeeper blocks the first launch. |
 
 ---

@@ -74,10 +74,13 @@ func (c *Config) DevLinkPack(srcDir string) (*packs.Manifest, error) {
 	if c.Packs.DevSources == nil {
 		c.Packs.DevSources = make(map[string]string)
 	}
+	wasEnabled := c.packEnabledLocked(m.ID)
 	if !c.packInstalledLocked(m.ID) {
 		c.Packs.Installed = append(c.Packs.Installed, m.ID)
+		c.Packs.Enabled[m.ID] = false
+	} else if !wasEnabled {
+		c.Packs.Enabled[m.ID] = false
 	}
-	c.Packs.Enabled[m.ID] = false
 	c.Packs.DevSources[m.ID] = abs
 	return m, nil
 }
@@ -97,12 +100,21 @@ func (c *Config) DevReloadPack(packID string) (*packs.Manifest, error) {
 	if src == "" {
 		return nil, fmt.Errorf("pack %q is not dev-linked", packID)
 	}
+	wasEnabled := c.IsPackEnabled(packID)
 	m, err := packs.SyncPackFromDir(src)
 	if err != nil {
 		return nil, err
 	}
 	if m.ID != packID {
 		return nil, fmt.Errorf("dev source manifest id %q does not match linked pack %q", m.ID, packID)
+	}
+	if wasEnabled {
+		if err := c.SetPackEnabled(packID, false); err != nil {
+			return m, err
+		}
+		if err := c.SetPackEnabled(packID, true); err != nil {
+			return m, err
+		}
 	}
 	return m, nil
 }

@@ -27,12 +27,20 @@ export function PackTestPanel() {
     [packs],
   );
 
-  const targetPack = customPacks[0];
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const targetPack = useMemo(() => {
+    if (customPacks.length === 0) return undefined;
+    if (selectedPackId) {
+      return customPacks.find((p) => p.id === selectedPackId) ?? customPacks[0];
+    }
+    return customPacks.find((p) => p.dev_linked) ?? customPacks[0];
+  }, [customPacks, selectedPackId]);
 
   const refreshContext = useCallback(async () => {
     try {
       const res = await fetchCustomerPackContext();
       setContexts(res.packs ?? []);
+      setError(null);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -133,12 +141,33 @@ export function PackTestPanel() {
     );
   }
 
+  if (!targetPack) {
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-slack-text">
-          Testing: <strong>{targetPack.title}</strong> ({targetPack.id})
-        </span>
+        {customPacks.length > 1 ? (
+          <label className="text-xs text-slack-textMuted flex items-center gap-2">
+            Pack
+            <select
+              value={targetPack?.id ?? ''}
+              onChange={(e) => setSelectedPackId(e.target.value)}
+              className="rounded border border-slack-border bg-slack-bg px-2 py-1 text-sm text-slack-text"
+            >
+              {customPacks.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <span className="text-sm text-slack-text">
+            Testing: <strong>{targetPack?.title}</strong> ({targetPack?.id})
+          </span>
+        )}
         <button
           type="button"
           disabled={busy}

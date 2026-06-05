@@ -87,6 +87,9 @@
       "externalBin": [
         "binaries/nj-server"
       ],
+      "resources": [
+        "ollama/**"
+      ],
       "macOS": {
         "signingIdentity": "-"
       }

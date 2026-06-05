@@ -6,10 +6,11 @@ import { isScanSummaryWellPath, SCAN_SUMMARY_METADATA_FILE } from '../utils/scan
 import type { ScanAnalysisData } from '../utils/scanAnalysis';
 import { isScanAnalysisResultsPath, SCAN_ANALYSIS_RESULTS_FILE } from '../utils/scanAnalysis';
 import type { PanelQCReport } from '../utils/secondaryAnalysis';
+import { getLanguageFromPath } from '../utils/editorLanguage';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench';
 
 export interface EditorTab {
   id: string;
@@ -118,6 +119,7 @@ interface EditorState {
   activateScanWell: (tabId: string, wellId: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  setTabViewMode: (tabId: string, viewMode: EditorTabViewMode) => void;
   updateTabContent: (tabId: string, content: string) => void;
   updateTabCursor: (tabId: string, position: { line: number; column: number }) => void;
   setActiveSelection: (selection: EditorSelectionContext | null) => void;
@@ -168,7 +170,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -502,6 +504,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setActiveTab: (tabId) => {
     set({ activeTabId: tabId });
   },
+
+  setTabViewMode: (tabId, viewMode) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) => {
+        if (tab.id !== tabId) return tab;
+        if (tab.viewMode === viewMode) return tab;
+        const language =
+          viewMode === 'text' ? tab.language ?? getLanguageFromPath(tab.path) : undefined;
+        return { ...tab, viewMode, language };
+      }),
+    }));
+  },
   
   updateTabContent: (tabId, content) => {
     set((state) => ({
@@ -510,7 +524,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (tab.viewMode === 'cad-workbench') {
           return tab.content === content ? tab : { ...tab, content, isDirty: false };
         }
-        if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
+        if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
         if (tab.content === content) return tab;
         return { ...tab, content, isDirty: true };
       }),

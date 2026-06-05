@@ -43,6 +43,7 @@ internal/google/meetnotes/vendor/oauth.json
 desktop/dist/
 desktop/src-tauri/target/
 desktop/src-tauri/binaries/
+desktop/src-tauri/ollama/
 desktop/node_modules/
 .venv-icon/
 .venv-lora/

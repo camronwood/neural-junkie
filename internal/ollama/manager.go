@@ -19,8 +19,21 @@ import (
 
 type InstallStatus struct {
 	Installed bool   `json:"installed"`
+	Bundled   bool   `json:"bundled,omitempty"`
 	Version   string `json:"version,omitempty"`
 	Path      string `json:"path,omitempty"`
+}
+
+// BundledBinaryPath returns the app-shipped Ollama binary when NJ_BUNDLED_OLLAMA is set.
+func BundledBinaryPath() string {
+	p := strings.TrimSpace(os.Getenv("NJ_BUNDLED_OLLAMA"))
+	if p == "" {
+		return ""
+	}
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
 }
 
 type PullProgress struct {
@@ -52,6 +65,19 @@ func NewManager(endpoint string) *Manager {
 }
 
 func (m *Manager) DetectInstallation() InstallStatus {
+	if bundled := BundledBinaryPath(); bundled != "" {
+		version := ""
+		if out, err := exec.Command(bundled, "--version").Output(); err == nil {
+			version = strings.TrimSpace(string(out))
+		}
+		return InstallStatus{
+			Installed: true,
+			Bundled:   true,
+			Version:   version,
+			Path:      bundled,
+		}
+	}
+
 	paths := []string{}
 
 	if p, err := exec.LookPath("ollama"); err == nil {
@@ -293,6 +319,12 @@ func (m *Manager) DeleteModel(ctx context.Context, model string) error {
 // InstallOllama downloads and installs Ollama. On macOS it downloads the
 // CLI binary; on Linux it uses the official install script.
 func (m *Manager) InstallOllama(ctx context.Context, onProgress func(string)) error {
+	if BundledBinaryPath() != "" {
+		if onProgress != nil {
+			onProgress("Ollama is bundled with Neural Junkie")
+		}
+		return nil
+	}
 	switch runtime.GOOS {
 	case "darwin":
 		return m.installOllamaDarwin(ctx, onProgress)

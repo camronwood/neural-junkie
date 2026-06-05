@@ -33,7 +33,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   const [step, setStep] = useState(0);
   const [wizardTrack, setWizardTrack] = useState<WizardTrack>('developer');
   const [providerType, setProviderType] = useState<'ollama' | 'cloud'>('ollama');
-  const [ollamaStatus, setOllamaStatus] = useState<{ installed: boolean; running: boolean } | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<{ installed: boolean; running: boolean; bundled?: boolean } | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [hfToken, setHfToken] = useState('');
   const [agents, setAgents] = useState<AgentChoice[]>(() => agentsForTrack('developer'));
@@ -319,7 +319,8 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               <div className="space-y-3">
                 <div className="text-yellow-400 text-sm">Ollama is not installed.</div>
                 <p className="text-gray-400 text-xs">
-                  Install Ollama from <a href="https://ollama.com" className="text-blue-400 underline">ollama.com</a>, then click "Check Again".
+                  Install Ollama from <a href="https://ollama.com" className="text-blue-400 underline">ollama.com</a>, then click &quot;Check Again&quot;.
+                  Production installers include Ollama — rebuild from source with <code className="text-teal-400">make bundle</code> after <code className="text-teal-400">./scripts/fetch-ollama.sh</code>.
                 </p>
                 <button onClick={checkOllama} className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600">
                   Check Again
@@ -327,14 +328,20 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               </div>
             ) : !ollamaStatus.running ? (
               <div className="space-y-3">
-                <div className="text-green-400 text-sm">Ollama is installed but not running.</div>
+                <div className="text-green-400 text-sm">
+                  {ollamaStatus.bundled ? 'Ollama is bundled with Neural Junkie but not running.' : 'Ollama is installed but not running.'}
+                </div>
                 <button onClick={startOllama} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500">
                   Start Ollama
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="text-green-400 text-sm">Ollama is installed and running.</div>
+                <div className="text-green-400 text-sm">
+                  {ollamaStatus.bundled
+                    ? 'Ollama is bundled and running. Pull a model once to start chatting locally.'
+                    : 'Ollama is installed and running.'}
+                </div>
                 {wizardTrack === 'lifeSciences' && (
                   <p className="text-xs text-gray-500">
                     If pull fails, open Model Library (⇧⌘M), download OpenBioLLM GGUF, and import as <code className="text-teal-400">{defaultOllamaModel}</code>.

@@ -36,6 +36,7 @@ import {
 import { analyteFromSummaryCsvPath } from '../utils/scanAnalysisCsv';
 import { loadScanAnalysisData, analysisDirFromFilePath } from '../utils/scanAnalysisLoad';
 import { isComparatorAnalysisPath } from '../utils/secondaryAnalysis';
+import { isEditableCsvPath } from '../utils/csvTable';
 import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
@@ -454,6 +455,10 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
               viewMode: 'image',
               imageSrc,
             });
+          } else if (isEditableCsvPath(file.path)) {
+            const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+            devLog('CSV file loaded, opening table view...');
+            openFile(activeWorkspace.id, file.path, content, 'plaintext', { viewMode: 'csv-table' });
           } else {
             const content = await api.fetchFileContent(activeWorkspace.id, file.path);
             const language = getLanguageFromPath(file.path);

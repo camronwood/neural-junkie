@@ -2478,6 +2478,7 @@ func handleOllamaInstallStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"installed": status.Installed,
+		"bundled":   status.Bundled,
 		"version":   status.Version,
 		"path":      status.Path,
 		"running":   running,
