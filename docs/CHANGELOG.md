@@ -12,10 +12,15 @@ All notable changes to Neural Junkie.
 - **Phase 1 parity bundle** — server-side `@codebase` attachments, implementation session hardening, IDE Agent `auto_apply_edits` default, inline completion in IDE layout.
 - **Multi-file implementation loop** — theme tasks continue in one user turn (`tailwind.config.js` → `src/App.tsx`) up to 5 files; scenario `react-theme-multi-file`.
 - **Stability harness** — `make test-parity-stable` and `scripts/implement-scenarios-stable.py` (3× implement sweeps, logs under `docs/testing/`).
+- **Keyboard shortcuts registry** — centralized desktop shortcut dispatcher; see [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md).
+- **Two-tier LoRA compose** — `internal/hfhub/lora_compose.go`, bootstrap verify (`cmd/verify-bootstrap-lora/`, `scripts/verify-bootstrap-loras.sh`).
+- **Hub file-change guards** — safer apply pipeline for IDE auto-approve paths.
+- **Harness expansion** — specialist workspace chat scenarios, collab conversation-quality regressions, `scripts/conversation-scenarios-regression.py`.
 
 ### Changed
 - **Local-first routing docs** — `fallback_provider_ids` is infrastructure-only when Ollama is absent; no automatic cloud escalation on model failure. Use `@Cursor` explicitly for cloud-grade work.
 - **Implement scenarios** — 7/7 gate including `dm-backend-codebase-semantic` and multi-file theme; `assert_file_exists` supports `any_match`.
+- **Specialist-tuning pack** — updated LoRA metadata and library entries for composed tags.
 
 ### Fixed
 - **Continuation turns** — affirmation guidance and deterministic fallback on go-ahead; exclude already-applied paths from re-proposals.

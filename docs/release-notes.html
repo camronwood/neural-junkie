@@ -104,18 +104,22 @@
     <article class="feature-prose">
       <h2 id="v1-0-0-beta-24" class="release-version-heading">1.0.0-beta.24 <span class="release-date">— 2026-06-06</span></h2>
 
-      <p><strong>Phase 1 parity — local-first implement.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">GitHub Releases</a>. Server-side <code>@codebase</code>, IDE Agent auto-apply, inline completion, and multi-file theme sessions in one prompt. <code>make test-parity-stable</code> runs 7/7 implement scenarios 3× (restart hub between sweeps on memory-limited machines).</p>
+      <p><strong>Phase 1 parity — local-first implement.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">GitHub Releases</a>. Server-side <code>@codebase</code>, IDE Agent auto-apply, inline completion, and multi-file theme sessions in one prompt. Plus a keyboard shortcuts registry, two-tier LoRA compose, and expanded chat/collab regression scenarios.</p>
 
       <h3>Added</h3>
       <ul>
         <li><strong>Phase 1 parity bundle</strong> — <code>@codebase</code> attachments, implementation session hardening, default <code>auto_apply_edits</code>, inline Tab completion.</li>
         <li><strong>Multi-file implementation</strong> — theme tasks continue across <code>tailwind.config.js</code> and <code>src/App.tsx</code> in one turn; scenario <code>react-theme-multi-file</code>.</li>
         <li><strong>Stability harness</strong> — <code>make test-parity-stable</code> archives logs under <code>docs/testing/</code>.</li>
+        <li><strong>Keyboard shortcuts registry</strong> — centralized dispatcher; <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KEYBOARD_SHORTCUTS.md">KEYBOARD_SHORTCUTS.md</a>.</li>
+        <li><strong>Two-tier LoRA compose</strong> — bootstrap verification for specialist-tuning pack tags.</li>
+        <li><strong>Harness expansion</strong> — workspace DM scenarios per specialist, collab conversation-quality regressions.</li>
       </ul>
 
       <h3>Changed</h3>
       <ul>
         <li><strong>Local-first routing</strong> — no automatic cloud escalation on model failure; use <code>@Cursor</code> explicitly when you want cloud-grade work.</li>
+        <li><strong>Specialist-tuning pack</strong> — updated LoRA library metadata for composed tags.</li>
       </ul>
 
       <h2 id="v1-0-0-beta-23" class="release-version-heading">1.0.0-beta.23 <span class="release-date">— 2026-06-06</span></h2>
