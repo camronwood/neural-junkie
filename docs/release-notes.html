@@ -26,7 +26,7 @@
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">Download beta.22</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">Download beta.23</a>
       </nav>
     </div>
   </header>
@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">v1.0.0-beta.22</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">v1.0.0-beta.23</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-23">1.0.0-beta.23</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-22">1.0.0-beta.22</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-21">1.0.0-beta.21</a>
@@ -98,6 +100,35 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-23" class="release-version-heading">1.0.0-beta.23 <span class="release-date">— 2026-06-06</span></h2>
+
+      <p><strong>CLI agents and smoother implementation.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">GitHub Releases</a>. Wire Codex, Cursor, Gemini, and Copilot CLI agents from the desktop; see pending tool approvals in a hub-wide bar. Implementation sessions skip already-applied files and route code-review asks separately from file-edit loops.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>CLI agents manager</strong> — desktop UI + hub handlers for Codex, Cursor, Gemini, and Copilot CLI agents.</li>
+        <li><strong>Pending tool approvals bar</strong> — hub-wide approval queue synced to the desktop composer.</li>
+        <li><strong>Implementation fallback</strong> — deterministic tailwind/theme repairs when models emit prose-only implementation replies.</li>
+        <li><strong>Code review intent</strong> — dedicated routing so review asks do not open the file-edit implementation loop.</li>
+        <li><strong>Shared TypeScript/ESLint MCP helpers</strong> — <code>tsc</code> / <code>eslint</code> verification for frontend implementation sessions.</li>
+        <li><strong>Test artifact cleanup</strong> — <code>scripts/cleanup-test-artifacts.py</code> and <code>make cleanup-test-artifacts</code>; auto-run after <code>make test-go</code>.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Implementation continuation</strong> — skip re-proposing already-applied files; block vague “pick up where you left off” without prior thread context.</li>
+        <li><strong>File-change approvals</strong> — agent-visible approval messages with metadata; auto-continue prompts after UI apply.</li>
+        <li><strong>Ollama dev/runtime</strong> — bundled-runtime chip, <code>ensure-ollama.sh</code>, and sidecar PATH resolution for Tauri dev.</li>
+        <li><strong>Test isolation</strong> — package-level temp HOME so repo-agent tests no longer pollute <code>~/.neural-junkie/repos</code>.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Compact assistant prompt test</strong> — user-rules lookup uses a user-like sender type.</li>
+        <li><strong>ChatWindow Vitest</strong> — mock PhoenixBrowserModal, pending approvals, and related stores.</li>
+        <li><strong>Hub history clear</strong> — persistent store cleanup for <code>clear-history</code> API.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-22" class="release-version-heading">1.0.0-beta.22 <span class="release-date">— 2026-06-05</span></h2>
 
       <p><strong>Install-and-go local AI.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.22">GitHub Releases</a>. Ollama runtime is bundled on macOS, Windows, and Linux; the app auto-starts <code>ollama serve</code> on launch. First run still pulls a default model once (internet required). Plus Pack Dev Studio fixes and an editable CSV table in the code editor.</p>
