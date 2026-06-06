@@ -2,6 +2,7 @@
 # Analyze ~/.neural-junkie/last-session.json (collab + conversation focus).
 # Archive first: ./scripts/archive-last-session.sh --label before-debug
 # Quick summary:  ./scripts/archive-last-session.sh summary --channel biologyexpert --tail 10
+# Conversation issues: python3 ./scripts/analyze-session-conversation-issues.py
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 exec "${ROOT}/scripts/archive-last-session.sh" analyze "$@"

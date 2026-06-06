@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Run implement-scenarios multiple times and fail if any sweep drops below threshold."""
+from __future__ import annotations
+
+import argparse
+import re
+import subprocess
+import sys
+import time
+import urllib.error
+from datetime import datetime, timezone
+from pathlib import Path
+
+SCRIPTS_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPTS_DIR.parent
+TESTING_DIR = ROOT / "docs" / "testing"
+
+PASS_RE = re.compile(r"^=== PASS: (\S+) ===")
+FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
+
+sys.path.insert(0, str(SCRIPTS_DIR))
+from lib import collab_hub as hub  # noqa: E402
+
+
+def parse_results(output: str) -> tuple[list[str], list[str]]:
+    passed: list[str] = []
+    failed: list[str] = []
+    for line in output.splitlines():
+        m = PASS_RE.match(line.strip())
+        if m:
+            passed.append(m.group(1))
+            continue
+        m = FAIL_RE.match(line.strip())
+        if m:
+            failed.append(m.group(1))
+    return passed, failed
+
+
+def wait_for_hub(base: str, timeout_s: float = 120.0) -> bool:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        try:
+            if hub.check_health(base):
+                return True
+        except urllib.error.URLError:
+            pass
+        time.sleep(2.0)
+    return False
+
+
+def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str]]:
+    env = dict(**__import__("os").environ)
+    env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
+    proc = subprocess.run(
+        [sys.executable, str(script), "--all", "--hub", hub_url],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    output = proc.stdout + proc.stderr
+    passed, failed = parse_results(output)
+    return proc.returncode, output, passed, failed
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="Stability gate for implement-scenarios")
+    p.add_argument("--runs", type=int, default=3, help="Number of full sweeps (default 3)")
+    p.add_argument("--min-pass", type=int, default=6, help="Minimum scenarios that must pass per run")
+    p.add_argument("--hub", default="http://127.0.0.1:18765")
+    p.add_argument("--log-dir", default=str(TESTING_DIR))
+    args = p.parse_args()
+
+    if args.runs < 1:
+        print("runs must be >= 1", file=sys.stderr)
+        return 1
+
+    script = SCRIPTS_DIR / "implement-scenarios.py"
+    if not script.is_file():
+        print(f"missing {script}", file=sys.stderr)
+        return 1
+
+    log_dir = Path(args.log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+    log_path = log_dir / f"parity-stable-{stamp}.log"
+
+    lines: list[str] = []
+    lines.append(f"# implement-scenarios stability — {stamp} UTC")
+    lines.append(f"hub={args.hub} runs={args.runs} min_pass={args.min_pass}")
+    lines.append("")
+
+    all_ok = True
+    for run in range(1, args.runs + 1):
+        lines.append(f"## run {run}/{args.runs}")
+        if not wait_for_hub(args.hub):
+            lines.append(f"hub unhealthy before run {run}: {args.hub}")
+            all_ok = False
+            lines.append(f"RESULT run {run}: FAIL (hub down)")
+            lines.append("")
+            continue
+        if run > 1:
+            time.sleep(30.0)
+        code, output, passed, failed = run_sweep(args.hub, script)
+        pass_count = len(passed)
+        lines.append(f"exit_code={code} pass={pass_count} fail={len(failed)}")
+        if failed:
+            lines.append(f"failed: {', '.join(failed)}")
+        lines.append("")
+        lines.append(output.rstrip())
+        lines.append("")
+
+        if code != 0 or pass_count < args.min_pass:
+            all_ok = False
+            lines.append(f"RESULT run {run}: FAIL (need>={args.min_pass} pass)")
+        else:
+            lines.append(f"RESULT run {run}: OK")
+        lines.append("")
+
+    lines.append(f"OVERALL: {'PASS' if all_ok else 'FAIL'} ({args.runs} runs, min {args.min_pass}/sweep)")
+    log_text = "\n".join(lines)
+    log_path.write_text(log_text, encoding="utf-8")
+    print(log_text)
+    print(f"\nLog archived: {log_path}")
+    return 0 if all_ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

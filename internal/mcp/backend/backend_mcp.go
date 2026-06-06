@@ -43,10 +43,6 @@ func NewBackendMCP() (*BackendMCP, error) {
 
 // Start starts the Backend MCP server
 func (b *BackendMCP) Start() error {
-	if b.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
-
 	return mcp.StartMCPServer(b.httpServer, b.config.Port)
 }
 

@@ -35,9 +35,6 @@ func NewFrontendMCP() (*FrontendMCP, error) {
 }
 
 func (f *FrontendMCP) Start() error {
-	if f.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(f.httpServer, f.config.Port)
 }
 

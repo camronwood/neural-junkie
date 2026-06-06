@@ -25,6 +25,7 @@ Desktop sets `implementation_session: true` automatically when Agent mode + code
 5. **Apply** — file-change pipeline; auto-apply when `editor_agent_trust=auto_apply_edits`
 6. **Verify** — only when trust is `auto_apply_edits`: `npm run build` (or `npx tsc --noEmit`) then `npm test --if-present` for Node; `go test ./...` / `cargo test` for other stacks
 7. **Repair** — one extra round if preflight or verify fails
+8. **Multi-file continue** — when stack manifest targets remain (e.g. `tailwind.config.js` then `src/App.tsx`), the session loops in the **same user turn** up to 5 files — no manual "go ahead" between files
 
 Interactive trust skips verify (proposals await manual approval).
 
@@ -37,13 +38,13 @@ Interactive trust skips verify (proposals await manual approval).
 | Auto-applied + verify failed | `applied but verification failed` |
 | No file changes | `finished without file changes` |
 
-## Provider routing
+## Provider routing (local-first)
 
 Settings → **AI Providers → Implementation sessions**
 
-- Local Ollama first (`implementation.routing_enabled`)
-- Tool-loop model default: `qwen2.5-coder:7b` — pull before live runs: `ollama pull qwen2.5-coder:7b`
-- Fallback provider IDs in hub config (`implementation.fallback_provider_ids`) — e.g. Claude direct when local 7B flakes on multi-file tasks
+- **Local Ollama first** (`implementation.routing_enabled`) — default tool-loop model: `qwen2.5-coder:7b` (`ollama pull qwen2.5-coder:7b`)
+- **`implementation.fallback_provider_ids`** — used only when the configured **local Ollama provider is missing or unavailable**, not when a local model returns weak output. There is no automatic cloud escalation on implementation failure.
+- **Cloud-grade work** — use an explicit CLI agent (e.g. `@Cursor` in chat) when you choose; see [CLI_AGENTS.md](CLI_AGENTS.md).
 
 Restart the hub after changing implementation routing or agent code (`make server-regression`, not `make start-all` for scenario sweeps).
 
@@ -53,7 +54,9 @@ Restart the hub after changing implementation routing or agent code (`make serve
 make implement-scenarios-list
 make implement-scenario SCENARIO=go-handler
 make implement-scenario SCENARIO=react-theme-toggle
+make implement-scenario SCENARIO=react-theme-multi-file
 make implement-scenarios
+make test-parity-stable
 ```
 
 Requires live hub + configured agents (see `scenarios/implement/*.json`).

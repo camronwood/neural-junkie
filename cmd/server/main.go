@@ -1885,6 +1885,7 @@ func handleSendMessage(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		agent.MergeCodebaseAttachments(msg)
 		agent.SanitizeInboundMessageMetadata(msg)
 	}
 
@@ -2016,6 +2017,7 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 		for k, v := range req.Metadata {
 			msg.Metadata[k] = v
 		}
+		agent.MergeCodebaseAttachments(msg)
 		agent.SanitizeInboundMessageMetadata(msg)
 	}
 
@@ -4059,20 +4061,13 @@ func handleToolApprovals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If mode is auto_edit, auto-approve read/edit tools but prompt for shell commands
-	if req.Mode == "auto_edit" {
-		autoApproveTools := map[string]bool{
-			"read_file": true, "write_file": true, "edit_file": true,
-			"list_directory": true, "search_files": true, "read_many_files": true,
-		}
-		if autoApproveTools[req.ToolName] {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{
-				"status":   "approved",
-				"decision": "allow",
-			})
-			return
-		}
+	if protocol.ShouldAutoApproveCLIToolCall(req.Mode, req.ToolName, req.ToolInput) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":   "approved",
+			"decision": "allow",
+		})
+		return
 	}
 
 	tam := chatHub.GetToolApprovalManager()

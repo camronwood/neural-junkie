@@ -2657,6 +2657,11 @@ func (a *collabClientAdapter) AnalyzeConsensus(collabID string, msg *protocol.Me
 // registerFileChangeProposal extracts a FileChangeProposal from message metadata
 // and registers it with the FileChangeManager so it appears in the pending changes UI.
 func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw interface{}) {
+	if err := h.rejectFileChangeOnClosedCollab(msg); err != nil {
+		log.Printf("[FileChange] Rejected proposal on closed collaboration: %v", err)
+		return
+	}
+
 	// Convert the raw proposal to typed struct via JSON round-trip
 	proposalBytes, err := json.Marshal(proposalRaw)
 	if err != nil {
@@ -2728,6 +2733,12 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	}
 	if err := agent.ValidateProposal(wsRoot, proposal.FilePath, propOp, manifest); err != nil {
 		log.Printf("[FileChange] Preflight rejected %q: %v", proposal.FilePath, err)
+		return
+	}
+
+	if looksLikePlaceholderDeliverableContent(proposal.NewContent) {
+		log.Printf("[FileChange] Rejected placeholder deliverable content for %q from %s",
+			proposal.FilePath, msg.From.Name)
 		return
 	}
 

@@ -200,7 +200,8 @@ const defaultLayoutSettings: LayoutSettings = {
   pendingChangesPanelVisible: false,
   editorAgentMode: 'agent',
   sidebarAgentsVisible: true,
-  inlineCompletionEnabled: false,
+  inlineCompletionEnabled: true,
+  inlineCompletionModel: 'qwen2.5-coder:1.5b',
   editorAgentTrust: 'auto_apply_edits',
   toolbarChipsPlacement: 'top',
 };

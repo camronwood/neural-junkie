@@ -25,6 +25,7 @@ func handleDevComplete(w http.ResponseWriter, r *http.Request) {
 		Suffix   string `json:"suffix"`
 		Language string `json:"language"`
 		Path     string `json:"path"`
+		Context  string `json:"context"`
 		Model    string `json:"model"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -52,7 +53,20 @@ func handleDevComplete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	prompt := req.Prefix
-	if req.Suffix != "" {
+	if ctx := strings.TrimSpace(req.Context); ctx != "" {
+		lang := strings.TrimSpace(req.Language)
+		if lang == "" {
+			lang = "text"
+		}
+		path := strings.TrimSpace(req.Path)
+		if path == "" {
+			path = "file"
+		}
+		if len(ctx) > 8000 {
+			ctx = ctx[:8000] + "\n…"
+		}
+		prompt = "File: " + path + "\n```" + lang + "\n" + ctx + "\n```\n\nComplete at cursor:\n" + req.Prefix
+	} else if req.Suffix != "" {
 		prompt += "<|fim_suffix|>" + req.Suffix + "<|fim_prefix|>" + req.Prefix + "<|fim_middle|>"
 	}
 	body := map[string]interface{}{

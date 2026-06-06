@@ -31,3 +31,21 @@ func TestSynthesizeTailwindDarkMode(t *testing.T) {
 		t.Fatalf("got ok=%v body=%q", ok, got)
 	}
 }
+
+func TestSynthesizeTailwindDarkMode_CJS(t *testing.T) {
+	t.Parallel()
+	existing := "module.exports = {\n  theme: { extend: {} },\n}\n"
+	got, ok := synthesizeTailwindDarkMode(existing)
+	if !ok || !strings.Contains(got, "darkMode") {
+		t.Fatalf("got ok=%v body=%q", ok, got)
+	}
+}
+
+func TestSynthesizeGoMainEdit_PrintVersion(t *testing.T) {
+	t.Parallel()
+	existing := "package main\n\nfunc main() {}\n"
+	got, ok := synthesizeGoMainEdit("implement a PrintVersion helper in core/sample/main.go", existing)
+	if !ok || !strings.Contains(got, "func PrintVersion") {
+		t.Fatalf("got ok=%v body=%q", ok, got)
+	}
+}

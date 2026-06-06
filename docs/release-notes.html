@@ -26,7 +26,7 @@
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">Download beta.23</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">Download beta.24</a>
       </nav>
     </div>
   </header>
@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">v1.0.0-beta.23</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">v1.0.0-beta.24</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-24">1.0.0-beta.24</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-23">1.0.0-beta.23</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-22">1.0.0-beta.22</a>
@@ -100,6 +102,22 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-24" class="release-version-heading">1.0.0-beta.24 <span class="release-date">— 2026-06-06</span></h2>
+
+      <p><strong>Phase 1 parity — local-first implement.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">GitHub Releases</a>. Server-side <code>@codebase</code>, IDE Agent auto-apply, inline completion, and multi-file theme sessions in one prompt. <code>make test-parity-stable</code> runs 7/7 implement scenarios 3× (restart hub between sweeps on memory-limited machines).</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Phase 1 parity bundle</strong> — <code>@codebase</code> attachments, implementation session hardening, default <code>auto_apply_edits</code>, inline Tab completion.</li>
+        <li><strong>Multi-file implementation</strong> — theme tasks continue across <code>tailwind.config.js</code> and <code>src/App.tsx</code> in one turn; scenario <code>react-theme-multi-file</code>.</li>
+        <li><strong>Stability harness</strong> — <code>make test-parity-stable</code> archives logs under <code>docs/testing/</code>.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Local-first routing</strong> — no automatic cloud escalation on model failure; use <code>@Cursor</code> explicitly when you want cloud-grade work.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-23" class="release-version-heading">1.0.0-beta.23 <span class="release-date">— 2026-06-06</span></h2>
 
       <p><strong>CLI agents and smoother implementation.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">GitHub Releases</a>. Wire Codex, Cursor, Gemini, and Copilot CLI agents from the desktop; see pending tool approvals in a hub-wide bar. Implementation sessions skip already-applied files and route code-review asks separately from file-edit loops.</p>

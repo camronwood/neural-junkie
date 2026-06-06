@@ -1,0 +1,47 @@
+{
+  "name": "react-theme-multi-file",
+  "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn.",
+  "tags": ["implement", "frontend", "multi-file"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "workspace": { "fixture": "react-tailwind-minimal" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "implement light/dark theme toggle in the sidebar",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "420s",
+      "until_any_match": ["applied and verified|proposals submitted|verification failed|implementation session|toggleTheme|setTheme"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "FrontendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation session|applied|proposals submitted|theme|App.tsx"],
+      "none_match": ["finished without file changes", "\\.vue", "ThemeToggle\\.vue"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "tailwind.config.js",
+      "contains": "darkMode"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/App.tsx",
+      "any_match": ["toggleTheme", "setTheme", "useState"]
+    }
+  ],
+  "cleanup": "clear"
+}

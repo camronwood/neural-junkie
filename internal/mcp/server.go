@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -39,8 +40,32 @@ func NormalizeAgentType(agentType string) string {
 	return strings.ToUpper(key)
 }
 
+var (
+	mcpPortMu    sync.Mutex
+	mcpPortsUsed = map[int]bool{}
+)
+
+// ResetMCPPortReservation clears HTTP port claims (tests only).
+func ResetMCPPortReservation() {
+	mcpPortMu.Lock()
+	defer mcpPortMu.Unlock()
+	mcpPortsUsed = map[int]bool{}
+}
+
+// reserveMCPHTTPPort claims port for the first specialist of a type; later agents share tools in-process only.
+func reserveMCPHTTPPort(port int) bool {
+	mcpPortMu.Lock()
+	defer mcpPortMu.Unlock()
+	if mcpPortsUsed[port] {
+		return false
+	}
+	mcpPortsUsed[port] = true
+	return true
+}
+
 // GetMCPServerConfig returns configuration for a specific agent type (BACKEND, BIOLOGY, …).
 // Enablement comes from hub config (Settings → MCP / domain packs), not environment variables.
+// When multiple in-process specialists share a type/port, only the first binds HTTP; others stay in-process.
 func GetMCPServerConfig(agentType string) *MCPServerConfig {
 	key := NormalizeAgentType(agentType)
 	port := defaultPorts[key]
@@ -54,12 +79,16 @@ func GetMCPServerConfig(agentType string) *MCPServerConfig {
 			port = p
 		}
 	}
-	return &MCPServerConfig{
+	cfg := &MCPServerConfig{
 		Enabled: enabled,
 		Port:    port,
 		Name:    fmt.Sprintf("%s-agent-mcp", strings.ToLower(key)),
 		Version: "1.0.0",
 	}
+	if enabled && !reserveMCPHTTPPort(port) {
+		cfg.InProcessOnly = true
+	}
+	return cfg
 }
 
 // NewMCPServer creates a new MCP server with common configuration.
@@ -99,7 +128,7 @@ func NewInProcessMCPServer(name, version string) (*server.MCPServer, error) {
 	return mcpServer, err
 }
 
-// StartMCPServer starts the MCP server in a goroutine
+// StartMCPServer starts the MCP server in a goroutine. In-process-only servers no-op.
 func StartMCPServer(httpServer *server.StreamableHTTPServer, port int) error {
 	if httpServer == nil {
 		return nil

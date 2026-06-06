@@ -76,3 +76,42 @@ func TestDetectCommandsSkipsCollabDeliverablePathOnly(t *testing.T) {
 		t.Fatalf("expected no suggestions, got %#v", suggestions)
 	}
 }
+
+func TestIsSafeShellCommand(t *testing.T) {
+	cases := []struct {
+		cmd  string
+		safe bool
+	}{
+		{"cat README.md", true},
+		{"grep -r schema internal/", true},
+		{"git status", true},
+		{"go test ./...", true},
+		{"npm test", true},
+		{"npm run build", true},
+		{"ls -la collabs/abc", true},
+		{"rm -rf node_modules", false},
+		{"npm install", false},
+		{"curl -X POST http://example.com", false},
+		{"echo hello > out.txt", false},
+		{"unknown-binary --help", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.cmd, func(t *testing.T) {
+			got := IsSafeShellCommand(tc.cmd)
+			if got != tc.safe {
+				t.Fatalf("IsSafeShellCommand(%q) = %v, want %v", tc.cmd, got, tc.safe)
+			}
+		})
+	}
+}
+
+func TestDetectCommandsMarksSafeShellMetadata(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	suggestions := cd.DetectCommands("```bash\ncat README.md\n```", "Agent", "msg-1")
+	if len(suggestions) != 1 {
+		t.Fatalf("expected 1 suggestion, got %d", len(suggestions))
+	}
+	if !suggestions[0].IsSafe {
+		t.Fatalf("expected cat to be safe, got %#v", suggestions[0])
+	}
+}

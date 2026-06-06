@@ -3079,10 +3079,7 @@ func (ch *CommandHandler) composeRepoLoRA(ctx context.Context, repoPath, adapter
 	if entry, err := hfhub.FindCatalogEntry(adapterRepo); err == nil && len(entry.Files) > 0 {
 		filename = entry.Files[0].Filename
 	}
-	if err := mgr.EnsureDownloadStarted(token, adapterRepo, filename); err != nil {
-		return "", err
-	}
-	if err := mgr.WatchDownload(ctx, adapterRepo, filename, nil); err != nil && err != context.Canceled {
+	if err := hfhub.EnsureLoRAFiles(ctx, mgr, token, adapterRepo, filename); err != nil {
 		return "", err
 	}
 	path, err := mgr.LocalPath(adapterRepo, filename)

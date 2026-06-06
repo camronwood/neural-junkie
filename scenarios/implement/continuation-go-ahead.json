@@ -15,13 +15,14 @@
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",
         "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
         "conversation_mode": "code"
       }
     },
     {
       "action": "wait_reply",
       "from": "BackendEngineer",
-      "timeout": "180s",
+      "timeout": "300s",
       "until_any_match": ["applied and verified|proposals submitted|PrintVersion"]
     }
   ],
@@ -33,13 +34,14 @@
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",
         "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
         "conversation_mode": "code"
       }
     },
     {
       "action": "wait_reply",
       "from": "BackendEngineer",
-      "timeout": "180s",
+      "timeout": "300s",
       "until_any_match": ["applied and verified|proposals submitted|PrintVersion"]
     },
     {

@@ -43,9 +43,6 @@ func NewCADMCP() (*CADMCP, error) {
 
 // Start starts the CAD MCP server.
 func (c *CADMCP) Start() error {
-	if c.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(c.httpServer, c.config.Port)
 }
 

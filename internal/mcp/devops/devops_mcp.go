@@ -42,10 +42,6 @@ func NewDevOpsMCP() (*DevOpsMCP, error) {
 
 // Start starts the DevOps MCP server
 func (d *DevOpsMCP) Start() error {
-	if d.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
-
 	return mcp.StartMCPServer(d.httpServer, d.config.Port)
 }
 

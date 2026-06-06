@@ -110,6 +110,16 @@ export interface InstallPackLoRAsResponse {
   results: InstallPackLoRAResult[];
 }
 
+export interface LoraTrainingBase {
+  ollama_tag: string;
+  hf_model: string;
+  label: string;
+  description: string;
+  code_focused: boolean;
+  recommended?: boolean;
+  size_hint?: string;
+}
+
 export interface LoraExpertContext {
   agent_id: string;
   agent_name: string;
@@ -118,6 +128,7 @@ export interface LoraExpertContext {
   source_id?: string;
   suggested_base_ollama_tag: string;
   suggested_ollama_tag?: string;
+  supported_bases?: LoraTrainingBase[];
   preview_rows: number;
   min_rows: number;
   ready: boolean;
@@ -2103,6 +2114,7 @@ export class ChatAPI {
     suffix?: string;
     language?: string;
     path?: string;
+    context?: string;
     model?: string;
   }): Promise<{ completion: string }> {
     const response = await this.hubFetch('/api/dev/complete', {
@@ -2113,6 +2125,7 @@ export class ChatAPI {
         suffix: params.suffix ?? '',
         language: params.language,
         path: params.path,
+        context: params.context,
         model: params.model,
       }),
     });
@@ -2673,6 +2686,16 @@ export class ChatAPI {
       throw new Error(t.trim() || response.statusText);
     }
     return response.json();
+  }
+
+  async fetchLoraTrainBases(): Promise<LoraTrainingBase[]> {
+    const response = await this.hubFetch('/api/lora/train/bases');
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = await response.json();
+    return Array.isArray(data.bases) ? data.bases : [];
   }
 
   async previewLoraTrain(params: {

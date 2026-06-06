@@ -19,6 +19,37 @@ def looks_like_stack_tool_command(command: str) -> bool:
     return bool(_STACK_CMD_HEAD_RE.match(first_line))
 
 
+_READ_ONLY_PREFIXES = (
+    "ls",
+    "pwd",
+    "cd ",
+    "cat ",
+    "head ",
+    "tail ",
+    "grep ",
+    "find ",
+    "file ",
+    "tree",
+    "wc ",
+    "sort ",
+    "uniq ",
+    "which ",
+    "whereis ",
+    "git status",
+    "git log",
+    "git diff",
+    "git show",
+    "git branch",
+)
+
+
+def looks_like_read_only_inspection_command(command: str) -> bool:
+    command = (command or "").strip().lower()
+    if not command:
+        return False
+    return any(command.startswith(prefix) for prefix in _READ_ONLY_PREFIXES)
+
+
 def check_text_patterns(
     text: str,
     *,

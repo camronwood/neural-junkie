@@ -35,9 +35,6 @@ func NewRustMCP() (*RustMCP, error) {
 }
 
 func (r *RustMCP) Start() error {
-	if r.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(r.httpServer, r.config.Port)
 }
 

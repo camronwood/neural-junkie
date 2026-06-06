@@ -50,10 +50,6 @@ func NewDatabaseMCP() (*DatabaseMCP, error) {
 
 // Start starts the Database MCP server
 func (d *DatabaseMCP) Start() error {
-	if d.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
-
 	return mcp.StartMCPServer(d.httpServer, d.config.Port)
 }
 
@@ -64,15 +60,18 @@ func (d *DatabaseMCP) GetMCPServer() *server.MCPServer {
 
 // initDatabase initializes database connection
 func (d *DatabaseMCP) initDatabase() error {
-	// Get database URL from environment
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if dbURL == "" {
-		// Try to construct from individual components
-		host := os.Getenv("DB_HOST")
-		port := os.Getenv("DB_PORT")
-		user := os.Getenv("DB_USER")
+		host := strings.TrimSpace(os.Getenv("DB_HOST"))
+		port := strings.TrimSpace(os.Getenv("DB_PORT"))
+		user := strings.TrimSpace(os.Getenv("DB_USER"))
 		password := os.Getenv("DB_PASSWORD")
-		dbname := os.Getenv("DB_NAME")
+		dbname := strings.TrimSpace(os.Getenv("DB_NAME"))
+
+		// Skip auto-connect when no database env is configured (avoid localhost postgres noise).
+		if host == "" && port == "" && user == "" && password == "" && dbname == "" {
+			return fmt.Errorf("database not configured (set DATABASE_URL or DB_* env vars)")
+		}
 
 		if host == "" {
 			host = "localhost"

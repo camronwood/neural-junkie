@@ -128,6 +128,9 @@ import { getHubBaseURL } from '../config/hubUrl';
 import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
+import { useChatShortcutHandlers } from '../hooks/useChatShortcutHandlers';
+import { useChatShortcutOverlays } from '../hooks/useChatShortcutOverlays';
+import { useShortcutDispatcher } from '../shortcuts/useShortcutDispatcher';
 import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
@@ -136,6 +139,7 @@ import {
   ideRoutingChipLabel,
   mergeCodebaseAttachments,
 } from '../utils/ideComposer';
+import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
 import { hasCodeTaskSignals } from '../utils/conversationMode';
 import { hasImplementationContinuationSignals } from '../utils/implementationContinuation';
 import { hasCodeReviewSignals } from '../utils/codeReviewSignals';
@@ -206,6 +210,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const myAgentsPanelOpen = useChatStore((s) => s.myAgentsPanelOpen);
   const setMyAgentsPanelOpen = useChatStore((s) => s.setMyAgentsPanelOpen);
+  const closeThread = useChatStore((s) => s.closeThread);
 
   const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
   const { layoutSettings, loadLayoutSettings, updateSettings, updateLayoutSettings } =
@@ -259,6 +264,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     return id ? (s.tabs.find((t) => t.id === id) ?? null) : null;
   });
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const channelSearchRef = useRef<HTMLInputElement | null>(null);
+  const approveFirstPendingRef = useRef<(() => void | Promise<void>) | null>(null);
+  const rejectFirstPendingRef = useRef<(() => void | Promise<void>) | null>(null);
 
   useEffect(() => {
     void fetchPacks();
@@ -383,37 +391,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       addToast,
     ]
   );
-
-  useEffect(() => {
-    if (!devPackEnabled) return;
-    const onKey = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const cmd = isMac ? e.metaKey : e.ctrlKey;
-      const target = e.target as HTMLElement;
-      const inInput =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true';
-      if (cmd && e.key === 'p' && !e.shiftKey && !inInput) {
-        e.preventDefault();
-        setQuickOpenOpen(true);
-      }
-      if (cmd && e.shiftKey && (e.key === 'o' || e.key === 'O') && !inInput) {
-        e.preventDefault();
-        setSymbolModalOpen(true);
-      }
-      if (cmd && (e.key === 'k' || e.key === 'K') && codeEditorOpen) {
-        e.preventDefault();
-        setFastEditOpen(true);
-      }
-      if (cmd && (e.key === 'l' || e.key === 'L') && ideLayout) {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [devPackEnabled, codeEditorOpen, ideLayout]);
 
   // State for pending changes panel
   const [pendingChangesOpen, setPendingChangesOpen] = useState(false);
@@ -620,39 +597,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [useSidebarChips]);
 
-  // Keyboard shortcuts for sidebar toggles
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.metaKey && !e.shiftKey && e.key === 'b') {
-        e.preventDefault();
-        setChannelSidebarOpen((prev) => {
-          const next = !prev;
-          localStorage.setItem('channel-sidebar-open', String(next));
-          return next;
-        });
-      } else if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 't') {
-        e.preventDefault();
-        setTaskManagementOpen(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  // ⌘F / Ctrl+F — in-chat find (Monaco keeps its own find when editor focused)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
-        const target = e.target as HTMLElement | null;
-        if (target?.closest('.monaco-editor')) return;
-        e.preventDefault();
-        setChatFindOpen(true);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-  
   const api = useMemo(() => new ChatAPI(serverAddr), [serverAddr]);
   const hubHttp = useMemo(
     () => (serverAddr.startsWith('http') ? serverAddr : `http://${serverAddr}`),
@@ -1711,20 +1655,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api, channel, username, addToast]);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !showAgentStop) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) {
-        return;
-      }
-      e.preventDefault();
-      void handleChannelInterject();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showAgentStop, handleChannelInterject]);
-
   const dispatchMessage = useCallback(
     async (content: string, metadata?: Record<string, unknown>) => {
       useChatStore.getState().setChannelHold(channel, false);
@@ -1740,7 +1670,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           agents,
           activeTab: activeEditorTab,
           editorAgentMode: layoutSettings.editorAgentMode ?? 'agent',
-          editorAgentTrust: layoutSettings.editorAgentTrust ?? 'interactive',
+          editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
           composerMetadata: composerMeta,
         });
         sendContent = idePayload.content;
@@ -1764,7 +1694,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           agents,
           activeTab: activeEditorTab,
           editorAgentMode: layoutSettings.editorAgentMode ?? 'agent',
-          editorAgentTrust: layoutSettings.editorAgentTrust ?? 'interactive',
+          editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
           composerMetadata: composerMeta,
         });
         if (ws?.path) {
@@ -1866,6 +1796,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           agentId: ctx.agent_id,
           previewRows: ctx.preview_rows,
           ready: ctx.ready,
+          supported_bases: ctx.supported_bases,
         });
         setModelLibraryInitialTab('train');
         setModelLibraryOpen(true);
@@ -2027,19 +1958,94 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setCommandPaletteOpen(true);
   }, [api, channel, ensureCommandDefs, fetchPendingChanges, loadCollaborations, username]);
 
-  useEffect(() => {
-    const handleCommandPaletteShortcut = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const cmd = isMac ? e.metaKey : e.ctrlKey;
-      if (!cmd || !e.shiftKey || e.key.toLowerCase() !== 'p') return;
-      e.preventDefault();
-      e.stopPropagation();
-      void openCommandPalette();
-    };
+  useShortcutDispatcher(true);
 
-    window.addEventListener('keydown', handleCommandPaletteShortcut, true);
-    return () => window.removeEventListener('keydown', handleCommandPaletteShortcut, true);
-  }, [openCommandPalette]);
+  useChatShortcutHandlers({
+    onOpenSettings,
+    channelSearchRef,
+    inputRef,
+    devPackEnabled,
+    ideLayout,
+    codeEditorOpen,
+    showAgentStop,
+    useSidebarChips,
+    channelSidebarOpen,
+    setChannelSidebarOpen,
+    setFileExplorerOpen,
+    setCodeEditorOpen,
+    setTaskManagementOpen,
+    setGitModalOpen,
+    setProblemsOpen,
+    setPendingChangesOpen,
+    setToolbarSidebarOpen,
+    setQuickOpenOpen,
+    setSymbolModalOpen,
+    setFastEditOpen,
+    setCommandPaletteOpen,
+    setModelLibraryOpen,
+    setChatFindOpen,
+    setCreateChannelOpen,
+    setCreateNewDmOpen,
+    chatPanelVisible,
+    openCommandPalette,
+    handleChannelInterject,
+    handleNewRunbook,
+    handleSwitchChannel,
+    handleCreateDM,
+    updateLayoutSettings,
+    approveFirstPendingRef,
+    rejectFirstPendingRef,
+  });
+
+  const closeCommandPalette = useCallback(() => {
+    setCommandPaletteOpen(false);
+    const input = inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null;
+    input?.clearInput?.();
+  }, []);
+
+  const closeModelLibrary = useCallback(() => {
+    setModelLibraryOpen(false);
+    setModelLibraryInitialTab(undefined);
+    setLoraTrainPrefill(null);
+  }, []);
+
+  useChatShortcutOverlays({
+    commandPaletteOpen,
+    onCloseCommandPalette: closeCommandPalette,
+    quickOpenOpen,
+    devPackEnabled,
+    onCloseQuickOpen: () => setQuickOpenOpen(false),
+    symbolModalOpen,
+    onCloseSymbol: () => setSymbolModalOpen(false),
+    fastEditOpen,
+    onCloseFastEdit: () => setFastEditOpen(false),
+    createChannelOpen,
+    onCloseCreateChannel: () => setCreateChannelOpen(false),
+    createNewDmOpen,
+    onCloseCreateNewDm: () => setCreateNewDmOpen(false),
+    channelInfoModal,
+    onCloseChannelInfo: () => setChannelInfoModal(null),
+    gitModalOpen,
+    onCloseGit: () => setGitModalOpen(false),
+    problemsOpen,
+    onCloseProblems: () => setProblemsOpen(false),
+    phoenixModalOpen,
+    onClosePhoenix: () => setPhoenixModalOpen(false),
+    learningProposalOpen,
+    onCloseLearningProposal: () => {
+      setLearningProposalOpen(false);
+      setLearningProposal(null);
+    },
+    hubAccessPending,
+    onCloseHubAccess: () => {
+      setHubAccessPending(null);
+      setHubAccessError(null);
+    },
+    chatFindOpen,
+    onCloseChatFind: () => setChatFindOpen(false),
+    openThreadId,
+    onCloseThread: closeThread,
+  });
 
   const handleLogout = async () => {
     try {
@@ -2057,19 +2063,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('[ChatWindow] Failed to logout:', error);
     }
   };
-
-  const closeThread = useChatStore((s) => s.closeThread);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
-      if (e.key.toLowerCase() !== 'm') return;
-      e.preventDefault();
-      setModelLibraryOpen(true);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
 
   const getStatusColor = () => {
     switch (status) {
@@ -2317,6 +2310,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         collaboration={collaborationForChannel}
         onOpenTerminal={() => setPanelOpen(true)}
         onScrollToApproval={scrollToApproval}
+        approveFirstPendingRef={approveFirstPendingRef}
+        rejectFirstPendingRef={rejectFirstPendingRef}
       />
 
       {/* Main Content Area */}
@@ -2327,6 +2322,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <ChannelSidebar
             channels={channels}
             agents={agents}
+            searchInputRef={channelSearchRef}
             onSwitchChannel={handleSwitchChannel}
             onCreateChannel={() => setCreateChannelOpen(true)}
             onCreateDM={handleCreateDM}
@@ -2759,12 +2755,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         api={api}
         isOpen={commandPaletteOpen}
         initialFilter={commandPaletteFilter}
-        onClose={() => {
-          setCommandPaletteOpen(false);
-          if (inputRef.current && (inputRef.current as any).clearInput) {
-            (inputRef.current as any).clearInput();
-          }
-        }}
+        onClose={closeCommandPalette}
         onExecute={handleCommandExecute}
       />
 
@@ -2805,11 +2796,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
       <ModelLibraryModal
         isOpen={modelLibraryOpen}
-        onClose={() => {
-          setModelLibraryOpen(false);
-          setModelLibraryInitialTab(undefined);
-          setLoraTrainPrefill(null);
-        }}
+        onClose={closeModelLibrary}
         serverAddr={hubHttp}
         switchAllAgentProviders={switchAllAgentProviders}
         switchAgentProvider={switchAgentProvider}

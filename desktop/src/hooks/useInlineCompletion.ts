@@ -28,10 +28,18 @@ export function useInlineCompletion(
           if (!layout.inlineCompletionEnabled) {
             return { items: [] };
           }
-          const line = model.getLineContent(position.lineNumber);
+          const lineNum = position.lineNumber;
+          const line = model.getLineContent(lineNum);
           const before = line.slice(0, position.column - 1);
           const after = line.slice(position.column - 1);
           if (before.trim().length < 3) return { items: [] };
+          const contextStart = Math.max(1, lineNum - 30);
+          const contextEnd = Math.min(model.getLineCount(), lineNum + 30);
+          const contextLines: string[] = [];
+          for (let i = contextStart; i <= contextEnd; i++) {
+            contextLines.push(model.getLineContent(i));
+          }
+          const fileContext = contextLines.join('\n');
 
           return new Promise((resolve) => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -49,6 +57,7 @@ export function useInlineCompletion(
                   suffix: after,
                   language,
                   path: filePath,
+                  context: fileContext,
                   model: layout.inlineCompletionModel,
                 });
                 if (!completion || token.isCancellationRequested) {
@@ -72,7 +81,7 @@ export function useInlineCompletion(
               } catch {
                 resolve({ items: [] });
               }
-            }, 400);
+            }, 250);
           });
         },
         disposeInlineCompletions: () => {},

@@ -7,6 +7,7 @@ import (
 )
 
 func TestGetMCPServerConfigFromHubConfig(t *testing.T) {
+	ResetMCPPortReservation()
 	SetAppConfig(nil)
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
@@ -27,6 +28,7 @@ func TestGetMCPServerConfigFromHubConfig(t *testing.T) {
 }
 
 func TestGetMCPServerConfigDisabledWhenMasterOff(t *testing.T) {
+	ResetMCPPortReservation()
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = false
 	SetAppConfig(cfg)
@@ -38,6 +40,7 @@ func TestGetMCPServerConfigDisabledWhenMasterOff(t *testing.T) {
 }
 
 func TestGetMCPServerConfigCustomPort(t *testing.T) {
+	ResetMCPPortReservation()
 	cfg := config.DefaultConfig()
 	cfg.MCP.Ports = map[string]int{"backend": 9099}
 	SetAppConfig(cfg)
@@ -49,9 +52,34 @@ func TestGetMCPServerConfigCustomPort(t *testing.T) {
 }
 
 func TestNewMCPServerDisabled(t *testing.T) {
+	ResetMCPPortReservation()
 	cfg := &MCPServerConfig{Enabled: false, Name: "test"}
 	_, _, err := NewMCPServer(cfg)
 	if err == nil {
 		t.Fatal("expected error when disabled")
+	}
+}
+
+func TestGetMCPServerConfigSecondInstanceInProcess(t *testing.T) {
+	ResetMCPPortReservation()
+	cfg := config.DefaultConfig()
+	cfg.MCP.Enabled = true
+	if err := cfg.InstallPack(config.PackSoftwareDevelopment); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Packs.Enabled[config.PackSoftwareDevelopment] = true
+	cfg.SyncAgentsFromPacks()
+	SetAppConfig(cfg)
+
+	first := GetMCPServerConfig("BACKEND")
+	if first.InProcessOnly {
+		t.Fatal("expected first backend MCP to bind HTTP")
+	}
+	second := GetMCPServerConfig("BACKEND")
+	if !second.InProcessOnly {
+		t.Fatal("expected second backend MCP to stay in-process")
+	}
+	if second.Port != first.Port {
+		t.Fatalf("expected same port, got %d vs %d", second.Port, first.Port)
 	}
 }

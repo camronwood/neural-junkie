@@ -182,6 +182,11 @@ func (cd *CommandDetector) createCommandSuggestion(command, agentName, messageID
 	}
 }
 
+// IsSafeShellCommand reports whether a shell command is read-only / low-risk enough to auto-run.
+func IsSafeShellCommand(command string) bool {
+	return NewCommandDetector(nil).isSafeCommand(command)
+}
+
 // isSafeCommand determines if a shell command is safe to execute
 func (cd *CommandDetector) isSafeCommand(command string) bool {
 	// Read-only commands that are generally safe

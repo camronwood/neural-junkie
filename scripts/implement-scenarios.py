@@ -27,6 +27,25 @@ def load_scenario(name: str) -> dict:
         return json.load(f)
 
 
+def reset_fixture_baseline(scenario: dict) -> None:
+    """Restore known-good fixture files before implement scenarios run."""
+    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
+    fixture = (ws_cfg.get("fixture") or "").strip()
+    if not fixture:
+        return
+    fixture_root = ROOT / "scenarios" / "fixtures" / fixture
+    baseline = fixture_root / ".scenario-baseline"
+    if not baseline.is_dir():
+        return
+    for src in baseline.rglob("*"):
+        if not src.is_file():
+            continue
+        rel = src.relative_to(baseline)
+        dest = fixture_root / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+
+
 def scenario_repo_root(scenario: dict) -> str:
     ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
     root = os.environ.get("NEURAL_JUNKIE_SCENARIO_REPO", str(ROOT)).strip()
@@ -123,8 +142,13 @@ def step_assert_file_exists(ctx: ImplementContext, step: dict) -> tuple[bool, st
     full = Path(root) / rel
     if not full.is_file():
         return False, f"missing {full}"
+    text = full.read_text(encoding="utf-8", errors="replace")
+    if any_match := step.get("any_match"):
+        ok, detail = check_text_patterns(text, any_match=any_match)
+        if not ok:
+            return False, f"{rel}: {detail}"
     if want := step.get("contains"):
-        if want not in full.read_text(encoding="utf-8", errors="replace"):
+        if want not in text:
             return False, f"{rel} missing {want!r}"
     return True, rel
 
@@ -183,6 +207,7 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
         return False
     if not ensure_channel(ctx):
         return False
+    reset_fixture_baseline(scenario)
     # In-process agents discover new channels on a ~1s tick; allow subscribe before send.
     time.sleep(3.0)
     all_ok = True

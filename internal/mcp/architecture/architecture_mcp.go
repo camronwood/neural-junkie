@@ -33,9 +33,6 @@ func NewArchitectureMCP() (*ArchitectureMCP, error) {
 }
 
 func (a *ArchitectureMCP) Start() error {
-	if a.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(a.httpServer, a.config.Port)
 }
 

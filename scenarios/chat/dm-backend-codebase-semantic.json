@@ -6,7 +6,10 @@
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
   "required_agents": ["BackendEngineer"],
-  "workspace_fixture": "minimal-repo",
+  "workspace": {
+    "fixture": "minimal-repo",
+    "file_tree": "core/sample/main.go\ncore/obscure/internal/widget.go\n"
+  },
   "steps": [
     {
       "action": "send",

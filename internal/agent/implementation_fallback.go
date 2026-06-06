@@ -179,7 +179,70 @@ export default {
 	if strings.Contains(trim, "export default {") {
 		return strings.Replace(trim, "export default {", "export default {\n  darkMode: \"class\",", 1), true
 	}
+	if strings.Contains(trim, "module.exports = {") {
+		return strings.Replace(trim, "module.exports = {", "module.exports = {\n  darkMode: 'class',", 1), true
+	}
+	if strings.Contains(trim, "module.exports={") {
+		return strings.Replace(trim, "module.exports={", "module.exports={\n  darkMode: 'class',", 1), true
+	}
 	return "", false
+}
+
+// synthesizeAppThemeToggle adds local theme state and a sidebar toggle for React App entry files.
+func synthesizeAppThemeToggle(userContent, existing string) (string, bool) {
+	lower := strings.ToLower(userContent)
+	if !strings.Contains(lower, "theme") && !strings.Contains(lower, "dark") &&
+		!strings.Contains(lower, "light") && !strings.Contains(lower, "toggle") {
+		return "", false
+	}
+	body := strings.TrimSpace(existing)
+	if body == "" {
+		return "", false
+	}
+	if strings.Contains(body, "toggleTheme") || strings.Contains(body, "setTheme") {
+		return "", false
+	}
+	var b strings.Builder
+	b.WriteString(`import "./index.css";
+import { useState, useEffect } from "react";
+
+export default function App() {
+  const [theme, setTheme] = useState("dark");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prevTheme) => (prevTheme === "dark" ? "light" : "dark"));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 p-4 dark:bg-white dark:text-slate-900">
+      <aside className="w-48 border border-slate-700 rounded p-3 dark:border-slate-300">
+        <p className="text-sm text-slate-400 dark:text-slate-600">Sidebar</p>
+        <button className="mt-4 px-3 py-1 bg-slate-800 text-slate-100 rounded dark:bg-slate-200 dark:text-slate-900" onClick={toggleTheme}>
+          Toggle Theme
+        </button>
+      </aside>
+    </div>
+  );
+}
+`)
+	return b.String(), true
+}
+
+func resolveImplementationFallbackTarget(ctx context.Context, a *Agent, msg *protocol.Message, wsPath, userContent string) string {
+	if st := implementationSessionStateFromContext(ctx); st != nil && st.StackManifest != nil {
+		if rem := remainingImplementationTargets(wsPath, st.StackManifest, userContent); len(rem) > 0 {
+			return rem[0]
+		}
+	}
+	target := preferImplementationTargetPathForMessage(a, msg)
+	if target == "" {
+		target = preferImplementationTargetPath(userContent, "", a.Info.Type)
+	}
+	return target
 }
 
 func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, msg *protocol.Message) (bool, []string) {
@@ -209,10 +272,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 	}
 	var paths []string
 
-	target := preferImplementationTargetPathForMessage(a, msg)
-	if target == "" {
-		target = preferImplementationTargetPath(userContent, "", a.Info.Type)
-	}
+	target := resolveImplementationFallbackTarget(ctx, a, msg, wsPath, userContent)
 	if target == "" {
 		return false, nil
 	}
@@ -263,6 +323,23 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 			return false, nil
 		}
 		paths = []string{target}
+	case strings.HasSuffix(strings.ToLower(target), "app.tsx"), strings.HasSuffix(strings.ToLower(target), "app.jsx"):
+		existing, err := os.ReadFile(filepath.Join(wsPath, target))
+		if err != nil {
+			return false, nil
+		}
+		body, ok := synthesizeAppThemeToggle(userContent, string(existing))
+		if !ok {
+			return false, nil
+		}
+		target = a.ResolveProposalPath(ctx, msg, target)
+		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
+			return false, nil
+		}
+		if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+			return false, nil
+		}
+		paths = []string{target}
 	default:
 		return false, nil
 	}
@@ -285,8 +362,21 @@ func (a *Agent) repairTailwindDarkModeIfNeeded(ctx context.Context, msg *protoco
 	if channel == "" {
 		channel = "general"
 	}
+	userContent := msg.Content
+	if userAffirmsPendingImplementation(msg.Content) {
+		for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
+			m := a.channelHistory(msg.Channel)[i]
+			if m == nil || m.ID == msg.ID {
+				continue
+			}
+			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+				userContent = m.Content
+				break
+			}
+		}
+	}
 	var tailwindTargets []string
-	if themeImplementationRE.MatchString(msg.Content) {
+	if themeImplementationRE.MatchString(userContent) || themeImplementationRE.MatchString(msg.Content) {
 		if st := state.StackManifest; st != nil && st.TailwindConfig != "" {
 			tailwindTargets = append(tailwindTargets, st.TailwindConfig)
 		} else {
@@ -322,6 +412,60 @@ func (a *Agent) repairTailwindDarkModeIfNeeded(ctx context.Context, msg *protoco
 			continue
 		}
 		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
 		log.Printf("[%s] tailwind_darkmode_repair(path=%s)", a.Info.Name, rel)
 	}
+}
+
+func (a *Agent) repairAppThemeIfNeeded(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) {
+	if a == nil || msg == nil || state == nil || state.StackManifest == nil {
+		return
+	}
+	wsPath := a.resolveWorkspacePath(msg)
+	if wsPath == "" {
+		return
+	}
+	userContent := msg.Content
+	if userAffirmsPendingImplementation(msg.Content) {
+		for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
+			m := a.channelHistory(msg.Channel)[i]
+			if m == nil || m.ID == msg.ID {
+				continue
+			}
+			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+				userContent = m.Content
+				break
+			}
+		}
+	}
+	entry := state.StackManifest.EntryPoint
+	lowerEntry := strings.ToLower(entry)
+	if entry == "" || (!strings.HasSuffix(lowerEntry, "app.tsx") && !strings.HasSuffix(lowerEntry, "app.jsx")) {
+		return
+	}
+	if implementationTargetSatisfied(wsPath, entry, userContent) {
+		return
+	}
+	existing, err := os.ReadFile(filepath.Join(wsPath, entry))
+	if err != nil {
+		return
+	}
+	body, ok := synthesizeAppThemeToggle(userContent, string(existing))
+	if !ok || validateProposalContent(entry, body) != nil {
+		return
+	}
+	channel := msg.Channel
+	if channel == "" {
+		channel = "general"
+	}
+	rel := a.ResolveProposalPath(ctx, msg, entry)
+	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+		return
+	}
+	if err := a.proposeFileEditInChannel(channel, rel, string(existing), body, msg); err != nil {
+		return
+	}
+	state.ProposedCount++
+	state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+	log.Printf("[%s] app_theme_repair(path=%s)", a.Info.Name, rel)
 }

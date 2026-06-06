@@ -84,9 +84,6 @@ func NewResourceServer() (*ResourceServer, error) {
 
 // Start starts the MCP resource server
 func (rs *ResourceServer) Start() error {
-	if rs.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(rs.httpServer, rs.config.Port)
 }
 

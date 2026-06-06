@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -162,6 +162,12 @@ collab-scenario-regression: ## Run collab edge-case regression scenarios (plan p
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-distinct-deliverables-same-agent $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario document-findings-execution $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execution-no-stack-commands $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-conversation-quality-regression $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-no-edit-after-cancel $(if $(VERBOSE),--verbose,)
+
+conversation-scenarios-regression: ## Chat workspace + collab conversation quality (session-issue guards)
+	@chmod +x scripts/conversation-scenarios-regression.py
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/conversation-scenarios-regression.py $(if $(VERBOSE),--verbose,)
 
 test-collab-plan: ## Deterministic Go tests for collab plan parsing regressions (CI-safe)
 	@go test ./internal/collaboration/... ./internal/hub/... -count=1 -run 'Regression|DependencyProse|Findings|4ea36409|f7518f88|DocumentFindings|DistinctDeliverable|StackTool|FilterCollab|SuppressMCP'
@@ -206,6 +212,10 @@ implement-scenarios: ## Run all scenarios under scenarios/implement/
 implement-scenarios-list: ## List implementation scenarios
 	@python3 scripts/implement-scenarios.py --list
 
+test-parity-stable: ## Run implement-scenarios 3x; fail if any run < 7/7
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 7 \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
+
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go
@@ -214,7 +224,17 @@ ensure-ollama: ## Start Ollama when not healthy (system PATH or fetch-ollama bun
 	@chmod +x scripts/ensure-ollama.sh
 	@./scripts/ensure-ollama.sh
 
-gui: ensure-sidecar ensure-ollama ## Start GUI desktop app (Tauri + React)
+ensure-ollama-bundle: ## Fetch Ollama runtime for Tauri bundle when missing (first-time desktop dev)
+	@triple=$$(rustc -vV | grep host | cut -d' ' -f2); \
+	bundle="desktop/src-tauri/ollama/$$triple"; \
+	if [ -f "$$bundle/ollama" ] || [ -f "$$bundle/bin/ollama" ]; then \
+		exit 0; \
+	fi; \
+	echo "📥 Fetching Ollama bundle for Tauri ($$triple — first time, may take a minute)..."; \
+	chmod +x scripts/fetch-ollama.sh; \
+	./scripts/fetch-ollama.sh
+
+gui: ensure-sidecar ensure-ollama-bundle ensure-ollama ensure-lora-deps ## Start GUI desktop app (Tauri + React)
 	@echo "🖥️  Starting desktop app with React..."
 	@cd desktop && npm run tauri:dev
 
@@ -224,7 +244,7 @@ ensure-sidecar: ## Build sidecar binary if missing (needed for Tauri dev)
 		$(MAKE) build-sidecar; \
 	fi
 
-gui-install: ## Install GUI dependencies (first time only)
+gui-install: ensure-lora-deps ## Install GUI dependencies (first time only)
 	@echo "📦 Installing desktop app dependencies..."
 	@cd desktop && npm install
 	@echo "✅ Desktop dependencies installed!"
@@ -368,7 +388,7 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo "🖥️  To open GUI, run: make gui"
 	@echo ""
 
-start-all: setup-env ensure-ollama ## Start server and all agents with environment loaded
+start-all: setup-env ensure-ollama ensure-lora-deps ## Start server and all agents with environment loaded
 	@bash -c 'cd "$(CURDIR)"; \
 		source ./load-env.sh; \
 		PORT="$${SERVER_PORT:-18765}"; \
@@ -388,6 +408,11 @@ start-all: setup-env ensure-ollama ## Start server and all agents with environme
 			exit 1; \
 		fi; \
 		echo "✅ Hub is up. Opening GUI..."; \
+		if [ ! -x desktop/node_modules/.bin/tauri ]; then \
+			echo "📦 Desktop deps missing — installing..."; \
+			$(MAKE) gui-install; \
+		fi; \
+		$(MAKE) ensure-sidecar ensure-ollama-bundle; \
 		cd desktop && npm run tauri:dev'
 
 demo: ## Run a complete demo
@@ -420,6 +445,14 @@ deps-lora: ## Install LoRA training Python stack (.venv-lora)
 	@chmod +x ./scripts/setup-lora-deps.sh
 	@./scripts/setup-lora-deps.sh
 
+ensure-lora-deps: ## Ensure LoRA training venv exists (install once)
+	@if [ ! -x .venv-lora/bin/python ]; then \
+		echo "📦 LoRA training deps missing — installing (.venv-lora)..."; \
+		$(MAKE) deps-lora; \
+	else \
+		echo "✅ LoRA training deps ready (.venv-lora)"; \
+	fi
+
 pull-models: ## Pull required Ollama models (code tier + utility tier + LoRA bases)
 	@echo "📥 Pulling Ollama models..."
 	@echo "  Code tier: qwen2.5-coder:14b (~9GB)..."
@@ -428,6 +461,12 @@ pull-models: ## Pull required Ollama models (code tier + utility tier + LoRA bas
 	@ollama pull qwen2.5:7b
 	@echo "  LoRA base: llama3:8b (~4.7GB, biology pack)..."
 	@ollama pull llama3:8b
+	@echo "  LoRA training base: llama3.1:8b (~4.9GB, recommended for train → compose)..."
+	@ollama pull llama3.1:8b
+	@echo "  LoRA bootstrap: llama3.2:3b (~2GB, security preset)..."
+	@ollama pull llama3.2:3b
+	@echo "  LoRA bootstrap: mistral:7b (~4.4GB, SQL preset)..."
+	@ollama pull mistral:7b
 	@echo "✅ All models pulled!"
 	@echo ""
 	@ollama list

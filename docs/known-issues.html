@@ -24,7 +24,7 @@
         <a class="btn btn-ghost" href="index.html">Landing</a>
         <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
         <a class="btn btn-ghost" href="release-notes.html">Release notes</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">Download beta.23</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">Download beta.24</a>
       </nav>
     </div>
   </header>
@@ -37,7 +37,7 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
-        Last updated <time datetime="2026-06-06">June 6, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23">v1.0.0-beta.23</a>.
+        Last updated <time datetime="2026-06-06">June 6, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">v1.0.0-beta.24</a>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -181,6 +181,18 @@
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>First enabled pack sets layout</strong>
           <p>With multiple domain packs on, the first pack you enable picks IDE vs team layout.</p>
+        </li>
+        <!-- ISSUE: implement-deterministic-fallback -->
+        <li class="issue-item" id="implement-deterministic-fallback">
+          <span class="issue-badge issue-badge--active">Active</span>
+          <strong>Implement deterministic fallback</strong>
+          <p>Live implement scenarios still rely on deterministic tailwind/App repairs when local models emit prose-only replies. Hub logs: <code>deterministic_impl_fallback</code>, <code>app_theme_repair</code>.</p>
+        </li>
+        <!-- ISSUE: parity-stable-hub-oom -->
+        <li class="issue-item" id="parity-stable-hub-oom">
+          <span class="issue-badge issue-badge--active">Active</span>
+          <strong>Parity-stable hub OOM</strong>
+          <p><code>make test-parity-stable</code> back-to-back sweeps can OOM-kill the regression hub on memory-limited hosts. Restart hub between sweeps; see <code>docs/testing/parity-stable-*.log</code>.</p>
         </li>
       </ul>
 

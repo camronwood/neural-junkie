@@ -49,7 +49,15 @@ func TestChatQualityCoverage_agentChannels(t *testing.T) {
 			content: "what do you think about go vs rust?", metadata: metaChat(ContextScopeNone), wantIntent: IntentLowSignal, wantMode: ConversationModeChat},
 
 		// Regression: workspace + confusion (all agent types should classify the same)
-		{name: "workspace_visibility_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
+		{name: "workspace_visibility_backend", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
+			content: "can you see my workspace I have open?", wantIntent: IntentSubstantive},
+		{name: "workspace_visibility_frontend", agentType: protocol.AgentTypeFrontend, channel: "dm-u-fe", channelType: protocol.ChannelTypeDM,
+			content: "can you see my workspace I have open?", wantIntent: IntentSubstantive},
+		{name: "workspace_visibility_security", agentType: protocol.AgentTypeSecurity, channel: "dm-u-sec", channelType: protocol.ChannelTypeDM,
+			content: "can you see my workspace I have open?", wantIntent: IntentSubstantive},
+		{name: "workspace_visibility_architecture", agentType: protocol.AgentTypeArchitecture, channel: "dm-u-arch", channelType: protocol.ChannelTypeDM,
+			content: "can you see my workspace I have open?", wantIntent: IntentSubstantive},
+		{name: "workspace_visibility_code_review", agentType: protocol.AgentTypeCodeReview, channel: "dm-u-cr", channelType: protocol.ChannelTypeDM,
 			content: "can you see my workspace I have open?", wantIntent: IntentSubstantive},
 		{name: "short_confusion_dm", agentType: protocol.AgentTypeFrontend, channel: "dm-u-fe", channelType: protocol.ChannelTypeDM,
 			content: "What?", wantIntent: IntentSubstantive},

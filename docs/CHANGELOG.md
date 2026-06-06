@@ -6,6 +6,20 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.24] - 2026-06-06
+
+### Added
+- **Phase 1 parity bundle** — server-side `@codebase` attachments, implementation session hardening, IDE Agent `auto_apply_edits` default, inline completion in IDE layout.
+- **Multi-file implementation loop** — theme tasks continue in one user turn (`tailwind.config.js` → `src/App.tsx`) up to 5 files; scenario `react-theme-multi-file`.
+- **Stability harness** — `make test-parity-stable` and `scripts/implement-scenarios-stable.py` (3× implement sweeps, logs under `docs/testing/`).
+
+### Changed
+- **Local-first routing docs** — `fallback_provider_ids` is infrastructure-only when Ollama is absent; no automatic cloud escalation on model failure. Use `@Cursor` explicitly for cloud-grade work.
+- **Implement scenarios** — 7/7 gate including `dm-backend-codebase-semantic` and multi-file theme; `assert_file_exists` supports `any_match`.
+
+### Fixed
+- **Continuation turns** — affirmation guidance and deterministic fallback on go-ahead; exclude already-applied paths from re-proposals.
+
 ## [1.0.0-beta.23] - 2026-06-06
 
 ### Added

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
 import { useApprovalStore } from '../stores/approvalStore';
 import { useTerminalStore, type CommandSuggestion } from '../stores/terminalStore';
 import { useChatStore } from '../stores/chatStore';
@@ -17,6 +17,8 @@ interface PendingApprovalsBarProps {
   collaboration?: Collaboration | null;
   onOpenTerminal: () => void;
   onScrollToApproval: (approvalId: string) => void;
+  approveFirstPendingRef?: MutableRefObject<(() => void | Promise<void>) | null>;
+  rejectFirstPendingRef?: MutableRefObject<(() => void | Promise<void>) | null>;
 }
 
 type QueueItem =
@@ -29,6 +31,8 @@ export function PendingApprovalsBar({
   collaboration,
   onOpenTerminal,
   onScrollToApproval,
+  approveFirstPendingRef,
+  rejectFirstPendingRef,
 }: PendingApprovalsBarProps) {
   const pendingTools = useApprovalStore((s) => s.pendingTools);
   const removePendingTool = useApprovalStore((s) => s.removePendingTool);
@@ -95,6 +99,32 @@ export function PendingApprovalsBar({
     [api, removePendingTool],
   );
 
+  const readOnlyToolNames = useMemo(
+    () =>
+      new Set([
+        'read_file',
+        'grep',
+        'glob_file_search',
+        'semantic_search',
+        'list_directory',
+      ]),
+    [],
+  );
+
+  const approveAllReadOnly = useCallback(async () => {
+    const readOnly = pendingTools.filter((a) => readOnlyToolNames.has(a.toolName));
+    if (readOnly.length === 0) return;
+    setBusyKey('batch-read');
+    try {
+      for (const approval of readOnly) {
+        await api.approveToolCall(approval.id);
+        removePendingTool(approval.id);
+      }
+    } finally {
+      setBusyKey(null);
+    }
+  }, [api, pendingTools, readOnlyToolNames, removePendingTool]);
+
   const rejectTool = useCallback(
     async (approvalId: string) => {
       setBusyKey(`tool:${approvalId}`);
@@ -117,6 +147,40 @@ export function PendingApprovalsBar({
   const agentName = activeTool?.agentName ?? activeCommand?.agent_name ?? 'Agent';
   const isCommand = active?.kind === 'command';
   const isShell = activeTool ? isShellToolApproval(activeTool) : isCommand;
+
+  useEffect(() => {
+    if (!approveFirstPendingRef || !rejectFirstPendingRef) return;
+    approveFirstPendingRef.current = async () => {
+      if (!active) return;
+      if (active.kind === 'tool' && activeTool) {
+        await approveTool(activeTool.id);
+      } else if (active.kind === 'command' && activeCommand) {
+        await runCommand(activeCommand);
+      }
+    };
+    rejectFirstPendingRef.current = async () => {
+      if (!active) return;
+      if (active.kind === 'tool' && activeTool) {
+        await rejectTool(activeTool.id);
+      } else if (active.kind === 'command' && activeCommand) {
+        removeSuggestedCommand(activeCommand.id);
+      }
+    };
+    return () => {
+      approveFirstPendingRef.current = null;
+      rejectFirstPendingRef.current = null;
+    };
+  }, [
+    active,
+    activeTool,
+    activeCommand,
+    approveTool,
+    rejectTool,
+    runCommand,
+    removeSuggestedCommand,
+    approveFirstPendingRef,
+    rejectFirstPendingRef,
+  ]);
 
   return (
     <div
@@ -149,6 +213,16 @@ export function PendingApprovalsBar({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {pendingTools.some((a) => readOnlyToolNames.has(a.toolName)) && (
+            <button
+              type="button"
+              disabled={busyKey === 'batch-read'}
+              className="px-2 py-1 text-[11px] rounded border border-slack-border text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover disabled:opacity-50"
+              onClick={() => void approveAllReadOnly()}
+            >
+              Approve read-only
+            </button>
+          )}
           {activeTool && (
             <button
               type="button"

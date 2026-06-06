@@ -19,6 +19,7 @@ const (
 	implSessionMaxToolIterations = 20
 	implSessionMaxEditRounds     = 3
 	implSessionTimeout           = 180 * time.Second
+	implSessionFrontendTimeout   = 300 * time.Second
 	editorTrustAutoApply         = "auto_apply_edits"
 )
 
@@ -126,10 +127,18 @@ func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Mess
 }
 
 func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, streamMsgID string) (string, string, bool, []string, error) {
-	sessionCtx, cancel := context.WithTimeout(ctx, implSessionTimeout)
+	sessionTimeout := implSessionTimeout
+	if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
+		if m := DetectStackManifest(wsPath); m != nil && (m.HasReact || m.HasTailwind) {
+			sessionTimeout = implSessionFrontendTimeout
+		}
+	}
+	sessionCtx, cancel := context.WithTimeout(ctx, sessionTimeout)
 	defer cancel()
 
-	eff = a.GetAIProvider()
+	if eff == nil {
+		eff = a.GetAIProvider()
+	}
 	if eff == nil {
 		eff = a.EffectiveImplementationProvider(sessionCtx, msg)
 	}
@@ -154,6 +163,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	var lastResponse string
 	proposedAny := false
 	var repairNote string
+
+	for fileCycle := 0; fileCycle < implSessionMaxFiles; fileCycle++ {
+		cycleProposed := false
 
 	for round := 0; round < implSessionMaxEditRounds; round++ {
 		state.EditRound = round
@@ -192,6 +204,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 		if toolProposed || fileChangeProposed {
 			proposedAny = true
+			cycleProposed = true
 			state.Phase = "edit"
 			paths := extractChangedPathsFromResponse(response)
 			state.FilesChanged = appendUnique(state.FilesChanged, paths)
@@ -200,6 +213,16 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			}
 			lastResponse = cleaned
 			break
+		}
+
+		if round == 0 && state.groundingSatisfied() {
+			if ok, paths := a.attemptDeterministicImplementationFallback(roundCtx, msg); ok {
+				proposedAny = true
+				cycleProposed = true
+				state.FilesChanged = appendUnique(state.FilesChanged, paths)
+				lastResponse = ""
+				break
+			}
 		}
 
 		if round < implSessionMaxEditRounds-1 {
@@ -213,7 +236,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 	}
 
-	if !proposedAny && strings.TrimSpace(lastResponse) != "" {
+	if !cycleProposed && strings.TrimSpace(lastResponse) != "" {
 		fallbackCtx := withImplementationSessionState(sessionCtx, state)
 		cleaned, ok, ferr := a.maybeSubmitFileChangeFromResponse(fallbackCtx, lastResponse, msg.Channel, msg)
 		if ferr != nil {
@@ -221,20 +244,32 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 		if ok {
 			proposedAny = true
+			cycleProposed = true
 			lastResponse = cleaned
 			paths := extractChangedPathsFromResponse(lastResponse)
 			state.FilesChanged = appendUnique(state.FilesChanged, paths)
 		}
 	}
-	if !proposedAny {
+	if !cycleProposed {
 		if ok, paths := a.attemptDeterministicImplementationFallback(sessionCtx, msg); ok {
 			proposedAny = true
+			cycleProposed = true
 			state.FilesChanged = appendUnique(state.FilesChanged, paths)
 		}
 	}
 	a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
+	a.repairAppThemeIfNeeded(sessionCtx, msg, state)
+	if !cycleProposed {
+		for _, p := range state.FilesChanged {
+			if strings.Contains(strings.ToLower(p), "tailwind.config") || strings.HasSuffix(strings.ToLower(p), "app.tsx") {
+				cycleProposed = true
+				proposedAny = true
+				break
+			}
+		}
+	}
 
-	if proposedAny {
+	if cycleProposed {
 		state.Phase = "verify"
 		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
 		state.VerifyOutput = verifyOut
@@ -275,6 +310,17 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			}
 		}
 	}
+
+	if !cycleProposed && !proposedAny {
+		break
+	}
+	if cont, note := shouldContinueImplementationSession(a, msg, state); cont {
+		repairNote = note
+		state.Phase = "discover"
+		continue
+	}
+	break
+	} // fileCycle
 
 	if !proposedAny && state != nil && state.ProposedCount > 0 {
 		proposedAny = true
@@ -409,6 +455,13 @@ func detectVerifyCommands(wsPath string) []string {
 }
 
 func detectNodeVerifyCommands(wsPath string) []string {
+	nodeModules := filepath.Join(wsPath, "node_modules")
+	if _, err := os.Stat(nodeModules); err != nil {
+		if cmd := shared.TypeScriptCheckShellCommand(wsPath); cmd != "" {
+			return []string{cmd}
+		}
+		return nil
+	}
 	var cmds []string
 	if hasPackageScript(wsPath, "build") {
 		cmds = append(cmds, "npm run build")
@@ -600,6 +653,12 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 				"Already applied (do NOT re-propose): %s — edit the next required file instead.\n",
 				strings.Join(applied, ", "),
 			))
+		}
+		if userAffirmsPendingImplementation(msg.Content) {
+			prompt.WriteString(
+				"User affirmed continuation — ship the NEXT file change for the prior implementation task. " +
+					"Do not re-propose already-applied paths or reply with advice only.\n",
+			)
 		}
 	}
 	appendFileChangeMachineBlockDocs(prompt)

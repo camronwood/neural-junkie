@@ -6,7 +6,7 @@ Get Neural Junkie running in under 5 minutes.
 
 No Go, Node, or Rust required.
 
-1. Install from [GitHub Releases — v1.0.0-beta.23](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23).
+1. Install from [GitHub Releases — v1.0.0-beta.24](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24).
 2. Open the app and complete the **setup wizard** — choose **Software development**, **Life sciences**, or **Team chat & productivity** (Ollama local or cloud API key).
 3. Follow [DOWNLOAD.md](DOWNLOAD.md) for first chat and command palette usage.
 
@@ -50,7 +50,7 @@ This launches:
 
 ### Repo expert LoRAs (optional)
 
-Enable the **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack to train LoRA adapters from repo expert sessions, compose Hugging Face adapters, and install bootstrap presets (`nj-security:14b`, `nj-biology:8b`, etc.). Run `make deps-lora` once before your first training job.
+Enable the **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack to train LoRA adapters from repo expert sessions, compose Hugging Face adapters, and install bootstrap presets (`nj-security:14b`, `nj-biology:8b`, etc.). Train and compose on **Llama/Mistral bases** (`llama3.1:8b` default); specialists still default to **Qwen** for inference until you assign a composed tag. Run `make deps-lora` once before your first training job.
 
 `make start-all` does **not** run `make agents`; specialists are started inside the hub (`initializeConfiguredAgents`). Use `make agents` only when you intentionally want **separate** `cmd/agent` processes (avoid duplicate agent names versus in-process config).
 
@@ -121,7 +121,7 @@ make server
 1. Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and set `HF_TOKEN` in `env.local` or add a **Hugging Face** row under **Settings → AI Providers → Provider registry** (`type: huggingface`, model = Hub repo id such as `Qwen/Qwen2.5-Coder-7B-Instruct`).
 2. **Hosted (cloud):** open the toolbar **Model library** (⇧⌘M), **Hugging Face** tab, **Hosted**, then **Use for agents** (or **Add provider** on the detail screen).
 3. **Local download:** use the **Download** tab to pull a curated GGUF, then **Import to Ollama** (requires Ollama running). Agents use the Ollama provider with the imported tag.
-4. **LoRA adapters:** download adapter safetensors, pull base `qwen2.5-coder:14b`, then **Compose & import**. See [LORA_ADAPTERS.md](LORA_ADAPTERS.md).
+4. **LoRA adapters:** download adapter safetensors, pull the LoRA base (e.g. `llama3.1:8b`), then **Compose & import**. Inference specialists may still use `qwen2.5-coder:14b` until you assign composed tags. See [LORA_ADAPTERS.md](LORA_ADAPTERS.md).
 5. When creating a DM expert, choose **Hugging Face (hosted)** or **From hub providers** to bind `provider_id` from the registry.
 
 ### Switching Providers at Runtime

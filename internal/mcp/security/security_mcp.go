@@ -35,9 +35,6 @@ func NewSecurityMCP() (*SecurityMCP, error) {
 }
 
 func (s *SecurityMCP) Start() error {
-	if s.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(s.httpServer, s.config.Port)
 }
 

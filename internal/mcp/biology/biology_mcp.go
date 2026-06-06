@@ -38,9 +38,6 @@ func NewBiologyMCP() (*BiologyMCP, error) {
 
 // Start starts the Biology MCP server.
 func (b *BiologyMCP) Start() error {
-	if b.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(b.httpServer, b.config.Port)
 }
 

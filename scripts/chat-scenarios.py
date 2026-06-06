@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -21,7 +22,7 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
-from lib.scenario_assert import check_text_patterns  # noqa: E402
+from lib.scenario_assert import check_text_patterns, looks_like_read_only_inspection_command  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "chat"
 DEFAULT_CHANNEL = "chat-scenarios"
@@ -39,7 +40,7 @@ def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
         return out
     ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
     root = os.environ.get("NEURAL_JUNKIE_SCENARIO_REPO", str(ROOT)).strip()
-    fixture = (ws_cfg.get("fixture") or "").strip()
+    fixture = (ws_cfg.get("fixture") or scenario.get("workspace_fixture") or "").strip()
     if fixture:
         root = str((ROOT / "scenarios" / "fixtures" / fixture).resolve())
     out["workspace_context"] = {
@@ -204,6 +205,47 @@ def step_assert_reply_count(ctx: ChatScenarioContext, step: dict) -> tuple[bool,
     return True, f"reply count since start={since}"
 
 
+def step_assert_suggested_commands(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
+    msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+    pool = hub.chat_agent_messages(msgs)
+    from_agent = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    if step.get("last_reply_only"):
+        agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == from_agent]
+        if not agent_msgs:
+            return False, f"no messages from {from_agent}"
+        pool = [agent_msgs[-1]]
+
+    want_safe = step.get("require_safe")
+    want_unsafe = step.get("require_unsafe")
+    cmd_pattern = (step.get("command_match") or "").strip()
+    found = False
+    for m in pool:
+        meta = m.get("metadata") or {}
+        raw_cmds = meta.get("suggested_commands") or []
+        if not isinstance(raw_cmds, list):
+            continue
+        for item in raw_cmds:
+            if not isinstance(item, dict):
+                continue
+            cmd = (item.get("command") or "").strip()
+            if cmd_pattern and not re.search(cmd_pattern, cmd, re.I):
+                continue
+            found = True
+            is_safe = bool(item.get("is_safe"))
+            if want_safe is True and not is_safe:
+                return False, f"expected safe command, got unsafe: {cmd!r}"
+            if want_unsafe is True and is_safe:
+                return False, f"expected unsafe command, got safe: {cmd!r}"
+            if step.get("deny_readonly_unsafe"):
+                if looks_like_read_only_inspection_command(cmd) and not is_safe:
+                    return False, f"read-only command marked unsafe: {cmd!r}"
+    if not found:
+        if step.get("optional"):
+            return True, "skipped (no matching suggested_commands)"
+        return False, f"no suggested_commands matched (pattern={cmd_pattern!r})"
+    return True, "suggested command assertions ok"
+
+
 def step_assert_debug_context(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     sample = (step.get("message") or "").strip()
     if not sample:
@@ -242,6 +284,7 @@ def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> bool:
         "wait_reply": step_wait_reply,
         "assert_messages": step_assert_messages,
         "assert_reply_count": step_assert_reply_count,
+        "assert_suggested_commands": step_assert_suggested_commands,
         "assert_debug_context": step_assert_debug_context,
     }
     fn = handlers.get(action)

@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-06 · **Current beta:** [v1.0.0-beta.23](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23)
+**Last updated:** 2026-06-06 · **Current beta:** [v1.0.0-beta.24](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -52,6 +52,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
 | `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
 | `ide-v3-beta` | **Limitation** | IDE v2/v3 layout, diagnostics, and Ask/Agent routing are **beta** — see [IDE_V2.md](IDE_V2.md) / [IDE_V3.md](IDE_V3.md). |
+| `implement-deterministic-fallback` | **Active** | Live implement scenarios still rely on deterministic tailwind/App repairs when local 7B/14B emits prose-only replies; tracked via hub logs (`deterministic_impl_fallback`, `app_theme_repair`). |
+| `parity-stable-hub-oom` | **Active** | `make test-parity-stable` back-to-back sweeps can **OOM-kill** the regression hub on memory-constrained hosts; restart hub between sweeps (see `docs/testing/parity-stable-*.log`). |
 | `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
 
 ---

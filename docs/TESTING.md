@@ -29,10 +29,18 @@ See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORA
 ollama serve
 ollama pull qwen2.5-coder:7b   # if not already present
 make server-regression         # terminal 1
-make implement-scenarios       # terminal 2 — need ≥4/5 PASS
+make implement-scenarios       # terminal 2 — need 7/7 PASS
+make test-parity-stable        # optional — 3× sweeps at 7/7 under server-regression
 ```
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
+
+**Stability gate (beta.24+):** archives logs to `docs/testing/parity-stable-*.log`:
+
+```bash
+make server-regression
+make test-parity-stable
+```
 
 **Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and honest session summary (`applied and verified` or `proposals submitted`).
 

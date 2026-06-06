@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -121,12 +122,30 @@ func TestDetectVerifyCommands_nodeBuild(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "package.json", `{"scripts":{"build":"vite build","test":"node test.js"}}`)
 	writeFile(t, dir, "tsconfig.json", `{}`)
+	if err := os.Mkdir(filepath.Join(dir, "node_modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	cmds := detectVerifyCommands(dir)
 	if len(cmds) < 2 {
 		t.Fatalf("expected build + test, got %v", cmds)
 	}
 	if cmds[0] != "npm run build" {
 		t.Fatalf("first cmd: got %q", cmds[0])
+	}
+}
+
+func TestDetectVerifyCommands_nodeWithoutModules(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts":{"build":"vite build"},"devDependencies":{"typescript":"5.0.0"}}`)
+	writeFile(t, dir, "tsconfig.json", `{}`)
+	cmds := detectVerifyCommands(dir)
+	for _, c := range cmds {
+		if strings.Contains(c, "npm run build") {
+			t.Fatalf("should not npm build without node_modules, got %v", cmds)
+		}
+	}
+	if len(cmds) == 0 {
+		t.Fatal("expected tsc/npm exec fallback when node_modules missing but TS dep declared")
 	}
 }
 

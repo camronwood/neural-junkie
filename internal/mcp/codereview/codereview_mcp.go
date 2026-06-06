@@ -33,9 +33,6 @@ func NewCodeReviewMCP() (*CodeReviewMCP, error) {
 }
 
 func (c *CodeReviewMCP) Start() error {
-	if c.httpServer == nil {
-		return fmt.Errorf("MCP server not configured")
-	}
 	return mcp.StartMCPServer(c.httpServer, c.config.Port)
 }
 
