@@ -1,11 +1,31 @@
-import "./index.css";
+import React, { useState, useEffect } from 'react';
+import './App.css';
 
-export default function App() {
+function App() {
+  const [theme, setTheme] = useState('light');
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 p-4">
-      <aside className="w-48 border border-slate-700 rounded p-3">
-        <p className="text-sm text-slate-400">Sidebar</p>
+    <div className={`App ${theme}`}>
+      <aside className="sidebar">
+        <button onClick={toggleTheme} className="bg-blue-500 text-white p-2 rounded">
+          Toggle Theme
+        </button>
       </aside>
+      <header className="App-header">
+        <p>
+          Edit <code>src/App.tsx</code> and save to reload.
+        </p>
+      </header>
     </div>
   );
 }
+
+export default App;

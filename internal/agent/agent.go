@@ -582,7 +582,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	var proposalErr error
 	if implSessionProposed {
 		proposedFileChange = true
-	} else {
+	} else if !shouldRunImplementationSession(a, msg) {
 		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
 	}
 	if proposalErr != nil {
@@ -1072,7 +1072,15 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	}
 	// IDE file-tab routing applies only when the user did not @mention a specific agent.
 	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() {
+		if userRequestsCodeReview(msg.Content) {
+			return false
+		}
 		return strings.EqualFold(string(a.Info.Type), routedType)
+	}
+
+	// Repo-path project reviews defer to repo expert agents (pending or indexed).
+	if a.Hub != nil && messageDefersToRepoExpert(a, msg) {
+		return false
 	}
 
 	// Never respond to commands - let the command handler process them
@@ -1659,7 +1667,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" {
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
-		if userRequestsImplementationForMessage(a, msg) {
+		if userRequestsImplementationForMessage(a, msg) || messageNeedsWorkspaceFileLoad(a, msg) {
 			referencedLoaded += AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
 		}
 		if referencedFiles.Len() > 0 {
@@ -1675,10 +1683,11 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	// code even when the user doesn't mention specific file paths.
 	scannedLoaded := 0
 	collabInfo := a.getCollaborationContext(msg)
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && !a.hasWorkspaceTools() && shouldProactiveScanWorkspace(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && !a.hasWorkspaceTools() && shouldProactiveScanWorkspaceForMessage(a, msg) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		existingContextSize := len(prompt) - len(a.buildPromptForIntent(msg, intent))
 		if existingContextSize < maxScanChars/2 {
-			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
+			scanQuery := BuildWorkspaceScanQuery(msg.Content, a.channelHistory(msg.Channel))
+			scannedFiles, loadedCount, err := ScanWorkspaceFiles(wsPath, a.Info.Type, scanQuery, maxScanChars, includedFiles)
 			if err != nil {
 				log.Printf("[%s] Workspace scan failed: %v", a.Info.Name, err)
 			} else if scannedFiles != "" {
@@ -1743,13 +1752,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 			return retry, nil
 		}
 	}
-	if looksLikeEchoOfPriorUserTurn(msg, response, history) {
-		retry, err2 := eff.GenerateResponse(approvalCtx, a.buildEchoRetryPrompt(msg), nil)
-		if err2 == nil && strings.TrimSpace(retry) != "" &&
-			!looksLikeEchoOfPriorUserTurn(msg, retry, nil) {
-			log.Printf("[%s] Prior-turn echo detected; used echo retry", a.Info.Name)
-			return retry, nil
-		}
+	if retry := a.maybeRetryConversationalQuality(ctx, msg, response, history, eff); retry != response {
+		return retry, nil
 	}
 	return a.finalizeWorkspaceVisibilityReply(msg, response), nil
 }
@@ -1793,7 +1797,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" {
 		var referencedFiles strings.Builder
 		referencedLoaded = AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
-		if userRequestsImplementationForMessage(a, msg) {
+		if userRequestsImplementationForMessage(a, msg) || messageNeedsWorkspaceFileLoad(a, msg) {
 			referencedLoaded += AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, includedFiles)
 		}
 		if referencedFiles.Len() > 0 {
@@ -1805,11 +1809,12 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	scannedLoaded := 0
-	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && !a.hasWorkspaceTools() && shouldProactiveScanWorkspace(msg.Content) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
+	if a.shouldAugmentPromptWithWorkspace(intent, msg) && wsPath != "" && !a.agentHasDedicatedContext() && !a.hasWorkspaceTools() && shouldProactiveScanWorkspaceForMessage(a, msg) && collaborationProactiveWorkspaceScan(msg, collabInfo) {
 		basePrompt := a.buildPromptForIntent(msg, intent)
 		existingContextSize := len(prompt) - len(basePrompt)
 		if existingContextSize < maxScanChars/2 {
-			scannedFiles, loadedCount, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, msg.Content, maxScanChars, includedFiles)
+			scanQuery := BuildWorkspaceScanQuery(msg.Content, a.channelHistory(msg.Channel))
+			scannedFiles, loadedCount, scanErr := ScanWorkspaceFiles(wsPath, a.Info.Type, scanQuery, maxScanChars, includedFiles)
 			if scanErr != nil {
 				log.Printf("[%s] Workspace scan failed: %v", a.Info.Name, scanErr)
 			} else if scannedFiles != "" {
@@ -1930,6 +1935,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 			log.Printf("[%s] Ollama reply looked like prompt/context echo; retrying", a.Info.Name)
 			continue
 		}
+		text = a.maybeRetryConversationalQuality(approvalCtx, msg, text, history, eff)
 		text = a.finalizeWorkspaceVisibilityReply(msg, text)
 		return text, id, reasoning, nil
 	}
@@ -2432,6 +2438,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	AppendWorkspaceContextForChannel(&user, msg, a.effectiveChannelType(msg.Channel))
 	appendWorkspaceReviewGuidance(&user, msg)
 	appendImplementationDeliveryGuidance(&user, a, msg, a.Info.Type)
+	appendAntiRepeatFileDumpGuidance(&user, a.channelHistory(msg.Channel), a.Info.ID)
 	AppendGrantedHubDataAccess(&user, msg)
 
 	// Adaptive response length based on intent
@@ -2653,6 +2660,13 @@ func getResponseLengthGuidance(content string, implementation ...bool) string {
 
 // channelHistory returns a copy of stored history for a channel.
 func (a *Agent) channelHistory(channel string) []*protocol.Message {
+	return a.channelHistorySafe(channel)
+}
+
+func (a *Agent) channelHistorySafe(channel string) []*protocol.Message {
+	if a == nil || a.Context == nil || a.Context.History == nil {
+		return nil
+	}
 	a.contextMu.RLock()
 	defer a.contextMu.RUnlock()
 	src := a.Context.History[channel]
@@ -3013,7 +3027,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		}
 		// Deterministic fallback: user asked to write/create/save files and the model
 		// returned fenced content (or explicit approval phrases) but omitted [FILE_CHANGE].
-		if sourceMsg == nil || (!isExplicitProposalIntent(sourceMsg.Content) && !isUserRequestingFileWrite(sourceMsg.Content)) {
+		if sourceMsg == nil || !a.shouldUseFileChangeFenceFallback(sourceMsg) {
 			log.Printf("[%s] fallback_skipped(reason=no_explicit_proposal_intent)", a.Info.Name)
 			return response, false, nil
 		}
@@ -3024,14 +3038,41 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			return response, false, nil
 		}
 
-		newContent := stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(response))
+		pathSource := sourceMsg.Content
+		if userAffirmsPendingImplementation(pathSource) {
+			for i := len(a.channelHistory(sourceMsg.Channel)) - 1; i >= 0; i-- {
+				m := a.channelHistory(sourceMsg.Channel)[i]
+				if m == nil || m.ID == sourceMsg.ID {
+					continue
+				}
+				if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+					pathSource = m.Content
+					break
+				}
+			}
+		}
+		namedPath := strings.TrimSpace(extractLikelyOutputPathFromUserMessage(pathSource))
+		if namedPath == "" {
+			namedPath = preferImplementationTargetPathForMessage(a, sourceMsg)
+		}
+		newContent := stripEditorLineNumberPrefixes(extractCodeFenceForPath(response, namedPath))
+		if strings.TrimSpace(newContent) == "" {
+			newContent = stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(response))
+		}
 		if strings.TrimSpace(newContent) == "" {
 			log.Printf("[%s] fallback_skipped(reason=no_fenced_content)", a.Info.Name)
 			return response, false, nil
 		}
+		if namedPath != "" && !fencedContentPlausibleForPath(namedPath, "", newContent) {
+			if alt := preferImplementationTargetPath(sourceMsg.Content, "", a.Info.Type); alt != "" && alt != namedPath {
+				if body := stripEditorLineNumberPrefixes(extractCodeFenceForPath(response, alt)); fencedContentPlausibleForPath(alt, "", body) {
+					namedPath = alt
+					newContent = body
+				}
+			}
+		}
 
 		activePath := strings.TrimSpace(extractActiveOpenFilePath(sourceMsg))
-		namedPath := strings.TrimSpace(extractLikelyOutputPathFromUserMessage(sourceMsg.Content))
 		wantCreate := userWantsCreateOperation(sourceMsg.Content)
 
 		switch {
@@ -3054,15 +3095,45 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			log.Printf("[%s] fallback_path_used(operation=edit,target=%s)", a.Info.Name, activePath)
 			return response, true, nil
 		case namedPath != "":
-			if err := a.validateProposalForSession(ctx, sourceMsg, namedPath, ProposalOpCreate); err != nil {
+			wsPath := a.resolveWorkspacePath(sourceMsg)
+			op := ProposalOpCreate
+			if InferProposalOperation(wsPath, namedPath) == ProposalOpEdit {
+				op = ProposalOpEdit
+			}
+			if err := a.validateProposalForSession(ctx, sourceMsg, namedPath, op); err != nil {
 				return response, false, err
 			}
-			if err := a.proposeFileCreateInChannel(channel, namedPath, newContent, sourceMsg); err != nil {
+			if op == ProposalOpEdit {
+				if err := a.proposeFileEditInChannel(channel, namedPath, "", newContent, sourceMsg); err != nil {
+					return response, false, err
+				}
+			} else if err := a.proposeFileCreateInChannel(channel, namedPath, newContent, sourceMsg); err != nil {
 				return response, false, err
 			}
-			log.Printf("[%s] fallback_path_used(operation=create,target=%s)", a.Info.Name, namedPath)
+			log.Printf("[%s] fallback_path_used(operation=%s,target=%s)", a.Info.Name, op, namedPath)
 			return response, true, nil
 		default:
+			if alt := preferImplementationTargetPathForMessage(a, sourceMsg); alt != "" {
+				if body := stripEditorLineNumberPrefixes(extractCodeFenceForPath(response, alt)); strings.TrimSpace(body) != "" {
+					newContent = body
+				}
+				op := ProposalOpEdit
+				if userWantsCreateOperation(sourceMsg.Content) {
+					op = ProposalOpCreate
+				}
+				if err := a.validateProposalForSession(ctx, sourceMsg, alt, op); err != nil {
+					return response, false, err
+				}
+				if op == ProposalOpCreate {
+					if err := a.proposeFileCreateInChannel(channel, alt, newContent, sourceMsg); err != nil {
+						return response, false, err
+					}
+				} else if err := a.proposeFileEditInChannel(channel, alt, "", newContent, sourceMsg); err != nil {
+					return response, false, err
+				}
+				log.Printf("[%s] fallback_path_used(operation=%s,target=%s)", a.Info.Name, op, alt)
+				return response, true, nil
+			}
 			log.Printf("[%s] fallback_skipped(reason=missing_target_path)", a.Info.Name)
 			return response, false, nil
 		}
@@ -3274,14 +3345,17 @@ func extractLikelyOutputPathFromUserMessage(content string) string {
 	if content == "" {
 		return ""
 	}
+	if p := longestValidPathIn(DetectFilePaths(content)); p != "" {
+		return p
+	}
 	if m := userNamedFileRegex.FindStringSubmatch(content); len(m) > 1 {
-		return filepath.Base(strings.TrimSpace(m[1]))
+		return normalizeFileChangeRelPath(strings.TrimSpace(m[1]))
 	}
 	all := looseOutputFileRegex.FindAllString(content, -1)
 	if len(all) == 0 {
 		return ""
 	}
-	return filepath.Base(strings.TrimSpace(all[len(all)-1]))
+	return normalizeFileChangeRelPath(strings.TrimSpace(all[len(all)-1]))
 }
 
 func isUserRequestingFileWrite(content string) bool {
@@ -3300,6 +3374,8 @@ func isUserRequestingFileWrite(content string) bool {
 		"write to disk", "same directory", "this folder", "next to the",
 		"implement", "please implement", "implement that", "implement the",
 		"code this", "build this", "apply the plan", "make the changes",
+		"can you fix", "please fix", "fix it", "fix the", "debug this",
+		"blank screen", "white screen", "not working", "broken",
 	}
 	for _, p := range phrases {
 		if strings.Contains(lower, p) {
@@ -3343,6 +3419,21 @@ func isExplicitProposalIntent(content string) bool {
 		"yes": true, "yes please": true, "ok": true, "okay": true, "do it": true, "go ahead": true,
 	}
 	return shortAffirmations[lower]
+}
+
+// shouldUseFileChangeFenceFallback allows converting fenced code into proposals on
+// implementation turns, not only explicit "create a file" phrasing.
+func (a *Agent) shouldUseFileChangeFenceFallback(sourceMsg *protocol.Message) bool {
+	if sourceMsg == nil {
+		return false
+	}
+	if sourceMsg.ImplementationSession() {
+		return true
+	}
+	if a != nil && userRequestsImplementationForMessage(a, sourceMsg) {
+		return true
+	}
+	return isExplicitProposalIntent(sourceMsg.Content) || isUserRequestingFileWrite(sourceMsg.Content)
 }
 
 func extractActiveOpenFilePath(msg *protocol.Message) string {
@@ -3394,6 +3485,10 @@ func (a *Agent) proposeFileEditInChannel(channel, path, oldContent, newContent s
 	path = normalizeFileChangeRelPath(path)
 	if !isValidFileChangeRelPath(path) {
 		return fmt.Errorf("invalid file change path: %q", path)
+	}
+	newContent = stripEditorLineNumberPrefixes(newContent)
+	if err := validateProposalContent(path, newContent); err != nil {
+		return err
 	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
@@ -3455,12 +3550,16 @@ func (a *Agent) proposeFileCreateInChannel(channel, path, content string, source
 	if !isValidFileChangeRelPath(path) {
 		return fmt.Errorf("invalid file change path: %q", path)
 	}
+	content = stripEditorLineNumberPrefixes(content)
+	if err := validateProposalContent(path, content); err != nil {
+		return err
+	}
 	// Create file change proposal
 	proposal := &protocol.FileChangeProposal{
 		ChangeID:    uuid.New().String()[:8],
 		Operation:   "create",
 		FilePath:    path,
-		NewContent:  stripEditorLineNumberPrefixes(content),
+		NewContent:  content,
 		Agent:       a.Info,
 		Channel:     channel,
 		RequestedAt: time.Now(),

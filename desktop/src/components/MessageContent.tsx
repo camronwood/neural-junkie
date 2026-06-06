@@ -1,10 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
+import { CodeBlock } from './CodeBlock';
 import {
-  mapHighlighterLanguage,
   normalizeAgentMessageMarkdown,
   promoteStandaloneImageFilePaths,
 } from '../utils/markdownNormalize';
@@ -19,21 +17,6 @@ import { renderChatMarkdown } from '../utils/markdownRenderer';
 import { perfMarkEnd, perfMarkStart } from '../utils/perfMarks';
 
 export type { ContentPart } from '../utils/messageContentCache';
-
-const CODE_BLOCK_CUSTOM_STYLE: React.CSSProperties = {
-  margin: 0,
-  padding: '0.75rem 1rem',
-  background: 'var(--nj-prose-pre-bg)',
-  fontSize: '0.8125rem',
-  lineHeight: 1.55,
-};
-
-const CODE_TAG_PROPS = {
-  style: {
-    whiteSpace: 'pre-wrap' as const,
-    wordBreak: 'break-word' as const,
-  },
-};
 
 interface MessageContentProps {
   content: string;
@@ -328,28 +311,6 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
   );
 }
 
-const CodeBlock = memo(function CodeBlockImpl({ content, language }: { content: string; language: string }) {
-  const hl = mapHighlighterLanguage(language || 'text');
-  const showLineNumbers = useMemo(() => content.split('\n').length <= 40, [content]);
-  return (
-    <div className="pt-3 pb-3 overflow-hidden rounded-md border border-slack-border shadow-sm">
-      <div className="border-b border-slack-border bg-slack-bgHover px-3 py-1.5 text-xs font-mono text-slack-textMuted">
-        {language || 'text'}
-      </div>
-      <SyntaxHighlighter
-        language={hl}
-        style={vscDarkPlus}
-        customStyle={CODE_BLOCK_CUSTOM_STYLE}
-        codeTagProps={CODE_TAG_PROPS}
-        showLineNumbers={showLineNumbers}
-        wrapLongLines
-      >
-        {content}
-      </SyntaxHighlighter>
-    </div>
-  );
-});
-
 export function MessageContent({ content, isStreaming }: MessageContentProps) {
   const [expandedDiagram, setExpandedDiagram] = useState<string | null>(null);
 
@@ -439,7 +400,9 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
           }
           if (part.type === 'code') {
             return (
-              <CodeBlock key={`code-${index}`} content={part.content} language={part.language || 'text'} />
+              <div key={`code-${index}`} className="pt-3 pb-3">
+                <CodeBlock content={part.content} language={part.language || 'text'} />
+              </div>
             );
           }
           const html = getCachedRenderedMarkdown(part.content, renderChatMarkdown);

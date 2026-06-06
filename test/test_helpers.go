@@ -62,7 +62,7 @@ func cleanupAllTestCaches(t *testing.T) {
 			if err == nil {
 				for _, cacheKey := range cacheKeys {
 					metadata, err := repoStorage.LoadMetadata(cacheKey)
-					if err == nil && isTestPath(metadata.Path) {
+					if err == nil && isTestRepoCacheMetadata(metadata) {
 						if err := repoStorage.DeleteIndex(cacheKey); err != nil {
 							t.Logf("Warning: Failed to delete test repo cache %s: %v", cacheKey, err)
 						} else {
@@ -79,9 +79,22 @@ func cleanupAllTestCaches(t *testing.T) {
 func isTestPath(path string) bool {
 	return strings.Contains(path, "/tmp/") ||
 		strings.Contains(path, "/T/") ||
+		strings.Contains(path, "/var/folders/") ||
 		strings.Contains(path, "TestRepoAgent") ||
 		strings.Contains(path, "TestRepositoryAgent") ||
-		strings.Contains(path, "TestHelperAgent")
+		strings.Contains(path, "TestHelperAgent") ||
+		strings.Contains(path, "neural-junkie-test-home") ||
+		strings.Contains(path, "neural-junkie-agent-test-home")
+}
+
+func isTestAgentName(name string) bool {
+	name = strings.TrimSpace(name)
+	switch strings.ToLower(name) {
+	case "widget-expert", "testrepoagent", "testrepoagent1", "testrepoagent2", "dmrepoagent":
+		return true
+	default:
+		return strings.HasPrefix(name, "Test") || strings.HasPrefix(name, "test")
+	}
 }
 
 // verifyNoTestCachesRemain checks that no test-related caches remain after test execution
@@ -95,12 +108,27 @@ func verifyNoTestCachesRemain(t *testing.T) {
 		if err == nil {
 			for _, cacheKey := range cacheKeys {
 				metadata, err := repoStorage.LoadMetadata(cacheKey)
-				if err == nil && isTestPath(metadata.Path) {
+				if err == nil && isTestRepoCacheMetadata(metadata) {
 					t.Errorf("Test repository cache still exists: %s (cache key: %s)", metadata.Path, cacheKey)
 				}
 			}
 		}
 	}
+}
+
+func isTestRepoCacheMetadata(metadata *repo.RepoMetadata) bool {
+	if metadata == nil {
+		return false
+	}
+	if isTestPath(metadata.Path) {
+		return true
+	}
+	for _, name := range metadata.AgentNames {
+		if isTestAgentName(name) {
+			return true
+		}
+	}
+	return false
 }
 
 // createTestRepoPath creates a test repository path in a temporary directory

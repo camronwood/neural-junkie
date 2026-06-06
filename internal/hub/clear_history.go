@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -36,7 +37,14 @@ func (h *Hub) ClearChannelHistory(channelName string) error {
 		delete(h.threadSubscribers, tid)
 	}
 	h.clearChannelContextLocked(channelName)
+	store := h.persistentStore
 	h.mu.Unlock()
+
+	if store != nil {
+		if err := store.ClearChannelMessages(channelName); err != nil {
+			log.Printf("[hub] clear persistent messages for %q: %v", channelName, err)
+		}
+	}
 
 	systemFrom := protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral}
 	resync := protocol.NewMessage(protocol.MessageTypeAgentStatus, channelName, systemFrom, "")

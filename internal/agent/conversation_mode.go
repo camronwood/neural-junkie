@@ -51,6 +51,12 @@ func hasCodeTaskSignals(content string) bool {
 	if content == "" {
 		return false
 	}
+	if isWeakImplementationAffirmation(content) {
+		return false
+	}
+	if userAffirmsPendingImplementation(content) {
+		return true
+	}
 	if hasScanOrEditorTaskSignals(content) {
 		return true
 	}

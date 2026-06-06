@@ -169,6 +169,25 @@ vi.mock('./QuickOpenModal', () => ({ QuickOpenModal: () => null }));
 vi.mock('./SymbolModal', () => ({ SymbolModal: () => null }));
 vi.mock('./ProblemsPanel', () => ({ ProblemsPanel: () => null }));
 vi.mock('./FastEditModal', () => ({ FastEditModal: () => null }));
+vi.mock('./PhoenixBrowserModal', () => ({ PhoenixBrowserModal: () => null }));
+vi.mock('./LearningProposalModal', () => ({ LearningProposalModal: () => null }));
+vi.mock('./ModelLibraryModal', () => ({ ModelLibraryModal: () => null }));
+vi.mock('./SecondaryAnalysisPanel', () => ({ SecondaryAnalysisPanel: () => null }));
+vi.mock('./PendingApprovalsBar', () => ({ PendingApprovalsBar: () => null }));
+vi.mock('../stores/approvalStore', () => {
+  const state = {
+    pendingTools: [],
+    upsertPendingTool: vi.fn(),
+    removePendingTool: vi.fn(),
+    syncPendingFromHub: vi.fn().mockResolvedValue(undefined),
+  };
+  return {
+    useApprovalStore: Object.assign(
+      (sel: (s: typeof state) => unknown) => sel(state),
+      { getState: () => state }
+    ),
+  };
+});
 vi.mock('../utils/collaborationConfirm', () => ({
   confirmStartCollaborationWhileExecuting: (executing: unknown) => confirmStartMock(executing) as boolean,
   confirmReplaceCollaborationExecution: (executing: unknown, incoming: unknown) =>

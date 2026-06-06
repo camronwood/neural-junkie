@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -73,16 +74,50 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg.GetCollaborationID() != "" {
 		return false
 	}
-	if msg.IdeEditorMode() != "agent" {
-		return false
-	}
-	if msg.IdeRouteAgentType() == "" && !msg.ImplementationSession() {
+	if msg.IdeEditorMode() == "ask" {
 		return false
 	}
 	if !agentTypeCanShipFileChanges(a.Info.Type) {
 		return false
 	}
-	return userRequestsImplementationForMessage(a, msg) || msg.ImplementationSession()
+	// CodeReviewer is read-only — never run the file-edit implementation loop.
+	if a.Info.Type == protocol.AgentTypeCodeReview {
+		return false
+	}
+	if userRequestsCodeReview(msg.Content) {
+		return false
+	}
+
+	history := a.channelHistorySafe(msg.Channel)
+	if vagueContinuationWithoutPriorThread(history, msg.ID, a.Info.ID, msg.Content) {
+		return false
+	}
+	activeThread := channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)
+	wantImpl := userRequestsImplementationForMessage(a, msg) || msg.ImplementationSession()
+
+	if userAffirmsPendingImplementation(msg.Content) && isWeakImplementationAffirmation(msg.Content) &&
+		!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
+		!userRequestsImplementation(msg.Content) {
+		return false
+	}
+
+	if activeThread && (userAffirmsPendingImplementation(msg.Content) || userRequestsImplementation(msg.Content) || msg.ImplementationSession()) {
+		if userAffirmsPendingImplementation(msg.Content) &&
+			!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
+			!userRequestsImplementation(msg.Content) {
+			return false
+		}
+		return true
+	}
+	if !wantImpl {
+		return false
+	}
+	if msg.IdeEditorMode() == "agent" {
+		if msg.IdeRouteAgentType() != "" || msg.ImplementationSession() || userRequestsImplementation(msg.Content) {
+			return true
+		}
+	}
+	return msg.ImplementationSession()
 }
 
 func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, bool, []string, error) {
@@ -94,21 +129,15 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	sessionCtx, cancel := context.WithTimeout(ctx, implSessionTimeout)
 	defer cancel()
 
-	eff = a.EffectiveImplementationProvider(sessionCtx, msg)
+	eff = a.GetAIProvider()
 	if eff == nil {
-		eff = a.GetAIProvider()
+		eff = a.EffectiveImplementationProvider(sessionCtx, msg)
 	}
 
-	toolModel := ""
+	toolModel := a.resolveImplementationToolModel("")
 	if globalImplementationRouting != nil {
 		plan, _ := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
-		toolModel = plan.ToolModel
-	}
-	if toolModel == "" {
-		toolModel = ai.ImplementationToolModelFromContext(sessionCtx)
-	}
-	if toolModel == "" {
-		toolModel = "qwen2.5-coder:7b"
+		toolModel = a.resolveImplementationToolModel(plan.ToolModel)
 	}
 	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
 	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, implSessionMaxToolIterations)
@@ -184,6 +213,27 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 	}
 
+	if !proposedAny && strings.TrimSpace(lastResponse) != "" {
+		fallbackCtx := withImplementationSessionState(sessionCtx, state)
+		cleaned, ok, ferr := a.maybeSubmitFileChangeFromResponse(fallbackCtx, lastResponse, msg.Channel, msg)
+		if ferr != nil {
+			log.Printf("[%s] impl session end fallback error: %v", a.Info.Name, ferr)
+		}
+		if ok {
+			proposedAny = true
+			lastResponse = cleaned
+			paths := extractChangedPathsFromResponse(lastResponse)
+			state.FilesChanged = appendUnique(state.FilesChanged, paths)
+		}
+	}
+	if !proposedAny {
+		if ok, paths := a.attemptDeterministicImplementationFallback(sessionCtx, msg); ok {
+			proposedAny = true
+			state.FilesChanged = appendUnique(state.FilesChanged, paths)
+		}
+	}
+	a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
+
 	if proposedAny {
 		state.Phase = "verify"
 		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
@@ -226,6 +276,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 	}
 
+	if !proposedAny && state != nil && state.ProposedCount > 0 {
+		proposedAny = true
+	}
 	summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
 	return summary, streamMsgID, proposedAny, state.FilesChanged, nil
 }
@@ -252,6 +305,9 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	if note := repairNoteFromContext(ctx); note != "" {
 		prompt += "\n=== REPAIR REQUIRED ===\n" + note + "\n"
 	}
+	var sessionGuidance strings.Builder
+	appendImplementationSessionToolGuidance(&sessionGuidance, a, msg)
+	prompt += sessionGuidance.String()
 
 	if round := implementationSessionRoundFromContext(ctx); round == 0 {
 		wsPath := a.resolveWorkspacePath(msg)
@@ -260,8 +316,23 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 				prompt += st.StackManifest.FormatPromptBlock()
 			}
 			var referencedFiles strings.Builder
-			AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
-			seeds := AppendImplementationSeedFiles(&referencedFiles, a, msg, wsPath, a.Info.Type, collectIncludedFilePaths(msg))
+			seedMsg := msg
+			if userAffirmsPendingImplementation(msg.Content) {
+				for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
+					m := a.channelHistory(msg.Channel)[i]
+					if m == nil || m.ID == msg.ID {
+						continue
+					}
+					if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+						seedMsg = m
+						AppendReferencedFiles(&referencedFiles, m.Content, wsPath)
+						break
+					}
+				}
+			} else {
+				AppendReferencedFiles(&referencedFiles, msg.Content, wsPath)
+			}
+			seeds := AppendImplementationSeedFiles(&referencedFiles, a, seedMsg, wsPath, a.Info.Type, collectIncludedFilePaths(msg))
 			if st := implementationSessionStateFromContext(ctx); st != nil {
 				st.SeedsLoaded += seeds
 			}
@@ -275,6 +346,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	prompt, _ = applyContextBudgetForMessage(msg, prompt)
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
+	eff = a.toolCapableProvider(approvalCtx, eff)
 	if len(a.agentToolDefinitions()) > 0 {
 		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 	}
@@ -340,8 +412,8 @@ func detectNodeVerifyCommands(wsPath string) []string {
 	var cmds []string
 	if hasPackageScript(wsPath, "build") {
 		cmds = append(cmds, "npm run build")
-	} else if _, err := os.Stat(filepath.Join(wsPath, "tsconfig.json")); err == nil {
-		cmds = append(cmds, "npx tsc --noEmit")
+	} else if cmd := shared.TypeScriptCheckShellCommand(wsPath); cmd != "" {
+		cmds = append(cmds, cmd)
 	}
 	if hasPackageScript(wsPath, "typecheck") {
 		cmds = append(cmds, "npm run typecheck")
@@ -434,8 +506,44 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 	} else if state != nil && state.VerifySkipped && proposed {
 		b.WriteString("Verification skipped (interactive trust — approve proposals to apply changes).\n\n")
 	}
-	b.WriteString(strings.TrimSpace(lastResponse))
+	body := sanitizeFailedImplementationResponse(lastResponse, state)
+	b.WriteString(body)
 	return strings.TrimSpace(b.String())
+}
+
+func sanitizeFailedImplementationResponse(lastResponse string, state *ImplementationSessionState) string {
+	trim := strings.TrimSpace(lastResponse)
+	if state == nil || state.SeedsLoaded < 1 {
+		return trim
+	}
+	lower := strings.ToLower(trim)
+	asksForPaste := strings.Contains(lower, "please provide") ||
+		strings.Contains(lower, "could you please share") ||
+		strings.Contains(lower, "paste the content") ||
+		strings.Contains(lower, "share the content of") ||
+		strings.Contains(lower, "please share the content")
+	if !asksForPaste {
+		return trim
+	}
+	return "Workspace files were already loaded for this session, but I could not produce [FILE_CHANGE] proposals. " +
+		"Diagnose using src/main.tsx, src/App.tsx, index.html, and src-tauri/tauri.conf.json, then emit concrete fixes via [FILE_CHANGE] or propose_file_edit."
+}
+
+// resolveImplementationToolModel prefers the agent's own coder model for tool loops (e.g. qwen2.5-coder:14b)
+// instead of always downgrading to the global 7b default.
+func (a *Agent) resolveImplementationToolModel(planToolModel string) string {
+	if a != nil {
+		if agentModel := strings.TrimSpace(a.Info.AIModel); agentModel != "" {
+			lower := strings.ToLower(agentModel)
+			if strings.Contains(lower, "qwen2.5-coder") || strings.Contains(lower, "codestral") {
+				return agentModel
+			}
+		}
+	}
+	if m := strings.TrimSpace(planToolModel); m != "" {
+		return m
+	}
+	return "qwen2.5-coder:7b"
 }
 
 func truncateImplLog(s string, max int) string {
@@ -472,6 +580,29 @@ func appendUnique(dst []string, add []string) []string {
 		dst = append(dst, p)
 	}
 	return dst
+}
+
+func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, msg *protocol.Message) {
+	if a == nil || prompt == nil {
+		return
+	}
+	prompt.WriteString("\n=== IMPLEMENTATION SESSION (required delivery) ===\n")
+	prompt.WriteString("Ship working file changes in this turn — advice-only is not acceptable.\n")
+	if a.hasWorkspaceTools() {
+		prompt.WriteString("Prefer the propose_file_edit tool (path, content, operation create|edit) for each file you change.\n")
+	}
+	prompt.WriteString("Alternatively emit one or more [FILE_CHANGE] blocks with real relative paths and full file content.\n")
+	prompt.WriteString("Do NOT re-plan or ask design questions when the user already approved or said to proceed — ship file changes in this turn.\n")
+	if msg != nil {
+		applied := channelRecentlyAppliedFilePaths(a.channelHistory(msg.Channel), msg.ID, a.Info.ID)
+		if len(applied) > 0 {
+			prompt.WriteString(fmt.Sprintf(
+				"Already applied (do NOT re-propose): %s — edit the next required file instead.\n",
+				strings.Join(applied, ", "),
+			))
+		}
+	}
+	appendFileChangeMachineBlockDocs(prompt)
 }
 
 const proposeFileEditToolName = "propose_file_edit"

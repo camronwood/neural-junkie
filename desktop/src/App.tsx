@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { ChatWindow } from './components/ChatWindow';
-import { SettingsModal } from './components/SettingsModal';
+import { SettingsModal, type SettingsTab } from './components/SettingsModal';
 import { MarkdownPreview } from './components/MarkdownPreview';
 import { LoadingScreen } from './components/LoadingScreen';
 import { SetupWizard } from './components/SetupWizard';
@@ -22,6 +22,7 @@ type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
 function App() {
   const [phase, setPhase] = useState<AppPhase>('loading');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab | undefined>();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewParams, setPreviewParams] = useState<{ workspaceId: string; filePath: string } | null>(null);
   const { settings, loadSettings, syncUserRulesFromHub } = useSettingsStore();
@@ -67,7 +68,10 @@ function App() {
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    onOpenSettings: () => setIsSettingsOpen(true),
+    onOpenSettings: () => {
+      setSettingsInitialTab(undefined);
+      setIsSettingsOpen(true);
+    },
     onToggleTerminal: togglePanel,
   });
 
@@ -125,8 +129,14 @@ function App() {
   }
 
   const handleConnect = () => setPhase('chat');
-  const handleOpenSettings = () => setIsSettingsOpen(true);
-  const handleCloseSettings = () => setIsSettingsOpen(false);
+  const handleOpenSettings = (tab?: SettingsTab) => {
+    setSettingsInitialTab(tab);
+    setIsSettingsOpen(true);
+  };
+  const handleCloseSettings = () => {
+    setIsSettingsOpen(false);
+    setSettingsInitialTab(undefined);
+  };
   const handleLogout = () => setPhase('login');
 
   // Render preview mode if active
@@ -166,9 +176,10 @@ function App() {
         )}
       </div>
       
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
+      <SettingsModal
+        isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
+        initialTab={settingsInitialTab}
       />
     </div>
   );

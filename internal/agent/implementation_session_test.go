@@ -25,6 +25,87 @@ func TestShouldRunImplementationSession(t *testing.T) {
 	}
 }
 
+func TestShouldRunImplementationSession_continuationAfterFileChange(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"dm-u-fe": {
+					{
+						ID:   "fc1",
+						Type: protocol.MessageTypeFileChange,
+						From: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						Content: "edit src/App.tsx",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{ID: "u2", Name: "User"}, "approved")
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("expected implementation session after approval in active thread")
+	}
+}
+
+func TestShouldRunImplementationSession_vagueContinuationWithoutThread(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"dm-u-fe": {
+					{
+						ID:   "join",
+						Type: protocol.MessageTypeAgentJoin,
+						From: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						Content: "FrontendEngineer has joined the channel",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{ID: "u1", Name: "User"}, "can you pick up where you left off?")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"conversation_mode":      "code",
+	}
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("vague continuation without prior thread should not run implementation session")
+	}
+}
+
+func TestShouldRunImplementationSession_weakAffirmAfterFailedSession(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "fe-1", Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"dm-u-fe": {
+					{
+						ID:      "u1",
+						Type:    protocol.MessageTypeQuestion,
+						From:    protocol.AgentInfo{ID: "u0", Name: "User"},
+						Content: "blank screen can you fix it?",
+					},
+					{
+						ID:      "a1",
+						Type:    protocol.MessageTypeChat,
+						From:    protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend},
+						Content: "Implementation session finished without file changes.",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{ID: "u2", Name: "User"}, "looks good")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "agent",
+		"implementation_session":   true,
+		"ide_route_agent_type":   "frontend",
+	}
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("expected looks good after failed session not to run implementation session")
+	}
+}
+
 func TestDetectVerifyCommands_go(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
@@ -58,6 +139,10 @@ func TestGroundingSatisfied(t *testing.T) {
 	st2 := &ImplementationSessionState{}
 	if st2.groundingSatisfied() {
 		t.Fatal("empty state should not satisfy grounding")
+	}
+	st3 := &ImplementationSessionState{SeedsLoaded: 1}
+	if !st3.groundingSatisfied() {
+		t.Fatal("one seed file should satisfy grounding")
 	}
 }
 

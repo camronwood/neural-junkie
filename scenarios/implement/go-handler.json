@@ -19,12 +19,18 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s",
+      "until_any_match": ["applied and verified|proposals submitted|verification failed|HelloWorld"]
+    },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|HelloWorld|file change|Grounding|applied and verified|proposals submitted|Proposing to edit|finished without"]
+      "any_match": ["implementation session|HelloWorld|file change|Grounding|applied and verified|proposals submitted|Proposing to edit"],
+      "none_match": ["finished without file changes"]
     },
     {
       "action": "assert_file_exists",

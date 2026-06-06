@@ -68,6 +68,7 @@ func tryFromRepoIndex(workspacePath string, agentType protocol.AgentType, query 
 	}
 
 	files := repo.SearchRelevantFiles(query, index, maxScanFiles*2)
+	files = sortFilesForWorkspaceScan(files, query, agentType)
 	if len(files) == 0 {
 		return "", 0
 	}
@@ -219,9 +220,9 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 			return nil
 		}
 
-		priority := 100
+		priority := workspaceScanPathPriority(rel, query, agentType)
 		if matchesEntry {
-			priority = 10
+			priority -= 10
 		}
 		relLower := strings.ToLower(rel)
 		for _, w := range queryWords {
@@ -229,9 +230,6 @@ func scanDirectory(workspacePath string, agentType protocol.AgentType, query str
 				priority -= 20
 				break
 			}
-		}
-		if strings.Contains(relLower, "test") || strings.Contains(relLower, "spec") {
-			priority += 30
 		}
 
 		candidates = append(candidates, scannedFile{
@@ -384,4 +382,84 @@ func isEntryPoint(filePath string, agentType protocol.AgentType) bool {
 		}
 	}
 	return false
+}
+
+// BuildWorkspaceScanQuery merges the current turn with recent channel text so
+// short affirmations ("ok goahead") still search for settings/theme files.
+func BuildWorkspaceScanQuery(content string, history []*protocol.Message) string {
+	parts := []string{strings.TrimSpace(content)}
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 6; i-- {
+		m := history[i]
+		if m == nil {
+			continue
+		}
+		body := strings.TrimSpace(m.Content)
+		if body == "" {
+			continue
+		}
+		parts = append(parts, body)
+		seen++
+	}
+	return strings.Join(parts, "\n")
+}
+
+func sortFilesForWorkspaceScan(files []*repo.SourceFile, query string, agentType protocol.AgentType) []*repo.SourceFile {
+	if len(files) <= 1 {
+		return files
+	}
+	type ranked struct {
+		file     *repo.SourceFile
+		priority int
+	}
+	rankedFiles := make([]ranked, len(files))
+	for i, f := range files {
+		rankedFiles[i] = ranked{file: f, priority: workspaceScanPathPriority(f.Path, query, agentType)}
+	}
+	sort.Slice(rankedFiles, func(i, j int) bool {
+		return rankedFiles[i].priority < rankedFiles[j].priority
+	})
+	out := make([]*repo.SourceFile, len(files))
+	for i, r := range rankedFiles {
+		out[i] = r.file
+	}
+	return out
+}
+
+func workspaceScanPathPriority(relPath, query string, agentType protocol.AgentType) int {
+	priority := 100
+	lower := strings.ToLower(strings.ReplaceAll(relPath, "\\", "/"))
+	queryLower := strings.ToLower(query)
+
+	if agentType == protocol.AgentTypeFrontend {
+		if strings.Contains(lower, "src/components/") {
+			priority -= 45
+		}
+		if strings.Contains(lower, "src/") && (strings.HasSuffix(lower, ".tsx") || strings.HasSuffix(lower, ".jsx")) {
+			priority -= 20
+		}
+	}
+	if strings.Contains(lower, "docs/") && strings.HasSuffix(lower, ".html") {
+		priority += 55
+	}
+	if strings.Contains(lower, "release-notes") {
+		priority += 45
+	}
+	if strings.HasSuffix(lower, "readme.md") {
+		priority += 35
+	}
+	for _, p := range DetectFilePaths(query) {
+		if strings.Contains(lower, strings.ToLower(p)) {
+			priority -= 70
+		}
+	}
+	for _, kw := range []string{"settings", "theme", "modal", "font"} {
+		if strings.Contains(queryLower, kw) && strings.Contains(lower, kw) {
+			priority -= 25
+		}
+	}
+	if strings.Contains(lower, "test") || strings.Contains(lower, "spec") {
+		priority += 30
+	}
+	return priority
 }

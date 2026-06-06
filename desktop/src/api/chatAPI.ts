@@ -2199,6 +2199,25 @@ export class ChatAPI {
 
   // Tool approval API methods
 
+  async fetchPendingToolApprovals(): Promise<
+    Array<{
+      id: string;
+      agent_id: string;
+      agent_name: string;
+      session_id?: string;
+      tool_name: string;
+      tool_input?: Record<string, unknown>;
+      channel: string;
+      created_at: string;
+    }>
+  > {
+    const response = await this.hubFetch('/api/tool-approvals/pending');
+    if (!response.ok) {
+      throw new Error(`Failed to list pending tool approvals: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   async approveToolCall(approvalId: string): Promise<void> {
     const response = await this.hubFetch(`/api/tool-approvals/approve/${approvalId}`, {
       method: 'POST',

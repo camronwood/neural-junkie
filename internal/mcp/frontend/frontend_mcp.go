@@ -83,7 +83,10 @@ func (f *FrontendMCP) handleRunTypescriptCheck(ctx context.Context, request mcpg
 	if !shared.PathExists(filepath.Join(root, "tsconfig.json")) {
 		return mcp.HandleToolError(fmt.Errorf("tsconfig.json not found in %s", root), "run_typescript_check"), nil
 	}
-	out, err := shared.RunCommand(ctx, root, "npx", "--yes", "tsc", "--noEmit")
+	if !shared.ProjectHasTypeScript(root) {
+		return mcp.HandleToolSuccess(shared.TypeScriptNotConfiguredMessage(root)), nil
+	}
+	out, err := shared.RunTypeScriptCheck(ctx, root)
 	return mcp.HandleToolSuccess(shared.FormatCommandResult("TypeScript check:", out, err)), nil
 }
 
@@ -96,6 +99,9 @@ func (f *FrontendMCP) handleRunESLint(ctx context.Context, request mcpgo.CallToo
 		return mcp.HandleToolError(fmt.Errorf("path not found: %s", target), "run_eslint"), nil
 	}
 	root := shared.FindProjectRoot(target, "package.json", ".eslintrc.js", ".eslintrc.json", "eslint.config.js")
+	if !shared.ProjectHasESLint(root) {
+		return mcp.HandleToolSuccess(shared.ESLintNotConfiguredMessage(root)), nil
+	}
 	out, err := shared.RunCommand(ctx, root, "npx", "--yes", "eslint", target)
 	if err != nil && strings.Contains(out, "eslint") && strings.Contains(out, "not found") {
 		return mcp.HandleToolSuccess(mcp.MissingBinaryMessage("eslint", "Run npm install eslint in the project or install globally.")), nil

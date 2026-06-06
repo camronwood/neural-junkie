@@ -178,6 +178,25 @@ vi.mock('./RunbookBuilderPanel', () => ({ RunbookBuilderPanel: () => null }));
 vi.mock('./TaskManagementPanel', () => ({ TaskManagementPanel: () => null }));
 vi.mock('./CollaborationWorkspaceGate', () => ({ CollaborationWorkspaceGate: () => null }));
 vi.mock('./HubDataAccessModal', () => ({ HubDataAccessModal: () => null }));
+vi.mock('./PhoenixBrowserModal', () => ({ PhoenixBrowserModal: () => null }));
+vi.mock('./LearningProposalModal', () => ({ LearningProposalModal: () => null }));
+vi.mock('./ModelLibraryModal', () => ({ ModelLibraryModal: () => null }));
+vi.mock('./SecondaryAnalysisPanel', () => ({ SecondaryAnalysisPanel: () => null }));
+vi.mock('./PendingApprovalsBar', () => ({ PendingApprovalsBar: () => null }));
+vi.mock('../stores/approvalStore', () => {
+  const state = {
+    pendingTools: [],
+    upsertPendingTool: vi.fn(),
+    removePendingTool: vi.fn(),
+    syncPendingFromHub: vi.fn().mockResolvedValue(undefined),
+  };
+  return {
+    useApprovalStore: Object.assign(
+      (sel: (s: typeof state) => unknown) => sel(state),
+      { getState: () => state }
+    ),
+  };
+});
 vi.mock('./RichTextInput', () => ({
   RichTextInput: React.forwardRef(function MockRichTextInput(
     { onSend }: { onSend: (c: string) => void },

@@ -18,7 +18,12 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" }
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s",
+      "until_any_match": ["applied and verified|proposals submitted|PrintVersion"]
+    }
   ],
   "steps": [
     {
@@ -31,12 +36,18 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "180s",
+      "until_any_match": ["applied and verified|proposals submitted|PrintVersion"]
+    },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation|PrintVersion|Grounding|applied and verified|proposals submitted"]
+      "any_match": ["implementation|PrintVersion|Grounding|applied and verified|proposals submitted"],
+      "none_match": ["finished without file changes"]
     },
     {
       "action": "assert_file_exists",

@@ -76,12 +76,21 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
         except ValueError:
             pass
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    until_any = step.get("until_any_match")
     deadline = time.time() + secs
     while time.time() < deadline:
-        msgs = hub.list_messages(ctx.base, ctx.channel, 30)
-        for m in reversed(msgs):
-            if m.get("from", {}).get("name") == from_name:
-                return True, f"reply from {from_name}"
+        msgs = hub.list_messages(ctx.base, ctx.channel, 40)
+        candidates = [m for m in msgs if m.get("from", {}).get("name") == from_name]
+        if not candidates:
+            time.sleep(2)
+            continue
+        text = candidates[-1].get("content") or ""
+        if until_any:
+            ok, detail = check_text_patterns(text, any_match=until_any)
+            if ok:
+                return True, f"reply from {from_name} ({detail})"
+        else:
+            return True, f"reply from {from_name}"
         time.sleep(2)
     return False, f"timeout waiting for {from_name}"
 

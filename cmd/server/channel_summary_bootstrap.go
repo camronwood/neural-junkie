@@ -15,8 +15,9 @@ import (
 const sessionSummarySystemPrompt = `You summarize a short chat channel session for an AI agent's context.
 Write 3-6 bullet points covering:
 - The user's current goal (latest unanswered ask)
-- Key facts still needed for that goal
+- Key facts still needed for that goal (only if truly missing from the transcript)
 - Open questions only (unresolved)
+If the assistant already named specific file paths, loaded workspace files, or proposed edits, record those paths as KNOWN context — do NOT list them under "still needed".
 Do NOT restate answered questions, copy assistant reply text, or list code the assistant already gave.
 Omit topics the user has not mentioned in the last two user messages unless still explicitly open.
 Be factual; do not invent details not present in the transcript.

@@ -6,6 +6,28 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.23] - 2026-06-06
+
+### Added
+- **CLI agents manager** — desktop UI + hub handlers for Codex, Cursor, Gemini, and Copilot CLI agents.
+- **Pending tool approvals bar** — hub-wide approval queue synced to the desktop composer.
+- **Implementation fallback** — deterministic tailwind/theme repairs when models emit prose-only implementation replies.
+- **Code review intent** — dedicated routing so review asks do not open the file-edit implementation loop.
+- **Shared TypeScript/ESLint MCP helpers** — `tsc` / `eslint` verification for frontend implementation sessions.
+- **Test artifact cleanup** — `scripts/cleanup-test-artifacts.py` and `make cleanup-test-artifacts`; auto-run after `make test-go`.
+- **Marketing assets** — non-dev provider/logo ads and edge-IDE campaign creatives under `assets/`.
+
+### Changed
+- **Implementation continuation** — skip re-proposing already-applied files; block vague “pick up where you left off” without prior thread context.
+- **File-change approvals** — agent-visible approval messages with metadata; auto-continue prompts after UI apply.
+- **Ollama dev/runtime** — bundled-runtime chip, `ensure-ollama.sh`, and sidecar PATH resolution for Tauri dev.
+- **Test isolation** — `internal/agent/test_main.go` and expanded `test/` home isolation so repo-agent tests no longer pollute `~/.neural-junkie/repos`.
+
+### Fixed
+- **Compact assistant prompt test** — user-rules lookup uses a user-like sender type.
+- **ChatWindow Vitest** — mock PhoenixBrowserModal, pending approvals, and related stores in collaboration/interject tests.
+- **Hub history clear** — persistent store cleanup for `clear-history` API.
+
 ## [1.0.0-beta.22] - 2026-06-05
 
 ### Added

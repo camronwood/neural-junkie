@@ -103,12 +103,21 @@ func (c *CodeReviewMCP) handleRunGoTests(ctx context.Context, request mcpgo.Call
 func (c *CodeReviewMCP) handleRunESLint(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	target := request.GetString("target_path", "")
 	root := shared.FindProjectRoot(target, "package.json")
+	if !shared.ProjectHasESLint(root) {
+		return mcp.HandleToolSuccess(shared.ESLintNotConfiguredMessage(root)), nil
+	}
 	out, err := shared.RunCommand(ctx, root, "npx", "--yes", "eslint", target)
 	return mcp.HandleToolSuccess(shared.FormatCommandResult("eslint:", out, err)), nil
 }
 
 func (c *CodeReviewMCP) handleRunTypescriptCheck(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-	root := shared.FindProjectRoot(request.GetString("project_path", "."), "tsconfig.json")
-	out, err := shared.RunCommand(ctx, root, "npx", "--yes", "tsc", "--noEmit")
-	return mcp.HandleToolSuccess(shared.FormatCommandResult("tsc:", out, err)), nil
+	root := shared.FindProjectRoot(request.GetString("project_path", "."), "tsconfig.json", "package.json")
+	if !shared.PathExists(filepath.Join(root, "tsconfig.json")) {
+		return mcp.HandleToolError(fmt.Errorf("tsconfig.json not found in %s", root), "run_typescript_check"), nil
+	}
+	if !shared.ProjectHasTypeScript(root) {
+		return mcp.HandleToolSuccess(shared.TypeScriptNotConfiguredMessage(root)), nil
+	}
+	out, err := shared.RunTypeScriptCheck(ctx, root)
+	return mcp.HandleToolSuccess(shared.FormatCommandResult("TypeScript check:", out, err)), nil
 }

@@ -56,6 +56,19 @@ func TestOmitFromLLMHistory_commandOutputEmptyOmitted(t *testing.T) {
 	}
 }
 
+func TestOmitFromLLMHistory_fileChangeApprovalKept(t *testing.T) {
+	m := protocol.NewMessage(
+		protocol.MessageTypeChat,
+		"c",
+		protocol.AgentInfo{ID: "human-user", Name: "User", Type: "human"},
+		"Approved and applied your edit change to `src/App.tsx`.",
+	)
+	m.Metadata = map[string]interface{}{protocol.MetaFileChangeApproved: true}
+	if OmitFromLLMHistory(m) {
+		t.Fatal("expected file-change approval chat kept in LLM history")
+	}
+}
+
 func TestFilterForLLM_excludesNoise(t *testing.T) {
 	msgs := []*protocol.Message{
 		protocol.NewMessage(protocol.MessageTypeChat, "c", protocol.AgentInfo{ID: "u", Name: "User"}, "hi"),

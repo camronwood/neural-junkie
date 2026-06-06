@@ -289,18 +289,44 @@ func AppendReferencedFiles(prompt *strings.Builder, messageContent string, works
 	return len(loadedFiles)
 }
 
+// messagePromotesWorkspaceFocus reports when a message should receive file content, not tree-only outline.
+func messagePromotesWorkspaceFocus(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if isWeakImplementationAffirmation(msg.Content) {
+		return false
+	}
+	if userRequestsImplementation(msg.Content) || workspaceDirectiveRE.MatchString(msg.Content) {
+		return true
+	}
+	if ConversationModeFromMessage(msg) == ConversationModeCode {
+		return true
+	}
+	return hasCodeTaskSignals(msg.Content)
+}
+
 // ResolveContextScopeForChannel caps workspace injection for DMs so open-file payloads
 // do not overwhelm local models. Legacy full scope in a DM becomes outline (tree only).
+// Implementation turns promote to focus so seed paths and open tabs can reach the model.
 func ResolveContextScopeForChannel(msg *protocol.Message, channelType protocol.ChannelType) string {
 	scope := ResolveContextScope(msg)
 	if channelType != protocol.ChannelTypeDM {
 		return scope
 	}
+	impl := messagePromotesWorkspaceFocus(msg)
 	switch scope {
 	case ContextScopeFull:
+		if impl {
+			return ContextScopeFocus
+		}
+		return ContextScopeOutline
+	case ContextScopeOutline:
+		if impl {
+			return ContextScopeFocus
+		}
 		return ContextScopeOutline
 	case ContextScopeFocus:
-		// Keep focus when user explicitly scoped; still smaller than full workspace dump.
 		return ContextScopeFocus
 	default:
 		return scope
@@ -366,7 +392,8 @@ func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap 
 		prompt.WriteString("Answer general questions directly without inventing repo-specific details.\n\n")
 	case ContextScopeOutline:
 		prompt.WriteString("The user shared a high-level view of their project (name, path, file tree). ")
-		prompt.WriteString("Use the tree for structure questions; do not invent file contents not shown below. ")
+		prompt.WriteString("This workspace is available on disk at the Path below — use read_file tools or REFERENCED FILES sections; ")
+		prompt.WriteString("NEVER ask the user to paste or share file contents from this project. ")
 		prompt.WriteString("When REFERENCED FILES or WORKSPACE SOURCE FILES sections appear below, those are real disk content — use them.\n\n")
 	case ContextScopeFocus:
 		prompt.WriteString("The user shared limited code context (referenced paths and/or active file). ")

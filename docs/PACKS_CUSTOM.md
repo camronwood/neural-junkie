@@ -16,7 +16,7 @@ Hub APIs (hub access required): `POST /api/packs/validate`, `POST /api/packs/dev
 
 Use **dev link** while iterating; use **zip validate + sideload** for the final artifact you ship to analysts.
 
-Pack dev studio scaffolds **generic** customer packs (workspace guide, biology overlays, `customer-pack`). Org-specific capabilities such as **Phoenix import** (`phoenix-import`, PHX toolbar) are authored in that customer’s **private pack repository** (e.g. Brightest Bio Lab), not offered in the generic wizard.
+Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Org-specific capabilities and biology tool overlays (**Phoenix import**, **secondary-analysis-customer**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in that customer’s **private pack repository** (e.g. Brightest Bio Lab), not in the generic scaffold wizard.
 
 ## Install (zip)
 
@@ -39,18 +39,20 @@ publisher: Acme Corp
 pack_kind: customer
 capabilities:
   - customer-pack
+  - secondary-analysis-customer
 requires_packs:
   - life-sciences
 settings_overlay:
   secondary_analysis_tools_path: assets/secondary-analysis-tools
   python_executable: python3
+  default_panel_profile: human-inflammatory-12plex-v1
 assets:
   workspace_guide: assets/WORKSPACE.md
   runbooks_glob: assets/runbooks/*.md
 ```
 
 - **`requires_packs`**: must be installed **and enabled** before the customer pack can be enabled.
-- **`settings_overlay`**: applied to **Settings → Life sciences tools** on enable; reverted on disable.
+- **`settings_overlay`**: applied to hub biology MCP settings on enable; reverted on disable. When the pack declares **`secondary-analysis-customer`**, the desktop shows secondary-analysis fields under **Settings → Life sciences tools** (tools path, Python, panel profile, cumulative QC).
 - Pack-relative paths in overlay values are resolved under the installed pack directory.
 
 ## Reference pack

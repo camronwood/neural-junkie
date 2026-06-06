@@ -14,6 +14,9 @@ import { useEditorStore } from '../stores/editorStore';
 import { getLanguageFromPath } from '../utils/editorLanguage';
 import { isEditableCsvPath } from '../utils/csvTable';
 import { useToastStore } from '../stores/toastStore';
+import { useApprovalStore } from '../stores/approvalStore';
+import { formatToolApprovalSummary } from '../utils/approvalDisplay';
+import { PendingApprovalsBar } from './PendingApprovalsBar';
 import { useComposerPrefillStore } from '../stores/composerPrefillStore';
 import { ChatAPI } from '../api/chatAPI';
 import { clearCredentials } from '../utils/secureStorage';
@@ -58,7 +61,7 @@ import {
   patchRevealForChannel,
   patchRevealSidebarItems,
 } from '../utils/sidebarVisibility';
-import { MessageList } from './MessageList';
+import { MessageList, chatScrollerElRef } from './MessageList';
 import { TypingIndicator } from './TypingIndicator';
 import { RichTextInput } from './RichTextInput';
 import { ThreadPanel } from './ThreadPanel';
@@ -154,7 +157,7 @@ function withClientPaletteCommands(defs: CommandDefinition[]): CommandDefinition
 const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 
 interface ChatWindowProps {
-  onOpenSettings?: () => void;
+  onOpenSettings?: (tab?: import('./SettingsModal').SettingsTab) => void;
   onLogout?: () => void;
 }
 
@@ -1200,6 +1203,72 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [addToast, fetchPendingChanges, username],
   );
 
+  const scrollToApproval = useCallback((approvalId: string) => {
+    const el = document.querySelector(`[data-approval-id="${approvalId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    chatScrollerElRef.current?.scrollTo({
+      top: chatScrollerElRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  const surfaceToolApproval = useCallback(
+    (message: Message, isActiveChannel: boolean) => {
+      const approvalId = message.metadata?.approval_id as string | undefined;
+      const status = message.metadata?.status as string | undefined;
+      if (!approvalId) return;
+
+      const toolName = (message.metadata?.tool_name as string) || 'tool';
+      const toolInput = (message.metadata?.tool_input as Record<string, unknown>) || {};
+      const msgChannel = message.channel || useChatStore.getState().channel;
+
+      if (status === 'pending') {
+        useApprovalStore.getState().upsertPendingTool({
+          id: approvalId,
+          agentId: message.from.id,
+          agentName: message.from.name,
+          toolName,
+          toolInput,
+          channel: msgChannel,
+          messageId: message.id,
+          createdAt: message.timestamp,
+        });
+        const summary = formatToolApprovalSummary({
+          id: approvalId,
+          agentId: message.from.id,
+          agentName: message.from.name,
+          toolName,
+          toolInput,
+          channel: msgChannel,
+          createdAt: message.timestamp,
+        });
+        addToast({
+          type: 'warning',
+          title: `${message.from.name} needs your approval`,
+          message: isActiveChannel
+            ? summary
+            : `Waiting in #${msgChannel} — ${summary}`,
+          duration: 0,
+          action: isActiveChannel
+            ? {
+                label: 'Review now',
+                onClick: () => scrollToApproval(approvalId),
+              }
+            : {
+                label: `Open #${msgChannel}`,
+                onClick: () => useChatStore.getState().setChannel(msgChannel),
+              },
+        });
+      } else {
+        useApprovalStore.getState().removePendingTool(approvalId);
+      }
+    },
+    [addToast, scrollToApproval],
+  );
+
   // WebSocket connection
   const { status } = useWebSocket({
     url: wsURL,
@@ -1416,10 +1485,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           refreshExplorerForFileChange(message);
           await promptFileChangeApproval(message);
         }
+        if (message.type === 'tool_approval') {
+          surfaceToolApproval(message, false);
+          st.addMessageToCache(message.channel, message);
+        }
       } else {
+        if (message.type === 'tool_approval') {
+          surfaceToolApproval(message, true);
+          st.upsertToolApprovalMessage(message);
+        } else {
         // Message belongs to the active channel (never wrap addMessage in startTransition —
         // high-frequency agent_status updates can starve transitions and leave the chat empty).
         st.addMessage(message);
+        }
 
         if (message.metadata?.[IMPLEMENTATION_SESSION_COMPLETE_KEY] === true) {
           void handleImplementationSessionComplete(
@@ -1454,6 +1532,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             } else {
               addSuggestedCommand(enriched);
               useTerminalStore.getState().setPanelOpen(true);
+              addToast({
+                type: 'warning',
+                title: `${enriched.agent_name} wants to run a command`,
+                message: enriched.command,
+                duration: 0,
+                action: {
+                  label: 'Review in terminal',
+                  onClick: () => useTerminalStore.getState().setPanelOpen(true),
+                },
+              });
             }
           }
         }
@@ -1568,6 +1656,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to load command definitions:', err);
       setCommandDefs(withClientPaletteCommands([]));
     }
+
+    void useApprovalStore.getState().syncPendingFromHub(api);
 
     const { channel: joinCh, username: joinUser } = useChatStore.getState();
     const joinName = joinUser?.trim() || 'User';
@@ -2221,6 +2311,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         </div>
       </div>
 
+      <PendingApprovalsBar
+        channel={channel}
+        api={api}
+        collaboration={collaborationForChannel}
+        onOpenTerminal={() => setPanelOpen(true)}
+        onScrollToApproval={scrollToApproval}
+      />
+
       {/* Main Content Area */}
       <div className="flex flex-1 min-w-0 overflow-hidden" data-testid="chat-main-content-row">
         <div ref={mainContentRef} className="flex flex-1 min-w-0 overflow-hidden" data-testid="chat-main-inner-column">
@@ -2686,7 +2784,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onClearHistory={async (name) => {
             await api.clearChannelHistory(name);
             const msgs = await api.fetchMessages(name, 50);
-            useChatStore.getState().setMessages(msgs);
+            const st = useChatStore.getState();
+            st.replaceChannelMessagesCache(name, msgs);
+            if (name === st.channel) {
+              st.setMessages(msgs);
+              st.cleanupStaleThinking(name, msgs);
+            }
             addToast({ type: 'success', title: 'Channel history cleared' });
           }}
         />

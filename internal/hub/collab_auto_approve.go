@@ -65,10 +65,12 @@ func (h *Hub) maybeAutoApproveCollabFileChange(msg *protocol.Message, change *fi
 	if msg.From.ID != "" {
 		approvedBy = msg.From.ID
 	}
-	if _, err := h.fileChangeManager.ApproveFileChange(change.ID, approvedBy); err != nil {
+	approved, err := h.fileChangeManager.ApproveFileChange(change.ID, approvedBy)
+	if err != nil {
 		log.Printf("[Collaboration] Auto-approve deliverable %s for %s: %v", change.ID, collabID[:8], err)
 		return
 	}
+	h.NotifyFileChangeApproved(approved, approvedBy)
 
 	relPath := change.FilePath
 	if rel, err := filepath.Rel(wsRoot, change.FilePath); err == nil {

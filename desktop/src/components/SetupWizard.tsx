@@ -6,6 +6,7 @@ import {
   packsEnabledForTrack,
   type WizardTrack,
 } from '../config/wizardProfiles';
+import { CLIAgentsManager } from './CLIAgentsManager';
 
 interface ProviderChoice {
   id: string;
@@ -40,8 +41,6 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   const [pulling, setPulling] = useState(false);
   const [pullStatus, setPullStatus] = useState('');
   const [saving, setSaving] = useState(false);
-  const [cliInstalled, setCliInstalled] = useState<Record<string, boolean>>({});
-  const [cliTypes, setCliTypes] = useState<string[]>([]);
 
   const defaultOllamaModel = ollamaModelForTrack(wizardTrack);
 
@@ -50,21 +49,6 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
       checkOllama();
     }
   }, [step, providerType]);
-
-  useEffect(() => {
-    if (step !== 5) return;
-    void (async () => {
-      try {
-        const resp = await fetch(`${serverAddr}/api/cli-agent-types`);
-        const data = await resp.json();
-        setCliTypes((data.types as string[]) ?? []);
-        setCliInstalled((data.installed as Record<string, boolean>) ?? {});
-      } catch {
-        setCliTypes([]);
-        setCliInstalled({});
-      }
-    })();
-  }, [step, serverAddr]);
 
   async function checkOllama() {
     try {
@@ -212,7 +196,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
 
   return (
     <div className="flex items-center justify-center w-full h-screen bg-gray-950">
-      <div className="w-full max-w-lg p-8 space-y-6">
+      <div className="w-full max-w-xl p-8 space-y-6">
         <div className="flex gap-2 justify-center">
           {steps.map((s, i) => (
             <div key={s} className={`h-1 w-10 rounded ${i <= step ? 'bg-blue-500' : 'bg-gray-700'}`} />
@@ -450,42 +434,37 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
         )}
 
         {step === 5 && (
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-white">All Set!</h2>
-            <p className="text-gray-400 text-sm">
-              {providerType === 'ollama'
-                ? wizardTrack === 'lifeSciences'
-                  ? 'BiologyExpert will use Neural Junkie Bio 8B locally.'
-                  : 'Your agents will use local Ollama models.'
-                : wizardTrack === 'lifeSciences' && hfToken.trim()
-                  ? 'BiologyExpert will use hosted OpenBioLLM via Hugging Face.'
-                  : 'Your agents will use the Anthropic Claude API.'}
-            </p>
-            <p className="text-gray-500 text-xs">
-              {agents.filter(a => a.enabled).length} configured agent(s) in settings.
-              {wizardTrack === 'lifeSciences' && ' Research use only — not for clinical diagnosis.'}
-            </p>
-            {cliTypes.length > 0 && (
-              <div className="text-left text-xs text-gray-500 space-y-1 max-w-sm mx-auto">
-                <div className="text-gray-400 font-medium">CLI tools on PATH</div>
-                {cliTypes.map((t) => (
-                  <div key={t} className="flex justify-between gap-2">
-                    <span className="capitalize">{t}</span>
-                    <span className={cliInstalled[t] ? 'text-green-400' : 'text-gray-600'}>
-                      {cliInstalled[t] ? 'detected' : 'not installed'}
-                    </span>
-                  </div>
-                ))}
-                <p className="text-gray-600 pt-1">After launch, detected CLIs join #general automatically.</p>
-              </div>
-            )}
-            <button
-              onClick={saveAndFinish}
-              disabled={saving}
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 font-medium"
-            >
-              {saving ? 'Saving...' : 'Launch Neural Junkie'}
-            </button>
+          <div className="space-y-4">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-bold text-white">All Set!</h2>
+              <p className="text-gray-400 text-sm">
+                {providerType === 'ollama'
+                  ? wizardTrack === 'lifeSciences'
+                    ? 'BiologyExpert will use Neural Junkie Bio 8B locally.'
+                    : 'Your agents will use local Ollama models.'
+                  : wizardTrack === 'lifeSciences' && hfToken.trim()
+                    ? 'BiologyExpert will use hosted OpenBioLLM via Hugging Face.'
+                    : 'Your agents will use the Anthropic Claude API.'}
+              </p>
+              <p className="text-gray-500 text-xs">
+                {agents.filter((a) => a.enabled).length} configured agent(s) in settings.
+                {wizardTrack === 'lifeSciences' && ' Research use only — not for clinical diagnosis.'}
+              </p>
+            </div>
+
+            <div className="text-left max-h-[50vh] overflow-y-auto pr-1">
+              <CLIAgentsManager serverAddr={serverAddr} compact featuredOnly />
+            </div>
+
+            <div className="text-center">
+              <button
+                onClick={saveAndFinish}
+                disabled={saving}
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 font-medium"
+              >
+                {saving ? 'Saving...' : 'Launch Neural Junkie'}
+              </button>
+            </div>
           </div>
         )}
       </div>

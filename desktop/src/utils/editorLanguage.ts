@@ -25,6 +25,7 @@ export function getLanguageFromPath(path: string): string {
     yml: 'yaml',
     sh: 'shell',
     sql: 'sql',
+    csv: 'plaintext',
   };
   return languageMap[ext ?? ''] ?? 'plaintext';
 }

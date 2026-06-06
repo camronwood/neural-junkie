@@ -79,7 +79,9 @@ export function ToolApprovalCard({ message }: ToolApprovalCardProps) {
   const inputDisplay = formatInput();
 
   return (
-    <div className={`my-2 rounded-lg border ${
+    <div
+      data-approval-id={approvalId}
+      className={`my-2 rounded-lg border ${
       isPending ? 'border-yellow-500/40 bg-yellow-500/5' :
       isApproved ? 'border-green-500/30 bg-green-500/5' :
       'border-red-500/30 bg-red-500/5'

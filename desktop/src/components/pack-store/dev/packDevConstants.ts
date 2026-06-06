@@ -1,17 +1,23 @@
-export const OVERLAY_FIELD_DOCS: Array<{ key: string; hint: string }> = [
-  { key: 'secondary_analysis_tools_path', hint: 'Pack-relative path to secondary analysis tools' },
-  { key: 'python_executable', hint: 'Python binary for biology tools (e.g. python3)' },
-  { key: 'cumulative_qc_dir', hint: 'Pack-relative cumulative QC directory' },
-  { key: 'default_panel_profile', hint: 'Default biology panel profile name' },
-  { key: 'artifacts_dir', hint: 'Pack-relative artifacts directory' },
-];
+/** Overlay keys for generic customer packs created in Pack dev studio (workspace/SOP packs). */
+export const GENERIC_OVERLAY_FIELD_DOCS: Array<{ key: string; hint: string }> = [];
+
+/**
+ * Overlay keys for private org packs with `secondary-analysis-customer` — edit pack.yaml
+ * in the customer repo, not the generic scaffold wizard.
+ */
+export const PRIVATE_SECONDARY_OVERLAY_KEYS = [
+  'secondary_analysis_tools_path',
+  'python_executable',
+  'cumulative_qc_dir',
+  'default_panel_profile',
+] as const;
 
 export const MANIFEST_FIELD_HINTS = [
   'id — unique slug (lowercase, hyphens)',
   'pack_kind: customer — marks a private customer pack',
   'capabilities — include customer-pack for generic data/SOP packs',
   'requires_packs — domain packs that must be installed and enabled first',
-  'settings_overlay — biology tool defaults applied on enable',
+  'settings_overlay — optional; generic packs usually omit biology tool paths',
   'assets.workspace_guide — markdown SOP shown in test panel',
-  'Customer-specific capabilities (e.g. phoenix-import) belong in that org’s private pack repo — not the dev studio scaffold',
+  'Private packs: phoenix-import, secondary-analysis-customer + overlay keys (tools path, python, panel profile, cumulative_qc_dir) — edit YAML in org repo',
 ];

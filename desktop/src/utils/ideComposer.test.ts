@@ -55,6 +55,29 @@ describe('buildImplementationSessionMetadata', () => {
     expect(metadata.ide_route_agent_type).toBeUndefined();
     expect(metadata.implementation_session).toBe(true);
   });
+
+  it('sets implementation_session for agent mode continuation affirmations', () => {
+    const metadata = buildImplementationSessionMetadata({
+      content: 'approved',
+      agents: [{ name: 'FrontendEngineer', type: 'frontend' } as never],
+      activeTab: null,
+      editorAgentMode: 'agent',
+      editorAgentTrust: 'interactive',
+    });
+    expect(metadata.implementation_session).toBe(true);
+    expect(metadata.editor_mode).toBe('agent');
+  });
+
+  it('does not set implementation_session for weak-only affirmations', () => {
+    const metadata = buildImplementationSessionMetadata({
+      content: 'looks good',
+      agents: [{ name: 'FrontendEngineer', type: 'frontend' } as never],
+      activeTab: null,
+      editorAgentMode: 'agent',
+      editorAgentTrust: 'interactive',
+    });
+    expect(metadata.implementation_session).toBeUndefined();
+  });
 });
 
 describe('pickAgentTypeForImplementation', () => {

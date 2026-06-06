@@ -1963,6 +1963,13 @@ func (h *Hub) DeleteChannel(channelName string) error {
 	delete(h.channels, channelName)
 	delete(h.messages, channelName)
 	delete(h.subscribers, channelName)
+	store := h.persistentStore
+
+	if store != nil {
+		if err := store.ClearChannelMessages(channelName); err != nil {
+			log.Printf("[hub] clear persistent messages for deleted channel %q: %v", channelName, err)
+		}
+	}
 
 	return nil
 }
@@ -2015,6 +2022,10 @@ func (h *Hub) shouldAutoCreateRepoAgent(msg *protocol.Message, repoPath string) 
 		return false
 	}
 
+	if messageHasSharedWorkspaceForRepo(msg, repoPath) {
+		return false
+	}
+
 	// Don't auto-create if there's already a pending review for this path
 	if h.commandHandler.HasPendingReview(repoPath) {
 		return false
@@ -2058,6 +2069,36 @@ func (h *Hub) shouldAutoCreateRepoAgent(msg *protocol.Message, repoPath string) 
 	}
 
 	return hasRegularAgentMention && hasRepoKeywords
+}
+
+func messageHasSharedWorkspaceForRepo(msg *protocol.Message, repoPath string) bool {
+	if msg == nil || msg.Metadata == nil {
+		return false
+	}
+	raw, ok := msg.Metadata["workspace_context"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	wsPath, _ := raw["workspace_path"].(string)
+	wsPath = strings.TrimSpace(wsPath)
+	if wsPath == "" {
+		return false
+	}
+	return sameRepoPath(wsPath, repoPath)
+}
+
+func sameRepoPath(a, b string) bool {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return false
+	}
+	absA, errA := filepath.Abs(a)
+	absB, errB := filepath.Abs(b)
+	if errA == nil && errB == nil {
+		return filepath.Clean(absA) == filepath.Clean(absB)
+	}
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 // autoCreateRepoAgent automatically creates a repository agent for the given path

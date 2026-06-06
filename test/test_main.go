@@ -2,6 +2,7 @@ package test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -14,6 +15,8 @@ func TestMain(m *testing.M) {
 
 	_ = os.Setenv("HOME", tmpHome)
 	_ = os.Setenv("USERPROFILE", tmpHome)
+	_ = os.Setenv("NEURAL_JUNKIE_REPO_DIR", filepath.Join(tmpHome, "repos"))
+	_ = os.Setenv("NEURAL_JUNKIE_COLLAB_ASSETS_DIR", filepath.Join(tmpHome, "collaborations"))
 
 	code := m.Run()
 	_ = os.RemoveAll(tmpHome)

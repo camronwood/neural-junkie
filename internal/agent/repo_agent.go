@@ -913,21 +913,29 @@ func (ra *RepoAgent) generateAutoResponse(ctx context.Context, originalMsg *prot
 	ra.mu.RUnlock()
 
 	// Create a focused prompt for the original question
+	userAsk := strings.TrimSpace(originalMsg.Content)
+	reviewAsk := userRequestsCodeReview(userAsk)
 	prompt := fmt.Sprintf(`You are a repository expert for %s. A user asked: "%s"
 
-Repository Context:
+Repository Context (ONLY source of truth — do not invent file contents or versions):
 %s
 
-Please provide a comprehensive response to their question based on your analysis of the repository. Focus on:
-1. Direct answers to their specific question
-2. Relevant code examples or file references
-3. Architecture insights if applicable
-4. Best practices or recommendations
+Rules:
+- Answer the user's question directly. They asked: "%s"
+- Quote ONLY from Repository Context above. If a detail is missing, say "not in indexed context" — do not guess.
+- Do not claim the user failed to ask a question.
+%s
 
-Be specific and reference actual files, functions, or patterns from the repository when relevant.`,
+Structure your reply:
+1. Direct answer to their question
+2. File references that appear in Key Files or Architecture above
+3. Architecture notes grounded in indexed context
+4. Actionable recommendations tied to this repo (not generic boilerplate)`,
 		indexName,
-		originalMsg.Content,
-		repoContext)
+		userAsk,
+		repoContext,
+		userAsk,
+		codeReviewResponseGuidance(reviewAsk))
 
 	// Generate response using AI
 	response, err := ra.AI.GenerateResponse(ctx, prompt, []protocol.Message{})
@@ -936,6 +944,15 @@ Be specific and reference actual files, functions, or patterns from the reposito
 	}
 
 	return response, nil
+}
+
+func codeReviewResponseGuidance(reviewAsk bool) string {
+	if !reviewAsk {
+		return "- Keep the reply concise and specific to indexed files."
+	}
+	return `- This is a CODE REVIEW request: prioritize bugs, broken wiring, missing error handling, and inconsistencies between Key Files.
+- Compare package.json / entry points / src layout as indexed — do not invent dependency versions.
+- End with prioritized findings (critical / moderate / nit), not generic "add CI/CD" filler unless the index shows a gap.`
 }
 
 // buildRepositoryContext creates a summary of the repository for AI context

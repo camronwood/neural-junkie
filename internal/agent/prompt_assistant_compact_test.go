@@ -53,7 +53,7 @@ func TestBuildCompactAssistantOllamaPrompt_size(t *testing.T) {
 		},
 	}
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "slack:C1",
-		protocol.AgentInfo{ID: "u", Name: "User"}, "what model?")
+		protocol.AgentInfo{ID: "u", Name: "User", Type: protocol.AgentTypeGeneral}, "what model?")
 	prompt := a.buildCompactAssistantOllamaPrompt(msg)
 	if len(prompt) > 2500 {
 		t.Fatalf("compact assistant prompt too long: %d bytes", len(prompt))

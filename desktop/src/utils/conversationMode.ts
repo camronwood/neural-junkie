@@ -3,7 +3,10 @@ import {
   messageReferencesOpenEditor,
   messageRequestsScanTool,
 } from './inferContextScope';
-import { hasImplementationContinuationSignals } from './implementationContinuation';
+import {
+  hasImplementationContinuationSignals,
+  hasImplementationRequestSignals,
+} from './implementationContinuation';
 import { CONVERSATION_MODE_METADATA_KEY } from '../constants/promptMetadata';
 
 export type ConversationModeSetting = 'auto' | 'chat' | 'code';
@@ -62,6 +65,7 @@ export function hasCodeTaskSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
   if (hasImplementationContinuationSignals(text)) return true;
+  if (hasImplementationRequestSignals(text)) return true;
   if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
   if (CODE_VERBS_RE.test(text)) return true;

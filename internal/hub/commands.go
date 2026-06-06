@@ -1648,6 +1648,7 @@ func (ch *CommandHandler) AddPendingReview(repoPath string, originalMsg *protoco
 	ch.pendingMutex.Lock()
 	defer ch.pendingMutex.Unlock()
 
+	repoPath = normalizePendingReviewPath(repoPath)
 	ch.pendingReviews[repoPath] = &protocol.PendingReview{
 		OriginalMessage: originalMsg,
 		RepoPath:        repoPath,
@@ -1661,7 +1662,16 @@ func (ch *CommandHandler) GetPendingReview(repoPath string) *protocol.PendingRev
 	ch.pendingMutex.Lock()
 	defer ch.pendingMutex.Unlock()
 
-	return ch.pendingReviews[repoPath]
+	repoPath = normalizePendingReviewPath(repoPath)
+	if pr := ch.pendingReviews[repoPath]; pr != nil {
+		return pr
+	}
+	for k, pr := range ch.pendingReviews {
+		if normalizePendingReviewPath(k) == repoPath {
+			return pr
+		}
+	}
+	return nil
 }
 
 // RemovePendingReview removes a pending review
@@ -1669,6 +1679,7 @@ func (ch *CommandHandler) RemovePendingReview(repoPath string) {
 	ch.pendingMutex.Lock()
 	defer ch.pendingMutex.Unlock()
 
+	repoPath = normalizePendingReviewPath(repoPath)
 	delete(ch.pendingReviews, repoPath)
 }
 
@@ -1677,8 +1688,27 @@ func (ch *CommandHandler) HasPendingReview(repoPath string) bool {
 	ch.pendingMutex.Lock()
 	defer ch.pendingMutex.Unlock()
 
-	_, exists := ch.pendingReviews[repoPath]
-	return exists
+	repoPath = normalizePendingReviewPath(repoPath)
+	if _, exists := ch.pendingReviews[repoPath]; exists {
+		return true
+	}
+	for k := range ch.pendingReviews {
+		if normalizePendingReviewPath(k) == repoPath {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizePendingReviewPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(p)
 }
 
 // handleOpenFile validates and resolves a file path for opening in the editor.
@@ -2474,6 +2504,8 @@ func (ch *CommandHandler) handleApproveFile(ctx context.Context, msg *protocol.M
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to approve file change: %v", err)), nil
 	}
 
+	ch.hub.NotifyFileChangeApproved(change, msg.From.ID)
+
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("✅ File change approved and executed!\n\n"+
 			"**Change ID:** %s\n"+
@@ -2537,6 +2569,8 @@ func (ch *CommandHandler) handleApproveDelete(ctx context.Context, msg *protocol
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to approve delete operation: %v", err)), nil
 	}
+
+	ch.hub.NotifyFileChangeApproved(change, msg.From.ID)
 
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("🗑️ Delete operation approved and executed!\n\n"+

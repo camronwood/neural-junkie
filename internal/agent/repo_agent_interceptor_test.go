@@ -10,6 +10,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/testutil"
 )
 
 type captureAI struct {
@@ -59,6 +60,7 @@ func (h *captureHub) GenerateAndPostImage(context.Context, string, protocol.Agen
 }
 
 func TestRepoAgentInterceptorInjectsIndexIntoPrompt(t *testing.T) {
+	testutil.IsolateNeuralJunkieHome(t)
 	dir := t.TempDir()
 	if err := os.WriteFile(dir+"/README.md", []byte("# Widget\nA widget service."), 0644); err != nil {
 		t.Fatal(err)

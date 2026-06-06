@@ -1,4 +1,12 @@
-// Package main is a minimal sample for collaboration scenario fixtures.
 package main
 
-func main() {}
+import "fmt"
+
+// HelloWorld prints "Hello, World!" to the console.
+func HelloWorld() {
+    fmt.Println("Hello, World!")
+}
+
+func main() {
+    HelloWorld()
+}

@@ -27,12 +27,23 @@ import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import { agentSidebarHideKey, parseDMDisplayName } from '../utils/dmChannelDisplay';
 import { ProviderManager } from './ProviderManager';
+import { CLIAgentsManager } from './CLIAgentsManager';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 import { open } from '@tauri-apps/api/dialog';
+
+export type SettingsTab =
+  | 'appearance'
+  | 'layout'
+  | 'chat'
+  | 'integrations'
+  | 'ai-providers'
+  | 'domain-packs'
+  | 'about';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: SettingsTab;
 }
 
 function slackCanListChannelsFrom(
@@ -92,7 +103,7 @@ function updateForwardRule(
   return { ...inbox, forward_rules: rules };
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
   const { 
     settings, 
     integrations,
@@ -132,9 +143,13 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   );
   const hubHttp =
     chatServerAddr.startsWith('http') ? chatServerAddr : `http://${chatServerAddr}`;
-  const [activeTab, setActiveTab] = useState<
-    'appearance' | 'layout' | 'chat' | 'integrations' | 'ai-providers' | 'domain-packs' | 'about'
-  >('appearance');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
   
   // Integration form states
@@ -197,6 +212,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [specialistModelsAdvancedOpen, setSpecialistModelsAdvancedOpen] = useState(false);
   const [packsLoading, setPacksLoading] = useState(false);
   const bioPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_SUMMARY_API));
+  const bioCustomerSecondaryTools = usePacksStore((s) =>
+    s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_CUSTOMER),
+  );
   const cadPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.CAD_API));
   const hasPersonalLearning = usePacksStore((s) => s.hasCapability(PACK_CAP.PERSONAL_LEARNING));
   const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
@@ -3561,45 +3579,53 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
                       />
                     </label>
-                    <label className="block text-sm sm:col-span-2">
-                      <span className="text-slack-textMuted">Secondary analysis tools path</span>
-                      <input
-                        type="text"
-                        value={bioSecondaryToolsPath}
-                        onChange={(e) => setBioSecondaryToolsPath(e.target.value)}
-                        placeholder="/path/to/secondary-analysis-tools"
-                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="text-slack-textMuted">Python executable</span>
-                      <input
-                        type="text"
-                        value={bioPythonExecutable}
-                        onChange={(e) => setBioPythonExecutable(e.target.value)}
-                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="text-slack-textMuted">Default panel profile</span>
-                      <input
-                        type="text"
-                        value={bioDefaultPanelProfile}
-                        onChange={(e) => setBioDefaultPanelProfile(e.target.value)}
-                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
-                      />
-                    </label>
-                    <label className="block text-sm sm:col-span-2">
-                      <span className="text-slack-textMuted">
-                        Cumulative QC folder override (empty = workspace/.neural-junkie/cumulative-qc)
-                      </span>
-                      <input
-                        type="text"
-                        value={bioCumulativeQCDir}
-                        onChange={(e) => setBioCumulativeQCDir(e.target.value)}
-                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
-                      />
-                    </label>
+                    {bioCustomerSecondaryTools && (
+                      <>
+                        <p className="text-xs text-slack-textMuted sm:col-span-2">
+                          Provided by your enabled customer pack (<code className="font-mono">settings_overlay</code> on
+                          install). Override below if needed.
+                        </p>
+                        <label className="block text-sm sm:col-span-2">
+                          <span className="text-slack-textMuted">Secondary analysis tools path</span>
+                          <input
+                            type="text"
+                            value={bioSecondaryToolsPath}
+                            onChange={(e) => setBioSecondaryToolsPath(e.target.value)}
+                            placeholder="/path/to/secondary-analysis-tools"
+                            className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          <span className="text-slack-textMuted">Python executable</span>
+                          <input
+                            type="text"
+                            value={bioPythonExecutable}
+                            onChange={(e) => setBioPythonExecutable(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          <span className="text-slack-textMuted">Default panel profile</span>
+                          <input
+                            type="text"
+                            value={bioDefaultPanelProfile}
+                            onChange={(e) => setBioDefaultPanelProfile(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                          />
+                        </label>
+                        <label className="block text-sm sm:col-span-2">
+                          <span className="text-slack-textMuted">
+                            Cumulative QC folder override (empty = workspace/.neural-junkie/cumulative-qc)
+                          </span>
+                          <input
+                            type="text"
+                            value={bioCumulativeQCDir}
+                            onChange={(e) => setBioCumulativeQCDir(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                          />
+                        </label>
+                      </>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -4107,6 +4133,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   )}
                 </div>
               </details>
+
+              {/* CLI agent install & auth */}
+              <div className="border border-slack-border rounded-lg p-6">
+                <CLIAgentsManager serverAddr={hubHttp} />
+              </div>
 
               {/* Dynamic Provider Registry */}
               <div className="border border-slack-border rounded-lg p-6">

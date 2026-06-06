@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/chatcontext"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -50,11 +51,17 @@ func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 		(msg.Type == protocol.MessageTypeQuestion || msg.Type == protocol.MessageTypeChat):
 		st := h.ensureChannelContextLocked(channel)
 		st.UserTurns++
+		if agent.ShouldForceSessionSummaryRefreshForMessage(msg) {
+			st.UserTurns = summaryRefreshUserTurns
+		}
 
 	case !protocol.IsUserLikeSender(msg.From) &&
 		(msg.Type == protocol.MessageTypeChat || msg.Type == protocol.MessageTypeAnswer):
 		st := h.ensureChannelContextLocked(channel)
 		shouldRefresh := st.UserTurns >= summaryRefreshUserTurns
+		if agent.ShouldForceSessionSummaryRefreshOnAgentResponse(msg.Content) {
+			shouldRefresh = true
+		}
 		if !shouldRefresh && st.Summary == "" {
 			filtered := chatcontext.FilterForLLM(h.messages[channel], "", 0)
 			shouldRefresh = len(filtered) >= 4

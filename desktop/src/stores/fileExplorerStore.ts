@@ -138,6 +138,10 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
           loadingWorkspaces: false,
         };
       });
+      const { activeWorkspaceId, fileTree } = get();
+      if (activeWorkspaceId && !(fileTree[activeWorkspaceId]?.length)) {
+        void get().loadFiles(activeWorkspaceId, '/');
+      }
     } catch (error) {
       console.error('Failed to load workspaces:', error);
       set({ 

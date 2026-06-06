@@ -23,6 +23,8 @@ type CLIAgentConfig struct {
 	WorkDirEnv        string              // Env var for work dir override (e.g. "CURSOR_WORK_DIR")
 	ApprovalMode      string              // "interactive", "auto_edit", "yolo", or ""
 	InstallHint       string              // Help text if binary not found
+	Install           *CLIInstallSpec     // Structured one-click install metadata
+	Auth              *CLIAuthSpec        // Structured auth / login metadata
 	JoinMessage       string              // Message sent to channel on agent join
 }
 
@@ -92,7 +94,21 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		WorkDirEnv:   "CLAUDE_WORK_DIR",
 		ApprovalMode: "",
 		InstallHint:  "Install with: npm install -g @anthropic-ai/claude-code",
-		JoinMessage:  "Claude CLI agent online. I can analyze codebases, generate code, review, and help with architecture using Anthropic's Claude. @mention me to get started.",
+		Install: &CLIInstallSpec{
+			Method:  "npm",
+			Command: "npm install -g @anthropic-ai/claude-code",
+			Prereqs: []string{"node", "npm"},
+		},
+		Auth: &CLIAuthSpec{
+			Method:       "cli_login",
+			EnvVars:      []string{"ANTHROPIC_API_KEY"},
+			LoginCommand: []string{"claude", "login"},
+			ProbeCommand: []string{"claude", "auth", "status"},
+			CredentialPaths: []string{
+				"~/.claude/.credentials.json",
+			},
+		},
+		JoinMessage: "Claude CLI agent online. I can analyze codebases, generate code, review, and help with architecture using Anthropic's Claude. @mention me to get started.",
 	},
 	"codex": {
 		Type:         "codex",
@@ -159,7 +175,18 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		WorkDirEnv:   "CURSOR_WORK_DIR",
 		ApprovalMode: "yolo",
 		InstallHint:  "Install with: curl https://cursor.com/install -fsS | bash",
-		JoinMessage:  "Cursor CLI agent online. I can analyze codebases, generate code, refactor, and run shell commands using Cursor's agent capabilities. @mention me to get started.",
+		Install: &CLIInstallSpec{
+			Method:  "curl",
+			Command: "curl https://cursor.com/install -fsS | bash",
+			Prereqs: []string{"curl", "bash"},
+		},
+		Auth: &CLIAuthSpec{
+			Method:       "cli_login",
+			EnvVars:      []string{"CURSOR_API_KEY"},
+			LoginCommand: []string{"agent", "login"},
+			ProbeCommand: []string{"agent", "status"},
+		},
+		JoinMessage: "Cursor CLI agent online. I can analyze codebases, generate code, refactor, and run shell commands using Cursor's agent capabilities. @mention me to get started.",
 	},
 	"droid": {
 		Type:         "droid",
@@ -191,7 +218,20 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 		WorkDirEnv:   "GEMINI_WORK_DIR",
 		ApprovalMode: "interactive",
 		InstallHint:  "Install with: npm install -g @google/gemini-cli",
-		JoinMessage:  "Gemini CLI agent online. I can analyze codebases, generate code, review, and run shell commands using Google's Gemini agent. @mention me to get started.",
+		Install: &CLIInstallSpec{
+			Method:  "npm",
+			Command: "npm install -g @google/gemini-cli",
+			Prereqs: []string{"node", "npm"},
+		},
+		Auth: &CLIAuthSpec{
+			Method:       "cli_login",
+			LoginCommand: []string{"gemini", "auth", "login"},
+			ProbeCommand: []string{"gemini", "auth", "status"},
+			CredentialPaths: []string{
+				"~/.gemini/oauth_creds.json",
+			},
+		},
+		JoinMessage: "Gemini CLI agent online. I can analyze codebases, generate code, review, and run shell commands using Google's Gemini agent. @mention me to get started.",
 	},
 	"kiro": {
 		Type:              "kiro",

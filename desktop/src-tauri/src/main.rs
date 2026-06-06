@@ -952,7 +952,17 @@ fn target_triple() -> &'static str {
 
 fn bundled_ollama_runtime_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
     let rel = format!("ollama/{}", target_triple());
-    app.path_resolver().resolve_resource(&rel)
+    if let Some(p) = app.path_resolver().resolve_resource(&rel) {
+        if bundled_ollama_binary(&p).exists() {
+            return Some(p);
+        }
+    }
+    // Dev (`tauri dev`): fetch-ollama lays out under src-tauri/ollama/{triple}
+    let dev = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(&rel);
+    if bundled_ollama_binary(&dev).exists() {
+        return Some(dev);
+    }
+    None
 }
 
 fn bundled_ollama_binary(runtime_dir: &std::path::Path) -> PathBuf {
@@ -977,21 +987,48 @@ fn ollama_models_dir(app: &tauri::AppHandle) -> PathBuf {
         .unwrap_or_else(|| default_home().join(".neural-junkie").join("ollama-models"))
 }
 
-fn wait_for_ollama_health(timeout: std::time::Duration) -> bool {
-    let start = Instant::now();
-    let client = reqwest::blocking::Client::builder()
+fn ollama_health_client() -> reqwest::blocking::Client {
+    reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()
-        .unwrap();
+        .unwrap()
+}
+
+fn is_ollama_healthy() -> bool {
+    let client = ollama_health_client();
+    client
+        .get("http://127.0.0.1:11434/api/tags")
+        .send()
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
+}
+
+fn wait_for_ollama_health(timeout: std::time::Duration) -> bool {
+    let start = Instant::now();
     while start.elapsed() < timeout {
-        if let Ok(resp) = client.get("http://127.0.0.1:11434/api/tags").send() {
-            if resp.status().is_success() {
-                return true;
-            }
+        if is_ollama_healthy() {
+            return true;
         }
         std::thread::sleep(std::time::Duration::from_millis(300));
     }
     false
+}
+
+fn bundled_ollama_version(binary: &std::path::Path) -> Option<String> {
+    Command::new(binary)
+        .arg("--version")
+        .output()
+        .ok()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn stop_bundled_ollama_child(ollama_state: &OllamaChild) {
+    let mut guard = ollama_state.lock().unwrap();
+    if let Some(mut child) = guard.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
 }
 
 fn spawn_bundled_ollama(
@@ -1122,6 +1159,105 @@ async fn get_server_status() -> Result<bool, String> {
     Ok(SIDECAR_READY.load(Ordering::Relaxed))
 }
 
+#[derive(Debug, Serialize)]
+struct OllamaRuntimeStatus {
+    installed: bool,
+    bundled: bool,
+    running: bool,
+    managed: bool,
+    version: Option<String>,
+}
+
+#[tauri::command]
+fn get_ollama_runtime_status(
+    app: tauri::AppHandle,
+    ollama_state: tauri::State<OllamaChild>,
+) -> Result<OllamaRuntimeStatus, String> {
+    let runtime_dir = bundled_ollama_runtime_dir(&app);
+    let bundled = runtime_dir
+        .as_ref()
+        .map(|dir| bundled_ollama_binary(dir).exists())
+        .unwrap_or(false);
+    let version = runtime_dir
+        .as_ref()
+        .and_then(|dir| {
+            let binary = bundled_ollama_binary(dir);
+            if binary.exists() {
+                bundled_ollama_version(&binary)
+            } else {
+                None
+            }
+        });
+    let managed = {
+        let mut guard = ollama_state.lock().unwrap();
+        if let Some(child) = guard.as_mut() {
+            child.try_wait().ok().flatten().is_none()
+        } else {
+            false
+        }
+    };
+    let running = is_ollama_healthy();
+    Ok(OllamaRuntimeStatus {
+        installed: bundled || running,
+        bundled,
+        running,
+        managed,
+        version,
+    })
+}
+
+#[tauri::command]
+fn start_bundled_ollama(
+    app: tauri::AppHandle,
+    ollama_state: tauri::State<OllamaChild>,
+) -> Result<(), String> {
+    if is_ollama_healthy() {
+        return Ok(());
+    }
+    let state = ollama_state.inner().clone();
+    spawn_bundled_ollama(&app, &state)
+        .ok_or_else(|| "Bundled Ollama runtime is not available in this build".to_string())?;
+    if !is_ollama_healthy() {
+        return Err("Ollama started but health check failed".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn stop_bundled_ollama(
+    app: tauri::AppHandle,
+    ollama_state: tauri::State<OllamaChild>,
+) -> Result<(), String> {
+    let bundled = bundled_ollama_runtime_dir(&app)
+        .map(|dir| bundled_ollama_binary(&dir).exists())
+        .unwrap_or(false);
+    if !bundled {
+        return Err("Bundled Ollama runtime is not available in this build".into());
+    }
+    let had_child = ollama_state.lock().unwrap().is_some();
+    stop_bundled_ollama_child(ollama_state.inner());
+    if !had_child && is_ollama_healthy() {
+        return Err("Ollama is not managed by the desktop shell in this session".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn restart_bundled_ollama(
+    app: tauri::AppHandle,
+    ollama_state: tauri::State<OllamaChild>,
+) -> Result<(), String> {
+    stop_bundled_ollama_child(ollama_state.inner());
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    let state = ollama_state.inner().clone();
+    spawn_bundled_ollama(&app, &state)
+        .ok_or_else(|| "Bundled Ollama runtime is not available in this build".to_string())?;
+    if !wait_for_ollama_health(std::time::Duration::from_secs(45)) {
+        return Err("Ollama restarted but health check timed out".into());
+    }
+    Ok(())
+}
+
 fn machine_credential_key() -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let home = dirs::home_dir()
@@ -1190,7 +1326,18 @@ fn main() {
                 // Only spawn sidecar in production builds; in dev the server
                 // is started separately via `make server` or `make refresh`.
                 if cfg!(debug_assertions) {
-                    // In dev mode, just poll for an already-running server (longer window: first Rust build + hub start).
+                    // Dev: start bundled Ollama when fetch-ollama artifacts exist (parity with production).
+                    if !is_ollama_healthy() {
+                        if let Some(bin) = spawn_bundled_ollama(&app_handle, &ollama_state) {
+                            eprintln!("Dev: started bundled Ollama at {}", bin.display());
+                        } else {
+                            eprintln!(
+                                "Dev: Ollama not running. Use `make start-all` (auto-starts) or `ollama serve`."
+                            );
+                        }
+                    }
+
+                    // Poll for an already-running hub (longer window: first Rust build + hub start).
                     if wait_for_server_health(std::time::Duration::from_secs(120)) {
                         SIDECAR_READY.store(true, Ordering::Relaxed);
                         let _ = app_handle.emit_all("server-ready", true);
@@ -1264,6 +1411,10 @@ fn main() {
             navigate_embedded_browser,
             destroy_embedded_browser,
             get_server_status,
+            get_ollama_runtime_status,
+            start_bundled_ollama,
+            stop_bundled_ollama,
+            restart_bundled_ollama,
             encrypt_credential_blob,
             decrypt_credential_blob
         ])

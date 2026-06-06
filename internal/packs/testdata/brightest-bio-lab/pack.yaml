@@ -10,12 +10,15 @@ layout_profile: team
 capabilities:
   - customer-pack
   - phoenix-import
+  - secondary-analysis-customer
 requires_packs:
   - life-sciences
 settings_overlay:
   phoenix_environment: dev
   phoenix_auth_config_path: /Users/camronwood/development/phoenix-tim-test-suite/.phoenix-customer-cli-creds
   python_executable: python3
+  secondary_analysis_tools_path: assets/secondary-analysis-tools
+  default_panel_profile: human-inflammatory-12plex-v1
 assets:
   workspace_guide: assets/WORKSPACE.md
   runbooks_glob: assets/runbooks/*.md

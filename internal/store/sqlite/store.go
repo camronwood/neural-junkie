@@ -164,12 +164,17 @@ func (s *Store) LoadRecentChannel(channel string, limit int) ([]*protocol.Messag
 	return s.ListChannelMessages(channel, limit, "")
 }
 
-// DeleteChannel removes all messages for a channel.
-func (s *Store) DeleteChannel(channel string) error {
+// ClearChannelMessages removes all persisted rows for a channel.
+func (s *Store) ClearChannelMessages(channel string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, err := s.db.Exec(`DELETE FROM messages WHERE channel = ?`, channel)
 	return err
+}
+
+// DeleteChannel removes all messages for a channel.
+func (s *Store) DeleteChannel(channel string) error {
+	return s.ClearChannelMessages(channel)
 }
 
 // Stats returns message count for a channel.

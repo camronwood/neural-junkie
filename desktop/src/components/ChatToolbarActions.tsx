@@ -16,6 +16,9 @@ import { conversationModeSettingLabel } from '../utils/conversationMode';
 import { workspaceContextModeLabel } from '../utils/outboundChatMetadata';
 import type { ConversationModeSetting } from '../utils/conversationMode';
 import type { WorkspaceContextMode } from '../constants/promptMetadata';
+import type { SettingsTab } from './SettingsModal';
+import { OllamaRuntimeChip } from './OllamaRuntimeChip';
+import { useApprovalStore } from '../stores/approvalStore';
 
 export type ChatToolbarActionsLayout = 'horizontal' | 'vertical';
 
@@ -47,7 +50,7 @@ export interface ChatToolbarActionsProps {
   onToggleIdeLayout: () => void;
   ideLayoutButtonTitle: string;
   onOpenModelLibrary: () => void;
-  onOpenSettings?: () => void;
+  onOpenSettings?: (tab?: SettingsTab) => void;
   onLogout?: () => void;
   username: string;
   serverAddr: string;
@@ -97,6 +100,8 @@ export function ChatToolbarActions({
   serverAddr,
 }: ChatToolbarActionsProps) {
   const suggestedCount = useTerminalStore((s) => s.suggestedCommands.length);
+  const pendingToolCount = useApprovalStore((s) => s.pendingTools.length);
+  const approvalCount = suggestedCount + pendingToolCount;
   const isVertical = layout === 'vertical';
 
   const rootClass = isVertical
@@ -157,9 +162,11 @@ export function ChatToolbarActions({
           type="button"
           onClick={onCycleWorkspaceContext}
           className={`${iconBtn} relative ${
-            workspaceContextMode !== 'off'
+            workspaceContextMode === 'always'
               ? 'bg-purple-600 hover:bg-purple-700 text-white ring-1 ring-purple-400 ring-offset-1 ring-offset-slack-bg'
-              : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
+              : workspaceContextMode === 'auto'
+                ? 'bg-slack-bgHover hover:bg-slack-border text-slack-text ring-1 ring-purple-500/40'
+                : 'bg-slack-bgHover hover:bg-slack-border text-slack-textMuted'
           }`}
           title={workspaceContextButtonTitle}
           aria-label={`Workspace context mode ${workspaceContextModeLabel(workspaceContextMode)}`}
@@ -306,14 +313,20 @@ export function ChatToolbarActions({
         <button
           type="button"
           onClick={() => useTerminalStore.getState().togglePanel()}
-          className={`${iconBtn} bg-gray-600 hover:bg-gray-700 text-white relative focus-visible:outline-gray-400`}
-          title="Terminal (⌘J)"
+          className={`${iconBtn} bg-gray-600 hover:bg-gray-700 text-white relative focus-visible:outline-gray-400 ${
+            approvalCount > 0 ? 'ring-2 ring-amber-400/70' : ''
+          }`}
+          title={
+            approvalCount > 0
+              ? `${approvalCount} command/tool approval${approvalCount === 1 ? '' : 's'} waiting (⌘J)`
+              : 'Terminal (⌘J)'
+          }
           aria-label="Toggle terminal panel"
         >
           <TerminalIcon className="w-3.5 h-3.5" />
-          {suggestedCount > 0 && (
-            <span className="absolute -bottom-0.5 -right-0.5 bg-yellow-500 text-black text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
-              {suggestedCount}
+          {approvalCount > 0 && (
+            <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-black text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center leading-none">
+              {approvalCount}
             </span>
           )}
         </button>
@@ -322,6 +335,13 @@ export function ChatToolbarActions({
       <ToolbarDivider layout={layout} />
 
       <div className={groupClass} aria-label="Models and account">
+        <OllamaRuntimeChip
+          layout={layout}
+          serverAddr={serverAddr}
+          onOpenModelLibrary={onOpenModelLibrary}
+          onOpenSettings={onOpenSettings}
+        />
+
         <button
           type="button"
           onClick={onOpenModelLibrary}
@@ -335,7 +355,7 @@ export function ChatToolbarActions({
         {onOpenSettings && (
           <button
             type="button"
-            onClick={onOpenSettings}
+            onClick={() => onOpenSettings()}
             className={`${iconBtn} text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover focus-visible:outline-slack-accent`}
             title="Settings (⌘,)"
             aria-label="Open settings"

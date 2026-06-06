@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { FileChange } from '../types/protocol';
 import { useFileChangeStore } from '../stores/fileChangeStore';
+import { CodeBlock } from './CodeBlock';
+import { inferLanguageFromPath } from '../utils/promptAttachments';
 
 interface FileChangePreviewProps {
   change: FileChange;
@@ -9,7 +11,7 @@ interface FileChangePreviewProps {
   onReject: (changeId: string, reason: string) => void;
 }
 
-const codeBox = 'bg-nj-surface border border-slack-border rounded p-3 text-sm overflow-x-auto text-slack-text';
+const pathCodeBox = 'bg-nj-surface border border-slack-border rounded p-3 text-sm overflow-x-auto text-slack-text';
 
 export function FileChangePreview({ change, onClose, onApprove, onReject }: FileChangePreviewProps) {
   const [rejectReason, setRejectReason] = useState('');
@@ -58,46 +60,42 @@ export function FileChangePreview({ change, onClose, onApprove, onReject }: File
     }
 
     switch (change.operation) {
-      case 'create':
+      case 'create': {
+        const lang = inferLanguageFromPath(change.file_path);
         return (
           <div className="space-y-4">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4">
               <h4 className="font-semibold text-emerald-300 mb-2">New File Content</h4>
-              <pre className={codeBox}>
-                <code>{change.new_content}</code>
-              </pre>
+              <CodeBlock content={change.new_content ?? ''} language={lang} />
             </div>
           </div>
         );
+      }
 
-      case 'edit':
+      case 'edit': {
+        const lang = inferLanguageFromPath(change.file_path);
         return (
           <div className="space-y-4">
             {previewData?.diff ? (
               <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-4">
                 <h4 className="font-semibold text-sky-300 mb-2">Changes (Diff)</h4>
-                <pre className={`${codeBox} whitespace-pre-wrap`}>
-                  <code>{previewData.diff}</code>
-                </pre>
+                <CodeBlock content={previewData.diff} language="diff" />
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="rounded-lg border border-red-500/30 bg-red-950/20 p-4">
                   <h4 className="font-semibold text-red-300 mb-2">Old Content</h4>
-                  <pre className={codeBox}>
-                    <code>{change.old_content}</code>
-                  </pre>
+                  <CodeBlock content={change.old_content ?? ''} language={lang} />
                 </div>
                 <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4">
                   <h4 className="font-semibold text-emerald-300 mb-2">New Content</h4>
-                  <pre className={codeBox}>
-                    <code>{change.new_content}</code>
-                  </pre>
+                  <CodeBlock content={change.new_content ?? ''} language={lang} />
                 </div>
               </div>
             )}
           </div>
         );
+      }
 
       case 'delete':
         return (
@@ -128,13 +126,13 @@ export function FileChangePreview({ change, onClose, onApprove, onReject }: File
               <div className="space-y-2">
                 <div>
                   <span className="text-xs font-medium text-slack-textMuted">From:</span>
-                  <pre className={`${codeBox} mt-1`}>
+                  <pre className={`${pathCodeBox} mt-1`}>
                     <code>{change.old_path}</code>
                   </pre>
                 </div>
                 <div>
                   <span className="text-xs font-medium text-slack-textMuted">To:</span>
-                  <pre className={`${codeBox} mt-1`}>
+                  <pre className={`${pathCodeBox} mt-1`}>
                     <code>{change.new_path}</code>
                   </pre>
                 </div>

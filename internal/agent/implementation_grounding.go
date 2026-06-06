@@ -21,7 +21,7 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 	if s == nil {
 		return true
 	}
-	if s.SeedsLoaded >= 2 {
+	if s.SeedsLoaded >= 1 {
 		return true
 	}
 	if len(s.DiscoverTools) >= 1 {
@@ -74,9 +74,25 @@ func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *proto
 		wsPath = a.resolveWorkspacePath(sourceMsg)
 	}
 
+	if op == ProposalOpCreate && sourceMsg != nil {
+		want := normalizeFileChangeRelPath(path)
+		for _, p := range DetectFilePaths(sourceMsg.Content) {
+			if normalizeFileChangeRelPath(p) == want {
+				op = a.inferProposalOp(wsPath, path, op)
+				return ValidateProposal(wsPath, path, op, a.manifestForProposal(ctx, sourceMsg))
+			}
+		}
+	}
+
 	st := implementationSessionStateFromContext(ctx)
 	if st != nil && !st.groundingSatisfied() {
-		return fmt.Errorf("grounding required: read the stack manifest and use read_file or glob_file_search before proposing edits")
+		if sourceMsg != nil && a != nil && userAffirmsPendingImplementation(sourceMsg.Content) &&
+			(channelHasRecentImplementationAsk(a.channelHistory(sourceMsg.Channel), sourceMsg.ID) ||
+				channelHasRecentImplementationActivity(a.channelHistory(sourceMsg.Channel), sourceMsg.ID, a.Info.ID)) {
+			// continuation turn: prior user ask already grounded the session
+		} else {
+			return fmt.Errorf("grounding required: read the stack manifest and use read_file or glob_file_search before proposing edits")
+		}
 	}
 
 	manifest := a.manifestForProposal(ctx, sourceMsg)

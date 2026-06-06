@@ -92,6 +92,13 @@ func appendWorkspaceReviewGuidance(prompt *strings.Builder, msg *protocol.Messag
 		prompt.WriteString("\n")
 	case (scope == ContextScopeOutline || scope == ContextScopeFocus || scope == ContextScopeFull) &&
 		messageHasWorkspaceContext(msg) && ResolveContextScope(msg) != ContextScopeNone:
+		if userRequestsCodeReview(msg.Content) {
+			prompt.WriteString("\n=== PROJECT CODE REVIEW (this turn) ===\n")
+			prompt.WriteString("The user asked for a project-wide code review and shared workspace context (file tree). ")
+			prompt.WriteString("Use read_file, grep, glob_file_search, and run_typescript_check on key paths under the project root. ")
+			prompt.WriteString("Start from package.json, tsconfig.json, src/, and entry files visible in the tree. ")
+			prompt.WriteString("Do NOT ask for a single file path or tell them to enable workspace sharing — review what is visible and read more files as needed.\n")
+		}
 		appendWorkspaceStackGrounding(prompt)
 		prompt.WriteString("\n")
 	case scope == ContextScopeHint && reviewIntent:

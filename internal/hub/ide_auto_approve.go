@@ -38,9 +38,11 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	if msg.From.ID != "" {
 		approvedBy = msg.From.ID
 	}
-	if _, err := h.fileChangeManager.ApproveFileChange(change.ID, approvedBy); err != nil {
+	approved, err := h.fileChangeManager.ApproveFileChange(change.ID, approvedBy)
+	if err != nil {
 		log.Printf("[IDE] Auto-approve file change %s: %v", change.ID, err)
 		return
 	}
+	h.NotifyFileChangeApproved(approved, approvedBy)
 	log.Printf("[IDE] Auto-approved file change %s (%s) trust=%s", change.ID, change.FilePath, trust)
 }

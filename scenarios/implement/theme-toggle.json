@@ -19,12 +19,18 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "180s",
+      "until_any_match": ["applied and verified|proposals submitted|theme.css"]
+    },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|theme|FILE_CHANGE|file change|applied and verified|proposals submitted"]
+      "any_match": ["implementation session|theme|FILE_CHANGE|file change|applied and verified|proposals submitted"],
+      "none_match": ["finished without file changes"]
     },
     {
       "action": "assert_file_exists",

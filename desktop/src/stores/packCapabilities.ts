@@ -10,6 +10,8 @@ export const PACK_CAP = {
   SECONDARY_ANALYSIS_API: 'secondary-analysis-api',
   SECONDARY_ANALYSIS_VIEWER: 'secondary-analysis-viewer',
   SECONDARY_ANALYSIS_PYTHON: 'secondary-analysis-python',
+  /** Customer pack ships Python secondary-analysis tooling (paths, panel profile, QC). */
+  SECONDARY_ANALYSIS_CUSTOMER: 'secondary-analysis-customer',
   CAD_API: 'cad-api',
   CAD_VIEWER: 'cad-viewer',
   CAD_WORKBENCH: 'cad-workbench',

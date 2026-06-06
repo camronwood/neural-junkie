@@ -42,6 +42,9 @@ const SCAN_TOOL_RE =
 const WORKSPACE_VISIBILITY_RE =
   /\b(can you see|do you see|are you able to see).{0,48}(workspace|project|repo|codebase|files?\s+open|what i have open)\b/i;
 
+const WORKSPACE_SHARING_RE =
+  /\b(workspace sharing|sharing is on|shared the workspace|i('ve| have) shared|workspace is (on|shared|enabled))\b/i;
+
 function hasScanToolSignals(text: string): boolean {
   return SCAN_TOOL_RE.test(text);
 }
@@ -54,6 +57,7 @@ export function messageAsksWorkspaceVisibility(text: string): boolean {
   const t = (text ?? '').trim();
   if (!t) return false;
   if (WORKSPACE_VISIBILITY_RE.test(t)) return true;
+  if (WORKSPACE_SHARING_RE.test(t)) return true;
   return /\bsee my (workspace|project|repo|codebase)\b/i.test(t);
 }
 

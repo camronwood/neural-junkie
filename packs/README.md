@@ -12,6 +12,6 @@ make pack-zip
 # dist/brightest-bio-lab-<version>.zip → Settings → Domain packs → Install custom pack
 ```
 
-Unit tests use a minimal copy under `internal/packs/testdata/brightest-bio-lab/`.
+Unit tests use a minimal copy under `internal/packs/testdata/brightest-bio-lab/`. Keep that fixture in sync with the private repo — including `secondary-analysis-customer` and `settings_overlay` keys for Python secondary analysis.
 
 See [docs/PACKS_CUSTOM.md](../docs/PACKS_CUSTOM.md).

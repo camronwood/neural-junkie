@@ -19,12 +19,18 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "180s",
+      "until_any_match": ["applied and verified|proposals submitted|darkMode"]
+    },
     {
       "action": "assert_messages",
       "from": "FrontendEngineer",
       "last_reply_only": true,
       "any_match": ["implementation session|applied and verified|proposals submitted|darkMode|theme"],
+      "none_match": ["finished without file changes"],
       "none_match": ["\\.vue", "App\\.vue", "ThemeToggle\\.vue"]
     },
     {

@@ -35,6 +35,12 @@ func TestInstallAndEnableCustomerPackRequiresLifeSciences(t *testing.T) {
 	if cfg.MCP.Biology.PythonExecutable != "python3" {
 		t.Fatalf("overlay python: got %q", cfg.MCP.Biology.PythonExecutable)
 	}
+	if cfg.MCP.Biology.DefaultPanelProfile != "human-inflammatory-12plex-v1" {
+		t.Fatalf("overlay panel profile: got %q", cfg.MCP.Biology.DefaultPanelProfile)
+	}
+	if !cfg.AnyPackCapability("secondary-analysis-customer") {
+		t.Fatal("expected secondary-analysis-customer capability when brightest-bio-lab enabled")
+	}
 	ctxs, err := cfg.EnabledCustomerPackContexts()
 	if err != nil {
 		t.Fatal(err)

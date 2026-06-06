@@ -210,7 +210,11 @@ chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go
 
-gui: ensure-sidecar ## Start GUI desktop app (Tauri + React)
+ensure-ollama: ## Start Ollama when not healthy (system PATH or fetch-ollama bundle)
+	@chmod +x scripts/ensure-ollama.sh
+	@./scripts/ensure-ollama.sh
+
+gui: ensure-sidecar ensure-ollama ## Start GUI desktop app (Tauri + React)
 	@echo "🖥️  Starting desktop app with React..."
 	@cd desktop && npm run tauri:dev
 
@@ -244,6 +248,8 @@ test-messages: ## Test message sending functionality
 test-go: ## Run Go unit tests only (repeatable: -count=1)
 	@echo "🧪 Running Go unit tests..."
 	@go test ./... -count=1
+	@chmod +x ./scripts/cleanup-test-artifacts.py
+	@./scripts/cleanup-test-artifacts.py || true
 	@echo "✅ Go tests complete."
 
 test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
@@ -362,7 +368,7 @@ refresh: stop setup-env ## Refresh: stop everything, clear logs, and restart fre
 	@echo "🖥️  To open GUI, run: make gui"
 	@echo ""
 
-start-all: setup-env ## Start server and all agents with environment loaded
+start-all: setup-env ensure-ollama ## Start server and all agents with environment loaded
 	@bash -c 'cd "$(CURDIR)"; \
 		source ./load-env.sh; \
 		PORT="$${SERVER_PORT:-18765}"; \
@@ -394,6 +400,14 @@ clean: ## Clean build artifacts
 	@rm -rf bin/
 	@rm -rf *.app
 	@echo "✅ Clean complete!"
+
+cleanup-test-artifacts: ## Remove leaked test repo caches (widget-expert, temp paths) from ~/.neural-junkie
+	@chmod +x ./scripts/cleanup-test-artifacts.py
+	@./scripts/cleanup-test-artifacts.py --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
+
+cleanup-test-artifacts-dry: ## Preview test artifact cleanup without deleting
+	@chmod +x ./scripts/cleanup-test-artifacts.py
+	@./scripts/cleanup-test-artifacts.py --dry-run --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test: test-go ## Run Go unit tests (alias for test-go)
 

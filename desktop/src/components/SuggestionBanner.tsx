@@ -42,12 +42,14 @@ export function SuggestionBanner({ suggestions, activeTabId, channel, api, colla
   };
 
   return (
-    <div className="bg-slack-bgHover border-b border-slack-border px-3 py-1.5 flex items-center gap-3 text-xs">
-      <div className="flex items-center gap-1.5 text-purple-400 flex-shrink-0">
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
-        <span className="font-medium">{suggestion.agent_name}</span>
+    <div className="bg-amber-500/10 border-b border-amber-500/40 px-3 py-1.5 flex items-center gap-3 text-xs">
+      <div className="flex items-center gap-1.5 text-amber-300 flex-shrink-0">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+        </span>
+        <span className="font-semibold uppercase tracking-wide text-[10px]">Approval</span>
+        <span className="font-medium text-amber-100">{suggestion.agent_name}</span>
       </div>
 
       <code className="bg-black/40 px-2 py-0.5 rounded text-green-400 font-mono truncate flex-1 min-w-0">

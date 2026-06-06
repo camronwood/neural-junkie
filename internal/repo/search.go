@@ -148,6 +148,20 @@ func scoreFile(file *SourceFile, query string, keywords []string) int {
 		score += 15
 	}
 
+	// Prefer app source over docs/marketing HTML for implementation-style queries.
+	if strings.Contains(lowerPath, "src/components/") {
+		score += 35
+	}
+	if strings.Contains(lowerPath, "docs/") && strings.HasSuffix(lowerPath, ".html") {
+		score -= 40
+	}
+	if strings.Contains(lowerPath, "release-notes") {
+		score -= 30
+	}
+	if fileName == "readme.md" {
+		score -= 20
+	}
+
 	return score
 }
 

@@ -40,6 +40,28 @@ func TestAppendWorkspaceReviewGuidance_FocusWithFiles(t *testing.T) {
 	}
 }
 
+func TestAppendWorkspaceReviewGuidance_ProjectReviewOutline(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general", protocol.AgentInfo{Name: "Camron"},
+		"Can you review the code in the workspace?")
+	msg.Metadata = map[string]interface{}{
+		MetadataContextScope: ContextScopeOutline,
+		"workspace_context": map[string]interface{}{
+			"workspace_name": "dickory-docs",
+			"workspace_path": "/proj/dickory-docs",
+			"file_tree":      "src/\n  App.tsx\n",
+		},
+	}
+	var b strings.Builder
+	appendWorkspaceReviewGuidance(&b, msg)
+	out := b.String()
+	if !strings.Contains(out, "PROJECT CODE REVIEW") {
+		t.Fatalf("expected project review guidance, got %q", out)
+	}
+	if !strings.Contains(out, "Do NOT ask for a single file path") {
+		t.Fatal("expected no file-path nag guidance")
+	}
+}
+
 func TestAppendWorkspaceReviewGuidance_HintWithoutFiles(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "general", protocol.AgentInfo{Name: "Camron"}, "review what's in my editor")
 	msg.Metadata = map[string]interface{}{

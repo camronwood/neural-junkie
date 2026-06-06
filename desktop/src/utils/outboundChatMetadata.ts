@@ -29,7 +29,11 @@ import {
   type ChannelKind,
 } from './inferContextScope';
 import { resolveConversationMode } from './conversationMode';
-import { hasImplementationContinuationSignals } from './implementationContinuation';
+import {
+  hasImplementationContinuationSignals,
+  hasImplementationRequestSignals,
+} from './implementationContinuation';
+import { hasCodeReviewSignals } from './codeReviewSignals';
 
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
@@ -376,10 +380,25 @@ export function buildHumanOutboundMetadata(options: {
       reason = 'implementation continuation';
     }
     meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  } else if (
+    channelKind === 'dm' &&
+    contextMode !== 'off' &&
+    hasImplementationRequestSignals(message)
+  ) {
+    if (scope === 'full' || scope === 'outline' || scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'DM implementation request';
+    }
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
   } else if (messageAsksWorkspaceVisibility(message) && contextMode !== 'off') {
     if (scope === 'none' || scope === 'hint') {
       scope = activeTabPath ? 'focus' : 'outline';
       reason = 'workspace visibility question';
+    }
+  } else if (hasCodeReviewSignals(message) && contextMode !== 'off') {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'project code review';
     }
   } else if (messageRequestsCADWorkspace(message) && contextMode !== 'off') {
     if (scope === 'none' || scope === 'hint') {

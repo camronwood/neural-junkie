@@ -518,10 +518,39 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 			copy.Model = c.CadMCPSettings().ChatModelOrDefault()
 		}
 	}
+	if isDevSpecialistAgentType(a.Type) && c.IsPackEnabled(PackSoftwareDevelopment) {
+		agentModel := strings.TrimSpace(a.Model)
+		providerModel := strings.TrimSpace(copy.Model)
+		if (agentModel == "" || isBiologyChatModel(agentModel)) &&
+			(providerModel == "" || isBiologyChatModel(providerModel)) {
+			copy.Model = DevOllamaCodeModel
+		}
+	}
 	if m := strings.TrimSpace(a.Model); m != "" {
-		copy.Model = m
+		if isDevSpecialistAgentType(a.Type) && c.IsPackEnabled(PackSoftwareDevelopment) && isBiologyChatModel(m) {
+			copy.Model = DevOllamaCodeModel
+		} else {
+			copy.Model = m
+		}
 	}
 	return &copy
+}
+
+func isDevSpecialistAgentType(agentType string) bool {
+	t := strings.ToLower(strings.TrimSpace(agentType))
+	for _, d := range devSpecialistTypes {
+		if t == d {
+			return true
+		}
+	}
+	return false
+}
+
+func isBiologyChatModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return model == BioOllamaChatModel ||
+		model == BioOllamaTag ||
+		strings.Contains(model, "openbiollm")
 }
 
 // ListProvidersSnapshot returns a copy of configured providers (thread-safe).

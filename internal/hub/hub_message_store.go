@@ -10,6 +10,8 @@ import (
 type PersistentMessageStore interface {
 	InsertMessage(msg *protocol.Message) error
 	ListChannelMessages(channel string, limit int, beforeID string) ([]*protocol.Message, error)
+	// ClearChannelMessages removes all persisted rows for a channel (e.g. after clear-history).
+	ClearChannelMessages(channel string) error
 }
 
 // SetPersistentMessageStore wires optional SQLite (or other) durable storage.

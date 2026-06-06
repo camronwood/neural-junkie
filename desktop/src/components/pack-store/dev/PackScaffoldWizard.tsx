@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { usePacksStore } from '../../../stores/packsStore';
 import { isTauriRuntime } from '../../../utils/promptAttachments';
-import { OVERLAY_FIELD_DOCS } from './packDevConstants';
+import { GENERIC_OVERLAY_FIELD_DOCS } from './packDevConstants';
 
 function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -27,7 +27,7 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
   const [description, setDescription] = useState('');
   const [publisher, setPublisher] = useState('');
   const [requiresPacks, setRequiresPacks] = useState<string[]>(['life-sciences']);
-  const [overlay, setOverlay] = useState<Record<string, string>>({ python_executable: 'python3' });
+  const [overlay, setOverlay] = useState<Record<string, string>>({});
   const [workspaceGuide, setWorkspaceGuide] = useState('assets/WORKSPACE.md');
   const [runbooksGlob, setRunbooksGlob] = useState('assets/runbooks/*.md');
 
@@ -197,7 +197,14 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
 
       {step === 2 && (
         <div className="space-y-3">
-          {OVERLAY_FIELD_DOCS.map((f) => (
+          <p className="text-xs text-slack-textMuted">
+            Generic customer packs use workspace guides and runbooks below. Secondary analysis overlays (
+            <code className="font-mono text-teal-300/90">secondary_analysis_tools_path</code>,{' '}
+            <code className="font-mono text-teal-300/90">cumulative_qc_dir</code>, etc.) belong in your
+            org&apos;s private pack with <code className="font-mono text-teal-300/90">secondary-analysis-customer</code>{' '}
+            — add them in the YAML editor after scaffold, or in the private pack repo.
+          </p>
+          {GENERIC_OVERLAY_FIELD_DOCS.map((f) => (
             <label key={f.key} className="block text-xs text-slack-textMuted">
               {f.key}
               <span className="block text-[11px] text-slack-textMuted/80">{f.hint}</span>

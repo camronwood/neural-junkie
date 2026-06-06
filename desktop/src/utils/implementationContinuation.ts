@@ -1,9 +1,33 @@
 /** User affirms a prior implementation/theme request without repeating code verbs. */
 const IMPLEMENTATION_CONTINUATION_RE =
-  /\b(go ahead|do it( now)?|yes please|please do|proceed|make (the |those )?changes|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)|you can (start|begin))\b/i;
+  /\b(approved|approve(d| it)?|keep going|please continue|continue(?: with (it|this|that|the work))?|looks good|that sounds good|sounds good|go[- ]?ahead|goadhead|do it( now)?|yes please|please do|proceed|make (the |those )?(changes|them)|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)?|you can (start|begin|proceed)|yeah go ahead|yes[,!]?\s*(keep going|that sounds good|use that|please))\b/i;
+
+/** Bare acknowledgements — not approval to ship file changes. */
+const WEAK_AFFIRMATION_ONLY_RE =
+  /^(?:@\w+\s+)?(?:ok|okay|looks good|that works|sounds good|nice|great|cool|perfect)[!.?\s]*$/i;
+
+/** Coding/build asks where the user expects file changes, not generic chat. */
+const IMPLEMENTATION_REQUEST_RE =
+  /\b(settings modal|font size|pick up where|finish (?:that |the )?work|theme support|dark[/ ]light|light[/ ]dark|dark mode|light mode|settings page|wire up|hook up|not working|does(?:n't| not) work|broken|debug this|blank screen|white screen|can you fix)\b/i;
+
+/** User directs the agent to use the shared workspace instead of asking for pasted files. */
+const WORKSPACE_DIRECTIVE_RE =
+  /\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b/i;
 
 export function hasImplementationContinuationSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text || text.length > 120) return false;
+  if (WEAK_AFFIRMATION_ONLY_RE.test(text)) return false;
   return IMPLEMENTATION_CONTINUATION_RE.test(text);
+}
+
+export function hasImplementationRequestSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  if (WORKSPACE_DIRECTIVE_RE.test(text)) return true;
+  if (IMPLEMENTATION_REQUEST_RE.test(text)) return true;
+  if (/\badd(?:ing)?\b/i.test(text) && /\b(theme|themes|modal|settings)\b/i.test(text)) {
+    return true;
+  }
+  return false;
 }

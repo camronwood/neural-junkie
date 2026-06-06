@@ -97,3 +97,37 @@ func TestResolveContextScopeForChannel_DMFullToOutline(t *testing.T) {
 		t.Fatalf("general channel want full, got %q", got)
 	}
 }
+
+func TestResolveContextScopeForChannel_DMImplementationToFocus(t *testing.T) {
+	msg := &protocol.Message{
+		Content: "add a settings modal with dark/light themes",
+		Metadata: map[string]interface{}{
+			MetadataContextScope: ContextScopeFull,
+			"workspace_context":  map[string]interface{}{"workspace_name": "proj"},
+		},
+	}
+	if got := ResolveContextScopeForChannel(msg, protocol.ChannelTypeDM); got != ContextScopeFocus {
+		t.Fatalf("DM implementation want focus, got %q", got)
+	}
+}
+
+func TestResolveContextScopeForChannel_DMWorkspaceDirectiveToFocus(t *testing.T) {
+	msg := &protocol.Message{
+		Content: "use the open workspace it has all the files you need",
+		Metadata: map[string]interface{}{
+			MetadataContextScope: ContextScopeOutline,
+			"workspace_context":  map[string]interface{}{"workspace_name": "proj", "workspace_path": "/proj"},
+		},
+	}
+	if got := ResolveContextScopeForChannel(msg, protocol.ChannelTypeDM); got != ContextScopeFocus {
+		t.Fatalf("DM workspace directive want focus, got %q", got)
+	}
+}
+
+func TestMessageNeedsWorkspaceFileLoad_workspaceDirective(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "fe-1", Name: "FrontendEngineer", Type: protocol.AgentTypeFrontend}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-fe", protocol.AgentInfo{Name: "camron"}, "use the open workspace it has all the files you need")
+	if !messageNeedsWorkspaceFileLoad(a, msg) {
+		t.Fatal("expected workspace directive to need file load")
+	}
+}

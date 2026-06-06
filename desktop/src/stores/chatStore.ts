@@ -73,6 +73,8 @@ export interface ChatState {
   setChannel: (channel: string) => void;
   setUsername: (username: string) => void;
   addMessage: (message: Message) => void;
+  /** Merge tool_approval rows by metadata.approval_id (pending → approved/rejected). */
+  upsertToolApprovalMessage: (message: Message) => void;
   setMessages: (messages: Message[]) => void;
   prependMessages: (messages: Message[]) => void;
   setAgents: (agents: AgentInfo[]) => void;
@@ -252,7 +254,32 @@ export const useChatStore = create<ChatState>((set, get) => {
         isTyping: false,
       };
     }),
-  
+
+  upsertToolApprovalMessage: (message) =>
+    set((state) => {
+      const approvalId = message.metadata?.approval_id as string | undefined;
+      if (!approvalId) {
+        return state;
+      }
+      const existingIdx = state.messages.findIndex(
+        (m) => m.type === 'tool_approval' && m.metadata?.approval_id === approvalId,
+      );
+      if (existingIdx !== -1) {
+        const updated = [...state.messages];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          content: message.content,
+          metadata: { ...updated[existingIdx].metadata, ...message.metadata },
+          timestamp: message.timestamp,
+        };
+        return { messages: updated, isTyping: false };
+      }
+      return {
+        messages: trimMessagesToMax([...state.messages, message], MAX_UI_CHANNEL_MESSAGES),
+        isTyping: false,
+      };
+    }),
+
   setMessages: (messages) =>
     set({
       messages: trimMessagesToMax(

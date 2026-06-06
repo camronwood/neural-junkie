@@ -244,6 +244,8 @@ func main() {
 	http.HandleFunc("/api/channels/create", corsMiddleware(handleCreateChannel))
 	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(handleCreateDMAgent))
 	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
+	http.HandleFunc("/api/cli-agents", corsMiddleware(handleCLIAgents))
+	http.HandleFunc("/api/cli-agents/", corsMiddleware(handleCLIAgentsSubRoute))
 	http.HandleFunc("/api/channels/join", corsMiddleware(handleJoinChannel))
 	http.HandleFunc("/api/channels/delete", corsMiddleware(localOnly(handleDeleteChannel)))
 	http.HandleFunc("/api/channels/clear-history", corsMiddleware(localOnly(handleClearChannelHistory)))
@@ -1408,30 +1410,19 @@ func handleCLIAgentTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	types := agent.ListCLIAgentTypes()
-	installed := make(map[string]bool, len(types))
-	for _, t := range types {
-		cfg, ok := agent.GetCLIAgentConfig(t)
-		if !ok {
-			continue
-		}
-		resolved, ok := agent.ResolveCLI(cfg)
-		if !ok {
-			installed[t] = false
-			continue
-		}
-		opts := []ai.CLIAgentOption{
-			ai.WithBaseArgs(resolved.BaseArgs),
-			ai.WithModel(cfg.ModelName),
-		}
-		p := ai.NewCLIAgentProvider(resolved.Command, ".", cfg.ProviderName, opts...)
-		installed[t] = p.IsCLIInstalled()
+	statuses := cliMgr.ListStatus(cliProviderAPIKey)
+	types := make([]string, 0, len(statuses))
+	installed := make(map[string]bool, len(statuses))
+	for _, st := range statuses {
+		types = append(types, st.Type)
+		installed[st.Type] = st.Installed
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"types":     types,
 		"installed": installed,
+		"agents":    statuses,
 	})
 }
 
@@ -2255,97 +2246,27 @@ func syncCLIProviderModelToRuntime(p *config.ProviderConfig) {
 func initCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string) {
 	log.Printf("🤖 Checking for %s CLI agent (%s)...", cfg.DefaultName, agent.CLIProbeLabel(cfg))
 
-	resolved, found := agent.ResolveCLI(cfg)
-	if !found {
-		log.Printf("ℹ️  %s CLI (%s) not found on PATH — skipping. %s", cfg.DefaultName, agent.CLIProbeLabel(cfg), cfg.InstallHint)
+	if cliAgentAlreadyActive(cfg) {
+		log.Printf("ℹ️  %s CLI agent already active", cfg.DefaultName)
 		return
 	}
 
-	workDir := defaultWorkDir
-	if cfg.WorkDirEnv != "" {
-		if envDir := os.Getenv(cfg.WorkDirEnv); envDir != "" {
-			workDir = envDir
-		}
-	}
-
-	opts := []ai.CLIAgentOption{
-		ai.WithBaseArgs(resolved.BaseArgs),
-		ai.WithModel(cfg.ModelName),
-	}
-
-	model := resolveCLIProviderModel(cfg)
-	if model != "" {
-		opts = append(opts, ai.WithModel(model))
-		ai.SetCLIProviderModelOverride(cfg.ProviderName, model)
-	}
-	if cfg.Type == "gemini" && model != "" {
-		_ = os.Setenv("GEMINI_MODEL", model)
-		opts = append(opts, ai.WithEnv("GEMINI_MODEL", model))
-	}
-	provider := ai.NewCLIAgentProvider(resolved.Command, workDir, cfg.ProviderName, opts...)
-
-	// Forward configured env vars
-	for _, envKey := range cfg.EnvVars {
-		if val := os.Getenv(envKey); val != "" {
-			provider.Env[envKey] = val
-		}
-	}
-
-	log.Printf("✅ %s CLI binary found (%s), initializing agent...", cfg.DefaultName, resolved.Command)
-
-	// Auto-register as a provider in the config so it appears in Settings > AI Providers
-	if existing := appConfig.GetProvider(cfg.ProviderName); existing == nil {
-		autoProvider := config.ProviderConfig{
-			ID:      cfg.ProviderName,
-			Type:    cfg.ProviderName,
-			Name:    cfg.DefaultName + " (Auto-detected)",
-			WorkDir: workDir,
-		}
-		if model != "" {
-			autoProvider.Model = model
-		}
-		if err := appConfig.AddProvider(autoProvider); err == nil {
-			log.Printf("📝 Auto-registered provider %q for %s CLI", cfg.ProviderName, cfg.DefaultName)
-			_ = appConfig.Save()
-		}
-	}
-
-	// Gemini-specific: configure tool approval hook
-	if cfg.Type == "gemini" {
-		configureGeminiApprovalHook()
-	}
-
-	cliAgent := agent.NewCLIAgentFromConfig(cfg, cfg.DefaultName, provider, chatHub)
-	cliAgent.SetCollabClient(chatHub.NewCollaborationClientAdapter())
-
-	if cfg.ApprovalMode != "" {
-		cliAgent.Info.ApprovalMode = cfg.ApprovalMode
-	}
-
-	if err := chatHub.RegisterAgent(&cliAgent.Info); err != nil {
-		log.Printf("❌ Failed to register %s CLI agent: %v", cfg.DefaultName, err)
-		return
-	}
-	if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
-		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
-			ch.RegisterRuntimeAgent(cliAgent)
-		}
-	}
-
-	if err := chatHub.JoinChannel(cliAgent.Info.ID, "general", cfg.JoinMessage); err != nil {
-		log.Printf("❌ Failed to join %s agent to general channel: %v", cfg.DefaultName, err)
-		return
-	}
-
-	ctx := context.Background()
-	go func() {
-		if err := cliAgent.Start(ctx, "general"); err != nil {
-			log.Printf("❌ Failed to start %s CLI agent: %v", cfg.DefaultName, err)
+	pathEnv := pathutil.EnhancedPATH()
+	if _, found := agent.ResolveCLIWithPATH(cfg, pathEnv); !found {
+		if _, found = agent.ResolveCLI(cfg); !found {
+			log.Printf("ℹ️  %s CLI (%s) not found on PATH — skipping. %s", cfg.DefaultName, agent.CLIProbeLabel(cfg), cfg.InstallHint)
 			return
 		}
-	}()
+	}
 
-	log.Printf("✅ %s CLI agent started (workDir: %s)", cfg.DefaultName, workDir)
+	activated, err := activateCLIAgentFromConfig(cfg, defaultWorkDir)
+	if err != nil {
+		log.Printf("❌ Failed to activate %s CLI agent: %v", cfg.DefaultName, err)
+		return
+	}
+	if activated {
+		log.Printf("✅ %s CLI agent started (workDir: %s)", cfg.DefaultName, defaultWorkDir)
+	}
 }
 
 // configureGeminiApprovalHook installs the Neural Junkie BeforeTool hook into
@@ -3987,26 +3908,7 @@ func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Emit a user-visible confirmation in the change channel.
-	channel := change.Channel
-	if strings.TrimSpace(channel) == "" {
-		channel = "general"
-	}
-	systemFrom := protocol.AgentInfo{
-		ID:     "system",
-		Name:   "System",
-		Type:   protocol.AgentTypeGeneral,
-		Status: "active",
-	}
-	confirm := protocol.NewMessage(
-		protocol.MessageTypeSystemInfo,
-		channel,
-		systemFrom,
-		fmt.Sprintf("Applied change `%s` to `%s`.", change.ID, change.FilePath),
-	)
-	if sendErr := chatHub.SendMessage(confirm); sendErr != nil {
-		log.Printf("Failed to send file-change confirmation message: %v", sendErr)
-	}
+	chatHub.NotifyFileChangeApproved(change, userID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(change)

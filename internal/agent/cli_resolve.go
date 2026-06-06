@@ -1,8 +1,9 @@
 package agent
 
 import (
-	"os/exec"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 )
 
 // CLICommandCandidates returns primary and alternate binary names to probe on PATH (deduped).
@@ -22,9 +23,14 @@ func CLICommandCandidates(cfg CLIAgentConfig) []string {
 
 // ResolveCLICommand returns the first CLI binary found on PATH for this config.
 func ResolveCLICommand(cfg CLIAgentConfig) (command string, ok bool) {
+	return ResolveCLICommandWithPATH(cfg, "")
+}
+
+// ResolveCLICommandWithPATH resolves a CLI binary using an optional PATH override.
+func ResolveCLICommandWithPATH(cfg CLIAgentConfig, pathEnv string) (command string, ok bool) {
 	for _, c := range CLICommandCandidates(cfg) {
-		if _, err := exec.LookPath(c); err == nil {
-			return c, true
+		if path, err := pathutil.LookPathIn(c, pathEnv); err == nil {
+			return path, true
 		}
 	}
 	return "", false
@@ -51,13 +57,23 @@ type ResolvedCLI struct {
 
 // ResolveCLI resolves PATH and base args for a registry entry.
 func ResolveCLI(cfg CLIAgentConfig) (ResolvedCLI, bool) {
-	cmd, ok := ResolveCLICommand(cfg)
+	return ResolveCLIWithPATH(cfg, "")
+}
+
+// ResolveCLIWithPATH resolves PATH and base args using an optional PATH override.
+func ResolveCLIWithPATH(cfg CLIAgentConfig, pathEnv string) (ResolvedCLI, bool) {
+	cmdPath, ok := ResolveCLICommandWithPATH(cfg, pathEnv)
 	if !ok {
 		return ResolvedCLI{}, false
 	}
+	// EffectiveBaseArgs keys off binary name, not full path.
+	cmdName := cmdPath
+	if i := strings.LastIndex(cmdPath, "/"); i >= 0 {
+		cmdName = cmdPath[i+1:]
+	}
 	return ResolvedCLI{
-		Command:  cmd,
-		BaseArgs: EffectiveBaseArgs(cfg, cmd),
+		Command:  cmdName,
+		BaseArgs: EffectiveBaseArgs(cfg, cmdName),
 	}, true
 }
 

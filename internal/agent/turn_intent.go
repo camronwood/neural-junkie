@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -72,7 +73,8 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 		return IntentSubstantive
 	}
 
-	if userAffirmsPendingImplementation(content) && channelHasRecentImplementationAsk(history, msg.ID) {
+	if userAffirmsPendingImplementation(content) && (channelHasRecentImplementationAsk(history, msg.ID) ||
+		channelHasRecentImplementationActivity(history, msg.ID, agentID)) {
 		return IntentTask
 	}
 
@@ -264,17 +266,66 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 	if intent == IntentLowSignal || intent == IntentMeta || intent == IntentClosure {
 		return false
 	}
+	if a.useOllamaContextGuardrails(msg) {
+		return false
+	}
+	wsPath := strings.TrimSpace(a.resolveWorkspacePath(msg))
+	hasWorkspace := wsPath != "" || messageHasWorkspaceContext(msg)
+	if !hasWorkspace {
+		return false
+	}
 	mode := EffectiveConversationMode(msg, a.effectiveChannelType(msg.Channel))
+	if mode == ConversationModeCode || intent == IntentTask || messageNeedsWorkspaceFileLoad(a, msg) {
+		if ContextScopeFromMessage(msg) == ContextScopeNone && !messageHasWorkspaceContext(msg) {
+			return intent == IntentTask
+		}
+		return true
+	}
 	if mode == ConversationModeChat && intent != IntentTask {
 		return false
 	}
 	if ContextScopeFromMessage(msg) == ContextScopeNone && intent != IntentTask {
 		return false
 	}
-	if a.useOllamaContextGuardrails(msg) {
+	return true
+}
+
+// messageNeedsWorkspaceFileLoad reports fix/debug/workspace turns that should preload disk files.
+func messageNeedsWorkspaceFileLoad(a *Agent, msg *protocol.Message) bool {
+	if msg == nil {
 		return false
 	}
-	return true
+	if userRequestsImplementationForMessage(a, msg) {
+		return true
+	}
+	if userRequestsImplementation(msg.Content) || workspaceDirectiveRE.MatchString(msg.Content) {
+		return true
+	}
+	if len(DetectFilePaths(msg.Content)) > 0 {
+		return true
+	}
+	if a != nil && channelHasRecentImplementationAsk(a.channelHistory(msg.Channel), msg.ID) {
+		return true
+	}
+	return false
+}
+
+// buildWorkspaceGroundedRetryPrompt preloads workspace seed files when the model asked the user to paste content.
+func (a *Agent) buildWorkspaceGroundedRetryPrompt(msg *protocol.Message) string {
+	var system strings.Builder
+	system.WriteString(fmt.Sprintf("You are %s.\n", a.Info.Name))
+	system.WriteString("The user has shared their project workspace on disk. ")
+	system.WriteString("Do NOT ask them to paste or share file contents — use the loaded files below.\n")
+	if a.hasWorkspaceTools() {
+		system.WriteString("You also have read_file / grep / glob_file_search tools for additional paths.\n")
+	}
+	wsPath := a.resolveWorkspacePath(msg)
+	if wsPath != "" {
+		AppendImplementationSeedFiles(&system, a, msg, wsPath, a.Info.Type, nil)
+	}
+	var user strings.Builder
+	user.WriteString(strings.TrimSpace(msg.Content))
+	return system.String() + ai.SystemPromptSeparator + user.String()
 }
 
 func (a *Agent) logTurnIntent(intent TurnIntent, msg *protocol.Message) {

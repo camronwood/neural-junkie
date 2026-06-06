@@ -10,10 +10,14 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+const maxRecentlyAppliedFilePaths = 8
+
 var (
-	implementationAffirmRE = regexp.MustCompile(`(?i)\b(go ahead|do it( now)?|yes please|please do|proceed|make (the |those )?changes|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|you can (start|begin))\b`)
-	themeImplementationRE  = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark mode|light mode|ui theme)\b.{0,48}\b(add|implement|build|wire|toggle)\b|\b(add|implement|build|wire)\b.{0,48}\b(theme|themes|ui theme|dark mode|light mode)\b)`)
+	implementationAffirmRE = regexp.MustCompile(`(?i)\b(approved|approve(d| it)?|keep going|please continue|continue(?: with (it|this|that|the work))?|looks good|that sounds good|sounds good|go[- ]?ahead|goadhead|do it( now)?|yes please|please do|proceed|make (the |those )?(changes|them)|apply (that|it|your plan)|do that now|ok please|sure,?\s*please|let's do it|please implement|sounds good[,!]?\s*(go|do)|that works[,!]?\s*(go|do)?|you can (start|begin|proceed)|yeah go ahead|yes[,!]?\s*(keep going|that sounds good|use that|please))\b`)
+	weakImplementationAffirmRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:ok|okay|looks good|that works|sounds good|nice|great|cool|perfect)[!.?\s]*$`)
+	themeImplementationRE  = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
 	implementTypoRE        = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
+	workspaceDirectiveRE   = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
 )
 
 const maxImplementationSeedFiles = 6
@@ -25,11 +29,17 @@ func userRequestsImplementation(content string) bool {
 	if lower == "" {
 		return false
 	}
+	if userRequestsCodeReview(content) {
+		return false
+	}
 	if implementTypoRE.MatchString(lower) || themeImplementationRE.MatchString(lower) {
 		return true
 	}
 	if userAffirmsPendingImplementation(content) {
 		return false // continuation alone is not enough without channel history
+	}
+	if workspaceDirectiveRE.MatchString(lower) {
+		return true
 	}
 	phrases := []string{
 		"please implement", "implement that", "implement the",
@@ -37,8 +47,13 @@ func userRequestsImplementation(content string) bool {
 		"ship ", "apply the plan", "apply your plan", "make the changes",
 		"make the change", "do the implementation", "actually implement",
 		"write the code", "add the code", "add light", "add dark",
-		"theme support", "light/dark", "dark mode", "light mode",
-		"wire up", "hook up", "under settings", "settings page",
+		"theme support", "light/dark", "dark/light", "dark mode", "light mode",
+		"wire up", "hook up", "under settings", "settings page", "settings modal",
+		"font size", "pick up where", "finish that work", "finish the work",
+		"review the code for issues", "review the code for bugs", "review and fix",
+		"code for issues", "not working", "doesn't work",
+		"does not work", "does not seem to be working", "broken", "fix the app", "debug this", "troubleshoot",
+		"blank screen", "white screen", "can you fix",
 	}
 	for _, p := range phrases {
 		if strings.Contains(lower, p) {
@@ -51,6 +66,272 @@ func userRequestsImplementation(content string) bool {
 // userAffirmsPendingImplementation reports short follow-ups after an implementation ask.
 func userAffirmsPendingImplementation(content string) bool {
 	return implementationAffirmRE.MatchString(strings.TrimSpace(content))
+}
+
+// isWeakImplementationAffirmation reports bare acknowledgements ("ok", "looks good") that are
+// not explicit approval to ship file changes.
+func isWeakImplementationAffirmation(content string) bool {
+	return weakImplementationAffirmRE.MatchString(strings.TrimSpace(content))
+}
+
+func agentMessageIsFileContentDump(content string) bool {
+	trim := strings.TrimSpace(content)
+	return strings.HasPrefix(trim, "###") && strings.Contains(content, "```")
+}
+
+func agentMessageImplSessionFailed(content string) bool {
+	lower := strings.ToLower(content)
+	return strings.Contains(lower, "finished without file changes")
+}
+
+func messageIsFileChangeApproval(m *protocol.Message) bool {
+	return m != nil && m.FileChangeApproved()
+}
+
+func fileChangeApprovalTargetsAgent(m *protocol.Message, agentID string) bool {
+	if !messageIsFileChangeApproval(m) {
+		return false
+	}
+	if agentID == "" {
+		return true
+	}
+	target := m.FileChangeApprovalAgentID()
+	return target == "" || target == agentID
+}
+
+// channelRecentlyAppliedFilePaths returns workspace paths the user already approved via the UI
+// in recent channel history (relative and absolute forms normalized for seed exclusion).
+func channelRecentlyAppliedFilePaths(history []*protocol.Message, skipMsgID, agentID string) []string {
+	seen := make(map[string]bool)
+	var paths []string
+	scanned := 0
+	for i := len(history) - 1; i >= 0 && scanned < 16; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		scanned++
+		if !messageIsFileChangeApproval(m) || !fileChangeApprovalTargetsAgent(m, agentID) {
+			continue
+		}
+		raw := ""
+		if m.Metadata != nil {
+			raw, _ = m.Metadata[protocol.MetaFileChangePath].(string)
+		}
+		if raw == "" {
+			for _, p := range DetectFilePaths(m.Content) {
+				raw = p
+				break
+			}
+		}
+		for _, key := range appliedPathExcludeKeys(raw) {
+			if key == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			paths = append(paths, key)
+			if len(paths) >= maxRecentlyAppliedFilePaths {
+				return paths
+			}
+		}
+	}
+	return paths
+}
+
+func appliedPathExcludeKeys(path string) []string {
+	path = strings.Trim(strings.TrimSpace(path), "`")
+	if path == "" {
+		return nil
+	}
+	keys := []string{path}
+	if rel := normalizeFileChangeRelPath(path); rel != "" && rel != path {
+		keys = append(keys, rel)
+	}
+	if base := filepath.Base(path); base != "" && base != path && base != "." {
+		keys = append(keys, base)
+	}
+	return keys
+}
+
+func seedPathExcluded(p string, exclude map[string]bool) bool {
+	if exclude == nil {
+		return false
+	}
+	p = strings.TrimSpace(p)
+	if exclude[p] {
+		return true
+	}
+	if base := filepath.Base(p); base != "" && exclude[base] {
+		return true
+	}
+	return false
+}
+
+func mergeAppliedPathsIntoExclude(exclude map[string]bool, applied []string) map[string]bool {
+	if len(applied) == 0 {
+		return exclude
+	}
+	if exclude == nil {
+		exclude = make(map[string]bool, len(applied))
+	}
+	for _, raw := range applied {
+		for _, key := range appliedPathExcludeKeys(raw) {
+			exclude[key] = true
+		}
+	}
+	return exclude
+}
+
+// isVagueImplementationContinuation reports bare "pick up where we left off" asks without concrete task detail.
+func isVagueImplementationContinuation(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	hasContinuation := strings.Contains(lower, "pick up where") ||
+		strings.Contains(lower, "where we left off") ||
+		strings.Contains(lower, "continue where we")
+	if !hasContinuation {
+		return false
+	}
+	if themeImplementationRE.MatchString(lower) || implementTypoRE.MatchString(lower) {
+		return false
+	}
+	concrete := []string{
+		"settings", "modal", "theme", "implement", "add ", "fix ", "build ",
+		"tailwind", "component", "button", "src/", ".tsx", ".jsx", ".js", ".go",
+		"finish that", "finish the", "yesterday we",
+	}
+	for _, p := range concrete {
+		if strings.Contains(lower, p) {
+			return false
+		}
+	}
+	return len(lower) < 120
+}
+
+// vagueContinuationWithoutPriorThread blocks implementation sessions when the user only asks
+// to resume work but the channel has no prior implementation activity to continue.
+func vagueContinuationWithoutPriorThread(history []*protocol.Message, skipMsgID, agentID, content string) bool {
+	if !isVagueImplementationContinuation(content) {
+		return false
+	}
+	if channelHasRecentImplementationActivity(history, skipMsgID, agentID) {
+		return false
+	}
+	if channelHasRecentFileChangeApproval(history, skipMsgID, agentID) {
+		return false
+	}
+	return true
+}
+
+// channelHasRecentFileChangeApproval reports a UI or command approval the agent should treat as done.
+func channelHasRecentFileChangeApproval(history []*protocol.Message, skipMsgID, agentID string) bool {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 16; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		seen++
+		if messageIsFileChangeApproval(m) && fileChangeApprovalTargetsAgent(m, agentID) {
+			return true
+		}
+	}
+	return false
+}
+
+// channelHasPendingImplementationPlan reports whether the agent awaits approval of a plan or
+// proposals — not a failed session or a read-only file dump.
+func channelHasPendingImplementationPlan(history []*protocol.Message, skipMsgID, agentID string) bool {
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		if messageIsFileChangeApproval(m) && fileChangeApprovalTargetsAgent(m, agentID) {
+			return false
+		}
+		if protocol.IsUserLikeSender(m.From) {
+			continue
+		}
+		if agentID != "" && m.From.ID != agentID {
+			continue
+		}
+		if m.Type == protocol.MessageTypeFileChange {
+			return true
+		}
+		if m.Type != protocol.MessageTypeChat && m.Type != protocol.MessageTypeAnswer {
+			continue
+		}
+		body := strings.ToLower(m.Content)
+		if strings.Contains(body, "proposals submitted for approval") {
+			return true
+		}
+		if agentMessageImplSessionFailed(m.Content) || agentMessageIsFileContentDump(m.Content) {
+			return false
+		}
+		if strings.Contains(body, "[file_change]") ||
+			strings.Contains(body, "i will ") ||
+			strings.Contains(body, "i'll ") ||
+			strings.Contains(body, "plan:") {
+			return true
+		}
+		return false
+	}
+	return false
+}
+
+// affirmationContinuesImplementation gates weak affirmations so "looks good" after a file dump
+// or failed session does not re-open the implementation loop.
+func affirmationContinuesImplementation(history []*protocol.Message, skipMsgID, agentID, content string) bool {
+	if channelHasRecentFileChangeApproval(history, skipMsgID, agentID) {
+		return channelHasRecentImplementationAsk(history, skipMsgID) ||
+			channelHasRecentImplementationActivity(history, skipMsgID, agentID)
+	}
+	if !userAffirmsPendingImplementation(content) {
+		return false
+	}
+	hasAsk := channelHasRecentImplementationAsk(history, skipMsgID)
+	if isWeakImplementationAffirmation(content) {
+		return hasAsk && channelHasPendingImplementationPlan(history, skipMsgID, agentID)
+	}
+	return hasAsk || channelHasRecentImplementationActivity(history, skipMsgID, agentID)
+}
+
+// channelHasRecentImplementationActivity reports an active implementation thread in channel history.
+func channelHasRecentImplementationActivity(history []*protocol.Message, skipMsgID string, agentID string) bool {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 16; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		seen++
+		if messageIsFileChangeApproval(m) && fileChangeApprovalTargetsAgent(m, agentID) {
+			return true
+		}
+		if m.Type == protocol.MessageTypeFileChange {
+			if agentID == "" || m.From.ID == agentID {
+				return true
+			}
+		}
+		if m.Type == protocol.MessageTypeChat || m.Type == protocol.MessageTypeAnswer {
+			if agentID != "" && m.From.ID != agentID {
+				continue
+			}
+			body := strings.ToLower(m.Content)
+			if strings.Contains(body, "implementation session complete") ||
+				strings.Contains(body, "proposals submitted for approval") ||
+				strings.Contains(body, "finished without file changes") {
+				return true
+			}
+		}
+		if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+			return true
+		}
+	}
+	return false
 }
 
 // channelHasRecentImplementationAsk scans recent user turns for an implementation request.
@@ -80,10 +361,92 @@ func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool 
 	if userRequestsImplementation(msg.Content) {
 		return true
 	}
+	if a != nil {
+		history := a.channelHistory(msg.Channel)
+		if channelHasRecentFileChangeApproval(history, msg.ID, a.Info.ID) &&
+			(channelHasRecentImplementationAsk(history, msg.ID) ||
+				channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)) {
+			return true
+		}
+	}
 	if a == nil || !userAffirmsPendingImplementation(msg.Content) {
 		return false
 	}
-	return channelHasRecentImplementationAsk(a.channelHistory(msg.Channel), msg.ID)
+	history := a.channelHistory(msg.Channel)
+	return affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content)
+}
+
+// ShouldForceSessionSummaryRefresh reports user turns that should refresh a stale session summary.
+func ShouldForceSessionSummaryRefresh(content string) bool {
+	if userAffirmsPendingImplementation(content) {
+		return true
+	}
+	if userRequestsCodeReview(content) {
+		return true
+	}
+	if userRequestsImplementation(content) {
+		return true
+	}
+	return false
+}
+
+// ShouldForceSessionSummaryRefreshForMessage includes UI file-change approvals.
+func ShouldForceSessionSummaryRefreshForMessage(msg *protocol.Message) bool {
+	if msg != nil && msg.FileChangeApproved() {
+		return true
+	}
+	if msg == nil {
+		return false
+	}
+	return ShouldForceSessionSummaryRefresh(msg.Content)
+}
+
+// ShouldForceSessionSummaryRefreshOnAgentResponse reports agent replies that invalidate a stale summary.
+func ShouldForceSessionSummaryRefreshOnAgentResponse(content string) bool {
+	trim := strings.TrimSpace(content)
+	if trim == "" {
+		return false
+	}
+	lower := strings.ToLower(trim)
+	if strings.Contains(lower, "grounding: i loaded") {
+		return true
+	}
+	if agentMessageIsFileContentDump(trim) {
+		return true
+	}
+	if agentMessageImplSessionFailed(trim) ||
+		strings.Contains(lower, "implementation session complete") ||
+		strings.Contains(lower, "proposals submitted for approval") {
+		return true
+	}
+	return false
+}
+
+// appendAntiRepeatFileDumpGuidance tells the model not to repeat a prior workspace file dump.
+func appendAntiRepeatFileDumpGuidance(prompt *strings.Builder, history []*protocol.Message, agentID string) {
+	if prompt == nil || len(history) == 0 {
+		return
+	}
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m == nil {
+			continue
+		}
+		if agentID != "" && m.From.ID != agentID {
+			continue
+		}
+		if m.Type != protocol.MessageTypeChat && m.Type != protocol.MessageTypeAnswer {
+			continue
+		}
+		if !agentMessageIsFileContentDump(m.Content) {
+			return
+		}
+		prompt.WriteString("\n=== RESPONSE GUIDANCE ===\n")
+		prompt.WriteString("Your previous reply already showed file contents from the workspace. ")
+		prompt.WriteString("Do NOT repeat the same file dump. Advance the diagnosis, propose fixes via [FILE_CHANGE], ")
+		prompt.WriteString("or ask one specific follow-up question.\n\n")
+		return
+	}
 }
 
 func agentTypeCanShipFileChanges(t protocol.AgentType) bool {
@@ -102,14 +465,20 @@ func agentTypeCanShipFileChanges(t protocol.AgentType) bool {
 // in constraint text).
 func shouldProactiveScanWorkspace(content string) bool {
 	if userRequestsImplementation(content) {
-		for _, p := range DetectFilePaths(content) {
-			if strings.Contains(p, "/") {
-				return true
-			}
-		}
-		return false
+		return true
 	}
 	return shouldInjectWorkspaceCode(content)
+}
+
+// shouldProactiveScanWorkspaceForMessage includes affirmation follow-ups in the same thread.
+func shouldProactiveScanWorkspaceForMessage(a *Agent, msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if a != nil && userRequestsImplementationForMessage(a, msg) {
+		return true
+	}
+	return shouldProactiveScanWorkspace(msg.Content)
 }
 
 func workspaceGroundingRequirement(totalLoaded int, content string, implementation ...bool) string {
@@ -148,6 +517,22 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	prompt.WriteString("Keep conversational text short (2-4 sentences); put code in [FILE_CHANGE], not long fenced dumps.\n")
 	prompt.WriteString("Do NOT ask the user to paste or share file contents when REFERENCED FILES or WORKSPACE SOURCE FILES appear below — read them and emit [FILE_CHANGE].\n")
 	prompt.WriteString("Only ask for a path if a required file is missing from every context section.\n")
+	if a != nil {
+		history := a.channelHistory(msg.Channel)
+		applied := channelRecentlyAppliedFilePaths(history, msg.ID, a.Info.ID)
+		if len(applied) > 0 {
+			prompt.WriteString(fmt.Sprintf(
+				"Already applied in this thread (do NOT re-propose identical edits): %s. Ship the NEXT file(s) needed to finish the task.\n",
+				strings.Join(applied, ", "),
+			))
+		}
+		if channelHasRecentFileChangeApproval(history, msg.ID, a.Info.ID) {
+			prompt.WriteString("The user already approved and applied your file change via the UI — continue with next steps; do NOT ask for approval again.\n")
+		}
+	}
+	if userAffirmsPendingImplementation(msg.Content) {
+		prompt.WriteString("The user already approved your plan — do NOT re-plan, re-ask design questions, or request more details. Ship [FILE_CHANGE] blocks now.\n")
+	}
 }
 
 var frontendImplementationSeeds = []string{
@@ -160,16 +545,19 @@ var frontendImplementationSeeds = []string{
 	"src/App.jsx",
 	"src/main.tsx",
 	"src/main.ts",
+	"src/components/SettingsModal.tsx",
+	"src/SettingsModal.tsx",
 	"index.html",
 }
 
 // implementationSeedCandidates returns paths to load from disk for implement turns.
-func implementationSeedCandidates(agentType protocol.AgentType, content string) []string {
+// exclude holds recently applied or otherwise skipped paths (may use basename keys).
+func implementationSeedCandidates(agentType protocol.AgentType, content string, history []*protocol.Message, exclude map[string]bool) []string {
 	seen := make(map[string]bool)
 	var out []string
 	add := func(p string) {
 		p = strings.TrimSpace(p)
-		if p == "" || seen[p] {
+		if p == "" || seen[p] || seedPathExcluded(p, exclude) {
 			return
 		}
 		seen[p] = true
@@ -177,6 +565,17 @@ func implementationSeedCandidates(agentType protocol.AgentType, content string) 
 	}
 	for _, p := range DetectFilePaths(content) {
 		add(p)
+	}
+	seenHist := 0
+	for i := len(history) - 1; i >= 0 && seenHist < 12; i-- {
+		m := history[i]
+		if m == nil {
+			continue
+		}
+		seenHist++
+		for _, p := range DetectFilePaths(m.Content) {
+			add(p)
+		}
 	}
 	if agentType == protocol.AgentTypeFrontend {
 		for _, p := range frontendImplementationSeeds {
@@ -197,7 +596,14 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 		return 0
 	}
 
-	paths := implementationSeedCandidates(agentType, msg.Content)
+	var history []*protocol.Message
+	agentID := ""
+	if a != nil {
+		history = a.channelHistory(msg.Channel)
+		agentID = a.Info.ID
+	}
+	exclude := mergeAppliedPathsIntoExclude(excludePaths, channelRecentlyAppliedFilePaths(history, msg.ID, agentID))
+	paths := implementationSeedCandidates(agentType, msg.Content, history, exclude)
 	if len(paths) == 0 {
 		return 0
 	}

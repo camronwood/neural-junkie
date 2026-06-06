@@ -147,7 +147,7 @@ With **secondary-analysis-api**, **secondary-analysis-viewer**, and **secondary-
 1. **Run 12-Plex QC** — scan analysis viewer or file explorer context menu (native Go). QC failure overlay mode, JSON/CSV export, **Ask BiologyExpert**. Persists `reports/qc_12plex_report.json`.
 2. **Secondary Analysis panel** — basket with editable condition labels; workflows: comparator (heatmaps, std curves, spike recovery via JSON or `Experiment_Details.csv`), endogenous, std curves, print order, 12-Plex Excel/cumulative, SPC charts. Job history stored in `{workspace}/.neural-junkie/secondary-analysis-history.json`. Outputs under `{workspace}/.neural-junkie/analysis-runs/{job_id}/`.
 3. **Comparator viewer** — LLOQ/ULOQ table, plate summary stats, interplate CSVs, artifact PNG preview.
-4. **Settings → Life sciences tools** — `secondary_analysis_tools_path`, `python_executable`, optional `cumulative_qc_dir`.
+4. **Customer pack overlays** — with a pack that declares `secondary-analysis-customer` (e.g. Brightest Bio Lab), enable the pack to apply `secondary_analysis_tools_path`, `python_executable`, `default_panel_profile`, and optional `cumulative_qc_dir`; override in **Settings → Life sciences tools** if needed.
 
 BiologyExpert MCP: **`run_12plex_qc`**, **`summarize_panel_qc`**, **`summarize_comparator_output`**, **`run_secondary_analysis`** (sync Python CLI for comparator/endogenous/std curves/print order/Excel/SPC when tools path is configured).
 
@@ -173,7 +173,7 @@ Automated smoke: `./scripts/smoke-secondary-analysis.sh` (Go QC tests, vitest, P
 12. Add folders to analysis basket → run comparator from Secondary Analysis panel (requires Python tools path in Settings).
 13. Open Comparator Analysis output → confirm comparator viewer and LLOQ table.
 14. Import runbook **12plex-qc-plate** → BiologyExpert runs QC workflow.
-15. Configure `secondary_analysis_tools_path` in Settings → Life sciences tools → verify Python job completes.
+15. Enable a customer pack with `secondary-analysis-customer` (or set `secondary_analysis_tools_path` in Settings → Life sciences tools) → verify Python job completes.
 
 ## Out of scope (v1)
 

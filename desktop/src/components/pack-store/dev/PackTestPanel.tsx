@@ -121,6 +121,14 @@ export function PackTestPanel() {
         hint: 'Sign in via PHX chip after enable; check phoenix overlay keys',
       });
     }
+    if (caps.includes(PACK_CAP.SECONDARY_ANALYSIS_CUSTOMER)) {
+      items.push({
+        id: 'secondary-analysis-customer',
+        label: 'Secondary analysis tooling (Settings → Life sciences tools)',
+        ok: targetPack.enabled,
+        hint: 'Enable pack; check settings_overlay for tools path, python, panel profile',
+      });
+    }
     for (const req of targetPack.requires_packs ?? []) {
       const dep = packs.find((p) => p.id === req);
       items.push({

@@ -9,6 +9,7 @@ func TestExtractLikelyOutputPathFromUserMessage(t *testing.T) {
 	}{
 		{"ok first create a new file call new-tab.txt", "new-tab.txt"},
 		{"save as out.md please", "out.md"},
+		{"please implement HelloWorld in core/sample/main.go", "core/sample/main.go"},
 		{"no filename here", ""},
 	}
 	for _, tc := range cases {
@@ -25,6 +26,9 @@ func TestIsUserRequestingFileWrite(t *testing.T) {
 	}
 	if !isUserRequestingFileWrite("put the tab in the same directory") {
 		t.Fatal("expected put tab intent")
+	}
+	if !isUserRequestingFileWrite("blank screen can you please fix it") {
+		t.Fatal("expected fix intent")
 	}
 	if isUserRequestingFileWrite("what is a C major chord") {
 		t.Fatal("should not match generic question")

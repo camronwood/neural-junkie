@@ -1,0 +1,362 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { XTerminal } from './XTerminal';
+import { terminalAPI } from '../api/terminalAPI';
+import {
+  activateCLIAgent,
+  fetchCLIAgents,
+  installCLIAgent,
+  probeCLIAgent,
+  saveCLIAPIKey,
+  statusDotClass,
+  statusLabel,
+  type CLIAgentStatus,
+} from '../api/cliAgentsAPI';
+import { isTauriRuntime } from '../utils/promptAttachments';
+
+interface CLIAgentsManagerProps {
+  serverAddr: string;
+  /** When set, only show these CLI types (defaults to featured). */
+  featuredOnly?: boolean;
+  compact?: boolean;
+  onAgentActivated?: () => void;
+}
+
+const FEATURED_TYPES = ['cursor', 'claude', 'gemini'];
+
+function LoginTerminal({
+  cliType,
+  loginCommand,
+  onDone,
+}: {
+  cliType: string;
+  loginCommand: string;
+  onDone: () => void;
+}) {
+  const sessionId = useMemo(() => `cli-login-${cliType}-${Date.now()}`, [cliType]);
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    if (booted) return;
+    const timer = window.setTimeout(async () => {
+      try {
+        await terminalAPI.writePtySession(sessionId, `${loginCommand}\n`);
+        setBooted(true);
+      } catch {
+        // PTY may not be ready yet; user can type manually.
+      }
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [booted, loginCommand, sessionId]);
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-gray-400">
+        Complete sign-in below, then click <strong className="text-gray-300">Check status</strong>.
+      </div>
+      <div className="h-40 rounded border border-gray-700 bg-black overflow-hidden">
+        <XTerminal sessionId={sessionId} isActive />
+      </div>
+      <button
+        type="button"
+        onClick={() => void onDone()}
+        className="px-3 py-1 text-xs bg-gray-700 text-gray-200 rounded hover:bg-gray-600"
+      >
+        Check status
+      </button>
+    </div>
+  );
+}
+
+function CLIAgentCard({
+  agent,
+  serverAddr,
+  compact,
+  onRefresh,
+  onAgentActivated,
+}: {
+  agent: CLIAgentStatus;
+  serverAddr: string;
+  compact?: boolean;
+  onRefresh: () => void;
+  onAgentActivated?: () => void;
+}) {
+  const [installing, setInstalling] = useState(false);
+  const [installLog, setInstallLog] = useState('');
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const tauri = isTauriRuntime();
+
+  async function handleInstall() {
+    setInstalling(true);
+    setInstallLog('');
+    setError(null);
+    try {
+      await installCLIAgent(serverAddr, agent.type, (msg) => setInstallLog(msg));
+      await onRefresh();
+      const updated = await probeCLIAgent(serverAddr, agent.type);
+      if (updated.auth_state === 'authed' || updated.auth_state === 'not_applicable') {
+        await handleActivate();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInstalling(false);
+    }
+  }
+
+  async function handleActivate() {
+    setBusy('Activating…');
+    setError(null);
+    try {
+      await activateCLIAgent(serverAddr, agent.type);
+      onAgentActivated?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleProbe() {
+    setBusy('Checking…');
+    setError(null);
+    try {
+      const updated = await probeCLIAgent(serverAddr, agent.type);
+      await onRefresh();
+      if (
+        updated.installed &&
+        (updated.auth_state === 'authed' ||
+          updated.auth_state === 'not_applicable' ||
+          updated.auth_state === 'unknown')
+      ) {
+        setShowLogin(false);
+        await handleActivate();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function handleSaveAPIKey() {
+    if (!apiKey.trim()) return;
+    setBusy('Saving key…');
+    setError(null);
+    try {
+      await saveCLIAPIKey(serverAddr, agent.type, apiKey.trim());
+      setApiKey('');
+      setShowApiKey(false);
+      await onRefresh();
+      await handleActivate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const canUseAPIKey = (agent.auth?.env_vars?.length ?? 0) > 0;
+
+  return (
+    <div className={`rounded-lg border border-gray-700 bg-gray-800/60 ${compact ? 'p-3' : 'p-4'} space-y-3`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${statusDotClass(agent)}`} />
+            <h4 className="text-sm font-semibold text-white">{agent.name}</h4>
+            <span className="text-xs text-gray-500">{statusLabel(agent)}</span>
+          </div>
+          {!compact && (
+            <p className="mt-1 text-xs text-gray-500">
+              {agent.installed
+                ? `${agent.binary ?? 'binary'}${agent.version ? ` · ${agent.version}` : ''}`
+                : agent.install_hint}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleProbe()}
+          disabled={!!busy || installing}
+          className="px-2 py-1 text-xs text-gray-400 hover:text-gray-200"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {agent.missing_prereqs && agent.missing_prereqs.length > 0 && (
+        <p className="text-xs text-amber-400">
+          Missing prerequisites: {agent.missing_prereqs.join(', ')}
+        </p>
+      )}
+
+      {!agent.installed && agent.can_install && (
+        <button
+          type="button"
+          onClick={() => void handleInstall()}
+          disabled={installing || (agent.missing_prereqs?.length ?? 0) > 0}
+          className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+        >
+          {installing ? 'Installing…' : `Install ${agent.name}`}
+        </button>
+      )}
+
+      {installLog && (
+        <pre className="text-xs text-gray-400 whitespace-pre-wrap max-h-24 overflow-y-auto">{installLog}</pre>
+      )}
+
+      {agent.installed && agent.auth_state === 'needs_auth' && (
+        <div className="space-y-2">
+          {agent.login_command && tauri && (
+            <>
+              {!showLogin ? (
+                <button
+                  type="button"
+                  onClick={() => setShowLogin(true)}
+                  className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-500"
+                >
+                  Sign in ({agent.login_command})
+                </button>
+              ) : (
+                <LoginTerminal
+                  cliType={agent.type}
+                  loginCommand={agent.login_command}
+                  onDone={() => void handleProbe()}
+                />
+              )}
+            </>
+          )}
+
+          {agent.login_command && !tauri && (
+            <div className="text-xs text-gray-400 space-y-1">
+              <p>Run in your terminal:</p>
+              <code className="block p-2 rounded bg-gray-900 text-gray-200">{agent.login_command}</code>
+              <button
+                type="button"
+                onClick={() => void handleProbe()}
+                className="px-3 py-1 text-xs bg-gray-700 text-gray-200 rounded hover:bg-gray-600"
+              >
+                I signed in — check status
+              </button>
+            </div>
+          )}
+
+          {canUseAPIKey && (
+            <div className="space-y-2">
+              {!showApiKey ? (
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(true)}
+                  className="px-3 py-1 text-xs text-gray-300 underline hover:text-white"
+                >
+                  Or paste API key ({agent.auth?.env_vars?.[0]})
+                </button>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={agent.auth?.env_vars?.[0] ?? 'API key'}
+                    className="flex-1 px-3 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded text-white font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveAPIKey()}
+                    disabled={!apiKey.trim() || !!busy}
+                    className="px-3 py-1.5 text-xs bg-green-700 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                  >
+                    Save key
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {agent.installed &&
+        (agent.auth_state === 'authed' ||
+          agent.auth_state === 'not_applicable' ||
+          agent.auth_state === 'unknown') && (
+          <button
+            type="button"
+            onClick={() => void handleActivate()}
+            disabled={!!busy}
+            className="px-3 py-1.5 text-xs bg-emerald-700/80 text-emerald-100 rounded hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {busy || 'Activate in #general'}
+          </button>
+        )}
+
+      {busy && <p className="text-xs text-gray-400">{busy}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
+export function CLIAgentsManager({
+  serverAddr,
+  featuredOnly = true,
+  compact = false,
+  onAgentActivated,
+}: CLIAgentsManagerProps) {
+  const [agents, setAgents] = useState<CLIAgentStatus[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const list = await fetchCLIAgents(serverAddr);
+      setAgents(list);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [serverAddr]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const visible = useMemo(() => {
+    if (!featuredOnly) return agents;
+    return agents.filter((a) => FEATURED_TYPES.includes(a.type));
+  }, [agents, featuredOnly]);
+
+  return (
+    <div className="space-y-3">
+      {!compact && (
+        <>
+          <h3 className="text-sm font-semibold text-gray-300">CLI agents</h3>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Install Cursor, Claude Code, or Gemini CLI and sign in from here. Ready agents join{' '}
+            <code className="text-gray-400">#general</code> automatically when activated.
+          </p>
+        </>
+      )}
+
+      {loading && <div className="text-sm text-gray-500">Loading CLI status…</div>}
+      {error && <div className="text-sm text-red-400">{error}</div>}
+
+      <div className={`grid gap-3 ${compact ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-1'}`}>
+        {visible.map((agent) => (
+          <CLIAgentCard
+            key={agent.type}
+            agent={agent}
+            serverAddr={serverAddr}
+            compact={compact}
+            onRefresh={refresh}
+            onAgentActivated={onAgentActivated}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

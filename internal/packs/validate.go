@@ -21,6 +21,7 @@ var KnownCapabilityTokens = []string{
 	"secondary-analysis-api",
 	"secondary-analysis-viewer",
 	"secondary-analysis-python",
+	"secondary-analysis-customer",
 	"cad-api",
 	"cad-viewer",
 	"cad-workbench",

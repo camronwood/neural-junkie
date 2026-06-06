@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -65,14 +67,14 @@ func NewManager(endpoint string) *Manager {
 }
 
 func (m *Manager) DetectInstallation() InstallStatus {
-	if bundled := BundledBinaryPath(); bundled != "" {
+	if bundled, isBundled := resolveBundledBinary(); bundled != "" {
 		version := ""
 		if out, err := exec.Command(bundled, "--version").Output(); err == nil {
 			version = strings.TrimSpace(string(out))
 		}
 		return InstallStatus{
 			Installed: true,
-			Bundled:   true,
+			Bundled:   isBundled,
 			Version:   version,
 			Path:      bundled,
 		}
@@ -107,6 +109,11 @@ func (m *Manager) DetectInstallation() InstallStatus {
 	}
 
 	if len(paths) == 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if m.IsServerRunning(ctx) {
+			return InstallStatus{Installed: true, Version: "", Path: ""}
+		}
 		return InstallStatus{Installed: false}
 	}
 
@@ -154,6 +161,14 @@ func (m *Manager) StartServer(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, status.Path, "serve")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if status.Bundled {
+		modelsDir := NeuralJunkieModelsDir()
+		_ = os.MkdirAll(modelsDir, 0o755)
+		cmd.Env = append(os.Environ(),
+			"OLLAMA_HOST=127.0.0.1:11434",
+			"OLLAMA_MODELS="+modelsDir,
+		)
+	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start ollama serve: %w", err)
 	}
@@ -176,12 +191,61 @@ func (m *Manager) StopServer() error {
 
 	if m.serverCmd != nil && m.serverCmd.Process != nil {
 		if err := m.serverCmd.Process.Signal(os.Interrupt); err != nil {
-			return m.serverCmd.Process.Kill()
+			_ = m.serverCmd.Process.Kill()
 		}
-		m.serverCmd.Wait()
+		_, _ = m.serverCmd.Process.Wait()
 		m.serverCmd = nil
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if m.IsServerRunning(ctx) {
+		return killProcessOnEndpointPort(m.endpoint)
+	}
 	return nil
+}
+
+func killProcessOnEndpointPort(endpoint string) error {
+	port, err := portFromHTTPEndpoint(endpoint)
+	if err != nil {
+		return err
+	}
+	switch runtime.GOOS {
+	case "darwin", "linux":
+		out, err := exec.Command("lsof", "-ti", fmt.Sprintf(":%d", port)).Output()
+		if err != nil {
+			return fmt.Errorf("could not find process on port %d: %w", port, err)
+		}
+		for _, line := range strings.Fields(strings.TrimSpace(string(out))) {
+			if err := exec.Command("kill", line).Run(); err != nil {
+				_ = exec.Command("kill", "-9", line).Run()
+			}
+		}
+		return nil
+	case "windows":
+		out, err := exec.Command("cmd", "/c", fmt.Sprintf("for /f \"tokens=5\" %%a in ('netstat -ano ^| findstr :%d') do taskkill /PID %%a /F", port)).Output()
+		if err != nil {
+			return fmt.Errorf("could not stop process on port %d: %w (%s)", port, err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	default:
+		return fmt.Errorf("stop unmanaged ollama not supported on %s", runtime.GOOS)
+	}
+}
+
+func portFromHTTPEndpoint(endpoint string) (int, error) {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return 0, err
+	}
+	p := u.Port()
+	if p == "" {
+		if u.Scheme == "https" {
+			return 443, nil
+		}
+		return 80, nil
+	}
+	return strconv.Atoi(p)
 }
 
 func (m *Manager) ListModels(ctx context.Context) ([]string, error) {

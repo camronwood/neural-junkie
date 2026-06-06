@@ -57,6 +57,29 @@ func longestValidPathIn(paths []string) string {
 	return best
 }
 
+// preferImplementationTargetPathForMessage resolves the edit target, including continuation turns.
+func preferImplementationTargetPathForMessage(a *Agent, msg *protocol.Message) string {
+	if a == nil || msg == nil {
+		return ""
+	}
+	content := msg.Content
+	if userAffirmsPendingImplementation(content) {
+		for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
+			m := a.channelHistory(msg.Channel)[i]
+			if m == nil || m.ID == msg.ID {
+				continue
+			}
+			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+				if p := preferImplementationTargetPath(m.Content, "", a.Info.Type); p != "" {
+					return p
+				}
+			}
+		}
+		return ""
+	}
+	return preferImplementationTargetPath(content, "", a.Info.Type)
+}
+
 // preferImplementationTargetPath picks a sensible path when the model emitted a bad one.
 func preferImplementationTargetPath(userContent, modelPath string, agentType protocol.AgentType) string {
 	if isValidFileChangeRelPath(modelPath) {
@@ -65,7 +88,10 @@ func preferImplementationTargetPath(userContent, modelPath string, agentType pro
 	if p := longestValidPathIn(DetectFilePaths(userContent)); p != "" {
 		return p
 	}
-	for _, p := range implementationSeedCandidates(agentType, userContent) {
+	if userAffirmsPendingImplementation(userContent) {
+		return ""
+	}
+	for _, p := range implementationSeedCandidates(agentType, userContent, nil, nil) {
 		if isValidFileChangeRelPath(p) {
 			return p
 		}
