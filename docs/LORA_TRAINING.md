@@ -7,7 +7,7 @@ Neural Junkie can fine-tune a LoRA adapter locally from your chat history, colla
 ## Prerequisites
 
 1. **Enable Specialist tuning** — Settings → Domain packs → install and enable **Specialist tuning**.
-2. **Ollama models** — `make pull-models` pulls code/utility tiers plus `llama3:8b` for biology LoRAs. The tuning pack merges `models_to_ensure` for bases and composed tags.
+2. **Ollama models** — `make pull-models` pulls inference Qwen, utility tier, and LoRA bases (`llama3.1:8b`, `llama3:8b`, `llama3.2:3b`, `mistral:7b`). See [LORA_ADAPTERS.md](LORA_ADAPTERS.md) for the two-tier strategy.
 3. **Python training stack** — `make deps-lora` creates `.venv-lora` and installs `requirements-lora.txt`. The hub uses that venv for training jobs automatically.
 4. **CUDA** — strongly recommended; CPU training is experimental and slow.
 5. **Hugging Face access** for gated bases (Llama 3) — `huggingface-cli login` or set `HF_TOKEN`.
@@ -22,7 +22,7 @@ Open **Model library** (⇧⌘M) → **Train LoRA** tab (visible when Specialist
    - **Channel** — DM or channel ID (current channel prefilled when opened from chat).
    - **Collaboration** — collaboration UUID; uses completed task description + output pairs.
    - **Repo** — channel ID plus optional agent name filter for repo experts.
-2. **Base & tag** — e.g. base `qwen2.5-coder:14b`, output tag `nj-repo-myapp:14b`.
+2. **Base & tag** — e.g. base `llama3.1:8b` (default; Qwen bases are rejected), output tag `nj-repo-myapp:14b`.
 3. **Hyperparameters** — rank (default 16), epochs (default 1), learning rate (default 2e-4).
 4. **Start** — exports JSONL to `~/.neural-junkie/lora-training/{job-id}/`, runs `scripts/lora_train.py`, then `ollama create` via the existing compose pipeline.
 
@@ -46,7 +46,7 @@ curl -X POST http://localhost:18765/api/lora/train \
   -d '{
     "source": "channel",
     "source_id": "dm-backend",
-    "base_ollama_tag": "qwen2.5-coder:14b",
+    "base_ollama_tag": "llama3.1:8b",
     "ollama_tag": "nj-repo-myapp:14b",
     "hyperparams": {"rank": 16, "epochs": 1}
   }'

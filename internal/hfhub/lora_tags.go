@@ -6,7 +6,8 @@ import (
 	"strings"
 )
 
-const DefaultLoRABaseTag = "qwen2.5-coder:14b"
+// DefaultLoRABaseTag is the Ollama base for LoRA compose/import when none is specified.
+const DefaultLoRABaseTag = DefaultLoRATrainingCodeBase
 
 // BiologyLoRABaseTag is the Ollama base for life-sciences LoRA compose.
 const BiologyLoRABaseTag = "llama3:8b"

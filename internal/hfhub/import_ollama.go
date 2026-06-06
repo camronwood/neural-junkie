@@ -1,8 +1,10 @@
 package hfhub
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,7 +45,31 @@ func adapterModelfileOpts(baseTag, ollamaTag string) ModelfileOpts {
 	return ModelfileOpts{}
 }
 
-// ImportAdapterToOllama creates an Ollama model tag from a base tag + adapter safetensors.
+// AdapterConfigFilename is required by Ollama alongside adapter weights.
+const AdapterConfigFilename = "adapter_config.json"
+
+// ResolveAdapterDir returns the directory Ollama expects for ADAPTER (contains adapter_config.json + weights).
+func ResolveAdapterDir(adapterPath string) (string, error) {
+	adapterPath = strings.TrimSpace(adapterPath)
+	if adapterPath == "" {
+		return "", fmt.Errorf("adapter path is required")
+	}
+	info, err := os.Stat(adapterPath)
+	if err != nil {
+		return "", fmt.Errorf("adapter path not found: %w", err)
+	}
+	dir := adapterPath
+	if !info.IsDir() {
+		dir = filepath.Dir(adapterPath)
+	}
+	configPath := filepath.Join(dir, AdapterConfigFilename)
+	if _, err := os.Stat(configPath); err != nil {
+		return "", fmt.Errorf("%s missing in %s (download adapter_config.json from Hugging Face)", AdapterConfigFilename, dir)
+	}
+	return dir, nil
+}
+
+// ImportAdapterToOllama creates an Ollama model tag from a base tag + LoRA adapter directory or weights file.
 func ImportAdapterToOllama(ctx context.Context, baseTag, adapterPath, ollamaTag string) error {
 	baseTag = strings.TrimSpace(baseTag)
 	adapterPath = strings.TrimSpace(adapterPath)
@@ -51,12 +77,15 @@ func ImportAdapterToOllama(ctx context.Context, baseTag, adapterPath, ollamaTag 
 	if baseTag == "" || adapterPath == "" || ollamaTag == "" {
 		return fmt.Errorf("base_ollama_tag, adapter path, and ollama_tag are required")
 	}
-	abs, err := filepath.Abs(adapterPath)
+	if !OllamaSafetensorLoRABaseSupported(baseTag) {
+		return fmt.Errorf("ollama safetensors LoRA unsupported for base %q (Ollama supports Llama, Mistral, Gemma bases only; Qwen adapters require GGUF LoRA conversion)", baseTag)
+	}
+	adapterDir, err := ResolveAdapterDir(adapterPath)
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(abs); err != nil {
-		return fmt.Errorf("adapter file not found: %w", err)
+	if msg := WarnAdapterBaseMismatch(baseTag, adapterDir); msg != "" {
+		fmt.Fprintf(os.Stderr, "⚠️  LoRA compose: %s\n", msg)
 	}
 
 	mgr := ollama.NewManager("")
@@ -72,8 +101,18 @@ func ImportAdapterToOllama(ctx context.Context, baseTag, adapterPath, ollamaTag 
 		return fmt.Errorf("base model %q is not installed in Ollama — pull it first (e.g. ollama pull %s)", baseTag, baseTag)
 	}
 
-	modelfile := ComposeModelfile(baseTag, abs, adapterModelfileOpts(baseTag, ollamaTag))
-	return runOllamaCreate(ctx, st.Path, ollamaTag, modelfile)
+	workDir, cleanup, err := stageAdapterForOllama(adapterDir)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	modelfile := composeStagedAdapterModelfile(baseTag, ollamaTag)
+	modelfilePath := filepath.Join(workDir, "Modelfile")
+	if err := os.WriteFile(modelfilePath, []byte(modelfile), 0o644); err != nil {
+		return fmt.Errorf("write modelfile: %w", err)
+	}
+	return runOllamaCreate(ctx, st.Path, ollamaTag, modelfilePath)
 }
 
 // ImportToOllama creates an Ollama model tag from a downloaded GGUF via `ollama create`.
@@ -98,10 +137,6 @@ func ImportToOllama(ctx context.Context, ggufPath, ollamaTag string) error {
 	}
 
 	modelfile := openBioGGUFModelfile(abs)
-	return runOllamaCreate(ctx, st.Path, ollamaTag, modelfile)
-}
-
-func runOllamaCreate(ctx context.Context, ollamaBin, ollamaTag, modelfile string) error {
 	tmp, err := os.CreateTemp("", "nj-modelfile-*.txt")
 	if err != nil {
 		return err
@@ -115,11 +150,25 @@ func runOllamaCreate(ctx context.Context, ollamaBin, ollamaTag, modelfile string
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	return runOllamaCreate(ctx, st.Path, ollamaTag, modelfilePath)
+}
 
+func runOllamaCreate(ctx context.Context, ollamaBin, ollamaTag, modelfilePath string) error {
 	cmd := exec.CommandContext(ctx, ollamaBin, "create", ollamaTag, "-f", modelfilePath)
+	cmd.Dir = filepath.Dir(modelfilePath)
+	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	if err := cmd.Run(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			// Ollama often prints the real reason on stderr (e.g. unsupported architecture).
+			if strings.Contains(msg, "Error:") {
+				if i := strings.LastIndex(msg, "Error:"); i >= 0 {
+					msg = strings.TrimSpace(msg[i:])
+				}
+			}
+			return fmt.Errorf("%s", msg)
+		}
 		return fmt.Errorf("ollama create failed: %w", err)
 	}
 	return nil

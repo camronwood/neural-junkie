@@ -7,8 +7,6 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { SetupWizard } from './components/SetupWizard';
 import { UpdateBanner } from './components/UpdateBanner';
 import { useSettingsStore } from './stores/settingsStore';
-import { useTerminalStore } from './stores/terminalStore';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from './stores/chatStore';
 import { loadCredentials } from './utils/secureStorage';
@@ -26,7 +24,6 @@ function App() {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [previewParams, setPreviewParams] = useState<{ workspaceId: string; filePath: string } | null>(null);
   const { settings, loadSettings, syncUserRulesFromHub } = useSettingsStore();
-  const { togglePanel } = useTerminalStore();
   const { setUsername, setChannel, setServerAddr } = useChatStore(
     (s) => ({
       setUsername: s.setUsername,
@@ -65,15 +62,6 @@ function App() {
     document.body.className = `font-scope-${settings.fontSizeScope}`;
     applyMermaidTheme(theme);
   }, [settings.fontSize, settings.fontSizeScope, settings.colorTheme]);
-
-  // Keyboard shortcuts
-  useKeyboardShortcuts({
-    onOpenSettings: () => {
-      setSettingsInitialTab(undefined);
-      setIsSettingsOpen(true);
-    },
-    onToggleTerminal: togglePanel,
-  });
 
   async function onServerReady() {
     // Check if first-run setup is needed (no config.json yet)

@@ -151,14 +151,80 @@
   {
     "kind": "adapter",
     "repo_id": "scthornton/qwen2.5-coder-14b-securecode",
-    "title": "Qwen Coder 14B SecureCode LoRA",
-    "description": "OWASP-focused secure coding LoRA for Qwen 2.5 Coder 14B. Compose on qwen2.5-coder:14b as nj-security:14b for SecurityReviewer.",
-    "tags": ["code", "lora", "adapter", "security"],
+    "title": "Qwen Coder 14B SecureCode LoRA (deprecated)",
+    "description": "Deprecated: Ollama cannot compose Qwen safetensors LoRA. Use scthornton/llama-3.2-3b-securecode on llama3.2:3b instead (Specialist tuning pack).",
+    "tags": ["code", "lora", "adapter", "security", "deprecated"],
     "size_hint": "~50 MB",
     "icon_key": "qwen",
     "publisher": "Community",
     "modes": ["local"],
     "base_ollama_tag": "qwen2.5-coder:14b",
+    "default_ollama_tag": "nj-security:14b",
+    "agent_type": "security",
+    "deprecated": true,
+    "ollama_compose_supported": false,
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k",
+    "title": "Qwen Coder 14B Code Feedback LoRA (deprecated)",
+    "description": "Deprecated: Ollama cannot compose Qwen safetensors LoRA. Use juzhengz/LoRI-D_code_llama3_rank_64 on llama3:8b or train on llama3.1:8b.",
+    "tags": ["code", "lora", "adapter", "deprecated"],
+    "size_hint": "~50 MB",
+    "icon_key": "qwen",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "qwen2.5-coder:14b",
+    "default_ollama_tag": "nj-code-review:14b",
+    "agent_type": "code-review",
+    "deprecated": true,
+    "ollama_compose_supported": false,
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora",
+    "title": "Qwen Coder 14B Text-to-SQL LoRA (deprecated)",
+    "description": "Deprecated: Ollama cannot compose Qwen safetensors LoRA. Use visheshgupta/mistral-7b-text2sql-qlora on mistral:7b instead.",
+    "tags": ["code", "lora", "adapter", "sql", "deprecated"],
+    "size_hint": "~50 MB",
+    "icon_key": "qwen",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "qwen2.5-coder:14b",
+    "default_ollama_tag": "nj-backend:14b",
+    "agent_type": "backend",
+    "deprecated": true,
+    "ollama_compose_supported": false,
+    "files": [
+      {
+        "filename": "adapter_model.safetensors",
+        "size_hint": "~50 MB"
+      }
+    ]
+  },
+  {
+    "kind": "adapter",
+    "repo_id": "scthornton/llama-3.2-3b-securecode",
+    "title": "Llama 3.2 3B SecureCode LoRA",
+    "description": "OWASP-focused secure coding LoRA for Llama 3.2 3B. Compose on llama3.2:3b as nj-security:14b for SecurityReviewer.",
+    "tags": ["code", "lora", "adapter", "security", "recommended"],
+    "size_hint": "~50 MB",
+    "icon_key": "llama",
+    "publisher": "Community",
+    "modes": ["local"],
+    "base_ollama_tag": "llama3.2:3b",
     "default_ollama_tag": "nj-security:14b",
     "agent_type": "security",
     "files": [
@@ -170,35 +236,35 @@
   },
   {
     "kind": "adapter",
-    "repo_id": "JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k",
-    "title": "Qwen Coder 14B Code Feedback LoRA",
-    "description": "Community LoRA for Qwen 2.5 Coder 14B trained on code feedback. Compose on qwen2.5-coder:14b as nj-code-review:14b for CodeReviewer.",
+    "repo_id": "juzhengz/LoRI-D_code_llama3_rank_64",
+    "title": "LoRI Code LoRA (Llama 3 8B)",
+    "description": "Code-generation LoRA for Meta-Llama-3-8B. Compose on llama3:8b as nj-code-review:14b bootstrap for CodeReviewer.",
     "tags": ["code", "lora", "adapter"],
-    "size_hint": "~50 MB",
-    "icon_key": "qwen",
+    "size_hint": "~170 MB",
+    "icon_key": "llama",
     "publisher": "Community",
     "modes": ["local"],
-    "base_ollama_tag": "qwen2.5-coder:14b",
+    "base_ollama_tag": "llama3:8b",
     "default_ollama_tag": "nj-code-review:14b",
     "agent_type": "code-review",
     "files": [
       {
         "filename": "adapter_model.safetensors",
-        "size_hint": "~50 MB"
+        "size_hint": "~170 MB"
       }
     ]
   },
   {
     "kind": "adapter",
-    "repo_id": "blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora",
-    "title": "Qwen Coder 14B Text-to-SQL LoRA",
-    "description": "Text-to-SQL LoRA for Qwen 2.5 Coder 14B. Compose on qwen2.5-coder:14b as nj-backend:14b for BackendEngineer (APIs, schemas, data layer).",
+    "repo_id": "visheshgupta/mistral-7b-text2sql-qlora",
+    "title": "Mistral 7B Text-to-SQL LoRA",
+    "description": "Text-to-SQL QLoRA for Mistral 7B. Compose on mistral:7b as nj-backend:14b for BackendEngineer.",
     "tags": ["code", "lora", "adapter", "sql"],
     "size_hint": "~50 MB",
-    "icon_key": "qwen",
+    "icon_key": "mistral",
     "publisher": "Community",
     "modes": ["local"],
-    "base_ollama_tag": "qwen2.5-coder:14b",
+    "base_ollama_tag": "mistral:7b",
     "default_ollama_tag": "nj-backend:14b",
     "agent_type": "backend",
     "files": [

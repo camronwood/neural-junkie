@@ -364,11 +364,17 @@ func TestListPackCatalogStatusLoRAAdapterCount(t *testing.T) {
 	for _, b := range tuningRow.LoRABaseTags {
 		bases[b] = struct{}{}
 	}
-	if _, ok := bases["qwen2.5-coder:14b"]; !ok {
-		t.Fatalf("expected qwen2.5-coder:14b in lora_base_tags: %v", tuningRow.LoRABaseTags)
-	}
 	if _, ok := bases["llama3:8b"]; !ok {
 		t.Fatalf("expected llama3:8b in lora_base_tags: %v", tuningRow.LoRABaseTags)
+	}
+	if _, ok := bases["llama3.2:3b"]; !ok {
+		t.Fatalf("expected llama3.2:3b in lora_base_tags: %v", tuningRow.LoRABaseTags)
+	}
+	if _, ok := bases["mistral:7b"]; !ok {
+		t.Fatalf("expected mistral:7b in lora_base_tags: %v", tuningRow.LoRABaseTags)
+	}
+	if _, ok := bases["qwen2.5-coder:14b"]; ok {
+		t.Fatalf("qwen2.5-coder:14b should not be a LoRA base tag: %v", tuningRow.LoRABaseTags)
 	}
 }
 

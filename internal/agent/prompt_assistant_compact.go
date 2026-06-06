@@ -34,7 +34,8 @@ func (a *Agent) buildCompactAssistantOllamaPrompt(msg *protocol.Message) string 
 	system.WriteString(fmt.Sprintf("Model: %q via %q.\n", a.Info.AIModel, a.Info.AIProvider))
 	system.WriteString("Answer ONLY the user's latest message. ")
 	system.WriteString("Do not repeat or re-answer earlier questions from the conversation.\n")
-	system.WriteString("Meeting notes and emails are loaded when the user asks about meetings or email.\n")
+	system.WriteString("Meeting notes and emails load when the user asks about meetings or email. ")
+	system.WriteString("Full Neural Junkie app knowledge (shortcuts, settings, packs) loads when they ask about the NJ app or features.\n")
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
 	AppendLearningsForMessage(&system, msg, &a.Info)
 

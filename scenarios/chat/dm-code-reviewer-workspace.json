@@ -1,0 +1,29 @@
+{
+  "name": "dm-code-reviewer-workspace",
+  "description": "CodeReviewer DM: workspace visibility from outline scope.",
+  "tags": ["dm", "code-review", "workspace", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "CodeReviewer",
+  "required_agents": ["CodeReviewer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "file_tree": "internal/\n  agent/\ncmd/\n"
+  },
+  "steps": [
+    {
+      "action": "send",
+      "content": "can you see my workspace I have open?",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "CodeReviewer", "timeout": "90s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "CodeReviewer",
+      "any_match": ["workspace context|file tree|Yes — I have|Project:"],
+      "none_match": ["I don't have access", "no workspace context"]
+    }
+  ],
+  "cleanup": "clear"
+}

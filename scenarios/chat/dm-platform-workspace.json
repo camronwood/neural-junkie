@@ -1,0 +1,29 @@
+{
+  "name": "dm-platform-workspace",
+  "description": "PlatformEngineer DM: workspace visibility from outline scope.",
+  "tags": ["dm", "devops", "workspace", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "PlatformEngineer",
+  "required_agents": ["PlatformEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "file_tree": "deploy/\nDockerfile\ncore/\n"
+  },
+  "steps": [
+    {
+      "action": "send",
+      "content": "can you see my workspace I have open?",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "PlatformEngineer", "timeout": "90s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "PlatformEngineer",
+      "any_match": ["workspace context|file tree|Yes — I have|Project:"],
+      "none_match": ["I don't have access", "share your workspace"]
+    }
+  ],
+  "cleanup": "clear"
+}

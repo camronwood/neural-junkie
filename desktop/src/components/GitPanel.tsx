@@ -76,18 +76,6 @@ export function GitModal({ isOpen, onClose }: GitModalProps) {
     void refresh();
   }, [isOpen, refresh]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
   const run = async (label: string, fn: () => Promise<void>) => {
     try {
       await fn();

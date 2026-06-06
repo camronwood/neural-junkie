@@ -1,0 +1,36 @@
+{
+  "name": "collab-no-edit-after-cancel",
+  "description": "After /cancel-plan, no file_change proposals may appear on the cancelled collab channel (26e9081e draft.md regression).",
+  "tags": ["collab", "conversation", "regression"],
+  "channel": "collab-scenarios",
+  "agents": "@ChatModerator @Assistant",
+  "required_agents": ["Assistant"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "2"],
+    "goal": "@ChatModerator @Assistant Plan one task: @Assistant Write collabs/<id>/findings.md with three bullets from README.md."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
+    {"action": "wait_planning_recap", "timeout": "90s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 1,
+      "max_tasks": 2,
+      "tasks_have_file_deliverable": true
+    },
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {"action": "send", "content": "/cancel-plan <collab-id>"},
+    {"action": "wait_phase", "phase": "cancelled", "timeout": 30},
+    {"action": "assert_collab", "phase": "cancelled"},
+    {"action": "assert_messages", "deny_file_change_after_cancel": true}
+  ],
+  "cleanup": "none"
+}

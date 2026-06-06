@@ -968,7 +968,7 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 				for _, la := range m.LoRAAdapters {
 					tag := strings.TrimSpace(la.BaseOllamaTag)
 					if tag == "" {
-						tag = DevOllamaCodeModel
+						tag = "llama3.1:8b"
 					}
 					if _, ok := seen[tag]; !ok {
 						seen[tag] = struct{}{}

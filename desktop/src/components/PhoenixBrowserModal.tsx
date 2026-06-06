@@ -178,18 +178,6 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
   }, [loginSessionId, authenticated, loadBrowseLists, addToast, stopPolling]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
     if (!authenticated) return;
     const items = tab === 'analyses' ? analyses : scans;
     if (items.length > 0 && !items.some((i) => i.id === selectedId)) {

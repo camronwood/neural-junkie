@@ -43,6 +43,7 @@ import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { workspacesForTabBar } from '../utils/workspaceOrder';
 import { ViewportContextMenu } from './ViewportContextMenu';
 import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
+import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import { WorkspaceTabBar } from './WorkspaceTabBar';
 import { devLog } from '../utils/devLog';
 import { qcReportRelativePath } from '../utils/panelQcUtils';
@@ -117,6 +118,15 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
   const [workspaceAddMode, setWorkspaceAddMode] = useState<'create' | 'link'>('create');
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
+  const workspaceSwitcherRequestNonce = useFileExplorerStore((s) => s.workspaceSwitcherRequestNonce);
+
+  useEffect(() => {
+    if (workspaceSwitcherRequestNonce > 0) {
+      setShowWorkspaceSwitcher(true);
+    }
+  }, [workspaceSwitcherRequestNonce]);
+
+  useShortcutOverlay('workspaceSwitcher', showWorkspaceSwitcher, () => setShowWorkspaceSwitcher(false));
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspacePath, setNewWorkspacePath] = useState('');
   const [newWorkspaceParentPath, setNewWorkspaceParentPath] = useState('');

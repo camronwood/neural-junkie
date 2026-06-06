@@ -114,6 +114,9 @@ func (m *Manager) Start(ctx context.Context, req StartRequest) (*Job, error) {
 	if strings.TrimSpace(req.BaseOllamaTag) == "" || strings.TrimSpace(req.OllamaTag) == "" {
 		return nil, fmt.Errorf("base_ollama_tag and ollama_tag are required")
 	}
+	if err := hfhub.ValidateLoRATrainingBase(req.BaseOllamaTag); err != nil {
+		return nil, err
+	}
 	m.mu.Lock()
 	if m.active != nil && m.active.Status != StatusDone && m.active.Status != StatusFailed && m.active.Status != StatusCancelled {
 		m.mu.Unlock()
@@ -233,14 +236,10 @@ func (m *Manager) run(ctx context.Context, rj *runningJob, req StartRequest) {
 }
 
 func mapBaseToHF(tag string) string {
-	switch strings.TrimSpace(tag) {
-	case "qwen2.5-coder:14b":
-		return "Qwen/Qwen2.5-Coder-14B-Instruct"
-	case "llama3:8b":
-		return "meta-llama/Meta-Llama-3-8B-Instruct"
-	default:
-		return tag
+	if hf := hfhub.MapLoRABaseToHF(tag); hf != "" {
+		return hf
 	}
+	return strings.TrimSpace(tag)
 }
 
 func (m *Manager) pipeLines(r io.Reader, rj *runningJob) {

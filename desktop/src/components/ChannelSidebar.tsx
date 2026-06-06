@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type Ref } from 'react';
+import { formatChord } from '../shortcuts/format';
 import type { Channel, AgentInfo, ChannelType } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { shallow } from 'zustand/shallow';
@@ -21,6 +22,7 @@ import { useSlackAwayChip } from '../hooks/useSlackAwayChip';
 interface ChannelSidebarProps {
   channels: Channel[];
   agents: AgentInfo[];
+  searchInputRef?: Ref<HTMLInputElement>;
   onSwitchChannel: (channelName: string) => void;
   onCreateChannel: () => void;
   onCreateDM: (agentId: string) => void;
@@ -132,6 +134,7 @@ function normalizeChannelRow(ch: Channel): Channel {
 export function ChannelSidebar({
   channels,
   agents,
+  searchInputRef,
   onSwitchChannel,
   onCreateChannel,
   onCreateDM,
@@ -617,10 +620,12 @@ export function ChannelSidebar({
         </div>
         <div className="mt-2 flex items-center gap-1">
           <input
+            ref={searchInputRef}
             type="text"
+            data-testid="channel-sidebar-search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search chats/channels..."
+            placeholder={`Search chats/channels (${formatChord('mod+0')})`}
             className="flex-1 min-w-0 px-2 py-1 rounded bg-nj-surface border border-white/10 text-xs text-slack-text placeholder:text-slack-textMuted focus:outline-none focus:ring-1 focus:ring-slack-accent"
           />
           {normalizedQuery.length > 0 && (

@@ -30,15 +30,29 @@ import { ProviderManager } from './ProviderManager';
 import { CLIAgentsManager } from './CLIAgentsManager';
 import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 import { open } from '@tauri-apps/api/dialog';
+import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
+import { getShortcutsForDisplay, formatChord } from '../shortcuts';
 
 export type SettingsTab =
   | 'appearance'
   | 'layout'
+  | 'keyboard'
   | 'chat'
   | 'integrations'
   | 'ai-providers'
   | 'domain-packs'
   | 'about';
+
+const SETTINGS_NAV: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'layout', label: 'Layout' },
+  { id: 'keyboard', label: 'Keyboard' },
+  { id: 'chat', label: 'Chat & agents' },
+  { id: 'integrations', label: 'Integrations' },
+  { id: 'ai-providers', label: 'AI Providers' },
+  { id: 'domain-packs', label: 'Domain packs' },
+  { id: 'about', label: 'About' },
+];
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -986,19 +1000,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     return () => { cancelled = true; };
   }, [activeTab, fetchOllamaModels, fetchLMStudioModels]);
 
-  // Handle escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
-    }
-  }, [isOpen, onClose]);
+  useShortcutOverlay('settings', isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -1777,104 +1779,62 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 p-4" role="presentation">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50"
+      <div
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
+        aria-hidden
       />
-      
-      {/* Modal */}
-      <div className="relative bg-slack-bg border border-slack-border rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+
+      {/* Settings shell — near-full-screen overlay with sidebar nav */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nj-settings-title"
+        className="relative z-10 mx-auto flex h-full w-full max-w-[1600px] flex-col overflow-hidden rounded-xl border border-slack-border bg-slack-bg shadow-2xl"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slack-border">
-          <h2 className="text-xl font-bold text-slack-text">Settings</h2>
+        <div className="flex shrink-0 items-center justify-between border-b border-slack-border px-6 py-4">
+          <h2 id="nj-settings-title" className="text-xl font-bold text-slack-text">
+            Settings
+          </h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-slack-textMuted hover:text-slack-text transition-colors"
+            aria-label="Close settings"
+            className="text-slack-textMuted transition-colors hover:text-slack-text"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Tabs — horizontal scroll so About stays reachable on narrow modals */}
-        <div className="flex flex-nowrap overflow-x-auto overscroll-x-contain border-b border-slack-border shrink-0">
-          <button
-            onClick={() => setActiveTab('appearance')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'appearance'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
+        <div className="flex min-h-0 flex-1">
+          {/* Sidebar nav */}
+          <nav
+            className="flex w-[220px] shrink-0 flex-col overflow-y-auto border-r border-slack-border bg-slack-bgHover/20 py-2"
+            aria-label="Settings sections"
           >
-            Appearance
-          </button>
-          <button
-            onClick={() => setActiveTab('layout')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'layout'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
-          >
-            Layout
-          </button>
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'chat'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
-          >
-            Chat &amp; agents
-          </button>
-          <button
-            onClick={() => setActiveTab('integrations')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'integrations'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
-          >
-            Integrations
-          </button>
-          <button
-            onClick={() => setActiveTab('ai-providers')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'ai-providers'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
-          >
-            AI Providers
-          </button>
-          <button
-            onClick={() => setActiveTab('domain-packs')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'domain-packs'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
-          >
-            Domain packs
-          </button>
-          <button
-            onClick={() => setActiveTab('about')}
-            className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'about'
-                ? 'text-slack-text border-b-2 border-slack-accent'
-                : 'text-slack-textMuted hover:text-slack-text'
-            }`}
-          >
-            About
-          </button>
-        </div>
+            {SETTINGS_NAV.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`border-l-2 px-4 py-2.5 text-left text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-slack-accent bg-slack-bgHover text-slack-text'
+                    : 'border-transparent text-slack-textMuted hover:bg-slack-bgHover/50 hover:text-slack-text'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
-        {/* Content */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
+          {/* Content */}
+          <div className="min-w-0 flex-1 overflow-y-auto p-6">
           {activeTab === 'appearance' && (
             <div className="space-y-6">
               {/* Color theme */}
@@ -2204,6 +2164,39 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   />
                   <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'keyboard' && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Keyboard shortcuts</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Fixed defaults (not customizable yet). Toolbar buttons show the same chords on hover.
+                </p>
+              </div>
+              <div className="border border-slack-border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slack-bgHover/50 text-left text-slack-textMuted">
+                    <tr>
+                      <th className="px-4 py-2 font-medium">Action</th>
+                      <th className="px-4 py-2 font-medium w-40">Shortcut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slack-border">
+                    {getShortcutsForDisplay().map((row) => (
+                      <tr key={row.id} className="text-slack-text">
+                        <td className="px-4 py-2">{row.label}</td>
+                        <td className="px-4 py-2">
+                          <kbd className="rounded bg-slack-bgHover px-1.5 py-0.5 font-mono text-xs">
+                            {formatChord(row.chord)}
+                          </kbd>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -4488,6 +4481,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

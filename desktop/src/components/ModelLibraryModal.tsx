@@ -5,6 +5,7 @@ import { HfModelLibrary } from './HfModelLibrary';
 import { LoraTrainingPanel, type LoraTrainPrefill } from './LoraTrainingPanel';
 import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
+import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 
 type LibrarySource = 'ollama' | 'huggingface' | 'train';
 type BrowseDepth = 'grid' | 'detail';
@@ -60,20 +61,18 @@ export function ModelLibraryModal({
   useEffect(() => {
     if (!isOpen) {
       setBrowseDepth('grid');
-      return;
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      if (browseDepth === 'detail') {
-        handleBackFromDetail();
-      } else {
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose, browseDepth, handleBackFromDetail]);
+  }, [isOpen]);
+
+  const handleShortcutClose = useCallback(() => {
+    if (browseDepth === 'detail') {
+      handleBackFromDetail();
+    } else {
+      onClose();
+    }
+  }, [browseDepth, handleBackFromDetail, onClose]);
+
+  useShortcutOverlay('modelLibrary', isOpen, handleShortcutClose);
 
   if (!isOpen) return null;
 

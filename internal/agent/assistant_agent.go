@@ -197,6 +197,9 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 			log.Printf("🔍 [Assistant] Detected email query, using enriched context")
 			return a.buildEmailContextPrompt(msg)
 		}
+		if a.detectsNJAppQuery(msg) {
+			log.Printf("🔍 [Assistant] Detected Neural Junkie app query, using full product knowledge")
+		}
 	}
 
 	var prompt strings.Builder
@@ -295,13 +298,15 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• /help - Show all available commands\n")
 	prompt.WriteString("• /migrate-agent-names - Check and migrate agent names for @mention compatibility\n\n")
 
-	prompt.WriteString("=== SYSTEM KNOWLEDGE ===\n")
-	prompt.WriteString("• This is the Neural Junkie, a multi-agent collaboration system where specialized AI agents communicate and solve problems together.\n")
-	prompt.WriteString("• Agents include: Frontend, Backend, Platform, Security, Software Architecture, Code Review, Repository Experts, and custom domain experts.\n")
-	prompt.WriteString("• Users can @mention agents by name (e.g., @BackendEngineer, @ChatModerator) to direct questions to specific agents.\n")
-	prompt.WriteString("• The @ChatModerator agent helps with chat features, commands, and system usage.\n")
-	prompt.WriteString("• Repository expert agents analyze codebases and can answer project-specific questions.\n")
-	prompt.WriteString("• The system supports multiple AI providers: Ollama (local), Claude (Anthropic), and LM Studio.\n\n")
+	appendNJAppKnowledgeBrief(&prompt)
+	if messageAsksAboutNJApp(msg.Content) {
+		appendNJAppKnowledgeFull(&prompt)
+	}
+
+	prompt.WriteString("=== AGENTS & PROVIDERS ===\n")
+	prompt.WriteString("• Specialist agents include Frontend, Backend, Platform, Security, Software Architecture, Code Review, Repository Experts, and custom domain experts.\n")
+	prompt.WriteString("• Users @mention agents by name (e.g. @BackendEngineer) to direct questions; /list-agents shows who is in the channel.\n")
+	prompt.WriteString("• AI providers: Ollama (local), Claude (Anthropic), LM Studio — switch per agent via /switch-provider or Settings.\n\n")
 
 	prompt.WriteString("=== GUIDELINES ===\n")
 	prompt.WriteString("• Be proactive and helpful\n")
@@ -313,7 +318,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• For geography, dates, or live data you cannot verify, say you may be approximate and suggest Maps or an authoritative source\n")
 	prompt.WriteString("• Remember user preferences and context\n")
 	prompt.WriteString("• When asked about meetings, use the available meeting notes to provide accurate information\n")
-	prompt.WriteString("• When asked about system features or how to do things in the chat room, use the SYSTEM COMMANDS and SYSTEM KNOWLEDGE sections above to give accurate answers\n")
+	prompt.WriteString("• When asked about Neural Junkie features, UI, shortcuts, settings, or workflows, use NEURAL JUNKIE APP KNOWLEDGE and SYSTEM COMMANDS above — give concrete steps and shortcuts\n")
 	prompt.WriteString("• NEVER give generic answers about external tools (like GitHub Actions) when the user is asking about THIS system's capabilities\n\n")
 
 	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
@@ -1305,6 +1310,14 @@ func (a *AssistantAgent) detectsEmailQuery(msg *protocol.Message) bool {
 		return false
 	}
 	return messageAsksAboutEmail(msg.Content)
+}
+
+// detectsNJAppQuery determines if a message is asking about the Neural Junkie application.
+func (a *AssistantAgent) detectsNJAppQuery(msg *protocol.Message) bool {
+	if msg == nil || assistantSkipPersonalContextEnrichment(msg) {
+		return false
+	}
+	return messageAsksAboutNJApp(msg.Content)
 }
 
 // buildMeetingContextPrompt creates an enriched prompt with full meeting content

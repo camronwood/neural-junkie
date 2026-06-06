@@ -8,6 +8,18 @@ import (
 	"github.com/camronwood/neural-junkie/internal/packs"
 )
 
+func EnsureLoRAFiles(ctx context.Context, mgr *Manager, token, repoID, weightsFile string) error {
+	for _, filename := range []string{weightsFile, AdapterConfigFilename} {
+		if err := mgr.EnsureDownloadStarted(token, repoID, filename); err != nil {
+			return err
+		}
+		if err := mgr.WatchDownload(ctx, repoID, filename, nil); err != nil && err != context.Canceled {
+			return err
+		}
+	}
+	return nil
+}
+
 // InstallLoRAResult is the outcome of one pack LoRA compose step.
 type InstallLoRAResult struct {
 	AgentType string `json:"agent_type,omitempty"`
@@ -40,17 +52,22 @@ func InstallPackLoRAs(ctx context.Context, mgr *Manager, manifest *packs.Manifes
 		if tag == "" && spec.AgentType != "" {
 			tag = SpecialistLoRATag(spec.AgentType)
 		}
+		res.OllamaTag = tag
+		if !OllamaSafetensorLoRABaseSupported(baseTag) {
+			res.Status = "skipped"
+			res.Error = fmt.Sprintf(
+				"base %q cannot be composed in Ollama (safetensors LoRA supports Llama, Mistral, Gemma only; use %s for code adapters)",
+				baseTag,
+				DefaultLoRATrainingCodeBase,
+			)
+			out = append(out, res)
+			continue
+		}
 		filename := strings.TrimSpace(spec.Filename)
 		if filename == "" {
 			filename = "adapter_model.safetensors"
 		}
-		if err := mgr.EnsureDownloadStarted(token, spec.RepoID, filename); err != nil {
-			res.Status = "error"
-			res.Error = err.Error()
-			out = append(out, res)
-			continue
-		}
-		if err := mgr.WatchDownload(ctx, spec.RepoID, filename, nil); err != nil && err != context.Canceled {
+		if err := EnsureLoRAFiles(ctx, mgr, token, spec.RepoID, filename); err != nil {
 			res.Status = "error"
 			res.Error = err.Error()
 			out = append(out, res)

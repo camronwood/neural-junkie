@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { terminalAPI } from '../api/terminalAPI';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useTerminalStore } from '../stores/terminalStore';
 import { getTerminalTheme } from '../utils/editorThemes';
 import '@xterm/xterm/css/xterm.css';
 
@@ -15,6 +16,7 @@ interface XTerminalProps {
 
 export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
   const colorTheme = useSettingsStore((s) => s.settings.colorTheme ?? 'slack');
+  const clearBufferNonce = useTerminalStore((s) => s.clearBufferNonce);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -70,13 +72,6 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
       unlistenPty = unlisten;
     });
 
-    term.attachCustomKeyEventHandler((event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'k' && event.type === 'keydown') {
-        term.clear();
-        return false;
-      }
-      return true;
-    });
 
     const onDataDispose = term.onData((data) => {
       terminalAPI.writePtySession(sessionId, data).catch(() => {});
@@ -122,6 +117,12 @@ export function XTerminal({ sessionId, cwd, isActive }: XTerminalProps) {
       });
     }
   }, [isActive]);
+
+  useEffect(() => {
+    if (clearBufferNonce > 0) {
+      termRef.current?.clear();
+    }
+  }, [clearBufferNonce]);
 
   return (
     <div

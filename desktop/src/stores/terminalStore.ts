@@ -47,6 +47,9 @@ interface TerminalStore {
   removeSuggestedCommand: (id: string) => void;
   clearSuggestedCommands: () => void;
 
+  clearBufferNonce: number;
+  requestClearBuffer: () => void;
+
   // Legacy fields kept for backward compat during transition
   commandHistory: never[];
   executingCommand: null;
@@ -123,6 +126,10 @@ export const useTerminalStore = create<TerminalStore>((set) => ({
       suggestedCommands: state.suggestedCommands.filter((cmd) => cmd.id !== id),
     })),
   clearSuggestedCommands: () => set({ suggestedCommands: [] }),
+
+  clearBufferNonce: 0,
+  requestClearBuffer: () =>
+    set((state) => ({ clearBufferNonce: state.clearBufferNonce + 1 })),
 
   // Legacy stubs
   commandHistory: [],

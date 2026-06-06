@@ -1,0 +1,31 @@
+{
+  "name": "dm-safe-readonly-command",
+  "description": "When BackendEngineer suggests read-only shell (cat/grep), metadata must mark is_safe.",
+  "tags": ["dm", "backend", "cli", "regression", "optional"],
+  "optional": true,
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "steps": [
+    {
+      "action": "send",
+      "content": "Please inspect README.md — if you suggest a shell command, use read-only inspection like cat or grep, not npm install.",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "assert_suggested_commands",
+      "last_reply_only": true,
+      "from": "BackendEngineer",
+      "command_match": "cat|grep|head|git status",
+      "deny_readonly_unsafe": true,
+      "optional": true
+    }
+  ],
+  "cleanup": "clear"
+}

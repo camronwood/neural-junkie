@@ -19,6 +19,7 @@ import type { WorkspaceContextMode } from '../constants/promptMetadata';
 import type { SettingsTab } from './SettingsModal';
 import { OllamaRuntimeChip } from './OllamaRuntimeChip';
 import { useApprovalStore } from '../stores/approvalStore';
+import { formatChord } from '../shortcuts/format';
 
 export type ChatToolbarActionsLayout = 'horizontal' | 'vertical';
 
@@ -119,7 +120,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onOpenCommandPalette}
           className={`${iconBtn} bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs font-bold focus-visible:outline-indigo-400`}
-          title="Command palette (Cmd+Shift+P / Ctrl+Shift+P)"
+          title={`Command palette (${formatChord('mod+shift+p')})`}
           aria-label="Open command palette with Cmd+Shift+P or Ctrl+Shift+P"
         >
           P
@@ -137,7 +138,7 @@ export function ChatToolbarActions({
               ? 'bg-slack-accent text-white'
               : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
           }`}
-          title={chatPanelVisible ? 'Hide main chat' : 'Show main chat'}
+          title={`${chatPanelVisible ? 'Hide main chat' : 'Show main chat'} (${formatChord('mod+shift+c')})`}
           aria-label={chatPanelVisible ? 'Hide main chat panel' : 'Show main chat panel'}
           aria-pressed={chatPanelVisible}
         >
@@ -183,7 +184,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onOpenPendingChanges}
           className={`${iconBtn} bg-orange-600 hover:bg-orange-700 text-white focus-visible:outline-orange-400`}
-          title="Pending changes"
+          title={`Pending changes (${formatChord('mod+shift+u')})`}
           aria-label="Open pending file changes"
         >
           <PendingChangesIcon className="w-3.5 h-3.5" />
@@ -193,7 +194,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onOpenFileExplorer}
           className={`${iconBtn} bg-green-600 hover:bg-green-700 text-white focus-visible:outline-green-400`}
-          title="File explorer"
+          title={`File explorer (${formatChord('mod+shift+e')})`}
           aria-label="Open file explorer"
         >
           <FilesIcon className="w-3.5 h-3.5" />
@@ -203,7 +204,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onOpenCodeEditor}
           className={`${iconBtn} bg-blue-600 hover:bg-blue-700 text-white focus-visible:outline-blue-400`}
-          title="Code editor"
+          title={`Code editor (${formatChord('mod+shift+f')})`}
           aria-label="Open code editor"
         >
           <EditorIcon className="w-3.5 h-3.5" />
@@ -231,7 +232,7 @@ export function ChatToolbarActions({
           className={`${iconBtn} ${
             taskManagementOpen ? 'bg-violet-600 hover:bg-violet-700' : 'bg-violet-700/80 hover:bg-violet-700'
           } text-white`}
-          title="Task management (⌘⇧T)"
+          title={`Task management (${formatChord('mod+shift+t')})`}
           aria-label="Open task management"
           aria-pressed={taskManagementOpen}
         >
@@ -242,7 +243,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onNewRunbook}
           className={`${iconBtn} bg-slate-600 hover:bg-slate-500 text-white text-[10px] font-bold`}
-          title="New runbook (task DAG)"
+          title={`New runbook (${formatChord('mod+shift+r')})`}
           aria-label="Create new runbook"
         >
           RB
@@ -252,7 +253,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onOpenMyAgents}
           className={`${iconBtn} bg-slack-accent hover:bg-slack-accentHover text-white relative focus-visible:outline-slack-accent`}
-          title="My agents"
+          title={`My agents (${formatChord('mod+shift+a')})`}
           aria-label="Open my agents"
         >
           <MyAgentsIcon className="w-3.5 h-3.5" />
@@ -272,7 +273,7 @@ export function ChatToolbarActions({
             type="button"
             onClick={onOpenProblems}
             className={`${iconBtn} bg-purple-600 hover:bg-purple-500 text-white focus-visible:outline-purple-400`}
-            title="Problems"
+            title={`Problems (${formatChord('mod+shift+d')})`}
             aria-label="Open problems panel"
           >
             <span className="text-xs font-bold">!</span>
@@ -288,7 +289,7 @@ export function ChatToolbarActions({
                 ? 'bg-orange-500 ring-2 ring-orange-300/60 text-white'
                 : 'bg-orange-600 hover:bg-orange-500 text-white'
             }`}
-            title="Git (source control)"
+            title={`Git (${formatChord('mod+shift+g')})`}
             aria-label={gitModalOpen ? 'Close git panel' : 'Open git panel'}
             aria-pressed={gitModalOpen}
           >
@@ -318,8 +319,8 @@ export function ChatToolbarActions({
           }`}
           title={
             approvalCount > 0
-              ? `${approvalCount} command/tool approval${approvalCount === 1 ? '' : 's'} waiting (⌘J)`
-              : 'Terminal (⌘J)'
+              ? `${approvalCount} command/tool approval${approvalCount === 1 ? '' : 's'} waiting (${formatChord('mod+j')})`
+              : `Terminal (${formatChord('mod+j')})`
           }
           aria-label="Toggle terminal panel"
         >
@@ -346,7 +347,7 @@ export function ChatToolbarActions({
           type="button"
           onClick={onOpenModelLibrary}
           className={`${iconBtn} bg-amber-600 hover:bg-amber-500 text-white focus-visible:outline-amber-300`}
-          title="Model library (Ctrl+Shift+M or ⌘⇧M)"
+          title={`Model library (${formatChord('mod+shift+m')})`}
           aria-label="Open model library"
         >
           <ModelLibraryIcon className="w-3.5 h-3.5" />
@@ -357,7 +358,7 @@ export function ChatToolbarActions({
             type="button"
             onClick={() => onOpenSettings()}
             className={`${iconBtn} text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover focus-visible:outline-slack-accent`}
-            title="Settings (⌘,)"
+            title={`Settings (${formatChord('mod+,')})`}
             aria-label="Open settings"
           >
             <SettingsIcon className="w-3.5 h-3.5" />

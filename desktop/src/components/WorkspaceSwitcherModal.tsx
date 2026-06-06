@@ -72,11 +72,6 @@ export function WorkspaceSwitcherModal({
     if (!isOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-        return;
-      }
       if (filtered.length === 0) return;
 
       if (event.key === 'ArrowDown') {

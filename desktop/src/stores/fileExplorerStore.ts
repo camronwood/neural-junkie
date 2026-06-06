@@ -105,6 +105,8 @@ interface FileExplorerState {
   
   // Panel state
   setFileExplorerOpen: (open: boolean) => void;
+  workspaceSwitcherRequestNonce: number;
+  requestWorkspaceSwitcher: () => void;
   
   // Getters
   getActiveWorkspace: () => Workspace | null;
@@ -375,5 +377,10 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   setFileExplorerOpen: (open) => {
     // This is handled by the parent component, but we need it for the interface
     devLog('File explorer open:', open);
+  },
+
+  workspaceSwitcherRequestNonce: 0,
+  requestWorkspaceSwitcher: () => {
+    set((s) => ({ workspaceSwitcherRequestNonce: s.workspaceSwitcherRequestNonce + 1 }));
   },
 }));

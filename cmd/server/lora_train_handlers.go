@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
-	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/lora/export"
 	"github.com/camronwood/neural-junkie/internal/lora/train"
@@ -70,6 +69,10 @@ func handleLoraTrainRoute(w http.ResponseWriter, r *http.Request) {
 	path = strings.Trim(path, "/")
 	if path == "expert-context" {
 		handleLoraTrainExpertContext(w, r)
+		return
+	}
+	if path == "bases" {
+		handleLoraTrainBases(w, r)
 		return
 	}
 	if path == "preview" {
@@ -179,8 +182,20 @@ func handleLoraTrainExpertContext(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildExpertTrainContext(info))
 }
 
+func handleLoraTrainBases(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"bases":              hfhub.LoRATrainingBases(),
+		"default_code_base":  hfhub.DefaultLoRATrainingCodeBase,
+		"default_biology_base": hfhub.BiologyLoRABaseTag,
+	})
+}
+
 func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
-	base := config.DevOllamaCodeModel
+	base := hfhub.DefaultLoRATrainingBaseForAgent(string(info.Type))
 	channels := chatHub.GetAgentChannels(info.ID)
 	channelID := ""
 	if len(channels) > 0 {
@@ -192,6 +207,7 @@ func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
 		"agent_name":                info.Name,
 		"agent_type":                string(info.Type),
 		"suggested_base_ollama_tag": base,
+		"supported_bases":           hfhub.LoRATrainingBases(),
 		"min_rows":                  export.MinRows,
 		"preview_rows":              0,
 		"ready":                     false,

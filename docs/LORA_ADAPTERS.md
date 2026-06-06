@@ -1,12 +1,24 @@
 # LoRA adapters
 
-Neural Junkie can compose **Ollama model tags** from a shared base plus a Hugging Face LoRA adapter (`FROM` + `ADAPTER`), so specialists share one 14B base instead of pulling separate full models.
+Neural Junkie composes **Ollama model tags** from a LoRA-compatible base plus a Hugging Face adapter (`FROM` + `ADAPTER`). Specialists can share small adapter files instead of pulling separate full models for every role.
+
+## Two-tier strategy (inference vs LoRA)
+
+| Tier | Default model | Purpose |
+|------|---------------|---------|
+| **Inference** | `qwen2.5-coder:14b` | Day-to-day specialist chat, tools, implementation (Software development pack) |
+| **LoRA compose / train** | `llama3.1:8b` | Download community adapters, train repo experts, `ollama create` composed tags |
+
+Ollama safetensors `ADAPTER` supports **Llama, Mistral, Gemma** — not Qwen. Qwen remains the recommended inference model; LoRA bootstrap and training use Llama/Mistral bases. Assign composed tags (`nj-security:14b`, etc.) when you want domain-tuned weights.
+
+See also [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) for the full problem/solution story.
 
 ## Concepts
 
 | Piece | Example | Role |
 |-------|---------|------|
-| **Base model** | `qwen2.5-coder:14b` | Full weights in Ollama; must exist before compose |
+| **Inference base** | `qwen2.5-coder:14b` | Default specialist model (optional override with composed tag) |
+| **LoRA base** | `llama3.1:8b` | Full weights for compose/train; must exist before compose |
 | **Adapter** | `adapter_model.safetensors` | Small HF LoRA delta (~ tens of MB) |
 | **Composed tag** | `nj-security:14b` | `ollama create` result used at inference time |
 
@@ -14,18 +26,19 @@ Prompt personas and the [context stack](CONTEXT_MODEL.md) are unchanged — LoRA
 
 ## Tag conventions
 
-- **Specialists:** `nj-{type}:14b` (e.g. `nj-security:14b`)
+- **Specialists:** `nj-{type}:14b` (e.g. `nj-security:14b`) — suffix is a role label, not base size
 - **Repo experts:** `nj-repo-{slug}:14b` (slug from repo directory name)
-- **Default base:** `qwen2.5-coder:14b`
+- **Default LoRA base (code):** `llama3.1:8b`
+- **Biology LoRA base:** `llama3:8b`
 
 ## Model Library flow
 
 1. Open **Model library** (⇧⌘M) → **Hugging Face** → **Download (local)**.
-2. Find an entry with kind **LoRA adapter** (or any HF repo with adapter safetensors).
-3. **Download** the adapter file.
-4. Ensure the **base model** is pulled (Ollama tab → `qwen2.5-coder:14b`).
+2. Find an entry with kind **LoRA adapter** (deprecated Qwen entries are marked unsupported).
+3. **Download** the adapter file and `adapter_config.json`.
+4. Ensure the **LoRA base** is pulled (Ollama tab → e.g. `llama3.1:8b`, `llama3.2:3b`, `mistral:7b`).
 5. **Compose & import** — creates the composed Ollama tag.
-6. If the catalog entry has `agent_type`, the hub assigns that specialist automatically; otherwise use agent info (ℹ️) → provider/model, `/switch-provider`, or **Settings → AI & providers → Advanced → specialist model overrides**.
+6. Assign via agent info (ℹ️) → provider/model, `/switch-provider`, or **Settings → Advanced → specialist model overrides**.
 
 API: `POST /api/hf/import-ollama` with `kind: "adapter"`, `base_ollama_tag`, and optional `ollama_tag`.
 
@@ -43,25 +56,27 @@ API: `POST /api/hf/import-ollama` with `kind: "adapter"`, `base_ollama_tag`, and
 }
 ```
 
-`/switch-provider`, agent info, and **Settings → Advanced → specialist model overrides** persist this field. **Switch all providers** clears per-agent overrides.
+Agents default to `qwen2.5-coder:14b` until you assign a composed tag.
 
 ## Domain pack presets
 
-LoRA bootstrap adapters live in the **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack (not in Software development or Life sciences):
+LoRA bootstrap adapters live in the **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack:
 
 ```yaml
-# specialist-tuning/pack.yaml
+# specialist-tuning/pack.yaml (Llama/Mistral — Ollama-compose compatible)
 lora_adapters:
   - agent_type: security
-    repo_id: scthornton/qwen2.5-coder-14b-securecode
+    repo_id: scthornton/llama-3.2-3b-securecode
     ollama_tag: nj-security:14b
-    base_ollama_tag: qwen2.5-coder:14b
+    base_ollama_tag: llama3.2:3b
   - agent_type: code-review
-    repo_id: JingyaoOng/Qwen2.5-Coder-14B-Instruct-lora-CodeFeedback64k
+    repo_id: juzhengz/LoRI-D_code_llama3_rank_64
     ollama_tag: nj-code-review:14b
+    base_ollama_tag: llama3:8b
   - agent_type: backend
-    repo_id: blank0301/qwen2.5-coder-14b-text2sql-sft-exec_dpo-lora
+    repo_id: visheshgupta/mistral-7b-text2sql-qlora
     ollama_tag: nj-backend:14b
+    base_ollama_tag: mistral:7b
   - agent_type: biology
     repo_id: Pk3112/medmcqa-lora-llama3-8b-instruct
     ollama_tag: nj-biology:8b
@@ -74,7 +89,7 @@ Install bootstrap LoRAs (requires Specialist tuning pack enabled):
 curl -X POST http://localhost:18765/api/packs/specialist-tuning/install-loras
 ```
 
-Assign composed tags via agent info, `/switch-provider`, or **Settings → Advanced → specialist model overrides** — domain packs no longer auto-assign `nj-*` models to specialists.
+`make pull-models` pulls inference Qwen plus LoRA bases (`llama3.1:8b`, `llama3:8b`, `llama3.2:3b`, `mistral:7b`).
 
 ## Repo agents
 
@@ -84,17 +99,15 @@ Assign composed tags via agent info, `/switch-provider`, or **Settings → Advan
 /create-repo-agent /path/to/repo --model nj-repo-myapp:14b
 ```
 
-With `--adapter-repo`, the hub downloads the adapter, composes `nj-repo-{slug}:14b` (or your `--model` tag), and uses it for the repo expert.
-
-**Manual workflow:** train LoRA externally → publish to Hugging Face → download in Model Library → compose → assign.
+Train on `llama3.1:8b` (not Qwen). See [LORA_TRAINING.md](LORA_TRAINING.md).
 
 ## Limitations
 
+- **Qwen safetensors LoRA** cannot be composed in Ollama (use Llama/Mistral or GGUF conversion — not bundled)
 - Hosted HF inference stays full-model (no PEFT on router)
 - Safetensors adapters only (not GGUF LoRA blobs)
 - Each compose creates a distinct Ollama tag (no hot-swap per request)
-- Tool calling still follows base model capabilities; biology MCP fallback unchanged
-- LoRA training uses the Python stack in `.venv-lora` (`make deps-lora`); requires Specialist tuning pack
+- LoRA training uses `.venv-lora` (`make deps-lora`); requires Specialist tuning pack
 
 ## Biology LoRA vs full GGUF
 
@@ -106,8 +119,7 @@ With `--adapter-repo`, the hub downloads the adapter, composes `nj-repo-{slug}:1
 ## Related
 
 - [LORA_TRAINING.md](LORA_TRAINING.md) — in-app training wizard
-- [LORA-LINKEDIN.md](marketing/LORA-LINKEDIN.md) — LinkedIn article publish copy (cover: `assets/neural-junkie-lora-ad-1200.png`)
-
-- [SOFTWARE_DEVELOPMENT_PACK.md](SOFTWARE_DEVELOPMENT_PACK.md)
-- [GETTING_STARTED.md](GETTING_STARTED.md) — model library
-- [REPO_AGENTS.md](REPO_AGENTS.md)
+- [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) — LinkedIn article (cover: `assets/neural-junkie-two-tier-lora-1200.png`)
+- [LORA-LINKEDIN.md](marketing/LORA-LINKEDIN.md) — LoRA feature article
+- [SPECIALIST_TUNING_PACK.md](SPECIALIST_TUNING_PACK.md)
+- [GETTING_STARTED.md](GETTING_STARTED.md)

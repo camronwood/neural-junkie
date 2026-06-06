@@ -19,20 +19,22 @@ type CatalogFile struct {
 
 // LibraryModel is one row in the in-app HF model library.
 type LibraryModel struct {
-	Kind            string        `json:"kind,omitempty"` // "full" (default) or "adapter"
-	RepoID          string        `json:"repo_id"`
-	DownloadRepoID  string        `json:"download_repo_id,omitempty"` // Hub repo for GGUF when different from hosted repo_id
-	Title           string        `json:"title"`
-	Description     string        `json:"description"`
-	Tags            []string      `json:"tags"`
-	SizeHint        string        `json:"size_hint,omitempty"`
-	IconKey         string        `json:"icon_key,omitempty"`
-	Publisher       string        `json:"publisher,omitempty"`
-	Modes           []string      `json:"modes"` // "hosted", "local"
-	Files           []CatalogFile `json:"files,omitempty"`
-	BaseOllamaTag   string        `json:"base_ollama_tag,omitempty"`
-	DefaultOllamaTag string       `json:"default_ollama_tag,omitempty"`
-	AgentType       string        `json:"agent_type,omitempty"` // optional specialist slug for assign-to-agent UX
+	Kind                   string        `json:"kind,omitempty"` // "full" (default) or "adapter"
+	RepoID                 string        `json:"repo_id"`
+	DownloadRepoID         string        `json:"download_repo_id,omitempty"` // Hub repo for GGUF when different from hosted repo_id
+	Title                  string        `json:"title"`
+	Description            string        `json:"description"`
+	Tags                   []string      `json:"tags"`
+	SizeHint               string        `json:"size_hint,omitempty"`
+	IconKey                string        `json:"icon_key,omitempty"`
+	Publisher              string        `json:"publisher,omitempty"`
+	Modes                  []string      `json:"modes"` // "hosted", "local"
+	Files                  []CatalogFile `json:"files,omitempty"`
+	BaseOllamaTag          string        `json:"base_ollama_tag,omitempty"`
+	DefaultOllamaTag       string        `json:"default_ollama_tag,omitempty"`
+	AgentType              string        `json:"agent_type,omitempty"` // optional specialist slug for assign-to-agent UX
+	Deprecated             bool          `json:"deprecated,omitempty"`
+	OllamaComposeSupported *bool         `json:"ollama_compose_supported,omitempty"`
 }
 
 // Library returns the embedded catalog.
@@ -101,6 +103,9 @@ func ResolveDownloadFilename(entry *LibraryModel, filename string) (string, erro
 	filename = strings.TrimSpace(filename)
 	if filename != "" {
 		if entry != nil {
+			if filename == AdapterConfigFilename && IsAdapterEntry(entry) {
+				return filename, nil
+			}
 			for _, f := range entry.Files {
 				if f.Filename == filename {
 					return filename, nil
@@ -126,4 +131,18 @@ func ResolveDownloadRepoID(entry *LibraryModel) string {
 		return id
 	}
 	return entry.RepoID
+}
+
+// AdapterOllamaComposeSupported reports whether a catalog adapter can be composed in Ollama.
+func AdapterOllamaComposeSupported(entry *LibraryModel) bool {
+	if entry == nil || !IsAdapterEntry(entry) {
+		return false
+	}
+	if entry.Deprecated {
+		return false
+	}
+	if entry.OllamaComposeSupported != nil {
+		return *entry.OllamaComposeSupported
+	}
+	return OllamaSafetensorLoRABaseSupported(entry.BaseOllamaTag)
 }

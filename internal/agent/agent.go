@@ -1921,7 +1921,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		if err != nil {
 			if strings.TrimSpace(text) != "" &&
 				a.Info.Type == protocol.AgentTypeAssistant &&
-				(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content)) {
+				(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content) || messageAsksAboutNJApp(msg.Content)) {
 				log.Printf("[%s] Keeping partial grounded Assistant stream for meeting/email query despite stream error: %v", a.Info.Name, err)
 				return text, id, reasoning, nil
 			}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useShortcutOverlay } from '../../shortcuts/useShortcutOverlay';
 import type { Collaboration, CollaborationAgent, CollaborationTask } from '../../types/protocol';
 import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../../utils/runbookTaskUtils';
 import { removeTask, validateDAG } from '../../utils/runbookDAG';
@@ -46,21 +47,15 @@ export function RunbookGraphModal({
     }
   }, [isOpen]);
 
+  useShortcutOverlay('runbookGraph', isOpen, onClose);
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    }
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId);
   const selectedIndex = selectedTask ? tasks.findIndex((t) => t.id === selectedTaskId) : -1;

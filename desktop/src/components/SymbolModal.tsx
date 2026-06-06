@@ -62,10 +62,6 @@ export function SymbolModal({ isOpen, workspaceId, onClose, onOpenSymbol }: Symb
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setHighlight((h) => Math.min(h + 1, Math.max(0, symbols.length - 1)));

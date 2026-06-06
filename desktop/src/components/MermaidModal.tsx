@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { MermaidCanvas } from './MermaidCanvas';
+import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 
 interface MermaidModalProps {
   isOpen: boolean;
@@ -8,23 +9,15 @@ interface MermaidModalProps {
 }
 
 export function MermaidModal({ isOpen, onClose, content }: MermaidModalProps) {
+  useShortcutOverlay('mermaid', isOpen, onClose);
+
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    }
-
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

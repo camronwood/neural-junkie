@@ -361,6 +361,36 @@ def step_assert_messages(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
                     who = (m.get("from") or {}).get("name", "?")
                     return False, f"stack command suggestion from {who}: {cmd[:100]!r}"
 
+    if step.get("deny_json_discussion"):
+        for m in pool:
+            if m.get("type") != "collaboration_discussion":
+                continue
+            content = (m.get("content") or "").strip()
+            if content.startswith("{") and content.endswith("}"):
+                who = (m.get("from") or {}).get("name", "?")
+                return False, f"JSON discussion from {who}: {content[:120]!r}"
+
+    if step.get("deny_file_change_after_cancel"):
+        cancelled_at: int | None = None
+        for i, m in enumerate(msgs):
+            if m.get("type") == "system_info" and "Cancelled" in (m.get("content") or ""):
+                cancelled_at = i
+        if cancelled_at is None:
+            return False, "deny_file_change_after_cancel: no cancellation system message"
+        for m in msgs[cancelled_at + 1 :]:
+            if m.get("type") != "file_change":
+                continue
+            who = (m.get("from") or {}).get("name", "?")
+            return False, f"file_change after cancel from {who}"
+
+    if step.get("deny_generation_errors"):
+        for m in pool:
+            meta = m.get("metadata") or {}
+            if meta.get("generation_error") or meta.get("error_code"):
+                who = (m.get("from") or {}).get("name", "?")
+                code = meta.get("error_code") or "generation_error"
+                return False, f"generation error from {who}: {code}"
+
     return True, "message assertions ok"
 
 
@@ -373,6 +403,13 @@ def step_assert_collab(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         want = step["phase"]
         if c.get("phase") != want:
             return False, f"phase={c.get('phase')!r} want {want!r}"
+
+    if "phase_in" in step:
+        allowed = step["phase_in"]
+        if not isinstance(allowed, list):
+            allowed = [allowed]
+        if c.get("phase") not in allowed:
+            return False, f"phase={c.get('phase')!r} want one of {allowed!r}"
 
     src = (c.get("source_repo_path") or "").strip()
     if step.get("source_repo_path_empty") and src:
@@ -855,6 +892,9 @@ def run_scenario(
         if required:
             ok_agents, missing = hub.verify_agents_online(base, required)
             if not ok_agents:
+                if scenario.get("optional"):
+                    print(f"  SKIP (optional): required agents offline: {', '.join(missing)}")
+                    return True
                 print(f"  FAIL: required agents offline: {', '.join(missing)}", file=sys.stderr)
                 print("  Start hub with CLI agents or set NJ_COLLAB_SCENARIO_AGENTS", file=sys.stderr)
                 return False

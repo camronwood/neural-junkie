@@ -3,7 +3,6 @@ import { Editor } from '@monaco-editor/react';
 import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
-import { useEditorShortcuts } from '../hooks/useEditorShortcuts';
 import { useInlinePendingHunks, useMonacoDiagnostics } from '../hooks/useInlinePendingHunks';
 import { useInlineCompletion } from '../hooks/useInlineCompletion';
 import { EditorReviewBar } from './EditorReviewBar';
@@ -85,8 +84,6 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   );
 
   const { addToast } = useToastStore();
-
-  useEditorShortcuts();
 
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);

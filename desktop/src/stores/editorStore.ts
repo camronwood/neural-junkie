@@ -119,6 +119,7 @@ interface EditorState {
   activateScanWell: (tabId: string, wellId: string) => void;
   closeTab: (tabId: string) => void;
   setActiveTab: (tabId: string) => void;
+  cycleActiveTab: (direction: 1 | -1) => void;
   setTabViewMode: (tabId: string, viewMode: EditorTabViewMode) => void;
   updateTabContent: (tabId: string, content: string) => void;
   updateTabCursor: (tabId: string, position: { line: number; column: number }) => void;
@@ -503,6 +504,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   
   setActiveTab: (tabId) => {
     set({ activeTabId: tabId });
+  },
+
+  cycleActiveTab: (direction) => {
+    const { tabs, activeTabId } = get();
+    if (tabs.length === 0) return;
+    const idx = activeTabId ? tabs.findIndex((t) => t.id === activeTabId) : -1;
+    const nextIdx =
+      idx === -1
+        ? 0
+        : (idx + direction + tabs.length) % tabs.length;
+    set({ activeTabId: tabs[nextIdx]?.id ?? null });
   },
 
   setTabViewMode: (tabId, viewMode) => {

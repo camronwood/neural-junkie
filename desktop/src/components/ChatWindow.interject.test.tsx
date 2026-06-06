@@ -301,7 +301,7 @@ describe('ChatWindow channel interject', () => {
     });
     apiHarness.fetchCommands.mockClear();
 
-    fireEvent.keyDown(window, { key: 'P', metaKey: true, ctrlKey: true, shiftKey: true });
+    fireEvent.keyDown(document, { key: 'P', metaKey: true, ctrlKey: true, shiftKey: true });
 
     await waitFor(() => {
       expect(apiHarness.fetchCommands).toHaveBeenCalledWith(true);

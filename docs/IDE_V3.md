@@ -23,13 +23,22 @@ When **IDE layout** and the dev pack are on, each send:
 
 ## Keyboard
 
+IDE-focused shortcuts (full list: [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md), **Settings → Keyboard**).
+
 | Shortcut | Action |
 |----------|--------|
-| **⌘K** | Fast edit (single-turn) |
-| **⌘L** | Focus main chat composer (IDE layout) |
-| **⌘P** | Quick open |
-| **⌘⇧O** | Go to symbol |
-| **⌘J** | Terminal |
+| **⌘K** / **Ctrl+K** | Fast edit (single-turn; terminal clear when terminal focused) |
+| **⌘L** / **Ctrl+L** | Focus main chat composer (IDE layout) |
+| **⌘P** / **Ctrl+P** | Quick open |
+| **⌘⇧O** / **Ctrl+Shift+O** | Go to symbol |
+| **⌘⇧E** / **Ctrl+Shift+E** | Toggle file explorer |
+| **⌘⇧F** / **Ctrl+Shift+F** | Open code editor panel |
+| **⌘S** / **Ctrl+S** | Save file |
+| **⌘⇧S** / **Ctrl+Shift+S** | Save all |
+| **⌘W** / **Ctrl+W** | Close editor tab |
+| **⌘Tab** / **Ctrl+Tab** | Next editor tab |
+| **⌘⇧W** / **Ctrl+Shift+W** | Workspace switcher |
+| **⌘J** / **Ctrl+J** | Terminal |
 
 ## Editor trust (Settings → Layout)
 

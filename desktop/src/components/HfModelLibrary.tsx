@@ -15,7 +15,26 @@ export interface HfCatalogEntry {
   base_ollama_tag?: string;
   default_ollama_tag?: string;
   agent_type?: string;
+  deprecated?: boolean;
+  ollama_compose_supported?: boolean;
   files?: { filename: string; quant?: string; size_hint?: string }[];
+}
+
+const DEFAULT_LORA_BASE = 'llama3.1:8b';
+
+function adapterComposeSupported(entry: HfCatalogEntry): boolean {
+  if (!isAdapterEntry(entry)) return false;
+  if (entry.deprecated) return false;
+  if (entry.ollama_compose_supported === false) return false;
+  const base = (entry.base_ollama_tag ?? DEFAULT_LORA_BASE).toLowerCase();
+  return (
+    base.includes('llama') ||
+    base.includes('mistral') ||
+    base.includes('mixtral') ||
+    base.includes('gemma') ||
+    base.includes('codestral') ||
+    base.includes('devstral')
+  );
 }
 
 function isAdapterEntry(entry: HfCatalogEntry): boolean {
@@ -534,7 +553,14 @@ export function HfModelLibrary({
       });
       return;
     }
-    const baseTag = resolved.base_ollama_tag || 'qwen2.5-coder:14b';
+    const baseTag = resolved.base_ollama_tag || DEFAULT_LORA_BASE;
+    if (adapter && !adapterComposeSupported(resolved)) {
+      setActionMessage({
+        kind: 'err',
+        text: 'This adapter cannot be composed in Ollama (Qwen safetensors LoRA is unsupported). Use a Llama or Mistral base — see docs/LORA_ADAPTERS.md.',
+      });
+      return;
+    }
     if (adapter && !ollamaHasBase(baseTag)) {
       setActionMessage({
         kind: 'err',
@@ -615,14 +641,17 @@ export function HfModelLibrary({
       const isHosted = tab === 'hosted';
 
       const adapter = isAdapterEntry(entry);
-      const adapterComposeBlocked = adapter && !canComposeLoRA;
+      const adapterComposeBlocked = adapter && (!canComposeLoRA || !adapterComposeSupported(entry));
       const detailRows = file
         ? [
             { label: 'Repository', value: entry.repo_id },
             ...(adapter
               ? [
                   { label: 'Kind', value: 'LoRA adapter' },
-                  { label: 'Base model', value: entry.base_ollama_tag ?? 'qwen2.5-coder:14b' },
+                  { label: 'Base model', value: entry.base_ollama_tag ?? DEFAULT_LORA_BASE },
+                  ...(entry.deprecated || entry.ollama_compose_supported === false
+                    ? [{ label: 'Compose', value: 'Not supported in Ollama (use Llama/Mistral adapter)' }]
+                    : []),
                   { label: 'Adapter file', value: file.filename },
                 ]
               : [
@@ -787,8 +816,8 @@ export function HfModelLibrary({
 
       {tab === 'local' && (
         <p className="text-xs text-amber-500/90">
-          Downloads GGUF or LoRA adapter files, then imports or composes in Ollama. LoRA entries need the base
-          model (e.g. qwen2.5-coder:14b) pulled first.
+          Downloads GGUF or LoRA adapter files, then imports or composes in Ollama. LoRA adapters compose on
+          Llama/Mistral bases (default llama3.1:8b for training); inference specialists may still use qwen2.5-coder:14b.
           {!ollamaRunning && ' (Ollama is not running.)'}
         </p>
       )}

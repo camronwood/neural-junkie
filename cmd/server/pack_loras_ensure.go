@@ -139,6 +139,8 @@ func ensurePackLoRAs(ctx context.Context, onlyPackID string) {
 		for _, res := range results {
 			if res.Status == "imported" {
 				log.Printf("   ✅ %s → %s", res.RepoID, res.OllamaTag)
+			} else if res.Status == "skipped" {
+				log.Printf("   ⏭️  %s: %s", res.RepoID, res.Error)
 			} else if res.Error != "" {
 				log.Printf("   ⚠️  %s: %s", res.RepoID, res.Error)
 			}

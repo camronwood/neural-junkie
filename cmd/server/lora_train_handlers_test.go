@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -70,6 +72,9 @@ func TestHandleLoraTrainExpertContext_repoAgent(t *testing.T) {
 	if body["suggested_ollama_tag"] != "nj-repo-my-app:14b" {
 		t.Fatalf("expected nj-repo-my-app:14b, got %v", body["suggested_ollama_tag"])
 	}
+	if body["suggested_base_ollama_tag"] != hfhub.DefaultLoRATrainingCodeBase {
+		t.Fatalf("expected suggested base %q, got %v", hfhub.DefaultLoRATrainingCodeBase, body["suggested_base_ollama_tag"])
+	}
 	if body["source_id"] != "general" {
 		t.Fatalf("expected source_id general, got %v", body["source_id"])
 	}
@@ -120,5 +125,34 @@ func TestHandleLoraTrainExpertContext_assistantAgent(t *testing.T) {
 	}
 	if body["suggested_ollama_tag"] != "nj-assistant-camronassistant:14b" {
 		t.Fatalf("expected assistant tag, got %v", body["suggested_ollama_tag"])
+	}
+}
+
+func TestHandleLoraTrainStart_rejectsQwenBase(t *testing.T) {
+	chatHub = hub.NewHub()
+	defer func() {
+		chatHub = nil
+		appConfig = nil
+		loraTrainMgr = nil
+	}()
+
+	appConfig = config.DefaultConfig()
+	appConfig.Packs = config.DefaultPacksConfig()
+	if err := appConfig.InstallPack(config.PackSpecialistTuning); err != nil {
+		t.Fatal(err)
+	}
+	appConfig.Packs.Enabled[config.PackSpecialistTuning] = true
+	initLoraTrainManager()
+
+	body := `{"source":"channel","source_id":"general","base_ollama_tag":"qwen2.5-coder:14b","ollama_tag":"nj-test:14b"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/lora/train", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handleLoraTrainRoute(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Qwen") {
+		t.Fatalf("expected Qwen error, got %s", rec.Body.String())
 	}
 }

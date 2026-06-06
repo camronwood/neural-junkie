@@ -6,6 +6,8 @@
 
 **Cover image:** `assets/neural-junkie-lora-ad-1200.png` (1200×627)
 
+**Two-tier story (inference vs LoRA):** [TWO-TIER-LORA-LINKEDIN.md](TWO-TIER-LORA-LINKEDIN.md) — cover `assets/neural-junkie-two-tier-lora-1200.png`
+
 **Regenerate cover:** `./scripts/compose-lora-article.sh`
 
 **Suggested title (pick one):**
@@ -32,7 +34,7 @@ LoRA (Low-Rank Adaptation) is what we added: small adapter files on a shared bas
 
 ## Why LoRA, not just prompts
 
-System prompts, lanes, and tooling are necessary — but not enough when you want domain-tuned behavior (security review that reads like security review), repo-specific fluency (patterns from your codebase, not only RAG snippets), and efficient local inference (one qwen2.5-coder:14b base shared across roles).
+System prompts, lanes, and tooling are necessary — but not enough when you want domain-tuned behavior (security review that reads like security review), repo-specific fluency (patterns from your codebase, not only RAG snippets), and efficient local inference (LoRA adapters on Llama/Mistral bases while specialists default to Qwen for chat).
 
 Adapters are typically tens of megabytes, not tens of gigabytes. Pull the base once, attach per specialist, and Ollama composes tags like nj-security:14b or nj-repo-myapp:14b. Prompt personas and the context stack stay unchanged; LoRA adjusts the model layer underneath. Routing, collaboration, MCP tools, and file approvals work the same.
 
@@ -52,7 +54,7 @@ Tag conventions: nj-{type}:14b for specialists, nj-repo-{slug}:14b for repo expe
 
 ## What you can do with it
 
-**Security on a shared base.** Install the Specialist tuning bootstrap LoRA — assign nj-security:14b to SecurityReviewer on qwen2.5-coder:14b. One pull, security-tuned inference.
+**Security on a LoRA base.** Install the Specialist tuning bootstrap LoRA — assign nj-security:14b to SecurityReviewer (composed on llama3.2:3b). See [TWO-TIER-LORA-LINKEDIN.md](TWO-TIER-LORA-LINKEDIN.md) for why inference and LoRA use different bases.
 
 **Biology without a second full 8B.** nj-biology:8b from llama3:8b + MedMCQA adapter — from Specialist tuning pack, not life-sciences.
 

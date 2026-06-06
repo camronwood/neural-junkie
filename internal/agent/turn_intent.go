@@ -192,7 +192,7 @@ func (a *Agent) buildPromptForIntent(msg *protocol.Message, intent TurnIntent) s
 	default:
 		// Meeting/email turns need enriched prompts even on small Ollama models.
 		if a.Info.Type == protocol.AgentTypeAssistant &&
-			(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content)) &&
+			(messageAsksAboutMeetings(msg.Content) || messageAsksAboutEmail(msg.Content) || messageAsksAboutNJApp(msg.Content)) &&
 			a.customPromptBuilder != nil {
 			return a.injectSessionSummary(a.customPromptBuilder(msg), msg)
 		}

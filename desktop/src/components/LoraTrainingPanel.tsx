@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ChatAPI, type LoraTrainJob, type LoraTrainStartRequest } from '../api/chatAPI';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChatAPI, type LoraTrainJob, type LoraTrainStartRequest, type LoraTrainingBase } from '../api/chatAPI';
+
+const DEFAULT_CODE_BASE = 'llama3.1:8b';
 
 type SourceKind = 'channel' | 'collaboration' | 'repo';
 
@@ -13,6 +15,7 @@ export interface LoraTrainPrefill {
   agentId?: string;
   previewRows?: number;
   ready?: boolean;
+  supported_bases?: LoraTrainingBase[];
 }
 
 interface LoraTrainingPanelProps {
@@ -34,8 +37,9 @@ export function LoraTrainingPanel({
   const [sourceId, setSourceId] = useState(prefill?.sourceId ?? defaultChannel);
   const [threadId, setThreadId] = useState('');
   const [agentName, setAgentName] = useState(prefill?.agentName ?? '');
-  const [baseTag, setBaseTag] = useState(prefill?.baseTag ?? 'qwen2.5-coder:14b');
+  const [baseTag, setBaseTag] = useState(prefill?.baseTag ?? DEFAULT_CODE_BASE);
   const [ollamaTag, setOllamaTag] = useState(prefill?.ollamaTag ?? 'nj-repo-custom:14b');
+  const [trainingBases, setTrainingBases] = useState<LoraTrainingBase[]>([]);
   const [rank, setRank] = useState(16);
   const [epochs, setEpochs] = useState(1);
   const [includeLearnings, setIncludeLearnings] = useState(true);
@@ -61,6 +65,35 @@ export function LoraTrainingPanel({
   }, [defaultChannel, sourceId]);
 
   const api = useCallback(() => new ChatAPI(serverAddr), [serverAddr]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const bases = await api().fetchLoraTrainBases();
+        setTrainingBases(bases);
+      } catch {
+        // hub may be starting; expert-context prefill still works
+      }
+    })();
+  }, [api]);
+
+  useEffect(() => {
+    if (prefill?.supported_bases?.length) {
+      setTrainingBases(prefill.supported_bases);
+    }
+  }, [prefill?.supported_bases]);
+
+  const selectedBase = useMemo(
+    () => trainingBases.find((b) => b.ollama_tag === baseTag),
+    [trainingBases, baseTag],
+  );
+
+  const baseSupported = useMemo(() => {
+    if (trainingBases.length === 0) {
+      return !/qwen/i.test(baseTag);
+    }
+    return trainingBases.some((b) => b.ollama_tag === baseTag);
+  }, [trainingBases, baseTag]);
 
   const refreshPreview = useCallback(async () => {
     if (!sourceId.trim()) return;
@@ -130,7 +163,10 @@ export function LoraTrainingPanel({
   };
 
   const minRows = 10;
-  const canStart = sourceId.trim() !== '' && (previewCount == null || previewCount >= minRows);
+  const canStart =
+    sourceId.trim() !== '' &&
+    baseSupported &&
+    (previewCount == null || previewCount >= minRows);
 
   const assignAgents =
     prefill?.agentId && runtimeAgents.some((a) => a.id === prefill.agentId)
@@ -145,9 +181,10 @@ export function LoraTrainingPanel({
         </p>
       )}
       <p className="text-xs text-gray-400">
-        Export chat or collaboration data, fine-tune with Unsloth, then compose into Ollama. Python deps:{' '}
-        <span className="font-mono text-gray-500">make deps-lora</span> (Specialist tuning pack). See{' '}
-        <span className="font-mono text-gray-500">docs/LORA_TRAINING.md</span>.
+        Export chat or collaboration data, fine-tune with Unsloth, then compose into Ollama. LoRA training
+        requires a <strong className="text-gray-300">Llama / Mistral / Gemma</strong> base —{' '}
+        <span className="text-amber-300/90">Qwen bases are not supported</span> for compose yet. Python deps
+        install automatically on first <span className="font-mono text-gray-500">make start-all</span>.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -193,13 +230,36 @@ export function LoraTrainingPanel({
             />
           </label>
         )}
-        <label className="flex flex-col gap-1">
+        <label className="flex flex-col gap-1 sm:col-span-2">
           <span className="text-xs text-gray-500">Base Ollama tag</span>
-          <input
-            value={baseTag}
-            onChange={(e) => setBaseTag(e.target.value)}
-            className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 font-mono text-xs"
-          />
+          {trainingBases.length > 0 ? (
+            <select
+              value={baseTag}
+              onChange={(e) => setBaseTag(e.target.value)}
+              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 font-mono text-xs"
+            >
+              {trainingBases.map((b) => (
+                <option key={b.ollama_tag} value={b.ollama_tag}>
+                  {b.label} ({b.ollama_tag})
+                  {b.recommended ? ' — recommended' : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={baseTag}
+              onChange={(e) => setBaseTag(e.target.value)}
+              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 font-mono text-xs"
+            />
+          )}
+          {selectedBase && (
+            <span className="text-[10px] text-gray-500">{selectedBase.description}</span>
+          )}
+          {!baseSupported && (
+            <span className="text-[10px] text-amber-400">
+              {baseTag} is not supported for LoRA training — choose a listed base (not Qwen).
+            </span>
+          )}
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-xs text-gray-500">Output composed tag</span>

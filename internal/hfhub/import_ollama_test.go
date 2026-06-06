@@ -6,11 +6,11 @@ import (
 )
 
 func TestComposeModelfile(t *testing.T) {
-	s := ComposeModelfile("qwen2.5-coder:14b", "/tmp/adapter.safetensors", ModelfileOpts{})
+	s := ComposeModelfile("qwen2.5-coder:14b", "/tmp/lora-adapter", ModelfileOpts{})
 	if !strings.Contains(s, `FROM "qwen2.5-coder:14b"`) {
 		t.Fatalf("missing FROM base tag: %q", s)
 	}
-	if !strings.Contains(s, `ADAPTER "/tmp/adapter.safetensors"`) {
+	if !strings.Contains(s, `ADAPTER "/tmp/lora-adapter"`) {
 		t.Fatalf("missing ADAPTER path: %q", s)
 	}
 }

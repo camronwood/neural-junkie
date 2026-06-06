@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import type { AgentInfo, AgentToolCapabilities } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
@@ -60,6 +61,7 @@ export function AgentInfoModal({
   offlineLoading = false,
   offlineDeleting = false,
 }: AgentInfoModalProps) {
+  useShortcutOverlay('agentInfo', isOpen, onClose);
   const serverAddr = useChatStore(s => s.serverAddr);
   const hasLoRATraining = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_TRAINING));
   const hasPersonalLearning = usePacksStore((s) => s.hasCapability(PACK_CAP.PERSONAL_LEARNING));
@@ -172,20 +174,6 @@ export function AgentInfoModal({
       cancelled = true;
     };
   }, [isOpen, agent?.id, agent?.type, isCLIAgent, serverAddr]);
-
-  // Handle escape key
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
-    }
-  }, [isOpen, onClose]);
 
   if (!isOpen || !agent) return null;
 
