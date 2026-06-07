@@ -13,7 +13,6 @@ VERSION_NUM="${VERSION#v}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=scripts/release-bundle-version.sh
 source "${ROOT}/scripts/release-bundle-version.sh"
-MANIFEST_VERSION="$(bundle_version_from_tag "${TAG}")"
 REPO="${2:-camronwood/neural-junkie}"
 RELEASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -59,7 +58,7 @@ const payload = {
   },
 };
 fs.writeFileSync(process.argv[7], JSON.stringify(payload, null, 2) + '\n');
-" "${MANIFEST_VERSION}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}"
+" "${manifest_version}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}"
 }
 
 generate_manifest() {
@@ -67,6 +66,14 @@ generate_manifest() {
   local arch="$2"
   local asset_pattern="$3"
   local output_file="update-${platform}-${arch}.json"
+  local manifest_platform=""
+  case "${platform}" in
+    windows) manifest_platform="windows" ;;
+    *) manifest_platform="" ;;
+  esac
+
+  local manifest_version
+  manifest_version="$(bundle_version_from_tag "${TAG}" "${manifest_platform}")"
 
   local artifact
   artifact="$(find_asset "${asset_pattern}")"

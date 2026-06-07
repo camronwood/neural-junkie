@@ -43,9 +43,7 @@ On each `v*` tag push:
 
 ## Version alignment
 
-`tauri.conf.json` `package.version` is set from the git tag at CI build time so updater semver checks match the release. Beta tags map to WiX-safe **4-part** bundle versions (`v1.0.0-beta.26` → `1.0.0.26`) in both the app bundle and updater manifests; UI labels still show `1.0.0-beta.26` from `package.json`.
-
-If Windows MSI builds fail with semver prerelease errors, confirm CI is running the latest `ci-set-release-version.sh` (numeric mapping above).
+Beta tags use **`1.0.0-beta.N`** in macOS/Linux bundles. **Windows** maps to WiX-safe semver **`1.0.0-N`** (numeric prerelease only). Updater manifests use the same version string as each platform's embedded bundle version.
 
 ## Verify a release
 

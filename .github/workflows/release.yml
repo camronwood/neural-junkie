@@ -177,7 +177,7 @@ jobs:
 
       - name: Prepare release build config
         shell: bash
-        run: chmod +x scripts/ci-prepare-release-build.sh && ./scripts/ci-prepare-release-build.sh "${{ github.ref_name }}"
+        run: chmod +x scripts/ci-prepare-release-build.sh && ./scripts/ci-prepare-release-build.sh "${{ github.ref_name }}" windows
 
       - name: Cross-compile Go server
         shell: bash
