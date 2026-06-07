@@ -78,8 +78,8 @@ generate_manifest() {
   local artifact
   artifact="$(find_asset "${asset_pattern}")"
   if [[ -z "${artifact}" ]]; then
-    echo "WARN: No artifact matching ${asset_pattern} on ${VERSION}; skipping ${output_file}" >&2
-    return 0
+    echo "ERROR: No artifact matching ${asset_pattern} on ${VERSION}; cannot build ${output_file}" >&2
+    return 1
   fi
 
   local signature
@@ -93,8 +93,8 @@ generate_manifest() {
   echo "Generated ${output_file} -> ${artifact}"
 }
 
-generate_manifest "darwin" "aarch64" '.*_aarch64\.app\.tar\.gz$'
-generate_manifest "darwin" "x86_64" '.*_(x64|x86_64)\.app\.tar\.gz$'
+generate_manifest "darwin" "aarch64" 'Neural\.Junkie_aarch64\.app\.tar\.gz$'
+generate_manifest "darwin" "x86_64" 'Neural\.Junkie_x64\.app\.tar\.gz$'
 generate_manifest "linux" "x86_64" '.*_amd64\.AppImage\.tar\.gz$'
 generate_manifest "windows" "x86_64" '.*\.msi\.zip$'
 

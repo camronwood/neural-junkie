@@ -19,23 +19,32 @@ chmod +x scripts/generate-update-manifests.sh
 
 shopt -s nullglob
 manifests=(update-*.json)
+expected=(update-darwin-aarch64.json update-darwin-x86_64.json update-linux-x86_64.json update-windows-x86_64.json)
 if [[ ${#manifests[@]} -eq 0 ]]; then
   echo "No manifests generated" >&2
   exit 1
 fi
+for required in "${expected[@]}"; do
+  if [[ ! -f "${required}" ]]; then
+    echo "Missing required manifest: ${required}" >&2
+    exit 1
+  fi
+done
 
 echo "Uploading manifests to ${VERSION}..."
 gh release upload "${VERSION}" "${manifests[@]}" --repo "${REPO}" --clobber
 
 if [[ "${VERSION}" == *beta* ]]; then
   echo "Publishing beta channel manifests to updater-beta..."
-  if ! gh release view updater-beta --repo "${REPO}" >/dev/null 2>&1; then
-    gh release create updater-beta \
-      --repo "${REPO}" \
-      --title "Beta updater channel" \
-      --notes "Rolling updater manifests for beta builds. Do not install manually." \
-      --prerelease
+  # Recreate the rolling release so asset uploads are not blocked by immutability.
+  if gh release view updater-beta --repo "${REPO}" >/dev/null 2>&1; then
+    gh release delete updater-beta --repo "${REPO}" --yes --cleanup-tag
   fi
+  gh release create updater-beta \
+    --repo "${REPO}" \
+    --title "Beta updater channel" \
+    --notes "Rolling updater manifests for beta builds. Do not install manually." \
+    --prerelease
   gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
 fi
 

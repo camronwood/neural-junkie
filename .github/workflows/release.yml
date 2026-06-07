@@ -109,6 +109,9 @@ jobs:
       - name: Verify Apple Silicon app signature
         run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app
 
+      - name: Prepare Apple Silicon updater upload names
+        run: chmod +x scripts/prepare-macos-updater-upload.sh && ./scripts/prepare-macos-updater-upload.sh desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos aarch64
+
       - name: Upload Apple Silicon assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -116,8 +119,8 @@ jobs:
           shopt -s nullglob
           gh release upload "${{ github.ref_name }}" \
             desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg \
-            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.tar.gz \
-            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.tar.gz.sig \
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Neural.Junkie_aarch64.app.tar.gz \
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Neural.Junkie_aarch64.app.tar.gz.sig \
             --repo "${{ github.repository }}" --clobber
 
       - name: Build Tauri (Intel)
@@ -133,6 +136,9 @@ jobs:
       - name: Verify Intel macOS app signature
         run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app
 
+      - name: Prepare Intel updater upload names
+        run: chmod +x scripts/prepare-macos-updater-upload.sh && ./scripts/prepare-macos-updater-upload.sh desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos x64
+
       - name: Upload Intel macOS assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -140,8 +146,8 @@ jobs:
           shopt -s nullglob
           gh release upload "${{ github.ref_name }}" \
             desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg \
-            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz \
-            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz.sig \
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Neural.Junkie_x64.app.tar.gz \
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Neural.Junkie_x64.app.tar.gz.sig \
             --repo "${{ github.repository }}" --clobber
 
   build-windows:
@@ -236,7 +242,10 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libfuse2 \
+            file \
+            wget
 
       - uses: actions/setup-go@v5
         with:
@@ -280,7 +289,8 @@ jobs:
         run: |
           npm ci
           npm run build
-          npx tauri build
+          # Skip rpm (slow, unused); deb + AppImage are what we ship.
+          npx tauri build --bundles deb,appimage
 
       - name: Verify Linux updater artifacts
         run: bash scripts/verify-updater-artifacts.sh linux desktop/src-tauri/target/release/bundle/appimage

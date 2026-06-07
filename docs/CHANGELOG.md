@@ -6,6 +6,13 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.28] - 2026-06-07
+
+### Fixed
+- **Linux CI** — install `libfuse2` for AppImage bundling; skip unused RPM target (`--bundles deb,appimage`).
+- **macOS updater uploads** — arch-suffixed `.app.tar.gz` names so Apple Silicon and Intel bundles no longer clobber each other on GitHub Releases.
+- **Beta updater channel** — recreate `updater-beta` release each publish to avoid immutable-release upload failures.
+
 ## [1.0.0-beta.27] - 2026-06-07
 
 ### Added
