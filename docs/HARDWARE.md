@@ -1,6 +1,6 @@
 # Hardware requirements
 
-**Last updated:** June 2026 · **Current beta:** [v1.0.0-beta.28](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.28)
+**Last updated:** June 2026 · **Current beta:** [v1.0.0-beta.31](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.31)
 
 Neural Junkie is lightweight as an **app**; the hardware story is about **models**, **concurrency**, and what you expect local agents to do. This doc is the authoritative reference for disk, RAM, and tiered model choices. The setup wizard and **Settings → AI Providers** use the same tiers via `GET /api/system/hardware`.
 
