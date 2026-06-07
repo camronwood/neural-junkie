@@ -1133,10 +1133,15 @@ export class ChatAPI {
     }
   }
 
-  // Get WebSocket URL for a channel
-  getWebSocketURL(channel: string): string {
+  // Get WebSocket URL for a channel. extraChannels are additional hub channels to watch on the same socket.
+  getWebSocketURL(channel: string, extraChannels: string[] = []): string {
     const wsURL = this.baseURL.replace('http://', 'ws://').replace('https://', 'wss://');
-    return `${wsURL}/ws?channel=${encodeURIComponent(channel)}`;
+    let url = `${wsURL}/ws?channel=${encodeURIComponent(channel)}`;
+    const extra = extraChannels.filter((c) => c && c !== channel);
+    if (extra.length > 0) {
+      url += `&extra=${encodeURIComponent(extra.join(','))}`;
+    }
+    return url;
   }
 
   // Get WebSocket URL for a thread

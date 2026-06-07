@@ -68,6 +68,7 @@ import {
   slackInboundPreview,
   slackInboundSenderLabel,
 } from '../utils/slackNotification';
+import { isSlackHubChannelName } from '../utils/slackChannelDisplay';
 import { TypingIndicator } from './TypingIndicator';
 import { RichTextInput } from './RichTextInput';
 import { ThreadPanel } from './ThreadPanel';
@@ -609,7 +610,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     () => (serverAddr.startsWith('http') ? serverAddr : `http://${serverAddr}`),
     [serverAddr]
   );
-  const wsURL = useMemo(() => api.getWebSocketURL(channel), [api, channel]);
+  const wsURL = useMemo(() => {
+    const slackExtra = channels
+      .filter((c) => isSlackHubChannelName(c.name) && c.name !== channel)
+      .map((c) => c.name);
+    return api.getWebSocketURL(channel, slackExtra);
+  }, [api, channel, channels]);
   
   // Debounce timeout ref for agent list refresh
   const agentRefreshTimeoutRef = useRef<number | null>(null);
@@ -692,6 +698,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       console.error('Failed to load channels:', error);
     }
   }, [api]);
+
+  // Pick up new Slack inbox peer channels for background WS watch.
+  useEffect(() => {
+    void loadChannels();
+    const onSlackInboxUpdated = () => void loadChannels();
+    window.addEventListener('nj-slack-inbox-updated', onSlackInboxUpdated);
+    const id = window.setInterval(() => void loadChannels(), 5_000);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('nj-slack-inbox-updated', onSlackInboxUpdated);
+    };
+  }, [loadChannels]);
 
   const pruneTerminalCollaborations = (
     next: Record<string, Collaboration>,

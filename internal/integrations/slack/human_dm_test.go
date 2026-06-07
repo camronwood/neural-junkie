@@ -39,8 +39,11 @@ func TestBuildHumanDMInboxMessage(t *testing.T) {
 	if msg.SlackReplyThreadTS() != "" {
 		t.Fatalf("human DM should not set reply thread ts, got %v", msg.Metadata[protocol.SlackMetaReplyThreadTS])
 	}
-	if msg.Content == "" || msg.Content[:12] != "[DM from Ali" {
-		t.Fatalf("content header: %q", msg.Content)
+	if msg.Content != "hey are you there?" {
+		t.Fatalf("content: %q", msg.Content)
+	}
+	if msg.From.Name != "Alice" {
+		t.Fatalf("from name: %q", msg.From.Name)
 	}
 }
 

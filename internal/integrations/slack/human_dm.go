@@ -2,7 +2,6 @@ package slack
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -16,21 +15,20 @@ const humanDMPollIdleInterval = 30
 // BuildHumanDMInboxMessage converts a polled human DM into a hub inbox message.
 // When routeToAgent is false (forward mode), the message is surfaced for manual NJ reply only.
 func BuildHumanDMInboxMessage(in InboundInput, inbox *InboxConfig, threads *ThreadMap, authorLabel string, routeToAgent bool, njChannel string) *protocol.Message {
-	content := StripSlackMentionMarkup(in.Text)
-	if authorLabel == "" {
-		authorLabel = in.UserName
+	displayName := strings.TrimSpace(authorLabel)
+	if displayName == "" {
+		displayName = SlackUserDisplayOnly(in)
 	}
-	if authorLabel == "" {
-		authorLabel = "someone"
+	if displayName == "" {
+		displayName = "someone"
 	}
-	header := fmt.Sprintf("[DM from %s]", authorLabel)
-	content = header + "\n" + strings.TrimSpace(content)
+	content := strings.TrimSpace(StripSlackMentionMarkup(in.Text))
 
 	forward := &ForwardMatch{
 		SourceChannelID: in.ChannelID,
 		SourceTS:        in.SlackTS,
 		SourceThreadTS:  in.ThreadTS,
-		SourceAuthor:    authorLabel,
+		SourceAuthor:    displayName,
 	}
 
 	msg := BuildInboxMessage(in, inbox, threads, forward, njChannel)
@@ -39,6 +37,8 @@ func BuildHumanDMInboxMessage(in InboundInput, inbox *InboxConfig, threads *Thre
 	}
 	msg.Metadata["source"] = "slack_human_dm"
 	msg.Metadata[protocol.SlackMetaHumanDM] = true
+	msg.From.Name = displayName
+	msg.Metadata[protocol.SlackMetaUserDisplayName] = displayName
 	msg.Content = content
 	msg.Metadata[protocol.SlackMetaReplyChannelID] = in.ChannelID
 	// Human DMs reply on the main timeline — never as a Slack thread.
@@ -73,7 +73,7 @@ func (b *Bridge) processHumanDMInbound(ctx context.Context, in InboundInput, inb
 		log.Printf("[slack] ensure peer inbox channel: %v", err)
 		peerChannel = active.NJChannel
 	}
-	msg := BuildHumanDMInboxMessage(in, &active, b.threads, in.UserName, routeToAgent, peerChannel)
+	msg := BuildHumanDMInboxMessage(in, &active, b.threads, SlackUserDisplayOnly(in), routeToAgent, peerChannel)
 	if err := b.hub.SendMessage(msg); err != nil {
 		log.Printf("[slack] human_dm SendMessage: %v", err)
 		return

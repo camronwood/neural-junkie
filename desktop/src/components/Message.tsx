@@ -322,7 +322,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
         >
           {senderName}
         </span>
-        {message.from.type && (
+        {message.from.type && !message.from.id?.startsWith('slack:') && (
           <span className="text-xs px-2 py-0.5 rounded bg-slack-bgHover text-slack-textMuted">
             {message.from.type}
           </span>
@@ -387,7 +387,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             <MessageGeneratedImage metadata={message.metadata as Record<string, unknown> | undefined} />
             <MessageReasoningBlock reasoningText={reasoningText} isStreaming={isStreaming} />
             <MessageToolStepsBlock steps={toolSteps} />
-            <MessageContent content={message.content} isStreaming={isStreaming} />
+            <MessageContent content={slackMessageBody(message)} isStreaming={isStreaming} />
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />
             )}
@@ -454,17 +454,34 @@ export const Message = memo(MessageImpl, (prev, next) => {
 
 function slackSenderDisplayName(message: MessageType): string {
   const meta = message.metadata as Record<string, unknown> | undefined;
-  const fromName = message.from?.name?.trim() ?? '';
-  const slackLabel =
-    typeof meta?.slack_user_display_name === 'string'
-      ? meta.slack_user_display_name.trim()
-      : '';
+  const fromName = stripSlackHandleSuffix(message.from?.name?.trim() ?? '');
+  const slackLabel = stripSlackHandleSuffix(
+    typeof meta?.slack_user_display_name === 'string' ? meta.slack_user_display_name.trim() : ''
+  );
   if (slackLabel) return slackLabel;
   if (fromName && fromName !== 'Slack User') return fromName;
   const handle =
     typeof meta?.slack_username === 'string' ? meta.slack_username.trim() : '';
   if (handle) return `@${handle}`;
   return fromName || 'Slack User';
+}
+
+function stripSlackHandleSuffix(name: string): string {
+  if (!name) return name;
+  const stripped = name.replace(/\s*\(@[^)]+\)\s*$/, '').trim();
+  return stripped || name;
+}
+
+function slackMessageBody(message: MessageType): string {
+  const meta = message.metadata as Record<string, unknown> | undefined;
+  const content = message.content || '';
+  if (meta?.slack_human_dm === true || meta?.source === 'slack_human_dm') {
+    return content
+      .replace(/^\[DM from[^\]]+\]\s*\n?/i, '')
+      .replace(/^\[Forwarded from[^\]]+\]\s*\n?/i, '')
+      .trim();
+  }
+  return content;
 }
 
 function shouldShowProposeAction(message: MessageType): boolean {
