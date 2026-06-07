@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -105,10 +105,11 @@ test-regression-live: ## Print pre-release live regression checklist (does not s
 	@echo "  0b. make server-regression && make collab-preflight"
 	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
 	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
-	@echo "  3. make chat-scenarios-regression"
-	@echo "  4. make chat-scenarios-debug"
-	@echo "  5. make collab-scenarios-all  # ~1-3h serial"
-	@echo "  6. make learning-scenarios"
+	@echo "  3. make test-regression-bundle   # implement + chat + conversation (~30-60m)"
+	@echo "  4. make test-parity-stable-restart  # optional: 3x implement with hub restart"
+	@echo "  5. make chat-scenarios-debug"
+	@echo "  6. make collab-scenarios-all  # ~1-3h serial"
+	@echo "  7. make learning-scenarios"
 	@echo "  Optional: LIVE=1 make slack-smoke, collab matrices, NEURAL_JUNKIE_SCENARIO_REPO=..."
 
 learning-lora-smoke: ## Personal learning + LoRA expert-context smoke (CI, no GPU)
@@ -215,6 +216,15 @@ implement-scenarios-list: ## List implementation scenarios
 test-parity-stable: ## Run implement-scenarios 3x; fail if any run < 7/7
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 7 \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
+
+test-parity-stable-restart: ## Run implement-scenarios 3x with hub restart between sweeps
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 7 \
+		--restart-between --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
+
+test-regression-bundle: ## Live bundle: implement + chat-regression + conversation-regression
+	@chmod +x scripts/regression-bundle.py
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/regression-bundle.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(VERBOSE),--verbose,)
 
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."

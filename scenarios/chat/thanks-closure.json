@@ -1,7 +1,7 @@
 {
   "name": "thanks-closure",
   "description": "After a substantive answer, ok thanks should get a canned closure without a long LLM reply.",
-  "tags": ["public", "assistant", "closure"],
+  "tags": ["public", "assistant", "closure", "regression"],
   "channel": "chat-scenarios",
   "channel_type": "public",
   "mention": "@Assistant",

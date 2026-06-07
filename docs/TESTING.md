@@ -39,7 +39,16 @@ Scenarios assert **files on disk** (not just reply text). See `scenarios/impleme
 
 ```bash
 make server-regression
-make test-parity-stable
+make test-parity-stable              # 3× back-to-back (may OOM hub)
+make test-parity-stable-restart      # 3× with hub restart between sweeps
+```
+
+**Regression bundle (beta.24+):** implement + chat + conversation in one run:
+
+```bash
+make server-regression
+make test-regression-bundle
+# log: docs/testing/regression-bundle-*.log
 ```
 
 **Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and honest session summary (`applied and verified` or `proposals submitted`).
@@ -72,14 +81,16 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen2.5:7b`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
-5. `make implement-scenarios` (Phase 1 implement gate — ≥4/5 PASS)
-6. `make chat-scenarios-regression`
+5. **`make test-regression-bundle`** — implement (7/7) + `chat-scenarios-regression` + `conversation-scenarios-regression`; log under `docs/testing/regression-bundle-*.log`
+6. Optional: **`make test-parity-stable-restart`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)
 7. `make chat-scenarios-debug`
 8. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
 9. `make learning-scenarios`
 10. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
 11. Optional: `LIVE=1 make slack-smoke` (runs `scripts/slack-live-smoke.sh`)
 12. Optional: `@Cursor` smoke when `agent` binary on PATH
+
+Individual gates (same hub): `make implement-scenarios`, `make chat-scenarios-regression`, `make conversation-scenarios-regression`.
 
 Quick reference: `make test-regression-live` prints the live steps.
 

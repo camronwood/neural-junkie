@@ -7,7 +7,6 @@ import re
 import subprocess
 import sys
 import time
-import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,7 +18,7 @@ PASS_RE = re.compile(r"^=== PASS: (\S+) ===")
 FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
 
 sys.path.insert(0, str(SCRIPTS_DIR))
-from lib import collab_hub as hub  # noqa: E402
+from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
 
 
 def parse_results(output: str) -> tuple[list[str], list[str]]:
@@ -34,18 +33,6 @@ def parse_results(output: str) -> tuple[list[str], list[str]]:
         if m:
             failed.append(m.group(1))
     return passed, failed
-
-
-def wait_for_hub(base: str, timeout_s: float = 120.0) -> bool:
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        try:
-            if hub.check_health(base):
-                return True
-        except urllib.error.URLError:
-            pass
-        time.sleep(2.0)
-    return False
 
 
 def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str]]:
@@ -66,9 +53,14 @@ def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str
 def main() -> int:
     p = argparse.ArgumentParser(description="Stability gate for implement-scenarios")
     p.add_argument("--runs", type=int, default=3, help="Number of full sweeps (default 3)")
-    p.add_argument("--min-pass", type=int, default=6, help="Minimum scenarios that must pass per run")
+    p.add_argument("--min-pass", type=int, default=7, help="Minimum scenarios that must pass per run")
     p.add_argument("--hub", default="http://127.0.0.1:18765")
     p.add_argument("--log-dir", default=str(TESTING_DIR))
+    p.add_argument(
+        "--restart-between",
+        action="store_true",
+        help="make stop && make server-regression between sweeps (avoids hub OOM)",
+    )
     args = p.parse_args()
 
     if args.runs < 1:
@@ -83,11 +75,15 @@ def main() -> int:
     log_dir = Path(args.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
-    log_path = log_dir / f"parity-stable-{stamp}.log"
+    suffix = "-restart" if args.restart_between else ""
+    log_path = log_dir / f"parity-stable{suffix}-{stamp}.log"
 
     lines: list[str] = []
     lines.append(f"# implement-scenarios stability — {stamp} UTC")
-    lines.append(f"hub={args.hub} runs={args.runs} min_pass={args.min_pass}")
+    lines.append(
+        f"hub={args.hub} runs={args.runs} min_pass={args.min_pass} "
+        f"restart_between={args.restart_between}"
+    )
     lines.append("")
 
     all_ok = True
@@ -100,7 +96,16 @@ def main() -> int:
             lines.append("")
             continue
         if run > 1:
-            time.sleep(30.0)
+            if args.restart_between:
+                lines.append("restarting regression hub...")
+                if not restart_regression_hub(ROOT, args.hub):
+                    lines.append("hub restart failed")
+                    all_ok = False
+                    lines.append(f"RESULT run {run}: FAIL (hub restart)")
+                    lines.append("")
+                    continue
+            else:
+                time.sleep(30.0)
         code, output, passed, failed = run_sweep(args.hub, script)
         pass_count = len(passed)
         lines.append(f"exit_code={code} pass={pass_count} fail={len(failed)}")

@@ -49,7 +49,7 @@ Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 | Scenario | Channel | Agent | Tags |
 |----------|---------|-------|------|
 | `greeting-chat-mode` | public | Assistant | public, assistant, greeting |
-| `thanks-closure` | public | Assistant | public, assistant, closure |
+| `thanks-closure` | public | Assistant | public, assistant, closure, regression |
 | `already-said-closure` | public | Assistant | public, assistant, closure, regression |
 | `casual-opinion-chat` | public | Assistant | public, assistant, chat |
 | `task-flip-review` | public | Assistant | public, assistant, task |
