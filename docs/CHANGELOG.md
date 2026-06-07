@@ -6,6 +6,23 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.25] - 2026-06-07
+
+### Added
+- **Regression bundle** — `make test-regression-bundle` runs implement (7/7) + chat-regression + conversation-regression; logs under `docs/testing/regression-bundle-*.log`.
+- **Parity-stable-restart** — `make test-parity-stable-restart` and `scripts/lib/hub_regression.py` for hub restart between implement sweeps.
+- **Collab goal bootstrap** — when planning discussion lacks parseable tasks, hub extracts executable rows from the `/collaborate` goal.
+
+### Changed
+- **Collab plan parsing** — plain `Task N @Agent Write …` rows, semicolon-separated goal clauses, and `file.md (@Agent)` goal lists.
+- **Collab execution prompts** — findings markdown tasks require substantive bullets grounded in project files.
+- **Pack LoRA startup logs** — materialize adapter weights (no symlink escapes); truncated one-line compose warnings.
+
+### Fixed
+- **Thanks closure with @mention** — `@Assistant ok thanks` in public channels gets canned closure instead of an LLM re-answer.
+- **Collab plan-zero-tasks** — goal bootstrap + parser improvements for `plan-dependency-prose-regression`, `plan-distinct-deliverables-same-agent`, and `plan-phoenix-combined-regression`.
+- **Collab deliverable size** — execution prompt hardening for `execution-no-stack-commands` findings files.
+
 ## [1.0.0-beta.24] - 2026-06-06
 
 ### Added

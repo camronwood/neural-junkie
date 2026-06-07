@@ -43,7 +43,7 @@ make test-parity-stable              # 3× back-to-back (may OOM hub)
 make test-parity-stable-restart      # 3× with hub restart between sweeps
 ```
 
-**Regression bundle (beta.24+):** implement + chat + conversation in one run:
+**Regression bundle (beta.25+):** implement + chat + conversation in one run:
 
 ```bash
 make server-regression

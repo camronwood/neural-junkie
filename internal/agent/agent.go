@@ -2313,6 +2313,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("To actually create or modify files, you MUST emit a [FILE_CHANGE] block (see below). ")
 			system.WriteString("Conversation-only replies do not write to disk.\n")
 			system.WriteString("For markdown/file deliverable tasks: read reference paths from the project and ship `[FILE_CHANGE]` — do NOT run docker-compose, npm, make, or other build/deploy tooling unless the task text explicitly requires it.\n")
+			system.WriteString("For findings/summary markdown files: include at least three substantive bullet lines grounded in project files (README, main.go, etc.) — not a one-line placeholder.\n")
 			system.WriteString("Only when the task requires shell work, put runnable commands in ```bash fenced blocks``` so the host can surface **Run**.\n")
 			if a.Info.Type == protocol.AgentTypeDevOps {
 				system.WriteString("PlatformEngineer doc tasks: describe CI/CD in prose/markdown; do not invoke kubectl, docker, or npm unless the task explicitly asks to change runtime infrastructure.\n")

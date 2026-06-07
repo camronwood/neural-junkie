@@ -2,7 +2,6 @@ package hfhub
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -85,31 +84,53 @@ func stageAdapterForOllama(adapterDir string) (workDir string, cleanup func(), e
 	}
 	cleanup = func() { _ = os.RemoveAll(workDir) }
 
-	if err := copyFile(configSrc, filepath.Join(workDir, AdapterConfigFilename)); err != nil {
+	if err := materializeFile(configSrc, filepath.Join(workDir, AdapterConfigFilename)); err != nil {
 		cleanup()
 		return "", nil, err
 	}
-	if err := copyFile(weightsSrc, filepath.Join(workDir, ollamaAdapterWeightsName)); err != nil {
+	dstWeights := filepath.Join(workDir, ollamaAdapterWeightsName)
+	if err := materializeFile(weightsSrc, dstWeights); err != nil {
 		cleanup()
 		return "", nil, err
+	}
+	if err := assertRegularFile(dstWeights); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("staged weights: %w", err)
 	}
 	return workDir, cleanup, nil
 }
 
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
+// materializeFile copies src to dst as a regular file (never a symlink).
+// Ollama rejects ADAPTER paths that escape the staging dir via symlinks.
+func materializeFile(src, dst string) error {
+	src, err := filepath.EvalSymlinks(src)
 	if err != nil {
-		return fmt.Errorf("copy %s: %w", filepath.Base(src), err)
+		return fmt.Errorf("resolve %s: %w", filepath.Base(src), err)
 	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
+	data, err := os.ReadFile(src)
 	if err != nil {
-		return fmt.Errorf("create %s: %w", filepath.Base(dst), err)
+		return fmt.Errorf("read %s: %w", filepath.Base(src), err)
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", filepath.Base(dst), err)
 	}
-	return out.Close()
+	return assertRegularFile(dst)
+}
+
+func assertRegularFile(path string) error {
+	st, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s is a symlink", filepath.Base(path))
+	}
+	if !st.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", filepath.Base(path))
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	return materializeFile(src, dst)
 }

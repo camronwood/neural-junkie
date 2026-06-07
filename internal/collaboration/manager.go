@@ -799,6 +799,14 @@ func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaborat
 			tasks = tasks[:maxTasksLimit()]
 		}
 		c.Tasks = tasks
+	} else if strings.TrimSpace(planContent) != "" {
+		// Re-parse after plan normalization (discussion may use plain "Task N @Agent …" rows).
+		if retry := DedupeTasks(ExtractTasksFromPlan(planContent, c.Agents)); len(retry) > 0 {
+			if len(retry) > maxTasksLimit() {
+				retry = retry[:maxTasksLimit()]
+			}
+			c.Tasks = retry
+		}
 	}
 	c.UpdatedAt = now
 	log.Printf("[CollaborationManager] Synthesized plan for %s (%d tasks)", c.ID[:8], len(c.Tasks))
@@ -843,6 +851,7 @@ func (cm *CollaborationManager) enterReviewingFromPlanningLocked(c *Collaboratio
 		return false
 	}
 	cm.synthesizePlanFromDiscussionLocked(c)
+	cm.ensurePlanTasksFromGoalLocked(c)
 	c.Phase = PhaseReviewing
 	if c.Discussion != nil && c.Discussion.Status == DiscussionActive {
 		c.Discussion.Status = DiscussionConverged

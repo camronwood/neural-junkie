@@ -1,16 +1,19 @@
 scenario	status	notes	updated_at
-resource-api-schema-planning	PENDING	batch aborted mid-run	2026-06-02T20:30:00Z
-solo-vs-collab-parity	PENDING	not run in batch	2026-06-02T20:30:00Z
-delivery-sandbox-auto-ack	PASS	imported from batch log	2026-06-02T20:44:22Z
-document-findings-execution	PASS	imported from batch log	2026-06-02T20:44:22Z
-execute-deliverable	PASS	imported from batch log	2026-06-02T20:44:22Z
-execution-no-stack-commands	FAIL	imported from batch log	2026-06-02T20:44:22Z
-multi-collab-isolation	PASS	imported from batch log	2026-06-02T20:44:22Z
-phoenix-resource-api-e2e	PASS	imported from batch log	2026-06-02T20:44:22Z
-plan-dependency-prose-regression	FAIL	imported from batch log	2026-06-02T20:44:22Z
-plan-distinct-deliverables-same-agent	FAIL	imported from batch log	2026-06-02T20:44:22Z
-plan-findings-task-regression	PASS	imported from batch log	2026-06-02T20:44:22Z
-plan-phoenix-combined-regression	FAIL	imported from batch log	2026-06-02T20:44:22Z
-planning-two-agent	PASS	imported from batch log	2026-06-02T20:44:22Z
-reject-collabs-subfolder	PASS	imported from batch log	2026-06-02T20:44:22Z
-resource-api-schema-regression	PASS		2026-06-02T20:51:39Z
+collab-conversation-quality-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+collab-generation-error-resilience	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+collab-no-edit-after-cancel	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+delivery-sandbox-auto-ack	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+document-findings-execution	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+execute-deliverable	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+execution-no-stack-commands	PASS	sprint2 sweep (beta.25 goal bootstrap + execution prompt)	2026-06-07T13:50:00Z
+multi-collab-isolation	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+phoenix-resource-api-e2e	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+plan-dependency-prose-regression	PASS	sprint2 sweep (beta.25 goal bootstrap)	2026-06-07T13:50:00Z
+plan-distinct-deliverables-same-agent	PASS	sprint2 sweep (beta.25 goal bootstrap)	2026-06-07T13:50:00Z
+plan-findings-task-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+plan-phoenix-combined-regression	PASS	sprint2 sweep (beta.25 goal bootstrap)	2026-06-07T13:50:00Z
+planning-two-agent	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+reject-collabs-subfolder	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+resource-api-schema-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
+resource-api-schema-planning	FAIL	assert_messages: Assistant posted 'Grounding: I loaded' during planning	2026-06-07T13:50:00Z
+solo-vs-collab-parity	FAIL	solo leg: timeout waiting for parity-solo/findings.md	2026-06-07T13:50:00Z

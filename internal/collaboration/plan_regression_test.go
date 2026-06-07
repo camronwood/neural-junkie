@@ -19,6 +19,44 @@ func phoenixAgents() []CollaborationAgent {
 	}
 }
 
+func TestExtractTasksFromPlan_plainTaskRowsWithoutBullets(t *testing.T) {
+	plan := `## Plan
+
+Task 1 @SoftwareArchitect Write collabs/abc/schema-outline.md
+Task 2 @SoftwareArchitect Write collabs/abc/doc-standards.md
+Task 3 @BackendEngineer Write collabs/abc/api-notes.md
+`
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	tasks := ExtractTasksFromPlan(plan, agents)
+	if len(tasks) != 3 {
+		t.Fatalf("expected 3 tasks, got %d: %#v", len(tasks), taskTitles(tasks))
+	}
+	archCount := 0
+	for _, task := range tasks {
+		if task.AssignedName == "SoftwareArchitect" {
+			archCount++
+		}
+	}
+	if archCount != 2 {
+		t.Fatalf("expected 2 architect tasks, got %d", archCount)
+	}
+}
+
+func TestExtractPlanFromTaskLists_singleStructuredRow(t *testing.T) {
+	body := "Task 1: @Assistant - Write collabs/x/findings.md with three README bullets"
+	got := ExtractPlanFromTaskLists(body)
+	if got == "" {
+		t.Fatal("expected plan from single task row")
+	}
+	tasks := ExtractTasksFromPlan(got, phoenixAgents())
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(tasks))
+	}
+}
+
 func TestExtractTasksFromPlan_f7518f88_rejectsDependencyProse(t *testing.T) {
 	plan := `## Plan
 

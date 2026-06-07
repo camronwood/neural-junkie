@@ -136,18 +136,32 @@ func ensurePackLoRAs(ctx context.Context, onlyPackID string) {
 			log.Printf("⚠️  pack LoRA install %q failed: %v", manifest.ID, err)
 			continue
 		}
+		var composeErrors int
 		for _, res := range results {
 			if res.Status == "imported" {
 				log.Printf("   ✅ %s → %s", res.RepoID, res.OllamaTag)
 			} else if res.Status == "skipped" {
-				log.Printf("   ⏭️  %s: %s", res.RepoID, res.Error)
+				log.Printf("   ⏭️  %s: %s", res.RepoID, truncatePackLoRAError(res.Error))
 			} else if res.Error != "" {
-				log.Printf("   ⚠️  %s: %s", res.RepoID, res.Error)
+				composeErrors++
+				log.Printf("   ⚠️  %s: %s", res.RepoID, truncatePackLoRAError(res.Error))
 			}
+		}
+		if composeErrors > 0 {
+			log.Printf("   ℹ️  pack LoRA compose: %d adapter(s) failed (hub continues; composed tags may already exist)", composeErrors)
 		}
 	}
 }
 
 func triggerEnsurePackLoRAs(packID string) {
 	go ensurePackLoRAs(context.Background(), strings.TrimSpace(packID))
+}
+
+func truncatePackLoRAError(msg string) string {
+	msg = strings.TrimSpace(msg)
+	msg = strings.ReplaceAll(msg, "\n", " ")
+	if len(msg) <= 160 {
+		return msg
+	}
+	return msg[:160] + "…"
 }

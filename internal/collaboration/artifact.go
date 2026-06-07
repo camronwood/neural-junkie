@@ -66,6 +66,7 @@ var (
 	subAssigneeBulletRe         = regexp.MustCompile(`^[-*]\s+\*\*@[^*]+\*\*:`)
 	detailedPlanBoundaryRe      = regexp.MustCompile(`(?i)^#{1,4}\s+detailed\s+plan\b`)
 	taskDependencyProseRe       = regexp.MustCompile(`(?i)^task\s+\d+\s+(?:depends\s+on|can\s+be\s+started|should\s+reference)\b`)
+	plainTaskLineRe             = regexp.MustCompile(`(?i)^Task\s+\d+\s*:?\s*@`)
 )
 
 // ExtractPlanFromResponse attempts to extract a structured plan from an
@@ -94,7 +95,7 @@ func ExtractPlanFromTaskLists(content string) string {
 			taskLines = append(taskLines, trimmed)
 		}
 	}
-	if len(taskLines) < 2 {
+	if len(taskLines) < 1 {
 		return ""
 	}
 	return strings.TrimSpace("## Plan\n\n" + strings.Join(taskLines, "\n"))
@@ -113,6 +114,7 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 	if disc == nil {
 		return "", nil
 	}
+	bestTaskCount := 0
 	for i := len(disc.Messages) - 1; i >= 0; i-- {
 		m := disc.Messages[i]
 		if m == nil || m.From.Name == "System" {
@@ -123,8 +125,11 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 			continue
 		}
 		if extracted := ExtractPlanFromResponse(body); extracted != "" {
-			planContent = extracted
-			break
+			taskCount := len(ExtractTasksFromPlan(extracted, c.Agents))
+			if taskCount > bestTaskCount || (taskCount == bestTaskCount && planContent == "") {
+				planContent = extracted
+				bestTaskCount = taskCount
+			}
 		}
 	}
 	if planContent == "" {
@@ -307,6 +312,17 @@ func isTaskHeading(line string) bool {
 	return taskTitleHeadingRe.MatchString(strings.TrimSpace(line))
 }
 
+func isPlainTaskLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if !plainTaskLineRe.MatchString(trimmed) {
+		return false
+	}
+	if isTaskDependencyProse(trimmed) {
+		return false
+	}
+	return agentMentionRe.MatchString(trimmed)
+}
+
 func isTaskListLine(line string) bool {
 	trimmed := strings.TrimSpace(line)
 	if subAssigneeBulletRe.MatchString(trimmed) {
@@ -314,6 +330,9 @@ func isTaskListLine(line string) bool {
 	}
 	if isPlanMetadataBullet(trimmed) {
 		return false
+	}
+	if isPlainTaskLine(trimmed) {
+		return true
 	}
 	hasListPrefix := taskListPrefixRe.MatchString(trimmed)
 	withoutPrefix := strings.TrimSpace(taskListPrefixRe.ReplaceAllString(trimmed, ""))

@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-06 · **Current beta:** [v1.0.0-beta.24](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24)
+**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.25](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -14,8 +14,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | Summary |
 |----|--------|---------|
-| `collab-plan-zero-tasks` | **Active** | Some live scenarios end planning with **zero parsed tasks** (`assert_plan: tasks=0`) — e.g. `plan-dependency-prose-regression`, `plan-distinct-deliverables-same-agent`, `plan-phoenix-combined-regression`. See [collab-sweep-2026-06-02.md](testing/collab-sweep-2026-06-02.md). |
-| `collab-deliverable-size` | **Active** | `execution-no-stack-commands` can fail when `findings.md` exists but is **too small** for harness assertions. |
+| `collab-plan-zero-tasks` | **Mitigated (beta.25)** | Goal bootstrap + parser improvements address zero-task plans when agents emit prose-only discussion; re-run `make collab-scenarios-all` after upgrade. |
+| `collab-deliverable-size` | **Mitigated (beta.25)** | Execution prompt requires substantive findings bullets; monitor `execution-no-stack-commands` on model variance. |
 | `collab-solo-parity` | **Investigating** | `solo-vs-collab-parity` — solo leg did not land file on disk before timeout in a spot check; full serial run pending. |
 | `collab-phoenix-planning` | **Investigating** | `resource-api-schema-planning` not completed in last batch sweep (aborted mid-run). |
 | `collab-chat-not-disk` | **Limitation** | Chat markdown does **not** write to disk. Execution needs `[FILE_CHANGE]` proposals and your approval in **Pending changes**. |

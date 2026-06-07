@@ -37,7 +37,7 @@ func TestStageAdapterForOllama(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, AdapterConfigFilename), []byte(`{"peft_type":"LORA"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "adapter_model.safetensors"), []byte("fake"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "adapter_model.safetensors"), []byte("fake-weights"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	workDir, cleanup, err := stageAdapterForOllama(dir)
@@ -48,8 +48,44 @@ func TestStageAdapterForOllama(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(workDir, AdapterConfigFilename)); err != nil {
 		t.Fatalf("missing config in staging dir: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(workDir, ollamaAdapterWeightsName)); err != nil {
+	weightsPath := filepath.Join(workDir, ollamaAdapterWeightsName)
+	st, err := os.Lstat(weightsPath)
+	if err != nil {
 		t.Fatalf("missing weights in staging dir: %v", err)
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("staged weights must not be a symlink")
+	}
+	data, err := os.ReadFile(weightsPath)
+	if err != nil || string(data) != "fake-weights" {
+		t.Fatalf("staged weights content: %q err=%v", data, err)
+	}
+}
+
+func TestStageAdapterForOllamaSymlinkSource(t *testing.T) {
+	dir := t.TempDir()
+	realWeights := filepath.Join(dir, "real.safetensors")
+	if err := os.WriteFile(realWeights, []byte("materialized"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, AdapterConfigFilename), []byte(`{"peft_type":"LORA"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "adapter_model.safetensors")
+	if err := os.Symlink(realWeights, link); err != nil {
+		t.Fatal(err)
+	}
+	workDir, cleanup, err := stageAdapterForOllama(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	st, err := os.Lstat(filepath.Join(workDir, ollamaAdapterWeightsName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("expected materialized file, got symlink")
 	}
 }
 

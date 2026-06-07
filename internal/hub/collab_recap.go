@@ -106,7 +106,8 @@ func buildRecapPrompt(kind collaboration.RecapKind, agentName, ctx string) strin
 	switch kind {
 	case collaboration.RecapKindPreApproval:
 		b.WriteString("Planning is complete. Summarize what the team discussed, decided, and proposed.\n")
-		b.WriteString("Include the plan and tasks clearly. If this was research-only, emphasize findings and recommendations.\n")
+		b.WriteString("Include the plan and tasks clearly — repeat executable rows as `Task N: @Agent - Write collabs/<id>/file.md …`.\n")
+		b.WriteString("If this was research-only, emphasize findings and recommendations.\n")
 		b.WriteString("End with what the user should do next (review the plan, then `/approve-plan` when ready).\n")
 	default:
 		b.WriteString("Execution is complete (or the user closed the session). Summarize what was accomplished during this collaboration.\n")
