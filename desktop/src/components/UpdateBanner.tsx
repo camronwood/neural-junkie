@@ -1,60 +1,83 @@
-import { useState, useEffect } from 'react';
-
-interface UpdateInfo {
-  available: boolean;
-  version?: string;
-  notes?: string;
-}
+import { useState, useEffect, useCallback } from 'react';
+import {
+  checkForAppUpdate,
+  installAppUpdate,
+  UPDATE_CHECK_INTERVAL_MS,
+  type AppUpdateInfo,
+} from '../utils/appUpdater';
 
 export function UpdateBanner() {
-  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [update, setUpdate] = useState<AppUpdateInfo | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dismissed, setDismissed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    checkForUpdate();
+  const runUpdateCheck = useCallback(async () => {
+    const result = await checkForAppUpdate();
+    if (result.status === 'available') {
+      setUpdate(result.update);
+      setError(null);
+    } else if (result.status === 'unavailable') {
+      if (result.reason !== 'Updates are only available in the desktop app.') {
+        setError(result.reason);
+      } else {
+        setError(null);
+      }
+    } else {
+      setError(null);
+    }
   }, []);
 
-  async function checkForUpdate() {
-    try {
-      const { checkUpdate } = await import('@tauri-apps/api/updater');
-      const result = await checkUpdate();
-      if (result.shouldUpdate) {
-        setUpdate({
-          available: true,
-          version: result.manifest?.version,
-          notes: result.manifest?.body,
-        });
+  useEffect(() => {
+    void runUpdateCheck();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void runUpdateCheck();
       }
-    } catch {
-      // Updater not configured or check failed -- silent
-    }
-  }
+    }, UPDATE_CHECK_INTERVAL_MS);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void runUpdateCheck();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [runUpdateCheck]);
 
   async function installUpdate() {
     setDownloading(true);
+    setError(null);
     try {
-      const { listen } = await import('@tauri-apps/api/event');
-      const { installUpdate: install } = await import('@tauri-apps/api/updater');
-      const { relaunch } = await import('@tauri-apps/api/process');
-
-      const unlisten = await listen<{ chunkLength: number; contentLength: number }>(
-        'tauri://update-download-progress',
-        (event) => {
-          if (event.payload.contentLength > 0) {
-            setProgress(Math.round((event.payload.chunkLength / event.payload.contentLength) * 100));
-          }
-        }
-      );
-
-      await install();
-      unlisten();
-      await relaunch();
+      await installAppUpdate(setProgress);
     } catch (e) {
       console.error('Update failed:', e);
+      setError(e instanceof Error ? e.message : 'Update failed');
       setDownloading(false);
     }
+  }
+
+  if (error && !update?.available) {
+    return (
+      <div className="flex items-center justify-between px-4 py-2 bg-amber-700/90 text-white text-sm">
+        <span className="text-xs">Could not check for updates: {error}</span>
+        <button
+          onClick={() => {
+            setError(null);
+            void runUpdateCheck();
+          }}
+          className="px-2 py-1 text-amber-100 hover:text-white text-xs"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (!update?.available || dismissed) return null;
@@ -70,6 +93,7 @@ export function UpdateBanner() {
             — {update.notes}
           </span>
         )}
+        {error && <span className="text-red-200 text-xs">— {error}</span>}
       </div>
       <div className="flex items-center gap-2">
         {downloading ? (
@@ -77,7 +101,7 @@ export function UpdateBanner() {
         ) : (
           <>
             <button
-              onClick={installUpdate}
+              onClick={() => void installUpdate()}
               className="px-3 py-1 bg-white text-blue-600 rounded text-xs font-medium hover:bg-blue-50"
             >
               Update Now

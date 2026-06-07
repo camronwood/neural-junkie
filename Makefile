@@ -575,7 +575,7 @@ release: ## Tag and push a release (usage: make release VERSION=1.2.0)
 		exit 1; \
 	fi
 	@echo "🏷️  Releasing v$(VERSION)..."
-	@echo "   (tauri.conf.json package.version stays 1.0.0 — WiX/MSI rejects non-numeric prerelease tags)"
+	@echo "   (tauri.conf.json package.version is set by CI from the tag — see docs/RELEASE_UPDATES.md)"
 	@cd desktop && sed -i.bak 's/^version = "[^"]*"/version = "$(VERSION)"/' src-tauri/Cargo.toml && rm -f src-tauri/Cargo.toml.bak
 	@cd desktop && npm version $(VERSION) --no-git-tag-version 2>/dev/null || true
 	@cd desktop/src-tauri && cargo check -q 2>/dev/null || true

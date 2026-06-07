@@ -3,6 +3,11 @@ import { shallow } from 'zustand/shallow';
 import { useSettingsStore, type ColorTheme, type FontSizeScope } from '../stores/settingsStore';
 import { useChatStore } from '../stores/chatStore';
 import { APP_INFO, TECH_STACK, getAppVersion } from '../utils/appInfo';
+import {
+  checkForAppUpdate,
+  getUpdateChannelLabel,
+  installAppUpdate,
+} from '../utils/appUpdater';
 import type {
   AnthropicSettings,
   GitHubSettings,
@@ -172,6 +177,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     }
   }, [isOpen, initialTab]);
   const [appVersion, setAppVersion] = useState<string>('1.0.0');
+  const [updateCheckStatus, setUpdateCheckStatus] = useState<string | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [pendingUpdateVersion, setPendingUpdateVersion] = useState<string | null>(null);
   
   // Integration form states
   const [anthropicForm, setAnthropicForm] = useState<AnthropicSettings>(integrations.anthropic);
@@ -4467,6 +4477,61 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     <span className="text-slack-textMuted">License:</span>
                     <span className="ml-2 text-slack-text">{APP_INFO.license}</span>
                   </div>
+                  <div className="col-span-2">
+                    <span className="text-slack-textMuted">Update channel:</span>
+                    <span className="ml-2 text-slack-text">{getUpdateChannelLabel(appVersion)}</span>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={updateChecking || updateInstalling}
+                    onClick={async () => {
+                      setUpdateChecking(true);
+                      setUpdateCheckStatus(null);
+                      setPendingUpdateVersion(null);
+                      try {
+                        const result = await checkForAppUpdate();
+                        if (result.status === 'available') {
+                          setPendingUpdateVersion(result.update.version ?? 'new version');
+                          setUpdateCheckStatus(`Update available: ${result.update.version ?? 'new version'}`);
+                        } else if (result.status === 'current') {
+                          setUpdateCheckStatus('You are on the latest version.');
+                        } else {
+                          setUpdateCheckStatus(result.reason);
+                        }
+                      } catch (e) {
+                        setUpdateCheckStatus(e instanceof Error ? e.message : 'Update check failed');
+                      } finally {
+                        setUpdateChecking(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm bg-slack-accent text-white rounded hover:bg-slack-accentHover transition-colors disabled:opacity-50"
+                  >
+                    {updateChecking ? 'Checking…' : 'Check for updates'}
+                  </button>
+                  {pendingUpdateVersion && (
+                    <button
+                      type="button"
+                      disabled={updateInstalling}
+                      onClick={async () => {
+                        setUpdateInstalling(true);
+                        setUpdateCheckStatus(null);
+                        try {
+                          await installAppUpdate(setUpdateProgress);
+                        } catch (e) {
+                          setUpdateCheckStatus(e instanceof Error ? e.message : 'Update install failed');
+                          setUpdateInstalling(false);
+                        }
+                      }}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    >
+                      {updateInstalling ? `Installing… ${updateProgress}%` : `Install ${pendingUpdateVersion}`}
+                    </button>
+                  )}
+                  {updateCheckStatus && (
+                    <span className="text-sm text-slack-textMuted">{updateCheckStatus}</span>
+                  )}
                 </div>
               </div>
 

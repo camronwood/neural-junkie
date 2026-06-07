@@ -52,6 +52,15 @@ Linux:
 Hub (all platforms):
   [ ] curl -sf "http://localhost:${HUB_PORT}/api/settings" returns JSON (when app running)
 
+Auto-update (after installing an updater-enabled build):
+  [ ] Settings → About shows version and update channel (Beta or Stable)
+  [ ] Settings → About → Check for updates reports current or available
+  [ ] When a newer tag is published on your channel, update banner appears
+  [ ] Update Now downloads, verifies signature, and relaunches
+
+  Verify manifests (operator):
+    ./scripts/verify-updater-manifest.sh v1.0.0-beta.N beta
+
 CHECKLIST
 
 echo "==> Optional: hub health (if app already running)"

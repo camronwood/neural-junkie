@@ -1,68 +1,89 @@
 #!/usr/bin/env bash
 #
 # Generates Tauri updater JSON manifests for each platform.
-# Called by CI after the build job uploads release artifacts.
+# Called by CI after build jobs upload release artifacts.
 #
-# Usage: ./scripts/generate-update-manifests.sh v1.2.0
+# Usage: ./scripts/generate-update-manifests.sh v1.2.0 [repo]
 
 set -euo pipefail
 
-VERSION="${1:?Usage: $0 <version-tag>}"
+VERSION="${1:?Usage: $0 <version-tag> [repo]}"
 VERSION_NUM="${VERSION#v}"
-REPO="camronwood/neural-junkie"
+REPO="${2:-camronwood/neural-junkie}"
 RELEASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Fetch release assets to find signatures
-ASSETS=$(gh release view "${VERSION}" --repo "${REPO}" --json assets -q '.assets[].name' 2>/dev/null || echo "")
+if ! command -v gh >/dev/null 2>&1; then
+  echo "gh CLI is required" >&2
+  exit 1
+fi
+
+ASSETS=$(gh release view "${VERSION}" --repo "${REPO}" --json assets -q '.assets[].name')
+
+find_asset() {
+  local pattern="$1"
+  echo "${ASSETS}" | grep -E "${pattern}" | head -n 1 || true
+}
+
+fetch_signature() {
+  local sig_file="$1"
+  if [[ -z "${sig_file}" ]]; then
+    echo ""
+    return
+  fi
+  gh release download "${VERSION}" --repo "${REPO}" --pattern "${sig_file}" --output - 2>/dev/null || echo ""
+}
+
+write_manifest() {
+  local output_file="$1"
+  local platform_key="$2"
+  local signature="$3"
+  local url="$4"
+
+  node -e "
+const fs = require('fs');
+const payload = {
+  version: process.argv[1],
+  notes: process.argv[2],
+  pub_date: process.argv[3],
+  platforms: {
+    [process.argv[4]]: {
+      signature: process.argv[5],
+      url: process.argv[6],
+    },
+  },
+};
+fs.writeFileSync(process.argv[7], JSON.stringify(payload, null, 2) + '\n');
+" "${VERSION_NUM}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}"
+}
 
 generate_manifest() {
-    local platform="$1"
-    local arch="$2"
-    local ext="$3"
-    local output_file="update-${platform}-${arch}.json"
+  local platform="$1"
+  local arch="$2"
+  local asset_pattern="$3"
+  local output_file="update-${platform}-${arch}.json"
 
-    # Find the artifact URL
-    local artifact_pattern=""
-    case "${platform}-${arch}" in
-        darwin-aarch64)
-            artifact_pattern="Neural.Junkie_${VERSION_NUM}_aarch64.app.tar.gz"
-            ;;
-        darwin-x86_64)
-            artifact_pattern="Neural.Junkie_${VERSION_NUM}_x64.app.tar.gz"
-            ;;
-        linux-x86_64)
-            artifact_pattern="neural-junkie_${VERSION_NUM}_amd64.AppImage.tar.gz"
-            ;;
-    esac
+  local artifact
+  artifact="$(find_asset "${asset_pattern}")"
+  if [[ -z "${artifact}" ]]; then
+    echo "WARN: No artifact matching ${asset_pattern} on ${VERSION}; skipping ${output_file}" >&2
+    return 0
+  fi
 
-    local sig_file="${artifact_pattern}.sig"
-    local signature=""
+  local signature
+  signature="$(fetch_signature "${artifact}.sig")"
+  if [[ -z "${signature}" ]]; then
+    echo "ERROR: Missing signature for ${artifact}" >&2
+    return 1
+  fi
 
-    # Try to download the signature file
-    if echo "${ASSETS}" | grep -q "${sig_file}"; then
-        signature=$(gh release download "${VERSION}" --repo "${REPO}" --pattern "${sig_file}" --output - 2>/dev/null || echo "")
-    fi
-
-    cat > "${output_file}" <<MANIFEST
-{
-  "version": "${VERSION_NUM}",
-  "notes": "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}",
-  "pub_date": "${PUB_DATE}",
-  "platforms": {
-    "${platform}-${arch}": {
-      "signature": "${signature}",
-      "url": "${RELEASE_URL}/${artifact_pattern}"
-    }
-  }
-}
-MANIFEST
-
-    echo "Generated ${output_file}"
+  write_manifest "${output_file}" "${platform}-${arch}" "${signature}" "${RELEASE_URL}/${artifact}"
+  echo "Generated ${output_file} -> ${artifact}"
 }
 
-generate_manifest "darwin" "aarch64" "app.tar.gz"
-generate_manifest "darwin" "x86_64" "app.tar.gz"
-generate_manifest "linux" "x86_64" "AppImage.tar.gz"
+generate_manifest "darwin" "aarch64" '.*_aarch64\.app\.tar\.gz$'
+generate_manifest "darwin" "x86_64" '.*_(x64|x86_64)\.app\.tar\.gz$'
+generate_manifest "linux" "x86_64" '.*_amd64\.AppImage\.tar\.gz$'
+generate_manifest "windows" "x86_64" '.*\.msi\.zip$'
 
-echo "All manifests generated."
+echo "Manifest generation complete."

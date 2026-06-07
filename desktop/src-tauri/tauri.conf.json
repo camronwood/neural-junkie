@@ -33,10 +33,18 @@
       },
       "protocol": {
         "asset": true,
-        "assetScope": ["$HOME/**", "$TEMP/**", "/tmp/**", "/private/tmp/**"]
+        "assetScope": [
+          "$HOME/**",
+          "$TEMP/**",
+          "/tmp/**",
+          "/private/tmp/**"
+        ]
       },
       "fs": {
-        "scope": ["$APPDATA/*", "$APPLOCALDATA/*"]
+        "scope": [
+          "$APPDATA/*",
+          "$APPLOCALDATA/*"
+        ]
       },
       "window": {
         "all": true,
@@ -98,9 +106,9 @@
       "csp": null
     },
     "updater": {
-      "active": false,
+      "active": true,
       "dialog": false,
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4NzgzQUMzMUREN0U2RDAKUldUUTV0Y2R3enA0T016ZWE1R2FiV0hGK05lbEZEbzFFMjF4ZS9YT3c4R2dESm1vOGtVVWVLUE0K",
       "endpoints": [
         "https://github.com/camronwood/neural-junkie/releases/latest/download/update-{{target}}-{{arch}}.json"
       ]

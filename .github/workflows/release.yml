@@ -37,6 +37,8 @@ jobs:
             | **Windows** | `.msi` installer (or `.exe` setup) |
             | **Linux** | `.AppImage` and/or `.deb` |
 
+            **Auto-update:** Installed builds from this release (and later) check for updates in-app. Beta builds use the beta channel; stable builds use the stable channel. One manual install is required if you are upgrading from a build that predates in-app updates.
+
             **macOS:** Builds are ad-hoc signed but not notarized; first launch may still require right-click → **Open**, or allow in **System Settings → Privacy & Security**.
 
             **Ollama:** Installers bundle the Ollama runtime — first launch only needs a one-time model pull (internet required once). Cloud APIs remain optional.
@@ -76,6 +78,9 @@ jobs:
           GOOGLE_VENDOR_CLIENT_SECRET: ${{ secrets.GOOGLE_VENDOR_CLIENT_SECRET }}
         run: chmod +x scripts/ci-write-google-vendor-oauth.sh && ./scripts/ci-write-google-vendor-oauth.sh
 
+      - name: Prepare release build config
+        run: chmod +x scripts/ci-prepare-release-build.sh && ./scripts/ci-prepare-release-build.sh "${{ github.ref_name }}"
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
@@ -93,7 +98,13 @@ jobs:
 
       - name: Build Tauri (Apple Silicon)
         working-directory: desktop
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx tauri build --target aarch64-apple-darwin
+
+      - name: Verify Apple Silicon updater artifacts
+        run: bash scripts/verify-updater-artifacts.sh macos-aarch64 desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
 
       - name: Verify Apple Silicon app signature
         run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app
@@ -106,11 +117,18 @@ jobs:
           gh release upload "${{ github.ref_name }}" \
             desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg \
             desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.tar.gz \
+            desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.tar.gz.sig \
             --repo "${{ github.repository }}" --clobber
 
       - name: Build Tauri (Intel)
         working-directory: desktop
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: npx tauri build --target x86_64-apple-darwin
+
+      - name: Verify Intel updater artifacts
+        run: bash scripts/verify-updater-artifacts.sh macos-x86_64 desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos
 
       - name: Verify Intel macOS app signature
         run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app
@@ -123,6 +141,7 @@ jobs:
           gh release upload "${{ github.ref_name }}" \
             desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg \
             desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz \
+            desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.tar.gz.sig \
             --repo "${{ github.repository }}" --clobber
 
   build-windows:
@@ -156,6 +175,10 @@ jobs:
           GOOGLE_VENDOR_CLIENT_SECRET: ${{ secrets.GOOGLE_VENDOR_CLIENT_SECRET }}
         run: chmod +x scripts/ci-write-google-vendor-oauth.sh && ./scripts/ci-write-google-vendor-oauth.sh
 
+      - name: Prepare release build config
+        shell: bash
+        run: chmod +x scripts/ci-prepare-release-build.sh && ./scripts/ci-prepare-release-build.sh "${{ github.ref_name }}"
+
       - name: Cross-compile Go server
         shell: bash
         run: |
@@ -168,10 +191,18 @@ jobs:
 
       - name: Build frontend and Tauri
         working-directory: desktop
+        shell: bash
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           npm ci
           npm run build
           npx tauri build
+
+      - name: Verify Windows updater artifacts
+        shell: bash
+        run: bash scripts/verify-updater-artifacts.sh windows desktop/src-tauri/target/release/bundle/msi
 
       - name: Upload Windows assets
         shell: bash
@@ -181,6 +212,8 @@ jobs:
           shopt -s nullglob
           assets=(
             desktop/src-tauri/target/release/bundle/msi/*.msi
+            desktop/src-tauri/target/release/bundle/msi/*.msi.zip
+            desktop/src-tauri/target/release/bundle/msi/*.msi.zip.sig
             desktop/src-tauri/target/release/bundle/nsis/*.exe
           )
           if [ ${#assets[@]} -eq 0 ]; then
@@ -228,6 +261,9 @@ jobs:
           GOOGLE_VENDOR_CLIENT_SECRET: ${{ secrets.GOOGLE_VENDOR_CLIENT_SECRET }}
         run: chmod +x scripts/ci-write-google-vendor-oauth.sh && ./scripts/ci-write-google-vendor-oauth.sh
 
+      - name: Prepare release build config
+        run: chmod +x scripts/ci-prepare-release-build.sh && ./scripts/ci-prepare-release-build.sh "${{ github.ref_name }}"
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
@@ -238,10 +274,16 @@ jobs:
 
       - name: Build frontend and Tauri
         working-directory: desktop
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: |
           npm ci
           npm run build
           npx tauri build
+
+      - name: Verify Linux updater artifacts
+        run: bash scripts/verify-updater-artifacts.sh linux desktop/src-tauri/target/release/bundle/appimage
 
       - name: Upload Linux assets
         env:
@@ -251,6 +293,8 @@ jobs:
           assets=(
             desktop/src-tauri/target/release/bundle/deb/*.deb
             desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz.sig
           )
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No Linux bundles found" >&2
@@ -258,12 +302,29 @@ jobs:
           fi
           gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
 
+  publish-updater-manifests:
+    needs:
+      - create-release
+      - build-macos
+      - build-windows
+      - build-linux
+    if: ${{ always() && needs.create-release.result == 'success' && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success' || needs.build-linux.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish updater manifests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: chmod +x scripts/publish-updater-manifests.sh && ./scripts/publish-updater-manifests.sh "${{ github.ref_name }}" "${{ github.repository }}"
+
   publish-release:
     needs:
       - create-release
       - build-macos
       - build-windows
       - build-linux
+      - publish-updater-manifests
     if: ${{ always() && needs.create-release.result == 'success' && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success' || needs.build-linux.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
