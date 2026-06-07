@@ -20,11 +20,17 @@ const (
 var (
 	thanksRE = regexp.MustCompile(`(?i)^(ok\s+)?(thanks|thank you|thx|ty)[\s!.]*$`)
 	briefAckRE = regexp.MustCompile(`(?i)^(ok|cool|nice|great|perfect|got it|sounds good)[\s!.]*$`)
+	// Public-channel messages often prefix @Assistant before a short closure phrase.
+	leadingMentionRE = regexp.MustCompile(`^(?:@[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*\s+)+`)
 )
+
+func contentForClosureClassification(content string) string {
+	return strings.TrimSpace(leadingMentionRE.ReplaceAllString(strings.TrimSpace(content), ""))
+}
 
 // classifyConversationalClosure detects thanks, repetition complaints, or brief acks.
 func classifyConversationalClosure(content string) ClosureKind {
-	s := strings.TrimSpace(content)
+	s := contentForClosureClassification(content)
 	if s == "" || strings.HasPrefix(s, "/") {
 		return ClosureNone
 	}

@@ -90,6 +90,9 @@ func TestChatQualityRouter(t *testing.T) {
 		// --- Closure ---
 		{name: "closure_thanks", content: "ok thanks", channel: "dm-u-a", channelType: protocol.ChannelTypeDM, agentID: agentID,
 			checkIntent: true, wantIntent: IntentClosure, checkClosure: true, wantClosure: ClosureThanks},
+		{name: "closure_thanks_with_mention", content: "@Assistant ok thanks", channel: "chat-scenarios", channelType: protocol.ChannelTypePublic, agentID: agentID,
+			history: buildChatHistory(agentID, "How far is Collinsville IL from St Louis MO?", "about 40 miles"),
+			checkIntent: true, wantIntent: IntentClosure, checkClosure: true, wantClosure: ClosureThanks},
 		{name: "closure_thank_you", content: "Thank you!", channel: "dm-u-a", channelType: protocol.ChannelTypeDM,
 			checkIntent: true, wantIntent: IntentClosure, checkClosure: true, wantClosure: ClosureThanks},
 		{name: "closure_already_said", content: "I know you said that already", channel: "dm-u-a", channelType: protocol.ChannelTypeDM,

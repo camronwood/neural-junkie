@@ -12,6 +12,8 @@ func TestClassifyConversationalClosure(t *testing.T) {
 		want ClosureKind
 	}{
 		{"ok thanks", ClosureThanks},
+		{"@Assistant ok thanks", ClosureThanks},
+		{"@assistant thank you!", ClosureThanks},
 		{"Thank you!", ClosureThanks},
 		{"I know you said that already", ClosureAlreadyAnswered},
 		{"you already told me", ClosureAlreadyAnswered},
