@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hardware requirements — Neural Junkie</title>
+  <meta name="description" content="RAM tiers, model disk sizes, and honest limits for running Neural Junkie locally — app footprint vs Ollama models, multi-agent reality, and hybrid cloud strategy." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Home</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Hardware requirements
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Hardware requirements</h1>
+      <p class="feature-deep-lead">Neural Junkie is lightweight as an <strong>app</strong>; the hardware story is about <strong>models</strong>, concurrency, and what you expect local agents to do. The setup wizard and Settings screen use the same RAM tiers documented here.</p>
+    </header>
+
+    <figure class="screenshot-frame" style="margin-bottom: 2rem;">
+      <img
+        src="../../assets/neural-junkie-hardware-1200.png"
+        alt="Neural Junkie hardware guide: RAM tiers and model sizes"
+        loading="lazy"
+        decoding="async"
+        width="1200"
+        height="627"
+      />
+    </figure>
+
+    <article class="feature-prose">
+      <h2>App vs models</h2>
+      <table>
+        <thead>
+          <tr><th>Component</th><th>Typical size</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Desktop installer</td><td>~10–15 MB</td></tr>
+          <tr><td>Bundled Ollama runtime</td><td>~1–2 GB</td></tr>
+          <tr><td>Default models (14B + 7B)</td><td>~13.5 GB disk</td></tr>
+          <tr><td><strong>Typical first-run total</strong></td><td><strong>~15–20 GB</strong></td></tr>
+        </tbody>
+      </table>
+
+      <h2>RAM tiers</h2>
+      <p>The hub exposes <code>GET /api/system/hardware</code> with your tier and recommended model tags.</p>
+      <table>
+        <thead>
+          <tr><th>Tier</th><th>RAM</th><th>Developer primary</th><th>Best for</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>minimal</td><td>&lt; 8 GB</td><td><code>llama3.2:3b</code> / <code>qwen2.5-coder:7b</code></td><td>Light chat; cloud hybrid for hard tasks</td></tr>
+          <tr><td>light</td><td>8–15 GB</td><td><code>qwen2.5-coder:7b</code></td><td>Safe local dev</td></tr>
+          <tr><td>recommended</td><td>16–31 GB</td><td><code>qwen2.5-coder:14b</code></td><td>Full software pack + collab</td></tr>
+          <tr><td>heavy</td><td>32 GB+</td><td>14B + LoRA bases</td><td>Multi-model library, CUDA training</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Multi-agent ≠ multi-model</h2>
+      <p>Specialists share <strong>one Ollama backend</strong>. You are not loading six separate 14B weights. You do pay sequential inference latency and hub memory for repo indexes (capped at 2000 source files).</p>
+
+      <h2>Hybrid strategy</h2>
+      <ul>
+        <li><strong>Local</strong> — iteration, repo Q&A, no per-token bill</li>
+        <li><strong>Cloud</strong> — hard reviews, long context, when 14B is not enough</li>
+        <li><strong>LoRA</strong> — disk-efficient specialists on shared bases — see <a href="model-app-store.html">Model App Store</a></li>
+      </ul>
+
+      <h2>Limits to know</h2>
+      <ul>
+        <li>Installers bundle the <strong>runtime</strong>, not every model — first pull can be several GB</li>
+        <li>Local models vary in collaboration quality — see <a href="../known-issues.html">known issues</a></li>
+        <li>macOS builds are ad-hoc signed — Right-click → Open if Gatekeeper warns</li>
+        <li>Browser hub UI is chat-only — use the <strong>desktop app</strong> for full workspace</li>
+      </ul>
+
+      <aside class="repo-links">
+        <h2>Read more in the repository</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HARDWARE.md">HARDWARE.md</a> — full reference</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/HARDWARE-LINKEDIN.md">HARDWARE-LINKEDIN.md</a> — LinkedIn article</li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md">DOWNLOAD.md</a> — install and troubleshooting</li>
+          <li><a href="bundled-ollama.html">Install-and-go local AI</a> — bundled Ollama runtime</li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="bundled-ollama.html">Install-and-go local AI <span>Bundled Ollama</span></a>
+        <a href="model-app-store.html">Model App Store <span>Ollama &amp; Hugging Face</span></a>
+        <a href="domain-packs.html">Domain packs <span>Install specialists</span></a>
+        <a href="providers-mcp-packaging.html">Providers &amp; MCP <span>Cloud + export</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

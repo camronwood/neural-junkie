@@ -82,6 +82,7 @@
         <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-06-07">v1.0.0-beta.25</time></p>
         <nav class="flagship-jump" aria-label="Jump to flagship features">
           <a href="#bundled-ollama">⚡ Install-and-go AI</a>
+          <a href="#hardware-requirements">💾 Hardware</a>
           <a href="#slack-connect">⎘ Slack Connect</a>
           <a href="#multi-agent-collaboration">🤝 Collaboration</a>
           <a href="#domain-packs">📦 Domain packs</a>
@@ -215,6 +216,51 @@
       </div>
     </section>
 
+    <section class="feature-spotlight" id="hardware-requirements" aria-labelledby="hardware-heading">
+      <div class="wrap feature-spotlight-inner">
+        <div class="feature-spotlight-copy">
+          <p class="feature-spotlight-kicker">Hardware requirements</p>
+          <h2 id="hardware-heading">The app is small. The models are not.</h2>
+          <p class="feature-spotlight-lead">
+            Neural Junkie ships as a <strong>~15 MB desktop app</strong> plus a bundled Ollama runtime (~1–2 GB). Your first local pull for software development defaults to <strong>qwen2.5-coder:14b</strong> (~9 GB) and <strong>qwen2.5:7b</strong> (~4.5 GB) — roughly <strong>15–20 GB total</strong> on disk before you chat. The setup wizard reads your RAM and recommends model tags; Settings shows estimated disk and suggested RAM per model.
+          </p>
+          <table class="release-install-table hardware-tier-table" aria-label="RAM tiers and recommended models">
+            <thead>
+              <tr><th scope="col">Tier</th><th scope="col">RAM</th><th scope="col">Developer primary</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>minimal</td><td>&lt; 8 GB</td><td><code>qwen2.5-coder:7b</code> / <code>llama3.2:3b</code></td></tr>
+              <tr><td>light</td><td>8–15 GB</td><td><code>qwen2.5-coder:7b</code></td></tr>
+              <tr><td>recommended</td><td>16–31 GB</td><td><code>qwen2.5-coder:14b</code></td></tr>
+              <tr><td>heavy</td><td>32 GB+</td><td>14B + LoRA bases / larger models</td></tr>
+            </tbody>
+          </table>
+          <ul class="feature-list feature-list--tight">
+            <li><strong>Multi-agent ≠ multi-model</strong> — specialists share one Ollama backend; you pay latency, not six 14B loads.</li>
+            <li><strong>Hybrid by design</strong> — local iteration, cloud for hard reviews when 14B is not enough.</li>
+            <li><strong>Honest limits</strong> — collab variance on local models, bounded repo indexes, single local hub — see <a href="known-issues.html">known issues</a>.</li>
+          </ul>
+          <div class="feature-spotlight-actions">
+            <a class="btn btn-primary" href="features/hardware-requirements.html">Hardware deep dive →</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/HARDWARE.md">HARDWARE.md</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/HARDWARE-LINKEDIN.md">LinkedIn article</a>
+          </div>
+        </div>
+        <figure class="feature-spotlight-visual">
+          <img
+            src="../assets/neural-junkie-hardware-1200.png"
+            alt="Neural Junkie hardware guide: RAM tiers, model disk sizes, app vs models"
+            loading="lazy"
+            decoding="async"
+            width="1200"
+            height="627"
+            class="hardware-spotlight-img"
+          />
+          <figcaption>Setup wizard and Settings use the same RAM tiers — pull the right model once.</figcaption>
+        </figure>
+      </div>
+    </section>
+
     <section class="feature-spotlight feature-spotlight--alt feature-spotlight--reverse" id="domain-packs" aria-labelledby="domain-packs-heading">
       <div class="wrap feature-spotlight-inner">
         <div class="feature-spotlight-copy">
@@ -305,7 +351,7 @@
     <section class="section-alt" aria-labelledby="capabilities-heading">
       <div class="wrap">
         <h2 id="capabilities-heading">Everything else in the workspace</h2>
-        <p class="section-intro">Beyond <a href="#bundled-ollama">local AI</a>, <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, experts, commands, and provider wiring that tie it together.</p>
+        <p class="section-intro">Beyond <a href="#bundled-ollama">local AI</a>, <a href="#hardware-requirements">hardware planning</a>, <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, experts, commands, and provider wiring that tie it together.</p>
         <div class="grid-3 highlights-grid">
           <article class="card">
             <div class="card-icon" aria-hidden="true">🖥️</div>
@@ -456,6 +502,7 @@
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">Getting started</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
           <a class="btn btn-ghost btn-sm" href="features/bundled-ollama.html">Install-and-go AI</a>
+          <a class="btn btn-ghost btn-sm" href="features/hardware-requirements.html">Hardware requirements</a>
           <a class="btn btn-ghost btn-sm" href="features/slack-connect.html">Slack Connect</a>
           <a class="btn btn-ghost btn-sm" href="features/multi-agent-collaboration.html">Collaboration</a>
           <a class="btn btn-ghost btn-sm" href="features/domain-packs.html">Domain packs</a>

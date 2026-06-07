@@ -32,6 +32,13 @@ import { getHubBaseURL, getHubWebSocketURL } from '../config/hubUrl';
 import { open } from '@tauri-apps/api/dialog';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import { getShortcutsForDisplay, formatChord } from '../shortcuts';
+import {
+  fetchHardwareSnapshot,
+  fetchModelLookup,
+  formatModelResourceHint,
+  type HardwareSnapshot,
+  type ModelLookup,
+} from '../utils/hardwareRecommendations';
 
 export type SettingsTab =
   | 'appearance'
@@ -173,6 +180,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [googleOAuthForm, setGoogleOAuthForm] = useState<GoogleMeetNotesSettings>(integrations.googleMeetNotes);
   const [googleOAuthSecretSet, setGoogleOAuthSecretSet] = useState(false);
   const [ollamaForm, setOllamaForm] = useState<OllamaSettings>(integrations.ollama);
+  const [hardwareSnapshot, setHardwareSnapshot] = useState<HardwareSnapshot | null>(null);
+  const [defaultModelLookup, setDefaultModelLookup] = useState<ModelLookup | null>(null);
   const [lmstudioForm, setLMStudioForm] = useState<LMStudioSettings>(integrations.lmstudio);
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
@@ -999,6 +1008,33 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     loadModels();
     return () => { cancelled = true; };
   }, [activeTab, fetchOllamaModels, fetchLMStudioModels]);
+
+  useEffect(() => {
+    if (activeTab !== 'ai-providers') return;
+    let cancelled = false;
+    void fetchHardwareSnapshot(hubHttp).then((snap) => {
+      if (!cancelled) setHardwareSnapshot(snap);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, hubHttp]);
+
+  useEffect(() => {
+    if (activeTab !== 'ai-providers') return;
+    const model = ollamaForm.defaultModel?.trim();
+    if (!model) {
+      setDefaultModelLookup(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchModelLookup(hubHttp, model).then((row) => {
+      if (!cancelled) setDefaultModelLookup(row);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, hubHttp, ollamaForm.defaultModel]);
 
   useShortcutOverlay('settings', isOpen, onClose);
 
@@ -4235,6 +4271,15 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         ? `${ollamaForm.availableModels.length} models available`
                         : 'Click Refresh to load models from Ollama'}
                     </p>
+                    {(formatModelResourceHint(defaultModelLookup) || hardwareSnapshot) && (
+                      <p className="text-xs text-slack-textMuted mt-2">
+                        {formatModelResourceHint(defaultModelLookup)}
+                        {formatModelResourceHint(defaultModelLookup) && hardwareSnapshot ? ' · ' : ''}
+                        {hardwareSnapshot
+                          ? `Your system: ${hardwareSnapshot.total_memory_gb} GB RAM (${hardwareSnapshot.tier} tier)`
+                          : ''}
+                      </p>
+                    )}
                   </div>
 
                   <button

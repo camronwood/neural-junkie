@@ -1539,6 +1539,21 @@ section h2 {
   font-weight: 600;
 }
 
+.hardware-tier-table code {
+  font-size: 0.85em;
+}
+
+.hardware-spotlight-img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.feature-spotlight-visual .hardware-spotlight-img + figcaption {
+  margin-top: 0.65rem;
+}
+
 .release-jump {
   margin: 0 0 2.25rem;
   padding: 0.85rem 1rem;

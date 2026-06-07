@@ -369,7 +369,9 @@ func main() {
 	http.HandleFunc("/api/ollama/catalog", corsMiddleware(handleOllamaCatalog))
 	http.HandleFunc("/api/ollama/library/search", corsMiddleware(handleOllamaLibrarySearch))
 	http.HandleFunc("/api/ollama/library/tags", corsMiddleware(handleOllamaLibraryTags))
+	http.HandleFunc("/api/ollama/library/lookup", corsMiddleware(handleOllamaLibraryLookup))
 	http.HandleFunc("/api/ollama/delete", corsMiddleware(handleOllamaDelete))
+	http.HandleFunc("/api/system/hardware", corsMiddleware(handleSystemHardware))
 
 	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
 	http.HandleFunc("/api/hf/catalog", corsMiddleware(handleHfCatalog))

@@ -4,9 +4,20 @@ import {
   modelsToEnsureForTrack,
   ollamaModelForTrack,
   packsEnabledForTrack,
+  CAD_OLLAMA_CHAT_MODEL,
+  CAD_OLLAMA_CHAT_MODEL_LIGHT,
+  DEV_OLLAMA_MODEL,
   type WizardTrack,
 } from '../config/wizardProfiles';
 import { CLIAgentsManager } from './CLIAgentsManager';
+import {
+  fetchHardwareSnapshot,
+  HARDWARE_DOCS_URL,
+  recommendationMessageForTrack,
+  recommendedPrimaryForTrack,
+  shouldAutoDowngradePrimary,
+  type HardwareSnapshot,
+} from '../utils/hardwareRecommendations';
 
 interface ProviderChoice {
   id: string;
@@ -41,8 +52,22 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   const [pulling, setPulling] = useState(false);
   const [pullStatus, setPullStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const [hardware, setHardware] = useState<HardwareSnapshot | null>(null);
+  const [useFullSizeModel, setUseFullSizeModel] = useState(false);
 
-  const defaultOllamaModel = ollamaModelForTrack(wizardTrack);
+  const trackDefaultModel = ollamaModelForTrack(wizardTrack);
+  const tierPrimary = recommendedPrimaryForTrack(hardware, wizardTrack, trackDefaultModel);
+  const autoDowngrade =
+    !useFullSizeModel &&
+    (wizardTrack === 'developer' || wizardTrack === 'cad') &&
+    shouldAutoDowngradePrimary(hardware?.tier) &&
+    tierPrimary !== trackDefaultModel;
+  const selectedOllamaModel = autoDowngrade ? tierPrimary : trackDefaultModel;
+  const hardwareMessage = recommendationMessageForTrack(hardware, wizardTrack);
+
+  useEffect(() => {
+    void fetchHardwareSnapshot(serverAddr).then(setHardware);
+  }, [serverAddr]);
 
   useEffect(() => {
     if (step === 3 && providerType === 'ollama') {
@@ -71,12 +96,12 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
 
   async function pullDefaultModel() {
     setPulling(true);
-    setPullStatus(`Pulling ${defaultOllamaModel}...`);
+    setPullStatus(`Pulling ${selectedOllamaModel}...`);
     try {
       const resp = await fetch(`${serverAddr}/api/ollama/pull`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: defaultOllamaModel }),
+        body: JSON.stringify({ model: selectedOllamaModel }),
       });
       const reader = resp.body?.getReader();
       const decoder = new TextDecoder();
@@ -96,7 +121,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               } else if (data.error) {
                 setPullStatus(
                   wizardTrack === 'lifeSciences'
-                    ? `Pull may require Model Library: download OpenBioLLM GGUF and import as ${defaultOllamaModel}`
+                    ? `Pull may require Model Library: download OpenBioLLM GGUF and import as ${trackDefaultModel}`
                     : `Pull failed: ${data.error}`,
                 );
               }
@@ -113,6 +138,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   function selectTrack(track: WizardTrack) {
     setWizardTrack(track);
     setAgents(agentsForTrack(track));
+    setUseFullSizeModel(false);
     setStep(2);
   }
 
@@ -133,7 +159,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                 ? 'Local Ollama (utility)'
                 : 'Local Ollama (Coder)',
         endpoint: 'http://localhost:11434',
-        model: defaultOllamaModel,
+        model: selectedOllamaModel,
       });
     } else if (wizardTrack === 'lifeSciences' && hfToken.trim()) {
       providers.push({
@@ -166,7 +192,11 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
       mcp: { enabled: true },
       ollama: {
         auto_start: providerType === 'ollama',
-        models_to_ensure: modelsToEnsureForTrack(wizardTrack, providerType),
+        models_to_ensure: providerType === 'ollama'
+          ? modelsToEnsureForTrack(wizardTrack, providerType).map((m) =>
+              m === trackDefaultModel ? selectedOllamaModel : m,
+            )
+          : [],
       },
       updates: { auto_check: true },
     };
@@ -321,6 +351,43 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               </div>
             ) : (
               <div className="space-y-3">
+                {hardwareMessage && (
+                  <div className="rounded-lg border border-blue-800/50 bg-blue-950/40 p-3 text-sm text-blue-100">
+                    {hardwareMessage}
+                    <div className="mt-2 text-xs text-blue-200/80">
+                      Pull target: <code className="text-teal-300">{selectedOllamaModel}</code>
+                      {' · '}
+                      <a
+                        href={HARDWARE_DOCS_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-white"
+                      >
+                        Full hardware guide
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {autoDowngrade && (
+                  <button
+                    type="button"
+                    onClick={() => setUseFullSizeModel(true)}
+                    className="text-xs text-amber-400 underline hover:text-amber-300"
+                  >
+                    Use {wizardTrack === 'cad' ? CAD_OLLAMA_CHAT_MODEL : DEV_OLLAMA_MODEL} anyway
+                  </button>
+                )}
+                {useFullSizeModel &&
+                  shouldAutoDowngradePrimary(hardware?.tier) &&
+                  (wizardTrack === 'developer' || wizardTrack === 'cad') && (
+                    <button
+                      type="button"
+                      onClick={() => setUseFullSizeModel(false)}
+                      className="text-xs text-gray-400 underline hover:text-gray-300"
+                    >
+                      Use recommended {wizardTrack === 'cad' ? CAD_OLLAMA_CHAT_MODEL_LIGHT : 'qwen2.5-coder:7b'} instead
+                    </button>
+                  )}
                 <div className="text-green-400 text-sm">
                   {ollamaStatus.bundled
                     ? 'Ollama is bundled and running. Pull a model once to start chatting locally.'
@@ -328,7 +395,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                 </div>
                 {wizardTrack === 'lifeSciences' && (
                   <p className="text-xs text-gray-500">
-                    If pull fails, open Model Library (⇧⌘M), download OpenBioLLM GGUF, and import as <code className="text-teal-400">{defaultOllamaModel}</code>.
+                    If pull fails, open Model Library (⇧⌘M), download OpenBioLLM GGUF, and import as <code className="text-teal-400">{trackDefaultModel}</code>.
                   </p>
                 )}
                 {!pullStatus.includes('ready') && (
@@ -341,7 +408,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
                             : wizardTrack === 'general'
                               ? 'utility model'
                               : 'Coder model'
-                        } (${defaultOllamaModel})`}
+                        } (${selectedOllamaModel})`}
                   </button>
                 )}
                 {pullStatus && <div className="text-xs text-gray-400">{pullStatus}</div>}

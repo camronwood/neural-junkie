@@ -8,6 +8,7 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 |--------|------|
 | Download and first run (beta) | [DOWNLOAD.md](docs/DOWNLOAD.md) |
 | Setup and first run | [GETTING_STARTED.md](docs/GETTING_STARTED.md) |
+| Hardware requirements | [HARDWARE.md](docs/HARDWARE.md) |
 | System design | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Repo indexing agents | [REPO_AGENTS.md](docs/REPO_AGENTS.md) |
 | Confluence agents | [CONFLUENCE_AGENTS.md](docs/CONFLUENCE_AGENTS.md) |
@@ -35,6 +36,7 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 | Multi-agent collaboration (LinkedIn article) | [COLLABORATION-LINKEDIN.md](docs/marketing/COLLABORATION-LINKEDIN.md) |
 | Conversational & collab test harness (LinkedIn article) | [CONVERSATIONAL-TEST-HARNESS.md](docs/marketing/CONVERSATIONAL-TEST-HARNESS.md) |
 | LoRA adapters & training (LinkedIn article) | [LORA-LINKEDIN.md](docs/marketing/LORA-LINKEDIN.md) |
+| Hardware requirements (LinkedIn article) | [HARDWARE-LINKEDIN.md](docs/marketing/HARDWARE-LINKEDIN.md) |
 | Collab craft ad | [COLLAB-CRAFT-AD.md](docs/marketing/COLLAB-CRAFT-AD.md) |
 
 ## Static site
