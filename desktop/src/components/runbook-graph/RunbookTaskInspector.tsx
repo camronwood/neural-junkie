@@ -1,5 +1,8 @@
 import type { CSSProperties } from 'react';
-import type { CollaborationAgent, CollaborationTask } from '../../types/protocol';
+import type { ChatAPI } from '../../api/chatAPI';
+import type { CollaborationAgent, CollaborationTask, TaskKind } from '../../types/protocol';
+import { defaultActionSpec } from '../../utils/runbookActionUtils';
+import { RunbookActionConfigEditor } from '../runbook/RunbookActionConfigEditor';
 import { TaskDependenciesEditor } from '../runbook/TaskDependenciesEditor';
 
 const inputStyle: CSSProperties = {
@@ -15,11 +18,19 @@ const inputStyle: CSSProperties = {
   fontFamily: 'inherit',
 };
 
+const labelStyle: CSSProperties = {
+  display: 'block',
+  fontSize: 11,
+  color: '#a3a3a3',
+  marginBottom: 10,
+};
+
 interface RunbookTaskInspectorProps {
   task: CollaborationTask;
   taskIndex: number;
   tasks: CollaborationTask[];
   agents: CollaborationAgent[];
+  api: ChatAPI;
   editable: boolean;
   onUpdate: (patch: Partial<CollaborationTask>) => void;
   onUpdateDependencies: (deps: string[]) => void;
@@ -31,11 +42,14 @@ export function RunbookTaskInspector({
   taskIndex,
   tasks,
   agents,
+  api,
   editable,
   onUpdate,
   onUpdateDependencies,
   onDelete,
 }: RunbookTaskInspectorProps) {
+  const kind: TaskKind = task.kind ?? 'agent';
+
   return (
     <div
       style={{
@@ -50,7 +64,28 @@ export function RunbookTaskInspector({
       <h4 style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-primary, #eee)' }}>
         Task {taskIndex + 1}
       </h4>
-      <label style={{ display: 'block', fontSize: 11, color: '#a3a3a3', marginBottom: 10 }}>
+      <label style={labelStyle}>
+        Task type
+        <select
+          value={kind}
+          onChange={(e) => {
+            const nextKind = e.target.value as TaskKind;
+            onUpdate({
+              kind: nextKind,
+              action:
+                nextKind === 'action'
+                  ? task.action ?? defaultActionSpec('http_get')
+                  : undefined,
+            });
+          }}
+          disabled={!editable}
+          style={inputStyle}
+        >
+          <option value="agent">Agent task</option>
+          <option value="action">Action task</option>
+        </select>
+      </label>
+      <label style={labelStyle}>
         Title
         <input
           type="text"
@@ -60,7 +95,7 @@ export function RunbookTaskInspector({
           style={inputStyle}
         />
       </label>
-      <label style={{ display: 'block', fontSize: 11, color: '#a3a3a3', marginBottom: 10 }}>
+      <label style={labelStyle}>
         Description
         <textarea
           value={task.description}
@@ -70,28 +105,40 @@ export function RunbookTaskInspector({
           style={{ ...inputStyle, resize: 'vertical' }}
         />
       </label>
-      <label style={{ display: 'block', fontSize: 11, color: '#a3a3a3', marginBottom: 10 }}>
-        Assignee
-        <select
-          value={task.assigned_to}
-          onChange={(e) => {
-            const a = agents.find((x) => x.agent_id === e.target.value);
-            onUpdate({
-              assigned_to: e.target.value,
-              assigned_name: a?.agent_name ?? '',
-            });
-          }}
+      {kind === 'action' && task.action ? (
+        <RunbookActionConfigEditor
+          action={task.action}
+          api={api}
           disabled={!editable}
-          style={inputStyle}
-        >
-          <option value="">Unassigned</option>
-          {agents.map((a) => (
-            <option key={a.agent_id} value={a.agent_id}>
-              @{a.agent_name}
-            </option>
-          ))}
-        </select>
-      </label>
+          inputStyle={inputStyle}
+          labelStyle={{ ...labelStyle, marginBottom: 8 }}
+          onChange={(action) => onUpdate({ action })}
+        />
+      ) : null}
+      {kind !== 'action' ? (
+        <label style={labelStyle}>
+          Assignee
+          <select
+            value={task.assigned_to}
+            onChange={(e) => {
+              const a = agents.find((x) => x.agent_id === e.target.value);
+              onUpdate({
+                assigned_to: e.target.value,
+                assigned_name: a?.agent_name ?? '',
+              });
+            }}
+            disabled={!editable}
+            style={inputStyle}
+          >
+            <option value="">Unassigned</option>
+            {agents.map((a) => (
+              <option key={a.agent_id} value={a.agent_id}>
+                @{a.agent_name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {tasks.length > 1 ? (
         <TaskDependenciesEditor
           taskIndex={taskIndex}

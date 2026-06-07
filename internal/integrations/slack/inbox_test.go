@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -41,7 +42,7 @@ func TestBuildInboxMessageDirectDM(t *testing.T) {
 		SlackTS:   "123.456",
 	}
 	threads, _ := NewThreadMap()
-	msg := BuildInboxMessage(in, inbox, threads, nil)
+	msg := BuildInboxMessage(in, inbox, threads, nil, "")
 	if msg.Channel != "slack:inbox:U1" {
 		t.Fatalf("channel %q", msg.Channel)
 	}
@@ -98,6 +99,7 @@ func (r *reconcileMockHub) ResolveAgentID(agentID, agentName string) (string, er
 func (r *reconcileMockHub) GetChannel(name string) (*protocol.Channel, error) {
 	return nil, errors.New("not found")
 }
+func (r *reconcileMockHub) ListChannels() []*protocol.Channel { return nil }
 func (r *reconcileMockHub) CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel {
 	return nil
 }
@@ -129,7 +131,7 @@ func TestBuildInboxMessageForwarded(t *testing.T) {
 		SourceAuthor:      "Alice",
 	}
 	threads, _ := NewThreadMap()
-	msg := BuildInboxMessage(in, inbox, threads, forward)
+	msg := BuildInboxMessage(in, inbox, threads, forward, "")
 	if msg.Metadata[protocol.SlackMetaReplyChannelID] != "C1" {
 		t.Fatalf("reply channel: %v", msg.Metadata[protocol.SlackMetaReplyChannelID])
 	}
@@ -160,5 +162,46 @@ func indexOf(s, sub string) int {
 func TestNJInboxChannelName(t *testing.T) {
 	if got := NJInboxChannelName("U1"); got != "slack:inbox:U1" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestNJInboxPeerChannelName(t *testing.T) {
+	got := NJInboxPeerChannelName("U1", "U2")
+	if got != "slack:inbox:U1:U2" {
+		t.Fatalf("got %q", got)
+	}
+	if !IsInboxPeerHubChannel(got, "U1") {
+		t.Fatal("expected peer channel match")
+	}
+}
+
+func TestEnsureInboxPeerChannel(t *testing.T) {
+	hub := &reconcileMockHub{resolved: "agent-1"}
+	inbox := InboxConfig{
+		Enabled:          true,
+		OwnerSlackUserID: "U1",
+		AgentID:          "agent-1",
+		AgentName:        "Assistant",
+		NJChannel:        "slack:inbox:U1",
+	}
+	name, created, err := EnsureInboxPeerChannel(context.Background(), hub, nil, inbox, "U2", "Demo User")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "slack:inbox:U1:U2" {
+		t.Fatalf("channel %q", name)
+	}
+	if !created {
+		t.Fatal("expected created")
+	}
+}
+
+func TestBuildInboxMessagePeerChannelOverride(t *testing.T) {
+	inbox := &InboxConfig{Enabled: true, AgentID: "agent-1", NJChannel: "slack:inbox:U1"}
+	in := InboundInput{ChannelID: "D1", UserID: "U2", Text: "hi", SlackTS: "1.1"}
+	threads, _ := NewThreadMap()
+	msg := BuildInboxMessage(in, inbox, threads, nil, "slack:inbox:U1:U2")
+	if msg.Channel != "slack:inbox:U1:U2" {
+		t.Fatalf("channel %q", msg.Channel)
 	}
 }

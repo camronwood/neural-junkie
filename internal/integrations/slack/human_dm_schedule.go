@@ -50,15 +50,12 @@ func normalizeHumanDMAway(cfg *HumanDMAwayConfig) {
 	}
 }
 
-// ShouldMonitorHumanDMs reports whether the human-DM poller should run now.
+// ShouldMonitorHumanDMs reports whether away/schedule should poll human DMs for agent auto-reply.
 func ShouldMonitorHumanDMs(inbox InboxConfig, userTokenSet bool, now time.Time) bool {
-	if !inbox.Enabled || inbox.AgentID == "" || inbox.OwnerSlackUserID == "" {
+	if !humanDMPollingReady(inbox, userTokenSet) {
 		return false
 	}
 	h := inbox.HumanDMAway
-	if !h.Enabled || !userTokenSet {
-		return false
-	}
 	if h.AwayEnabled {
 		return true
 	}
@@ -67,6 +64,30 @@ func ShouldMonitorHumanDMs(inbox InboxConfig, userTokenSet bool, now time.Time) 
 	}
 	normalizeHumanDMAway(&h)
 	return isOutsideWorkHours(now, h.ScheduleTimezone, h.WorkHours)
+}
+
+// ShouldPollHumanDMs reports whether the human-DM poller should run (away/schedule or forward mode).
+func ShouldPollHumanDMs(inbox InboxConfig, userTokenSet bool, now time.Time) bool {
+	if !humanDMPollingReady(inbox, userTokenSet) {
+		return false
+	}
+	if ShouldMonitorHumanDMs(inbox, userTokenSet, now) {
+		return true
+	}
+	return inbox.ForwardEnabled
+}
+
+// ShouldAutoReplyHumanDMs reports whether ingested human DMs should route to the inbox agent.
+func ShouldAutoReplyHumanDMs(inbox InboxConfig, userTokenSet bool, now time.Time) bool {
+	return ShouldMonitorHumanDMs(inbox, userTokenSet, now)
+}
+
+func humanDMPollingReady(inbox InboxConfig, userTokenSet bool) bool {
+	if !inbox.Enabled || inbox.AgentID == "" || inbox.OwnerSlackUserID == "" {
+		return false
+	}
+	h := inbox.HumanDMAway
+	return h.Enabled && userTokenSet
 }
 
 func isOutsideWorkHours(now time.Time, tz string, hours []WorkDayHours) bool {
@@ -135,6 +156,9 @@ func HumanDMMonitoringStatus(inbox InboxConfig, userTokenSet bool, now time.Time
 	}
 	if ShouldMonitorHumanDMs(inbox, userTokenSet, now) {
 		return "monitoring_active"
+	}
+	if inbox.ForwardEnabled {
+		return "forward_active"
 	}
 	if h.AwayEnabled {
 		return "away_off"

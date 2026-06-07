@@ -40,7 +40,7 @@ func (b *Bridge) HumanDMDebugInfo() (HumanDMDebug, error) {
 	inbox := b.inbox.Get()
 	out.OwnerUserID = inbox.OwnerSlackUserID
 	out.UserTokenSet = out.BridgeTokenSet
-	out.MonitoringActive = ShouldMonitorHumanDMs(inbox, out.UserTokenSet, time.Now())
+	out.MonitoringActive = ShouldPollHumanDMs(inbox, out.UserTokenSet, time.Now())
 
 	botDM, _ := b.ensureOwnerDMChannel(inbox)
 	out.BotDMChannelID = botDM
@@ -81,11 +81,19 @@ func (b *Bridge) HumanDMDebugInfo() (HumanDMDebug, error) {
 	case !out.UserTokenSet:
 		out.Hint = "Click Authorize Slack DM access in Settings."
 	case !out.MonitoringActive:
-		out.Hint = "Turn on I'm away now, or enable Schedule while outside work hours."
+		if inbox.ForwardEnabled {
+			out.Hint = "Forward is on in the sidebar — peer DMs should appear in your Slack Inbox channel for manual reply."
+		} else {
+			out.Hint = "Turn on Forward in the sidebar, or enable I'm away now / Schedule outside work hours."
+		}
 	case out.PeerChannelCount == 0:
 		out.Hint = "No peer 1:1 DMs found. Have someone DM you directly on Slack — not note-to-self (Jot Something Down) and not the NJ bot."
 	default:
-		out.Hint = fmt.Sprintf("Monitoring %d peer DM channel(s). New messages from others while away should reach your inbox agent.", out.PeerChannelCount)
+		if inbox.ForwardEnabled && !ShouldMonitorHumanDMs(inbox, out.UserTokenSet, time.Now()) {
+			out.Hint = fmt.Sprintf("Forward mode: polling %d peer DM channel(s). Reply in Slack Inbox to post back without switching to Slack.", out.PeerChannelCount)
+		} else {
+			out.Hint = fmt.Sprintf("Monitoring %d peer DM channel(s). New messages from others while away should reach your inbox agent.", out.PeerChannelCount)
+		}
 	}
 	return out, nil
 }

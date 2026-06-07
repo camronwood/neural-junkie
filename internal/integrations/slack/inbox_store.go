@@ -37,6 +37,7 @@ type InboxConfig struct {
 	NJChannel          string        `json:"nj_channel,omitempty"`
 	SlackDMChannelID   string        `json:"slack_dm_channel_id,omitempty"`
 	ReplyInThread      bool              `json:"reply_in_thread"`
+	ForwardEnabled     bool              `json:"forward_enabled"`
 	ForwardRules       []ForwardRule     `json:"forward_rules,omitempty"`
 	HumanDMAway        HumanDMAwayConfig `json:"human_dm_away,omitempty"`
 }
@@ -44,6 +45,31 @@ type InboxConfig struct {
 // NJInboxChannelName returns the hub channel for a Slack user inbox.
 func NJInboxChannelName(ownerSlackUserID string) string {
 	return "slack:inbox:" + ownerSlackUserID
+}
+
+// NJInboxPeerChannelName returns the hub channel for one human Slack DM peer.
+func NJInboxPeerChannelName(ownerSlackUserID, peerSlackUserID string) string {
+	ownerSlackUserID = strings.TrimSpace(ownerSlackUserID)
+	peerSlackUserID = strings.TrimSpace(peerSlackUserID)
+	if ownerSlackUserID == "" || peerSlackUserID == "" {
+		return ""
+	}
+	return NJInboxChannelName(ownerSlackUserID) + ":" + peerSlackUserID
+}
+
+// NJInboxPeerChannelPrefix returns the prefix for all peer inbox channels for an owner.
+func NJInboxPeerChannelPrefix(ownerSlackUserID string) string {
+	ownerSlackUserID = strings.TrimSpace(ownerSlackUserID)
+	if ownerSlackUserID == "" {
+		return ""
+	}
+	return NJInboxChannelName(ownerSlackUserID) + ":"
+}
+
+// IsInboxPeerHubChannel reports whether channel is a peer inbox for ownerSlackUserID.
+func IsInboxPeerHubChannel(channel, ownerSlackUserID string) bool {
+	prefix := NJInboxPeerChannelPrefix(ownerSlackUserID)
+	return prefix != "" && strings.HasPrefix(channel, prefix)
 }
 
 // InboxStore persists inbox configuration.

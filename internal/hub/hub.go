@@ -14,6 +14,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -207,6 +208,9 @@ type Hub struct {
 	collabWatchdogMu           sync.Mutex
 	collabWatchdogRedispatch   map[string]int
 	collabWatchdogAutoAckTried map[string]bool
+
+	collabActionConfigMu sync.RWMutex
+	collabActionConfig   actions.Config
 
 	mu sync.RWMutex
 }

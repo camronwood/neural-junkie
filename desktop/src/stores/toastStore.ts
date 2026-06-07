@@ -6,6 +6,7 @@ export interface Toast {
   title: string;
   message?: string;
   duration?: number; // Auto-dismiss after this many ms (0 = no auto-dismiss)
+  variant?: 'default' | 'slack';
   action?: {
     label: string;
     onClick: () => void;

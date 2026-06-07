@@ -145,12 +145,23 @@ func ThreadTSForOutbound(msg *protocol.Message, threads *ThreadMap, binding *Bin
 	return ""
 }
 
+// IsInboxHubChannel reports whether a hub channel belongs to this inbox (main or peer).
+func IsInboxHubChannel(channel string, inbox *InboxConfig) bool {
+	if inbox == nil || channel == "" {
+		return false
+	}
+	if channel == inbox.NJChannel {
+		return true
+	}
+	return IsInboxPeerHubChannel(channel, inbox.OwnerSlackUserID)
+}
+
 // ShouldPostInboxToSlack returns whether a hub inbox message should post to Slack.
 func ShouldPostInboxToSlack(msg *protocol.Message, inbox *InboxConfig) bool {
 	if msg == nil || inbox == nil || !inbox.Enabled {
 		return false
 	}
-	if msg.Channel != inbox.NJChannel {
+	if !IsInboxHubChannel(msg.Channel, inbox) {
 		return false
 	}
 	if isSlackInboundEcho(msg) {
@@ -189,6 +200,11 @@ func InboxOutboundTarget(msg *protocol.Message, inbox *InboxConfig, threads *Thr
 	}
 	if ch := msg.SlackReplyChannelID(); ch != "" {
 		return ch, msg.SlackReplyThreadTS()
+	}
+	if threads != nil && strings.TrimSpace(msg.Channel) != "" {
+		if ch, ts, _, ok := threads.InboxReplyRoute(msg.Channel); ok {
+			return ch, ts
+		}
 	}
 	if threads != nil {
 		if msg.ReplyTo != "" {
@@ -248,10 +264,21 @@ func OutboundInboxSlackUsername(msg *protocol.Message, inbox *InboxConfig, bridg
 	return sanitizeSlackPostUsername(bridgeDisplayName)
 }
 
-// InboxOutboundHumanDM reports whether an agent reply should post via the user token.
-func InboxOutboundHumanDM(msg *protocol.Message, threads *ThreadMap) bool {
-	if msg == nil || threads == nil {
+// InboxOutboundHumanDM reports whether an outbound inbox post should use the user OAuth token.
+func InboxOutboundHumanDM(msg *protocol.Message, threads *ThreadMap, inbox *InboxConfig) bool {
+	if msg == nil {
 		return false
+	}
+	if inbox != nil && IsInboxPeerHubChannel(msg.Channel, inbox.OwnerSlackUserID) {
+		return true
+	}
+	if threads == nil {
+		return false
+	}
+	if strings.TrimSpace(msg.Channel) != "" {
+		if _, _, human, ok := threads.InboxReplyRoute(msg.Channel); ok && human {
+			return true
+		}
 	}
 	if msg.ReplyTo != "" {
 		if _, _, human, ok := threads.InboxReplyRoute(msg.ReplyTo); ok && human {

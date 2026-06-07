@@ -85,6 +85,40 @@ func TestHumanDMReplyPrefix(t *testing.T) {
 	}
 }
 
+func TestShouldPollHumanDMsForwardMode(t *testing.T) {
+	inbox := baseHumanDMInbox()
+	inbox.HumanDMAway.ScheduleEnabled = false
+	inbox.ForwardEnabled = true
+	now := laTime(2026, time.June, 7, 11, 30) // Sunday, away off
+	if ShouldMonitorHumanDMs(inbox, true, now) {
+		t.Fatal("expected away monitoring off")
+	}
+	if !ShouldPollHumanDMs(inbox, true, now) {
+		t.Fatal("expected forward mode to poll human DMs")
+	}
+	if ShouldAutoReplyHumanDMs(inbox, true, now) {
+		t.Fatal("forward mode should not auto-route to agent")
+	}
+}
+
+func TestBuildHumanDMInboxMessageSkipsAgentRouteWhenForwardOnly(t *testing.T) {
+	inbox := &InboxConfig{
+		Enabled:          true,
+		OwnerSlackUserID: "U1",
+		AgentID:          "agent-1",
+		NJChannel:        "slack:inbox:U1",
+	}
+	in := InboundInput{ChannelID: "D_PEER", UserID: "U2", UserName: "Demo User", Text: "you there?", SlackTS: "1.2"}
+	threads, _ := NewThreadMap()
+	msg := BuildHumanDMInboxMessage(in, inbox, threads, "Demo User", false, "slack:inbox:U1:U2")
+	if msg.SlackRoutedAgentID() != "" {
+		t.Fatalf("expected no agent route in forward-only mode, got %q", msg.SlackRoutedAgentID())
+	}
+	if !msg.IsSlackManualInboxReply() {
+		t.Fatal("expected manual reply flag")
+	}
+}
+
 func TestHumanDMMonitoringStatus(t *testing.T) {
 	inbox := baseHumanDMInbox()
 	now := laTime(2026, time.June, 2, 10, 0)

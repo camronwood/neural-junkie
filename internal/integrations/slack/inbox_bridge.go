@@ -3,7 +3,10 @@ package slack
 import (
 	"context"
 	"log"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	slackapi "github.com/slack-go/slack"
@@ -51,7 +54,7 @@ func (b *Bridge) ReloadInbox(ctx context.Context) error {
 		b.mu.Unlock()
 	}
 
-	outboundKey := inboxOutboundKey(cfg)
+	outboundKey := inboxOutboundKey(cfg, b.hub)
 	b.mu.Lock()
 	needsOutboundRestart := outboundKey != b.lastInboxOutboundKey || b.inboxOutboundCancel == nil
 	if needsOutboundRestart {
@@ -84,7 +87,7 @@ func inboxEnsureKey(cfg InboxConfig) string {
 	return cfg.AgentID + "|" + channel
 }
 
-func inboxOutboundKey(cfg InboxConfig) string {
+func inboxOutboundKey(cfg InboxConfig, hub HubClient) string {
 	if !cfg.Enabled {
 		return "disabled"
 	}
@@ -92,7 +95,55 @@ func inboxOutboundKey(cfg InboxConfig) string {
 	if channel == "" {
 		channel = NJInboxChannelName(cfg.OwnerSlackUserID)
 	}
-	return channel
+	key := channel
+	if hub != nil {
+		key += "|peers:" + strconv.Itoa(len(inboxPeerHubChannels(cfg, hub)))
+	}
+	return key
+}
+
+func inboxPeerHubChannels(cfg InboxConfig, hub HubClient) []string {
+	if hub == nil || cfg.OwnerSlackUserID == "" {
+		return nil
+	}
+	prefix := NJInboxPeerChannelPrefix(cfg.OwnerSlackUserID)
+	if prefix == "" {
+		return nil
+	}
+	var out []string
+	for _, ch := range hub.ListChannels() {
+		if ch != nil && strings.HasPrefix(ch.Name, prefix) {
+			out = append(out, ch.Name)
+		}
+	}
+	return out
+}
+
+func inboxOutboundChannels(cfg InboxConfig, hub HubClient) []string {
+	seen := map[string]struct{}{}
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+	}
+	main := cfg.NJChannel
+	if main == "" {
+		main = NJInboxChannelName(cfg.OwnerSlackUserID)
+	}
+	add(main)
+	for _, name := range inboxPeerHubChannels(cfg, hub) {
+		add(name)
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	return out
 }
 
 func (b *Bridge) refreshInboxOutboundSubscription() {
@@ -119,50 +170,107 @@ func (b *Bridge) runInboxOutbound(ctx context.Context) {
 	if !cfg.Enabled || cfg.NJChannel == "" {
 		return
 	}
-	sub, err := b.hub.Subscribe(cfg.NJChannel)
-	if err != nil {
-		log.Printf("[slack] inbox outbound subscribe %s: %v", cfg.NJChannel, err)
+	channels := inboxOutboundChannels(cfg, b.hub)
+	if len(channels) == 0 {
 		return
 	}
-	defer b.hub.Unsubscribe(cfg.NJChannel, sub)
-	log.Printf("[slack] inbox outbound listening on %s", cfg.NJChannel)
+	subs := make(map[string]chan *protocol.Message, len(channels))
+	for _, channelName := range channels {
+		sub, err := b.hub.Subscribe(channelName)
+		if err != nil {
+			log.Printf("[slack] inbox outbound subscribe %s: %v", channelName, err)
+			continue
+		}
+		subs[channelName] = sub
+		log.Printf("[slack] inbox outbound listening on %s", channelName)
+	}
+	defer func() {
+		for channelName, sub := range subs {
+			b.hub.Unsubscribe(channelName, sub)
+		}
+	}()
+
+	out := make(chan *protocol.Message, len(subs)*4)
+	var wg sync.WaitGroup
+	for channelName, sub := range subs {
+		channelName, sub := channelName, sub
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg, ok := <-sub:
+					if !ok {
+						return
+					}
+					if msg == nil {
+						continue
+					}
+					select {
+					case out <- msg:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+		_ = channelName
+	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case msg, ok := <-sub:
+		case msg, ok := <-out:
 			if !ok {
 				return
 			}
-			if msg == nil {
-				continue
-			}
-			inbox := b.inbox.Get()
-			if resolved, err := b.hub.ResolveAgentID(inbox.AgentID, inbox.AgentName); err == nil {
-				inbox.AgentID = resolved
-			}
-			if !ShouldPostInboxToSlack(msg, &inbox) {
-				continue
-			}
-			channelID, threadTS := InboxOutboundTarget(msg, &inbox, b.threads)
-			if channelID == "" {
-				continue
-			}
-			if InboxOutboundHumanDM(msg, b.threads) {
-				text := FormatHumanDMOutboundText(msg, &inbox)
-				b.postUserSlack(channelID, text)
-				log.Printf("[slack] human_dm outbound → Slack channel=%s", channelID)
-				continue
-			}
-			text := FormatSlackText(msg)
-			username := OutboundInboxSlackUsername(msg, &inbox, b.displayName)
-			b.postSlack(channelID, text, threadTS, username, msg)
-			if InboundDebugEnabled() {
-				log.Printf("[slack] inbox outbound → Slack channel=%s thread=%s", channelID, threadTS)
-			}
+			b.handleInboxOutboundMessage(msg, msg.Channel)
 		}
 	}
+}
+
+func (b *Bridge) handleInboxOutboundMessage(msg *protocol.Message, channelName string) {
+	if msg == nil {
+		return
+	}
+	inbox := b.inbox.Get()
+	if resolved, err := b.hub.ResolveAgentID(inbox.AgentID, inbox.AgentName); err == nil {
+		inbox.AgentID = resolved
+	}
+	if !ShouldPostInboxToSlack(msg, &inbox) {
+		return
+	}
+	channelID, threadTS := InboxOutboundTarget(msg, &inbox, b.threads)
+	if channelID == "" {
+		return
+	}
+	if InboxOutboundHumanDM(msg, b.threads, &inbox) {
+		text := FormatSlackText(msg)
+		if msg.From.ID == inbox.AgentID {
+			text = FormatHumanDMOutboundText(msg, &inbox)
+		}
+		b.postUserSlack(channelID, text)
+		log.Printf("[slack] human_dm outbound → Slack channel=%s (hub %s)", channelID, channelName)
+		return
+	}
+	text := FormatSlackText(msg)
+	username := OutboundInboxSlackUsername(msg, &inbox, b.displayName)
+	b.postSlack(channelID, text, threadTS, username, msg)
+	if InboundDebugEnabled() {
+		log.Printf("[slack] inbox outbound → Slack channel=%s thread=%s (hub %s)", channelID, threadTS, channelName)
+	}
+}
+
+func (b *Bridge) inboxRequiresManualReply(inbox InboxConfig) bool {
+	userTokenSet := b.userTokens != nil && b.userTokens.HasToken()
+	return inbox.ForwardEnabled && !ShouldAutoReplyHumanDMs(inbox, userTokenSet, time.Now())
 }
 
 func (b *Bridge) routeInbound(ctx context.Context, in InboundInput) {
@@ -188,7 +296,7 @@ func (b *Bridge) routeInbound(ctx context.Context, in InboundInput) {
 		return
 	}
 
-	if inbox.Enabled && inbox.OwnerSlackUserID != "" {
+	if inbox.Enabled && inbox.ForwardEnabled && inbox.OwnerSlackUserID != "" {
 		if match, ok := EvaluateForwardRules(in, inbox.ForwardRules, inbox.OwnerSlackUserID); ok {
 			b.processInboxInbound(ctx, in, &inbox, match)
 			return
@@ -284,7 +392,10 @@ func (b *Bridge) processInboxInbound(ctx context.Context, in InboundInput, inbox
 	}
 
 	b.resolveInboundUserIdentity(&work)
-	msg := BuildInboxMessage(work, &active, b.threads, forward)
+	msg := BuildInboxMessage(work, &active, b.threads, forward, "")
+	if forward != nil && b.inboxRequiresManualReply(active) {
+		ApplyInboxManualReply(msg)
+	}
 	if err := b.hub.SendMessage(msg); err != nil {
 		log.Printf("[slack] inbox SendMessage: %v", err)
 		return

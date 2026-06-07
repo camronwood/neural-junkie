@@ -62,6 +62,12 @@ import {
   patchRevealSidebarItems,
 } from '../utils/sidebarVisibility';
 import { MessageList, chatScrollerElRef } from './MessageList';
+import {
+  shouldNotifySlackInbound,
+  slackChannelLabel,
+  slackInboundPreview,
+  slackInboundSenderLabel,
+} from '../utils/slackNotification';
 import { TypingIndicator } from './TypingIndicator';
 import { RichTextInput } from './RichTextInput';
 import { ThreadPanel } from './ThreadPanel';
@@ -433,6 +439,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   // State for active collaboration panel
   const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
+  const [runbookBuilderDirty, setRunbookBuilderDirty] = useState(false);
   const activeCollabRef = useRef<Collaboration | null>(null);
   const collaborationsByIDRef = useRef<Record<string, Collaboration>>({});
   const [taskManagementOpen, setTaskManagementOpen] = useState(false);
@@ -935,6 +942,34 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [api, loadCollaborations, revealSidebarForChannel]
   );
 
+  const navigateToMessage = useCallback(
+    async (channelName: string, messageId: string) => {
+      useChatStore.getState().setPendingScrollToMessageId(messageId);
+      await handleSwitchChannel(channelName);
+    },
+    [handleSwitchChannel]
+  );
+
+  const surfaceSlackInboundNotification = useCallback(
+    (message: Message) => {
+      if (!message.channel || !shouldNotifySlackInbound(message)) return;
+      const label = slackChannelLabel(useChatStore.getState().channels, message.channel);
+      const sender = slackInboundSenderLabel(message);
+      addToast({
+        type: 'info',
+        variant: 'slack',
+        title: sender,
+        message: slackInboundPreview(message),
+        duration: 8000,
+        action: {
+          label: `Open ${label}`,
+          onClick: () => void navigateToMessage(message.channel!, message.id),
+        },
+      });
+    },
+    [addToast, navigateToMessage]
+  );
+
   const handleNewRunbook = useCallback(async () => {
     const pool = agents.filter((a) => a.status === 'active' || a.status === 'idle');
     if (pool.length < 1) {
@@ -1411,6 +1446,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           } else if (message.channel) {
             st.addMessageToCache(message.channel, message);
             st.markChannelUnread(message.channel);
+            if (shouldNotifySlackInbound(message)) {
+              surfaceSlackInboundNotification(message);
+            }
           }
         }
         return;
@@ -1418,6 +1456,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         // Message belongs to a different channel -- cache it and mark unread
         st.addMessageToCache(message.channel, message);
         st.markChannelUnread(message.channel);
+        if (shouldNotifySlackInbound(message)) {
+          surfaceSlackInboundNotification(message);
+        }
         if (isCollaborationMessage(message) || getCollaborationId(message)) {
           addToast({
             type: 'info',
@@ -2113,6 +2154,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     if (!activeCollab?.id) return;
     const targetChannel = activeCollab.channel?.trim() || channel;
     const tick = () => {
+      if (
+        runbookBuilderDirty &&
+        activeCollab.source === 'runbook' &&
+        (activeCollab.phase === 'draft' || activeCollab.phase === 'reviewing')
+      ) {
+        return;
+      }
       const latest = collaborationsByIDRef.current[activeCollab.id];
       if (!latest || !isNonTerminalCollaborationPhase(latest.phase)) {
         return;
@@ -2122,7 +2170,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     tick();
     const id = window.setInterval(tick, 10_000);
     return () => window.clearInterval(id);
-  }, [activeCollab?.id, activeCollab?.channel, channel, loadCollaborations]);
+  }, [activeCollab?.id, activeCollab?.channel, activeCollab?.phase, activeCollab?.source, channel, loadCollaborations, runbookBuilderDirty]);
 
   const toggleToolbarSidebar = useCallback(() => {
     setToolbarSidebarOpen((prev) => {
@@ -2527,7 +2575,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           <RunbookBuilderPanel
             collaboration={panelCollaboration}
             hubAgents={agentsToCollaborationAgents(agents)}
-            onClose={() => setActiveCollab(null)}
+            onClose={() => {
+              setRunbookBuilderDirty(false);
+              setActiveCollab(null);
+            }}
+            onDirtyChange={setRunbookBuilderDirty}
             onSaved={(snap) => {
               setActiveCollab(snap);
               void loadCollaborations(channel);

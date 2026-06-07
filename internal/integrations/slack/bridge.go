@@ -433,14 +433,36 @@ func (b *Bridge) registerOutboundSlackTS(hubMsg *protocol.Message, ts string) {
 
 // PostTestMessage sends a test line to a Slack channel (API test endpoint).
 func (b *Bridge) PostTestMessage(channelID, text string) error {
-	if text == "" {
+	if strings.TrimSpace(text) == "" {
 		text = "Neural Junkie Slack bridge test."
 	}
-	_, _, err := b.api.PostMessage(channelID,
-		slackapi.MsgOptionText(text, false),
-		slackapi.MsgOptionUsername(b.displayName),
-	)
+	_, err := b.PostRunbookMessage(channelID, text, "", "")
 	return err
+}
+
+// PostRunbookMessage sends a runbook action message to Slack and returns the message ts.
+func (b *Bridge) PostRunbookMessage(channelID, text, threadTS, username string) (string, error) {
+	channelID = strings.TrimSpace(channelID)
+	if channelID == "" {
+		return "", fmt.Errorf("channel_id required")
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", fmt.Errorf("text required")
+	}
+	opts := []slackapi.MsgOption{
+		slackapi.MsgOptionText(text, false),
+	}
+	if ts := strings.TrimSpace(threadTS); ts != "" {
+		opts = append(opts, slackapi.MsgOptionTS(ts))
+	}
+	name := strings.TrimSpace(username)
+	if name == "" {
+		name = b.displayName
+	}
+	opts = append(opts, slackapi.MsgOptionUsername(name))
+	_, msgTS, err := b.api.PostMessage(channelID, opts...)
+	return msgTS, err
 }
 
 // ReloadBindings reapplies hub state and restarts outbound listeners.

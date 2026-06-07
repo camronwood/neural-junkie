@@ -950,6 +950,15 @@ export class ChatAPI {
     });
   }
 
+  /** Toggle channel message forwarding into the personal inbox (reply from NJ). */
+  async setSlackInboxForwardEnabled(forwardEnabled: boolean): Promise<SlackInboxConfig> {
+    const current = await this.getSlackInbox();
+    return this.saveSlackInbox({
+      ...current,
+      forward_enabled: forwardEnabled,
+    });
+  }
+
   async testSlackInboxDM(text?: string): Promise<void> {
     const response = await this.hubFetch(`/api/slack/inbox/test-dm`, {
       method: 'POST',

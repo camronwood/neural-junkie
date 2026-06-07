@@ -24,11 +24,20 @@ type Result struct {
 	Data       map[string]interface{} `json:"data,omitempty"`
 }
 
+// SlackPostFunc posts a message to Slack and returns the message timestamp.
+type SlackPostFunc func(ctx context.Context, channelID, text, threadTS, username string) (ts string, err error)
+
+// ValidateSlackChannelFunc checks that the bot can post to channelID.
+type ValidateSlackChannelFunc func(channelID string) error
+
 // Config holds hub-level limits for action execution.
 type Config struct {
-	AllowedHosts   []string
-	SMSEnabled     bool
-	WebSearchQuery func(ctx context.Context, query string) ([]map[string]interface{}, error)
+	AllowedHosts         []string
+	SMSEnabled           bool
+	SlackEnabled         bool
+	SlackPost            SlackPostFunc
+	ValidateSlackChannel ValidateSlackChannelFunc
+	WebSearchQuery       func(ctx context.Context, query string) ([]map[string]interface{}, error)
 }
 
 // Runner executes collaboration action tasks.
@@ -65,6 +74,8 @@ func (r *Runner) Execute(ctx context.Context, collab *collaboration.Collaboratio
 		res, err = r.webSearch(ctx, cfg)
 	case "sms":
 		res, err = r.sms(cfg)
+	case "slack_message":
+		res, err = r.slackMessage(ctx, cfg)
 	case "mcp_tool":
 		res, err = Result{Summary: "mcp_tool execution is routed via agent MCP at dispatch", ActionType: typ}, nil
 	default:
@@ -180,6 +191,41 @@ func (r *Runner) sms(cfg map[string]interface{}) (Result, error) {
 		return Result{}, fmt.Errorf("sms requires to and body")
 	}
 	return Result{Summary: fmt.Sprintf("sms queued to %s (provider not configured in v1 stub)", to), Data: map[string]interface{}{"to": to}}, nil
+}
+
+func (r *Runner) slackMessage(ctx context.Context, cfg map[string]interface{}) (Result, error) {
+	if !r.Config.SlackEnabled {
+		return Result{}, fmt.Errorf("slack_message actions are disabled; connect Slack in Settings")
+	}
+	if r.Config.SlackPost == nil {
+		return Result{}, fmt.Errorf("slack_message not configured on hub")
+	}
+	channelID := stringVal(cfg, "channel_id")
+	text := stringVal(cfg, "text")
+	if channelID == "" {
+		return Result{}, fmt.Errorf("slack_message requires channel_id")
+	}
+	if text == "" {
+		return Result{}, fmt.Errorf("slack_message requires text")
+	}
+	if r.Config.ValidateSlackChannel != nil {
+		if err := r.Config.ValidateSlackChannel(channelID); err != nil {
+			return Result{}, err
+		}
+	}
+	threadTS := stringVal(cfg, "thread_ts")
+	username := stringVal(cfg, "username")
+	ts, err := r.Config.SlackPost(ctx, channelID, text, threadTS, username)
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{
+		Summary: fmt.Sprintf("Slack message posted to %s", channelID),
+		Data: map[string]interface{}{
+			"channel_id": channelID,
+			"ts":         ts,
+		},
+	}, nil
 }
 
 func (r *Runner) checkHost(rawURL string) error {

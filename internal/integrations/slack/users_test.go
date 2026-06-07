@@ -29,3 +29,13 @@ func TestFormatSlackSenderLabel(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestSlackUserDisplayOnly(t *testing.T) {
+	in := InboundInput{
+		UserName:      "Demo User (@camronwood975)",
+		SlackUsername: "camronwood975",
+	}
+	if got := SlackUserDisplayOnly(in); got != "Demo User" {
+		t.Fatalf("got %q", got)
+	}
+}

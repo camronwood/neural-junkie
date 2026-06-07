@@ -370,6 +370,7 @@ export interface SlackInboxConfig {
   nj_channel?: string;
   slack_dm_channel_id?: string;
   reply_in_thread?: boolean;
+  forward_enabled?: boolean;
   forward_rules?: SlackForwardRule[];
   human_dm_away?: SlackHumanDMAwayConfig;
 }

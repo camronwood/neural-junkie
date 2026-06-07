@@ -39,6 +39,9 @@ export interface ChatState {
   channels: Channel[];
   channelMessages: Map<string, Message[]>;
   unreadChannels: Set<string>;
+  unreadCounts: Record<string, number>;
+  pendingScrollToMessageId: string | null;
+  highlightMessageId: string | null;
   
   // Threads
   openThreadId: string | null;
@@ -91,6 +94,9 @@ export interface ChatState {
   switchChannel: (channelName: string) => void;
   markChannelUnread: (channelName: string) => void;
   clearChannelUnread: (channelName: string) => void;
+  getUnreadCount: (channelName: string) => number;
+  setPendingScrollToMessageId: (messageId: string | null) => void;
+  setHighlightMessageId: (messageId: string | null) => void;
   addMessageToCache: (channelName: string, message: Message) => void;
   /** Replace cached messages for a channel (e.g. after server-side history prune). */
   replaceChannelMessagesCache: (channelName: string, messages: Message[]) => void;
@@ -161,6 +167,9 @@ const initialState = {
   channels: [] as Channel[],
   channelMessages: new Map<string, Message[]>(),
   unreadChannels: new Set<string>(),
+  unreadCounts: {} as Record<string, number>,
+  pendingScrollToMessageId: null as string | null,
+  highlightMessageId: null as string | null,
   openThreadId: null,
   threadMessages: new Map<string, Message[]>(),
   threadMetadata: new Map<string, ThreadMetadata>(),
@@ -422,12 +431,15 @@ export const useChatStore = create<ChatState>((set, get) => {
       // Clear unread for the channel we're switching to
       const newUnread = new Set(state.unreadChannels);
       newUnread.delete(channelName);
+      const newCounts = { ...state.unreadCounts };
+      delete newCounts[channelName];
 
       return {
         channel: channelName,
         messages: cachedMessages,
         channelMessages: newCache,
         unreadChannels: newUnread,
+        unreadCounts: newCounts,
         openThreadId: null,
         streamingMessages: {},
       };
@@ -439,15 +451,25 @@ export const useChatStore = create<ChatState>((set, get) => {
       if (channelName === state.channel) return state;
       const newUnread = new Set(state.unreadChannels);
       newUnread.add(channelName);
-      return { unreadChannels: newUnread };
+      const newCounts = { ...state.unreadCounts };
+      newCounts[channelName] = (newCounts[channelName] ?? 0) + 1;
+      return { unreadChannels: newUnread, unreadCounts: newCounts };
     }),
 
   clearChannelUnread: (channelName) =>
     set((state) => {
       const newUnread = new Set(state.unreadChannels);
       newUnread.delete(channelName);
-      return { unreadChannels: newUnread };
+      const newCounts = { ...state.unreadCounts };
+      delete newCounts[channelName];
+      return { unreadChannels: newUnread, unreadCounts: newCounts };
     }),
+
+  getUnreadCount: (channelName) => get().unreadCounts[channelName] ?? 0,
+
+  setPendingScrollToMessageId: (messageId) => set({ pendingScrollToMessageId: messageId }),
+
+  setHighlightMessageId: (messageId) => set({ highlightMessageId: messageId }),
 
   addMessageToCache: (channelName, message) =>
     set((state) => {
@@ -747,6 +769,9 @@ export const useChatStore = create<ChatState>((set, get) => {
       threadMetadata: new Map<string, ThreadMetadata>(),
       channelMessages: new Map<string, Message[]>(),
       unreadChannels: new Set<string>(),
+      unreadCounts: {},
+      pendingScrollToMessageId: null,
+      highlightMessageId: null,
       streamingMessages: {},
       channelHeld: new Map<string, boolean>(),
     });
@@ -761,6 +786,9 @@ export const useChatStore = create<ChatState>((set, get) => {
     threadMetadata: new Map<string, ThreadMetadata>(),
     channelMessages: new Map<string, Message[]>(),
     unreadChannels: new Set<string>(),
+    unreadCounts: {},
+    pendingScrollToMessageId: null,
+    highlightMessageId: null,
     streamingMessages: {},
     channelHeld: new Map<string, boolean>(),
   });

@@ -85,3 +85,21 @@ func FormatSlackSenderLabel(display, handle string) string {
 	}
 	return display + " (@" + handle + ")"
 }
+
+// SlackUserDisplayOnly returns the human display name without (@handle) suffix for sidebar labels.
+func SlackUserDisplayOnly(in InboundInput) string {
+	label := strings.TrimSpace(in.UserName)
+	if label == "" {
+		return "Slack User"
+	}
+	if handle := strings.TrimSpace(in.SlackUsername); handle != "" {
+		suffix := " (@" + handle + ")"
+		if strings.HasSuffix(label, suffix) {
+			return strings.TrimSpace(strings.TrimSuffix(label, suffix))
+		}
+	}
+	if idx := strings.Index(label, " (@"); idx > 0 {
+		return strings.TrimSpace(label[:idx])
+	}
+	return label
+}

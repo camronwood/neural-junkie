@@ -7,7 +7,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { parseDMDisplayName } from '../utils/dmChannelDisplay';
 import { buildSidebarDMRows } from '../utils/sidebarDmRows';
-import { channelSidebarLabel, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
+import { channelSidebarLabel, isSlackHubChannelName, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
 import {
   agentSidebarHideKey,
   isAgentShortcutDeleted,
@@ -17,7 +17,9 @@ import {
   isSidebarChannelDeleted,
 } from '../utils/sidebarVisibility';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
-import { useSlackAwayChip } from '../hooks/useSlackAwayChip';
+import { useSlackSidebarControls } from '../hooks/useSlackSidebarControls';
+import { SlackSidebarChip } from './SlackSidebarChip';
+import { SlackIcon } from './icons/SlackIcon';
 
 interface ChannelSidebarProps {
   channels: Channel[];
@@ -143,20 +145,20 @@ export function ChannelSidebar({
   onOpenChannelInfo,
 }: ChannelSidebarProps) {
   const channelsNorm = channels.map(normalizeChannelRow);
-  const { channel: activeChannel, unreadChannels, channelThinkingAgents } = useChatStore(
+  const { channel: activeChannel, unreadChannels, unreadCounts, channelThinkingAgents } = useChatStore(
     (s) => ({
       channel: s.channel,
       unreadChannels: s.unreadChannels,
+      unreadCounts: s.unreadCounts,
       channelThinkingAgents: s.channelThinkingAgents,
     }),
     shallow
   );
   const sidebarAgentsVisible = useSettingsStore(s => s.layoutSettings.sidebarAgentsVisible);
-  const updateLayoutSettings = useSettingsStore(s => s.updateLayoutSettings);
   const settings = useSettingsStore(s => s.settings);
   const settingsLoaded = useSettingsStore(s => s.isLoaded);
   const updateSettings = useSettingsStore(s => s.updateSettings);
-  const slackAway = useSlackAwayChip();
+  const slackControls = useSlackSidebarControls();
 
   const [width, setWidth] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -188,8 +190,11 @@ export function ChannelSidebar({
     .filter(c => c.type === 'public' || !c.type)
     .sort((a, b) => a.name.localeCompare(b.name));
   const customChannels = channelsNorm
-    .filter(c => c.type === 'custom')
+    .filter(c => c.type === 'custom' && !isSlackHubChannelName(c.name))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const slackChannels = channelsNorm
+    .filter(c => isSlackHubChannelName(c.name))
+    .sort((a, b) => channelSidebarLabel(a).localeCompare(channelSidebarLabel(b), undefined, { sensitivity: 'base' }));
   const collaborationChannels = channelsNorm
     .filter(c => c.type === 'collaboration')
     .filter(c => !(settingsLoaded && isSidebarChannelDeleted(settings, c)))
@@ -221,6 +226,15 @@ export function ChannelSidebar({
   const filteredCustomChannels = customChannels.filter((c) => {
     if (!normalizedQuery) return true;
     return (
+      c.name.toLowerCase().includes(normalizedQuery) ||
+      (c.description || '').toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const filteredSlackChannels = slackChannels.filter((c) => {
+    if (!normalizedQuery) return true;
+    const label = channelSidebarLabel(c).toLowerCase();
+    return (
+      label.includes(normalizedQuery) ||
       c.name.toLowerCase().includes(normalizedQuery) ||
       (c.description || '').toLowerCase().includes(normalizedQuery)
     );
@@ -276,6 +290,7 @@ export function ChannelSidebar({
   const hasSearchResults =
     filteredPublicChannels.length > 0 ||
     filteredCustomChannels.length > 0 ||
+    filteredSlackChannels.length > 0 ||
     filteredCollaborationChannels.length > 0 ||
     sidebarDMRows.length > 0;
 
@@ -359,6 +374,58 @@ export function ChannelSidebar({
     void updateSettings({ hiddenAgentSidebarKeys: [...keys, key] });
   };
 
+  const SlackChannelItem = ({ ch }: { ch: Channel }) => {
+    const isActive = ch.name === activeChannel;
+    const isUnread = unreadChannels.has(ch.name);
+    const unreadCount = unreadCounts[ch.name] ?? 0;
+    const isTyping = (channelThinkingAgents.get(ch.name)?.size ?? 0) > 0;
+    const displayName = channelSidebarLabel(ch);
+    const rowClass = `flex-1 min-w-0 text-left px-2 py-1 rounded text-sm flex items-center gap-1.5 transition-colors ${
+      isActive
+        ? 'bg-slack-accent text-white font-semibold'
+        : isUnread
+          ? 'text-white font-semibold hover:bg-white/10'
+          : 'text-slack-textMuted hover:bg-white/10 hover:text-white'
+    }`;
+
+    return (
+      <div className="group flex items-center gap-0.5 w-full min-w-0">
+        <button
+          type="button"
+          onClick={() => onSwitchChannel(ch.name)}
+          className={rowClass}
+          title={displayName}
+        >
+          <SlackIcon className="w-3 h-3 shrink-0 opacity-80" />
+          <span className="truncate">{displayName}</span>
+          {isTyping && <TypingDots active={isActive} />}
+          {isUnread && !isActive && !isTyping && (
+            <span
+              className="ml-auto inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-slack-accent px-1.5 text-[10px] font-semibold leading-none text-white"
+              aria-label={`${unreadCount} unread`}
+            >
+              {unreadCount > 99 ? '99+' : unreadCount > 0 ? unreadCount : ''}
+            </span>
+          )}
+        </button>
+        {onOpenChannelInfo && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenChannelInfo(ch);
+            }}
+            className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 px-1 py-0.5 text-[11px] text-white/35 hover:text-white/90 rounded hover:bg-white/10"
+            title="Channel details"
+            aria-label={`Details for ${displayName}`}
+          >
+            ⓘ
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const ChannelItem = ({ ch }: { ch: Channel }) => {
     const isActive = ch.name === activeChannel;
     const isUnread = unreadChannels.has(ch.name);
@@ -386,7 +453,7 @@ export function ChannelSidebar({
             isCollab
               ? `${displayName} (${ch.name})`
               : isSlackMirror
-                ? `${displayName} (${ch.name})`
+                ? displayName
                 : (ch.description || ch.name)
           }
         >
@@ -574,49 +641,6 @@ export function ChannelSidebar({
       <div className="px-3 py-2 border-b border-white/10">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-white truncate">Neural Junkie</h2>
-          <div className="flex items-center gap-1 shrink-0">
-            {slackAway.visible && (
-              <button
-                type="button"
-                onClick={() => void slackAway.toggle()}
-                disabled={slackAway.toggling || slackAway.loading}
-                className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border disabled:opacity-50 ${
-                  slackAway.awayEnabled
-                    ? slackAway.monitoringActive
-                      ? 'border-amber-400/70 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30'
-                      : 'border-amber-400/40 bg-amber-500/10 text-amber-200/80 hover:bg-amber-500/20'
-                    : 'border-white/20 text-white/50 hover:bg-white/10 hover:text-white/70'
-                }`}
-                title={
-                  slackAway.awayEnabled
-                    ? slackAway.monitoringActive
-                      ? 'Away on — monitoring human Slack DMs. Click to turn off.'
-                      : 'Away on — click to turn off manual away mode.'
-                    : slackAway.monitoringActive
-                      ? 'Monitoring via schedule. Click to turn on manual away.'
-                      : 'Away off — click to monitor human Slack DMs while away.'
-                }
-              >
-                {slackAway.toggling ? '…' : slackAway.awayEnabled ? 'Away' : 'Away off'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void updateLayoutSettings({ sidebarAgentsVisible: !sidebarAgentsVisible })}
-              className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
-                sidebarAgentsVisible
-                  ? 'border-white/20 text-white/70 hover:bg-white/10'
-                  : 'border-slack-accent/50 text-slack-accent hover:bg-white/10'
-              }`}
-              title={
-                sidebarAgentsVisible
-                  ? 'Hide agent shortcuts under Direct Messages'
-                  : 'Show agent shortcuts under Direct Messages'
-              }
-            >
-              {sidebarAgentsVisible ? 'Agents' : 'Agents off'}
-            </button>
-          </div>
         </div>
         <div className="mt-2 flex items-center gap-1">
           <input
@@ -675,6 +699,27 @@ export function ChannelSidebar({
             )}
           </div>
         </div>
+
+        {(slackControls.slackConnected || filteredSlackChannels.length > 0) && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between gap-2 px-1 mb-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                Slack
+              </span>
+              <SlackSidebarChip controls={slackControls} />
+            </div>
+            <div className="space-y-0.5">
+              {filteredSlackChannels.map((ch) => (
+                <SlackChannelItem key={ch.id} ch={ch} />
+              ))}
+              {filteredSlackChannels.length === 0 && !normalizedQuery ? (
+                <p className="px-2 py-1 text-[11px] text-white/40">
+                  Bind a Slack channel in Settings to see it here.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        )}
 
         {/* Direct Messages Section */}
         <div>

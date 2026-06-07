@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { shallow } from 'zustand/shallow';
 import { ChatAPI } from '../api/chatAPI';
 import { useChatStore } from '../stores/chatStore';
@@ -6,6 +6,8 @@ import type { Collaboration, CollaborationAgent, CollaborationTask } from '../ty
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { RunbookImportModal } from './RunbookImportModal';
 import { RunbookGraphModal } from './runbook-graph';
+import { RunbookActionConfigEditor } from './runbook/RunbookActionConfigEditor';
+import { defaultActionSpec } from '../utils/runbookActionUtils';
 import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../utils/runbookTaskUtils';
 
 interface RunbookBuilderPanelProps {
@@ -14,6 +16,7 @@ interface RunbookBuilderPanelProps {
   onClose: () => void;
   onSaved: (collab: Collaboration) => void;
   onStarted?: (collab: Collaboration) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function RunbookBuilderPanel({
@@ -22,6 +25,7 @@ export function RunbookBuilderPanel({
   onClose,
   onSaved,
   onStarted,
+  onDirtyChange,
 }: RunbookBuilderPanelProps) {
   const { serverAddr } = useChatStore((s) => ({ serverAddr: s.serverAddr }), shallow);
   const [api] = useState(() => new ChatAPI(serverAddr));
@@ -37,6 +41,15 @@ export function RunbookBuilderPanel({
   const [graphOpen, setGraphOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  const markDirty = useCallback(() => {
+    setDirty(true);
+  }, []);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const editable = collaboration.phase === 'draft' || collaboration.phase === 'reviewing';
   const poolAgents = hubAgents.filter((a) => agentPool.includes(a.agent_id));
@@ -59,6 +72,7 @@ export function RunbookBuilderPanel({
         graph_layout: collaboration.graph_layout,
       });
       onSaved(snap);
+      setDirty(false);
       return snap;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -83,6 +97,7 @@ export function RunbookBuilderPanel({
         next[index] = { ...next[index], assigned_to: s.agent_id, assigned_name: s.agent_name };
         return next;
       });
+      markDirty();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -96,6 +111,7 @@ export function RunbookBuilderPanel({
     try {
       const parsed = await api.parseRunbookPlan(collaboration.id, markdown);
       setTasks(parsed);
+      markDirty();
       setImportOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -149,18 +165,45 @@ export function RunbookBuilderPanel({
     }
   };
 
+  const collabIdRef = useRef(collaboration.id);
+
   useEffect(() => {
+    if (collaboration.id !== collabIdRef.current) {
+      collabIdRef.current = collaboration.id;
+      setDescription(collaboration.description);
+      setAgentPool(collaboration.agents.map((a) => a.agent_id));
+      setTasks(collaboration.tasks?.length ? collaboration.tasks : [createEmptyTask()]);
+      setExecutionPolicy(
+        collaboration.execution_policy ?? { blocked_upstream_policy: 'block' as const, strict_task_status: true }
+      );
+      setDirty(false);
+      return;
+    }
+    if (dirty) return;
     setDescription(collaboration.description);
     setAgentPool(collaboration.agents.map((a) => a.agent_id));
     if (collaboration.tasks?.length) {
       setTasks(collaboration.tasks);
     }
-  }, [collaboration.id, collaboration.description, collaboration.agents, collaboration.tasks]);
+    if (collaboration.execution_policy) {
+      setExecutionPolicy(collaboration.execution_policy);
+    }
+  }, [
+    collaboration.id,
+    collaboration.description,
+    collaboration.agents,
+    collaboration.tasks,
+    collaboration.execution_policy,
+    dirty,
+  ]);
 
   return (
     <div style={panelStyle}>
       <div style={panelHeaderStyle}>
-        <h3 style={panelTitleStyle}>Runbook builder</h3>
+        <h3 style={panelTitleStyle}>
+          Runbook builder
+          {dirty ? <span style={unsavedBadgeStyle}>Unsaved</span> : null}
+        </h3>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button
             type="button"
@@ -183,7 +226,10 @@ export function RunbookBuilderPanel({
           Goal
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              markDirty();
+            }}
             disabled={!editable || busy}
             rows={2}
             style={inputStyle}
@@ -195,12 +241,13 @@ export function RunbookBuilderPanel({
           Blocked upstream
           <select
             value={executionPolicy.blocked_upstream_policy ?? 'block'}
-            onChange={(e) =>
+            onChange={(e) => {
               setExecutionPolicy((p) => ({
                 ...p,
                 blocked_upstream_policy: e.target.value as 'block' | 'skip_branch' | 'fail_run',
-              }))
-            }
+              }));
+              markDirty();
+            }}
             disabled={!editable || busy}
             style={inputStyle}
           >
@@ -215,19 +262,28 @@ export function RunbookBuilderPanel({
             type="number"
             min={0}
             value={executionPolicy.max_concurrent_tasks ?? 0}
-            onChange={(e) =>
+            onChange={(e) => {
               setExecutionPolicy((p) => ({
                 ...p,
                 max_concurrent_tasks: parseInt(e.target.value, 10) || 0,
-              }))
-            }
+              }));
+              markDirty();
+            }}
             disabled={!editable || busy}
             style={inputStyle}
           />
         </label>
 
         <SectionTitle>Agent pool</SectionTitle>
-        <AgentPoolPicker hubAgents={hubAgents} selected={agentPool} onChange={setAgentPool} disabled={!editable || busy} />
+        <AgentPoolPicker
+          hubAgents={hubAgents}
+          selected={agentPool}
+          onChange={(ids) => {
+            setAgentPool(ids);
+            markDirty();
+          }}
+          disabled={!editable || busy}
+        />
 
         <SectionTitle>Tasks ({tasks.length}/{MAX_RUNBOOK_TASKS})</SectionTitle>
         {tasks.map((task, i) => (
@@ -242,10 +298,14 @@ export function RunbookBuilderPanel({
                   next[i] = {
                     ...next[i],
                     kind,
-                    action: kind === 'action' ? next[i].action ?? { type: 'http_get', config: { url: '' } } : undefined,
+                    action:
+                      kind === 'action'
+                        ? next[i].action ?? defaultActionSpec('http_get')
+                        : undefined,
                   };
                   return next;
                 });
+                markDirty();
               }}
               disabled={!editable || busy}
               style={{ ...inputStyle, marginBottom: 6 }}
@@ -253,23 +313,21 @@ export function RunbookBuilderPanel({
               <option value="agent">Agent task</option>
               <option value="action">Action (HTTP / webhook / …)</option>
             </select>
-            {task.kind === 'action' ? (
-              <input
-                placeholder="Action type (http_get, webhook, web_search, …)"
-                value={task.action?.type ?? 'http_get'}
-                onChange={(e) => {
-                  const v = e.target.value;
+            {task.kind === 'action' && task.action ? (
+              <RunbookActionConfigEditor
+                action={task.action}
+                api={api}
+                disabled={!editable || busy}
+                inputStyle={inputStyle}
+                labelStyle={labelStyle}
+                onChange={(action) => {
                   setTasks((prev) => {
                     const next = [...prev];
-                    next[i] = {
-                      ...next[i],
-                      action: { ...next[i].action, type: v, config: next[i].action?.config ?? {} },
-                    };
+                    next[i] = { ...next[i], action };
                     return next;
                   });
+                  markDirty();
                 }}
-                disabled={!editable || busy}
-                style={{ ...inputStyle, marginBottom: 6 }}
               />
             ) : null}
             <input
@@ -282,6 +340,7 @@ export function RunbookBuilderPanel({
                   next[i] = { ...next[i], title: v };
                   return next;
                 });
+                markDirty();
               }}
               disabled={!editable || busy}
               style={inputStyle}
@@ -296,24 +355,28 @@ export function RunbookBuilderPanel({
                   next[i] = { ...next[i], description: v };
                   return next;
                 });
+                markDirty();
               }}
               disabled={!editable || busy}
               rows={2}
               style={{ ...inputStyle, marginTop: 6 }}
             />
-            <AssignRow
-              agents={allAgents}
-              task={task}
-              disabled={!editable || busy}
-              onAssign={(agentId, agentName) => {
-                setTasks((prev) => {
-                  const next = [...prev];
-                  next[i] = { ...next[i], assigned_to: agentId, assigned_name: agentName };
-                  return next;
-                });
-              }}
-              onAuto={() => void handleAutoAssign(i)}
-            />
+            {(task.kind ?? 'agent') !== 'action' ? (
+              <AssignRow
+                agents={allAgents}
+                task={task}
+                disabled={!editable || busy}
+                onAssign={(agentId, agentName) => {
+                  setTasks((prev) => {
+                    const next = [...prev];
+                    next[i] = { ...next[i], assigned_to: agentId, assigned_name: agentName };
+                    return next;
+                  });
+                  markDirty();
+                }}
+                onAuto={() => void handleAutoAssign(i)}
+              />
+            ) : null}
             {tasks.length > 1 ? (
               <TaskDependenciesEditor
                 taskIndex={i}
@@ -325,11 +388,20 @@ export function RunbookBuilderPanel({
                     next[i] = { ...next[i], dependencies: deps };
                     return next;
                   });
+                  markDirty();
                 }}
               />
             ) : null}
             {editable && tasks.length > 1 ? (
-              <button type="button" onClick={() => setTasks((prev) => prev.filter((_, j) => j !== i))} disabled={busy} style={dangerBtn}>
+              <button
+                type="button"
+                onClick={() => {
+                  setTasks((prev) => prev.filter((_, j) => j !== i));
+                  markDirty();
+                }}
+                disabled={busy}
+                style={dangerBtn}
+              >
                 Remove task
               </button>
             ) : null}
@@ -337,7 +409,15 @@ export function RunbookBuilderPanel({
         ))}
 
         {editable && tasks.length < MAX_RUNBOOK_TASKS ? (
-          <button type="button" onClick={() => setTasks((prev) => [...prev, createEmptyTask()])} disabled={busy} style={secondaryBtn}>
+          <button
+            type="button"
+            onClick={() => {
+              setTasks((prev) => [...prev, createEmptyTask()]);
+              markDirty();
+            }}
+            disabled={busy}
+            style={secondaryBtn}
+          >
             + Add task
           </button>
         ) : null}
@@ -386,10 +466,14 @@ export function RunbookBuilderPanel({
         collaboration={collaboration}
         agents={allAgents}
         tasks={tasks}
+        api={api}
         editable={editable}
         busy={busy}
         onClose={() => setGraphOpen(false)}
-        onTasksChange={setTasks}
+        onTasksChange={(next) => {
+          setTasks(next);
+          markDirty();
+        }}
         onSave={async () => {
           const snap = await persist();
           return !!snap;
@@ -574,6 +658,20 @@ const panelTitleStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
   color: 'var(--text-primary, #e8e8e8)',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+};
+
+const unsavedBadgeStyle: CSSProperties = {
+  fontSize: 10,
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+  padding: '2px 6px',
+  borderRadius: 4,
+  backgroundColor: '#78350f',
+  color: '#fcd34d',
 };
 
 const taskTitleStyle: CSSProperties = {

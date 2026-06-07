@@ -16,6 +16,7 @@ const (
 	SlackMetaSourceChannelName = "slack_source_channel_name"
 	SlackMetaOriginalAuthor    = "slack_original_author"
 	SlackMetaHumanDM           = "slack_human_dm"
+	SlackMetaManualReply       = "slack_manual_reply"
 )
 
 // IsSlackMirrorChannel reports hub channels mirrored from Slack (slack:…).
@@ -26,6 +27,36 @@ func IsSlackMirrorChannel(channel string) bool {
 // IsSlackInboxChannel reports personal inbox hub channels (slack:inbox:U…).
 func IsSlackInboxChannel(channel string) bool {
 	return strings.HasPrefix(channel, "slack:inbox:")
+}
+
+// IsSlackInboxPeerChannel reports per-peer inbox channels (slack:inbox:U_OWNER:U_PEER).
+func IsSlackInboxPeerChannel(channel string) bool {
+	parts := strings.Split(channel, ":")
+	return len(parts) >= 4 && parts[0] == "slack" && parts[1] == "inbox"
+}
+
+// IsSlackManualInboxReply reports hub inbox lines surfaced for manual owner reply.
+func (m *Message) IsSlackManualInboxReply() bool {
+	if m == nil || m.Metadata == nil {
+		return false
+	}
+	v, ok := m.Metadata[SlackMetaManualReply].(bool)
+	return ok && v
+}
+
+// SlackInboxAwaitingManualReply reports inbox messages the owner should answer manually.
+func (m *Message) SlackInboxAwaitingManualReply() bool {
+	if m.IsSlackManualInboxReply() {
+		return true
+	}
+	if m == nil || !IsSlackInboxChannel(m.Channel) || m.Metadata == nil {
+		return false
+	}
+	inbox, ok := m.Metadata[SlackMetaInbox].(bool)
+	if !ok || !inbox || m.SlackRoutedAgentID() != "" {
+		return false
+	}
+	return strings.HasPrefix(m.From.ID, "slack:")
 }
 
 // SlackRoutedAgentID returns the agent the Slack bridge routed this line to.

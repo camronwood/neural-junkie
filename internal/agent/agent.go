@@ -1070,6 +1070,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if routed := msg.SlackRoutedAgentID(); routed != "" {
 		return routed == a.Info.ID
 	}
+	// Forward-mode inbox lines are for manual owner reply, not agent auto-response.
+	if msg.SlackInboxAwaitingManualReply() {
+		return false
+	}
 	// IDE file-tab routing applies only when the user did not @mention a specific agent.
 	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() {
 		if userRequestsCodeReview(msg.Content) {

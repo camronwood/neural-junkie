@@ -1093,6 +1093,7 @@ export function CollaborationPanel({
         collaboration={c}
         agents={c.agents}
         tasks={c.tasks ?? []}
+        api={api}
         editable={false}
         onClose={() => setGraphOpen(false)}
         onTasksChange={() => {}}

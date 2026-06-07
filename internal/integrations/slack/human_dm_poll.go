@@ -24,19 +24,23 @@ func (b *Bridge) runHumanDMPoll(ctx context.Context) {
 
 		inbox := b.inbox.Get()
 		userTokenSet := b.userTokens != nil && b.userTokens.HasToken()
-		monitoring := ShouldMonitorHumanDMs(inbox, userTokenSet, time.Now())
-		if monitoring != lastMonitoring {
-			if monitoring {
-				log.Printf("[slack] human_dm poll: monitoring active (away=%v schedule=%v)", inbox.HumanDMAway.AwayEnabled, inbox.HumanDMAway.ScheduleEnabled)
+		polling := ShouldPollHumanDMs(inbox, userTokenSet, time.Now())
+		if polling != lastMonitoring {
+			if polling {
+				if ShouldMonitorHumanDMs(inbox, userTokenSet, time.Now()) {
+					log.Printf("[slack] human_dm poll: away active (away=%v schedule=%v)", inbox.HumanDMAway.AwayEnabled, inbox.HumanDMAway.ScheduleEnabled)
+				} else {
+					log.Printf("[slack] human_dm poll: forward active")
+				}
 			} else {
-				log.Printf("[slack] human_dm poll: monitoring inactive")
+				log.Printf("[slack] human_dm poll: inactive")
 			}
-			lastMonitoring = monitoring
-			if monitoring {
+			lastMonitoring = polling
+			if polling {
 				channelCursors = map[string]string{}
 			}
 		}
-		if !monitoring {
+		if !polling {
 			time.Sleep(humanDMPollIdleInterval * time.Second)
 			continue
 		}

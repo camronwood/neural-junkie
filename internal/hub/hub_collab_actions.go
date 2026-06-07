@@ -10,11 +10,27 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// SetCollabActionRunnerConfig configures hub-level action execution (HTTP allowlist, SMS, Slack, etc.).
+func (h *Hub) SetCollabActionRunnerConfig(cfg actions.Config) {
+	if h == nil {
+		return
+	}
+	h.collabActionConfigMu.Lock()
+	h.collabActionConfig = cfg
+	h.collabActionConfigMu.Unlock()
+}
+
 func (h *Hub) collabActionRunner() *actions.Runner {
-	return actions.NewRunner(actions.Config{
+	cfg := actions.Config{
 		AllowedHosts: nil,
 		SMSEnabled:   false,
-	})
+	}
+	if h != nil {
+		h.collabActionConfigMu.RLock()
+		cfg = h.collabActionConfig
+		h.collabActionConfigMu.RUnlock()
+	}
+	return actions.NewRunner(cfg)
 }
 
 // executeCollabActionTask runs a hub action task and marks it complete on success.

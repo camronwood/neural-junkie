@@ -11,6 +11,7 @@ Runbook tasks default to **agent** steps (`collaboration_task` prompts). Set `ki
 | `webhook` | POST payload to a webhook URL |
 | `web_search` | Query web search (stub unless provider configured) |
 | `sms` | SMS notify (disabled unless enabled in server config) |
+| `slack_message` | Post a message to a Slack channel (requires connected Slack bridge) |
 | `mcp_tool` | Reserved; use agent + MCP for tool calls in v1 |
 
 ## Output format
@@ -27,10 +28,35 @@ Action tasks store JSON in `task.output`:
 
 Downstream **conditional edges** can match `on_output` with `contains` or `regex`.
 
+### `slack_message` config
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `channel_id` | yes | Slack channel ID (e.g. `C01234567`) |
+| `text` | yes | Message body; supports `{{task.title}}`, `{{task.description}}`, `{{collab.description}}` |
+| `thread_ts` | no | Reply in an existing thread |
+| `username` | no | Bot display name override |
+
+Example:
+
+```json
+{
+  "kind": "action",
+  "title": "Notify #eng",
+  "action": {
+    "type": "slack_message",
+    "config": {
+      "channel_id": "C01234567",
+      "text": "Runbook step **{{task.title}}** finished."
+    }
+  }
+}
+```
+
 ## Security
 
 - Host allowlist and private-IP blocking for HTTP actions
-- Webhook/SMS/non-allowlisted HTTP should use tool approval (desktop)
+- Webhook/SMS/Slack/non-allowlisted HTTP should use tool approval (desktop)
 - Do not store secrets in runbook JSON — use connector profile IDs (future Settings UI)
 
 ## Templates

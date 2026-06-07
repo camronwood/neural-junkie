@@ -15,6 +15,7 @@ type HubClient interface {
 	Subscribe(channelName string) (chan *protocol.Message, error)
 	Unsubscribe(channelName string, ch chan *protocol.Message)
 	GetChannel(name string) (*protocol.Channel, error)
+	ListChannels() []*protocol.Channel
 	CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel
 	AddAgentToChannel(agentID, channelName string) error
 	ResolveAgentID(agentID, agentName string) (string, error)
@@ -43,6 +44,10 @@ func (a HubAdapter) Unsubscribe(channelName string, ch chan *protocol.Message) {
 
 func (a HubAdapter) GetChannel(name string) (*protocol.Channel, error) {
 	return a.H.GetChannel(name)
+}
+
+func (a HubAdapter) ListChannels() []*protocol.Channel {
+	return a.H.ListChannels()
 }
 
 func (a HubAdapter) CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel {

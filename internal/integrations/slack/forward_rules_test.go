@@ -96,6 +96,27 @@ func TestInboxOutboundTargetDMDefault(t *testing.T) {
 	}
 }
 
+func TestInboxOutboundTargetPeerChannelRoute(t *testing.T) {
+	inbox := &InboxConfig{Enabled: true, OwnerSlackUserID: "U1", NJChannel: "slack:inbox:U1", SlackDMChannelID: "D_BOT"}
+	threads, _ := NewThreadMap()
+	peerChannel := "slack:inbox:U1:U2"
+	_ = threads.RegisterHumanDMReplyRoute(peerChannel, "D_PEER", "")
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, peerChannel, protocol.AgentInfo{ID: "user-1", Type: protocol.AgentTypeGeneral}, "reply")
+	ch, ts := InboxOutboundTarget(msg, inbox, threads)
+	if ch != "D_PEER" || ts != "" {
+		t.Fatalf("got channel=%q thread=%q", ch, ts)
+	}
+}
+
+func TestShouldPostInboxToSlackPeerChannel(t *testing.T) {
+	inbox := &InboxConfig{Enabled: true, OwnerSlackUserID: "U1", NJChannel: "slack:inbox:U1", AgentID: "a1"}
+	agentMsg := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:inbox:U1:U2", protocol.AgentInfo{ID: "a1"}, "hi")
+	if !ShouldPostInboxToSlack(agentMsg, inbox) {
+		t.Fatal("expected peer inbox answer to post")
+	}
+}
+
 func TestShouldPostInboxToSlack(t *testing.T) {
 	inbox := &InboxConfig{Enabled: true, NJChannel: "slack:inbox:U1", AgentID: "a1"}
 	agentMsg := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:inbox:U1", protocol.AgentInfo{ID: "a1"}, "hi")

@@ -7,6 +7,7 @@ import {
   isSidebarChannelDeleted,
 } from './sidebarVisibility';
 import { parseDMDisplayName } from './dmChannelDisplay';
+import { channelSidebarLabel, isSlackHubChannelName } from './slackChannelDisplay';
 
 export interface NavigableChannel {
   name: string;
@@ -38,7 +39,12 @@ export function buildNavigableChannelList(
   const publicChannels = sortChannels(
     channels.filter((c) => c.type === 'public' || !c.type)
   );
-  const customChannels = sortChannels(channels.filter((c) => c.type === 'custom'));
+  const customChannels = sortChannels(
+    channels.filter((c) => c.type === 'custom' && !isSlackHubChannelName(c.name))
+  );
+  const slackChannels = [...channels.filter((c) => isSlackHubChannelName(c.name))].sort((a, b) =>
+    channelSidebarLabel(a).localeCompare(channelSidebarLabel(b), undefined, { sensitivity: 'base' })
+  );
   const collaborationChannels = sortChannels(
     channels
       .filter((c) => c.type === 'collaboration')
@@ -79,6 +85,9 @@ export function buildNavigableChannelList(
     result.push({ name: ch.name, type: ch.type ?? 'public' });
   }
   for (const ch of customChannels) {
+    result.push({ name: ch.name, type: 'custom' });
+  }
+  for (const ch of slackChannels) {
     result.push({ name: ch.name, type: 'custom' });
   }
   for (const ch of collaborationChannels) {

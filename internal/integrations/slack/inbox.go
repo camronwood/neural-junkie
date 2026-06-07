@@ -52,6 +52,48 @@ func ApplyInbox(ctx context.Context, hub HubClient, ensure AgentEnsurer, inbox I
 	return nil
 }
 
+// EnsureInboxPeerChannel creates or updates a per-peer inbox hub channel.
+func EnsureInboxPeerChannel(ctx context.Context, hub HubClient, ensure AgentEnsurer, inbox InboxConfig, peerUserID, peerDisplayName string) (channelName string, created bool, err error) {
+	if !inbox.Enabled {
+		return "", false, fmt.Errorf("inbox disabled")
+	}
+	if inbox.OwnerSlackUserID == "" {
+		return "", false, fmt.Errorf("owner_slack_user_id required")
+	}
+	peerUserID = strings.TrimSpace(peerUserID)
+	if peerUserID == "" {
+		return "", false, fmt.Errorf("peer user id required")
+	}
+	name := NJInboxPeerChannelName(inbox.OwnerSlackUserID, peerUserID)
+	display := strings.TrimSpace(peerDisplayName)
+	if display == "" {
+		display = peerUserID
+	}
+	desc := "Slack DM — " + display
+	if _, err := hub.GetChannel(name); err != nil {
+		hub.CreateChannelWithType(name, desc, "", protocol.ChannelTypeCustom, "slack-inbox")
+		log.Printf("[slack] created inbox peer hub channel %s", name)
+		created = true
+	}
+	_ = hub.SetChannelDisplay(name, display, desc)
+	if inbox.AgentID == "" {
+		return name, created, nil
+	}
+	resolvedID, err := hub.ResolveAgentID(inbox.AgentID, inbox.AgentName)
+	if err != nil {
+		return name, created, err
+	}
+	if err := hub.AddAgentToChannel(resolvedID, name); err != nil {
+		return name, created, fmt.Errorf("add agent to peer inbox channel: %w", err)
+	}
+	if ensure != nil {
+		if err := ensure(ctx, resolvedID, name); err != nil {
+			return name, created, fmt.Errorf("ensure peer inbox agent subscribed: %w", err)
+		}
+	}
+	return name, created, nil
+}
+
 // ReconcileInboxAgentID updates stored inbox agent_id when the hub restarted and UUIDs rotated.
 func ReconcileInboxAgentID(store *InboxStore, hub HubClient) {
 	if store == nil || hub == nil {
@@ -82,7 +124,8 @@ func InboxOwnerAllowed(inbox *InboxConfig, userID string) bool {
 }
 
 // BuildInboxMessage converts a direct DM or forwarded line into a hub inbox message.
-func BuildInboxMessage(in InboundInput, inbox *InboxConfig, threads *ThreadMap, forward *ForwardMatch) *protocol.Message {
+// njChannel overrides inbox.NJChannel when set (e.g. per-peer human DM channels).
+func BuildInboxMessage(in InboundInput, inbox *InboxConfig, threads *ThreadMap, forward *ForwardMatch, njChannel string) *protocol.Message {
 	content := StripSlackMentionMarkup(in.Text)
 	if forward != nil {
 		content = BuildForwardedContent(forward, content)
@@ -109,7 +152,12 @@ func BuildInboxMessage(in InboundInput, inbox *InboxConfig, threads *ThreadMap, 
 		msgType = protocol.MessageTypeQuestion
 	}
 
-	msg := protocol.NewMessage(msgType, inbox.NJChannel, from, content)
+	targetChannel := strings.TrimSpace(njChannel)
+	if targetChannel == "" && inbox != nil {
+		targetChannel = inbox.NJChannel
+	}
+
+	msg := protocol.NewMessage(msgType, targetChannel, from, content)
 	if isThread {
 		msg.ThreadID = threadID
 		msg.ReplyTo = replyTo
@@ -169,6 +217,18 @@ func BuildInboxMessage(in InboundInput, inbox *InboxConfig, threads *ThreadMap, 
 	}
 
 	return msg
+}
+
+// ApplyInboxManualReply marks an inbox message for manual owner reply (forward mode).
+func ApplyInboxManualReply(msg *protocol.Message) {
+	if msg == nil {
+		return
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	msg.Metadata[protocol.SlackMetaManualReply] = true
+	delete(msg.Metadata, protocol.SlackMetaRouteAgentID)
 }
 
 // BuildForwardedContent wraps forwarded channel text for the agent.

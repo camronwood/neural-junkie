@@ -30,7 +30,7 @@ func TestBuildInboxMessageStripsSlackMentions(t *testing.T) {
 		SourceAuthor:      "Alice",
 	}
 	threads, _ := NewThreadMap()
-	msg := BuildInboxMessage(in, inbox, threads, forward)
+	msg := BuildInboxMessage(in, inbox, threads, forward, "")
 	if contains(msg.Content, "<@U0B5MLY2N2E>") {
 		t.Fatalf("content still has slack markup: %q", msg.Content)
 	}

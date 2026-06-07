@@ -23,7 +23,10 @@ func TestBuildHumanDMInboxMessage(t *testing.T) {
 		ThreadTS:  "100.100",
 	}
 	threads, _ := NewThreadMap()
-	msg := BuildHumanDMInboxMessage(in, inbox, threads, "Alice")
+	msg := BuildHumanDMInboxMessage(in, inbox, threads, "Alice", true, "slack:inbox:U1:U2")
+	if msg.Channel != "slack:inbox:U1:U2" {
+		t.Fatalf("channel %q", msg.Channel)
+	}
 	if msg.Metadata["source"] != "slack_human_dm" {
 		t.Fatalf("source: %v", msg.Metadata["source"])
 	}
@@ -43,18 +46,23 @@ func TestBuildHumanDMInboxMessage(t *testing.T) {
 
 func TestInboxOutboundHumanDM(t *testing.T) {
 	threads, _ := NewThreadMap()
+	inbox := &InboxConfig{Enabled: true, OwnerSlackUserID: "U1", NJChannel: "slack:inbox:U1"}
 	_ = threads.RegisterHumanDMReplyRoute("thread-1", "D_PEER", "111.222")
 
 	msg := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:inbox:U1", protocol.AgentInfo{ID: "agent-1"}, "reply")
 	msg.ThreadID = "thread-1"
-	if !InboxOutboundHumanDM(msg, threads) {
+	if !InboxOutboundHumanDM(msg, threads, inbox) {
 		t.Fatal("expected human DM outbound")
 	}
 	_ = threads.RegisterInboxReplyRoute("bot-thread", "D_BOT", "333.444")
 	botMsg := protocol.NewMessage(protocol.MessageTypeAnswer, "slack:inbox:U1", protocol.AgentInfo{ID: "agent-1"}, "bot reply")
 	botMsg.ThreadID = "bot-thread"
-	if InboxOutboundHumanDM(botMsg, threads) {
+	if InboxOutboundHumanDM(botMsg, threads, inbox) {
 		t.Fatal("expected bot inbox route to skip human DM path")
+	}
+	peerMsg := protocol.NewMessage(protocol.MessageTypeChat, "slack:inbox:U1:U2", protocol.AgentInfo{ID: "user-1", Type: protocol.AgentTypeGeneral}, "hey")
+	if !InboxOutboundHumanDM(peerMsg, threads, inbox) {
+		t.Fatal("expected peer inbox channel to use human DM outbound")
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/config"
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	"github.com/camronwood/neural-junkie/internal/hub"
@@ -49,6 +50,27 @@ func startSlackBridge(ctx context.Context) {
 	}
 	slackBridge = b
 	log.Println("[slack] bridge started (Socket Mode)")
+	applyCollabSlackActionConfig()
+}
+
+func applyCollabSlackActionConfig() {
+	if chatHub == nil {
+		return
+	}
+	cfg := actions.Config{
+		AllowedHosts: nil,
+		SMSEnabled:   false,
+	}
+	if slackBridge != nil {
+		cfg.SlackEnabled = true
+		cfg.ValidateSlackChannel = func(channelID string) error {
+			return slackint.ValidateChannel(slackBridge.API(), channelID)
+		}
+		cfg.SlackPost = func(ctx context.Context, channelID, text, threadTS, username string) (string, error) {
+			return slackBridge.PostRunbookMessage(channelID, text, threadTS, username)
+		}
+	}
+	chatHub.SetCollabActionRunnerConfig(cfg)
 }
 
 func stopSlackBridge() {
@@ -56,6 +78,7 @@ func stopSlackBridge() {
 		slackBridge.Stop()
 		slackBridge = nil
 	}
+	applyCollabSlackActionConfig()
 }
 
 // slackBindingContext returns a long-lived context for agent channel subscriptions.

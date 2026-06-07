@@ -35,6 +35,17 @@ func (m *mockHub) GetChannel(name string) (*protocol.Channel, error) {
 	return nil, errors.New("not found")
 }
 
+func (m *mockHub) ListChannels() []*protocol.Channel {
+	if len(m.channels) == 0 {
+		return nil
+	}
+	out := make([]*protocol.Channel, 0, len(m.channels))
+	for _, ch := range m.channels {
+		out = append(out, ch)
+	}
+	return out
+}
+
 func (m *mockHub) CreateChannelWithType(name, description, project string, channelType protocol.ChannelType, createdBy string) *protocol.Channel {
 	m.createCalled = true
 	ch := &protocol.Channel{

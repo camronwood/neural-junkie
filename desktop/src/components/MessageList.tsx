@@ -55,7 +55,7 @@ interface MessageListProps {
 
 export function MessageList({ searchQuery = '' }: MessageListProps) {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const { channel, messages, threadMetadata, streamingMessages, openThread, serverAddr } = useChatStore(
+  const { channel, messages, threadMetadata, streamingMessages, openThread, serverAddr, pendingScrollToMessageId, setPendingScrollToMessageId, setHighlightMessageId } = useChatStore(
     (s) => ({
       channel: s.channel,
       messages: s.messages,
@@ -63,6 +63,9 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
       streamingMessages: s.streamingMessages,
       openThread: s.openThread,
       serverAddr: s.serverAddr,
+      pendingScrollToMessageId: s.pendingScrollToMessageId,
+      setPendingScrollToMessageId: s.setPendingScrollToMessageId,
+      setHighlightMessageId: s.setHighlightMessageId,
     }),
     shallow
   );
@@ -233,6 +236,30 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
     if (streamContentBytes === 0) return;
     scheduleScrollToTrueBottom('auto');
   }, [streamContentBytes, scheduleScrollToTrueBottom]);
+
+  useEffect(() => {
+    if (!pendingScrollToMessageId || rows.length === 0) return;
+    const idx = rows.findIndex(
+      (row) => row.kind === 'message' && row.message.id === pendingScrollToMessageId
+    );
+    if (idx < 0) return;
+
+    setPendingScrollToMessageId(null);
+    setHighlightMessageId(pendingScrollToMessageId);
+    isNearBottomRef.current = true;
+    setIsNearBottom(true);
+    setShowJumpButton(false);
+    setPendingMessageCount(0);
+
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+    });
+
+    const clearHighlight = window.setTimeout(() => {
+      setHighlightMessageId(null);
+    }, 2500);
+    return () => window.clearTimeout(clearHighlight);
+  }, [pendingScrollToMessageId, rows, setPendingScrollToMessageId, setHighlightMessageId]);
 
   const jumpToCurrent = useCallback(() => {
     if (rows.length === 0) return;

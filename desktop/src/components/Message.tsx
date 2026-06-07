@@ -206,6 +206,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const hasErrorMeta = typeof errorMeta.error_code === 'string';
   const canRetry = errorMeta.retryable === true;
   const username = useChatStore(s => s.username);
+  const highlightMessageId = useChatStore(s => s.highlightMessageId);
   const addToast = useToastStore(s => s.addToast);
   const fetchPendingChanges = useFileChangeStore(s => s.fetchPendingChanges);
 
@@ -291,9 +292,10 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
 
   return (
     <div
+      data-message-id={message.id}
       className={`message-list-item group relative px-4 py-2 hover:bg-slack-bgHover transition-colors ${
         isSystem ? 'italic text-slack-textMuted' : ''
-      }`}
+      } ${highlightMessageId === message.id ? 'bg-slack-accent/15 ring-1 ring-inset ring-slack-accent/50' : ''}`}
       style={{
         borderLeft: isSystem ? 'none' : `3px solid ${isCollab ? '#8b5cf6' : agentColor}`,
         backgroundColor: isCollab ? 'rgba(139, 92, 246, 0.04)' : undefined,

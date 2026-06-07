@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useShortcutOverlay } from '../../shortcuts/useShortcutOverlay';
+import type { ChatAPI } from '../../api/chatAPI';
 import type { Collaboration, CollaborationAgent, CollaborationTask } from '../../types/protocol';
 import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../../utils/runbookTaskUtils';
 import { removeTask, validateDAG } from '../../utils/runbookDAG';
@@ -12,6 +13,7 @@ export interface RunbookGraphModalProps {
   collaboration: Collaboration;
   agents: CollaborationAgent[];
   tasks: CollaborationTask[];
+  api: ChatAPI;
   editable: boolean;
   busy?: boolean;
   onClose: () => void;
@@ -25,6 +27,7 @@ export function RunbookGraphModal({
   collaboration,
   agents,
   tasks,
+  api,
   editable,
   busy = false,
   onClose,
@@ -139,6 +142,7 @@ export function RunbookGraphModal({
               taskIndex={selectedIndex}
               tasks={tasks}
               agents={agents}
+              api={api}
               editable={editable}
               onUpdate={updateSelectedTask}
               onUpdateDependencies={(deps) => updateSelectedTask({ dependencies: deps })}
