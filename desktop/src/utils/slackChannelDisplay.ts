@@ -41,6 +41,11 @@ export function slackChannelDisplayName(ch: Channel): string {
   return ch.name;
 }
 
+/** Whether the chat header should show the hub channel id under the Slack label. */
+export function showSlackHubChannelIdInHeader(name: string): boolean {
+  return isSlackMirrorChannelName(name) && !name.startsWith('slack:inbox:');
+}
+
 export function isSlackMirrorChannelName(name: string): boolean {
   return name.startsWith('slack:');
 }

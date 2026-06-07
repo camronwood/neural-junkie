@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Channel } from '../types/protocol';
-import { isSlackHubChannelName, slackChannelDisplayName } from './slackChannelDisplay';
+import { isSlackHubChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from './slackChannelDisplay';
 
 describe('slackChannelDisplay', () => {
   it('labels mirror channels from display_name', () => {
@@ -45,5 +45,10 @@ describe('slackChannelDisplay', () => {
     expect(isSlackHubChannelName('slack:C1')).toBe(true);
     expect(isSlackHubChannelName('slack:inbox:U1')).toBe(true);
     expect(isSlackHubChannelName('general')).toBe(false);
+  });
+
+  it('hides inbox hub id in chat header', () => {
+    expect(showSlackHubChannelIdInHeader('slack:inbox:U1:U2')).toBe(false);
+    expect(showSlackHubChannelIdInHeader('slack:C01234567')).toBe(true);
   });
 });

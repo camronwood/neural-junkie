@@ -117,7 +117,7 @@ import type {
 } from '../types/protocol';
 import { isCollaborationMessage, getCollaborationId, showThreadReplyInMainTimeline } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
-import { isSlackMirrorChannelName, slackChannelDisplayName } from '../utils/slackChannelDisplay';
+import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
@@ -2303,7 +2303,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                       ? slackChannelDisplayName(ch)
                       : `# ${channel}`}
                 </h1>
-                {ch && isSlackMirrorChannelName(ch.name) && (
+                {ch && showSlackHubChannelIdInHeader(ch.name) && (
                   <span
                     className="text-xs text-slack-textMuted hidden sm:inline truncate max-w-[200px] font-mono"
                     title="Hub channel id"
