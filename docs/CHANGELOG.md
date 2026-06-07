@@ -6,6 +6,14 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.31] - 2026-06-07
+
+### Changed
+- **Linux installers** — omit bundled Ollama (full runtime exceeds GitHub's 2 GiB release asset limit). Install [Ollama](https://ollama.com) separately or use a cloud provider; the hub detects system `ollama` on PATH.
+
+### Fixed
+- **Linux `.deb` upload** — slim package publishes successfully; AppImage remains best-effort.
+
 ## [1.0.0-beta.30] - 2026-06-07
 
 ### Fixed

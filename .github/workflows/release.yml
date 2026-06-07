@@ -280,8 +280,8 @@ jobs:
           mkdir -p desktop/src-tauri/binaries
           GOOS=linux GOARCH=amd64 go build -tags "slackvendor googlevendor" -o desktop/src-tauri/binaries/nj-server-x86_64-unknown-linux-gnu ./cmd/server
 
-      - name: Fetch bundled Ollama (Linux)
-        run: chmod +x scripts/fetch-ollama.sh && ./scripts/fetch-ollama.sh x86_64-unknown-linux-gnu
+      - name: Prepare slim Linux bundle (no bundled Ollama)
+        run: chmod +x scripts/ci-prepare-linux-slim-bundle.sh && ./scripts/ci-prepare-linux-slim-bundle.sh
 
       - name: Build frontend and Tauri (deb)
         working-directory: desktop
