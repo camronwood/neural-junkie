@@ -293,33 +293,50 @@ jobs:
           npm run build
           npx tauri build --bundles deb
 
+      - name: Upload Linux deb
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          debs=(desktop/src-tauri/target/release/bundle/deb/*.deb)
+          if [ ${#debs[@]} -eq 0 ]; then
+            echo "No .deb found after build" >&2
+            exit 1
+          fi
+          gh release upload "${{ github.ref_name }}" "${debs[@]}" --repo "${{ github.repository }}" --clobber
+          echo "Uploaded: ${debs[*]}"
+
+      - name: Refresh AppImage tooling cache
+        run: rm -rf ~/.cache/tauri/linuxdeploy* ~/.cache/tauri/AppRun* || true
+
       - name: Build Tauri AppImage
+        id: appimage
+        continue-on-error: true
         working-directory: desktop
         env:
           NO_STRIP: true
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: npx tauri build --bundles appimage
+        run: npx tauri build --bundles appimage --verbose
 
       - name: Verify Linux updater artifacts
+        if: steps.appimage.outcome == 'success'
         run: bash scripts/verify-updater-artifacts.sh linux desktop/src-tauri/target/release/bundle/appimage
 
-      - name: Upload Linux assets
+      - name: Upload Linux AppImage assets
+        if: steps.appimage.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           shopt -s nullglob
           assets=(
-            desktop/src-tauri/target/release/bundle/deb/*.deb
             desktop/src-tauri/target/release/bundle/appimage/*.AppImage
             desktop/src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz
             desktop/src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz.sig
           )
-          if [ ${#assets[@]} -eq 0 ]; then
-            echo "No Linux bundles found" >&2
-            exit 1
+          if [ ${#assets[@]} -gt 0 ]; then
+            gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
           fi
-          gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
 
   publish-updater-manifests:
     needs:

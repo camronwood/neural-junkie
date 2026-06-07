@@ -50,7 +50,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
 | `auto-update-first-install` | **Limitation** | In-app updates require an updater-enabled build (beta.27+). Older installers must upgrade once manually from [download.html](download.html) or GitHub Releases. |
 | `dev-update-check-404` | **Limitation** | `make gui` / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with installed release builds. |
-| `linux-appimage-ci` | **Active** | Linux AppImage bundling fails in CI (`appimage.sh`); macOS and Windows releases ship. Fix in progress (beta.29+). Use `.deb` from GitHub Releases when available. |
+| `linux-appimage-ci` | **Active** | AppImage bundling still fails in CI (`appimage.sh`). **`.deb` ships** from beta.30+; use the deb download on [download.html](download.html). In-app Linux updates pending AppImage fix. |
 
 ---
 

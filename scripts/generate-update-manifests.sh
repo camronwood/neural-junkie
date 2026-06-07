@@ -65,6 +65,7 @@ generate_manifest() {
   local platform="$1"
   local arch="$2"
   local asset_pattern="$3"
+  local optional="${4:-false}"
   local output_file="update-${platform}-${arch}.json"
   local manifest_platform=""
   case "${platform}" in
@@ -78,6 +79,10 @@ generate_manifest() {
   local artifact
   artifact="$(find_asset "${asset_pattern}")"
   if [[ -z "${artifact}" ]]; then
+    if [[ "${optional}" == "true" ]]; then
+      echo "WARN: No artifact matching ${asset_pattern} on ${VERSION}; skipping ${output_file}" >&2
+      return 0
+    fi
     echo "ERROR: No artifact matching ${asset_pattern} on ${VERSION}; cannot build ${output_file}" >&2
     return 1
   fi
@@ -95,7 +100,7 @@ generate_manifest() {
 
 generate_manifest "darwin" "aarch64" 'Neural\.Junkie_aarch64\.app\.tar\.gz$'
 generate_manifest "darwin" "x86_64" 'Neural\.Junkie_x64\.app\.tar\.gz$'
-generate_manifest "linux" "x86_64" '.*_amd64\.AppImage\.tar\.gz$'
+generate_manifest "linux" "x86_64" '.*_amd64\.AppImage\.tar\.gz$' true
 generate_manifest "windows" "x86_64" '.*\.msi\.zip$'
 
 echo "Manifest generation complete."

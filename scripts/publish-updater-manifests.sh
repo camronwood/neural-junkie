@@ -19,17 +19,20 @@ chmod +x scripts/generate-update-manifests.sh
 
 shopt -s nullglob
 manifests=(update-*.json)
-expected=(update-darwin-aarch64.json update-darwin-x86_64.json update-linux-x86_64.json update-windows-x86_64.json)
+required=(update-darwin-aarch64.json update-darwin-x86_64.json update-windows-x86_64.json)
 if [[ ${#manifests[@]} -eq 0 ]]; then
   echo "No manifests generated" >&2
   exit 1
 fi
-for required in "${expected[@]}"; do
-  if [[ ! -f "${required}" ]]; then
-    echo "Missing required manifest: ${required}" >&2
+for need in "${required[@]}"; do
+  if [[ ! -f "${need}" ]]; then
+    echo "Missing required manifest: ${need}" >&2
     exit 1
   fi
 done
+if [[ ! -f update-linux-x86_64.json ]]; then
+  echo "WARN: Linux updater manifest skipped (AppImage bundle not published yet)" >&2
+fi
 
 echo "Uploading manifests to ${VERSION}..."
 gh release upload "${VERSION}" "${manifests[@]}" --repo "${REPO}" --clobber

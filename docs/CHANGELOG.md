@@ -6,6 +6,12 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.30] - 2026-06-07
+
+### Fixed
+- **Linux releases** — upload `.deb` immediately after a successful deb build; AppImage is best-effort (`continue-on-error`) so Linux users get an installer even when AppImage tooling fails.
+- **Updater manifests** — macOS + Windows publish when Linux AppImage updater bundle is absent.
+
 ## [1.0.0-beta.29] - 2026-06-07
 
 ### Fixed
