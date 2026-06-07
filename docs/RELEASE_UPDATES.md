@@ -51,7 +51,7 @@ After CI completes:
 
 ```bash
 # Beta channel manifests
-./scripts/verify-updater-manifest.sh v1.0.0-beta.25 beta
+./scripts/verify-updater-manifest.sh v1.0.0-beta.27 beta
 
 # Stable channel (after v1.0.0)
 ./scripts/verify-updater-manifest.sh v1.0.0 stable

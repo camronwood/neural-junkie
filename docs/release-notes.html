@@ -37,14 +37,14 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25">v1.0.0-beta.25</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27">v1.0.0-beta.27</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
-      <a href="#v1-0-0-beta-25">1.0.0-beta.25</a>
+      <a href="#v1-0-0-beta-27">1.0.0-beta.27</a>
       <span aria-hidden="true">·</span>
-      <a href="#v1-0-0-beta-24">1.0.0-beta.24</a>
+      <a href="#v1-0-0-beta-25">1.0.0-beta.25</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-23">1.0.0-beta.23</a>
       <span aria-hidden="true">·</span>
@@ -104,6 +104,26 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-27" class="release-version-heading">1.0.0-beta.27 <span class="release-date">— 2026-06-07</span></h2>
+
+      <p><strong>In-app auto-updates + downloads page.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27">GitHub Releases</a>. Tauri updater with separate beta and stable channels, update banner with one-click install, RAM-aware hardware guidance, and Windows WiX semver fix for full three-platform builds.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>In-app auto-updates</strong> — Tauri updater with minisign signatures; beta builds track <code>updater-beta</code>, stable builds track <code>latest</code>.</li>
+        <li><strong>Update banner</strong> — periodic check on launch; <strong>Update Now</strong> / <strong>Later</strong>; auto-dismiss after 15s; Settings → About → <strong>Check for updates</strong>.</li>
+        <li><strong>Hardware guidance</strong> — RAM tiers and model footprint docs; <code>/api/system/hardware</code>; setup wizard and AI Providers hints.</li>
+        <li><strong>Downloads page</strong> — <a href="download.html">download.html</a> with direct per-platform installer links from GitHub Releases.</li>
+        <li><strong>Updater CI</strong> — signed bundles, manifest generation, and <code>scripts/verify-updater-manifest.sh</code>; see <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/RELEASE_UPDATES.md">RELEASE_UPDATES.md</a>.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Windows beta builds</strong> — WiX-safe bundle version mapping (<code>1.0.0-N</code> for <code>v1.0.0-beta.N</code> tags) restores MSI/EXE CI for beta releases.</li>
+      </ul>
+
+      <p><strong>Note:</strong> Installers from before auto-update shipped need one manual upgrade to beta.27; later betas update in-app.</p>
+
       <h2 id="v1-0-0-beta-25" class="release-version-heading">1.0.0-beta.25 <span class="release-date">— 2026-06-07</span></h2>
 
       <p><strong>Regression harness + collab plan reliability.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25">GitHub Releases</a>. Pre-release <code>make test-regression-bundle</code>, collab goal bootstrap when agents emit prose-only plans, <code>@Assistant ok thanks</code> closure fix, and LoRA compose hardening.</p>

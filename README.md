@@ -96,7 +96,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.0.0-beta.25](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.0.0-beta.27](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -110,6 +110,8 @@ The Go hub is bundled as a Tauri sidecar — you do **not** need Go installed to
 **macOS:** Builds are ad-hoc signed but not notarized; use **Right-click → Open** the first time if Gatekeeper warns.
 
 **Ollama:** Installers bundle the Ollama runtime on macOS, Windows, and Linux. First run pulls a default model once (internet required that one time). Cloud APIs remain optional in the wizard.
+
+**Auto-update (beta.27+):** In-app updates on beta and stable channels — Settings → About → **Check for updates**. Installers from before beta.27 need one manual upgrade first; see [docs/RELEASE_UPDATES.md](docs/RELEASE_UPDATES.md).
 
 **Quick start after install:** [docs/DOWNLOAD.md](docs/DOWNLOAD.md)
 

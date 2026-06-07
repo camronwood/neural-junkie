@@ -6,6 +6,18 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.27] - 2026-06-07
+
+### Added
+- **In-app auto-updates** — Tauri v1 updater with minisign signatures; separate beta (`updater-beta`) and stable (`latest`) channels.
+- **Update UI** — launch banner with **Update Now** / **Later**, 15s auto-dismiss, and Settings → About → **Check for updates**.
+- **Hardware guidance** — RAM tiers and model footprint docs; `/api/system/hardware`; setup wizard and AI Providers hints.
+- **Downloads page** — `docs/download.html` with direct per-platform installer links; `scripts/update-website-release.sh` refreshes from GitHub Releases.
+- **Updater CI** — signed bundles, manifest publish job, and `scripts/verify-updater-manifest.sh`.
+
+### Fixed
+- **Windows beta builds** — WiX-safe bundle version mapping (`1.0.0-N` for `v1.0.0-beta.N` tags) restores MSI/EXE CI for beta releases.
+
 ## [1.0.0-beta.25] - 2026-06-07
 
 ### Added

@@ -205,7 +205,6 @@ if [[ -n "${BUMP_FROM}" ]]; then
     [[ "${file}" == *download.html ]] && continue
     sed -i.bak \
       -e "s/${BUMP_FROM}/${TAG}/g" \
-      -e "s/v${OLD}/${DISPLAY_VERSION}/g" \
       "${file}"
     rm -f "${file}.bak"
     echo "Bumped version in ${file#${ROOT}/}"

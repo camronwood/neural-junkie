@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.25](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25)
+**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.27](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -55,6 +55,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `implement-deterministic-fallback` | **Active** | Live implement scenarios still rely on deterministic tailwind/App repairs when local 7B/14B emits prose-only replies; tracked via hub logs (`deterministic_impl_fallback`, `app_theme_repair`). |
 | `parity-stable-hub-oom` | **Active** | `make test-parity-stable` back-to-back sweeps can **OOM-kill** the regression hub on memory-constrained hosts; restart hub between sweeps (see `docs/testing/parity-stable-*.log`). |
 | `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
+| `auto-update-first-install` | **Limitation** | In-app updates require an updater-enabled build (beta.27+). Older installers must upgrade once manually from [download.html](download.html) or GitHub Releases. |
+| `dev-update-check-404` | **Limitation** | `make gui` / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with installed release builds. |
 
 ---
 
