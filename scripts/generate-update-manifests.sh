@@ -8,7 +8,12 @@
 set -euo pipefail
 
 VERSION="${1:?Usage: $0 <version-tag> [repo]}"
+TAG="${VERSION}"
 VERSION_NUM="${VERSION#v}"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/release-bundle-version.sh
+source "${ROOT}/scripts/release-bundle-version.sh"
+MANIFEST_VERSION="$(bundle_version_from_tag "${TAG}")"
 REPO="${2:-camronwood/neural-junkie}"
 RELEASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
 PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -54,7 +59,7 @@ const payload = {
   },
 };
 fs.writeFileSync(process.argv[7], JSON.stringify(payload, null, 2) + '\n');
-" "${VERSION_NUM}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}"
+" "${MANIFEST_VERSION}" "See release notes at https://github.com/${REPO}/releases/tag/${VERSION}" "${PUB_DATE}" "${platform_key}" "${signature}" "${url}" "${output_file}"
 }
 
 generate_manifest() {

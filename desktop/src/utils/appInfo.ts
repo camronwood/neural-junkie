@@ -1,7 +1,9 @@
 // App metadata and version information
+import pkg from '../../package.json';
+
 export const APP_INFO = {
   name: 'Neural Junkie',
-  version: '1.0.0',
+  version: pkg.version,
   description: 'Multi-agent AI collaboration system',
   author: 'Camron Wood',
   license: 'MIT',
@@ -19,18 +21,7 @@ export const TECH_STACK = [
   'WebSocket',
 ] as const;
 
-// Get app version from Tauri (with fallback for dev mode)
+// Prefer package.json semver for UI labels (bundle may embed WiX-safe 1.0.0.N).
 export async function getAppVersion(): Promise<string> {
-  try {
-    // In Tauri environment, we can get version from the app
-    if (typeof window !== 'undefined' && (window as any).__TAURI__) {
-      const { getVersion } = await import('@tauri-apps/api/app');
-      return await getVersion();
-    }
-  } catch (error) {
-    console.warn('Failed to get Tauri version:', error);
-  }
-  
-  // Fallback to static version
   return APP_INFO.version;
 }

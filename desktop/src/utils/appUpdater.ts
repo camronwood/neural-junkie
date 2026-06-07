@@ -1,4 +1,5 @@
 export const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+export const BANNER_AUTO_DISMISS_MS = 15_000; // 15 seconds
 
 export interface AppUpdateInfo {
   available: boolean;

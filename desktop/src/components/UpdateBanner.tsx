@@ -3,6 +3,7 @@ import {
   checkForAppUpdate,
   installAppUpdate,
   UPDATE_CHECK_INTERVAL_MS,
+  BANNER_AUTO_DISMISS_MS,
   type AppUpdateInfo,
 } from '../utils/appUpdater';
 
@@ -50,6 +51,21 @@ export function UpdateBanner() {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [runUpdateCheck]);
+
+  useEffect(() => {
+    if (downloading) return;
+
+    const showError = Boolean(error && !update?.available);
+    const showUpdate = Boolean(update?.available && !dismissed);
+    if (!showError && !showUpdate) return;
+
+    const timer = window.setTimeout(() => {
+      if (showError) setError(null);
+      if (showUpdate) setDismissed(true);
+    }, BANNER_AUTO_DISMISS_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [error, update?.available, dismissed, downloading]);
 
   async function installUpdate() {
     setDownloading(true);
