@@ -37,7 +37,8 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
-        Last updated <time datetime="2026-06-07">June 7, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27">v1.0.0-beta.27</a>.
+        As of this update there are <strong>no open Active bugs</strong>; remaining entries are intentional limitations.
+        Last updated <time datetime="2026-06-07">June 7, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.28">v1.0.0-beta.28</a>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -74,30 +75,6 @@
       <p>Multi-agent collab is the hardest surface to make reliable. See also <a href="features/multi-agent-collaboration.html">Collaboration guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">COLLABORATION.md</a>.</p>
 
       <ul class="issues-list">
-        <!-- ISSUE: collab-plan-zero-tasks — remove when plan parser scenarios PASS -->
-        <li class="issue-item" id="collab-plan-zero-tasks">
-          <span class="issue-badge issue-badge--active">Active</span>
-          <strong>Planning sometimes yields zero tasks</strong>
-          <p>Live harness scenarios can finish discussion but fail <code>assert_plan: tasks=0</code> — plan parser / discussion → plan artifact. Affected names include <code>plan-dependency-prose-regression</code>, <code>plan-distinct-deliverables-same-agent</code>, <code>plan-phoenix-combined-regression</code>. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-sweep-2026-06-02.md">Sweep log (2026-06-02)</a>.</p>
-        </li>
-        <!-- ISSUE: collab-deliverable-size -->
-        <li class="issue-item" id="collab-deliverable-size">
-          <span class="issue-badge issue-badge--active">Active</span>
-          <strong>Deliverable file too small for harness</strong>
-          <p><code>execution-no-stack-commands</code> may fail when <code>findings.md</code> exists but content is below assertion thresholds.</p>
-        </li>
-        <!-- ISSUE: collab-solo-parity -->
-        <li class="issue-item" id="collab-solo-parity">
-          <span class="issue-badge issue-badge--investigating">Investigating</span>
-          <strong>Solo vs collab parity</strong>
-          <p><code>solo-vs-collab-parity</code> — solo channel leg did not land a file before timeout in a spot check; full serial sweep pending.</p>
-        </li>
-        <!-- ISSUE: collab-phoenix-planning -->
-        <li class="issue-item" id="collab-phoenix-planning">
-          <span class="issue-badge issue-badge--investigating">Investigating</span>
-          <strong>Phoenix-style planning scenario</strong>
-          <p><code>resource-api-schema-planning</code> not completed in last batch run (aborted mid-sweep).</p>
-        </li>
         <!-- ISSUE: collab-chat-not-disk -->
         <li class="issue-item" id="collab-chat-not-disk">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
@@ -126,12 +103,6 @@
 
       <h2 id="chat-context">Chat &amp; context</h2>
       <ul class="issues-list">
-        <!-- ISSUE: context-v2-edge-cases -->
-        <li class="issue-item" id="context-v2-edge-cases">
-          <span class="issue-badge issue-badge--active">Active</span>
-          <strong>Context model v2 edge cases</strong>
-          <p>Chat/Code composer mode and workspace visibility shipped in beta.21 — report bad answers when asked whether agents can see your workspace. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">CONTEXT_MODEL.md</a></p>
-        </li>
         <!-- ISSUE: hub-history-bounded -->
         <li class="issue-item" id="hub-history-bounded">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
@@ -182,17 +153,17 @@
           <strong>First enabled pack sets layout</strong>
           <p>With multiple domain packs on, the first pack you enable picks IDE vs team layout.</p>
         </li>
-        <!-- ISSUE: implement-deterministic-fallback -->
-        <li class="issue-item" id="implement-deterministic-fallback">
-          <span class="issue-badge issue-badge--active">Active</span>
-          <strong>Implement deterministic fallback</strong>
-          <p>Live implement scenarios still rely on deterministic tailwind/App repairs when local models emit prose-only replies. Hub logs: <code>deterministic_impl_fallback</code>, <code>app_theme_repair</code>.</p>
+        <!-- ISSUE: auto-update-first-install -->
+        <li class="issue-item" id="auto-update-first-install">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Auto-update requires updater build</strong>
+          <p>In-app updates need an updater-enabled build (beta.27+). Older installers must upgrade once manually from <a href="download.html">Download</a> or GitHub Releases.</p>
         </li>
-        <!-- ISSUE: parity-stable-hub-oom -->
-        <li class="issue-item" id="parity-stable-hub-oom">
-          <span class="issue-badge issue-badge--active">Active</span>
-          <strong>Parity-stable hub OOM</strong>
-          <p><code>make test-parity-stable</code> back-to-back sweeps can OOM-kill the regression hub on memory-limited hosts. Restart hub between sweeps; see <code>docs/testing/parity-stable-*.log</code>.</p>
+        <!-- ISSUE: dev-update-check-404 -->
+        <li class="issue-item" id="dev-update-check-404">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Dev builds cannot check for updates</strong>
+          <p><code>make gui</code> / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with an installed release build.</p>
         </li>
       </ul>
 
@@ -239,8 +210,9 @@
       <h2 id="quality">How we test (and close items)</h2>
       <ul class="feature-list feature-list--tight">
         <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code></li>
-        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a></li>
-        <li><strong>Chat scenarios</strong> — <code>make chat-scenarios-regression</code> (beta.21+)</li>
+        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (18/18 PASS)</li>
+        <li><strong>Chat regression</strong> — <code>make chat-scenarios-regression</code> (workspace visibility, closure, echo)</li>
+        <li><strong>Implement parity</strong> — <code>make implement-scenarios</code>, <code>make test-parity-stable</code> (3× with hub restart)</li>
       </ul>
       <p>When a scenario flips to <strong>PASS</strong>, delete the matching <code>&lt;li&gt;</code> here and the row in <code>KNOWN_ISSUES.md</code>, then note the fix in <a href="release-notes.html">release notes</a>.</p>
 

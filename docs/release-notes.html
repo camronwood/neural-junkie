@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27">v1.0.0-beta.27</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.28">v1.0.0-beta.28</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-28">1.0.0-beta.28</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-27">1.0.0-beta.27</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-25">1.0.0-beta.25</a>
@@ -104,6 +106,17 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-28" class="release-version-heading">1.0.0-beta.28 <span class="release-date">— 2026-06-07</span></h2>
+
+      <p><strong>Release CI fixes — macOS auto-update restored.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.28">GitHub Releases</a>. macOS and Windows builds ship; Linux AppImage CI still failing (deb/AppImage fix landing in next beta).</p>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>macOS updater uploads</strong> — <code>Neural.Junkie_aarch64.app.tar.gz</code> and <code>Neural.Junkie_x64.app.tar.gz</code> so both Mac targets get distinct signed updater bundles.</li>
+        <li><strong>Beta updater channel</strong> — recreate <code>updater-beta</code> release each publish (avoids immutable-release upload errors).</li>
+        <li><strong>Linux CI</strong> — skip RPM bundling; add <code>libfuse2</code> (AppImage still in progress).</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-27" class="release-version-heading">1.0.0-beta.27 <span class="release-date">— 2026-06-07</span></h2>
 
       <p><strong>In-app auto-updates + downloads page.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27">GitHub Releases</a>. Tauri updater with separate beta and stable channels, update banner with one-click install, RAM-aware hardware guidance, and Windows WiX semver fix for full three-platform builds.</p>
@@ -122,7 +135,7 @@
         <li><strong>Windows beta builds</strong> — WiX-safe bundle version mapping (<code>1.0.0-N</code> for <code>v1.0.0-beta.N</code> tags) restores MSI/EXE CI for beta releases.</li>
       </ul>
 
-      <p><strong>Note:</strong> Installers from before auto-update shipped need one manual upgrade to beta.27; later betas update in-app.</p>
+      <p><strong>Note:</strong> Installers from before auto-update shipped need one manual upgrade to beta.27+; later betas update in-app.</p>
 
       <h2 id="v1-0-0-beta-25" class="release-version-heading">1.0.0-beta.25 <span class="release-date">— 2026-06-07</span></h2>
 

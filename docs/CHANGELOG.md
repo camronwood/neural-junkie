@@ -6,6 +6,11 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.29] - 2026-06-07
+
+### Fixed
+- **Linux AppImage CI** — `NO_STRIP=true` for linuxdeploy strip failures; split deb and AppImage build steps; add `universe` repo and `squashfs-tools`.
+
 ## [1.0.0-beta.28] - 2026-06-07
 
 ### Fixed

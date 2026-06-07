@@ -15,5 +15,5 @@ plan-phoenix-combined-regression	PASS	sprint2 sweep (beta.25 goal bootstrap)	202
 planning-two-agent	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 reject-collabs-subfolder	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 resource-api-schema-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
-resource-api-schema-planning	FAIL	assert_messages: Assistant posted 'Grounding: I loaded' during planning	2026-06-07T13:50:00Z
-solo-vs-collab-parity	FAIL	solo leg: timeout waiting for parity-solo/findings.md	2026-06-07T13:50:00Z
+resource-api-schema-planning	PASS	sprint2 sweep + collab planning grounding fix	2026-06-07T22:00:00Z
+solo-vs-collab-parity	PASS	solo leg joins Assistant to channel before send	2026-06-07T22:00:00Z

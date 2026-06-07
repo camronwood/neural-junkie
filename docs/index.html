@@ -22,8 +22,8 @@
 
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
-      <strong>v1.0.0-beta.27 — in-app auto-updates + downloads page</strong>
-      <span><a href="download.html">Download</a> for macOS, Windows, and Linux — one-click beta updates (banner + Settings → About), RAM-aware hardware guidance, and a new <a href="download.html">downloads page</a> with direct installer links. Windows WiX fix ships full three-platform builds. Or <span class="dev-banner-highlight">build from source</span>. <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> and <a href="https://github.com/camronwood/neural-junkie/pulls">PRs</a> welcome.</span>
+      <strong>v1.0.0-beta.28 — CI fixes + macOS auto-update</strong>
+      <span><a href="download.html">Download</a> for macOS and Windows — arch-suffixed updater bundles fix in-app updates on both Mac targets; Linux AppImage CI still in progress. Includes beta.27 features: one-click updates, hardware guidance, downloads page. Or <span class="dev-banner-highlight">build from source</span>. <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> and <a href="https://github.com/camronwood/neural-junkie/pulls">PRs</a> welcome.</span>
     </div>
   </div>
 
@@ -49,10 +49,10 @@
   <main id="main">
     <section class="hero">
       <div class="wrap">
-        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.27</p>
+        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.28</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
-          <strong>Neural Junkie</strong> is a native desktop workspace for <strong>multi-agent AI</strong> — custom experts for any domain, team chat habits, Slack mirroring, and structured collaboration with human approval. <strong>beta.27</strong> adds in-app auto-updates on separate beta and stable channels, RAM-aware hardware guidance in setup, and a site downloads page — on top of regression harness, collab reliability, and Phase 1 implement parity. Bundled Ollama on macOS, Windows, and Linux.
+          <strong>Neural Junkie</strong> is a native desktop workspace for <strong>multi-agent AI</strong> — custom experts for any domain, team chat habits, Slack mirroring, and structured collaboration with human approval. <strong>beta.28</strong> fixes macOS updater bundle naming for in-app updates on Apple Silicon and Intel; <strong>beta.27</strong> added auto-updates, hardware guidance, and a downloads page. Bundled Ollama on macOS, Windows, and Linux.
         </p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="download.html">Download for macOS / Windows / Linux</a>
@@ -79,7 +79,7 @@
 
     <div class="flagship-jump-wrap" id="flagship-features">
       <div class="wrap">
-        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-06-07">v1.0.0-beta.27</time></p>
+        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-06-07">v1.0.0-beta.28</time></p>
         <nav class="flagship-jump" aria-label="Jump to flagship features">
           <a href="#bundled-ollama">⚡ Install-and-go AI</a>
           <a href="#hardware-requirements">💾 Hardware</a>
@@ -151,7 +151,7 @@
             <li><strong>Phases you control</strong> — planning → review → approve → execute with visible status.</li>
             <li><strong>Runbooks &amp; HTTP actions</strong> — wire automations when plans need more than chat.</li>
             <li><strong>Personal learning</strong> — collaboration-scoped memory when Specialist tuning is on.</li>
-            <li><strong>beta.27</strong> — in-app auto-updates, hardware guidance, downloads page. Prior betas: regression harness, collab goal bootstrap, implement parity. <a href="known-issues.html">Known issues</a> lists what we are still fixing.</li>
+            <li><strong>beta.28</strong> — macOS updater CI fix; Linux AppImage CI in progress. <strong>beta.27</strong> — in-app auto-updates, hardware guidance, downloads page. <a href="known-issues.html">Known issues</a> lists what we are still fixing.</li>
           </ul>
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/multi-agent-collaboration.html">Collaboration deep dive →</a>
@@ -524,11 +524,11 @@
         <p class="section-intro">Tagged desktop builds and major hub milestones. Install artifacts and checksums are attached to each <a href="https://github.com/camronwood/neural-junkie/releases">GitHub release</a>.</p>
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
-          <p class="release-landing-version"><strong>v1.0.0-beta.27</strong> <time datetime="2026-06-07">June 7, 2026</time></p>
-          <p class="release-landing-summary">In-app auto-updates on beta and stable channels, update banner with one-click install, RAM-aware hardware guidance, and a downloads page with direct per-platform links. Windows WiX semver fix restores full three-platform CI builds.</p>
+          <p class="release-landing-version"><strong>v1.0.0-beta.28</strong> <time datetime="2026-06-07">June 7, 2026</time></p>
+          <p class="release-landing-summary">macOS and Windows installers with arch-suffixed updater bundles (Apple Silicon + Intel auto-update fixed). Linux AppImage CI still landing. Builds on beta.27 auto-updates, hardware guidance, and the downloads page.</p>
           <p class="release-landing-actions">
-            <a class="btn btn-primary" href="download.html">Download v1.0.0-beta.27</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-27">Release notes</a>
+            <a class="btn btn-primary" href="download.html">Download v1.0.0-beta.28</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-28">Release notes</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
           </p>
         </div>
@@ -550,7 +550,7 @@
     <div class="wrap">
       <p>
         <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
-        — open source (MIT per README) · v1.0.0-beta.27 open beta
+        — open source (MIT per README) · v1.0.0-beta.28 open beta
       </p>
     </div>
   </footer>

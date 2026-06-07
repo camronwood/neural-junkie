@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.27](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.27)
+**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.28](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.28)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -14,10 +14,6 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | Summary |
 |----|--------|---------|
-| `collab-plan-zero-tasks` | **Mitigated (beta.25)** | Goal bootstrap + parser improvements address zero-task plans when agents emit prose-only discussion; re-run `make collab-scenarios-all` after upgrade. |
-| `collab-deliverable-size` | **Mitigated (beta.25)** | Execution prompt requires substantive findings bullets; monitor `execution-no-stack-commands` on model variance. |
-| `collab-solo-parity` | **Investigating** | `solo-vs-collab-parity` — solo leg did not land file on disk before timeout in a spot check; full serial run pending. |
-| `collab-phoenix-planning` | **Investigating** | `resource-api-schema-planning` not completed in last batch sweep (aborted mid-run). |
 | `collab-chat-not-disk` | **Limitation** | Chat markdown does **not** write to disk. Execution needs `[FILE_CHANGE]` proposals and your approval in **Pending changes**. |
 | `collab-workspace-gate` | **Limitation** | After **Approve plan**, assignees are **not** dispatched until you **Continue** / `/ack-collab-workspace`. Easy to mistake for a hang. |
 | `collab-model-variance` | **Limitation** | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. |
@@ -31,7 +27,6 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | Summary |
 |----|--------|---------|
-| `context-v2-edge-cases` | **Active** | Context model v2 (Chat/Code mode, workspace visibility) is new in beta.21 — edge cases may still slip through; report bad “can you see my workspace?” answers. |
 | `hub-history-bounded` | **Limitation** | Message history is **bounded and pruned** per channel; not a full durable archive. Session metadata restores from `last-session.json`. |
 
 ---
@@ -52,11 +47,10 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
 | `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
 | `ide-v3-beta` | **Limitation** | IDE v2/v3 layout, diagnostics, and Ask/Agent routing are **beta** — see [IDE_V2.md](IDE_V2.md) / [IDE_V3.md](IDE_V3.md). |
-| `implement-deterministic-fallback` | **Active** | Live implement scenarios still rely on deterministic tailwind/App repairs when local 7B/14B emits prose-only replies; tracked via hub logs (`deterministic_impl_fallback`, `app_theme_repair`). |
-| `parity-stable-hub-oom` | **Active** | `make test-parity-stable` back-to-back sweeps can **OOM-kill** the regression hub on memory-constrained hosts; restart hub between sweeps (see `docs/testing/parity-stable-*.log`). |
 | `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
 | `auto-update-first-install` | **Limitation** | In-app updates require an updater-enabled build (beta.27+). Older installers must upgrade once manually from [download.html](download.html) or GitHub Releases. |
 | `dev-update-check-404` | **Limitation** | `make gui` / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with installed release builds. |
+| `linux-appimage-ci` | **Active** | Linux AppImage bundling fails in CI (`appimage.sh`); macOS and Windows releases ship. Fix in progress (beta.29+). Use `.deb` from GitHub Releases when available. |
 
 ---
 
@@ -76,7 +70,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 ## How we track quality
 
 - **Deterministic:** `make test-collab-plan`, `make collab-smoke`, `go test ./...`
-- **Live scenarios:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv)
-- **Chat scenarios:** `make chat-scenarios-regression` (beta.21+)
+- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (18/18 PASS)
+- **Chat regression:** `make chat-scenarios-regression` — workspace visibility, closure, echo (context v2)
+- **Implement parity:** `make implement-scenarios`, `make test-parity-stable` (3× with hub restart)
 
 When a row in [collab-matrix.tsv](testing/collab-matrix.tsv) flips to **PASS**, remove the matching **Active** / **Investigating** item above and from [known-issues.html](known-issues.html).
