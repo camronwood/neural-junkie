@@ -26,7 +26,7 @@
         <a class="btn btn-ghost" href="gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
         <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">Download beta.24</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25">Download beta.25</a>
       </nav>
     </div>
   </header>
@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">v1.0.0-beta.24</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25">v1.0.0-beta.25</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-25">1.0.0-beta.25</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-24">1.0.0-beta.24</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-23">1.0.0-beta.23</a>
@@ -102,6 +104,24 @@
     </nav>
 
     <article class="feature-prose">
+      <h2 id="v1-0-0-beta-25" class="release-version-heading">1.0.0-beta.25 <span class="release-date">— 2026-06-07</span></h2>
+
+      <p><strong>Regression harness + collab plan reliability.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.25">GitHub Releases</a>. Pre-release <code>make test-regression-bundle</code>, collab goal bootstrap when agents emit prose-only plans, <code>@Assistant ok thanks</code> closure fix, and LoRA compose hardening.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Regression bundle</strong> — <code>make test-regression-bundle</code> (implement + chat + conversation).</li>
+        <li><strong>Parity-stable-restart</strong> — <code>make test-parity-stable-restart</code> with hub restart between sweeps.</li>
+        <li><strong>Collab goal bootstrap</strong> — extract executable tasks from <code>/collaborate</code> goals when planning yields zero parsed rows.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Thanks closure</strong> — <code>@Assistant ok thanks</code> gets canned closure in public channels.</li>
+        <li><strong>Collab plan-zero-tasks</strong> — plan-dependency, distinct-deliverables, and phoenix-combined scenarios pass in sprint2 sweep.</li>
+        <li><strong>LoRA compose</strong> — materialize adapter weights (no symlink <code>insecure path</code> warnings).</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-24" class="release-version-heading">1.0.0-beta.24 <span class="release-date">— 2026-06-06</span></h2>
 
       <p><strong>Phase 1 parity — local-first implement.</strong> Install from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.24">GitHub Releases</a>. Server-side <code>@codebase</code>, IDE Agent auto-apply, inline completion, and multi-file theme sessions in one prompt. Plus a keyboard shortcuts registry, two-tier LoRA compose, and expanded chat/collab regression scenarios.</p>
