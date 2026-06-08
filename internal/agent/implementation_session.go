@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -22,6 +23,18 @@ const (
 	implSessionFrontendTimeout   = 300 * time.Second
 	editorTrustAutoApply         = "auto_apply_edits"
 )
+
+func collaborationAllowsImplementationSession(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	phase := strings.TrimSpace(msg.GetCollaborationPhase())
+	if phase != string(collaboration.PhaseExecuting) {
+		return false
+	}
+	caps := protocol.ResolveTurnCapabilities(msg)
+	return caps.CanRunImplSession || msg.IdeEditorModeIsExport() || msg.ImplementationSession()
+}
 
 type implSessionStateKey struct{}
 type implSessionRoundKey struct{}
@@ -72,10 +85,10 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if a == nil || msg == nil {
 		return false
 	}
-	if msg.GetCollaborationID() != "" {
+	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
 		return false
 	}
-	if msg.IdeEditorMode() == "ask" {
+	if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
 		return false
 	}
 	if !agentTypeCanShipFileChanges(a.Info.Type) {
@@ -90,11 +103,15 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	}
 
 	history := a.channelHistorySafe(msg.Channel)
+	if userReferencesPriorAssistantContent(msg.Content) &&
+		findPriorAssistantContent(history, msg.ID, a.Info.ID, priorReferenceMinChars) == "" {
+		return false
+	}
 	if vagueContinuationWithoutPriorThread(history, msg.ID, a.Info.ID, msg.Content) {
 		return false
 	}
 	activeThread := channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)
-	wantImpl := userRequestsImplementationForMessage(a, msg) || msg.ImplementationSession()
+	wantImpl := userRequestsImplementationForMessage(a, msg) || msg.ImplementationSession() || msg.IdeEditorModeIsExport()
 
 	if userAffirmsPendingImplementation(msg.Content) && isWeakImplementationAffirmation(msg.Content) &&
 		!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
@@ -102,7 +119,8 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 
-	if activeThread && (userAffirmsPendingImplementation(msg.Content) || userRequestsImplementation(msg.Content) || msg.ImplementationSession()) {
+	if activeThread && (userAffirmsPendingImplementation(msg.Content) || userRequestsImplementation(msg.Content) ||
+		userRequestsFileExport(msg.Content) || msg.ImplementationSession()) {
 		if userAffirmsPendingImplementation(msg.Content) &&
 			!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
 			!userRequestsImplementation(msg.Content) {
@@ -113,12 +131,12 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if !wantImpl {
 		return false
 	}
-	if msg.IdeEditorMode() == "agent" {
-		if msg.IdeRouteAgentType() != "" || msg.ImplementationSession() || userRequestsImplementation(msg.Content) {
+	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
+		if msg.IdeRouteAgentType() != "" || msg.ImplementationSession() || userRequestsImplementation(msg.Content) || msg.IdeEditorModeIsExport() {
 			return true
 		}
 	}
-	return msg.ImplementationSession()
+	return msg.ImplementationSession() || userRequestsFileExportForMessage(msg) || msg.IdeEditorModeIsExport()
 }
 
 func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, bool, []string, error) {
@@ -355,11 +373,34 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	appendImplementationSessionToolGuidance(&sessionGuidance, a, msg)
 	prompt += sessionGuidance.String()
 
-	if round := implementationSessionRoundFromContext(ctx); round == 0 {
+		if round := implementationSessionRoundFromContext(ctx); round == 0 {
 		wsPath := a.resolveWorkspacePath(msg)
 		if wsPath != "" && a.shouldAugmentPromptWithWorkspace(intent, msg) {
 			if st := implementationSessionStateFromContext(ctx); st != nil && st.StackManifest != nil {
 				prompt += st.StackManifest.FormatPromptBlock()
+				seedContent := msg.Content
+				if userAffirmsPendingImplementation(msg.Content) {
+					for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
+						m := a.channelHistory(msg.Channel)[i]
+						if m == nil || m.ID == msg.ID {
+							continue
+						}
+						if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
+							seedContent = m.Content
+							break
+						}
+					}
+				}
+				if rem := remainingImplementationTargets(wsPath, st.StackManifest, seedContent); len(rem) > 0 {
+					prompt += "\n=== REQUIRED FILES (ship all in this session) ===\n"
+					for _, rel := range rem {
+						prompt += "- " + rel + "\n"
+					}
+					if len(rem) > 1 {
+						prompt += "Emit one [FILE_CHANGE] block (or propose_file_edit) per file above — partial delivery is not acceptable.\n"
+					}
+					prompt += st.StackManifest.FormatRepairHints()
+				}
 			}
 			var referencedFiles strings.Builder
 			seedMsg := msg
@@ -389,6 +430,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	}
 
 	history := a.conversationHistoryForIntent(msg, intent)
+	prompt = appendPriorReferenceGuidance(prompt, msg, history, a.Info.ID)
 	prompt, _ = applyContextBudgetForMessage(msg, prompt)
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)

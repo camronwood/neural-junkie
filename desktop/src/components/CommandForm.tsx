@@ -21,6 +21,7 @@ import { PACK_CAP } from '../stores/packCapabilities';
 import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 
 const CLAUDE_MODELS = ['claude-sonnet', 'claude-haiku'] as const;
+const CUSTOM_EXPERT_TYPE = '__custom__';
 
 interface CommandSelectOption {
   value: string;
@@ -111,6 +112,9 @@ export function CommandForm({
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [pathBrowseError, setPathBrowseError] = useState<string | null>(null);
+  const [expertTypeMode, setExpertTypeMode] = useState('assistant');
+  const [customExpertType, setCustomExpertType] = useState('');
+  const [expertPresetSlugs, setExpertPresetSlugs] = useState<string[]>([]);
 
   const providerArg = useMemo(
     () => command.arguments.find(a => a.type === 'provider'),
@@ -130,6 +134,28 @@ export function CommandForm({
   useEffect(() => {
     firstInputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (command.name !== '/create-expert' || !api) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const presets = await api.fetchExpertPresets();
+        if (cancelled) return;
+        const slugs = presets.map((p) => p.slug).filter(Boolean);
+        setExpertPresetSlugs(slugs.length > 0 ? slugs : ['assistant']);
+        setExpertTypeMode(slugs[0] ?? 'assistant');
+      } catch {
+        if (!cancelled) {
+          setExpertPresetSlugs(['assistant']);
+          setExpertTypeMode('assistant');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, command.name]);
 
   useEffect(() => {
     if (!api || !modelArg) {
@@ -278,6 +304,29 @@ export function CommandForm({
       return;
     }
 
+    if (command.name === '/create-expert') {
+      const typeArg = visibleArguments.find((a) => a.name === 'type');
+      const expertSlug =
+        expertTypeMode === CUSTOM_EXPERT_TYPE
+          ? customExpertType.trim()
+          : expertTypeMode.trim();
+      if (!expertSlug) {
+        return;
+      }
+      const parts = [command.name, expertSlug];
+      for (const arg of visibleArguments) {
+        if (arg.name === 'type') continue;
+        const v = values[arg.name]?.trim();
+        if (v) {
+          parts.push(v);
+        } else if (arg.required) {
+          return;
+        }
+      }
+      onSubmit(parts.join(' '));
+      return;
+    }
+
     const parts = [command.name];
     for (const arg of visibleArguments) {
       const v = values[arg.name]?.trim();
@@ -302,15 +351,26 @@ export function CommandForm({
   const collabWorkspaceOk =
     collabWorkspaceMode !== 'path' || collabRepoPath.trim().length > 0;
 
+  const createExpertTypeOk =
+    command.name !== '/create-expert' ||
+    (expertTypeMode !== CUSTOM_EXPERT_TYPE
+      ? expertTypeMode.trim().length > 0
+      : customExpertType.trim().length > 0);
+
   const canSubmit = isCollaborateCommand
     ? selectedCollaborators.size >= 2 &&
       selectedCollaborators.size <= MAX_COLLAB_AGENTS &&
       !!values.description?.trim() &&
       collabNumericOptsOk &&
       collabWorkspaceOk
-    : visibleArguments
-        .filter(a => a.required)
-        .every(a => values[a.name]?.trim());
+    : command.name === '/create-expert'
+      ? createExpertTypeOk &&
+        visibleArguments
+          .filter((a) => a.required && a.name !== 'type')
+          .every((a) => values[a.name]?.trim())
+      : visibleArguments
+          .filter(a => a.required)
+          .every(a => values[a.name]?.trim());
 
   const toggleCollaborator = (agentID: string) => {
     setSelectedCollaborators(prev => {
@@ -806,7 +866,35 @@ export function CommandForm({
                   <span className="ml-1 opacity-60">(loading…)</span>
                 )}
               </label>
-              {renderField(arg, idx)}
+              {command.name === '/create-expert' && arg.name === 'type' ? (
+                <>
+                  <select
+                    id={`cmd-arg-${arg.name}`}
+                    value={expertTypeMode}
+                    onChange={(e) => setExpertTypeMode(e.target.value)}
+                    className={fieldClass}
+                    ref={idx === 0 ? (firstInputRef as React.Ref<HTMLSelectElement>) : undefined}
+                  >
+                    {expertPresetSlugs.map((slug) => (
+                      <option key={slug} value={slug}>
+                        {slug}
+                      </option>
+                    ))}
+                    <option value={CUSTOM_EXPERT_TYPE}>Custom…</option>
+                  </select>
+                  {expertTypeMode === CUSTOM_EXPERT_TYPE && (
+                    <input
+                      type="text"
+                      value={customExpertType}
+                      onChange={(e) => setCustomExpertType(e.target.value)}
+                      placeholder="e.g. guitar, legal-advice, cooking"
+                      className={`${fieldClass} mt-2 placeholder-slack-textMuted`}
+                    />
+                  )}
+                </>
+              ) : (
+                renderField(arg, idx)
+              )}
             </div>
           ))
         )}

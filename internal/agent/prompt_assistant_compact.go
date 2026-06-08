@@ -37,6 +37,7 @@ func (a *Agent) buildCompactAssistantOllamaPrompt(msg *protocol.Message) string 
 	system.WriteString("Meeting notes and emails load when the user asks about meetings or email. ")
 	system.WriteString("Full Neural Junkie app knowledge (shortcuts, settings, packs) loads when they ask about the NJ app or features.\n")
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
+	AppendMemoryForMessage(&system, msg, a.channelHistory(msg.Channel))
 	AppendLearningsForMessage(&system, msg, &a.Info)
 
 	var user strings.Builder

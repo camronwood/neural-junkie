@@ -62,7 +62,6 @@ export function PendingApprovalsBar({
   }, [suggestedCommands, channelTools]);
 
   const totalCount = suggestedCommands.length + pendingTools.length;
-  if (totalCount === 0) return null;
 
   const active = queue[0];
   const activeTool =
@@ -181,6 +180,8 @@ export function PendingApprovalsBar({
     approveFirstPendingRef,
     rejectFirstPendingRef,
   ]);
+
+  if (totalCount === 0) return null;
 
   return (
     <div

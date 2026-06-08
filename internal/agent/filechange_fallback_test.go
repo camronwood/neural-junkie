@@ -33,6 +33,22 @@ func TestIsUserRequestingFileWrite(t *testing.T) {
 	if isUserRequestingFileWrite("what is a C major chord") {
 		t.Fatal("should not match generic question")
 	}
+	if !isUserRequestingFileWrite("store that artical in a markdown file") {
+		t.Fatal("expected store that file export intent")
+	}
+}
+
+func TestUserRequestsFileExport(t *testing.T) {
+	t.Parallel()
+	if !userRequestsFileExport("store that artical in a markdown file") {
+		t.Fatal("expected file export")
+	}
+	if !userRequestsFileExport("please create that file new-artical-test.md") {
+		t.Fatal("expected create that file")
+	}
+	if userRequestsFileExport("write me a linkedin article") {
+		t.Fatal("content delivery alone should not be file export")
+	}
 }
 
 func TestUserWantsCreateOperation(t *testing.T) {

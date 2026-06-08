@@ -71,7 +71,7 @@ server-regression: setup-env ## Hub for live scenario regression (RATE_LIMIT=0 +
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
 
-debug-session: ## Analyze ~/.neural-junkie/last-session.json (collabs, joins, channels)
+debug-session: ## Analyze ~/.neural-junkie/last-session.json (collabs, joins, channels); conversation issues: python3 scripts/analyze-session-conversation-issues.py [--self-test] (keys: premature_file_apply_claim, missing_prior_reference, file_export_chat_mode, placeholder_proposals, stale_session_summary, absolute_path_in_chat)
 	@python3 scripts/debug-collab.py session
 
 debug-collab: ## Live collab state from hub (optional: CHANNEL=... COLAB=ec2cdef8)
@@ -213,13 +213,15 @@ implement-scenarios: ## Run all scenarios under scenarios/implement/
 implement-scenarios-list: ## List implementation scenarios
 	@python3 scripts/implement-scenarios.py --list
 
-test-parity-stable: ## Run implement-scenarios 3x; fail if any run < 7/7
+test-parity-stable: ## Run implement-scenarios 3x with hub restart between sweeps (stable gate)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 7 \
+		--restart-between --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
+
+test-parity-stable-stress: ## Run implement-scenarios 3x back-to-back (may OOM hub on tight memory)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 7 \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
-test-parity-stable-restart: ## Run implement-scenarios 3x with hub restart between sweeps
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 7 \
-		--restart-between --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
+test-parity-stable-restart: test-parity-stable ## Alias for stable gate (restart between sweeps)
 
 test-regression-bundle: ## Live bundle: implement + chat-regression + conversation-regression
 	@chmod +x scripts/regression-bundle.py

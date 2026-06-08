@@ -18,6 +18,11 @@ func domainToolFallbackModel(agentType protocol.AgentType) string {
 			return cfg.CadMCPSettings().ToolModelOrDefault()
 		}
 		return config.CadOllamaToolModel
+	case protocol.AgentTypeBiology:
+		if cfg := mcp.AppConfig(); cfg != nil {
+			return cfg.BiologyToolModelOrDefault()
+		}
+		return config.BioOllamaToolModel
 	default:
 		return ai.OllamaBiologyFallbackModel
 	}

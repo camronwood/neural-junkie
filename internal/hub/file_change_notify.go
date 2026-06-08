@@ -3,9 +3,11 @@ package hub
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -64,5 +66,16 @@ func (h *Hub) NotifyFileChangeApproved(change *filechange.FileChange, approvedBy
 	}
 	if err := h.SendMessage(approvalMsg); err != nil {
 		log.Printf("[FileChange] Failed to send agent-visible approval: %v", err)
+	}
+
+	h.scheduleImmediateSummaryRefresh(channel)
+
+	rel := filepath.ToSlash(strings.TrimSpace(change.FilePath))
+	if strings.HasPrefix(rel, "collabs/") && strings.HasSuffix(strings.ToLower(rel), ".md") {
+		wsRoot := ""
+		if h.fileChangeManager != nil && h.fileChangeManager.GetExecutor() != nil {
+			wsRoot = h.fileChangeManager.GetExecutor().GetWorkspaceRoot()
+		}
+		memory.IndexCollabMarkdownRel(wsRoot, rel, channel)
 	}
 }

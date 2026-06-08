@@ -66,20 +66,17 @@ func IsSlackMentionToken(mention string) bool {
 	}
 }
 
-// NormalizeAgentName converts agent names to kebab-case format for @mention compatibility
-// Converts spaces to hyphens, removes special characters, and ensures valid format
-// Example: "Day One Expert" → "day-one-expert", "neural-junkie Expert" → "neural-junkie-expert"
+// NormalizeAgentName sanitizes agent names for @mention compatibility while preserving
+// caller casing (e.g. "GuitarCoach", "RustExpert").
+// Spaces and punctuation become hyphens: "Day One Expert" → "Day-One-Expert".
 func NormalizeAgentName(name string) string {
 	// Trim whitespace
 	normalized := strings.TrimSpace(name)
 
-	// Convert to lowercase for consistency
-	normalized = strings.ToLower(normalized)
-
 	// Replace spaces and special characters with hyphens
 	var result strings.Builder
 	for _, char := range normalized {
-		if (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') {
 			result.WriteRune(char)
 		} else if char == ' ' || char == '-' || char == '_' || char == '@' || char == '#' || char == '+' || char == '=' || char == '!' || char == '?' || char == '.' || char == ',' || char == ':' || char == ';' || char == '(' || char == ')' || char == '[' || char == ']' || char == '{' || char == '}' || char == '<' || char == '>' || char == '|' || char == '\\' || char == '/' || char == '*' || char == '&' || char == '%' || char == '$' || char == '^' || char == '~' || char == '`' {
 			// Only add hyphen if previous character wasn't a hyphen

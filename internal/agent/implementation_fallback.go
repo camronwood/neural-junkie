@@ -48,6 +48,9 @@ func extractCodeFenceForPath(response, targetPath string) string {
 }
 
 func validateProposalContent(path, content string) error {
+	if looksLikePlaceholderProposalContent(content) {
+		return fmt.Errorf("proposal content looks like a placeholder template, not real deliverable text")
+	}
 	if isToolCallJSONContent(content) {
 		return fmt.Errorf("proposal content looks like a tool-call payload, not file source")
 	}

@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -238,6 +240,74 @@ func TestShouldUseFileChangeFenceFallback_implementationSession(t *testing.T) {
 	}
 }
 
+func TestShouldUseFileChangeFenceFallback_contentDelivery(t *testing.T) {
+	t.Parallel()
+	a := &Agent{Info: protocol.AgentInfo{ID: "cr-1", Type: protocol.AgentTypeCodeReview}}
+	msg := &protocol.Message{
+		Content: "Can you create a linkedin article about this app for me?",
+		Metadata: map[string]interface{}{
+			protocol.IdeMetaImplementationSession: true,
+		},
+	}
+	if a.shouldUseFileChangeFenceFallback(msg) {
+		t.Fatal("linkedin article should not allow fence fallback")
+	}
+}
+
+func TestShouldUseFileChangeFenceFallback_bareWorkspaceDirective(t *testing.T) {
+	t.Parallel()
+	a := &Agent{Info: protocol.AgentInfo{ID: "cr-1", Type: protocol.AgentTypeCodeReview}}
+	msg := &protocol.Message{
+		Content:  "use the workspace",
+		Metadata: map[string]interface{}{protocol.IdeMetaImplementationSession: true},
+	}
+	if a.shouldUseFileChangeFenceFallback(msg) {
+		t.Fatal("bare workspace directive should not allow fence fallback")
+	}
+	msg2 := &protocol.Message{Content: "use the workspace to implement dark mode"}
+	if !a.shouldUseFileChangeFenceFallback(msg2) {
+		t.Fatal("workspace directive with implement ask should allow fence fallback")
+	}
+}
+
+func TestImplementationSeedCandidates_workspaceDirectiveLoadsReadme(t *testing.T) {
+	t.Parallel()
+	paths := implementationSeedCandidates(protocol.AgentTypeCodeReview, "use the workspace", nil, nil)
+	found := false
+	for _, p := range paths {
+		if p == "README.md" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected README.md in seeds, got %v", paths)
+	}
+}
+
+func TestUserRequestsContentDelivery(t *testing.T) {
+	t.Parallel()
+	if !userRequestsContentDelivery("Can you create a linkedin article about this app?") {
+		t.Fatal("expected linkedin article")
+	}
+	if userRequestsContentDelivery("use the workspace") {
+		t.Fatal("workspace directive is not content delivery")
+	}
+}
+
+func TestIsBareWorkspaceDirective(t *testing.T) {
+	t.Parallel()
+	if !isBareWorkspaceDirective("use the workspace") {
+		t.Fatal("expected bare workspace directive")
+	}
+	if !isBareWorkspaceDirective("can you use the workspace for this?") {
+		t.Fatal("expected deictic follow-up to count as bare")
+	}
+	if isBareWorkspaceDirective("use the workspace to implement dark mode") {
+		t.Fatal("implement tail should not be bare")
+	}
+}
+
 func TestResolveImplementationToolModel_prefersAgentCoderModel(t *testing.T) {
 	t.Parallel()
 	a := &Agent{Info: protocol.AgentInfo{AIModel: "qwen2.5-coder:14b"}}
@@ -392,4 +462,46 @@ func TestImplementationSeedCandidates_fromHistory(t *testing.T) {
 	if !found {
 		t.Fatalf("expected SettingsModal from history, got %v", paths)
 	}
+}
+
+func TestAppendContentDeliverySeedFiles_loadsReadme(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Neural Junkie\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	n := AppendContentDeliverySeedFiles(&b, dir, nil)
+	if n != 1 {
+		t.Fatalf("expected 1 file loaded, got %d", n)
+	}
+	if !strings.Contains(b.String(), "Neural Junkie") {
+		t.Fatalf("expected README content in prompt:\n%s", b.String())
+	}
+}
+
+func TestShouldAugmentPromptWithWorkspace_contentDelivery(t *testing.T) {
+	t.Parallel()
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "Assistant", Type: protocol.AgentTypeAssistant},
+	}
+	msg := &protocol.Message{
+		Content: "Can you write me an article about this app?",
+		Metadata: map[string]interface{}{
+			MetadataContextScope:   ContextScopeOutline,
+			MetadataConversationMode: ConversationModeChat,
+			"workspace_context": map[string]interface{}{
+				"workspace_path": dirOrSkip(t),
+			},
+		},
+	}
+	if !a.shouldAugmentPromptWithWorkspace(IntentSubstantive, msg) {
+		t.Fatal("content delivery with workspace context should augment prompt")
+	}
+}
+
+func dirOrSkip(t *testing.T) string {
+	t.Helper()
+	d := t.TempDir()
+	return d
 }

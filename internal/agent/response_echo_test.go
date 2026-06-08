@@ -67,3 +67,26 @@ func TestLooksLikeAsksUserToPasteWorkspaceFiles(t *testing.T) {
 		t.Fatal("expected no workspace context to skip")
 	}
 }
+
+func TestLooksLikePrematureFileApplyClaim(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm", protocol.AgentInfo{Name: "User", Type: "human"}, "save to docs/test.md")
+	msg.ID = "cur"
+	claim := "The article has been created and saved to docs/test.md."
+	if !looksLikePrematureFileApplyClaim(msg, claim, nil) {
+		t.Fatal("expected premature apply claim")
+	}
+	proposal := "I submitted a file change proposal for your approval."
+	if looksLikePrematureFileApplyClaim(msg, proposal, nil) {
+		t.Fatal("expected proposal wording to pass")
+	}
+	hist := []*protocol.Message{
+		{
+			ID:      "sys1",
+			Type:    protocol.MessageTypeSystemInfo,
+			Content: "Applied change `fc1` to `docs/test.md`.",
+		},
+	}
+	if looksLikePrematureFileApplyClaim(msg, claim, hist) {
+		t.Fatal("expected prior Applied change to suppress flag")
+	}
+}

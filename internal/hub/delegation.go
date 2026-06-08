@@ -167,9 +167,7 @@ func (ch *CommandHandler) providerForConsult(
 	}
 	copy := *p
 	if agentType == protocol.AgentTypeBiology && intent == delegation.IntentDomainReasoning {
-		if m := strings.TrimSpace(cfg.BiologyChatModel); m != "" {
-			copy.Model = m
-		}
+		copy.Model = ch.appConfig.BiologyChatModelOrDefault()
 	}
 	if ch.providerCache != nil {
 		return ch.providerCache.GetForProviderRow(ch.appConfig, &copy)

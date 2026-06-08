@@ -45,6 +45,9 @@ func TestUserAsksAboutWorkspaceVisibility_phrase(t *testing.T) {
 	if !userAsksAboutWorkspaceVisibility("can you see my workspace I have open?") {
 		t.Fatal("expected match for workspace I have open")
 	}
+	if !userAsksAboutWorkspaceVisibility("you have workspace access") {
+		t.Fatal("expected match for workspace access affirmation")
+	}
 }
 
 func TestLooksLikeIgnoresWorkspaceVisibility(t *testing.T) {

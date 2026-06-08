@@ -18,7 +18,23 @@ var (
 	themeImplementationRE  = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
 	implementTypoRE        = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
 	workspaceDirectiveRE   = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
+	contentDeliveryRE      = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
+	fileExportRE           = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
+	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
 )
+
+var workspaceDirectiveDocSeeds = []string{"README.md", "DOCS.md", "docs/README.md"}
+
+var contentDeliveryDocSeeds = []string{
+	"README.md",
+	"DOCS.md",
+	"docs/README.md",
+	"docs/ARCHITECTURE.md",
+	"package.json",
+	"go.mod",
+	"Cargo.toml",
+	"desktop/package.json",
+}
 
 const maxImplementationSeedFiles = 6
 
@@ -61,6 +77,67 @@ func userRequestsImplementation(content string) bool {
 		}
 	}
 	return false
+}
+
+// userRequestsContentDelivery reports writing/marketing tasks that should not trigger file-edit fallback.
+func userRequestsContentDelivery(content string) bool {
+	return contentDeliveryRE.MatchString(strings.TrimSpace(content))
+}
+
+// userRequestsFileExportForMessage includes explicit composer export mode.
+func userRequestsFileExportForMessage(msg *protocol.Message) bool {
+	if msg != nil && msg.IdeEditorModeIsExport() {
+		return true
+	}
+	if msg == nil {
+		return false
+	}
+	return userRequestsFileExport(msg.Content)
+}
+
+// userRequestsFileExport reports save/store/create/fill markdown file asks.
+// Deprecated: prefer explicit composer export mode (IdeEditorModeIsExport).
+func userRequestsFileExport(content string) bool {
+	text := strings.TrimSpace(content)
+	if text == "" {
+		return false
+	}
+	lower := strings.ToLower(text)
+	if fileExportRE.MatchString(lower) {
+		return true
+	}
+	hasFileTarget := strings.Contains(lower, ".md") || strings.Contains(lower, "markdown file") ||
+		strings.Contains(lower, "the file")
+	hasExportVerb := strings.Contains(lower, "store") || strings.Contains(lower, "save") ||
+		strings.Contains(lower, "create") || strings.Contains(lower, "fill")
+	return hasFileTarget && hasExportVerb
+}
+
+// isBareWorkspaceDirective reports short "use the workspace" style messages without a code deliverable.
+func isBareWorkspaceDirective(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if !workspaceDirectiveRE.MatchString(lower) {
+		return false
+	}
+	stripped := workspaceDirectiveRE.ReplaceAllString(lower, "")
+	stripped = bareWorkspaceWrapperRE.ReplaceAllString(stripped, "")
+	stripped = strings.TrimSpace(strings.Trim(stripped, "?.!,"))
+	if stripped == "" {
+		return true
+	}
+	if implementTypoRE.MatchString(stripped) || themeImplementationRE.MatchString(stripped) {
+		return false
+	}
+	codeVerbs := []string{
+		"implement", "fix", "debug", "build", "theme", "settings", "modal",
+		"add ", "wire", "patch", "refactor", "broken", "not working",
+	}
+	for _, v := range codeVerbs {
+		if strings.Contains(stripped, v) {
+			return false
+		}
+	}
+	return len(stripped) < 40
 }
 
 // userAffirmsPendingImplementation reports short follow-ups after an implementation ask.
@@ -358,7 +435,7 @@ func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool 
 	if msg == nil {
 		return false
 	}
-	if userRequestsImplementation(msg.Content) {
+	if userRequestsImplementation(msg.Content) || userRequestsFileExportForMessage(msg) {
 		return true
 	}
 	if a != nil {
@@ -393,6 +470,10 @@ func ShouldForceSessionSummaryRefresh(content string) bool {
 // ShouldForceSessionSummaryRefreshForMessage includes UI file-change approvals.
 func ShouldForceSessionSummaryRefreshForMessage(msg *protocol.Message) bool {
 	if msg != nil && msg.FileChangeApproved() {
+		return true
+	}
+	if msg != nil && msg.Type == protocol.MessageTypeSystemInfo &&
+		strings.Contains(msg.Content, "Applied change") {
 		return true
 	}
 	if msg == nil {
@@ -451,7 +532,7 @@ func appendAntiRepeatFileDumpGuidance(prompt *strings.Builder, history []*protoc
 
 func agentTypeCanShipFileChanges(t protocol.AgentType) bool {
 	switch t {
-	case protocol.AgentTypeFrontend, protocol.AgentTypeBackend, protocol.AgentTypeDatabase,
+	case protocol.AgentTypeAssistant, protocol.AgentTypeFrontend, protocol.AgentTypeBackend, protocol.AgentTypeDatabase,
 		protocol.AgentTypeSecurity, protocol.AgentTypeArchitecture, protocol.AgentTypeCodeReview,
 		protocol.AgentTypeDevOps, protocol.AgentTypeExpert, protocol.AgentTypeRust:
 		return true
@@ -505,8 +586,31 @@ func workspaceGroundingRequirement(totalLoaded int, content string, implementati
 	)
 }
 
+func appendContentDeliveryGuidance(prompt *strings.Builder, msg *protocol.Message) {
+	if msg == nil || !userRequestsContentDelivery(msg.Content) {
+		return
+	}
+	if ResolveContextScope(msg) == ContextScopeNone && !messageHasWorkspaceContext(msg) {
+		return
+	}
+	prompt.WriteString("\n=== CONTENT FROM WORKSPACE (this turn) ===\n")
+	prompt.WriteString("The user wants writing or marketing content grounded in the open project. ")
+	prompt.WriteString("Use README, docs, and PROJECT DOCS below — do NOT ask them to paste project details. ")
+	prompt.WriteString("You may use read_file / semantic_search for additional paths when tools are available.\n")
+	prompt.WriteString("Format long copy as proper markdown: blank lines before ### headings, --- on its own line, ")
+	prompt.WriteString("one numbered list item per line, and sub-bullets on separate lines starting with -.\n")
+	if userRequestsFileExport(msg.Content) {
+		prompt.WriteString("If PRIOR ASSISTANT CONTENT appears below, use it verbatim as the file body — do not invent a generic template.\n")
+	}
+	prompt.WriteString("\n")
+}
+
 func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg *protocol.Message, agentType protocol.AgentType) {
-	if msg == nil || !userRequestsImplementationForMessage(a, msg) || !agentTypeCanShipFileChanges(agentType) {
+	if msg == nil {
+		return
+	}
+	shipChanges := userRequestsImplementationForMessage(a, msg) || userRequestsFileExport(msg.Content)
+	if !shipChanges || !agentTypeCanShipFileChanges(agentType) {
 		return
 	}
 	prompt.WriteString("\n=== IMPLEMENTATION DELIVERY (required) ===\n")
@@ -515,6 +619,9 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	prompt.WriteString("Each path must be a real relative file (e.g. tailwind.config.js, src/index.css) — never labels like \"File:\" or \"path:\".\n")
 	prompt.WriteString("Use only dependencies already in package.json / the repo — do not invent packages.\n")
 	prompt.WriteString("Keep conversational text short (2-4 sentences); put code in [FILE_CHANGE], not long fenced dumps.\n")
+	if a != nil && a.hasWorkspaceTools() {
+		prompt.WriteString("When workspace tools are available, prefer propose_file_edit over [FILE_CHANGE] text blocks.\n")
+	}
 	prompt.WriteString("Do NOT ask the user to paste or share file contents when REFERENCED FILES or WORKSPACE SOURCE FILES appear below — read them and emit [FILE_CHANGE].\n")
 	prompt.WriteString("Only ask for a path if a required file is missing from every context section.\n")
 	if a != nil {
@@ -566,6 +673,11 @@ func implementationSeedCandidates(agentType protocol.AgentType, content string, 
 	for _, p := range DetectFilePaths(content) {
 		add(p)
 	}
+	if workspaceDirectiveRE.MatchString(content) {
+		for _, p := range workspaceDirectiveDocSeeds {
+			add(p)
+		}
+	}
 	seenHist := 0
 	for i := len(history) - 1; i >= 0 && seenHist < 12; i-- {
 		m := history[i]
@@ -590,24 +702,26 @@ func implementationSeedCandidates(agentType protocol.AgentType, content string, 
 	return out
 }
 
-// AppendImplementationSeedFiles reads likely edit targets from the workspace on implement turns.
-func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *protocol.Message, workspacePath string, agentType protocol.AgentType, excludePaths map[string]bool) int {
-	if workspacePath == "" || msg == nil || !userRequestsImplementationForMessage(a, msg) {
+// AppendContentDeliverySeedFiles loads README/docs from the workspace for writing tasks.
+func AppendContentDeliverySeedFiles(prompt *strings.Builder, workspacePath string, excludePaths map[string]bool) int {
+	if workspacePath == "" {
 		return 0
 	}
+	return appendWorkspaceSeedFiles(prompt, workspacePath, contentDeliveryDocSeeds, excludePaths,
+		"\n=== PROJECT DOCS (content delivery) ===\n",
+		"Loaded from the shared workspace for this writing request. "+
+			"Ground the article or copy in these files — do NOT ask the user to paste README or project details.\n\n",
+		"=== END PROJECT DOCS ===\n\n",
+	)
+}
 
-	var history []*protocol.Message
-	agentID := ""
-	if a != nil {
-		history = a.channelHistory(msg.Channel)
-		agentID = a.Info.ID
-	}
-	exclude := mergeAppliedPathsIntoExclude(excludePaths, channelRecentlyAppliedFilePaths(history, msg.ID, agentID))
-	paths := implementationSeedCandidates(agentType, msg.Content, history, exclude)
-	if len(paths) == 0 {
-		return 0
-	}
-
+func appendWorkspaceSeedFiles(
+	prompt *strings.Builder,
+	workspacePath string,
+	candidates []string,
+	excludePaths map[string]bool,
+	header, intro, footer string,
+) int {
 	var loadedFiles []struct {
 		path    string
 		lang    string
@@ -616,7 +730,7 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 	totalSize := 0
 	loaded := 0
 
-	for _, p := range paths {
+	for _, p := range candidates {
 		if loaded >= maxImplementationSeedFiles {
 			break
 		}
@@ -651,12 +765,40 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 		return 0
 	}
 
-	prompt.WriteString("\n=== REFERENCED FILES (implementation) ===\n")
-	prompt.WriteString("Loaded from the shared workspace for this implementation request. ")
-	prompt.WriteString("Use this ACTUAL code in [FILE_CHANGE] blocks — do not ask the user to paste these files.\n\n")
+	prompt.WriteString(header)
+	prompt.WriteString(intro)
 	for _, f := range loadedFiles {
 		prompt.WriteString(fmt.Sprintf("### %s (%s)\n```%s\n%s\n```\n\n", f.path, f.lang, f.lang, f.content))
 	}
-	prompt.WriteString("=== END REFERENCED FILES ===\n\n")
+	prompt.WriteString(footer)
 	return len(loadedFiles)
+}
+
+// AppendImplementationSeedFiles reads likely edit targets from the workspace on implement turns.
+func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *protocol.Message, workspacePath string, agentType protocol.AgentType, excludePaths map[string]bool) int {
+	if workspacePath == "" || msg == nil {
+		return 0
+	}
+	if !userRequestsImplementationForMessage(a, msg) && !workspaceDirectiveRE.MatchString(msg.Content) {
+		return 0
+	}
+
+	var history []*protocol.Message
+	agentID := ""
+	if a != nil {
+		history = a.channelHistory(msg.Channel)
+		agentID = a.Info.ID
+	}
+	exclude := mergeAppliedPathsIntoExclude(excludePaths, channelRecentlyAppliedFilePaths(history, msg.ID, agentID))
+	paths := implementationSeedCandidates(agentType, msg.Content, history, exclude)
+	if len(paths) == 0 {
+		return 0
+	}
+
+	return appendWorkspaceSeedFiles(prompt, workspacePath, paths, exclude,
+		"\n=== REFERENCED FILES (implementation) ===\n",
+		"Loaded from the shared workspace for this implementation request. "+
+			"Use this ACTUAL code in [FILE_CHANGE] blocks — do not ask the user to paste these files.\n\n",
+		"=== END REFERENCED FILES ===\n\n",
+	)
 }

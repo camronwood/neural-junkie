@@ -11,8 +11,76 @@ const IMPLEMENTATION_REQUEST_RE =
   /\b(settings modal|font size|pick up where|finish (?:that |the )?work|theme support|dark[/ ]light|light[/ ]dark|dark mode|light mode|settings page|wire up|hook up|not working|does(?:n't| not) work|broken|debug this|blank screen|white screen|can you fix)\b/i;
 
 /** User directs the agent to use the shared workspace instead of asking for pasted files. */
-const WORKSPACE_DIRECTIVE_RE =
+export const WORKSPACE_DIRECTIVE_RE =
   /\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b/i;
+
+/** Writing/marketing tasks — not code implementation sessions. */
+const CONTENT_DELIVERY_RE =
+  /\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b/i;
+
+const BARE_WORKSPACE_WRAPPER_RE =
+  /\b(can you|could you|please|for this|for that|to do this|now)\b/gi;
+
+export function hasContentDeliverySignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  return CONTENT_DELIVERY_RE.test(text);
+}
+
+/** Save/store/create/fill markdown file — route as code + implementation, not chat re-ask loops. */
+/** @deprecated Prefer explicit composer Mode: Export; kept for Auto migration fallback. */
+export function hasFileExportSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const phrases = [
+    'store that',
+    'store it',
+    'save it',
+    'save it as',
+    'save it in',
+    'fill the file',
+    'create that file',
+    'please create that file',
+    'markdown file',
+  ];
+  for (const p of phrases) {
+    if (lower.includes(p)) return true;
+  }
+  if (/\bfill\b/i.test(text) && /\bwith\b/i.test(text)) return true;
+  const hasFileTarget =
+    /\.md\b/i.test(text) || lower.includes('markdown file') || lower.includes('the file');
+  const hasExportVerb = /\b(store|save|create|fill|write)\b/i.test(text);
+  return hasFileTarget && hasExportVerb;
+}
+
+/** Short "use the workspace" messages without a concrete code deliverable. */
+export function hasBareWorkspaceDirectiveOnly(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text || !WORKSPACE_DIRECTIVE_RE.test(text)) return false;
+  let stripped = text.replace(WORKSPACE_DIRECTIVE_RE, '');
+  stripped = stripped.replace(BARE_WORKSPACE_WRAPPER_RE, '');
+  stripped = stripped.replace(/^[?,.\s]+|[?,.\s]+$/g, '').trim();
+  if (!stripped) return true;
+  const lower = stripped.toLowerCase();
+  const codeVerbs = [
+    'implement',
+    'fix',
+    'debug',
+    'build',
+    'theme',
+    'settings',
+    'modal',
+    'patch',
+    'refactor',
+    'broken',
+    'not working',
+  ];
+  for (const v of codeVerbs) {
+    if (lower.includes(v)) return false;
+  }
+  return stripped.length < 40;
+}
 
 export function hasImplementationContinuationSignals(message: string): boolean {
   const text = (message ?? '').trim();

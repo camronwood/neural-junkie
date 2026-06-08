@@ -55,6 +55,18 @@ func (h *Hub) noteChannelActivity(msg *protocol.Message) {
 			st.UserTurns = summaryRefreshUserTurns
 		}
 
+	case msg.Type == protocol.MessageTypeSystemInfo &&
+		strings.Contains(msg.Content, "Applied change"):
+		if h.channelSummaryGen != nil {
+			transcript = h.transcriptForSummaryLocked(channel)
+			if transcript != "" {
+				gen = h.bumpSummaryRefreshGenLocked(channel)
+				genFn = h.channelSummaryGen
+				st := h.ensureChannelContextLocked(channel)
+				st.UserTurns = 0
+			}
+		}
+
 	case !protocol.IsUserLikeSender(msg.From) &&
 		(msg.Type == protocol.MessageTypeChat || msg.Type == protocol.MessageTypeAnswer):
 		st := h.ensureChannelContextLocked(channel)
@@ -142,4 +154,34 @@ func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, g
 	st.Summary = summary
 	st.UpdatedAt = time.Now()
 	log.Printf("[Hub] session summary updated channel=%s len=%d", channel, len(summary))
+}
+
+// scheduleImmediateSummaryRefresh runs a summary pass without waiting for the next agent turn.
+func (h *Hub) scheduleImmediateSummaryRefresh(channel string) {
+	if h == nil || strings.TrimSpace(channel) == "" {
+		return
+	}
+	chType := h.GetChannelType(channel)
+	if !channelMaintainsSessionSummary(chType, channel) {
+		return
+	}
+
+	h.mu.Lock()
+	var transcript string
+	var gen uint64
+	var genFn ChannelSummaryGenerator
+	if h.channelSummaryGen != nil {
+		transcript = h.transcriptForSummaryLocked(channel)
+		if transcript != "" {
+			gen = h.bumpSummaryRefreshGenLocked(channel)
+			genFn = h.channelSummaryGen
+			st := h.ensureChannelContextLocked(channel)
+			st.UserTurns = 0
+		}
+	}
+	h.mu.Unlock()
+
+	if genFn != nil && transcript != "" {
+		go h.runSummaryRefresh(channel, gen, transcript, genFn)
+	}
 }

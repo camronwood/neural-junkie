@@ -2,11 +2,14 @@ package hub
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+var hubPlaceholderBracketRE = regexp.MustCompile(`\[[a-z][a-z0-9 _-]{2,}\]`)
 
 func looksLikePlaceholderDeliverableContent(content string) bool {
 	content = strings.TrimSpace(content)
@@ -17,15 +20,25 @@ func looksLikePlaceholderDeliverableContent(content string) bool {
 	markers := []string{
 		"[insert ",
 		"[todo",
+		"[feature name]",
+		"[brief description",
+		"[step 1",
+		"[explanation of",
+		"[use case",
 		"insert file name",
 		"insert issues",
 		"insert recommendations",
 		"lorem ipsum",
+		"--- title:",
 	}
 	for _, m := range markers {
 		if strings.Contains(lower, m) {
 			return true
 		}
+	}
+	matches := hubPlaceholderBracketRE.FindAllString(lower, -1)
+	if len(matches) > 2 && len(content) < 4000 {
+		return true
 	}
 	return false
 }

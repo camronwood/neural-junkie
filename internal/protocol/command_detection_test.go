@@ -115,3 +115,60 @@ func TestDetectCommandsMarksSafeShellMetadata(t *testing.T) {
 		t.Fatalf("expected cat to be safe, got %#v", suggestions[0])
 	}
 }
+
+func TestDetectCommandsSkipsModuleImportPathsInline(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "`github.com/camron/ai-chat-room/internal/confluence/storage.go`"
+	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for module import path, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsGolangciLintOutputInline(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "- `github.com/camron/ai-chat-room/internal/confluence/storage.go:64.16,66.3 1 0` suggests issue"
+	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for linter output line, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsGolangciLintOutputInBashBlocks(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "```sh\ngithub.com/camron/ai-chat-room/internal/confluence/storage.go:64.16,66.3 1 0\n```"
+	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for linter output in bash block, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsSkipsMultiLineBarePathsInBashBlocks(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "```bash\ngithub.com/camron/ai-chat-room/internal/confluence/storage.go\ngithub.com/camron/ai-chat-room/internal/confluence/storage.go:64.16,66.3 1 0\n```"
+	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
+	if len(suggestions) != 0 {
+		t.Fatalf("expected no suggestions for path-only bash block, got %#v", suggestions)
+	}
+}
+
+func TestDetectCommandsKeepsGoRunInShBlocks(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "```sh\ngo run main.go\n```"
+	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
+	if len(suggestions) != 1 {
+		t.Fatalf("expected 1 suggestion, got %d", len(suggestions))
+	}
+	if suggestions[0].Command != "go run main.go" {
+		t.Fatalf("unexpected command %q", suggestions[0].Command)
+	}
+}
+
+func TestDetectCommandsGitCommandStillDetected(t *testing.T) {
+	cd := NewCommandDetector(nil)
+	content := "`git status`"
+	suggestions := cd.DetectCommands(content, "Agent", "msg-1")
+	if len(suggestions) != 1 {
+		t.Fatalf("expected git status suggestion, got %#v", suggestions)
+	}
+}

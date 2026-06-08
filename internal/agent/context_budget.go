@@ -11,6 +11,7 @@ const defaultContextBudgetBytes = 32 * 1024
 
 const (
 	maxBudgetSessionSummary   = 2 * 1024
+	maxBudgetRelevantMemory   = 1536
 	maxBudgetHistoryBody      = 12 * 1024
 	maxBudgetWorkspaceOutline = 4 * 1024
 	ideContextBudgetBytes     = 48 * 1024
@@ -71,6 +72,7 @@ func applyContextBudgetWithLimit(prompt string, limit, workspaceOutlineCap int) 
 
 	systemPart, rulesBlock := peelProtectedRulesSection(systemPart)
 	systemPart = truncateMarkedSection(systemPart, "=== SESSION SUMMARY ===", maxBudgetSessionSummary)
+	systemPart = truncateMarkedSection(systemPart, "=== RELEVANT PAST CONTEXT ===", maxBudgetRelevantMemory)
 	systemPart = truncateMarkedSection(systemPart, "=== WORKSPACE CONTEXT ===", workspaceOutlineCap)
 	systemPart = truncateMarkedSection(systemPart, "Grounding requirement:", workspaceOutlineCap)
 	systemPart = rulesBlock + systemPart

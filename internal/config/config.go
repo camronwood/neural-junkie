@@ -103,6 +103,7 @@ func (c CollaborationConfig) AutoApproveDeliverablesEnabled() bool {
 type FeaturesConfig struct {
 	PersonalLearningEnabled        bool   `json:"personal_learning_enabled"`
 	PersonalLearningSuggestEnabled bool   `json:"personal_learning_suggest_enabled"`
+	ConversationMemoryEnabled      *bool  `json:"conversation_memory_enabled,omitempty"`
 	LearningEmbedModel             string `json:"learning_embed_model,omitempty"`
 	CodebaseEmbedModel             string `json:"codebase_embed_model,omitempty"`
 }
@@ -507,6 +508,19 @@ func (c *Config) CodebaseEmbedModel() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return strings.TrimSpace(c.Features.CodebaseEmbedModel)
+}
+
+// ConversationMemoryEnabled reports whether conversation memory retrieval is on (default true).
+func (c *Config) ConversationMemoryEnabled() bool {
+	if c == nil {
+		return true
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.Features.ConversationMemoryEnabled == nil {
+		return true
+	}
+	return *c.Features.ConversationMemoryEnabled
 }
 
 // ClearAllAgentModels removes per-agent model overrides.

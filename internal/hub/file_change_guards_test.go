@@ -16,6 +16,7 @@ func TestLooksLikePlaceholderDeliverableContent(t *testing.T) {
 		want    bool
 	}{
 		{"# Report\n\n- **File:** [Insert File Name]\n", true},
+		{"# Feature\n\n[Feature Name]\n\n[Brief description of feature]\n", true},
 		{"# Findings\n\n- grounded in README\n", false},
 		{"", false},
 		{"Lorem ipsum dolor sit amet", true},

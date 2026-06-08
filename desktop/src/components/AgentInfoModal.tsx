@@ -7,6 +7,7 @@ import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI, type UserLearning } from '../api/chatAPI';
 import { LearningProposalModal } from './LearningProposalModal';
+import { formatModelDisplayName, formatModelWithRole } from '../utils/modelDisplayNames';
 
 const TOOL_EXAMPLE_PROMPTS: Record<string, string> = {
   analyze_sequence: 'Analyze this peptide: MKTAYIAKQRQISFVK',
@@ -381,7 +382,12 @@ export function AgentInfoModal({
                       {getProviderIcon(effectiveProvider)} {effectiveProvider}
                     </span>
                     <span className="text-sm text-slack-textMuted">•</span>
-                    <span className="text-sm text-slack-text">{effectiveModel || 'unknown'}</span>
+                    <span className="text-sm text-slack-text" title={effectiveModel || undefined}>
+                      {effectiveModel ? formatModelDisplayName(effectiveModel) : 'unknown'}
+                    </span>
+                    {effectiveModel && formatModelDisplayName(effectiveModel) !== effectiveModel && (
+                      <span className="text-xs text-slack-textMuted font-mono">{effectiveModel}</span>
+                    )}
                   </div>
                   {onProviderSwitch && (
                     <div className="relative">
@@ -473,21 +479,29 @@ export function AgentInfoModal({
                   <div className="rounded border border-slack-border bg-slack-bgHover p-3 space-y-1">
                     <div>
                       <span className="text-slack-textMuted">Chat model: </span>
-                      <span className="text-slack-text font-mono text-xs">
-                        {toolCaps.chat_provider} / {toolCaps.chat_model}
+                      <span className="text-slack-text text-xs">
+                        {formatModelWithRole(toolCaps.chat_model, 'chat')}
                       </span>
+                      <div className="text-xs text-slack-textMuted font-mono mt-0.5">
+                        {toolCaps.chat_provider} / {toolCaps.chat_model}
+                      </div>
                       {toolCaps.chat_native_tools ? (
-                        <span className="ml-2 text-xs text-green-500">native tools</span>
+                        <span className="text-xs text-green-500">native tools</span>
                       ) : (
-                        <span className="ml-2 text-xs text-slack-textMuted">no native tools</span>
+                        <span className="text-xs text-slack-textMuted">no native tools</span>
                       )}
                     </div>
                     {toolCaps.tool_loop_model && (
                       <div>
                         <span className="text-slack-textMuted">Tool loop: </span>
-                        <span className="text-slack-text font-mono text-xs">{toolCaps.tool_loop_model}</span>
+                        <span className="text-slack-text text-xs">
+                          {formatModelWithRole(toolCaps.tool_loop_model, 'tool')}
+                        </span>
+                        <div className="text-xs text-slack-textMuted font-mono mt-0.5">
+                          {toolCaps.tool_loop_model}
+                        </div>
                         {toolCaps.tool_loop_uses_fallback && (
-                          <span className="ml-2 text-xs text-amber-500">fallback</span>
+                          <span className="text-xs text-amber-500">fallback</span>
                         )}
                       </div>
                     )}

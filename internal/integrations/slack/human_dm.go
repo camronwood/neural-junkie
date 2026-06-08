@@ -11,6 +11,8 @@ import (
 
 const humanDMPollActiveInterval = 3
 const humanDMPollIdleInterval = 30
+// humanDMListCacheInterval avoids re-listing IM/mpim on every active poll (Slack rate limits).
+const humanDMListCacheInterval = 60
 
 // BuildHumanDMInboxMessage converts a polled human DM into a hub inbox message.
 // When routeToAgent is false (forward mode), the message is surfaced for manual NJ reply only.

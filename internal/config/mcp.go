@@ -21,6 +21,8 @@ type MCPConfig struct {
 
 // BiologyMCPConfig is persisted in config.json and edited in Settings.
 type BiologyMCPConfig struct {
+	ChatModel                   string `json:"chat_model,omitempty"`
+	ToolModel                   string `json:"tool_model,omitempty"`
 	ESMFoldModel                string `json:"esmfold_model,omitempty"`
 	MaxAnalyzeLength            int    `json:"max_analyze_length,omitempty"`
 	MaxFoldLength               int    `json:"max_fold_length,omitempty"`
@@ -91,6 +93,62 @@ func (b BiologyMCPConfig) DefaultPanelProfileOrDefault() string {
 		return p
 	}
 	return "human-inflammatory-12plex-v1"
+}
+
+func (b BiologyMCPConfig) ChatModelOrDefault() string {
+	if m := strings.TrimSpace(b.ChatModel); m != "" {
+		return m
+	}
+	return BioOllamaChatModel
+}
+
+func (b BiologyMCPConfig) ToolModelOrDefault() string {
+	if m := strings.TrimSpace(b.ToolModel); m != "" {
+		return m
+	}
+	return BioOllamaToolModel
+}
+
+// BiologyChatModelOrDefault returns mcp.biology.chat_model, then legacy delegation.biology_chat_model.
+func (c *Config) BiologyChatModelOrDefault() string {
+	if c == nil {
+		return BioOllamaChatModel
+	}
+	if m := strings.TrimSpace(c.BiologyMCPSettings().ChatModel); m != "" {
+		return m
+	}
+	if m := strings.TrimSpace(c.Delegation.Normalized().BiologyChatModel); m != "" {
+		return m
+	}
+	return BioOllamaChatModel
+}
+
+// BiologyToolModelOrDefault returns mcp.biology.tool_model, then legacy delegation.biology_tool_model.
+func (c *Config) BiologyToolModelOrDefault() string {
+	if c == nil {
+		return BioOllamaToolModel
+	}
+	if m := strings.TrimSpace(c.BiologyMCPSettings().ToolModel); m != "" {
+		return m
+	}
+	if m := strings.TrimSpace(c.Delegation.Normalized().BiologyToolModel); m != "" {
+		return m
+	}
+	return BioOllamaToolModel
+}
+
+// MigrateBiologyMCPModels copies legacy delegation biology model fields into mcp.biology when unset.
+func (c *Config) MigrateBiologyMCPModels() {
+	if c == nil {
+		return
+	}
+	d := c.Delegation.Normalized()
+	if strings.TrimSpace(c.MCP.Biology.ChatModel) == "" && strings.TrimSpace(c.Delegation.BiologyChatModel) != "" {
+		c.MCP.Biology.ChatModel = strings.TrimSpace(d.BiologyChatModel)
+	}
+	if strings.TrimSpace(c.MCP.Biology.ToolModel) == "" && strings.TrimSpace(c.Delegation.BiologyToolModel) != "" {
+		c.MCP.Biology.ToolModel = strings.TrimSpace(d.BiologyToolModel)
+	}
 }
 
 // CadMCPConfig is persisted in config.json and edited in Settings.

@@ -21,6 +21,13 @@ var bareFileRefExtensions = map[string]bool{
 	".pdf": true, ".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".svg": true,
 }
 
+var moduleImportPathPrefixes = []string{
+	"github.com/", "gitlab.com/", "golang.org/", "gopkg.in/", "bitbucket.org/",
+}
+
+// golangci-lint and similar tools emit locations like path.go:64.16,66.3 1 0
+var linterOutputLinePattern = regexp.MustCompile(`:\d+\.\d+,\d+\.\d+(?:\s+\d+(?:\s+\d+)?)?$`)
+
 // CommandDetector detects shell commands in agent responses
 type CommandDetector struct{}
 
@@ -57,6 +64,9 @@ func (cd *CommandDetector) DetectCommands(content, agentName, messageID string) 
 			if isHubMCPToolCommand(command) {
 				continue
 			}
+			if looksLikeNonShellReference(command) {
+				continue
+			}
 			if cd.isShellCommand(command) {
 				suggestion := cd.createCommandSuggestion(command, agentName, messageID, content)
 				suggestions = append(suggestions, suggestion)
@@ -73,7 +83,8 @@ func (cd *CommandDetector) isShellCommand(command string) bool {
 	shellPatterns := []string{
 		"ls", "cd", "pwd", "mkdir", "rm", "cp", "mv", "cat", "grep", "find",
 		"ps", "kill", "top", "htop", "df", "du", "tar", "zip", "unzip",
-		"git", "npm", "yarn", "pip", "docker", "kubectl", "aws", "curl", "wget",
+		"git", "go", "make", "npm", "yarn", "pnpm", "pip", "python", "node",
+		"cargo", "rustc", "docker", "kubectl", "aws", "curl", "wget",
 		"ssh", "scp", "rsync", "chmod", "chown", "sudo", "su",
 	}
 
@@ -85,7 +96,7 @@ func (cd *CommandDetector) isShellCommand(command string) bool {
 
 	firstWord := parts[0]
 	for _, pattern := range shellPatterns {
-		if strings.HasPrefix(firstWord, pattern) {
+		if firstWord == pattern {
 			return true
 		}
 	}
@@ -98,8 +109,61 @@ func (cd *CommandDetector) isShellCommand(command string) bool {
 	return false
 }
 
-// looksLikeBareFileReference matches deliverable paths (e.g. findings.md, collabs/id/out.md)
-// that agents sometimes put in ```bash blocks by mistake.
+// looksLikeNonShellReference matches file paths, module import paths, and linter output
+// that agents sometimes put in ```bash blocks or inline backticks by mistake.
+func looksLikeNonShellReference(s string) bool {
+	if looksLikeBareFileReference(s) {
+		return true
+	}
+	if looksLikeModuleImportPath(s) {
+		return true
+	}
+	return looksLikeLinterOutputLine(s)
+}
+
+func looksLikeModuleImportPath(s string) bool {
+	s = strings.TrimSpace(s)
+	for _, prefix := range moduleImportPathPrefixes {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func looksLikeLinterOutputLine(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if linterOutputLinePattern.MatchString(s) {
+		return true
+	}
+	// file.go:10:5 or file.go:10 style references in tool output
+	if strings.Count(s, ":") >= 2 {
+		lastColon := strings.LastIndex(s, ":")
+		if lastColon > 0 && lastColon < len(s)-1 {
+			suffix := s[lastColon+1:]
+			if _, ok := parseLeadingInt(suffix); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func parseLeadingInt(s string) (int, bool) {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return 0, false
+	}
+	return i, true
+}
+
+// looksLikeBareFileReference matches deliverable paths (e.g. findings.md, collabs/id/out.md).
 func looksLikeBareFileReference(s string) bool {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -149,21 +213,19 @@ func (cd *CommandDetector) shouldSuggestCodeBlock(command string) bool {
 		return false
 	}
 	for _, line := range lines {
-		if looksLikeBareFileReference(line) {
+		if looksLikeNonShellReference(line) {
 			return false
 		}
 		if isHubMCPToolCommand(line) {
 			return false
 		}
 	}
-	if len(lines) > 1 {
-		return true
+	for _, line := range lines {
+		if cd.isShellCommand(line) {
+			return true
+		}
 	}
-	if len(lines) == 1 {
-		line := lines[0]
-		return cd.isShellCommand(line) || strings.Contains(line, " ")
-	}
-	return true
+	return false
 }
 
 // createCommandSuggestion creates a command suggestion for a shell command

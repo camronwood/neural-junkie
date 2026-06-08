@@ -39,6 +39,19 @@ func TestCollaborationPlanningWithoutWorkspaceSkipsScanAndGrounding(t *testing.T
 	}
 }
 
+func TestCollaborationPlanningWithBoundRepoSkipsGroundingLine(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-ch", protocol.AgentInfo{ID: "a1", Name: "BE"}, "Review internal/hub/hub.go for schema")
+	msg.SetCollaborationID("cid")
+	info := CollaborationInfo{
+		ID:                     "cid",
+		Phase:                  "planning",
+		SourceWorkspaceContext: map[string]interface{}{"README.md": "hello"},
+	}
+	if collaborationWorkspaceGroundingLine(msg, info) {
+		t.Fatal("planning with bound repo should not force grounding line")
+	}
+}
+
 func TestCollaborationProactiveWorkspaceScanAllowsExplicitReview(t *testing.T) {
 	msg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-ch", protocol.AgentInfo{ID: "a1", Name: "Arch"}, "please review internal/hub/hub.go")
 	msg.SetCollaborationID("cid")

@@ -78,6 +78,28 @@ describe('buildImplementationSessionMetadata', () => {
     });
     expect(metadata.implementation_session).toBeUndefined();
   });
+
+  it('does not set implementation_session for bare workspace directives', () => {
+    const metadata = buildImplementationSessionMetadata({
+      content: 'use the workspace',
+      agents: [{ name: 'CodeReviewer', type: 'code-review' } as never],
+      activeTab: null,
+      editorAgentMode: 'agent',
+      editorAgentTrust: 'interactive',
+    });
+    expect(metadata.implementation_session).toBeUndefined();
+  });
+
+  it('does not set implementation_session for content delivery tasks', () => {
+    const metadata = buildImplementationSessionMetadata({
+      content: 'Can you create a linkedin article about this app for me?',
+      agents: [{ name: 'CodeReviewer', type: 'code-review' } as never],
+      activeTab: null,
+      editorAgentMode: 'agent',
+      editorAgentTrust: 'interactive',
+    });
+    expect(metadata.implementation_session).toBeUndefined();
+  });
 });
 
 describe('pickAgentTypeForImplementation', () => {

@@ -261,8 +261,14 @@ describe('CommandForm path and model fields', () => {
 });
 
 describe('CommandForm known list dropdowns', () => {
-  it('renders string options from command definitions as a dropdown', () => {
+  it('renders /create-expert type presets with a custom slug option', async () => {
     const onSubmit = vi.fn();
+    const api = {
+      fetchExpertPresets: vi.fn().mockResolvedValue([
+        { slug: 'backend', label: 'Backend' },
+        { slug: 'assistant', label: 'Assistant' },
+      ]),
+    } as unknown as ChatAPI;
     const createExpertCommand: CommandDefinition = {
       name: '/create-expert',
       description: 'Create a specialist agent',
@@ -273,7 +279,6 @@ describe('CommandForm known list dropdowns', () => {
           description: 'Expert type',
           type: 'string',
           required: true,
-          options: ['backend', 'frontend', 'security'],
         },
       ],
     };
@@ -282,16 +287,21 @@ describe('CommandForm known list dropdowns', () => {
       <CommandForm
         command={createExpertCommand}
         agents={agents}
+        api={api}
         onSubmit={onSubmit}
         onBack={() => {}}
       />
     );
 
-    expect(screen.getByRole('option', { name: 'backend' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/^type/i), { target: { value: 'backend' } });
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'backend' })).toBeInTheDocument();
+    });
+    expect(screen.getByRole('option', { name: 'Custom…' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/^type/i), { target: { value: '__custom__' } });
+    fireEvent.change(screen.getByPlaceholderText(/guitar/i), { target: { value: 'guitar' } });
     fireEvent.submit(screen.getByRole('button', { name: 'Run Command' }).closest('form')!);
 
-    expect(onSubmit).toHaveBeenCalledWith('/create-expert backend');
+    expect(onSubmit).toHaveBeenCalledWith('/create-expert guitar');
   });
 
   it('renders collaboration IDs as selectable short IDs', () => {

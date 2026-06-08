@@ -120,6 +120,15 @@ describe('resolveContextScope', () => {
     expect(withTab.scope).toBe('focus');
   });
 
+  it('workspace access affirmation returns outline', () => {
+    const r = resolveContextScope({
+      message: 'you have workspace access',
+      mode: 'auto',
+      channelKind: 'dm',
+    });
+    expect(r.scope).toBe('outline');
+  });
+
   it('summarize_scan_analysis with open tab returns focus', () => {
     const r = resolveContextScope({
       message: 'use summarize_scan_analysis on the file I have open',

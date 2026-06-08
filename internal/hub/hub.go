@@ -16,6 +16,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
@@ -2247,9 +2248,16 @@ func (h *Hub) persistCollaborationReviewAssets(collabID string) {
 		log.Printf("[Collaboration] review assets snapshot for %s: %v", shortCollabID(collabID), err)
 		return
 	}
-	if _, err := collaboration.WriteReviewAssets(baseDir, snap); err != nil {
+	paths, err := collaboration.WriteReviewAssets(baseDir, snap)
+	if err != nil {
 		log.Printf("[Collaboration] write review assets for %s: %v", shortCollabID(collabID), err)
+		return
 	}
+	channel := ""
+	if snap != nil {
+		channel = strings.TrimSpace(snap.Channel)
+	}
+	memory.IndexReviewAssetPaths(paths, collabID, channel)
 }
 
 func shortCollabID(collabID string) string {

@@ -139,6 +139,7 @@ func main() {
 	}
 	chatHub = hub.NewHub()
 	initMessageStore()
+	initConversationMemory()
 	if appConfig != nil {
 		for _, ch := range appConfig.Server.DurableChannels {
 			if strings.TrimSpace(ch) != "" {
@@ -398,6 +399,8 @@ func main() {
 	http.HandleFunc("/api/lora/train/", corsMiddleware(handleLoraTrainRoute))
 	http.HandleFunc("/api/learnings", corsMiddleware(handleLearningsRoute))
 	http.HandleFunc("/api/learnings/", corsMiddleware(handleLearningsRoute))
+	http.HandleFunc("/api/memory", corsMiddleware(handleMemoryRoute))
+	http.HandleFunc("/api/memory/", corsMiddleware(handleMemoryRoute))
 	http.HandleFunc("/api/user-rules", corsMiddleware(handleUserRules))
 
 	// Command palette metadata
@@ -1842,6 +1845,9 @@ func writeSendMessageOKResponse(w http.ResponseWriter) {
 			if collabCh, collabID, ok2 := ch.TakeCollaborateRedirect(); ok2 {
 				resp["collaboration_channel"] = collabCh
 				resp["collaboration_id"] = collabID
+			}
+			if dmCh, ok2 := ch.TakeDMRedirect(); ok2 {
+				resp["dm_channel"] = dmCh
 			}
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
@@ -160,6 +161,65 @@ func looksLikeAsksUserToPasteWorkspaceFiles(msg *protocol.Message, response stri
 	return false
 }
 
+var prematureFileApplyClaimRE = regexp.MustCompile(`(?i)\b(created and saved|has been saved|has been created|written to disk|file is ready|successfully saved|saved to disk|file has been written)\b`)
+
+// looksLikePrematureFileApplyClaim reports chat text that claims a file was applied before approval.
+func looksLikePrematureFileApplyClaim(msg *protocol.Message, response string, history []*protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	r := strings.ToLower(strings.TrimSpace(response))
+	if r == "" || !prematureFileApplyClaimRE.MatchString(r) {
+		return false
+	}
+	if strings.Contains(r, "proposal for your approval") ||
+		strings.Contains(r, "submitted a file change proposal") ||
+		strings.Contains(r, "file change proposal") {
+		return false
+	}
+	targetPath := longestValidPathIn(DetectFilePaths(msg.Content))
+	if targetPath == "" {
+		targetPath = longestValidPathIn(DetectFilePaths(response))
+	}
+	scanned := 0
+	for i := len(history) - 1; i >= 0 && scanned < 12; i-- {
+		m := history[i]
+		if m == nil || m.ID == msg.ID {
+			continue
+		}
+		scanned++
+		if m.FileChangeApproved() {
+			if targetPath == "" {
+				return false
+			}
+			if p, _ := m.Metadata[protocol.MetaFileChangePath].(string); p != "" &&
+				(normalizeFileChangeRelPath(p) == targetPath || strings.Contains(p, targetPath)) {
+				return false
+			}
+		}
+		if m.Type == protocol.MessageTypeSystemInfo &&
+			strings.Contains(m.Content, "Applied change") {
+			if targetPath == "" {
+				return false
+			}
+			if strings.Contains(m.Content, targetPath) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (a *Agent) buildPrematureFileApplyRetryPrompt(msg *protocol.Message) string {
+	system := fmt.Sprintf(
+		"You are %s. You proposed a file change; do NOT claim it is saved or applied until the user approves.\n"+
+			"Say a proposal was submitted and wait for approval.\n",
+		a.Info.Name,
+	)
+	user := strings.TrimSpace(msg.Content)
+	return system + ai.SystemPromptSeparator + user
+}
+
 // maybeRetryConversationalQuality retries replies that echo prior turns or re-ask after approval.
 func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protocol.Message, response string, history []*protocol.Message, eff ai.AIProvider) string {
 	if msg == nil || eff == nil {
@@ -187,6 +247,14 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 		if err == nil && strings.TrimSpace(retry) != "" &&
 			!looksLikeReAskAfterAffirmation(msg, retry, history) {
 			log.Printf("[%s] Re-ask after approval detected; used continuation retry", a.Info.Name)
+			return retry
+		}
+	}
+	if looksLikePrematureFileApplyClaim(msg, response, history) {
+		retry, err := eff.GenerateResponse(approvalCtx, a.buildPrematureFileApplyRetryPrompt(msg), nil)
+		if err == nil && strings.TrimSpace(retry) != "" &&
+			!looksLikePrematureFileApplyClaim(msg, retry, history) {
+			log.Printf("[%s] Premature file-apply claim detected; used proposal retry", a.Info.Name)
 			return retry
 		}
 	}

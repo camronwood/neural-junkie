@@ -172,6 +172,36 @@ func (h *httpHubClient) GetMessages(channelName string, limit int) ([]*protocol.
 	return messages, nil
 }
 
+func (h *httpHubClient) GetChannelMessagesMerged(channelName string, limit int) ([]*protocol.Message, error) {
+	url := fmt.Sprintf("%s/api/channel-export?channel=%s&format=json", h.baseURL, channelName)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if s := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET")); s != "" {
+		req.Header.Set("X-NJ-Full-Metadata", s)
+	}
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return h.GetMessages(channelName, limit)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Messages []*protocol.Message `json:"messages"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return h.GetMessages(channelName, limit)
+	}
+	msgs := body.Messages
+	if limit <= 0 {
+		limit = 50
+	}
+	if len(msgs) <= limit {
+		return msgs, nil
+	}
+	return msgs[len(msgs)-limit:], nil
+}
+
 func (h *httpHubClient) GetChannelAgents(channelName string) ([]protocol.AgentInfo, error) {
 	resp, err := h.client.Get(fmt.Sprintf("%s/api/agents", h.baseURL))
 	if err != nil {

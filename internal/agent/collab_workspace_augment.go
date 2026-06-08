@@ -45,7 +45,8 @@ func collaborationWorkspaceGroundingLine(msg *protocol.Message, info Collaborati
 	if info.ID == "" {
 		return true
 	}
-	if (info.Phase == "planning" || info.Phase == "reviewing") && len(info.SourceWorkspaceContext) == 0 {
+	// Collab planning/review should not force the generic grounding opener — prompts already forbid it.
+	if info.Phase == "planning" || info.Phase == "reviewing" {
 		return false
 	}
 	if msg != nil && msg.Type == protocol.MessageTypeCollabTask {

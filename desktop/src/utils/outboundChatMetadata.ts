@@ -11,6 +11,8 @@ import {
   CONTEXT_SCOPE_KEY,
   CONTEXT_SCOPE_REASON_KEY,
   CONVERSATION_MODE_METADATA_KEY,
+  EDITOR_MODE_KEY,
+  IMPLEMENTATION_SESSION_METADATA_KEY,
   type ContextScope,
   type ConversationModeSetting,
   type WorkspaceContextMode,
@@ -30,10 +32,17 @@ import {
 } from './inferContextScope';
 import { resolveConversationMode } from './conversationMode';
 import {
+  hasContentDeliverySignals,
+  hasFileExportSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
 } from './implementationContinuation';
 import { hasCodeReviewSignals } from './codeReviewSignals';
+import type { ComposerMode } from '../constants/composerMode';
+import {
+  attachTurnCapabilitiesMetadata,
+  resolveTurnCapabilities,
+} from '../constants/turnIntent';
 
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
@@ -362,6 +371,27 @@ export function buildHumanOutboundMetadata(options: {
     ideCoding,
   });
 
+  const explicitEditorMode =
+    typeof composerMetadata?.[EDITOR_MODE_KEY] === 'string'
+      ? String(composerMetadata[EDITOR_MODE_KEY]).trim()
+      : '';
+
+  if (explicitEditorMode === 'export' && contextMode !== 'off') {
+    scope = activeTabPath ? 'focus' : 'outline';
+    reason = 'composer mode: export';
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  } else if (
+    explicitEditorMode === 'agent' &&
+    contextMode !== 'off' &&
+    composerMetadata?.[IMPLEMENTATION_SESSION_METADATA_KEY] === true
+  ) {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'composer mode: agent';
+    }
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  }
+
   const asksAboutOpenFile =
     messageReferencesOpenEditor(message) ||
     (/\bwhat\b/i.test(message) && /\bsee\b/i.test(message) && /\b(open|file)\b/i.test(message));
@@ -400,6 +430,15 @@ export function buildHumanOutboundMetadata(options: {
       scope = activeTabPath ? 'focus' : 'outline';
       reason = 'project code review';
     }
+  } else if (hasContentDeliverySignals(message) && contextMode !== 'off') {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'content delivery needs project context';
+    }
+  } else if (hasFileExportSignals(message) && contextMode !== 'off') {
+    scope = activeTabPath ? 'focus' : 'outline';
+    reason = 'file export to workspace';
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
   } else if (messageRequestsCADWorkspace(message) && contextMode !== 'off') {
     if (scope === 'none' || scope === 'hint') {
       scope = 'hint';
@@ -477,10 +516,19 @@ export function buildHumanOutboundMetadata(options: {
     }
   }
 
-  if (Object.keys(meta).length === 0) {
-    return undefined;
-  }
-  return meta;
+  const composerModeRaw = meta[EDITOR_MODE_KEY];
+  const composerMode: ComposerMode =
+    composerModeRaw === 'ask' || composerModeRaw === 'agent' || composerModeRaw === 'export'
+      ? composerModeRaw
+      : 'agent';
+  return attachTurnCapabilitiesMetadata(
+    meta,
+    resolveTurnCapabilities({
+      composerMode,
+      contextScope: scope,
+      implementationSession: meta[IMPLEMENTATION_SESSION_METADATA_KEY] === true,
+    })
+  );
 }
 
 export { USER_RULES_METADATA_KEY, PROMPT_ATTACHMENTS_METADATA_KEY } from '../constants/promptMetadata';

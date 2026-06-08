@@ -12,6 +12,8 @@ export interface SendMessageResponse {
   status?: string;
   collaboration_channel?: string;
   collaboration_id?: string;
+  /** Set when /create-expert succeeds; client should open this DM. */
+  dm_channel?: string;
 }
 
 export interface PackStatus {

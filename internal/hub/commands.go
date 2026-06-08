@@ -44,6 +44,9 @@ type CommandHandler struct {
 	collabRedirectMu      sync.Mutex
 	collabRedirectChannel string
 	collabRedirectID      string
+	// dmRedirect is set when /create-expert succeeds so /api/send can open the new DM.
+	dmRedirectMu      sync.Mutex
+	dmRedirectChannel string
 }
 
 type commandExecutor func(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error)
@@ -121,6 +124,30 @@ func (ch *CommandHandler) TakeCollaborateRedirect() (channelName, collabID strin
 	ch.collabRedirectChannel = ""
 	ch.collabRedirectID = ""
 	return channelName, collabID, true
+}
+
+func (ch *CommandHandler) setDMRedirect(channelName string) {
+	if ch == nil {
+		return
+	}
+	ch.dmRedirectMu.Lock()
+	defer ch.dmRedirectMu.Unlock()
+	ch.dmRedirectChannel = strings.TrimSpace(channelName)
+}
+
+// TakeDMRedirect returns the DM channel from the last successful /create-expert and clears it.
+func (ch *CommandHandler) TakeDMRedirect() (channelName string, ok bool) {
+	if ch == nil {
+		return "", false
+	}
+	ch.dmRedirectMu.Lock()
+	defer ch.dmRedirectMu.Unlock()
+	if ch.dmRedirectChannel == "" {
+		return "", false
+	}
+	channelName = ch.dmRedirectChannel
+	ch.dmRedirectChannel = ""
+	return channelName, true
 }
 
 // ProcessCommand processes a command from a message
@@ -885,6 +912,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
+	ch.setDMRedirect(dmCh.Name)
 
 	expertiseStr := strings.Join(agentInstance.Info.Expertise, ", ")
 	if len(agentInstance.Info.Expertise) > 5 {
@@ -3661,7 +3689,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Description: "Create a specialist agent (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant)",
 			Category:    "Expert Agents",
 			Arguments: []protocol.CommandArgument{
-				{Name: "type", Description: "Expert type (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant)", Type: "string", Required: true, Options: []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "biology", "cad", "assistant"}},
+				{Name: "type", Description: "Expert type: preset (backend, frontend, devops, security, architecture, code-review, biology, cad, assistant) or any custom slug (e.g. guitar, legal-advice)", Type: "string", Required: true},
 				{Name: "name", Description: "Custom name for the agent", Type: "string", Required: false},
 				{Name: "provider", Description: "AI provider", Type: "provider", Required: false, Options: providerOpts, Default: "ollama"},
 				{Name: "model", Description: "AI model name", Type: "model", Required: false},

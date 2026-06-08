@@ -3,6 +3,7 @@ import { renderMermaidSvg } from '../utils/mermaidConfig';
 import { MermaidModal } from './MermaidModal';
 import { CodeBlock } from './CodeBlock';
 import {
+  looksLikeBlockMarkdown,
   normalizeAgentMessageMarkdown,
   promoteStandaloneImageFilePaths,
 } from '../utils/markdownNormalize';
@@ -347,6 +348,17 @@ export function MessageContent({ content, isStreaming }: MessageContentProps) {
             if (seg.kind === 'inline') {
               if (!seg.text) return null;
               const inlineText = promoteStandaloneImageFilePaths(seg.text);
+              const normalized = normalizeAgentMessageMarkdown(inlineText);
+              if (looksLikeBlockMarkdown(normalized)) {
+                const html = getCachedRenderedMarkdown(normalized, renderChatMarkdown);
+                return (
+                  <div
+                    key={`stream-inline-${idx}`}
+                    className="markdown-content markdown-content--chat"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                );
+              }
               const markdownElements = getCachedMarkdownElements(inlineText, parseMarkdownToElements);
               return (
                 <div key={`stream-inline-${idx}`} className="message-content leading-relaxed whitespace-pre-wrap">

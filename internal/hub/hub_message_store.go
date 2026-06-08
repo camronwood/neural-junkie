@@ -3,6 +3,7 @@ package hub
 import (
 	"log"
 
+	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -33,7 +34,9 @@ func (h *Hub) persistMessage(msg *protocol.Message) {
 	}
 	if err := h.persistentStore.InsertMessage(msg); err != nil {
 		log.Printf("[hub] persist message: %v", err)
+		return
 	}
+	memory.IndexMessage(msg)
 }
 
 // GetMessagesPage returns channel messages with optional cursor pagination.

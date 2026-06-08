@@ -39,7 +39,11 @@ func normalizeFileChangeRelPath(path string) string {
 	path = strings.TrimSpace(path)
 	path = strings.Trim(path, `"'`)
 	path = strings.TrimSuffix(path, ":")
-	return strings.TrimSpace(path)
+	path = strings.TrimSpace(path)
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\") {
+		return ""
+	}
+	return path
 }
 
 // longestValidPathIn prefers the most specific user-mentioned path (e.g. tailwind.config.js over tailwind.config).

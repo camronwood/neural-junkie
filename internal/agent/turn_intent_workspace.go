@@ -13,6 +13,8 @@ func userAsksAboutWorkspaceVisibility(content string) bool {
 		"see my workspace", "see the workspace", "see my project", "see my repo",
 		"see my codebase", "workspace i have open", "my workspace",
 		"have access to my workspace", "access to my workspace",
+		"you have workspace access", "you have workspace", "have workspace access",
+		"workspace access", "given you workspace", "granted workspace",
 		"what files do you see", "files in my workspace",
 		"what is in my workspace", "what's in my workspace",
 	}

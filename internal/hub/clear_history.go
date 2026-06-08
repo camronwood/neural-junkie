@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/memory"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -44,6 +45,9 @@ func (h *Hub) ClearChannelHistory(channelName string) error {
 		if err := store.ClearChannelMessages(channelName); err != nil {
 			log.Printf("[hub] clear persistent messages for %q: %v", channelName, err)
 		}
+	}
+	if err := memory.DeleteByChannel(channelName); err != nil {
+		log.Printf("[hub] clear memory for %q: %v", channelName, err)
 	}
 
 	systemFrom := protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral}

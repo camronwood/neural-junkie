@@ -99,9 +99,81 @@ export function promoteStandaloneImageFilePaths(text: string): string {
     .join('\n');
 }
 
+type FencePart = { type: 'code' | 'text'; content: string };
+
+/** Split markdown so prose normalizers skip fenced code blocks. */
+function splitPreservingCodeFences(raw: string): FencePart[] {
+  const parts: FencePart[] = [];
+  const re = /```[\s\S]*?```/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw)) !== null) {
+    if (match.index > last) {
+      parts.push({ type: 'text', content: raw.slice(last, match.index) });
+    }
+    parts.push({ type: 'code', content: match[0] });
+    last = match.index + match[0].length;
+  }
+  if (last < raw.length) {
+    parts.push({ type: 'text', content: raw.slice(last) });
+  }
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content: raw });
+  }
+  return parts;
+}
+
+/**
+ * LLMs often emit headings, HRs, and lists inline in one paragraph.
+ * Insert block breaks so marked/GFM can render articles and long replies cleanly.
+ */
+export function normalizeProseMarkdownBlocks(raw: string): string {
+  return splitPreservingCodeFences(raw)
+    .map((part) => (part.type === 'code' ? part.content : normalizeProseText(part.content)))
+    .join('');
+}
+
+function normalizeProseText(text: string): string {
+  let s = text;
+
+  // Horizontal rules on their own line
+  s = s.replace(/\s+---\s+/g, '\n\n---\n\n');
+  s = s.replace(/\s+\*\*\*\s+/g, '\n\n***\n\n');
+
+  // Headings after sentence punctuation
+  s = s.replace(/([.!?])\s+(#{1,6}\s+)/g, '$1\n\n$2');
+
+  // Headings mid-line (e.g. "... manner. --- ### Title")
+  s = s.replace(/([^\n#])\s+(#{1,6}\s+\S)/g, '$1\n\n$2');
+
+  // Numbered list after a heading line
+  s = s.replace(/(#{1,6}\s+[^\n]+)\s+(\d+\.\s+)/g, '$1\n\n$2');
+
+  // Numbered list after sentence end
+  s = s.replace(/([.!?])\s+(\d+\.\s+\*\*)/g, '$1\n\n$2');
+  s = s.replace(/([.!?])\s+(\d+\.\s+[A-Z])/g, '$1\n\n$2');
+
+  // Subsequent numbered items glued to prior list text
+  s = s.replace(/(\S)\s+(\d+\.\s+\*\*)/g, '$1\n\n$2');
+
+  // Sub-bullets after list-item colons: "1. Foo: - Bar"
+  s = s.replace(/:\s+-\s+/g, ':\n\n- ');
+
+  // Bold subsection labels inline: "#### Benefits 1. Enhanced"
+  s = s.replace(/(#{4,6}\s+[A-Za-z][^\n]*?)\s+(\d+\.\s+)/g, '$1\n\n$2');
+
+  return s.replace(/\n{4,}/g, '\n\n\n');
+}
+
+/** True when inline chat text likely needs full GFM rendering (headings, lists, HR). */
+export function looksLikeBlockMarkdown(text: string): boolean {
+  return /(^|\n)(#{1,6}\s|[-*]\s|\d+\.\s|---\s*$)/m.test(text);
+}
+
 export function normalizeAgentMessageMarkdown(raw: string): string {
   let s = raw.replace(/\r\n/g, '\n');
   s = normalizeMarkdownFences(s);
   s = normalizeInlineFenceOpeners(s);
+  s = normalizeProseMarkdownBlocks(s);
   return s;
 }

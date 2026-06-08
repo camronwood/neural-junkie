@@ -2,18 +2,43 @@ package slack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	slackapi "github.com/slack-go/slack"
 )
 
+var slackRetryAfterRE = regexp.MustCompile(`(?i)retry after (\d+)`)
+
+func slackRateLimitBackoff(err error) (time.Duration, bool) {
+	if err == nil {
+		return 0, false
+	}
+	var rateErr *slackapi.RateLimitedError
+	if errors.As(err, &rateErr) && rateErr.RetryAfter > 0 {
+		return rateErr.RetryAfter, true
+	}
+	msg := err.Error()
+	if m := slackRetryAfterRE.FindStringSubmatch(msg); len(m) == 2 {
+		if sec, convErr := strconv.Atoi(m[1]); convErr == nil && sec > 0 {
+			return time.Duration(sec) * time.Second, true
+		}
+	}
+	return 0, false
+}
+
 func (b *Bridge) runHumanDMPoll(ctx context.Context) {
 	var lastPoll time.Time
 	var lastMonitoring bool
 	channelCursors := map[string]string{}
+	var cachedChannels []slackapi.Channel
+	var channelsCachedAt time.Time
+	var rateLimitUntil time.Time
 
 	for {
 		select {
@@ -63,10 +88,31 @@ func (b *Bridge) runHumanDMPoll(ctx context.Context) {
 		botDM, _ := b.ensureOwnerDMChannel(inbox)
 		ownerID := strings.TrimSpace(inbox.OwnerSlackUserID)
 
-		channels, err := listHumanDMConversations(client)
-		if err != nil {
-			log.Printf("[slack] human_dm poll list: %v", err)
+		now := time.Now()
+		if now.Before(rateLimitUntil) {
+			time.Sleep(time.Until(rateLimitUntil))
 			continue
+		}
+
+		channels := cachedChannels
+		if len(channels) == 0 || now.Sub(channelsCachedAt) >= humanDMListCacheInterval*time.Second {
+			fetched, err := listHumanDMConversations(client)
+			if err != nil {
+				if wait, ok := slackRateLimitBackoff(err); ok {
+					rateLimitUntil = time.Now().Add(wait)
+					log.Printf("[slack] human_dm poll list: rate limited, backing off %s", wait)
+				} else {
+					log.Printf("[slack] human_dm poll list: %v", err)
+				}
+				if len(cachedChannels) == 0 {
+					continue
+				}
+				channels = cachedChannels
+			} else {
+				cachedChannels = fetched
+				channelsCachedAt = now
+				channels = fetched
+			}
 		}
 
 		for _, ch := range channels {
@@ -95,7 +141,11 @@ func listHumanDMConversations(client *slackapi.Client) ([]slackapi.Channel, erro
 	mpim, mpimErr := listConversationsByType(client, "mpim")
 	if mpimErr != nil {
 		if !isMissingScopeErr(mpimErr) {
-			log.Printf("[slack] human_dm poll mpim list: %v", mpimErr)
+			if wait, ok := slackRateLimitBackoff(mpimErr); ok {
+				log.Printf("[slack] human_dm poll mpim list: rate limited, retry after %s", wait)
+			} else {
+				log.Printf("[slack] human_dm poll mpim list: %v", mpimErr)
+			}
 		}
 		return im, nil
 	}

@@ -238,6 +238,28 @@
       "filename": "neural-junkie-session-memory-ad-1080.png"
     },
     {
+      "id": "neural-junkie-conversation-memory-1200",
+      "src": "../media/gallery/ads/neural-junkie-conversation-memory-1200.png",
+      "title": "Conversation Memory Article",
+      "caption": "LinkedIn article cover — long-term retrieval",
+      "category": "ads",
+      "tags": [
+        "conversation-memory"
+      ],
+      "filename": "neural-junkie-conversation-memory-1200.png"
+    },
+    {
+      "id": "neural-junkie-conversation-memory-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-conversation-memory-ad-1080.png",
+      "title": "Conversation Memory",
+      "caption": "",
+      "category": "ads",
+      "tags": [
+        "conversation-memory"
+      ],
+      "filename": "neural-junkie-conversation-memory-ad-1080.png"
+    },
+    {
       "id": "neural-junkie-slack-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-slack-ad-1080.png",
       "title": "Slack",

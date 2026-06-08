@@ -555,9 +555,29 @@ input {
   margin-bottom: 0.25em;
 }
 
+.markdown-content--chat h4 {
+  font-size: 1em;
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.2em;
+  color: var(--nj-text);
+}
+
+.markdown-content--chat hr {
+  margin: 0.75em 0;
+  border: none;
+  border-top: 1px solid var(--nj-border);
+}
+
 .markdown-content--chat h1,
 .markdown-content--chat h2 {
   padding-bottom: 0.2em;
+}
+
+.markdown-content--chat h2,
+.markdown-content--chat h3,
+.markdown-content--chat h4 {
+  border-bottom: 1px solid color-mix(in srgb, var(--nj-border) 55%, transparent);
 }
 
 .markdown-content--chat p,

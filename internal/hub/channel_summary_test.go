@@ -78,6 +78,36 @@ func TestNoteChannelActivity_summaryRefresh(t *testing.T) {
 	t.Fatal("expected summary to be generated")
 }
 
+func TestScheduleImmediateSummaryRefresh(t *testing.T) {
+	h := NewHub()
+	name := "dm-approval"
+	h.CreateChannelWithType(name, "test", "", protocol.ChannelTypeDM, "system")
+	done := make(chan struct{}, 1)
+	h.SetChannelSummaryGenerator(func(transcript string) (string, error) {
+		done <- struct{}{}
+		return "export approved", nil
+	}, "test-model")
+
+	user := protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}
+	agent := protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	_ = h.SendMessage(protocol.NewMessage(protocol.MessageTypeChat, name, user, "save article to docs/test.md"))
+	_ = h.SendMessage(protocol.NewMessage(protocol.MessageTypeAnswer, name, agent, "Proposing file change."))
+
+	h.scheduleImmediateSummaryRefresh(name)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected immediate summary refresh on approval scheduling")
+	}
+	if s := h.GetChannelSessionSummary(name); s == "" {
+		time.Sleep(100 * time.Millisecond)
+		if s = h.GetChannelSessionSummary(name); s == "" {
+			t.Fatal("expected summary after immediate refresh")
+		}
+	}
+}
+
 func TestNoteChannelActivity_publicChannelEligible(t *testing.T) {
 	h := NewHub()
 	name := "general"

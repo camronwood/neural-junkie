@@ -110,6 +110,15 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 }
 
 func (a *Agent) classifyTurnIntentForMessage(msg *protocol.Message) TurnIntent {
+	if msg != nil {
+		caps := protocol.ResolveTurnCapabilities(msg)
+		if caps.ComposerMode == "export" || (caps.CanRunImplSession && msg.ImplementationSession()) {
+			return IntentTask
+		}
+		if caps.ComposerMode == "ask" {
+			return IntentSubstantive
+		}
+	}
 	history := a.channelHistory(msg.Channel)
 	return classifyTurnIntent(msg, a.effectiveChannelType(msg.Channel), a.Info.ID, history)
 }
@@ -172,6 +181,7 @@ func (a *Agent) buildMinimalPrompt(msg *protocol.Message) string {
 	}
 	fallback := ResolveUserRulesHubFallback(msg)
 	AppendUserAndAgentRules(&b, msg, &a.Info, fallback, 0)
+	AppendMemoryForMessage(&b, msg, a.channelHistory(msg.Channel))
 	AppendLearningsForMessage(&b, msg, &a.Info)
 	b.WriteString("Respond briefly and naturally to the user's latest message only.\n")
 	b.WriteString("Do not repeat long prior answers or re-derive facts already covered in the session summary.\n")
@@ -274,6 +284,9 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 	if !hasWorkspace {
 		return false
 	}
+	if msg != nil && userRequestsContentDelivery(msg.Content) {
+		return true
+	}
 	mode := EffectiveConversationMode(msg, a.effectiveChannelType(msg.Channel))
 	if mode == ConversationModeCode || intent == IntentTask || messageNeedsWorkspaceFileLoad(a, msg) {
 		if ContextScopeFromMessage(msg) == ContextScopeNone && !messageHasWorkspaceContext(msg) {
@@ -294,6 +307,9 @@ func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protoco
 func messageNeedsWorkspaceFileLoad(a *Agent, msg *protocol.Message) bool {
 	if msg == nil {
 		return false
+	}
+	if userRequestsContentDelivery(msg.Content) {
+		return true
 	}
 	if userRequestsImplementationForMessage(a, msg) {
 		return true
@@ -322,6 +338,9 @@ func (a *Agent) buildWorkspaceGroundedRetryPrompt(msg *protocol.Message) string 
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath != "" {
 		AppendImplementationSeedFiles(&system, a, msg, wsPath, a.Info.Type, nil)
+		if userRequestsContentDelivery(msg.Content) {
+			AppendContentDeliverySeedFiles(&system, wsPath, nil)
+		}
 	}
 	var user strings.Builder
 	user.WriteString(strings.TrimSpace(msg.Content))

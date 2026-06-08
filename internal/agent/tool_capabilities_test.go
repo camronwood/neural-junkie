@@ -35,6 +35,23 @@ func TestEffectiveToolLoopModelQwenNoFallback(t *testing.T) {
 	}
 }
 
+func TestEffectiveToolLoopModelBiologyUsesConfiguredToolModel(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MCP.Biology.ToolModel = "custom-bio-tool:7b"
+	mcp.SetAppConfig(cfg)
+	t.Cleanup(func() { mcp.SetAppConfig(nil) })
+
+	eff := ai.NewOllamaProviderWithConfig("http://localhost:11434", "koesn/llama3-openbiollm-8b:latest")
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBiology}}
+	model, fallback := a.effectiveToolLoopModel(eff)
+	if !fallback {
+		t.Fatal("expected fallback for koesn chat model")
+	}
+	if model != "custom-bio-tool:7b" {
+		t.Fatalf("got tool loop model %q, want custom-bio-tool:7b", model)
+	}
+}
+
 func TestEffectiveToolLoopModelCADUsesConfiguredToolModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.MCP.CAD.ToolModel = "custom-cad-tool:7b"

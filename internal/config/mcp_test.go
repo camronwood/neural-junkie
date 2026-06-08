@@ -62,6 +62,38 @@ func TestBiologyMCPSettingsDefaults(t *testing.T) {
 	if b.MaxFoldLengthOrDefault() != defaultMaxFoldLength {
 		t.Fatalf("fold len default: %d", b.MaxFoldLengthOrDefault())
 	}
+	if b.ChatModelOrDefault() != BioOllamaChatModel {
+		t.Fatalf("chat model default: %s", b.ChatModelOrDefault())
+	}
+	if b.ToolModelOrDefault() != BioOllamaToolModel {
+		t.Fatalf("tool model default: %s", b.ToolModelOrDefault())
+	}
+}
+
+func TestBiologyChatModelOrDefaultPrefersMCPOverDelegation(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.MCP.Biology.ChatModel = "nj-bio:8b"
+	cfg.Delegation.BiologyChatModel = "koesn/llama3-openbiollm-8b:latest"
+	if got := cfg.BiologyChatModelOrDefault(); got != "nj-bio:8b" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestMigrateBiologyMCPModels(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Delegation.BiologyChatModel = "nj-bio:8b"
+	cfg.Delegation.BiologyToolModel = "custom-tool:7b"
+	cfg.MigrateBiologyMCPModels()
+	if cfg.MCP.Biology.ChatModel != "nj-bio:8b" {
+		t.Fatalf("chat model = %q", cfg.MCP.Biology.ChatModel)
+	}
+	if cfg.MCP.Biology.ToolModel != "custom-tool:7b" {
+		t.Fatalf("tool model = %q", cfg.MCP.Biology.ToolModel)
+	}
+	cfg.MigrateBiologyMCPModels()
+	if cfg.MCP.Biology.ChatModel != "nj-bio:8b" {
+		t.Fatal("migration should not overwrite existing mcp.biology values")
+	}
 }
 
 func TestMCPEnabledForAgentCADPack(t *testing.T) {

@@ -45,6 +45,10 @@ const WORKSPACE_VISIBILITY_RE =
 const WORKSPACE_SHARING_RE =
   /\b(workspace sharing|sharing is on|shared the workspace|i('ve| have) shared|workspace is (on|shared|enabled))\b/i;
 
+/** User confirms the agent has workspace access (not always phrased as a question). */
+const WORKSPACE_ACCESS_RE =
+  /\b(you have|i('ve| have) given you|given you|granted you?).{0,32}workspace (access|context|sharing)\b/i;
+
 function hasScanToolSignals(text: string): boolean {
   return SCAN_TOOL_RE.test(text);
 }
@@ -58,6 +62,8 @@ export function messageAsksWorkspaceVisibility(text: string): boolean {
   if (!t) return false;
   if (WORKSPACE_VISIBILITY_RE.test(t)) return true;
   if (WORKSPACE_SHARING_RE.test(t)) return true;
+  if (WORKSPACE_ACCESS_RE.test(t)) return true;
+  if (/\b(you have workspace|have workspace access|workspace access)\b/i.test(t)) return true;
   return /\bsee my (workspace|project|repo|codebase)\b/i.test(t);
 }
 

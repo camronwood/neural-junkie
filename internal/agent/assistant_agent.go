@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	assistantmcp "github.com/camronwood/neural-junkie/internal/mcp/assistant"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/fsnotify/fsnotify"
 )
@@ -89,6 +90,14 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		stopEmailWatcher: make(chan struct{}),
 		processedEmails:  make(map[string]bool),
 		pendingApprovals: make(map[string]*PendingApproval),
+	}
+
+	if assistantMCP, err := assistantmcp.NewAssistantMCP(); err != nil {
+		log.Printf("Failed to create Assistant MCP server: %v", err)
+	} else {
+		assistantMCP.AttachWorkspaceTools(func() string { return baseAgent.WorkspacePath })
+		baseAgent.MCPServer = assistantMCP
+		log.Printf("Assistant workspace MCP tools registered for agent: %s", name)
 	}
 
 	// Ensure deterministic assistant actions are handled before the shared
@@ -319,9 +328,11 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• Remember user preferences and context\n")
 	prompt.WriteString("• When asked about meetings, use the available meeting notes to provide accurate information\n")
 	prompt.WriteString("• When asked about Neural Junkie features, UI, shortcuts, settings, or workflows, use NEURAL JUNKIE APP KNOWLEDGE and SYSTEM COMMANDS above — give concrete steps and shortcuts\n")
-	prompt.WriteString("• NEVER give generic answers about external tools (like GitHub Actions) when the user is asking about THIS system's capabilities\n\n")
+	prompt.WriteString("• NEVER give generic answers about external tools (like GitHub Actions) when the user is asking about THIS system's capabilities\n")
+	prompt.WriteString("• Never say a file was saved or applied unless you see Applied change or file_change_approved in this thread\n\n")
 
 	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
+	AppendMemoryForMessage(&prompt, msg, a.channelHistory(msg.Channel))
 	AppendLearningsForMessage(&prompt, msg, &a.Agent.Info)
 
 	// Insert system/user separator -- everything above is system context,
@@ -331,6 +342,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	// Append workspace context if the user shared it
 	AppendWorkspaceContext(&prompt, msg)
 	appendWorkspaceReviewGuidance(&prompt, msg)
+	appendContentDeliveryGuidance(&prompt, msg)
 
 	AppendPromptAttachments(&prompt, msg)
 	AppendGrantedHubDataAccess(&prompt, msg)

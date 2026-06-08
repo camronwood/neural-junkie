@@ -142,15 +142,13 @@ import { useShortcutDispatcher } from '../shortcuts/useShortcutDispatcher';
 import { MAX_COLLAB_AGENTS } from '../utils/collaborationLimits';
 import type { LayoutPreset } from '../stores/settingsStore';
 import {
-  buildIdeDispatchPayload,
-  buildImplementationSessionMetadata,
-  ideRoutingChipLabel,
-  mergeCodebaseAttachments,
-} from '../utils/ideComposer';
-import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
-import { hasCodeTaskSignals } from '../utils/conversationMode';
-import { hasImplementationContinuationSignals } from '../utils/implementationContinuation';
-import { hasCodeReviewSignals } from '../utils/codeReviewSignals';
+  loadComposerMode,
+  composerModePlaceholder,
+  COMPOSER_MODE_STORAGE_KEY,
+  type ComposerMode,
+} from '../constants/composerMode';
+import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
+import { ComposerModeControl } from './ComposerModeControl';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
   {
@@ -484,6 +482,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     loadConversationModeSetting()
   );
   const [composerDraft, setComposerDraft] = useState('');
+  const [composerMode, setComposerMode] = useState<ComposerMode>(() => loadComposerMode());
   const composerPrefillPending = useComposerPrefillStore((s) => s.pendingText);
   const consumeComposerPrefill = useComposerPrefillStore((s) => s.consumePrefill);
 
@@ -1716,23 +1715,54 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const dispatchThreadReply = useCallback(
     async (threadId: string, content: string, metadata?: Record<string, unknown>) => {
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      const payload = await prepareOutboundPayload({
+        content,
+        composerMode,
+        agents,
+        activeTab: activeEditorTab,
+        editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
+        composerMetadata: metadata,
+        api: devPackEnabled ? api : undefined,
+        repoPath: devPackEnabled ? ws?.path : undefined,
+        devPackEnabled,
+      });
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
         conversationMode: conversationModeSetting,
-        message: content,
+        message: payload.content,
         channel,
         channelType: activeChannelMeta?.type,
-        composerMetadata: metadata,
+        composerMetadata: payload.metadata,
+        ideCoding: ideLayout && hasIdeComposer,
       });
       await api.sendThreadReply(
         threadId,
         channel,
-        content,
+        payload.content,
         { name: username, type: 'human' },
         mergedMetadata
       );
     },
-    [api, channel, username, workspaceContextMode, conversationModeSetting, activeChannelMeta?.type]
+    [
+      api,
+      channel,
+      username,
+      workspaceContextMode,
+      conversationModeSetting,
+      activeChannelMeta?.type,
+      composerMode,
+      agents,
+      activeEditorTab,
+      layoutSettings,
+      devPackEnabled,
+      explorerWorkspaces,
+      activeWorkspaceId,
+      ideLayout,
+      hasIdeComposer,
+    ]
   );
 
   const handleChannelInterject = useCallback(async () => {
@@ -1758,46 +1788,22 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
       let sendContent = content;
       let composerMeta = metadata ?? {};
-      if (ideLayout && devPackEnabled) {
-        const ws =
-          explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-          explorerWorkspaces[0];
-        const idePayload = buildIdeDispatchPayload({
-          content,
-          agents,
-          activeTab: activeEditorTab,
-          editorAgentMode: layoutSettings.editorAgentMode ?? 'agent',
-          editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
-          composerMetadata: composerMeta,
-        });
-        sendContent = idePayload.content;
-        composerMeta = await mergeCodebaseAttachments(
-          api,
-          sendContent,
-          ws?.path,
-          idePayload.metadata
-        );
-      } else if (
-        devPackEnabled &&
-        (layoutSettings.editorAgentMode ?? 'agent') === 'agent' &&
-        !hasCodeReviewSignals(content) &&
-        (hasCodeTaskSignals(content) || hasImplementationContinuationSignals(content))
-      ) {
-        const ws =
-          explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
-          explorerWorkspaces[0];
-        composerMeta = buildImplementationSessionMetadata({
-          content,
-          agents,
-          activeTab: activeEditorTab,
-          editorAgentMode: layoutSettings.editorAgentMode ?? 'agent',
-          editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
-          composerMetadata: composerMeta,
-        });
-        if (ws?.path) {
-          composerMeta = await mergeCodebaseAttachments(api, content, ws.path, composerMeta);
-        }
-      }
+      const ws =
+        explorerWorkspaces.find((w) => w.id === activeWorkspaceId) ??
+        explorerWorkspaces[0];
+      const payload = await prepareOutboundPayload({
+        content,
+        composerMode,
+        agents,
+        activeTab: activeEditorTab,
+        editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
+        composerMetadata: composerMeta,
+        api: devPackEnabled ? api : undefined,
+        repoPath: devPackEnabled ? ws?.path : undefined,
+        devPackEnabled,
+      });
+      sendContent = payload.content;
+      composerMeta = payload.metadata;
 
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
@@ -1836,6 +1842,31 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             syncCollabTurnThinking(collab, sendResult.collaboration_channel);
           }
         }
+        if (sendResult.dm_channel) {
+          const dmName = sendResult.dm_channel;
+          await loadAgents();
+          await loadChannels();
+          const channelList = useChatStore.getState().channels;
+          const { settings, isLoaded } = useSettingsStore.getState();
+          if (isLoaded) {
+            const patch = patchRevealForChannel(
+              settings,
+              dmName,
+              channelList,
+              useChatStore.getState().agents
+            );
+            if (patch) {
+              void updateSettings(patch);
+            }
+          }
+          await handleSwitchChannel(dmName);
+          timelineChannel = dmName;
+          addToast({
+            type: 'success',
+            title: 'Expert ready',
+            message: 'Opened the new expert direct message.',
+          });
+        }
         if (sendContent.trimStart().startsWith('/')) {
           try {
             const msgs = await api.fetchMessages(timelineChannel, 50);
@@ -1864,18 +1895,18 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       conversationModeSetting,
       activeChannelMeta?.type,
       loadChannels,
+      loadAgents,
       handleSwitchChannel,
       loadCollaborations,
       executingCollaborationForChannel,
       addToast,
+      updateSettings,
       ideLayout,
       devPackEnabled,
       agents,
       activeEditorTab,
-      layoutSettings.editorAgentMode,
-      layoutSettings.editorAgentTrust,
-      explorerWorkspaces,
-      activeWorkspaceId,
+      composerMode,
+      hasIdeComposer,
     ]
   );
 
@@ -2573,31 +2604,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </div>
         )}
 
-        {ideLayout && devPackEnabled && (
-          <div className="flex items-center gap-2 px-3 py-1.5 border-t border-slack-border bg-slack-bg/80 text-xs">
-            <span className="text-slack-textMuted">IDE</span>
-            <div className="inline-flex rounded border border-slack-border overflow-hidden">
-              {(['ask', 'agent'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => void updateLayoutSettings({ editorAgentMode: m })}
-                  className={`px-2.5 py-0.5 capitalize ${
-                    (layoutSettings.editorAgentMode ?? 'agent') === m
-                      ? 'bg-teal-600 text-white'
-                      : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
-                  }`}
-                  title={m === 'ask' ? 'Read-only — no file edits' : 'May propose file changes'}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
-            <span className="text-slack-textMuted truncate" title="Routes to specialist by open file">
-              @codebase · ⌘L focus · open file + selection in context
-            </span>
-          </div>
-        )}
+        <ComposerModeControl
+          mode={composerMode}
+          disabled={status !== 'connected' || isClosedCollaborationChannel}
+          onChange={(mode) => {
+            setComposerMode(mode);
+            localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, mode);
+            if (devPackEnabled) {
+              void updateLayoutSettings({
+                editorAgentMode: mode === 'export' ? 'agent' : mode,
+              });
+            }
+          }}
+        />
 
         {/* Input */}
         <RichTextInput
@@ -2607,11 +2626,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             isClosedCollaborationChannel
               ? 'Collaboration closed — read-only (slash commands still work)'
               : status === 'connected'
-                ? activeChannelMeta?.type === 'dm'
-                  ? 'Message this agent directly — no @mention needed…'
-                  : ideLayout && devPackEnabled
-                    ? 'Ask about the project — routes by open file; @mention to pick an agent…'
-                    : 'Type your message here...'
+                ? composerModePlaceholder(composerMode)
                 : 'Connecting...'
           }
           agents={agents}

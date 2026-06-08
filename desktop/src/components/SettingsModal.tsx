@@ -295,6 +295,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [bioSettingsOk, setBioSettingsOk] = useState<string | null>(null);
   const [personalLearningEnabled, setPersonalLearningEnabled] = useState(false);
   const [personalLearningSuggestEnabled, setPersonalLearningSuggestEnabled] = useState(false);
+  const [conversationMemoryEnabled, setConversationMemoryEnabled] = useState(true);
+  const [conversationMemorySaving, setConversationMemorySaving] = useState(false);
   const [personalLearningSaving, setPersonalLearningSaving] = useState(false);
   const [personalLearningsOpen, setPersonalLearningsOpen] = useState(false);
   const [allLearnings, setAllLearnings] = useState<UserLearning[]>([]);
@@ -1000,6 +1002,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           );
           setPersonalLearningEnabled(!!cfg.features?.personal_learning_enabled);
           setPersonalLearningSuggestEnabled(!!cfg.features?.personal_learning_suggest_enabled);
+          setConversationMemoryEnabled(cfg.features?.conversation_memory_enabled !== false);
         }
       } catch (e) {
         if (!cancelled) {
@@ -1084,6 +1087,25 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   };
 
   const activeColorTheme: ColorTheme = settings.colorTheme ?? 'slack';
+
+  const handleConversationMemoryToggle = async (enabled: boolean) => {
+    setConversationMemorySaving(true);
+    setCollabRoutingErr(null);
+    try {
+      await mergeSettingsPut((cfg) => ({
+        ...cfg,
+        features: {
+          ...(typeof cfg.features === 'object' && cfg.features ? cfg.features : {}),
+          conversation_memory_enabled: enabled,
+        },
+      }));
+      setConversationMemoryEnabled(enabled);
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConversationMemorySaving(false);
+    }
+  };
 
   const handlePersonalLearningToggle = async (enabled: boolean) => {
     setPersonalLearningSaving(true);
@@ -4078,6 +4100,24 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 >
                   Save implementation settings
                 </button>
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Conversation memory</h3>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Index persisted chat and collab artifacts locally, then retrieve relevant past context when you ask
+                  about earlier decisions (requires Ollama embed model).
+                </p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={conversationMemoryEnabled}
+                    disabled={conversationMemorySaving}
+                    onChange={(e) => void handleConversationMemoryToggle(e.target.checked)}
+                    className="rounded border-slack-border"
+                  />
+                  <span className="text-slack-text">Retrieve relevant past messages</span>
+                </label>
               </div>
 
               {hasPersonalLearning && (

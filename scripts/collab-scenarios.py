@@ -781,8 +781,17 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
         return False
 
     channel = (solo.get("channel") or f"{ctx.channel}-solo").strip()
-    if not hub.ensure_channel(ctx.base, channel, "Solo parity leg"):
-        print(f"  FAIL [solo]: could not ensure channel {channel!r}", file=sys.stderr)
+    solo_agents = solo.get("required_agents") or ["Assistant"]
+    if isinstance(solo_agents, str):
+        solo_agents = [solo_agents]
+    ok_join, failed = hub.ensure_channel_with_agents(
+        ctx.base,
+        channel,
+        [str(a).strip().lstrip("@") for a in solo_agents if str(a).strip()],
+        "Solo parity leg",
+    )
+    if not ok_join:
+        print(f"  FAIL [solo]: could not join agents to {channel!r}: {', '.join(failed)}", file=sys.stderr)
         return False
 
     output_rel = (solo.get("output_rel") or "collabs/parity-solo/findings.md").strip()

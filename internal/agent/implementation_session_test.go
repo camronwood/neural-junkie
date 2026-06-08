@@ -107,6 +107,18 @@ func TestShouldRunImplementationSession_weakAffirmAfterFailedSession(t *testing.
 	}
 }
 
+func TestShouldRunImplementationSession_exportMode(t *testing.T) {
+	a := &Agent{Info: protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-u", protocol.AgentInfo{ID: "u1", Name: "User"}, "please save it")
+	msg.Metadata = map[string]interface{}{
+		"editor_mode":            "export",
+		"implementation_session": true,
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("expected export composer mode to run implementation session")
+	}
+}
+
 func TestDetectVerifyCommands_go(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644); err != nil {
