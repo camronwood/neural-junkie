@@ -30,6 +30,7 @@ interface PacksState {
   installPackLoRAs: (packId: string) => Promise<InstallPackLoRAsResponse>;
   uninstallPack: (packId: string) => Promise<void>;
   setPackEnabled: (packId: string, enabled: boolean) => Promise<void>;
+  setLayoutOwner: (packId: string) => Promise<void>;
   validatePack: (body: {
     pack_zip_base64?: string;
     pack_dir?: string;
@@ -154,6 +155,25 @@ export const usePacksStore = create<PacksState>((set, get) => ({
   fetchCustomerPackContext: async () => {
     const api = new ChatAPI(getHubBaseURL());
     return api.fetchCustomerPackContext();
+  },
+
+  setLayoutOwner: async (packId) => {
+    const api = new ChatAPI(getHubBaseURL());
+    const data = await api.setLayoutOwner(packId);
+    get().applyPacksResponse(data);
+    const pack = get().packs.find((p) => p.id === packId);
+    if (pack?.layout_profile === 'ide') {
+      const { layoutSettings, updateLayoutSettings } = await import('./settingsStore').then(
+        (m) => m.useSettingsStore.getState(),
+      );
+      if (!layoutSettings.devPackLayoutNudgeApplied) {
+        const { panelsForPreset } = await import('../utils/layoutPresets');
+        await updateLayoutSettings({
+          ...panelsForPreset('ide'),
+          devPackLayoutNudgeApplied: true,
+        });
+      }
+    }
   },
 
   setPackEnabled: async (packId, enabled) => {

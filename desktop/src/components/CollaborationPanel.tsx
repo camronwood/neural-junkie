@@ -17,6 +17,7 @@ import {
 } from '../utils/collaborationActionLabels';
 import {
   isApprovedAwaitingDispatch,
+  isAwaitingWorkspaceConfirmation,
   isPlanningAwaitingFirstTurn,
   planningStalledParticipantNames,
   taskNeedsFileDeliverable,
@@ -36,6 +37,8 @@ interface CollaborationPanelProps {
   onClose: () => void;
   /** Refetch collaboration snapshots after approve/revise/cancel (keeps UI in sync). */
   onAfterCollaborationCommand?: () => Promise<void>;
+  /** Opens the desktop workspace confirmation dialog (executing phase, pre-ack). */
+  onConfirmWorkspace?: () => void;
 }
 
 const phaseLabels: Record<CollaborationPhase, string> = {
@@ -73,6 +76,7 @@ export function CollaborationPanel({
   executingCollaboration,
   onClose,
   onAfterCollaborationCommand,
+  onConfirmWorkspace,
 }: CollaborationPanelProps) {
   const { serverAddr, channel, username } = useChatStore(
     (s) => ({ serverAddr: s.serverAddr, channel: s.channel, username: s.username }),
@@ -146,8 +150,10 @@ export function CollaborationPanel({
     executingCollaboration != null &&
     executingCollaboration.phase === 'executing' &&
     executingCollaboration.id !== c.id;
+  const awaitingWorkspaceConfirmation = isAwaitingWorkspaceConfirmation(c);
   const primaryActionLabel = collaborationPrimaryActionLabel(c.phase, {
     anotherCollabExecuting,
+    awaitingWorkspaceConfirmation,
   });
   const showPrimaryAction =
     primaryActionLabel != null &&
@@ -165,6 +171,7 @@ export function CollaborationPanel({
     ) ?? [];
   const executingStuck =
     c.phase === 'executing' &&
+    c.workspace_acknowledged &&
     totalTasks > 0 &&
     completedTasks === 0 &&
     (c.tasks?.some((t) => t.status === 'in_progress') ?? false);
@@ -563,6 +570,45 @@ export function CollaborationPanel({
               file changes in chat or ask the assignee to emit a [FILE_CHANGE] block. See{' '}
               <code style={{ fontSize: 11 }}>docs/COLLABORATION.md</code> troubleshooting.
             </p>
+          </div>
+        )}
+
+        {awaitingWorkspaceConfirmation && (
+          <div
+            data-testid="collaboration-workspace-gate-banner"
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderRadius: 8,
+              border: '1px solid #b45309',
+              backgroundColor: 'rgba(180, 83, 9, 0.12)',
+            }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#fcd34d', marginBottom: 6 }}>
+              Confirm execution workspace
+            </div>
+            <p style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--text-secondary, #ccc)', lineHeight: 1.45 }}>
+              Agents are paused until you confirm where files will be written. Click <strong>Confirm workspace</strong>{' '}
+              below or use the dialog on channel <span style={{ fontFamily: 'monospace' }}>{collabChannel}</span>.
+            </p>
+            {onConfirmWorkspace && (
+              <button
+                type="button"
+                onClick={onConfirmWorkspace}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  backgroundColor: '#d97706',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                }}
+              >
+                Confirm workspace
+              </button>
+            )}
           </div>
         )}
 
@@ -968,12 +1014,18 @@ export function CollaborationPanel({
           {showPrimaryAction && primaryActionLabel && (
             <button
               type="button"
-              onClick={() => void handleResume()}
+              onClick={() => {
+                if (awaitingWorkspaceConfirmation && onConfirmWorkspace) {
+                  onConfirmWorkspace();
+                  return;
+                }
+                void handleResume();
+              }}
               disabled={isSubmitting || approveBlocked}
               title={
                 approveBlocked
                   ? `Approve unlocks when the session summary is posted (waiting on @${recapFacilitatorName})`
-                  : collaborationPrimaryActionTitle(c.phase)
+                  : collaborationPrimaryActionTitle(c.phase, { awaitingWorkspaceConfirmation })
               }
               style={{
                 padding: '8px 16px',

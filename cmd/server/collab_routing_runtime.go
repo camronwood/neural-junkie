@@ -14,7 +14,21 @@ import (
 type collabRoutingRuntime struct{}
 
 func (collabRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, info protocol.AgentInfo, collab agent.CollaborationInfo, msg *protocol.Message) ai.AIProvider {
-	if msg == nil || msg.Type != protocol.MessageTypeCollabTask || strings.TrimSpace(msg.GetTaskID()) == "" {
+	if msg == nil {
+		return base
+	}
+	if appConfig != nil {
+		planningID := strings.TrimSpace(appConfig.Collaboration.PlanningProviderID)
+		if planningID != "" && collab.Phase == "planning" && msg.Type == protocol.MessageTypeCollabDiscussion {
+			p, perr := globalProviderCache.Get(appConfig, planningID)
+			if perr == nil {
+				log.Printf("[collab-routing] %s: planning_provider_id=%s", info.Name, planningID)
+				return p
+			}
+			log.Printf("[collab-routing] %s: planning provider %q unavailable: %v", info.Name, planningID, perr)
+		}
+	}
+	if msg.Type != protocol.MessageTypeCollabTask || strings.TrimSpace(msg.GetTaskID()) == "" {
 		return base
 	}
 	if msg.Metadata != nil {

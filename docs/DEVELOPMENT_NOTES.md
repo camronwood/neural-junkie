@@ -162,3 +162,19 @@ make gui             # Open desktop app
 - Hub state: protected by `sync.RWMutex`
 - Agent polling: 1-second HTTP poll interval
 - Repository indexes: cached with staleness detection
+
+## Dev builds vs release installers
+
+`make gui` / Tauri dev builds **do not** check the release updater manifest. Update checks are disabled in dev (`import.meta.env.DEV`) so you will not see a “Could not check for updates” banner. Test in-app auto-update with an installed release build from [DOWNLOAD.md](DOWNLOAD.md).
+
+## macOS notarization (deferred)
+
+Release CI currently produces **ad-hoc signed** `.dmg` files (`tauri.conf.json` `signingIdentity: "-"`). Gatekeeper may require **Right-click → Open** on first launch.
+
+**Follow-up when Apple Developer credentials are available:**
+
+1. Enroll in Apple Developer Program; create **Developer ID Application** certificate.
+2. Add GitHub Actions secrets: cert base64 + password, `APPLE_SIGNING_IDENTITY`, and notarization credentials (Apple ID app-specific password or App Store Connect API key).
+3. Import cert into CI keychain; set real signing identity in Tauri config.
+4. Post-build: `notarytool submit` + `stapler staple` on `.app` / `.dmg`.
+5. Remove `macos-notarized` from [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and update [DOWNLOAD.md](DOWNLOAD.md).

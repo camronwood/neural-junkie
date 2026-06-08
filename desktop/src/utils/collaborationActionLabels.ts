@@ -40,9 +40,12 @@ export function collaborationSubmitForReviewTitle(
 /** Primary action on the collaboration panel (approve, re-dispatch, etc.). */
 export function collaborationPrimaryActionLabel(
   phase: CollaborationPhase,
-  options?: { anotherCollabExecuting?: boolean }
+  options?: { anotherCollabExecuting?: boolean; awaitingWorkspaceConfirmation?: boolean }
 ): string | null {
   if (phase === 'executing') {
+    if (options?.awaitingWorkspaceConfirmation) {
+      return 'Confirm workspace';
+    }
     return 'Re-dispatch tasks';
   }
   if (phase === 'reviewing' || phase === 'approved') {
@@ -54,8 +57,14 @@ export function collaborationPrimaryActionLabel(
   return null;
 }
 
-export function collaborationPrimaryActionTitle(phase: CollaborationPhase): string | undefined {
+export function collaborationPrimaryActionTitle(
+  phase: CollaborationPhase,
+  options?: { awaitingWorkspaceConfirmation?: boolean }
+): string | undefined {
   if (phase === 'executing') {
+    if (options?.awaitingWorkspaceConfirmation) {
+      return 'Open the workspace confirmation dialog so agents can receive task prompts';
+    }
     return 'Re-send task prompts for open work (pending, in progress, or blocked)';
   }
   if (phase === 'reviewing' || phase === 'approved') {

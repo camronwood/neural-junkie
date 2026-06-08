@@ -11,7 +11,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 | macOS (Apple Silicon) | `.dmg` with `aarch64` in the name |
 | macOS (Intel) | `.dmg` with `x64` or `x86_64` in the name |
 | Windows | `.msi` or setup `.exe` |
-| Linux | `.deb` (no AppImage yet — see [known-issues.html](known-issues.html#linux-appimage-ci)) |
+| Linux | `.deb` (x86_64) |
 
 **macOS:** Builds are ad-hoc signed but not notarized. If Gatekeeper blocks the app, right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
 

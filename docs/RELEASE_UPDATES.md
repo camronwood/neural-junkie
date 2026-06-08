@@ -11,6 +11,8 @@ Neural Junkie uses the [Tauri v1 updater](https://v1.tauri.app/v1/guides/distrib
 
 Beta builds only receive beta updates. Stable builds only receive stable updates.
 
+**One-time manual upgrade:** Installers from before in-app updates (pre–beta.27) must be replaced once from [download.html](download.html) or GitHub Releases. After that, **Settings → About → Check for updates** works on beta.27+ builds.
+
 ## Signing keys (one-time setup)
 
 Generate a keypair locally:

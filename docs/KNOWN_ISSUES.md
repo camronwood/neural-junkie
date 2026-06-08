@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32)
+**Last updated:** 2026-06-08 · **Current beta:** [v1.0.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -15,9 +15,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | ID | Status | Summary |
 |----|--------|---------|
 | `collab-chat-not-disk` | **Limitation** | Chat markdown does **not** write to disk. Execution needs `[FILE_CHANGE]` proposals and your approval in **Pending changes**. |
-| `collab-workspace-gate` | **Limitation** | After **Approve plan**, assignees are **not** dispatched until you **Continue** / `/ack-collab-workspace`. Easy to mistake for a hang. |
-| `collab-model-variance` | **Limitation** | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. |
-| `collab-smart-routing-scope` | **Limitation** | Smart routing applies to **execution tasks only**, not planning or normal channel chat. |
+| `collab-model-variance` | **Limitation** | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. **Mitigation:** Settings → **Collaboration planning provider** (optional cloud/larger model for planning turns). |
+| `collab-smart-routing-scope` | **Limitation** | Smart routing applies to **execution tasks only**, not normal channel chat. Planning can use optional `planning_provider_id` in Settings (separate from smart routing). |
 
 **Workarounds:** Upgrade hub after each beta; run `make collab-preflight` before scenarios; use `make debug-collab` / discussion diagnosis in [COLLABORATION.md](COLLABORATION.md). For zero-task plans, revise plan or re-run with fewer agents.
 
@@ -27,7 +26,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 
 | ID | Status | Summary |
 |----|--------|---------|
-| `hub-history-bounded` | **Limitation** | Message history is **bounded and pruned** per channel; not a full durable archive. Session metadata restores from `last-session.json`. |
+| `hub-history-bounded` | **Limitation** | Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked **durable**. SQLite sidecar + **Export history** in channel info; not a full in-app search archive. |
 
 ---
 
@@ -47,11 +46,6 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
 | `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
 | `ide-v3-beta` | **Limitation** | IDE v2/v3 layout, diagnostics, and Ask/Agent routing are **beta** — see [IDE_V2.md](IDE_V2.md) / [IDE_V3.md](IDE_V3.md). |
-| `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
-| `auto-update-first-install` | **Limitation** | In-app updates require an updater-enabled build (beta.27+). Older installers must upgrade once manually from [download.html](download.html) or GitHub Releases. |
-| `dev-update-check-404` | **Limitation** | `make gui` / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with installed release builds. |
-| `linux-no-bundled-ollama` | **Limitation** | Linux `.deb` and Windows `.msi` omit bundled Ollama (size + independent updates). Setup wizard **Install Ollama** on first launch. macOS still bundles the runtime. |
-| `linux-appimage-ci` | **Limitation** | AppImage bundling still fails in CI — use `.deb` from [download.html](download.html) or GitHub Releases. Does not affect installed `.deb` users. |
 
 ---
 
@@ -61,10 +55,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 |----|--------|---------|
 | `single-hub` | **Limitation** | **Single-server** deployment — no horizontal scale or multi-region hub. |
 | `standalone-agent-polling` | **Limitation** | `cmd/agent` processes use **HTTP polling**; in-process hub agents get push delivery (lower latency). |
-| `pause-not-abort` | **Limitation** | `/pause-agent` marks an agent paused in the roster; it does **not** abort an in-flight LLM call. |
 | `lmstudio-tools` | **Limitation** | MCP tool calling is strongest on **Ollama** (selected flows) and **Claude**; LM Studio / generic OpenAI-compat tool use is limited. |
-| `ollama-model-pull` | **Limitation** | macOS bundles the Ollama **runtime**; Linux and Windows install it via the setup wizard. **Models** are pulled on first use on every platform (one-time download, can be several GB). |
-| `macos-notarized` | **Limitation** | macOS builds are **ad-hoc signed**, not notarized — use **Right-click → Open** if Gatekeeper blocks the first launch. |
+| `macos-notarized` | **Limitation** | macOS builds are **ad-hoc signed**, not notarized — use **Right-click → Open** if Gatekeeper blocks the first launch. See [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md) for notarization follow-up. |
 
 ---
 

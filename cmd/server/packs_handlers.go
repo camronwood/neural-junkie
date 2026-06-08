@@ -49,6 +49,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handleCustomerPackContext(w, r)
 		return
 	}
+	if path == "layout-owner" {
+		handlePackLayoutOwner(w, r)
+		return
+	}
 	parts := strings.Split(path, "/")
 	packID := parts[0]
 	if len(parts) == 2 && parts[1] == "install" {
@@ -409,6 +413,29 @@ func handlePackByID(w http.ResponseWriter, r *http.Request, packID string) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func handlePackLayoutOwner(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		LayoutOwner string `json:"layout_owner"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := appConfig.SetLayoutOwner(body.LayoutOwner); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := appConfig.Save(); err != nil {
+		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writePacksMutationResponse(w, body.LayoutOwner, map[string]any{"layout_owner": body.LayoutOwner})
 }
 
 func writePacksMutationResponse(w http.ResponseWriter, packID string, extra map[string]any) {

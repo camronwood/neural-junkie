@@ -333,6 +333,34 @@ func (c *Config) UninstallPack(packID string) error {
 	return nil
 }
 
+// SetLayoutOwner sets which enabled non-customer pack controls UI layout (team vs ide).
+func (c *Config) SetLayoutOwner(packID string) error {
+	packID = strings.TrimSpace(packID)
+	if packID == "" {
+		return fmt.Errorf("layout owner pack id required")
+	}
+	if !c.IsPackInstalled(packID) {
+		return fmt.Errorf("pack %q is not installed", packID)
+	}
+	if !c.IsPackEnabled(packID) {
+		return fmt.Errorf("pack %q is not enabled", packID)
+	}
+	c.mu.Lock()
+	m, err := c.installedManifestLocked(packID)
+	if err != nil || m == nil {
+		c.mu.Unlock()
+		return fmt.Errorf("pack %q manifest not found", packID)
+	}
+	if m.IsCustomerPack() {
+		c.mu.Unlock()
+		return fmt.Errorf("pack %q cannot own layout (customer pack)", packID)
+	}
+	c.Packs.LayoutOwner = packID
+	c.mu.Unlock()
+	c.SyncAgentsFromPacks()
+	return nil
+}
+
 // SetPackEnabled updates pack toggle and syncs agents/models.
 func (c *Config) SetPackEnabled(packID string, enabled bool) error {
 	if !c.IsPackInstalled(packID) {

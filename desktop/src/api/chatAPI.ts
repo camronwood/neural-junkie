@@ -1085,6 +1085,39 @@ export class ChatAPI {
     }
   }
 
+  async exportChannelHistory(channel: string, format: 'markdown' | 'json' = 'markdown'): Promise<Blob> {
+    const q = new URLSearchParams({ channel, format });
+    const response = await this.hubFetch(`/api/channel-export?${q.toString()}`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to export channel history: ${response.statusText}`);
+    }
+    return response.blob();
+  }
+
+  async getChannelDurable(channel: string): Promise<boolean> {
+    const q = new URLSearchParams({ channel });
+    const response = await this.hubFetch(`/api/channel-durable/status?${q.toString()}`);
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to read channel durable flag: ${response.statusText}`);
+    }
+    const data = (await response.json()) as { durable?: boolean };
+    return !!data.durable;
+  }
+
+  async setChannelDurable(channel: string, durable: boolean): Promise<void> {
+    const response = await this.hubFetch(`/api/channel-durable`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel, durable }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to update channel durable flag: ${response.statusText}`);
+    }
+  }
+
   async deleteChannel(name: string): Promise<void> {
     const response = await this.hubFetch(`/api/channels/delete`, {
       method: 'POST',
@@ -2472,6 +2505,19 @@ export class ChatAPI {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
+  }
+
+  async setLayoutOwner(packId: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/layout-owner`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layout_owner: packId }),
     });
     if (!response.ok) {
       const t = await response.text();

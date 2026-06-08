@@ -6,6 +6,21 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Added
+- **Layout owner picker** — Settings → Domain packs → choose which enabled pack controls IDE vs team layout (`PUT /api/packs/layout-owner`).
+- **Collaboration planning provider** — optional `planning_provider_id` in Settings routes planning discussion turns through a chosen provider.
+- **Channel history export** — `GET /api/channel-export` and **Export history** in channel info (markdown).
+- **Durable channels** — per-channel toggle skips 24h age prune; persisted in `config.json` (`PUT /api/channel-durable`).
+
+### Changed
+- **Workspace gate UX** — panel/chat banners, toasts, and **Confirm workspace** primary action when execution waits for ack.
+- **`/pause-agent`** — now aborts in-flight LLM generations for the paused agent.
+- **Linux releases** — AppImage build removed from CI; `.deb` is the supported Linux installer.
+- **Dev update checks** — suppressed in `import.meta.env.DEV` builds (no error banner).
+
+### Removed (known-issues tracker)
+- Closed: `pack-layout-first`, `collab-workspace-gate` (UX), `pause-not-abort`, `linux-appimage-ci`, and aged-out install/Ollama/dev-update items (documented in topic guides).
+
 ## [1.0.0-beta.32] - 2026-06-07
 
 ### Added

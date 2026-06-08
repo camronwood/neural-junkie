@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AgentInfo, Channel } from '../types/protocol';
 import { getAgentColor } from '../types/protocol';
+import { ChatAPI } from '../api/chatAPI';
 
 interface ChannelInfoModalProps {
   channel: Channel;
   agents: AgentInfo[];
+  api: ChatAPI;
   onClose: () => void;
   onClearHistory?: (channelName: string) => Promise<void>;
 }
@@ -31,9 +33,29 @@ function formatWhen(iso: string | undefined): string {
   return new Date(d).toLocaleString();
 }
 
-export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose, onClearHistory }: ChannelInfoModalProps) {
+export function ChannelInfoModal({ channel: ch, agents: globalAgents, api, onClose, onClearHistory }: ChannelInfoModalProps) {
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [durable, setDurable] = useState(false);
+  const [durableBusy, setDurableBusy] = useState(false);
+  const [durableError, setDurableError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const d = await api.getChannelDurable(ch.name);
+        if (!cancelled) setDurable(d);
+      } catch {
+        if (!cancelled) setDurable(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, ch.name]);
 
   const inRoom = new Map<string, AgentInfo>();
   for (const a of ch.agents ?? []) {
@@ -50,6 +72,39 @@ export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose, o
 
   const canClearHistory =
     !!onClearHistory && (ch.type === 'dm' || ch.type === 'custom' || ch.type === 'collaboration');
+
+  const handleExportHistory = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const blob = await api.exportChannelHistory(ch.name, 'markdown');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${ch.name}-history.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDurableToggle = async (next: boolean) => {
+    if (durableBusy) return;
+    setDurableBusy(true);
+    setDurableError(null);
+    try {
+      await api.setChannelDurable(ch.name, next);
+      setDurable(next);
+    } catch (e) {
+      setDurableError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDurableBusy(false);
+    }
+  };
 
   const handleClearHistory = async () => {
     if (!onClearHistory || clearing) return;
@@ -165,25 +220,50 @@ export function ChannelInfoModal({ channel: ch, agents: globalAgents, onClose, o
             </div>
           ) : null}
 
-          {canClearHistory ? (
-            <div className="pt-2 border-t border-slack-border">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slack-textMuted mb-2">
-                History
-              </div>
-              <p className="text-xs text-slack-textMuted mb-2">
-                Remove all messages in this channel so agents stop replaying stale errors on restore.
-              </p>
-              {clearError ? <p className="text-xs text-red-400 mb-2">{clearError}</p> : null}
-              <button
-                type="button"
-                disabled={clearing}
-                onClick={() => void handleClearHistory()}
-                className="px-3 py-1.5 text-sm border border-red-500/50 text-red-300 hover:bg-red-500/10 rounded font-medium transition-colors disabled:opacity-50"
-              >
-                {clearing ? 'Clearing…' : 'Clear message history'}
-              </button>
+          <div className="pt-2 border-t border-slack-border">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slack-textMuted mb-2">
+              History
             </div>
-          ) : null}
+            <p className="text-xs text-slack-textMuted mb-2">
+              Export merges SQLite archive (when enabled) with in-memory messages. Durable channels skip 24h age prune
+              (count cap still applies).
+            </p>
+            {exportError ? <p className="text-xs text-red-400 mb-2">{exportError}</p> : null}
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={() => void handleExportHistory()}
+              className="px-3 py-1.5 text-sm border border-slack-border text-slack-text hover:bg-slack-bgHover rounded font-medium transition-colors disabled:opacity-50 mb-3"
+            >
+              {exporting ? 'Exporting…' : 'Export history (.md)'}
+            </button>
+            <label className="flex items-center gap-2 text-xs text-slack-text mb-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={durable}
+                disabled={durableBusy}
+                onChange={(e) => void handleDurableToggle(e.target.checked)}
+              />
+              Keep history (no 24h prune)
+            </label>
+            {durableError ? <p className="text-xs text-red-400 mb-2">{durableError}</p> : null}
+            {canClearHistory ? (
+              <>
+                <p className="text-xs text-slack-textMuted mb-2">
+                  Clear removes all messages so agents stop replaying stale errors on restore.
+                </p>
+                {clearError ? <p className="text-xs text-red-400 mb-2">{clearError}</p> : null}
+                <button
+                  type="button"
+                  disabled={clearing}
+                  onClick={() => void handleClearHistory()}
+                  className="px-3 py-1.5 text-sm border border-red-500/50 text-red-300 hover:bg-red-500/10 rounded font-medium transition-colors disabled:opacity-50"
+                >
+                  {clearing ? 'Clearing…' : 'Clear message history'}
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
 
         <div className="px-5 py-3 border-t border-slack-border flex justify-end shrink-0">

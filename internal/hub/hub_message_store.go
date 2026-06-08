@@ -66,3 +66,15 @@ func (h *Hub) isChannelDurable(channelName string) bool {
 	}
 	return h.durableChannels[channelName]
 }
+
+// UnmarkChannelDurable allows age-based prune again for a channel.
+func (h *Hub) UnmarkChannelDurable(channelName string) {
+	if h == nil || channelName == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.durableChannels != nil {
+		delete(h.durableChannels, channelName)
+	}
+}

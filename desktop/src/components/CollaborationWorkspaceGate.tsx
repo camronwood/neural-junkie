@@ -50,8 +50,11 @@ export function CollaborationWorkspaceGate({
     >
       <div className="max-w-lg w-full rounded-lg border border-gray-600 bg-gray-900 p-6 shadow-xl">
         <h2 id="collab-workspace-gate-title" className="text-lg font-semibold text-white mb-2">
-          {isWorktree ? 'Collaboration git worktree' : 'Collaboration workspace'}
+          {collaboration.title?.trim() || (isWorktree ? 'Collaboration git worktree' : 'Collaboration workspace')}
         </h2>
+        <p className="text-amber-200/90 text-sm mb-3">
+          Agents are paused until you confirm. Task prompts are not sent until you click Continue.
+        </p>
         {isWorktree ? (
           <>
             <p className="text-gray-300 text-sm mb-4">
@@ -105,7 +108,7 @@ export function CollaborationWorkspaceGate({
             onClick={onNotNow}
             disabled={busy}
           >
-            Not now
+            Remind me later
           </button>
           <button
             type="button"

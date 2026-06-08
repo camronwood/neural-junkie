@@ -20,7 +20,16 @@ export function getUpdateChannelLabel(version: string): string {
   return version.includes('-beta') ? 'Beta updates' : 'Stable updates';
 }
 
+/** Reasons that should not show an error banner to the user. */
+export const SILENT_UPDATE_UNAVAILABLE_REASONS = new Set([
+  'Updates are only available in the desktop app.',
+  'Update checks are disabled in dev builds.',
+]);
+
 export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
+  if (import.meta.env.DEV) {
+    return { status: 'unavailable', reason: 'Update checks are disabled in dev builds.' };
+  }
   if (!isTauriRuntime()) {
     return { status: 'unavailable', reason: 'Updates are only available in the desktop app.' };
   }

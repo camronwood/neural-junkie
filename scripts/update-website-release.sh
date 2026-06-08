@@ -159,7 +159,7 @@ $(if [[ -n "${WIN_EXE}" ]]; then printf '            <a class="btn btn-ghost dow
         <p class="download-card__meta">x86_64 · <code>.deb</code></p>
         <p class="download-card__file">${LINUX_DEB:-Pending CI upload}</p>
 $(link_or_pending '\.deb$' 'Download .deb')
-        <p class="download-card__note"><code>sudo dpkg -i neural-junkie_*.deb</code>. Slim build — setup wizard <strong>Install Ollama</strong> on first launch (internet required). No AppImage yet — see <a href="known-issues.html#linux-appimage-ci">known issues</a>.</p>
+        <p class="download-card__note"><code>sudo dpkg -i neural-junkie_*.deb</code>. Slim build — setup wizard <strong>Install Ollama</strong> on first launch (internet required).</p>
       </section>
     </div>
 

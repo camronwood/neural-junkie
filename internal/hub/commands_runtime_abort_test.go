@@ -87,6 +87,44 @@ func TestAbortRuntimeAgentsOnChannelCancelsCLIAgents(t *testing.T) {
 	}
 }
 
+func TestAbortAgentGenerationsByID(t *testing.T) {
+	h := NewHub()
+	handler, ok := h.GetCommandHandler().(*CommandHandler)
+	if !ok || handler == nil {
+		t.Fatal("expected *CommandHandler")
+	}
+
+	runtimeAgent := agent.NewAgent(
+		protocol.AgentTypeBackend,
+		"Pausable",
+		nil,
+		ai.NewMockProvider(),
+		h,
+	)
+	handler.RegisterRuntimeAgent(runtimeAgent)
+
+	genCtx, genCancel := context.WithCancel(context.Background())
+	defer genCancel()
+	agent.RegisterGenCancelForTest(runtimeAgent, "ch-a", genCancel)
+
+	done := make(chan struct{})
+	go func() {
+		<-genCtx.Done()
+		close(done)
+	}()
+
+	handler.AbortAgentGenerations(runtimeAgent.Info.ID)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected agent generation to be canceled on pause abort")
+	}
+	if agent.ActiveGenCountForTest(runtimeAgent, "ch-a") != 0 {
+		t.Fatalf("expected no active gens on ch-a")
+	}
+}
+
 func TestInterjectChannelSetsHoldAndAbortsRuntimeAgents(t *testing.T) {
 	h := NewHub()
 	h.CreateChannel("interject-runtime", "", "")

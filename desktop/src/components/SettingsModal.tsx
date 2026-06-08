@@ -197,6 +197,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [isSwitching, setIsSwitching] = useState(false);
   const [collabSmartRouting, setCollabSmartRouting] = useState(false);
+  const [collabPlanningProviderId, setCollabPlanningProviderId] = useState('');
+  const [configuredProviders, setConfiguredProviders] = useState<Array<{ id: string; name: string }>>([]);
   const [implRoutingEnabled, setImplRoutingEnabled] = useState(true);
   const [implRoutingEnabledPersisted, setImplRoutingEnabledPersisted] = useState(true);
   const [implLocalToolModel, setImplLocalToolModel] = useState('qwen2.5-coder:7b');
@@ -244,6 +246,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
   const [specialistModelsAdvancedOpen, setSpecialistModelsAdvancedOpen] = useState(false);
   const [packsLoading, setPacksLoading] = useState(false);
+  const packs = usePacksStore((s) => s.packs);
+  const layoutOwner = usePacksStore((s) => s.layoutOwner);
+  const setLayoutOwner = usePacksStore((s) => s.setLayoutOwner);
   const bioPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_SUMMARY_API));
   const bioCustomerSecondaryTools = usePacksStore((s) =>
     s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_CUSTOMER),
@@ -265,6 +270,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [agentModelsOk, setAgentModelsOk] = useState<string | null>(null);
   const [mcpEnabled, setMcpEnabled] = useState(true);
   const [mcpAgents, setMcpAgents] = useState<Record<string, boolean>>({});
+  const [bioChatModel, setBioChatModel] = useState('koesn/llama3-openbiollm-8b:latest');
+  const [bioToolModel, setBioToolModel] = useState('qwen2.5:7b');
   const [bioMaxFold, setBioMaxFold] = useState('400');
   const [bioMaxAnalyze, setBioMaxAnalyze] = useState('10000');
   const [bioEsmfoldModel, setBioEsmfoldModel] = useState('facebook/esmfold_v1');
@@ -931,6 +938,18 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+          setCollabPlanningProviderId(
+            typeof cfg.collaboration?.planning_provider_id === 'string'
+              ? cfg.collaboration.planning_provider_id
+              : ''
+          );
+          const provRows = Array.isArray(cfg.ai?.providers) ? cfg.ai.providers : [];
+          setConfiguredProviders(
+            provRows.map((p: { id?: string; name?: string }) => ({
+              id: String(p.id ?? ''),
+              name: String(p.name ?? p.id ?? ''),
+            })).filter((p: { id: string }) => p.id)
+          );
           setImplRoutingEnabled(cfg.implementation?.routing_enabled !== false);
           setImplRoutingEnabledPersisted(cfg.implementation?.routing_enabled !== false);
           const toolModel =
@@ -958,6 +977,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               : {}
           );
           const bio = cfg.mcp?.biology ?? {};
+          setBioChatModel(bio.chat_model || 'koesn/llama3-openbiollm-8b:latest');
+          setBioToolModel(bio.tool_model || 'qwen2.5:7b');
           setBioMaxFold(String(bio.max_fold_length || 400));
           setBioMaxAnalyze(String(bio.max_analyze_length || 10000));
           setBioEsmfoldModel(bio.esmfold_model || 'facebook/esmfold_v1');
@@ -1183,6 +1204,38 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     }
   };
 
+  const handleCollabPlanningProviderChange = async (providerId: string) => {
+    setCollabRoutingSaving(true);
+    setCollabRoutingErr(null);
+    try {
+      const r = await fetch(`${hubHttp}/api/settings`);
+      if (!r.ok) {
+        throw new Error(await r.text());
+      }
+      const cfg = await r.json();
+      const next = {
+        ...cfg,
+        collaboration: {
+          ...(cfg.collaboration ?? {}),
+          planning_provider_id: providerId.trim(),
+        },
+      };
+      const put = await fetch(`${hubHttp}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!put.ok) {
+        throw new Error(await put.text());
+      }
+      setCollabPlanningProviderId(providerId.trim());
+    } catch (e) {
+      setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCollabRoutingSaving(false);
+    }
+  };
+
   const handleCollabSmartRoutingToggle = async (enabled: boolean) => {
     setCollabRoutingSaving(true);
     setCollabRoutingErr(null);
@@ -1306,6 +1359,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           ...(cfg.mcp as object | undefined),
           enabled: mcpEnabled,
           biology: {
+            chat_model: bioChatModel.trim() || 'koesn/llama3-openbiollm-8b:latest',
+            tool_model: bioToolModel.trim() || 'qwen2.5:7b',
             esmfold_model: bioEsmfoldModel.trim() || 'facebook/esmfold_v1',
             max_fold_length: maxFold,
             max_analyze_length: maxAnalyze,
@@ -1317,7 +1372,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           },
         },
       }));
-      setBioSettingsOk('Life sciences tool settings saved. Restart BiologyExpert if it is already running.');
+      setBioSettingsOk('Life sciences settings saved. Restart BiologyExpert if it is already running.');
     } catch (e) {
       setBioSettingsErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -3522,8 +3577,34 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               <div className="border border-slack-border rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-slack-text mb-2">Pack store</h3>
                 <p className="text-sm text-slack-textMuted mb-4">
-                  Install official domain packs from the catalog. You can enable multiple packs; the <strong>first pack you enable</strong> sets the UI layout (IDE vs team). Later packs add specialists and tools without changing layout.
+                  Install official domain packs from the catalog. You can enable multiple packs; choose which enabled pack controls the UI layout (IDE vs team). Later packs add specialists and tools without changing layout unless you switch the owner below.
                 </p>
+                {(() => {
+                  const layoutCandidates = packs.filter((p) => p.enabled && !p.custom);
+                  if (layoutCandidates.length < 2) return null;
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-slack-text mb-1" htmlFor="layout-owner-select">
+                        UI layout owner
+                      </label>
+                      <select
+                        id="layout-owner-select"
+                        className="w-full max-w-md rounded border border-slack-border bg-slack-bg px-3 py-2 text-sm text-slack-text"
+                        value={layoutOwner}
+                        onChange={(e) => void setLayoutOwner(e.target.value)}
+                      >
+                        {layoutCandidates.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title} ({p.layout_profile === 'ide' ? 'IDE' : 'Team'})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-slack-textMuted mt-1">
+                        Controls IDE vs team layout and which pack&apos;s default Ollama model applies when enabled.
+                      </p>
+                    </div>
+                  );
+                })()}
                 {packsLoading && <p className="text-sm text-slack-textMuted mb-2">Loading packs…</p>}
                 {packsErr && <p className="text-sm text-red-600 mb-2">{packsErr}</p>}
                 <PackStoreBrowse />
@@ -3577,10 +3658,29 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <div className="border border-slack-border rounded-lg p-6">
                   <h3 className="text-lg font-semibold text-slack-text mb-2">Life sciences tools</h3>
                   <p className="text-sm text-slack-textMuted mb-4">
-                    Limits for <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">analyze_sequence</code> and{' '}
-                    <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">fold_protein</code> (BiologyExpert MCP).
+                    Model layering for BiologyExpert: OpenBio (or your chat tag) for reasoning; a tool-capable model
+                    for MCP (<code className="font-mono text-xs bg-slack-bgHover px-1 rounded">analyze_sequence</code>,{' '}
+                    <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">fold_protein</code>, QC tools).
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Chat model (domain reasoning)</span>
+                      <input
+                        type="text"
+                        value={bioChatModel}
+                        onChange={(e) => setBioChatModel(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-slack-textMuted">Tool model (MCP loop)</span>
+                      <input
+                        type="text"
+                        value={bioToolModel}
+                        onChange={(e) => setBioToolModel(e.target.value)}
+                        className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
+                      />
+                    </label>
                     <label className="block text-sm">
                       <span className="text-slack-textMuted">Max fold length (aa)</span>
                       <input
@@ -3874,6 +3974,38 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   />
                   <span className="text-slack-text">Enable cross-agent delegation</span>
                 </label>
+              </div>
+
+              <div className="border border-slack-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-slack-text mb-2">Collaboration planning provider</h3>
+                <p className="text-sm text-slack-textMuted mb-2">
+                  Local Ollama models vary in plan quality. For harder collaborations, route <strong>planning discussion</strong>{' '}
+                  turns through a cloud or larger local provider. Execution tasks still use smart routing / agent defaults.
+                </p>
+                <p className="text-sm text-slack-textMuted mb-4">
+                  Recommended: 14B+ local or a configured Claude/OpenAI provider. See{' '}
+                  <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HARDWARE.md" className="text-slack-accent hover:underline" target="_blank" rel="noreferrer">
+                    HARDWARE.md
+                  </a>{' '}
+                  for RAM tiers.
+                </p>
+                <label className="block text-sm text-slack-text mb-1" htmlFor="collab-planning-provider">
+                  Planning provider
+                </label>
+                <select
+                  id="collab-planning-provider"
+                  className="w-full max-w-md rounded border border-slack-border bg-slack-bg px-3 py-2 text-sm text-slack-text mb-2"
+                  value={collabPlanningProviderId}
+                  disabled={collabRoutingSaving}
+                  onChange={(e) => void handleCollabPlanningProviderChange(e.target.value)}
+                >
+                  <option value="">Use each agent&apos;s default</option>
+                  {configuredProviders.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.id})
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="border border-slack-border rounded-lg p-6">

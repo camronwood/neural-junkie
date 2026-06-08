@@ -63,6 +63,18 @@ export function taskNeedsFileDeliverable(task: CollaborationTask): boolean {
   );
 }
 
+/** Executing phase blocked until user confirms workspace (worktree or sandbox with path). */
+export function isAwaitingWorkspaceConfirmation(collaboration: Collaboration | null): boolean {
+  if (!collaboration || collaboration.phase !== 'executing') {
+    return false;
+  }
+  if (collaboration.workspace_acknowledged) {
+    return false;
+  }
+  const isWorktree = collaboration.execution_mode === 'worktree';
+  return isWorktree || !!collaboration.working_directory?.trim();
+}
+
 /** Approved plan; workspace auto-ack path is dispatching tasks without the Continue gate. */
 export function isApprovedAwaitingDispatch(collaboration: Collaboration | null): boolean {
   if (!collaboration || collaboration.phase !== 'approved') {

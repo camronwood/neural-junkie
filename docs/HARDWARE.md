@@ -115,7 +115,7 @@ See [USER_VALUE_GUIDE.md](USER_VALUE_GUIDE.md).
 | macOS Apple Silicon | `.dmg` (`aarch64`) | Ad-hoc signed, not notarized — Right-click → Open |
 | macOS Intel | `.dmg` (`x64`) | Same Gatekeeper note |
 | Windows | `.msi` / `.exe` | Slim build — wizard **Install Ollama** (beta.32+) |
-| Linux | `.deb` | Slim build — wizard **Install Ollama**; no AppImage yet ([known issues](known-issues.html#linux-appimage-ci)) |
+| Linux | `.deb` | Slim build — wizard **Install Ollama** |
 
 Full install table: [DOWNLOAD.md](DOWNLOAD.md).
 
@@ -127,8 +127,8 @@ Public tracker: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) · [known-issues.html](known-
 
 | ID | Summary |
 |----|---------|
-| `ollama-model-pull` | Runtime bundled on macOS; wizard on Linux/Windows; models pulled on first use (several GB) |
-| `linux-no-bundled-ollama` | Linux `.deb` and Windows `.msi` omit bundled Ollama — wizard installs |
+| `collab-model-variance` | Optional **planning provider** in Settings; 14B+ local or cloud recommended |
+| `hub-history-bounded` | Export + durable channel toggle; 5000 msg cap remains |
 | `collab-model-variance` | Local models vary in collaboration quality and timeouts |
 | `lmstudio-tools` | MCP tool calling strongest on Ollama and Claude |
 | `single-hub` | Single-server — no horizontal scale |

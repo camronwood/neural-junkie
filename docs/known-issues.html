@@ -37,8 +37,8 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
-        As of this update there are <strong>no open user-facing Active bugs</strong>; remaining entries are intentional limitations or CI-only gaps.
-        Last updated <time datetime="2026-06-07">June 7, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32">v1.0.0-beta.32</a>.
+        Remaining entries are intentional limitations. Several UX gaps were closed in the limitations sprint (layout owner picker, workspace gate banners, pause abort, channel export).
+        Last updated <time datetime="2026-06-08">June 8, 2026</time> (post–beta.32 limitations sprint).
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -81,23 +81,17 @@
           <strong>Chat does not write files</strong>
           <p>Execution success means <strong>approved file-change proposals</strong>, not polished markdown in the thread. <code>TASK_STATUS: completed</code> alone does not create files.</p>
         </li>
-        <!-- ISSUE: collab-workspace-gate -->
-        <li class="issue-item" id="collab-workspace-gate">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Workspace confirmation gate</strong>
-          <p>After you approve the plan, task prompts wait until you <strong>Continue</strong> in the desktop or run <code>/ack-collab-workspace</code>. Until then, execution can look “stuck.”</p>
-        </li>
         <!-- ISSUE: collab-model-variance -->
         <li class="issue-item" id="collab-model-variance">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Model variance</strong>
-          <p>Local Ollama models differ in silence, speed, and plan quality. The hub enforces phase budgets and fallbacks; it cannot force a perfect task list from every model.</p>
+          <p>Local Ollama models differ in silence, speed, and plan quality. The hub enforces phase budgets and fallbacks; it cannot force a perfect task list from every model. <strong>Mitigation:</strong> Settings → <strong>Collaboration planning provider</strong> for optional cloud/larger-model planning turns.</p>
         </li>
         <!-- ISSUE: collab-smart-routing-scope -->
         <li class="issue-item" id="collab-smart-routing-scope">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Smart routing scope</strong>
-          <p>Collaboration smart routing applies to <strong>execution tasks only</strong> — not planning turns or normal channel chat.</p>
+          <p>Collaboration smart routing applies to <strong>execution tasks only</strong> — not normal channel chat. Planning can use a separate optional planning provider in Settings.</p>
         </li>
       </ul>
 
@@ -107,7 +101,7 @@
         <li class="issue-item" id="hub-history-bounded">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Bounded message history</strong>
-          <p>Per-channel history is pruned over time; the hub is not a full searchable archive. Session metadata restores from <code>last-session.json</code>.</p>
+          <p>Per-channel history is capped (5000 messages) and age-pruned after 24h unless marked <strong>durable</strong> in channel info. SQLite sidecar + <strong>Export history</strong> — not a full in-app search archive.</p>
         </li>
       </ul>
 
@@ -147,36 +141,6 @@
           <strong>IDE v2/v3 beta</strong>
           <p>Layout presets, diagnostics, and Ask/Agent routing are evolving. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V3.md">IDE_V3.md</a></p>
         </li>
-        <!-- ISSUE: pack-layout-first -->
-        <li class="issue-item" id="pack-layout-first">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>First enabled pack sets layout</strong>
-          <p>With multiple domain packs on, the first pack you enable picks IDE vs team layout.</p>
-        </li>
-        <!-- ISSUE: auto-update-first-install -->
-        <li class="issue-item" id="auto-update-first-install">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Auto-update requires updater build</strong>
-          <p>In-app updates need an updater-enabled build (beta.27+). Older installers must upgrade once manually from <a href="download.html">Download</a> or GitHub Releases.</p>
-        </li>
-        <!-- ISSUE: dev-update-check-404 -->
-        <li class="issue-item" id="dev-update-check-404">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Dev builds cannot check for updates</strong>
-          <p><code>make gui</code> / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with an installed release build.</p>
-        </li>
-        <!-- ISSUE: linux-no-bundled-ollama -->
-        <li class="issue-item" id="linux-no-bundled-ollama">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Linux &amp; Windows omit bundled Ollama</strong>
-          <p>Slim <code>.deb</code> and <code>.msi</code> installers skip the Ollama runtime (size + independent updates). The setup wizard <strong>Install Ollama</strong> on first launch. macOS still bundles the runtime.</p>
-        </li>
-        <!-- ISSUE: linux-appimage-ci -->
-        <li class="issue-item" id="linux-appimage-ci">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>No AppImage yet</strong>
-          <p>AppImage bundling still fails in CI — use the <code>.deb</code> from <a href="download.html">Download</a> or GitHub Releases. Does not affect installed <code>.deb</code> users.</p>
-        </li>
       </ul>
 
       <h2 id="hub-providers">Hub, agents &amp; providers</h2>
@@ -193,23 +157,11 @@
           <strong>Standalone agents poll</strong>
           <p><code>cmd/agent</code> processes use HTTP polling; in-process hub agents get lower-latency push delivery.</p>
         </li>
-        <!-- ISSUE: pause-not-abort -->
-        <li class="issue-item" id="pause-not-abort">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Pause ≠ abort</strong>
-          <p><code>/pause-agent</code> updates roster state; it does not cancel an active LLM request.</p>
-        </li>
         <!-- ISSUE: lmstudio-tools -->
         <li class="issue-item" id="lmstudio-tools">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Tool calling varies by provider</strong>
           <p>MCP tools are best supported on Ollama (selected flows) and Claude; LM Studio / generic OpenAI-compat is limited.</p>
-        </li>
-        <!-- ISSUE: ollama-model-pull -->
-        <li class="issue-item" id="ollama-model-pull">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>Ollama model download</strong>
-          <p>macOS bundles the Ollama <em>runtime</em>; Linux and Windows install it via the setup wizard. <strong>Models</strong> are pulled on first use on every platform (one-time download, can be several GB).</p>
         </li>
         <!-- ISSUE: macos-notarized -->
         <li class="issue-item" id="macos-notarized">

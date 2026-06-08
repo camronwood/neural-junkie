@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   checkForAppUpdate,
   installAppUpdate,
+  SILENT_UPDATE_UNAVAILABLE_REASONS,
   UPDATE_CHECK_INTERVAL_MS,
   BANNER_AUTO_DISMISS_MS,
   type AppUpdateInfo,
@@ -20,7 +21,7 @@ export function UpdateBanner() {
       setUpdate(result.update);
       setError(null);
     } else if (result.status === 'unavailable') {
-      if (result.reason !== 'Updates are only available in the desktop app.') {
+      if (!SILENT_UPDATE_UNAVAILABLE_REASONS.has(result.reason)) {
         setError(result.reason);
       } else {
         setError(null);

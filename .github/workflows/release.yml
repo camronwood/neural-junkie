@@ -35,7 +35,7 @@ jobs:
             | **macOS (Apple Silicon)** | `.dmg` with `aarch64` in the name |
             | **macOS (Intel)** | `.dmg` with `x64` or `x86_64` in the name |
             | **Windows** | `.msi` installer (or `.exe` setup) |
-            | **Linux** | `.AppImage` and/or `.deb` |
+            | **Linux** | `.deb` (x86_64) |
 
             **Auto-update:** Installed builds from this release (and later) check for updates in-app. Beta builds use the beta channel; stable builds use the stable channel. One manual install is required if you are upgrading from a build that predates in-app updates.
 
@@ -305,38 +305,6 @@ jobs:
           fi
           gh release upload "${{ github.ref_name }}" "${debs[@]}" --repo "${{ github.repository }}" --clobber
           echo "Uploaded: ${debs[*]}"
-
-      - name: Refresh AppImage tooling cache
-        run: rm -rf ~/.cache/tauri/linuxdeploy* ~/.cache/tauri/AppRun* || true
-
-      - name: Build Tauri AppImage
-        id: appimage
-        continue-on-error: true
-        working-directory: desktop
-        env:
-          NO_STRIP: true
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: npx tauri build --bundles appimage --verbose
-
-      - name: Verify Linux updater artifacts
-        if: steps.appimage.outcome == 'success'
-        run: bash scripts/verify-updater-artifacts.sh linux desktop/src-tauri/target/release/bundle/appimage
-
-      - name: Upload Linux AppImage assets
-        if: steps.appimage.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          shopt -s nullglob
-          assets=(
-            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
-            desktop/src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz
-            desktop/src-tauri/target/release/bundle/appimage/*.AppImage.tar.gz.sig
-          )
-          if [ ${#assets[@]} -gt 0 ]; then
-            gh release upload "${{ github.ref_name }}" "${assets[@]}" --repo "${{ github.repository }}" --clobber
-          fi
 
   publish-updater-manifests:
     needs:

@@ -139,6 +139,13 @@ func main() {
 	}
 	chatHub = hub.NewHub()
 	initMessageStore()
+	if appConfig != nil {
+		for _, ch := range appConfig.Server.DurableChannels {
+			if strings.TrimSpace(ch) != "" {
+				chatHub.MarkChannelDurable(strings.TrimSpace(ch))
+			}
+		}
+	}
 	chatHub.SetCollaborationAssetsRootResolver(func() string {
 		return config.CollabAssetsRoot(appConfig)
 	})
@@ -249,6 +256,9 @@ func main() {
 	http.HandleFunc("/api/channels/join", corsMiddleware(handleJoinChannel))
 	http.HandleFunc("/api/channels/delete", corsMiddleware(localOnly(handleDeleteChannel)))
 	http.HandleFunc("/api/channels/clear-history", corsMiddleware(localOnly(handleClearChannelHistory)))
+	http.HandleFunc("/api/channel-export", corsMiddleware(localOnly(handleChannelExport)))
+	http.HandleFunc("/api/channel-durable", corsMiddleware(localOnly(handleChannelDurable)))
+	http.HandleFunc("/api/channel-durable/status", corsMiddleware(localOnly(handleChannelDurableGet)))
 	http.HandleFunc("/api/channels/agents", corsMiddleware(handleChannelAgentsManage))
 	http.HandleFunc("/api/channels/", corsMiddleware(localOnly(handleChannelInterjectRoute)))
 	http.HandleFunc("/api/agent-channels", corsMiddleware(handleAgentChannels))

@@ -936,6 +936,22 @@ func (a *Agent) AbortChannel(channel string) {
 	}
 }
 
+// AbortAllChannels cancels in-flight generations on every channel (e.g. /pause-agent).
+func (a *Agent) AbortAllChannels() {
+	a.activeGenMu.Lock()
+	cancels := make([]context.CancelFunc, 0)
+	for ch, gens := range a.activeGens {
+		for _, c := range gens {
+			cancels = append(cancels, c)
+		}
+		delete(a.activeGens, ch)
+	}
+	a.activeGenMu.Unlock()
+	for _, c := range cancels {
+		c()
+	}
+}
+
 // sendThinkingStatus sends an agent_status message indicating thinking state
 func (a *Agent) sendThinkingStatus(originalMsg *protocol.Message, status protocol.ThinkingStatus) {
 	statusMsg := protocol.NewMessage(

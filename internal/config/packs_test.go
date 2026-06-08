@@ -40,6 +40,11 @@ func TestSyncAgentsFromPacksLifeSciences(t *testing.T) {
 	if !foundTool {
 		t.Fatalf("expected %s in models_to_ensure", BioOllamaToolModel)
 	}
+	for _, a := range cfg.Agents {
+		if a.Type == "biology" && a.Model != BioOllamaChatModel {
+			t.Fatalf("biology agent model = %q, want %q", a.Model, BioOllamaChatModel)
+		}
+	}
 }
 
 func TestSyncAgentsFromPacksCAD(t *testing.T) {
@@ -266,6 +271,44 @@ func TestSetPackEnabledMultiPack(t *testing.T) {
 	}
 	if cfg.LayoutOwnerPackID() != PackLifeSciences {
 		t.Fatalf("expected layout owner life-sciences (first enabled), got %q", cfg.LayoutOwnerPackID())
+	}
+}
+
+func TestSetLayoutOwner(t *testing.T) {
+	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackLifeSciences)
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	if err := cfg.SetPackEnabled(PackLifeSciences, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetPackEnabled(PackSoftwareDevelopment, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetLayoutOwner(PackSoftwareDevelopment); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LayoutOwnerPackID() != PackSoftwareDevelopment {
+		t.Fatalf("expected layout owner software-development, got %q", cfg.LayoutOwnerPackID())
+	}
+	if cfg.LayoutProfile() != "ide" {
+		t.Fatalf("expected ide layout profile, got %q", cfg.LayoutProfile())
+	}
+}
+
+func TestSetLayoutOwnerRejectsDisabled(t *testing.T) {
+	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackLifeSciences)
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	_ = cfg.SetPackEnabled(PackLifeSciences, true)
+	if err := cfg.SetLayoutOwner(PackSoftwareDevelopment); err == nil {
+		t.Fatal("expected error for disabled pack")
+	}
+}
+
+func TestSetLayoutOwnerRejectsUnknown(t *testing.T) {
+	cfg := DefaultConfig()
+	if err := cfg.SetLayoutOwner("nonexistent-pack"); err == nil {
+		t.Fatal("expected error for unknown pack")
 	}
 }
 

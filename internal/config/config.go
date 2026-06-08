@@ -12,6 +12,8 @@ import (
 type ServerConfig struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
+	// DurableChannels skips 24h age-based prune for listed channel names.
+	DurableChannels []string `json:"durable_channels,omitempty"`
 }
 
 type ProviderConfig struct {
@@ -77,6 +79,9 @@ type CollaborationConfig struct {
 	// SmartRoutingEnabled selects a configured AI provider per collaboration
 	// execution task (MessageTypeCollabTask with task_id) using a static heuristic.
 	SmartRoutingEnabled bool `json:"smart_routing_enabled"`
+	// PlanningProviderID optionally routes collaboration planning discussion turns
+	// (MessageTypeCollabDiscussion while phase=planning) through this provider.
+	PlanningProviderID string `json:"planning_provider_id,omitempty"`
 	// AutoApproveDeliverables auto-approves [FILE_CHANGE] proposals under collabs/<id>/
 	// during executing collaborations. Nil/absent defaults to true.
 	AutoApproveDeliverables *bool `json:"auto_approve_deliverables,omitempty"`
@@ -206,6 +211,7 @@ func Load() (*Config, error) {
 	}
 
 	cfg.migrateIfNeeded(data)
+	cfg.MigrateBiologyMCPModels()
 	cfg.migrateSoftwareDevelopmentPackIfNeeded()
 	cfg.MigrateInstalledPacks()
 	cfg.EnsureMCPDefaults()
@@ -225,6 +231,42 @@ func (c *Config) EnsureMCPDefaults() {
 	if c.MCP.Agents == nil {
 		c.MCP.Agents = DefaultMCPConfig().Agents
 	}
+}
+
+// SetChannelDurable adds or removes a channel from the durable (no 24h prune) list.
+func (c *Config) SetChannelDurable(channel string, durable bool) {
+	channel = strings.TrimSpace(channel)
+	if channel == "" || c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var kept []string
+	for _, ch := range c.Server.DurableChannels {
+		if ch != channel {
+			kept = append(kept, ch)
+		}
+	}
+	if durable {
+		kept = append(kept, channel)
+	}
+	c.Server.DurableChannels = kept
+}
+
+// IsChannelDurable reports whether a channel skips age-based message prune.
+func (c *Config) IsChannelDurable(channel string) bool {
+	channel = strings.TrimSpace(channel)
+	if channel == "" || c == nil {
+		return false
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, ch := range c.Server.DurableChannels {
+		if ch == channel {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) Save() error {
@@ -507,14 +549,13 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 	}
 	copy := *p
 	if a.Type == "biology" && c.IsPackEnabled(PackLifeSciences) {
-		m := strings.TrimSpace(copy.Model)
-		if m == "" || m == BioOllamaTag {
-			copy.Model = BioOllamaChatModel
+		// BiologyExpert uses mcp.biology.chat_model unless the agent row has an explicit model override.
+		if strings.TrimSpace(a.Model) == "" {
+			copy.Model = c.BiologyChatModelOrDefault()
 		}
 	}
 	if a.Type == "cad" && c.IsPackEnabled(PackCAD) {
-		m := strings.TrimSpace(copy.Model)
-		if m == "" || m == CadOllamaTag {
+		if strings.TrimSpace(a.Model) == "" {
 			copy.Model = c.CadMCPSettings().ChatModelOrDefault()
 		}
 	}

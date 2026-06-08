@@ -86,6 +86,7 @@ import { ChannelInfoModal } from './ChannelInfoModal';
 import { CreateNewDMModal } from './CreateNewDMModal';
 import { CollaborationPanel } from './CollaborationPanel';
 import {
+  isAwaitingWorkspaceConfirmation,
   isNonTerminalCollaborationPhase,
   resolvePanelCollaboration,
 } from '../utils/collaborationPanelState';
@@ -555,6 +556,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [workspaceGateCollab, setWorkspaceGateCollab] = useState<Collaboration | null>(null);
   const [workspaceGateBusy, setWorkspaceGateBusy] = useState(false);
   const dismissedWorkspaceGateIdRef = useRef<string | null>(null);
+  const workspaceGateToastIdRef = useRef<string | null>(null);
   const handledRepoWorkspaceActionsRef = useRef<Set<string>>(new Set());
   const handledLearningProposalsRef = useRef<Set<string>>(new Set());
   const handledFileChangeApprovalsRef = useRef<Set<string>>(new Set());
@@ -573,7 +575,32 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       break;
     }
     setWorkspaceGateCollab(next);
+    if (next && workspaceGateToastIdRef.current !== next.id) {
+      workspaceGateToastIdRef.current = next.id;
+      addToast({
+        type: 'info',
+        title: 'Confirm execution workspace',
+        message: 'Agents are paused until you click Continue in the workspace dialog.',
+      });
+    }
+    if (!next) {
+      workspaceGateToastIdRef.current = null;
+    }
+  }, [collaborationsByID, channel, addToast]);
+
+  const channelAwaitingWorkspaceCollab = useMemo(() => {
+    for (const c of Object.values(collaborationsByID)) {
+      if (c.channel !== channel) continue;
+      if (isAwaitingWorkspaceConfirmation(c)) return c;
+    }
+    return null;
   }, [collaborationsByID, channel]);
+
+  const openWorkspaceGate = useCallback(() => {
+    if (!channelAwaitingWorkspaceCollab) return;
+    dismissedWorkspaceGateIdRef.current = null;
+    setWorkspaceGateCollab(channelAwaitingWorkspaceCollab);
+  }, [channelAwaitingWorkspaceCollab]);
 
   const activeCollabForChannel = useMemo(
     () => Object.values(collaborationsByID).find((c) => c.channel === channel),
@@ -856,19 +883,30 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         }
       }
       setWorkspaceGateCollab(null);
+      workspaceGateToastIdRef.current = null;
     } catch (e) {
       console.error('[workspace gate]', e);
+      addToast({
+        type: 'error',
+        title: 'Workspace confirmation failed',
+        message: e instanceof Error ? e.message : 'Could not confirm workspace',
+      });
     } finally {
       setWorkspaceGateBusy(false);
     }
-  }, [workspaceGateCollab, api, channel, loadCollaborations]);
+  }, [workspaceGateCollab, api, channel, loadCollaborations, addToast]);
 
   const handleWorkspaceGateDismiss = useCallback(() => {
     if (workspaceGateCollab) {
       dismissedWorkspaceGateIdRef.current = workspaceGateCollab.id;
     }
     setWorkspaceGateCollab(null);
-  }, [workspaceGateCollab]);
+    addToast({
+      type: 'info',
+      title: 'Workspace confirmation pending',
+      message: 'Use the banner in the collaboration panel or chat strip when you are ready.',
+    });
+  }, [workspaceGateCollab, addToast]);
 
   const trackedCollaborations = useMemo(
     () =>
@@ -2498,6 +2536,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             }}
           />
         )}
+        {channelAwaitingWorkspaceCollab && (
+          <div
+            data-testid="chat-workspace-gate-strip"
+            className="mx-3 mt-2 mb-1 px-3 py-2 rounded-md border border-amber-600/50 bg-amber-950/30 text-sm text-amber-100 flex items-center justify-between gap-3"
+          >
+            <span>
+              <strong>Confirm workspace</strong> — agents on #{channel} are waiting for your approval before
+              task prompts are sent.
+            </span>
+            <button
+              type="button"
+              className="shrink-0 px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold"
+              onClick={openWorkspaceGate}
+            >
+              Continue
+            </button>
+          </div>
+        )}
         <MessageList key={channel} searchQuery={messageSearchQuery} />
 
         <div className="flex-shrink-0">
@@ -2613,6 +2669,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             extendableCollaborations={extendableCollaborations}
             executingCollaboration={executingCollaborationForChannel}
             onClose={() => setActiveCollab(null)}
+            onConfirmWorkspace={openWorkspaceGate}
             onAfterCollaborationCommand={async () => {
               await loadCollaborations(panelCollaboration.channel || channel);
             }}
@@ -2841,6 +2898,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         <ChannelInfoModal
           channel={channelInfoModal}
           agents={agents}
+          api={api}
           onClose={() => setChannelInfoModal(null)}
           onClearHistory={async (name) => {
             await api.clearChannelHistory(name);

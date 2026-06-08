@@ -577,7 +577,9 @@ func (ch *CommandHandler) handlePauseAgent(ctx context.Context, msg *protocol.Me
 				}
 			}
 
-			return ch.systemResponse(msg.Channel, fmt.Sprintf("⏸️  Agent '%s' has been paused", agentName)), nil
+			ch.AbortAgentGenerations(a.ID)
+
+			return ch.systemResponse(msg.Channel, fmt.Sprintf("⏸️  Agent '%s' has been paused (in-flight generation stopped)", agentName)), nil
 		}
 	}
 
@@ -3472,6 +3474,32 @@ func (ch *CommandHandler) RegisterRuntimeAgent(agentInstance *agent.Agent) {
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 }
 
+// AbortAgentGenerations cancels in-flight LLM work for a single agent across all channels.
+func (ch *CommandHandler) AbortAgentGenerations(agentID string) {
+	if ch == nil || agentID == "" {
+		return
+	}
+	if ra, ok := ch.runtimeAgents[agentID]; ok && ra != nil {
+		ra.AbortAllChannels()
+	}
+	for _, ca := range ch.cliAgents {
+		if ca != nil && ca.Info.ID == agentID {
+			ca.AbortAllChannels()
+		}
+	}
+	if ch.assistantAgent != nil && ch.assistantAgent.Agent != nil && ch.assistantAgent.Info.ID == agentID {
+		ch.assistantAgent.AbortAllChannels()
+	}
+	if ra, ok := ch.repoAgents[agentID]; ok && ra != nil && ra.Agent != nil {
+		ra.AbortAllChannels()
+	}
+	for _, ca := range ch.confluenceAgents {
+		if ca != nil && ca.Agent != nil && ca.Info.ID == agentID {
+			ca.AbortAllChannels()
+		}
+	}
+}
+
 // AbortRuntimeAgentsOnChannel cancels in-flight generations for runtime agents on channel.
 func (ch *CommandHandler) AbortRuntimeAgentsOnChannel(channel string) {
 	if ch == nil || channel == "" {
@@ -4743,7 +4771,13 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 				taskSummary.WriteString("\n**Git worktree:** will be created from your active workspace when you confirm.\n")
 			}
 		}
-		taskSummary.WriteString(fmt.Sprintf("\n⏸ **Waiting for workspace confirmation** — agents will receive their task prompts after you click **Continue** in the Neural Junkie desktop app, or run `/ack-collab-workspace %s` here.\n", collabID[:8]))
+		chName := strings.TrimSpace(collabSnap.Channel)
+		if chName == "" {
+			chName = "the collaboration channel"
+		} else {
+			chName = "#" + chName
+		}
+		taskSummary.WriteString(fmt.Sprintf("\n⏸ **Waiting for workspace confirmation** — agents will receive their task prompts after you click **Continue** on %s in the desktop app, or run `/ack-collab-workspace %s` here.\n", chName, collabID[:8]))
 		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree && collabSnap.WorktreeBranch != "" && strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
 			taskSummary.WriteString(fmt.Sprintf("_After completion, merge branch `%s` from your main checkout._\n", collabSnap.WorktreeBranch))
 		}
