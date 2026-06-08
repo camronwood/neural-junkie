@@ -22,7 +22,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { getMonacoThemeId, registerMonacoThemes } from '../utils/editorThemes';
 import { CsvTableViewer } from './CsvTableViewer';
+import { EditorMarkdownPreview } from './EditorMarkdownPreview';
 import { isEditableCsvPath } from '../utils/csvTable';
+import { isMarkdownPath } from '../utils/markdownFile';
 
 function tabLabel(tab: EditorTab): string {
   const path = tab.path ?? '';
@@ -193,7 +195,9 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const isScanAnalysisTab = activeTab?.viewMode === 'scan-analysis';
   const isCadWorkbenchTab = activeTab?.viewMode === 'cad-workbench';
   const isCsvTableTab = activeTab?.viewMode === 'csv-table';
+  const isMarkdownPreviewTab = activeTab?.viewMode === 'markdown-preview';
   const isCsvFileTab = activeTab ? isEditableCsvPath(activeTab.path) : false;
+  const isMarkdownFileTab = activeTab ? isMarkdownPath(activeTab.path) : false;
   const isPreviewTab = isImageTab || isScanSummaryTab || isScanAnalysisTab || isCadWorkbenchTab;
 
   useEffect(() => {
@@ -243,7 +247,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -263,9 +267,10 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
       monaco.editor.setModelLanguage(model, tab.language || 'plaintext');
 
-      if (tabSwitched) {
+      const needsModelAttach = tabSwitched || editor.getModel() !== model;
+      if (needsModelAttach) {
         const prev = lastAppliedRef.current.tabId;
-        if (prev && prev !== activeTabId) {
+        if (prev && prev !== activeTabId && editor.getModel()) {
           viewStatesRef.current.set(prev, editor.saveViewState());
         }
         editor.setModel(model);
@@ -279,7 +284,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     } catch (err) {
       console.error('[CodeEditorPanel] Monaco model sync failed:', err);
     }
-  }, [editor, activeTabId, activeContentSyncKey]);
+  }, [editor, activeTabId, activeTab?.viewMode, activeContentSyncKey]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -451,6 +456,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     if (tab.viewMode === 'scan-analysis') return '📊';
     if (tab.viewMode === 'comparator-analysis') return '📈';
     if (tab.viewMode === 'csv-table') return '🧮';
+    if (tab.viewMode === 'markdown-preview') return '📝';
     const ext = (tab.path ?? '').split('.').pop()?.toLowerCase();
     const iconMap: Record<string, string> = {
       js: '📄',
@@ -595,6 +601,28 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
         </div>
       )}
 
+      {activeTab && isMarkdownFileTab && (
+        <div className="flex items-center justify-between px-4 py-1.5 border-b border-slack-border bg-slack-bgHover">
+          <span className="text-xs text-slack-textMuted">Markdown</span>
+          <div className="flex rounded border border-slack-border overflow-hidden text-xs">
+            <button
+              type="button"
+              onClick={() => setTabViewMode(activeTab.id, 'text')}
+              className={`px-3 py-0.5 ${!isMarkdownPreviewTab ? 'bg-slack-accent text-white' : 'text-slack-textMuted hover:bg-slack-bgHover'}`}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setTabViewMode(activeTab.id, 'markdown-preview')}
+              className={`px-3 py-0.5 border-l border-slack-border ${isMarkdownPreviewTab ? 'bg-slack-accent text-white' : 'text-slack-textMuted hover:bg-slack-bgHover'}`}
+            >
+              Preview
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0">
         {activeTab ? (
           activeTab.viewMode === 'scan-analysis' && activeTab.scanAnalysisData != null ? (
@@ -650,6 +678,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               content={activeTab.content}
               onContentChange={(csv) => updateTabContent(activeTab.id, csv)}
             />
+          ) : activeTab.viewMode === 'markdown-preview' ? (
+            <EditorMarkdownPreview content={activeTab.content} />
           ) : activeTab.viewMode === 'image' ? (
             activeTab.imageSrc ? (
               <EditorImagePreview
@@ -695,6 +725,8 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               </span>
             ) : isCsvTableTab ? (
               <span className="px-2 py-1 bg-slack-bg rounded text-xs">CSV table</span>
+            ) : isMarkdownPreviewTab ? (
+              <span className="px-2 py-1 bg-slack-bg rounded text-xs">Markdown preview</span>
             ) : (
               activeTab.language && (
                 <span className="px-2 py-1 bg-slack-bg rounded text-xs">{activeTab.language}</span>

@@ -10,7 +10,7 @@ import { getLanguageFromPath } from '../utils/editorLanguage';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'csv-table' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench';
 
 export interface EditorTab {
   id: string;
@@ -171,7 +171,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -536,7 +536,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (tab.viewMode === 'cad-workbench') {
           return tab.content === content ? tab : { ...tab, content, isDirty: false };
         }
-        if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
+        if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
         if (tab.content === content) return tab;
         return { ...tab, content, isDirty: true };
       }),
