@@ -125,8 +125,8 @@ cat > "${ROOT}/docs/download.html" <<HTML
         <time datetime="${PUB_DATE}">${HUMAN_DATE}</time>.
         Pick your platform below for a direct installer link, or browse
         <a href="${RELEASE_PAGE}">all assets on GitHub</a>.
-        Installers bundle Ollama — first launch pulls a default model once (internet required).
-        In-app auto-updates ship in this release and later betas.
+        <strong>macOS</strong> bundles Ollama. <strong>Windows</strong> and <strong>Linux</strong> use slim installers — setup wizard auto-installs Ollama on first launch.
+        In-app auto-updates on macOS and Windows (beta channel).
       </p>
     </header>
 
@@ -161,7 +161,7 @@ $(if [[ -n "${WIN_EXE}" ]]; then printf '            <a class="btn btn-ghost dow
         <p class="download-card__file">${LINUX_APPIMAGE:-${LINUX_DEB:-Pending CI upload}}</p>
 $(link_or_pending '\.AppImage$' 'Download AppImage')
 $(if [[ -n "${LINUX_DEB}" ]]; then printf '            <a class="btn btn-ghost download-card__btn-secondary" href="%s/%s" download>Download .deb</a>\n' "${RELEASE_BASE}" "${LINUX_DEB}"; fi)
-        <p class="download-card__note">AppImage: <code>chmod +x</code> then run. Deb: install with your package manager.</p>
+        <p class="download-card__note"><code>sudo dpkg -i neural-junkie_*.deb</code> or run AppImage. Wizard installs Ollama on first launch (internet required).</p>
       </section>
     </div>
 
