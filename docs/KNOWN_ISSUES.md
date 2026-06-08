@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.31](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.31)
+**Last updated:** 2026-06-07 · **Current beta:** [v1.0.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -50,8 +50,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
 | `auto-update-first-install` | **Limitation** | In-app updates require an updater-enabled build (beta.27+). Older installers must upgrade once manually from [download.html](download.html) or GitHub Releases. |
 | `dev-update-check-404` | **Limitation** | `make gui` / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with installed release builds. |
-| `linux-appimage-ci` | **Active** | AppImage bundling still fails in CI. **`.deb` ships** from beta.31+ (slim build without bundled Ollama). Install [Ollama](https://ollama.com) separately on Linux. |
-| `linux-no-bundled-ollama` | **Limitation** | Linux `.deb` omits bundled Ollama (GitHub 2 GiB asset cap). macOS/Windows installers still bundle the runtime. |
+| `linux-appimage-ci` | **Active** | AppImage bundling still fails in CI. **`.deb` ships** from beta.31+ (slim build). Setup wizard auto-installs Ollama on Linux and Windows. |
+| `linux-no-bundled-ollama` | **By design** | Linux `.deb` and Windows `.msi` omit bundled Ollama (size + independent updates). Setup wizard auto-installs Ollama. macOS still bundles the runtime. |
 
 ---
 

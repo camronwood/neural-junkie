@@ -86,12 +86,23 @@ func (m *Manager) DetectInstallation() InstallStatus {
 		paths = append(paths, p)
 	}
 
-	candidates := []string{
-		"/usr/local/bin/ollama",
-		"/opt/homebrew/bin/ollama",
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		candidates = append(candidates, filepath.Join(home, ".ollama", "ollama"))
+	candidates := []string{}
+	switch runtime.GOOS {
+	case "windows":
+		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+			candidates = append(candidates, filepath.Join(localAppData, "Programs", "Ollama", "ollama.exe"))
+		}
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, filepath.Join(home, "AppData", "Local", "Programs", "Ollama", "ollama.exe"))
+		}
+	default:
+		candidates = []string{
+			"/usr/local/bin/ollama",
+			"/opt/homebrew/bin/ollama",
+		}
+		if home, err := os.UserHomeDir(); err == nil {
+			candidates = append(candidates, filepath.Join(home, ".ollama", "ollama"))
+		}
 	}
 	for _, c := range candidates {
 		if _, err := os.Stat(c); err == nil {
@@ -380,8 +391,8 @@ func (m *Manager) DeleteModel(ctx context.Context, model string) error {
 	return nil
 }
 
-// InstallOllama downloads and installs Ollama. On macOS it downloads the
-// CLI binary; on Linux it uses the official install script.
+// InstallOllama downloads and installs Ollama using the platform installer.
+// macOS/Linux use the official install script; Windows uses winget or OllamaSetup.exe.
 func (m *Manager) InstallOllama(ctx context.Context, onProgress func(string)) error {
 	if BundledBinaryPath() != "" {
 		if onProgress != nil {
@@ -389,49 +400,5 @@ func (m *Manager) InstallOllama(ctx context.Context, onProgress func(string)) er
 		}
 		return nil
 	}
-	switch runtime.GOOS {
-	case "darwin":
-		return m.installOllamaDarwin(ctx, onProgress)
-	case "linux":
-		return m.installOllamaLinux(ctx, onProgress)
-	default:
-		return fmt.Errorf("automatic Ollama installation not supported on %s", runtime.GOOS)
-	}
-}
-
-func (m *Manager) installOllamaDarwin(ctx context.Context, onProgress func(string)) error {
-	if onProgress != nil {
-		onProgress("Downloading Ollama for macOS...")
-	}
-
-	// Use the official install script
-	cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://ollama.com/install.sh | sh")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ollama installation failed: %w", err)
-	}
-
-	if onProgress != nil {
-		onProgress("Ollama installed successfully")
-	}
-	return nil
-}
-
-func (m *Manager) installOllamaLinux(ctx context.Context, onProgress func(string)) error {
-	if onProgress != nil {
-		onProgress("Downloading Ollama for Linux...")
-	}
-
-	cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://ollama.com/install.sh | sh")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ollama installation failed: %w", err)
-	}
-
-	if onProgress != nil {
-		onProgress("Ollama installed successfully")
-	}
-	return nil
+	return runPlatformOllamaInstall(ctx, onProgress)
 }

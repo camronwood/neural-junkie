@@ -2469,11 +2469,12 @@ func handleOllamaInstallStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"installed": status.Installed,
-		"bundled":   status.Bundled,
-		"version":   status.Version,
-		"path":      status.Path,
-		"running":   running,
+		"installed":              status.Installed,
+		"bundled":                status.Bundled,
+		"version":                status.Version,
+		"path":                   status.Path,
+		"running":                running,
+		"auto_install_supported": ollamaManager.AutoInstallSupported(),
 	})
 }
 
@@ -2494,11 +2495,11 @@ func handleOllamaInstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := ollamaMgr.InstallOllama(r.Context(), func(msg string) {
-		fmt.Fprintf(w, "data: %s\n\n", msg)
+		fmt.Fprintf(w, "data: %s\n\n", ollamaManager.SSESafeLine(msg))
 		flusher.Flush()
 	})
 	if err != nil {
-		fmt.Fprintf(w, "data: ERROR: %s\n\n", err.Error())
+		fmt.Fprintf(w, "data: ERROR: %s\n\n", ollamaManager.SSESafeLine(err.Error()))
 		flusher.Flush()
 		return
 	}

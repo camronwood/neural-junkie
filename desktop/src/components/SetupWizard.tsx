@@ -18,6 +18,7 @@ import {
   shouldAutoDowngradePrimary,
   type HardwareSnapshot,
 } from '../utils/hardwareRecommendations';
+import { installOllamaRuntime } from '../utils/ollamaRuntime';
 
 interface ProviderChoice {
   id: string;
@@ -45,7 +46,14 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
   const [step, setStep] = useState(0);
   const [wizardTrack, setWizardTrack] = useState<WizardTrack>('developer');
   const [providerType, setProviderType] = useState<'ollama' | 'cloud'>('ollama');
-  const [ollamaStatus, setOllamaStatus] = useState<{ installed: boolean; running: boolean; bundled?: boolean } | null>(null);
+  const [ollamaStatus, setOllamaStatus] = useState<{
+    installed: boolean;
+    running: boolean;
+    bundled?: boolean;
+    autoInstallSupported?: boolean;
+  } | null>(null);
+  const [installingOllama, setInstallingOllama] = useState(false);
+  const [installStatus, setInstallStatus] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [hfToken, setHfToken] = useState('');
   const [agents, setAgents] = useState<AgentChoice[]>(() => agentsForTrack('developer'));
@@ -79,7 +87,12 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
     try {
       const resp = await fetch(`${serverAddr}/api/ollama/install-status`);
       const data = await resp.json();
-      setOllamaStatus(data);
+      setOllamaStatus({
+        installed: Boolean(data.installed),
+        running: Boolean(data.running),
+        bundled: data.bundled,
+        autoInstallSupported: data.auto_install_supported,
+      });
     } catch {
       setOllamaStatus({ installed: false, running: false });
     }
@@ -91,6 +104,25 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
       await checkOllama();
     } catch (e) {
       console.error('Failed to start Ollama:', e);
+    }
+  }
+
+  async function installOllama() {
+    setInstallingOllama(true);
+    setInstallStatus('Preparing Ollama install...');
+    try {
+      await installOllamaRuntime(serverAddr, (msg) => setInstallStatus(msg));
+      await checkOllama();
+      const resp = await fetch(`${serverAddr}/api/ollama/install-status`);
+      const data = await resp.json();
+      if (data.installed && !data.running) {
+        setInstallStatus('Starting Ollama...');
+        await startOllama();
+      }
+    } catch (e) {
+      setInstallStatus(`Install failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setInstallingOllama(false);
     }
   }
 
@@ -332,13 +364,41 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
             ) : !ollamaStatus.installed ? (
               <div className="space-y-3">
                 <div className="text-yellow-400 text-sm">Ollama is not installed.</div>
-                <p className="text-gray-400 text-xs">
-                  Install Ollama from <a href="https://ollama.com" className="text-blue-400 underline">ollama.com</a>, then click &quot;Check Again&quot;.
-                  Production installers include Ollama — rebuild from source with <code className="text-teal-400">make bundle</code> after <code className="text-teal-400">./scripts/fetch-ollama.sh</code>.
-                </p>
-                <button onClick={checkOllama} className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600">
-                  Check Again
-                </button>
+                {ollamaStatus.autoInstallSupported ? (
+                  <>
+                    <p className="text-gray-400 text-xs">
+                      Neural Junkie can install Ollama for you (internet required; Linux may ask for your password).
+                      Windows runs a silent installer. Or install manually from{' '}
+                      <a href="https://ollama.com" className="text-blue-400 underline">ollama.com</a>.
+                    </p>
+                    <button
+                      onClick={installOllama}
+                      disabled={installingOllama}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50"
+                    >
+                      {installingOllama ? 'Installing Ollama…' : 'Install Ollama'}
+                    </button>
+                    {installStatus && <div className="text-xs text-gray-400">{installStatus}</div>}
+                    <button
+                      onClick={checkOllama}
+                      disabled={installingOllama}
+                      className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50"
+                    >
+                      Check Again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-gray-400 text-xs">
+                      Install Ollama from{' '}
+                      <a href="https://ollama.com" className="text-blue-400 underline">ollama.com</a>, then click
+                      &quot;Check Again&quot;. Or choose Cloud API instead.
+                    </p>
+                    <button onClick={checkOllama} className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600">
+                      Check Again
+                    </button>
+                  </>
+                )}
               </div>
             ) : !ollamaStatus.running ? (
               <div className="space-y-3">

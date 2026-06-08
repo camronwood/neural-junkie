@@ -14,8 +14,8 @@ The desktop app bundles the Go hub as a sidecar and starts it automatically.
 
 **Platform notes:**
 
-- **macOS / Linux:** wizard can install or start Ollama.
-- **Windows:** install [Ollama](https://ollama.com) manually or use a cloud key (in-app Ollama install is not supported on Windows).
+- **macOS:** bundled Ollama starts from the app; wizard can pull models.
+- **Windows / Linux:** slim installers — wizard can **Install Ollama** on first launch (internet required).
 
 ---
 

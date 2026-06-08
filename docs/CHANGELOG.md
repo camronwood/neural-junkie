@@ -6,6 +6,15 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.32] - 2026-06-07
+
+### Added
+- **Wizard Ollama auto-install** — setup wizard installs Ollama on first launch (Linux, macOS without bundle, Windows) with live progress via `POST /api/ollama/install`.
+
+### Changed
+- **Windows installers** — slim build without bundled Ollama (was ~1.4 GiB); wizard runs winget or silent `OllamaSetup.exe`.
+- **Linux installers** — wizard auto-install replaces manual `install.sh` step documented in beta.31.
+
 ## [1.0.0-beta.31] - 2026-06-07
 
 ### Changed

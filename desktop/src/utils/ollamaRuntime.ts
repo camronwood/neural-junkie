@@ -6,6 +6,7 @@ export interface OllamaRuntimeStatus {
   bundled?: boolean;
   running: boolean;
   managed?: boolean;
+  autoInstallSupported?: boolean;
   version?: string;
   path?: string;
 }
@@ -27,6 +28,7 @@ async function fetchHubOllamaStatus(serverAddr: string): Promise<OllamaRuntimeSt
       installed: Boolean(data.installed),
       bundled: data.bundled,
       running: Boolean(data.running),
+      autoInstallSupported: data.auto_install_supported,
       version: data.version,
       path: data.path,
     };
@@ -121,4 +123,59 @@ export async function restartOllamaRuntime(serverAddr: string): Promise<void> {
   await stopOllamaRuntime(serverAddr);
   await new Promise((r) => setTimeout(r, 500));
   await startOllamaRuntime(serverAddr);
+}
+
+async function readOllamaInstallSSE(
+  resp: Response,
+  onProgress: (message: string) => void,
+): Promise<void> {
+  const reader = resp.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let error: string | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() ?? '';
+    for (const chunk of parts) {
+      for (const line of chunk.split('\n')) {
+        if (!line.startsWith('data: ')) continue;
+        const payload = line.slice(6).trim();
+        if (!payload) continue;
+        if (payload.startsWith('ERROR: ')) {
+          error = payload.slice(7);
+          onProgress(error);
+          continue;
+        }
+        if (payload === 'DONE') {
+          onProgress('Install complete');
+          continue;
+        }
+        onProgress(payload);
+      }
+    }
+  }
+
+  if (error) {
+    throw new Error(error);
+  }
+}
+
+/** Download and install system Ollama via the hub (macOS/Linux). Skips when bundled. */
+export async function installOllamaRuntime(
+  serverAddr: string,
+  onProgress: (message: string) => void,
+): Promise<void> {
+  const resp = await fetch(`${serverAddr}/api/ollama/install`, { method: 'POST' });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text || 'Failed to install Ollama');
+  }
+  await readOllamaInstallSSE(resp, onProgress);
 }

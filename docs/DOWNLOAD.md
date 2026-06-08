@@ -15,7 +15,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 
 **macOS:** Builds are ad-hoc signed but not notarized. If Gatekeeper blocks the app, right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
 
-**Ollama:** macOS and Windows installers bundle the Ollama runtime. **Linux** `.deb` does not (GitHub 2 GiB limit) — install [Ollama](https://ollama.com) first: `curl -fsSL https://ollama.com/install.sh | sh`. All platforms need a **one-time model pull** on first run (internet required once). Cloud APIs remain optional in the wizard.
+**Ollama:** **macOS** installers bundle the Ollama runtime. **Windows** and **Linux** use slim installers — the setup wizard **auto-installs Ollama** on first launch (internet required; Linux may prompt for password). All platforms need a **one-time model pull** on first run (internet required once). Cloud APIs remain optional in the wizard.
 
 ## 2. First launch
 
