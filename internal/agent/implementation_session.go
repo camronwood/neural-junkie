@@ -91,6 +91,12 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
 		return false
 	}
+	if shouldSkipAgentResponseOnFileExportApproval(a, msg) {
+		return false
+	}
+	if shouldDeferImplSessionForCombinedDeliveryExport(a, msg) {
+		return false
+	}
 	if !agentTypeCanShipFileChanges(a.Info.Type) {
 		return false
 	}
@@ -330,6 +336,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 
 	if !cycleProposed && !proposedAny {
+		break
+	}
+	if msg != nil && (msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg)) && proposedAny {
 		break
 	}
 	if cont, note := shouldContinueImplementationSession(a, msg, state); cont {
@@ -740,8 +749,12 @@ func (a *Agent) executeProposeFileEditTool(ctx context.Context, msg *protocol.Me
 	if channel == "" {
 		channel = "general"
 	}
+	content := a.substituteFileExportContent(msg, args.Content)
+	if userPath := preferFileExportTargetPath(msg); userPath != "" {
+		path = userPath
+	}
 	var err error
-	err = a.proposeFileChangePreferEditOrCreate(ctx, channel, path, args.Content, msg)
+	err = a.proposeFileChangePreferEditOrCreate(ctx, channel, path, content, msg)
 	if err != nil {
 		return "", err
 	}

@@ -17,13 +17,8 @@ Install and enable this pack from **Settings → Domain packs → Pack store**. 
 | **analyze_sequence** | DNA/RNA/protein checks, length, reverse complement |
 | **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |
 | **Sequence review runbook** | Import from Runbook templates |
-| **Scan summary viewer** | Open Phoenix-style exports (`imageMetadata.json` + well TIFFs A1–H12) from the file explorer |
-| **summarize_scan_summary** | BiologyExpert MCP tool for QC stats on a scan summary folder |
-| **Scan analysis viewer** | Open Phoenix-style analysis exports (`reports/results.json`, plots, per-analyte CSVs) with plate heat maps and QC tables |
-| **summarize_scan_analysis** | BiologyExpert MCP tool for analysis QC (LOQ counts, dilution factor, analyte list) |
-| **run_12plex_qc** | BiologyExpert MCP tool for Human Inflammatory 12-Plex SOP QC (pass/fail per analyte) |
-| **Secondary analysis panel** | Multi-plate comparator, endogenous, std curves, print order (Python jobs via Settings path) |
-| **Comparator analysis viewer** | Open `Comparator Analysis */` folders with Summary Statistics tables |
+
+Phoenix scan viewers, 12-Plex QC, comparator, and other lab workflows ship in the **Brightest Bio Lab** pack (not Life sciences). See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
 ## Enable the pack
 
@@ -34,8 +29,6 @@ When enabled:
 - **BiologyExpert** is added to configured specialists (hub restarts agents automatically).
 - **Biology / Life sciences** appears in **New DM** and channel expert invite lists.
 - `koesn/llama3-openbiollm-8b:latest`, `qwen2.5:7b`, and optional `nj-bio:8b` are merged into **models to ensure** for Ollama.
-- **Scan summary viewer** — add a workspace folder containing `imageMetadata.json` and extensionless well TIFFs; open the metadata file or use **Open scan summary** in the file explorer context menu.
-- **Scan analysis viewer** — add a workspace folder containing `reports/results.json` (and optional `plots/`); open results or use **Open scan analysis** in the file explorer. Link to a scan folder to jump from concentration data to well TIFF images.
 
 When disabled, pack-owned agents are stopped and removed from the hub. In-process engineering specialists are controlled by the separate [Software development pack](SOFTWARE_DEVELOPMENT_PACK.md); **Moderator**, **Assistant**, and CLI agents are always available.
 
@@ -106,56 +99,11 @@ Ensure `qwen2.5:7b` is pulled when using the life-sciences pack.
 
 Open **BiologyExpert** via agent **ℹ️** (Tools & models), check the **tool count** badge in the sidebar, or run **`/tools-list`** in a channel where BiologyExpert is a member. See [MCP_INTEGRATION.md](MCP_INTEGRATION.md).
 
-## Scan summary viewer
+## Brightest Bio Lab (scan + QC workflows)
 
-Phoenix-style **scan summary** exports are folders with:
+Not part of Life sciences. Enable the **Brightest Bio Lab** sideload pack alongside Life sciences. That pack declares **`scan-summary-api`**, **`scan-summary-viewer`**, **`scan-analysis-viewer`**, **`secondary-analysis-api`**, **`secondary-analysis-viewer`**, **`secondary-analysis-python`**, and **`phoenix-import`**.
 
-- `imageMetadata.json` — per-well stage position, FOV, and spot layout (analyte, grid row/column, pixel coordinates)
-- Extensionless well files `A1` … `H12` — 32-bit grayscale TIFF images
-
-With the Life sciences pack enabled:
-
-1. Add the unzipped summary folder as a **workspace** in the file explorer.
-2. Click `imageMetadata.json` or right-click the folder → **Open scan summary**.
-3. Use the plate grid to select wells; the viewer decodes TIFF → PNG and overlays spots by analyte.
-
-BiologyExpert can run **`summarize_scan_summary`** with the folder path (or path to `imageMetadata.json`) for QC markdown (well counts, analyte distribution, wells missing spots).
-
-## Scan analysis viewer
-
-Phoenix-style **scan analysis** exports are folders with:
-
-- `reports/results.json` — canonical analysis data (concentrations, standard/unknown QC, spot intensities, LOQ, fit parameters)
-- `reports/process_report.txt` — human-readable analysis log
-- `reports/{analyte}_summary_report.csv` — per-analyte CSV exports
-- `plots/{analyte}_calibration_curve.jpg` and `plots/{analyte}_heat_map.jpg` — visualization plots
-
-With the Life sciences pack enabled:
-
-1. Add the analysis export folder as a **workspace** (or a combined folder with both scan TIFFs and `reports/`).
-2. Click `reports/results.json` or right-click the folder → **Open scan analysis**.
-3. Use analyte tabs and plate grid modes (concentration, intensity, LOQ, well type).
-4. **Link scan folder** (or auto-link when scan metadata is co-located) → **View scan image** jumps to the TIFF viewer for the same well.
-5. From the scan summary viewer, **Analysis at well** shows concentrations when analysis is linked.
-
-BiologyExpert can run **`summarize_scan_analysis`** with the analysis folder path, `reports/results.json`, or a `reports/{analyte}_summary_report.csv` file for QC markdown (LOQ pass/fail counts, dilution factor reminder, process report excerpt). When a sibling **`scan-export/`** folder exists, the summary includes the linked scan path for **`summarize_scan_summary`**.
-
-## Secondary analysis (12-Plex QC and multi-plate workflows)
-
-With **secondary-analysis-api**, **secondary-analysis-viewer**, and **secondary-analysis-python** capabilities:
-
-1. **Run 12-Plex QC** — scan analysis viewer or file explorer context menu (native Go). QC failure overlay mode, JSON/CSV export, **Ask BiologyExpert**. Persists `reports/qc_12plex_report.json`.
-2. **Secondary Analysis panel** — basket with editable condition labels; workflows: comparator (heatmaps, std curves, spike recovery via JSON or `Experiment_Details.csv`), endogenous, std curves, print order, 12-Plex Excel/cumulative, SPC charts. Job history stored in `{workspace}/.neural-junkie/secondary-analysis-history.json`. Outputs under `{workspace}/.neural-junkie/analysis-runs/{job_id}/`.
-3. **Comparator viewer** — LLOQ/ULOQ table, plate summary stats, interplate CSVs, artifact PNG preview.
-4. **Customer pack overlays** — with a pack that declares `secondary-analysis-customer` (e.g. Brightest Bio Lab), enable the pack to apply `secondary_analysis_tools_path`, `python_executable`, `default_panel_profile`, and optional `cumulative_qc_dir`; override in **Settings → Life sciences tools** if needed.
-
-BiologyExpert MCP: **`run_12plex_qc`**, **`summarize_panel_qc`**, **`summarize_comparator_output`**, **`run_secondary_analysis`** (sync Python CLI for comparator/endogenous/std curves/print order/Excel/SPC when tools path is configured).
-
-Runbook templates: **12plex-qc-plate**, **multi-plate-comparator**, **endogenous-study**.
-
-Automated smoke: `./scripts/smoke-secondary-analysis.sh` (Go QC tests, vitest, Python CLI smoke when SAT repo is present).
-
-**Comparator requirements:** each `-summary` folder needs a sibling `-validation` folder with `reports/validation_report.csv`.
+Covers Phoenix TIM import, scan summary/analysis viewers, 12-Plex QC, comparator, and Python secondary-analysis jobs. See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
 ## Smoke test checklist
 
@@ -164,16 +112,7 @@ Automated smoke: `./scripts/smoke-secondary-analysis.sh` (Go QC tests, vitest, P
 3. DM with BiologyExpert: paste a short peptide → ask to analyze sequence.
 4. Ask to fold the same sequence (HF hub token saved in Settings) → confirm PDB path in reply.
 5. Runbook → **sequence-review** → instantiate with BiologyExpert → start execution.
-6. Add a scan summary folder as a workspace → open viewer → confirm well A1 image and spot overlay.
-7. Ask BiologyExpert to summarize the same folder path → confirm `summarize_scan_summary` output.
-8. Add a scan analysis folder (or `summary (5)`-style export) → open analysis viewer → confirm IL-6 plate map and QC tables.
-9. Link scan + analysis → well click → **View scan image** opens TIFF; scan sidebar shows concentrations.
-10. Ask BiologyExpert to summarize analysis path → confirm `summarize_scan_analysis` output with dilution note.
-11. Click **Run 12-Plex QC** in scan analysis viewer → confirm per-analyte pass/fail panel.
-12. Add folders to analysis basket → run comparator from Secondary Analysis panel (requires Python tools path in Settings).
-13. Open Comparator Analysis output → confirm comparator viewer and LLOQ table.
-14. Import runbook **12plex-qc-plate** → BiologyExpert runs QC workflow.
-15. Enable a customer pack with `secondary-analysis-customer` (or set `secondary_analysis_tools_path` in Settings → Life sciences tools) → verify Python job completes.
+6–15. Scan viewers, Phoenix import, 12-Plex QC, comparator — enable **Brightest Bio Lab** pack; see [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
 ## Out of scope (v1)
 

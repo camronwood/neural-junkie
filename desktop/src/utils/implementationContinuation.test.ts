@@ -6,6 +6,8 @@ import {
   hasFileExportSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
+  hasPriorReferenceExportSignals,
+  hasCombinedContentDeliveryExport,
 } from './implementationContinuation';
 
 describe('implementationContinuation', () => {
@@ -52,7 +54,25 @@ describe('implementationContinuation', () => {
     expect(hasFileExportSignals('store that artical in a markdown file')).toBe(true);
     expect(hasFileExportSignals('please create that file new-artical-test.md')).toBe(true);
     expect(hasFileExportSignals('fill the file with the article')).toBe(true);
+    expect(hasFileExportSignals('can you save that artical to a file called nj-artical-1')).toBe(true);
     expect(hasFileExportSignals('write me a linkedin article')).toBe(false);
+  });
+
+  it('detects prior-reference export signals', () => {
+    expect(
+      hasPriorReferenceExportSignals(
+        'the artical you wrote a few messages back please save it to a markdown file'
+      )
+    ).toBe(true);
+    expect(hasPriorReferenceExportSignals('write me a linkedin article')).toBe(false);
+  });
+
+  it('detects combined content delivery and export in one message', () => {
+    expect(
+      hasCombinedContentDeliveryExport(
+        'Write a LinkedIn article about the app and save the file to the workspace root'
+      )
+    ).toBe(true);
   });
 });
 
@@ -98,6 +118,20 @@ describe('buildHumanOutboundMetadata continuation', () => {
     });
     expect(meta?.context_scope).toBe('outline');
     expect(meta?.context_scope_reason).toContain('content delivery');
+  });
+
+  it('content delivery on general uses hint scope without file tree', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      message:
+        'Can you write me a LinkedIn artical about the app in the workspace and save the file to the root?',
+      channel: 'general',
+      channelType: 'public',
+    });
+    expect(meta?.context_scope).toBe('hint');
+    expect(meta?.context_scope_reason).toContain('shared channel');
+    const ws = meta?.workspace_context as { file_tree?: string } | undefined;
+    expect(ws?.file_tree ?? '').toBe('');
   });
 
   it('workspace access affirmation attaches outline scope', () => {

@@ -2675,6 +2675,7 @@ export class ChatAPI {
     output_dir?: string;
   }): Promise<{
     analysis_dir: string;
+    validation_dir?: string;
     scan_export_dir?: string;
     scan_results_id?: string;
     files_written?: string[];

@@ -27,7 +27,7 @@ func TestClassifyUserFacingErrorOllamaNoContent(t *testing.T) {
 	if code != "provider_error" || !retryable {
 		t.Fatalf("code=%s retryable=%v", code, retryable)
 	}
-	if !containsAll(msg, "empty reply", "nj-bio") {
+	if !containsAll(msg, "empty reply", "Ollama") {
 		t.Fatalf("message=%q", msg)
 	}
 }

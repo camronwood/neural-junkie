@@ -1,3 +1,9 @@
+import {
+  hasFileExportSignals,
+  hasPriorReferenceExportSignals,
+  hasCombinedContentDeliveryExport,
+} from '../utils/implementationContinuation';
+
 /** Cursor-style composer behavior: read-only, implement, or export-to-file. */
 export type ComposerMode = 'ask' | 'agent' | 'export';
 
@@ -47,4 +53,23 @@ export function composerModeTitle(mode: ComposerMode): string {
     case 'export':
       return 'Export content to a workspace file (.md, etc.)';
   }
+}
+
+/**
+ * Resolves the metadata composer mode sent to the hub. Export is applied
+ * automatically when the message looks like a file export — the UI chip can
+ * stay on Agent/Ask.
+ */
+export function resolveEffectiveComposerMode(
+  message: string,
+  composerMode: ComposerMode
+): ComposerMode {
+  if (composerMode === 'ask') return 'ask';
+  if (hasCombinedContentDeliveryExport(message)) {
+    return composerMode === 'export' ? 'agent' : composerMode;
+  }
+  if (hasFileExportSignals(message) || hasPriorReferenceExportSignals(message)) {
+    return 'export';
+  }
+  return composerMode;
 }

@@ -114,9 +114,23 @@ func (a *Agent) tryPriorReferenceResponse(msg *protocol.Message) (string, bool) 
 	return priorReferenceMissingHistoryReply, true
 }
 
+// shouldInjectPriorAssistantContent reports when the prompt should include prior assistant output.
+func shouldInjectPriorAssistantContent(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if userReferencesPriorAssistantContent(msg.Content) {
+		return true
+	}
+	if userRequestsFileExport(msg.Content) || msg.IdeEditorModeIsExport() {
+		return true
+	}
+	return false
+}
+
 // appendPriorReferenceGuidance injects referenced assistant content into the prompt when found.
 func appendPriorReferenceGuidance(prompt string, msg *protocol.Message, history []*protocol.Message, agentID string) string {
-	if msg == nil || !userReferencesPriorAssistantContent(msg.Content) {
+	if msg == nil || !shouldInjectPriorAssistantContent(msg) {
 		return prompt
 	}
 	content := findPriorAssistantContent(history, msg.ID, agentID, priorReferenceMinChars)
@@ -179,10 +193,25 @@ func readWorkspaceFileTail(wsRoot, relPath string, maxBytes int) (string, error)
 	return string(data), nil
 }
 
+// preferFileExportTargetPath returns the user-named export path when present.
+func preferFileExportTargetPath(msg *protocol.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if p := strings.TrimSpace(extractLikelyOutputPathFromUserMessage(msg.Content)); p != "" {
+		return p
+	}
+	return ""
+}
+
 // substituteFileExportContent replaces empty or placeholder proposal bodies from channel history.
 func (a *Agent) substituteFileExportContent(sourceMsg *protocol.Message, content string) string {
 	content = strings.TrimSpace(content)
-	if sourceMsg == nil || !userRequestsFileExport(sourceMsg.Content) {
+	if sourceMsg == nil {
+		return content
+	}
+	exportTurn := userRequestsFileExport(sourceMsg.Content) || sourceMsg.IdeEditorModeIsExport()
+	if !exportTurn {
 		return content
 	}
 	if content != "" && !looksLikePlaceholderProposalContent(content) {
@@ -215,6 +244,16 @@ func looksLikePlaceholderProposalContent(content string) bool {
 		"insert recommendations",
 		"lorem ipsum",
 		"--- title:",
+		"# app name",
+		"overview of the app",
+		"feature 1",
+		"feature 2",
+		"feature 3",
+		"achievement 1",
+		"achievement 2",
+		"achievement 3",
+		"key achievements",
+		"## features",
 	}
 	for _, m := range markers {
 		if strings.Contains(lower, m) {

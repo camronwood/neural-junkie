@@ -577,6 +577,16 @@ def step_wait_tasks(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     return False, f"task wait timeout statuses={statuses}"
 
 
+def _is_deliverable_stub(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        body = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return "_Initial stub created when the plan was approved" in body
+
+
 def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     if not ctx.collab_channel:
         return False, "no collab_channel"
@@ -601,7 +611,8 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     if expect_rel and ctx.workspace_root:
         full = Path(ctx.workspace_root) / expect_rel
         if full.is_file() and full.stat().st_size >= int(step.get("min_bytes", 20)):
-            return True, f"file exists ({full})"
+            if not (allow_fallback and _is_deliverable_stub(full)):
+                return True, f"file exists ({full})"
 
     if n >= min_approved and min_approved > 0:
         return True, f"hub approved {n}: {ids}"
@@ -611,7 +622,7 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
 
     if expect_rel and ctx.workspace_root:
         full = Path(ctx.workspace_root) / expect_rel
-        if full.is_file() and not require_hub:
+        if full.is_file() and not require_hub and not (allow_fallback and _is_deliverable_stub(full)):
             return True, f"file already exists ({full})"
 
     if allow_fallback and ctx.workspace_root:

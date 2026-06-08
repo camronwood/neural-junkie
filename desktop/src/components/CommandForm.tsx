@@ -305,7 +305,6 @@ export function CommandForm({
     }
 
     if (command.name === '/create-expert') {
-      const typeArg = visibleArguments.find((a) => a.name === 'type');
       const expertSlug =
         expertTypeMode === CUSTOM_EXPERT_TYPE
           ? customExpertType.trim()

@@ -48,7 +48,7 @@ func classifyUserFacingError(err error) (message, code string, retryable bool) {
 		return "This Ollama model does not support automatic tool calling. BiologyExpert will answer in plain chat; for sequence/fold tools use a tool-capable model (e.g. qwen2.5) or ask for analysis in natural language.", "provider_error", true
 	}
 	if errors.Is(err, ai.ErrOllamaNoContent) || strings.Contains(lower, "no content in response") {
-		return "The model returned an empty reply. Try a shorter question or start a fresh DM thread; nj-bio sometimes fails on long system prompts.", "provider_error", true
+		return "The model returned an empty reply. Try a shorter question or start a fresh thread; small Ollama models often fail when the system prompt is very long.", "provider_error", true
 	}
 	if errors.Is(err, ai.ErrOllamaReasoningOnly) || strings.Contains(lower, "reasoning only") {
 		return "The model produced reasoning text but no visible answer. Please try again.", "provider_error", true

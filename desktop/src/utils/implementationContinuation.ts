@@ -37,6 +37,7 @@ export function hasFileExportSignals(message: string): boolean {
     'store that',
     'store it',
     'save it',
+    'save that',
     'save it as',
     'save it in',
     'fill the file',
@@ -49,9 +50,25 @@ export function hasFileExportSignals(message: string): boolean {
   }
   if (/\bfill\b/i.test(text) && /\bwith\b/i.test(text)) return true;
   const hasFileTarget =
-    /\.md\b/i.test(text) || lower.includes('markdown file') || lower.includes('the file');
+    /\.md\b/i.test(text) || lower.includes('markdown file') || lower.includes('the file') || lower.includes('to a file');
   const hasExportVerb = /\b(store|save|create|fill|write)\b/i.test(text);
   return hasFileTarget && hasExportVerb;
+}
+
+/** Prior-reference + save/export intent — auto-routes as Export mode in the background. */
+export function hasPriorReferenceExportSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  const prior =
+    /\b(few messages back|what you wrote|you created|that art(?:icle|ical)|artical content|earlier you|from before|you wrote|message(s)? back|article you wrote)\b/i;
+  const exportIntent =
+    /\b(save|store|write|export|markdown|\.md\b|to a file|the file)\b/i;
+  return prior.test(text) && exportIntent.test(text);
+}
+
+/** Write + save in one message — chat generates first; do not auto-route as Export metadata. */
+export function hasCombinedContentDeliveryExport(message: string): boolean {
+  return hasContentDeliverySignals(message) && hasFileExportSignals(message);
 }
 
 /** Short "use the workspace" messages without a concrete code deliverable. */

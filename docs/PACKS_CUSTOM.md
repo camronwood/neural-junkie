@@ -16,7 +16,7 @@ Hub APIs (hub access required): `POST /api/packs/validate`, `POST /api/packs/dev
 
 Use **dev link** while iterating; use **zip validate + sideload** for the final artifact you ship to analysts.
 
-Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Org-specific capabilities and biology tool overlays (**Phoenix import**, **secondary-analysis-customer**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in that customer’s **private pack repository** (e.g. Brightest Bio Lab), not in the generic scaffold wizard.
+Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Brightest Bio Lab pack capabilities (**Phoenix import**, **secondary-analysis-api/viewer/python**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in that customer’s **private pack repository** (e.g. Brightest Bio Lab), not in the generic scaffold wizard.
 
 ## Install (zip)
 
@@ -32,14 +32,20 @@ Installed to `~/.neural-junkie/packs/<id>/`. Custom packs appear in the pack lis
 ## pack.yaml (customer)
 
 ```yaml
-id: acme-lab
-version: "1.0.0"
-title: Acme Lab data pack
-publisher: Acme Corp
+id: brightest-bio-lab
+version: "1.0.4"
+title: Brightest Bio Lab data pack
+publisher: Brightest Bio
 pack_kind: customer
 capabilities:
   - customer-pack
-  - secondary-analysis-customer
+  - phoenix-import
+  - scan-summary-api
+  - scan-summary-viewer
+  - scan-analysis-viewer
+  - secondary-analysis-api
+  - secondary-analysis-viewer
+  - secondary-analysis-python
 requires_packs:
   - life-sciences
 settings_overlay:
@@ -52,7 +58,7 @@ assets:
 ```
 
 - **`requires_packs`**: must be installed **and enabled** before the customer pack can be enabled.
-- **`settings_overlay`**: applied to hub biology MCP settings on enable; reverted on disable. When the pack declares **`secondary-analysis-customer`**, the desktop shows secondary-analysis fields under **Settings → Life sciences tools** (tools path, Python, panel profile, cumulative QC).
+- **`settings_overlay`**: applied to hub biology MCP settings on enable; reverted on disable. When the pack declares **`secondary-analysis-api`** or **`secondary-analysis-python`**, the desktop shows secondary-analysis fields under **Settings → Life sciences tools** (tools path, Python, panel profile, cumulative QC).
 - Pack-relative paths in overlay values are resolved under the installed pack directory.
 
 ## Reference pack
@@ -85,14 +91,22 @@ The **Brightest Bio Lab** private pack (`phoenix-import`) shows a **PHX** chip i
 2. Click **PHX** → sign in with device code in the browser.
 3. Pick an analysis or scan → **Download to workspace**.
 
-The hub downloads `results.json`, `summary.zip`, and linked `scanResults` attachments and lays out:
+The hub downloads `results.json`, `summary.zip`, `validation.zip` (when present), and linked `scanResults` attachments and lays out:
 
 ```
-{workspace}/{output_dir}/
+{workspace}/{plate-barcode}-summary/
   reports/results.json
   plots/          (from summary.zip)
   scan-export/    (from scan zip)
+
+{workspace}/{plate-barcode}-validation/
+  reports/validation_report.csv
+  reports/allspots.csv
+  images/         (annotated well JPGs from validation.zip)
+  plots/          (from validation.zip)
 ```
+
+Default import folder names use the plate barcode plus `-summary` / `-validation` suffixes (comparator convention). When TIM has no `validation.zip`, the hub synthesizes the CSVs from `results.json`.
 
 Pack overlay / hub config keys:
 

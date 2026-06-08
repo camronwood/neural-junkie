@@ -37,6 +37,11 @@ PLACEHOLDER_PATTERNS = [
     r"insert issues",
     r"lorem ipsum",
     r"--- title:",
+    r"# app name",
+    r"overview of the app",
+    r"feature 1",
+    r"achievement 1",
+    r"key achievements",
 ]
 
 PRIOR_REFERENCE_PATTERNS = [
@@ -93,7 +98,11 @@ def _msg_meta(msg: dict) -> dict:
 def _is_user(msg: dict) -> bool:
     sender = msg.get("from") or {}
     typ = (sender.get("type") or "").lower()
-    return typ in ("human", "user", "")
+    name = (sender.get("name") or "").lower()
+    if typ in ("human", "user", ""):
+        return True
+    # Desktop DM messages often use type=general for the human user.
+    return typ == "general" and name not in ("system", "assistant")
 
 
 def _assistant_msgs_before(messages: list[dict], idx: int, min_len: int = 400) -> bool:
@@ -270,11 +279,18 @@ def analyze_session(data: dict) -> dict:
                     stats["file_export_chat_mode"] += 1
 
             if msg_type in ("chat", "answer") and not _is_user(msg):
+                contradictory_save = bool(
+                    re.search(r"successfully saved|has been saved|has been created", lower)
+                    and re.search(
+                        r"provide more details|what are the (name|purpose)|key features|sections to include",
+                        lower,
+                    )
+                )
                 for pat in PREMATURE_APPLY_PATTERNS:
                     if re.search(pat, lower):
                         if "proposal for your approval" in lower or "file change proposal" in lower:
                             break
-                        if not _has_later_apply(messages, idx):
+                        if contradictory_save or not _has_later_apply(messages, idx):
                             issues["premature_file_apply_claim"].append(
                                 {
                                     "channel": ch_name,
@@ -284,6 +300,16 @@ def analyze_session(data: dict) -> dict:
                             )
                             stats["premature_file_apply_claim"] += 1
                         break
+                else:
+                    if contradictory_save:
+                        issues["premature_file_apply_claim"].append(
+                            {
+                                "channel": ch_name,
+                                "agent": agent,
+                                "content": content[:160],
+                            }
+                        )
+                        stats["premature_file_apply_claim"] += 1
 
             if ABSOLUTE_FILE_CHANGE_RE.search(content):
                 issues["absolute_path_in_chat"].append(
@@ -362,8 +388,14 @@ FIXTURE_SESSION = {
                 {
                     "type": "chat",
                     "from": {"name": "Assistant", "type": "assistant"},
-                    "content": "The article has been created and saved.",
+                    "content": "The article has been successfully saved. Next, could you provide more details about the app name and key features?",
                     "metadata": {},
+                },
+                {
+                    "type": "question",
+                    "from": {"name": "camronwood", "type": "general"},
+                    "content": "save that artical to nj-artical-1.md",
+                    "metadata": {"conversation_mode": "code"},
                 },
                 {
                     "type": "system_info",
@@ -378,7 +410,7 @@ FIXTURE_SESSION = {
                     "metadata": {
                         "file_change_proposal": {
                             "file_path": "new-artical-test.md",
-                            "new_content": "# Title\n\n[Feature Name]\n",
+                            "new_content": "# App Name\n\nOverview of the app.\n\n## Features\n\n- Feature 1\n",
                         }
                     },
                 },
@@ -401,6 +433,7 @@ def run_self_test() -> int:
         "missing_prior_reference",
         "file_export_chat_mode",
         "placeholder_proposals",
+        "premature_file_apply_claim",
         "stale_session_summary",
         "absolute_path_in_chat",
     }

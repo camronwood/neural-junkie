@@ -28,7 +28,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
   const refreshTreeForPath = useFileExplorerStore((s) => s.refreshTreeForPath);
   const openScanAnalysis = useEditorStore((s) => s.openScanAnalysis);
   const hasPhoenixApi = usePacksStore((s) => s.hasCapability(PACK_CAP.PHOENIX_IMPORT));
-  const hasLifeSciences = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_ANALYSIS_VIEWER));
+  const hasScanAnalysisViewer = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_ANALYSIS_VIEWER));
   const { addToast } = useToastStore();
 
   const [loading, setLoading] = useState(false);
@@ -219,12 +219,21 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
           output_dir: outputDir.trim() || undefined,
         });
         await refreshTreeForPath(activeWorkspaceId, `${result.analysis_dir}/reports/results.json`);
+        if (result.validation_dir) {
+          await refreshTreeForPath(
+            activeWorkspaceId,
+            `${result.validation_dir}/reports/validation_report.csv`,
+          );
+        }
+        const validationNote = result.validation_dir
+          ? ` and ${result.validation_dir}`
+          : '';
         addToast({
           type: 'success',
           title: 'Phoenix',
-          message: `Downloaded analysis to ${result.analysis_dir}`,
+          message: `Downloaded analysis to ${result.analysis_dir}${validationNote}`,
         });
-        if (hasLifeSciences) {
+        if (hasScanAnalysisViewer) {
           const { data, linkedScanDir } = await loadScanAnalysisData(
             api,
             activeWorkspaceId,
@@ -419,9 +428,9 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
                 </button>
               </div>
 
-              {tab === 'analyses' && !hasLifeSciences && (
+              {tab === 'analyses' && !hasScanAnalysisViewer && (
                 <p className="text-xs text-amber-400">
-                  Enable Life sciences to open the scan analysis viewer after download.
+                  Enable the Brightest Bio Lab pack to open the scan analysis viewer after download.
                 </p>
               )}
             </>

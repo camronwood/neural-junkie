@@ -121,10 +121,26 @@ export function PackTestPanel() {
         hint: 'Sign in via PHX chip after enable; check phoenix overlay keys',
       });
     }
-    if (caps.includes(PACK_CAP.SECONDARY_ANALYSIS_CUSTOMER)) {
+    if (caps.includes(PACK_CAP.SCAN_SUMMARY_VIEWER)) {
       items.push({
-        id: 'secondary-analysis-customer',
-        label: 'Secondary analysis tooling (Settings → Life sciences tools)',
+        id: 'scan-summary-viewer',
+        label: 'Scan summary viewer (Phoenix TIFF + spot overlay)',
+        ok: targetPack.enabled,
+        hint: 'Open imageMetadata.json or scan-export folder in file explorer',
+      });
+    }
+    if (caps.includes(PACK_CAP.SCAN_ANALYSIS_VIEWER)) {
+      items.push({
+        id: 'scan-analysis-viewer',
+        label: 'Scan analysis viewer (results.json plate maps)',
+        ok: targetPack.enabled,
+        hint: 'Open reports/results.json after Phoenix import',
+      });
+    }
+    if (caps.includes(PACK_CAP.SECONDARY_ANALYSIS_API)) {
+      items.push({
+        id: 'secondary-analysis-api',
+        label: 'Brightest Bio secondary analysis (12-Plex QC, comparator)',
         ok: targetPack.enabled,
         hint: 'Enable pack; check settings_overlay for tools path, python, panel profile',
       });

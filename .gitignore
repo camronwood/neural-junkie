@@ -67,3 +67,13 @@ yarn.lock
 # Local Go module cache (sandbox / CI)
 .gomodcache/
 
+# Local scratch / dev artifacts
+assets/.logo-tmp/
+dist/
+workspace/
+*.code-workspace
+ball.scad
+model.scad
+new-artical-test.md
+scenarios/fixtures/minimal-repo/collabs/
+

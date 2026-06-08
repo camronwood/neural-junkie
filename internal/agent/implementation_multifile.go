@@ -93,6 +93,9 @@ func shouldContinueImplementationSession(a *Agent, msg *protocol.Message, state 
 	if a == nil || msg == nil || state == nil {
 		return false, ""
 	}
+	if msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg) {
+		return false, ""
+	}
 	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
 		return false, ""
 	}

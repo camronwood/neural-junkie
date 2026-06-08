@@ -585,6 +585,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		proposedFileChange = true
 	} else if !shouldRunImplementationSession(a, msg) {
 		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
+		if !proposedFileChange && proposalErr == nil {
+			response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
+		}
 	}
 	if proposalErr != nil {
 		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
@@ -1106,6 +1109,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 
 	// Never respond to commands - let the command handler process them
 	if len(msg.Content) > 0 && msg.Content[0] == '/' {
+		return false
+	}
+
+	if shouldSkipAgentResponseOnFileExportApproval(a, msg) {
 		return false
 	}
 
@@ -2528,11 +2535,12 @@ Provide a concrete fix or mitigation for each issue.`
 
 	case protocol.AgentTypeBiology:
 		return `You are a life-sciences research assistant (not a clinician).
-- Use analyze_sequence, fold_protein, summarize_scan_summary, summarize_scan_analysis, run_12plex_qc, summarize_panel_qc, summarize_comparator_output, and run_secondary_analysis as MCP tools — they run automatically in the hub. NEVER put them in shell/bash blocks, inline code, or ask the user to run them in a terminal.
-- For Phoenix-style scan summary exports (folder with imageMetadata.json and extensionless well TIFFs A1–H12), use summarize_scan_summary for QC stats; users can open the folder in Neural Junkie file explorer with the Life sciences pack for the plate viewer.
-- For Phoenix-style scan analysis exports (reports/results.json, reports/{analyte}_summary_report.csv, process_report.txt), use summarize_scan_analysis for basic QC; use run_12plex_qc for Human Inflammatory 12-Plex SOP pass/fail. Users can open the analysis viewer and click Run 12-Plex QC when the Life sciences pack is enabled.
-- For Comparator Analysis output folders, use summarize_comparator_output. Multi-plate workflows run via the Secondary Analysis panel in the desktop UI.
-- When workspace context includes scan_summary or scan_analysis paths, call the matching summarize tool immediately — do NOT ask the user to type the path.
+- Use analyze_sequence and fold_protein as MCP tools — they run automatically in the hub. NEVER put them in shell/bash blocks, inline code, or ask the user to run them in a terminal.
+- When the Brightest Bio Lab pack is enabled, also use summarize_scan_summary, summarize_scan_analysis, run_12plex_qc, summarize_panel_qc, summarize_comparator_output, and run_secondary_analysis as MCP tools (never via shell).
+- For Phoenix-style scan summary exports (imageMetadata.json + well TIFFs), use summarize_scan_summary when Brightest Bio Lab is enabled; users open the plate viewer from the file explorer.
+- For Phoenix-style scan analysis exports (reports/results.json, summary CSVs), use summarize_scan_analysis for basic QC and run_12plex_qc for 12-Plex SOP pass/fail when Brightest Bio Lab is enabled.
+- For Comparator Analysis output folders, use summarize_comparator_output when Brightest Bio Lab is enabled.
+- When workspace context includes scan_summary or scan_analysis paths and Brightest Bio Lab is on, call the matching summarize tool immediately — do NOT ask the user to type the path.
 - Clearly label in silico predictions vs wet-lab experimental needs.
 - For protocols, include controls, replicates, and safety considerations.
 - Refuse medical diagnosis or treatment advice; research and education only.
@@ -3047,6 +3055,9 @@ var editorLineNumberPrefixRegex = regexp.MustCompile(`(?m)^\s*\d+\s*\|\s?`)
 // userNamedFileRegex captures "call new-tab.txt", `named foo.md`, etc.
 var userNamedFileRegex = regexp.MustCompile(`(?i)\b(?:call|named|called|name)\s+['"]?([a-zA-Z0-9][a-zA-Z0-9._\-]{0,220}\.[a-zA-Z0-9]{1,16})['"]?\b`)
 
+// userNamedFileStemRegex captures extensionless names like "called nj-artical-1".
+var userNamedFileStemRegex = regexp.MustCompile(`(?i)\b(?:call|named|called|name)\s+['"]?([a-zA-Z0-9][a-zA-Z0-9._\-]{0,220})['"]?\b`)
+
 var looseOutputFileRegex = regexp.MustCompile(`\b([a-zA-Z0-9][a-zA-Z0-9._\-]*\.(?:txt|md|go|ts|tsx|jsx|js|mjs|cjs|json|yaml|yml|rs|py|html|css|sh|tab))\b`)
 
 var absolutePathFileChangeRE = regexp.MustCompile(`(?m)\[FILE_CHANGE[^\]]*path="/Users/[^"\]]*"[^\]]*\]`)
@@ -3418,6 +3429,17 @@ func extractLikelyOutputPathFromUserMessage(content string) string {
 	if m := userNamedFileRegex.FindStringSubmatch(content); len(m) > 1 {
 		return normalizeFileChangeRelPath(strings.TrimSpace(m[1]))
 	}
+	if userRequestsFileExport(content) || userReferencesPriorAssistantContent(content) {
+		if m := userNamedFileStemRegex.FindStringSubmatch(content); len(m) > 1 {
+			stem := strings.TrimSpace(m[1])
+			if !strings.Contains(stem, ".") {
+				stem += ".md"
+			}
+			if p := normalizeFileChangeRelPath(stem); isValidFileChangeRelPath(p) {
+				return p
+			}
+		}
+	}
 	all := looseOutputFileRegex.FindAllString(content, -1)
 	if len(all) == 0 {
 		return ""
@@ -3596,10 +3618,16 @@ func (a *Agent) ProposeFileCreate(path, content string) error {
 }
 
 func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel, path, content string, sourceMsg *protocol.Message) error {
+	if sourceMsg != nil && (sourceMsg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(sourceMsg)) {
+		if userPath := preferFileExportTargetPath(sourceMsg); userPath != "" {
+			path = userPath
+		}
+	}
 	path = a.ResolveProposalPath(ctx, sourceMsg, path)
 	if !isValidFileChangeRelPath(path) {
 		return fmt.Errorf("invalid file change path: %q", path)
 	}
+	content = a.substituteFileExportContent(sourceMsg, content)
 	wsPath := ""
 	if sourceMsg != nil {
 		wsPath = a.resolveWorkspacePath(sourceMsg)

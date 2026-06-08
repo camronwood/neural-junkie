@@ -411,6 +411,67 @@ func channelHasRecentImplementationActivity(history []*protocol.Message, skipMsg
 	return false
 }
 
+// channelHasRecentFileExportAsk scans recent user turns for save/store/export requests.
+func channelHasRecentFileExportAsk(history []*protocol.Message, skipMsgID string) bool {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 16; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		if !protocol.IsUserLikeSender(m.From) {
+			continue
+		}
+		seen++
+		if userRequestsFileExport(m.Content) || m.IdeEditorModeIsExport() {
+			return true
+		}
+		if userReferencesPriorAssistantContent(m.Content) {
+			lower := strings.ToLower(m.Content)
+			if strings.Contains(lower, "markdown") || strings.Contains(lower, ".md") ||
+				strings.Contains(lower, "save") || strings.Contains(lower, "store") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// channelHasRecentCodeImplementationAsk scans for coding/build tasks (not content export).
+func channelHasRecentCodeImplementationAsk(history []*protocol.Message, skipMsgID string) bool {
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 16; i-- {
+		m := history[i]
+		if m == nil || m.ID == skipMsgID {
+			continue
+		}
+		if !protocol.IsUserLikeSender(m.From) {
+			continue
+		}
+		seen++
+		if userRequestsFileExport(m.Content) || m.IdeEditorModeIsExport() {
+			return false
+		}
+		if userRequestsImplementation(m.Content) {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldSkipAgentResponseOnFileExportApproval reports hub approval echoes that should not
+// re-open an export loop after the user already applied a file change.
+func shouldSkipAgentResponseOnFileExportApproval(a *Agent, msg *protocol.Message) bool {
+	if a == nil || msg == nil || !msg.FileChangeApproved() {
+		return false
+	}
+	history := a.channelHistory(msg.Channel)
+	if !channelHasRecentFileExportAsk(history, msg.ID) {
+		return false
+	}
+	return !channelHasRecentCodeImplementationAsk(history, msg.ID)
+}
+
 // channelHasRecentImplementationAsk scans recent user turns for an implementation request.
 func channelHasRecentImplementationAsk(history []*protocol.Message, skipMsgID string) bool {
 	seen := 0
@@ -440,9 +501,16 @@ func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool 
 	}
 	if a != nil {
 		history := a.channelHistory(msg.Channel)
+		if msg.FileChangeApproved() && shouldSkipAgentResponseOnFileExportApproval(a, msg) {
+			return false
+		}
 		if channelHasRecentFileChangeApproval(history, msg.ID, a.Info.ID) &&
 			(channelHasRecentImplementationAsk(history, msg.ID) ||
 				channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)) {
+			if channelHasRecentFileExportAsk(history, msg.ID) &&
+				!channelHasRecentCodeImplementationAsk(history, msg.ID) {
+				return false
+			}
 			return true
 		}
 	}

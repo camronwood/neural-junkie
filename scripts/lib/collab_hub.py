@@ -620,11 +620,13 @@ def _extract_loose_file_changes(content: str) -> list[tuple[str, str]]:
 
 
 _TASK_STATUS_LINE = re.compile(r"(?im)^\s*TASK_STATUS:\s*\S+.*$")
+_TASK_STATUS_ANY = re.compile(r"TASK_STATUS:\s*\S+", re.I)
 
 
 def sanitize_deliverable_body(text: str) -> str:
     """Remove machine-readable task lines from file deliverable content."""
     cleaned = _TASK_STATUS_LINE.sub("", text)
+    cleaned = _TASK_STATUS_ANY.sub("", cleaned)
     return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
 
 

@@ -432,8 +432,14 @@ export function buildHumanOutboundMetadata(options: {
     }
   } else if (hasContentDeliverySignals(message) && contextMode !== 'off') {
     if (scope === 'none' || scope === 'hint') {
-      scope = activeTabPath ? 'focus' : 'outline';
-      reason = 'content delivery needs project context';
+      const sharedChannel = channelKind === 'general' || channelType === 'public';
+      if (sharedChannel && !activeTabPath) {
+        scope = 'hint';
+        reason = 'content delivery on shared channel (path only)';
+      } else {
+        scope = activeTabPath ? 'focus' : 'outline';
+        reason = 'content delivery needs project context';
+      }
     }
   } else if (hasFileExportSignals(message) && contextMode !== 'off') {
     scope = activeTabPath ? 'focus' : 'outline';

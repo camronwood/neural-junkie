@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"image"
@@ -15,6 +16,67 @@ import (
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"golang.org/x/image/tiff"
 )
+
+func installBrightestBioLabPack(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetPackEnabled(config.PackLifeSciences, true); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join("..", "..", "internal", "packs", "testdata", "brightest-bio-lab")
+	if _, err := os.Stat(filepath.Join(src, "pack.yaml")); err != nil {
+		t.Skip("brightest-bio-lab fixture missing")
+	}
+	zipPath := filepath.Join(t.TempDir(), "brightest-bio-lab.zip")
+	out, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := zip.NewWriter(out)
+	walkErr := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		fw, err := w.Create(rel)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		_, err = fw.Write(data)
+		return err
+	})
+	if walkErr != nil {
+		out.Close()
+		t.Fatal(walkErr)
+	}
+	if err := w.Close(); err != nil {
+		out.Close()
+		t.Fatal(err)
+	}
+	if err := out.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.InstallPackFromZip(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetPackEnabled("brightest-bio-lab", true); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func()) {
 	t.Helper()
@@ -44,11 +106,7 @@ func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func
 	}
 
 	appConfig = config.DefaultConfig()
-	appConfig.Packs = config.DefaultPacksConfig()
-	if err := appConfig.InstallPack(config.PackLifeSciences); err != nil {
-		t.Fatal(err)
-	}
-	appConfig.Packs.Enabled[config.PackLifeSciences] = true
+	installBrightestBioLabPack(t, appConfig)
 
 	return ws.ID, func() {
 		appConfig = nil

@@ -28,6 +28,8 @@ func (v *ValidationRow) UnmarshalJSON(data []byte) error {
 		WellType                string     `json:"well_type"`
 		WellLabel               string     `json:"well_label"`
 		CalculatedConcentration *flexFloat `json:"calculated_concentration"`
+		KnownConcentration      *flexFloat `json:"known_concentration"`
+		SeriesIndex             int        `json:"series_index"`
 	}
 	var a alias
 	if err := json.Unmarshal(data, &a); err != nil {
@@ -41,6 +43,8 @@ func (v *ValidationRow) UnmarshalJSON(data []byte) error {
 	v.WellType = a.WellType
 	v.WellLabel = a.WellLabel
 	v.CalculatedConcentration = flexFloatPtrFrom(a.CalculatedConcentration)
+	v.KnownConcentration = flexFloatPtrFrom(a.KnownConcentration)
+	v.SeriesIndex = a.SeriesIndex
 	return nil
 }
 

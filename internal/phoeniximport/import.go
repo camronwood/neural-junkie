@@ -39,6 +39,7 @@ type ImportRequest struct {
 // ImportResult is returned after a successful layout build.
 type ImportResult struct {
 	AnalysisDir     string   `json:"analysis_dir"`
+	ValidationDir   string   `json:"validation_dir,omitempty"`
 	ScanExportDir   string   `json:"scan_export_dir,omitempty"`
 	ScanResultsID   string   `json:"scan_results_id,omitempty"`
 	FilesWritten    []string `json:"files_written,omitempty"`
@@ -64,24 +65,8 @@ func ImportAnalysis(ctx context.Context, req ImportRequest) (*ImportResult, erro
 	if strings.TrimSpace(req.WorkspaceRoot) == "" {
 		return nil, fmt.Errorf("workspace root required")
 	}
-	outRel := strings.TrimSpace(req.OutputDir)
-	if outRel == "" {
-		outRel = "phoenix-" + sanitizeDirName(req.AnalysisID)
-	}
-	outRel = strings.Trim(outRel, `/\`)
-	if outRel == "" || outRel == "." {
-		return nil, fmt.Errorf("invalid output_dir")
-	}
-
 	root, err := filepath.Abs(req.WorkspaceRoot)
 	if err != nil {
-		return nil, err
-	}
-	outAbs, err := safeJoin(root, outRel)
-	if err != nil {
-		return nil, err
-	}
-	if err := os.MkdirAll(filepath.Join(outAbs, "reports"), 0o755); err != nil {
 		return nil, err
 	}
 
@@ -92,6 +77,23 @@ func ImportAnalysis(ctx context.Context, req ImportRequest) (*ImportResult, erro
 	docRaw, err := client.getDocument(ctx, "analyses", req.AnalysisID)
 	if err != nil {
 		return nil, fmt.Errorf("get analysis: %w", err)
+	}
+
+	outRel := strings.TrimSpace(req.OutputDir)
+	if outRel == "" {
+		outRel = defaultSummaryOutputDir(req.AnalysisID, docRaw)
+	}
+	outRel = strings.Trim(outRel, `/\`)
+	if outRel == "" || outRel == "." {
+		return nil, fmt.Errorf("invalid output_dir")
+	}
+
+	outAbs, err := safeJoin(root, outRel)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Join(outAbs, "reports"), 0o755); err != nil {
+		return nil, err
 	}
 	scanID := strings.TrimSpace(req.ScanResultsID)
 	if scanID == "" {
@@ -143,6 +145,8 @@ func ImportAnalysis(ctx context.Context, req ImportRequest) (*ImportResult, erro
 		}
 		return nil, fmt.Errorf("analysis export missing reports/results.json (attachments: %v)", attNames)
 	}
+
+	result.layoutValidationExport(ctx, client, root, outRel, outAbs, req.AnalysisID, attNames)
 
 	if scanID != "" {
 		scanDir := filepath.Join(outAbs, "scan-export")

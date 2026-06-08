@@ -16,7 +16,7 @@
       "id": "life-sciences",
       "version": "1.0.0",
       "title": "Life sciences",
-      "description": "OpenBioLLM chat, BiologyExpert, sequence analysis, ESMFold, and scan summary viewer (research use only).",
+      "description": "OpenBioLLM chat, BiologyExpert, sequence analysis, and ESMFold (research use only).",
       "icon_key": "biology",
       "publisher": "Neural Junkie",
       "builtin": true,

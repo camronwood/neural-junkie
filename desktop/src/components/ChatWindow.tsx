@@ -148,6 +148,8 @@ import {
   type ComposerMode,
 } from '../constants/composerMode';
 import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
+import { ideRoutingChipLabel } from '../utils/ideComposer';
+import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
 import { ComposerModeControl } from './ComposerModeControl';
 
 const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [

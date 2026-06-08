@@ -17,6 +17,33 @@ describe('prepareOutboundPayload', () => {
     expect(metadata.implementation_session).toBe(true);
   });
 
+  it('auto-routes agent chip to export metadata for save-to-file messages', async () => {
+    const { metadata } = await prepareOutboundPayload({
+      content: 'the artical you wrote a few messages back please save it to a markdown file',
+      composerMode: 'agent',
+      agents: [],
+      activeTab: null,
+      editorAgentTrust: 'interactive',
+      devPackEnabled: true,
+    });
+    expect(metadata.editor_mode).toBe('export');
+    expect(metadata.implementation_session).toBe(true);
+  });
+
+  it('combined write+save stays on agent metadata for chat-first path', async () => {
+    const { metadata } = await prepareOutboundPayload({
+      content:
+        'Can you write me a LinkedIn artical about the app and save the file to the workspace root?',
+      composerMode: 'agent',
+      agents: [],
+      activeTab: null,
+      editorAgentTrust: 'interactive',
+      devPackEnabled: true,
+    });
+    expect(metadata.editor_mode).toBe('agent');
+    expect(metadata.implementation_session).toBeUndefined();
+  });
+
   it('ask mode prefixes read-only banner', async () => {
     const { content, metadata } = await prepareOutboundPayload({
       content: 'what does main.go do?',

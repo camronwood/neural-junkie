@@ -1,16 +1,21 @@
 id: brightest-bio-lab
-version: "1.0.1"
+version: "1.0.4"
 title: Brightest Bio Lab data pack
 description: >-
-  Import Phoenix scans and analyses via bbio, then use the Life sciences pack
-  for scan summary/analysis viewers and 12-Plex QC.
+  Phoenix TIM import, scan summary/analysis viewers, validation siblings, 12-Plex QC, and
+  multi-plate secondary analysis. Requires Life sciences for BiologyExpert (sequence, fold).
 publisher: Brightest Bio
 pack_kind: customer
 layout_profile: team
 capabilities:
   - customer-pack
   - phoenix-import
-  - secondary-analysis-customer
+  - scan-summary-api
+  - scan-summary-viewer
+  - scan-analysis-viewer
+  - secondary-analysis-api
+  - secondary-analysis-viewer
+  - secondary-analysis-python
 requires_packs:
   - life-sciences
 settings_overlay:

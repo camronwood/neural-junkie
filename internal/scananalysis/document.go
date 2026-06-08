@@ -64,6 +64,8 @@ type ValidationRow struct {
 	WellType                string   `json:"well_type"`
 	WellLabel               string   `json:"well_label"`
 	CalculatedConcentration *float64 `json:"calculated_concentration"`
+	KnownConcentration      *float64 `json:"known_concentration,omitempty"`
+	SeriesIndex             int      `json:"series_index,omitempty"`
 }
 
 // SpotIntensityRow is per-spot signal data from spot_intensities.

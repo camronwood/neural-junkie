@@ -249,9 +249,13 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const packs = usePacksStore((s) => s.packs);
   const layoutOwner = usePacksStore((s) => s.layoutOwner);
   const setLayoutOwner = usePacksStore((s) => s.setLayoutOwner);
-  const bioPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.SCAN_SUMMARY_API));
-  const bioCustomerSecondaryTools = usePacksStore((s) =>
-    s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_CUSTOMER),
+  const bioPackTools = usePacksStore((s) =>
+    s.packs.some((p) => p.id === 'life-sciences' && p.enabled),
+  );
+  const bioSecondaryAnalysisTools = usePacksStore(
+    (s) =>
+      s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_API) ||
+      s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_PYTHON),
   );
   const cadPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.CAD_API));
   const hasPersonalLearning = usePacksStore((s) => s.hasCapability(PACK_CAP.PERSONAL_LEARNING));
@@ -3740,11 +3744,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         className="mt-1 w-full px-3 py-2 border border-slack-border rounded bg-slack-bg text-slack-text font-mono text-sm"
                       />
                     </label>
-                    {bioCustomerSecondaryTools && (
+                    {bioSecondaryAnalysisTools && (
                       <>
                         <p className="text-xs text-slack-textMuted sm:col-span-2">
-                          Provided by your enabled customer pack (<code className="font-mono">settings_overlay</code> on
-                          install). Override below if needed.
+                          Brightest Bio Lab pack (<code className="font-mono">settings_overlay</code>). Override below
+                          if needed.
                         </p>
                         <label className="block text-sm sm:col-span-2">
                           <span className="text-slack-textMuted">Secondary analysis tools path</span>

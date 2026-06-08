@@ -2,7 +2,7 @@
 export const GENERIC_OVERLAY_FIELD_DOCS: Array<{ key: string; hint: string }> = [];
 
 /**
- * Overlay keys for private org packs with `secondary-analysis-customer` — edit pack.yaml
+ * Overlay keys for Brightest Bio Lab pack (`secondary-analysis-*` capabilities) — edit pack.yaml
  * in the customer repo, not the generic scaffold wizard.
  */
 export const PRIVATE_SECONDARY_OVERLAY_KEYS = [
@@ -19,5 +19,5 @@ export const MANIFEST_FIELD_HINTS = [
   'requires_packs — domain packs that must be installed and enabled first',
   'settings_overlay — optional; generic packs usually omit biology tool paths',
   'assets.workspace_guide — markdown SOP shown in test panel',
-  'Private packs: phoenix-import, secondary-analysis-customer + overlay keys (tools path, python, panel profile, cumulative_qc_dir) — edit YAML in org repo',
+  'Brightest Bio Lab: phoenix-import, secondary-analysis-api/viewer/python + overlay keys (tools path, python, panel profile, cumulative_qc_dir)',
 ];
