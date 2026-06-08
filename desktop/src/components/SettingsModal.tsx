@@ -3747,7 +3747,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     {bioSecondaryAnalysisTools && (
                       <>
                         <p className="text-xs text-slack-textMuted sm:col-span-2">
-                          Brightest Bio Lab pack (<code className="font-mono">settings_overlay</code>). Override below
+                          Customer pack (<code className="font-mono">settings_overlay</code>). Override below
                           if needed.
                         </p>
                         <label className="block text-sm sm:col-span-2">

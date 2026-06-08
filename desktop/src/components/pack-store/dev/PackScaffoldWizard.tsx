@@ -201,7 +201,7 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
             Generic customer packs use workspace guides and runbooks below. Secondary analysis overlays (
             <code className="font-mono text-teal-300/90">secondary_analysis_tools_path</code>,{' '}
             <code className="font-mono text-teal-300/90">cumulative_qc_dir</code>, etc.) belong in your
-            Brightest Bio Lab pack with <code className="font-mono text-teal-300/90">secondary-analysis-api</code>{' '}
+            customer pack with <code className="font-mono text-teal-300/90">secondary-analysis-api</code>{' '}
             — add them in the YAML editor after scaffold, or in the private pack repo.
           </p>
           {GENERIC_OVERLAY_FIELD_DOCS.map((f) => (

@@ -18,7 +18,7 @@ func handleScanSummaryWellImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if appConfig == nil || !appConfig.AnyPackCapability("scan-summary-api") {
-		http.Error(w, "Scan summary requires the Brightest Bio Lab pack (scan-summary-api)", http.StatusForbidden)
+		http.Error(w, "Scan summary requires a customer pack with scan-summary-api", http.StatusForbidden)
 		return
 	}
 

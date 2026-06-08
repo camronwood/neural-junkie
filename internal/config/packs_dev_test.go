@@ -8,12 +8,12 @@ import (
 
 func TestDevLinkPack(t *testing.T) {
 	cfg := testConfig(t)
-	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")
+	src := filepath.Join("..", "packs", "testdata", "customer-lab-pack")
 	m, err := cfg.DevLinkPack(src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.ID != "brightest-bio-lab" {
+	if m.ID != "customer-lab-pack" {
 		t.Fatalf("id=%q", m.ID)
 	}
 	if !cfg.IsPackDevLinked(m.ID) {
@@ -39,22 +39,22 @@ func TestDevLinkPack(t *testing.T) {
 
 func TestDevReloadPack(t *testing.T) {
 	cfg := testConfig(t)
-	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")
+	src := filepath.Join("..", "packs", "testdata", "customer-lab-pack")
 	if _, err := cfg.DevLinkPack(src); err != nil {
 		t.Fatal(err)
 	}
-	m, err := cfg.DevReloadPack("brightest-bio-lab")
+	m, err := cfg.DevReloadPack("customer-lab-pack")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.ID != "brightest-bio-lab" {
+	if m.ID != "customer-lab-pack" {
 		t.Fatalf("id=%q", m.ID)
 	}
 }
 
 func TestDevLinkPreservesEnabledState(t *testing.T) {
 	cfg := testConfig(t)
-	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")
+	src := filepath.Join("..", "packs", "testdata", "customer-lab-pack")
 	if err := cfg.InstallPack(PackLifeSciences); err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestDevLinkPreservesEnabledState(t *testing.T) {
 
 func TestValidatePackDir_requiresPacksStatus(t *testing.T) {
 	cfg := testConfig(t)
-	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")
+	src := filepath.Join("..", "packs", "testdata", "customer-lab-pack")
 	report, err := cfg.ValidatePackDir(src)
 	if err != nil {
 		t.Fatal(err)

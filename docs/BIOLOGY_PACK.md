@@ -18,7 +18,7 @@ Install and enable this pack from **Settings → Domain packs → Pack store**. 
 | **fold_protein** | ESMFold via Hugging Face Inference → PDB under `~/.neural-junkie/bio/` |
 | **Sequence review runbook** | Import from Runbook templates |
 
-Phoenix scan viewers, 12-Plex QC, comparator, and other lab workflows ship in the **Brightest Bio Lab** pack (not Life sciences). See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
+Phoenix scan viewers, 12-Plex QC, comparator, and other lab workflows ship in a **customer sideload pack** (not Life sciences). See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
 ## Enable the pack
 
@@ -99,9 +99,9 @@ Ensure `qwen2.5:7b` is pulled when using the life-sciences pack.
 
 Open **BiologyExpert** via agent **ℹ️** (Tools & models), check the **tool count** badge in the sidebar, or run **`/tools-list`** in a channel where BiologyExpert is a member. See [MCP_INTEGRATION.md](MCP_INTEGRATION.md).
 
-## Brightest Bio Lab (scan + QC workflows)
+## Customer lab pack (scan + QC workflows)
 
-Not part of Life sciences. Enable the **Brightest Bio Lab** sideload pack alongside Life sciences. That pack declares **`scan-summary-api`**, **`scan-summary-viewer`**, **`scan-analysis-viewer`**, **`secondary-analysis-api`**, **`secondary-analysis-viewer`**, **`secondary-analysis-python`**, and **`phoenix-import`**.
+Not part of Life sciences. Enable your organization's **customer sideload pack** alongside Life sciences. Typical packs declare **`scan-summary-api`**, **`scan-summary-viewer`**, **`scan-analysis-viewer`**, **`secondary-analysis-api`**, **`secondary-analysis-viewer`**, **`secondary-analysis-python`**, and **`phoenix-import`**.
 
 Covers Phoenix TIM import, scan summary/analysis viewers, 12-Plex QC, comparator, and Python secondary-analysis jobs. See [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
@@ -112,7 +112,7 @@ Covers Phoenix TIM import, scan summary/analysis viewers, 12-Plex QC, comparator
 3. DM with BiologyExpert: paste a short peptide → ask to analyze sequence.
 4. Ask to fold the same sequence (HF hub token saved in Settings) → confirm PDB path in reply.
 5. Runbook → **sequence-review** → instantiate with BiologyExpert → start execution.
-6–15. Scan viewers, Phoenix import, 12-Plex QC, comparator — enable **Brightest Bio Lab** pack; see [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
+6–15. Scan viewers, Phoenix import, 12-Plex QC, comparator — enable your **customer lab pack**; see [PACKS_CUSTOM.md](PACKS_CUSTOM.md).
 
 ## Out of scope (v1)
 

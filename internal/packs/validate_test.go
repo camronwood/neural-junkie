@@ -9,7 +9,7 @@ import (
 )
 
 func TestValidatePackDir_validFixture(t *testing.T) {
-	dir := filepath.Join("testdata", "brightest-bio-lab")
+	dir := filepath.Join("testdata", "customer-lab-pack")
 	report, err := ValidatePackDir(dir, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -17,7 +17,7 @@ func TestValidatePackDir_validFixture(t *testing.T) {
 	if !report.Valid {
 		t.Fatalf("expected valid, errors=%v", report.Errors)
 	}
-	if report.Manifest == nil || report.Manifest.ID != "brightest-bio-lab" {
+	if report.Manifest == nil || report.Manifest.ID != "customer-lab-pack" {
 		t.Fatalf("manifest: %+v", report.Manifest)
 	}
 	if !report.Assets.WorkspaceGuideFound {
@@ -26,7 +26,7 @@ func TestValidatePackDir_validFixture(t *testing.T) {
 }
 
 func TestValidateZipBytes_noInstall(t *testing.T) {
-	dir := filepath.Join("testdata", "brightest-bio-lab")
+	dir := filepath.Join("testdata", "customer-lab-pack")
 	data, err := zipDirBytes(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -42,13 +42,13 @@ func TestValidateZipBytes_noInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "brightest-bio-lab")); err == nil {
+	if _, err := os.Stat(filepath.Join(root, "customer-lab-pack")); err == nil {
 		// fixture id may already be installed from other tests; ensure validate did not write
 	}
 }
 
 func TestValidateYAML_usesEditorTextOverDisk(t *testing.T) {
-	dir := filepath.Join("testdata", "brightest-bio-lab")
+	dir := filepath.Join("testdata", "customer-lab-pack")
 	report, err := ValidateYAML("id: editor-only-pack\ntitle: Editor Title\npack_kind: customer\ncapabilities:\n  - customer-pack\n", dir, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -72,12 +72,12 @@ func TestValidateYAML_missingTitle(t *testing.T) {
 }
 
 func TestSyncPackFromDir(t *testing.T) {
-	src := filepath.Join("testdata", "brightest-bio-lab")
+	src := filepath.Join("testdata", "customer-lab-pack")
 	m, err := SyncPackFromDir(src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.ID != "brightest-bio-lab" {
+	if m.ID != "customer-lab-pack" {
 		t.Fatalf("id=%q", m.ID)
 	}
 	dir, err := InstalledPackDir(m.ID)

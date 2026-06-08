@@ -93,7 +93,7 @@ func (m *Manager) run(ctx context.Context, rj *runningJob) {
 	settings := m.settings()
 	toolsPath := strings.TrimSpace(settings.ToolsPath)
 	if toolsPath == "" {
-		m.fail(rj, "secondary_analysis_tools_path is not configured (enable Brightest Bio Lab pack and set tools path in Settings)")
+		m.fail(rj, "secondary_analysis_tools_path is not configured (enable a customer pack with secondary-analysis tools and set tools path in Settings)")
 		return
 	}
 

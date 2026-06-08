@@ -1,10 +1,10 @@
-id: brightest-bio-lab
+id: customer-lab-pack
 version: "1.0.4"
-title: Brightest Bio Lab data pack
+title: Lab data pack (test fixture)
 description: >-
   Phoenix TIM import, scan summary/analysis viewers, validation siblings, 12-Plex QC, and
   multi-plate secondary analysis. Requires Life sciences for BiologyExpert (sequence, fold).
-publisher: Brightest Bio
+publisher: Example Customer
 pack_kind: customer
 layout_profile: team
 capabilities:

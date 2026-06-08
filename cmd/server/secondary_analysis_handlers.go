@@ -34,7 +34,7 @@ func initSecondaryAnalysisManager() {
 
 func secondaryAnalysisEnabled(w http.ResponseWriter) bool {
 	if appConfig == nil || !appConfig.AnyPackCapability(capSecondaryAnalysisAPI) {
-		http.Error(w, "Brightest Bio Lab secondary analysis is not enabled (enable the Brightest Bio Lab pack)", http.StatusForbidden)
+		http.Error(w, "Secondary analysis is not enabled (enable a customer pack with secondary-analysis-api)", http.StatusForbidden)
 		return false
 	}
 	return true

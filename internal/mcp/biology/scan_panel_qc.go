@@ -88,7 +88,7 @@ func runSyncPythonWorkflow(workflow string, cfg map[string]any) (string, error) 
 	settings := biologySettings()
 	toolsPath := strings.TrimSpace(settings.SecondaryAnalysisToolsPathOrDefault())
 	if toolsPath == "" {
-		return "", fmt.Errorf("secondary_analysis_tools_path is not configured (Brightest Bio Lab pack → Settings → Life sciences tools)")
+		return "", fmt.Errorf("secondary_analysis_tools_path is not configured (customer pack → Settings → Life sciences tools)")
 	}
 	script := map[string]string{
 		"comparator":      filepath.Join("cli", "run_comparator.py"),

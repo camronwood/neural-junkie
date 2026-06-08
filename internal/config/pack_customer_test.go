@@ -16,14 +16,14 @@ func TestInstallAndEnableCustomerPackRequiresLifeSciences(t *testing.T) {
 	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
 		t.Fatal(err)
 	}
-	data, err := buildBrightestBioZip(t)
+	data, err := buildCustomerLabPackZip(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := cfg.InstallPackFromZip(data); err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.SetPackEnabled("brightest-bio-lab", true); err == nil {
+	if err := cfg.SetPackEnabled("customer-lab-pack", true); err == nil {
 		t.Fatal("expected requires life-sciences enabled")
 	}
 	if err := cfg.SetPackEnabled(config.PackLifeSciences, true); err != nil {
@@ -32,7 +32,7 @@ func TestInstallAndEnableCustomerPackRequiresLifeSciences(t *testing.T) {
 	if cfg.AnyPackCapability("scan-summary-api") || cfg.AnyPackCapability("scan-analysis-viewer") {
 		t.Fatal("life-sciences alone should not grant scan viewers")
 	}
-	if err := cfg.SetPackEnabled("brightest-bio-lab", true); err != nil {
+	if err := cfg.SetPackEnabled("customer-lab-pack", true); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.MCP.Biology.PythonExecutable != "python3" {
@@ -42,16 +42,16 @@ func TestInstallAndEnableCustomerPackRequiresLifeSciences(t *testing.T) {
 		t.Fatalf("overlay panel profile: got %q", cfg.MCP.Biology.DefaultPanelProfile)
 	}
 	if !cfg.AnyPackCapability("secondary-analysis-api") {
-		t.Fatal("expected secondary-analysis-api capability when brightest-bio-lab enabled")
+		t.Fatal("expected secondary-analysis-api capability when customer-lab-pack enabled")
 	}
 	if !cfg.AnyPackCapability("secondary-analysis-python") {
-		t.Fatal("expected secondary-analysis-python capability when brightest-bio-lab enabled")
+		t.Fatal("expected secondary-analysis-python capability when customer-lab-pack enabled")
 	}
 	if !cfg.AnyPackCapability("scan-summary-api") {
-		t.Fatal("expected scan-summary-api capability when brightest-bio-lab enabled")
+		t.Fatal("expected scan-summary-api capability when customer-lab-pack enabled")
 	}
 	if !cfg.AnyPackCapability("scan-analysis-viewer") {
-		t.Fatal("expected scan-analysis-viewer capability when brightest-bio-lab enabled")
+		t.Fatal("expected scan-analysis-viewer capability when customer-lab-pack enabled")
 	}
 	ctxs, err := cfg.EnabledCustomerPackContexts()
 	if err != nil {
@@ -60,16 +60,16 @@ func TestInstallAndEnableCustomerPackRequiresLifeSciences(t *testing.T) {
 	if len(ctxs) != 1 || ctxs[0].WorkspaceGuide == "" {
 		t.Fatalf("expected workspace guide context: %+v", ctxs)
 	}
-	if err := cfg.SetPackEnabled("brightest-bio-lab", false); err != nil {
+	if err := cfg.SetPackEnabled("customer-lab-pack", false); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func buildBrightestBioZip(t *testing.T) ([]byte, error) {
+func buildCustomerLabPackZip(t *testing.T) ([]byte, error) {
 	t.Helper()
-	src := filepath.Join("..", "packs", "testdata", "brightest-bio-lab")
+	src := filepath.Join("..", "packs", "testdata", "customer-lab-pack")
 	if _, err := os.Stat(filepath.Join(src, "pack.yaml")); err != nil {
-		t.Skip("brightest-bio-lab fixture missing")
+		t.Skip("customer-lab-pack fixture missing")
 	}
 	zipPath := filepath.Join(t.TempDir(), "pack.zip")
 	out, err := os.Create(zipPath)

@@ -288,7 +288,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
               Phoenix TIM
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {environment} · Brightest Bio customer pack
+              {environment} · customer pack (phoenix-import)
             </p>
           </div>
           <button
@@ -303,7 +303,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {!hasPhoenixApi && (
             <p className="text-sm text-amber-400">
-              Enable the Brightest Bio Lab customer pack (and Life sciences) in Settings → Domain packs.
+              Enable a customer pack with <code className="font-mono">phoenix-import</code> (and Life sciences) in Settings → Domain packs.
             </p>
           )}
 
@@ -430,7 +430,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
 
               {tab === 'analyses' && !hasScanAnalysisViewer && (
                 <p className="text-xs text-amber-400">
-                  Enable the Brightest Bio Lab pack to open the scan analysis viewer after download.
+                  Enable a pack with <code className="font-mono">scan-analysis-viewer</code> to open the scan analysis viewer after download.
                 </p>
               )}
             </>

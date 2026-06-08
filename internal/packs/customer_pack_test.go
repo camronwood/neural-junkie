@@ -10,9 +10,9 @@ import (
 )
 
 func TestInstallFromZipBytesCustomerPack(t *testing.T) {
-	src := filepath.Join("testdata", "brightest-bio-lab")
+	src := filepath.Join("testdata", "customer-lab-pack")
 	if _, err := os.Stat(filepath.Join(src, "pack.yaml")); err != nil {
-		t.Skip("brightest-bio-lab fixture missing")
+		t.Skip("customer-lab-pack fixture missing")
 	}
 	zipPath := filepath.Join(t.TempDir(), "pack.zip")
 	if err := zipDir(src, zipPath); err != nil {
@@ -29,7 +29,7 @@ func TestInstallFromZipBytesCustomerPack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.ID != "brightest-bio-lab" {
+	if m.ID != "customer-lab-pack" {
 		t.Fatalf("id: got %q", m.ID)
 	}
 	if !m.IsCustomerPack() {

@@ -17,7 +17,7 @@ import (
 	"golang.org/x/image/tiff"
 )
 
-func installBrightestBioLabPack(t *testing.T, cfg *config.Config) {
+func installCustomerLabPack(t *testing.T, cfg *config.Config) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
@@ -26,11 +26,11 @@ func installBrightestBioLabPack(t *testing.T, cfg *config.Config) {
 	if err := cfg.SetPackEnabled(config.PackLifeSciences, true); err != nil {
 		t.Fatal(err)
 	}
-	src := filepath.Join("..", "..", "internal", "packs", "testdata", "brightest-bio-lab")
+	src := filepath.Join("..", "..", "internal", "packs", "testdata", "customer-lab-pack")
 	if _, err := os.Stat(filepath.Join(src, "pack.yaml")); err != nil {
-		t.Skip("brightest-bio-lab fixture missing")
+		t.Skip("customer-lab-pack fixture missing")
 	}
-	zipPath := filepath.Join(t.TempDir(), "brightest-bio-lab.zip")
+	zipPath := filepath.Join(t.TempDir(), "customer-lab-pack.zip")
 	out, err := os.Create(zipPath)
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func installBrightestBioLabPack(t *testing.T, cfg *config.Config) {
 	if _, err := cfg.InstallPackFromZip(data); err != nil {
 		t.Fatal(err)
 	}
-	if err := cfg.SetPackEnabled("brightest-bio-lab", true); err != nil {
+	if err := cfg.SetPackEnabled("customer-lab-pack", true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -106,7 +106,7 @@ func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func
 	}
 
 	appConfig = config.DefaultConfig()
-	installBrightestBioLabPack(t, appConfig)
+	installCustomerLabPack(t, appConfig)
 
 	return ws.ID, func() {
 		appConfig = nil

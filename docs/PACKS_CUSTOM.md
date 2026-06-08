@@ -16,7 +16,7 @@ Hub APIs (hub access required): `POST /api/packs/validate`, `POST /api/packs/dev
 
 Use **dev link** while iterating; use **zip validate + sideload** for the final artifact you ship to analysts.
 
-Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Brightest Bio Lab pack capabilities (**Phoenix import**, **secondary-analysis-api/viewer/python**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in that customer’s **private pack repository** (e.g. Brightest Bio Lab), not in the generic scaffold wizard.
+Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Advanced capabilities (**Phoenix import**, **secondary-analysis-api/viewer/python**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in the customer’s **private pack repository**, not in the generic scaffold wizard.
 
 ## Install (zip)
 
@@ -32,10 +32,10 @@ Installed to `~/.neural-junkie/packs/<id>/`. Custom packs appear in the pack lis
 ## pack.yaml (customer)
 
 ```yaml
-id: brightest-bio-lab
-version: "1.0.4"
-title: Brightest Bio Lab data pack
-publisher: Brightest Bio
+id: acme-lab
+version: "1.0.0"
+title: Acme Lab data pack
+publisher: Acme Corp
 pack_kind: customer
 capabilities:
   - customer-pack
@@ -61,21 +61,9 @@ assets:
 - **`settings_overlay`**: applied to hub biology MCP settings on enable; reverted on disable. When the pack declares **`secondary-analysis-api`** or **`secondary-analysis-python`**, the desktop shows secondary-analysis fields under **Settings → Life sciences tools** (tools path, Python, panel profile, cumulative QC).
 - Pack-relative paths in overlay values are resolved under the installed pack directory.
 
-## Reference pack
+## Test fixture
 
-**Brightest Bio Lab** — private repo (canonical source):
-
-`/Users/camronwood/development/neural-junkie-brightest-bio-lab`
-
-Build zip:
-
-```bash
-cd /Users/camronwood/development/neural-junkie-brightest-bio-lab
-make pack-zip
-# or from neural-junkie: scripts/build-customer-pack-zips.sh
-```
-
-Unit tests use a minimal fixture at `internal/packs/testdata/brightest-bio-lab/`.
+Unit tests use a minimal fixture at `internal/packs/testdata/customer-lab-pack/`.
 
 ## Customer-owned repos
 
@@ -83,9 +71,9 @@ Each customer pack should live in its **own private repository**. CI can run the
 
 Official catalog packs (`packs/catalog.json`) are unchanged; customer packs are not listed there unless you host a separate private catalog later.
 
-## Phoenix import (toolbar **PHX** chip) — Brightest Bio private pack only
+## Phoenix import (toolbar **PHX** chip)
 
-The **Brightest Bio Lab** private pack (`phoenix-import`) shows a **PHX** chip in the toolbar when installed and enabled. Generic customer packs created in Pack dev studio do not include this; add `phoenix-import` only in that org’s private `pack.yaml` if needed. Click to sign in (Auth0 device code in-app), browse TIM analyses and scan results, and download into the active workspace. No `bbio` CLI required.
+When a customer pack declares **`phoenix-import`**, a **PHX** chip appears in the toolbar when that pack is installed and enabled. Generic customer packs created in Pack dev studio do not include this by default; add `phoenix-import` in the customer’s private `pack.yaml` when needed. Click to sign in (Auth0 device code in-app), browse TIM analyses and scan results, and download into the active workspace.
 
 1. Install + enable **Life sciences** and the customer pack.
 2. Click **PHX** → sign in with device code in the browser.
@@ -113,7 +101,7 @@ Pack overlay / hub config keys:
 | Key | Purpose |
 |-----|---------|
 | `phoenix_environment` | `staging`, `dev`, or `prod` |
-| `phoenix_credentials_path` | Optional path to `credentials-{env}.json` (default: bbio store) |
+| `phoenix_credentials_path` | Optional path to `credentials-{env}.json` (default: vendor CLI store) |
 | `phoenix_auth_config_path` | Auth0 app creds file (client_id for token refresh), e.g. `.phoenix-customer-cli-creds` |
 
 Hub `config.json`: `phoenix.environment`, `phoenix.credentials_path`, `phoenix.auth_config_path`.

@@ -140,7 +140,7 @@ export function PackTestPanel() {
     if (caps.includes(PACK_CAP.SECONDARY_ANALYSIS_API)) {
       items.push({
         id: 'secondary-analysis-api',
-        label: 'Brightest Bio secondary analysis (12-Plex QC, comparator)',
+        label: 'Secondary analysis (12-Plex QC, comparator)',
         ok: targetPack.enabled,
         hint: 'Enable pack; check settings_overlay for tools path, python, panel profile',
       });
