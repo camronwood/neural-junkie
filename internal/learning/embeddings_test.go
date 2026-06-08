@@ -2,6 +2,7 @@ package learning
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/embed"
@@ -27,11 +28,12 @@ func TestKeywordScoreFallback(t *testing.T) {
 }
 
 func TestSelectForPrompt_keywordFallback(t *testing.T) {
-	store, err := NewStore(t.TempDir() + "/learnings.json")
+	dir := t.TempDir()
+	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	emb, err := NewEmbedStore(t.TempDir() + "/emb.json")
+	emb, err := NewEmbedStore(filepath.Join(dir, "emb.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +68,7 @@ func TestSelectForPrompt_keywordFallback(t *testing.T) {
 }
 
 func TestQueryPreview_scopes(t *testing.T) {
-	store, err := NewStore(t.TempDir() + "/learnings.json")
+	store, err := NewStore(filepath.Join(t.TempDir(), "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

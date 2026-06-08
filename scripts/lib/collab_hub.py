@@ -424,7 +424,13 @@ def resolve_agent_id(base: str, agent_name: str) -> str | None:
 
 def ensure_dm_channel(base: str, user: str, agent_name: str) -> str | None:
     """Create or return DM channel name between user and agent (by display name)."""
-    agent_id = resolve_agent_id(base, agent_name)
+    agent_id = None
+    for attempt in range(3):
+        agent_id = resolve_agent_id(base, agent_name)
+        if agent_id:
+            break
+        if attempt + 1 < 3:
+            time.sleep(1.0 * (attempt + 1))
     if not agent_id:
         return None
     body = {
@@ -438,7 +444,7 @@ def ensure_dm_channel(base: str, user: str, agent_name: str) -> str | None:
         code, data = hub_request(base, "POST", "/api/channels/create", body)
         if code in (200, 201):
             break
-        if code == 429 and attempt + 1 < 3:
+        if attempt + 1 < 3 and code in (429, 500, 502, 503, 504):
             time.sleep(2.0 * (attempt + 1))
             continue
         break

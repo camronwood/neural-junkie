@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 CHAT_SCENARIOS = [
+    # Workspace visibility (all specialist DMs + public)
     "dm-backend-workspace",
     "public-backend-theme-workspace",
     "dm-frontend-workspace",
@@ -19,6 +20,14 @@ CHAT_SCENARIOS = [
     "dm-security-workspace",
     "dm-code-reviewer-workspace",
     "dm-platform-workspace",
+    "dm-database-workspace",
+    # Multi-turn conversation quality
+    "dm-backend-echo-followup",
+    "thanks-closure",
+    "already-said-closure",
+    "public-frontend-theme-continuation",
+    # IDE / routing
+    "dm-ide-route-backend",
 ]
 
 COLLAB_SCENARIOS = [

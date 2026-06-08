@@ -208,7 +208,14 @@ func (cm *CollaborationManager) GetByChannel(channelName string) *Collaboration 
 			bestTime = t
 		}
 	}
-	return best
+	if best == nil {
+		return nil
+	}
+	cloned, err := cloneCollaboration(best)
+	if err != nil {
+		return nil
+	}
+	return cloned
 }
 
 // ListActive returns all non-terminal collaborations.

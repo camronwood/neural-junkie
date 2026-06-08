@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -8,10 +9,13 @@ import (
 )
 
 type stubPersistentStore struct {
+	mu        sync.Mutex
 	byChannel map[string][]*protocol.Message
 }
 
 func (s *stubPersistentStore) InsertMessage(msg *protocol.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.byChannel == nil {
 		s.byChannel = map[string][]*protocol.Message{}
 	}
@@ -20,7 +24,9 @@ func (s *stubPersistentStore) InsertMessage(msg *protocol.Message) error {
 }
 
 func (s *stubPersistentStore) ListChannelMessages(channel string, limit int, beforeID string) ([]*protocol.Message, error) {
+	s.mu.Lock()
 	msgs := s.byChannel[channel]
+	s.mu.Unlock()
 	if limit > 0 && len(msgs) > limit {
 		msgs = msgs[len(msgs)-limit:]
 	}
@@ -30,8 +36,16 @@ func (s *stubPersistentStore) ListChannelMessages(channel string, limit int, bef
 }
 
 func (s *stubPersistentStore) ClearChannelMessages(channel string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.byChannel, channel)
 	return nil
+}
+
+func (s *stubPersistentStore) channelLen(channel string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.byChannel[channel])
 }
 
 func TestClearChannelHistory_clearsPersistentStore(t *testing.T) {
@@ -51,20 +65,20 @@ func TestClearChannelHistory_clearsPersistentStore(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(stub.byChannel[name]) >= 3 {
+		if stub.channelLen(name) >= 3 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if len(stub.byChannel[name]) < 3 {
-		t.Fatalf("expected persisted messages, got %d", len(stub.byChannel[name]))
+	if n := stub.channelLen(name); n < 3 {
+		t.Fatalf("expected persisted messages, got %d", n)
 	}
 
 	if err := h.ClearChannelHistory(name); err != nil {
 		t.Fatal(err)
 	}
-	if len(stub.byChannel[name]) != 0 {
-		t.Fatalf("persistent store should be empty after clear, got %d", len(stub.byChannel[name]))
+	if n := stub.channelLen(name); n != 0 {
+		t.Fatalf("persistent store should be empty after clear, got %d", n)
 	}
 
 	older, err := h.GetMessagesPage(name, 50, "cursor-msg-id")
