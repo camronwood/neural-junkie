@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32">v1.0.0-beta.32</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33">v1.0.0-beta.33</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-33">1.0.0-beta.33</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-32">1.0.0-beta.32</a>
       <span aria-hidden="true">·</span>
       <a href="#v1.0.0-beta.32">1.0.0-beta.31</a>
@@ -110,24 +112,33 @@
     </nav>
 
     <article class="feature-prose">
-      <h2 id="limitations-sprint" class="release-version-heading">Limitations sprint <span class="release-date">— 2026-06-08</span></h2>
+      <h2 id="v1-0-0-beta-33" class="release-version-heading">1.0.0-beta.33 <span class="release-date">— 2026-06-08</span></h2>
 
-      <p><strong>Hub + desktop improvements</strong> from the known-limitations backlog (ships in source before the next tagged beta). See <a href="known-issues.html">known issues</a> for what remains.</p>
+      <p><strong>Cursor-like composer + durable memory.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33">GitHub Releases</a>. Ask / Agent / Export composer modes, SQLite-backed conversation memory for prior-reference continuity, tool-first file delivery, Brightest Bio Lab customer pack gating, and limitations-sprint hub/desktop polish.</p>
 
       <h3>Added</h3>
       <ul>
-        <li><strong>UI layout owner</strong> — Settings → Domain packs → pick which enabled pack controls IDE vs team layout.</li>
-        <li><strong>Collaboration planning provider</strong> — optional provider for planning discussion turns (Settings → AI Providers).</li>
-        <li><strong>Channel export</strong> — export markdown history from channel info; merges SQLite + in-memory messages.</li>
-        <li><strong>Durable channels</strong> — skip 24h age prune per channel (count cap still applies).</li>
+        <li><strong>Composer modes</strong> — Ask / Agent / Export on all channels with unified send pipeline and turn-intent routing.</li>
+        <li><strong>Durable memory</strong> — channel history bootstrap from SQLite; prior-reference export survives hub restart.</li>
+        <li><strong>Markdown edit/preview</strong> — inline toggle in the code editor for markdown files.</li>
+        <li><strong>Layout owner</strong> — Settings → Domain packs → pick which pack controls IDE vs team layout.</li>
+        <li><strong>Planning provider</strong> — optional provider for collab planning discussion turns.</li>
+        <li><strong>Channel export</strong> — export markdown history from channel info.</li>
+        <li><strong>Durable channels</strong> — skip 24h age prune per channel.</li>
+        <li><strong>Brightest Bio Lab pack</strong> — customer pack for scan summary, scan analysis viewer, and secondary analysis APIs.</li>
       </ul>
 
       <h3>Changed</h3>
       <ul>
+        <li><strong>Implementation continuation</strong> — stronger go-ahead detection and prior-turn grounding.</li>
         <li><strong>Workspace gate UX</strong> — banners, toasts, and <strong>Confirm workspace</strong> when execution waits for ack.</li>
         <li><strong>/pause-agent</strong> — aborts in-flight LLM work for the paused agent.</li>
-        <li><strong>Linux CI</strong> — AppImage build removed; <code>.deb</code> only.</li>
-        <li><strong>Dev builds</strong> — update-check error banner suppressed in Tauri dev.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Collab deliverable harness</strong> — plan stubs no longer pass file assertions; discussion fallback writes substantive content.</li>
+        <li><strong>Conversation regression</strong> — harness hardening for session-issue guards and collab races.</li>
       </ul>
 
       <h2 id="v1-0-0-beta-32" class="release-version-heading">1.0.0-beta.32 <span class="release-date">— 2026-06-07</span></h2>

@@ -6,20 +6,30 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.0.0-beta.33] - 2026-06-08
+
 ### Added
-- **Layout owner picker** — Settings → Domain packs → choose which enabled pack controls IDE vs team layout (`PUT /api/packs/layout-owner`).
-- **Collaboration planning provider** — optional `planning_provider_id` in Settings routes planning discussion turns through a chosen provider.
+- **Cursor-like composer** — Ask / Agent / Export modes on all channels with unified send pipeline and turn-intent metadata routing.
+- **Durable conversation memory** — SQLite-backed channel history bootstrap; prior-reference export survives hub restart.
+- **Tool-first file delivery** — `propose_file_edit` primary write path; legacy `[FILE_CHANGE]` parsing gated by env.
+- **Inline markdown edit/preview** — toggle in the code editor for `.md` files.
+- **Layout owner picker** — Settings → Domain packs → choose which enabled pack controls IDE vs team layout.
+- **Collaboration planning provider** — optional `planning_provider_id` routes planning discussion turns through a chosen provider.
 - **Channel history export** — `GET /api/channel-export` and **Export history** in channel info (markdown).
-- **Durable channels** — per-channel toggle skips 24h age prune; persisted in `config.json` (`PUT /api/channel-durable`).
+- **Durable channels** — per-channel toggle skips 24h age prune; persisted in `config.json`.
+- **Brightest Bio Lab pack** — customer pack gates `scan-summary-api`, `scan-analysis-viewer`, and secondary-analysis capabilities (requires life-sciences base pack).
 
 ### Changed
+- **Prior reference + implementation continuation** — stronger grounding on prior turns; improved go-ahead / continuation detection in desktop payload prep.
 - **Workspace gate UX** — panel/chat banners, toasts, and **Confirm workspace** primary action when execution waits for ack.
-- **`/pause-agent`** — now aborts in-flight LLM generations for the paused agent.
-- **Linux releases** — AppImage build removed from CI; `.deb` is the supported Linux installer.
+- **`/pause-agent`** — aborts in-flight LLM generations for the paused agent.
+- **Pack docs** — life-sciences vs brightest-bio-lab capability split in `BIOLOGY_PACK.md` and `PACKS_CUSTOM.md`.
 - **Dev update checks** — suppressed in `import.meta.env.DEV` builds (no error banner).
 
-### Removed (known-issues tracker)
-- Closed: `pack-layout-first`, `collab-workspace-gate` (UX), `pause-not-abort`, `linux-appimage-ci`, and aged-out install/Ollama/dev-update items (documented in topic guides).
+### Fixed
+- **Collab scenario harness** — deliverable stubs no longer satisfy file assertions; discussion fallback writes substantive content and strips `TASK_STATUS:` leakage.
+- **Scan summary API tests** — enable brightest-bio-lab fixture for `scan-summary-api` capability gate.
+- **Conversation regression harness** — collab race and session-issue analyzer hardening.
 
 ## [1.0.0-beta.32] - 2026-06-07
 
