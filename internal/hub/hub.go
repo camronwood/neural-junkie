@@ -1854,6 +1854,7 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 		if err := h.JoinChannel(agentID, dmName); err != nil {
 			return nil, fmt.Errorf("failed to join agent to existing DM %s: %w", dmName, err)
 		}
+		h.ensureAgentSubscribed(agentID, dmName)
 		return existing, nil
 	}
 	h.mu.RUnlock()
@@ -1871,7 +1872,20 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 		return nil, fmt.Errorf("failed to join agent to DM channel: %w", err)
 	}
 
+	h.ensureAgentSubscribed(agentID, dmName)
 	return ch, nil
+}
+
+// ensureAgentSubscribed starts the agent hub listener on channelName immediately.
+// JoinChannel alone only updates membership; runtime agents need an active subscription
+// before the caller can send (avoids losing the first DM message to discoverChannels delay).
+func (h *Hub) ensureAgentSubscribed(agentID, channelName string) {
+	if h.commandHandler == nil {
+		return
+	}
+	if err := h.commandHandler.EnsureAgentSubscribedToChannel(context.Background(), agentID, channelName); err != nil {
+		log.Printf("Warning: failed to subscribe agent %s to %s: %v", agentID, channelName, err)
+	}
 }
 
 // GetAgentChannels returns the names of all channels an agent is currently in

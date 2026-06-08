@@ -36,3 +36,7 @@ rand = "0.8"
 # DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
 
+# macOS: avoid SIGABRT when Cmd+KeyUp arrives with no keyWindow (tao #1090).
+[patch.crates-io]
+tao = { path = "../../patches/tao-0.16.10" }
+

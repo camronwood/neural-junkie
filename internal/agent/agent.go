@@ -322,11 +322,9 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 
 	log.Printf("[%s] Agent listening on channel: %s", a.Info.Name, channel)
 
-	// Check history for any unanswered messages (handles the race where a
-	// message arrived between channel creation and agent subscription).
-	if history != nil {
-		go a.processUnrespondedHistory(listenerCtx, channel, history)
-	}
+	// Replay any messages that arrived before this subscription (including a
+	// delayed pass for messages that land during listener startup).
+	go a.replayUnrespondedHistory(listenerCtx, channel)
 
 	go func() {
 		for {
@@ -347,10 +345,29 @@ func (a *Agent) AddChannel(ctx context.Context, channel string) error {
 	return nil
 }
 
+const unrespondedHistoryReplayDelay = 250 * time.Millisecond
+
+// replayUnrespondedHistory scans channel history for user messages missed before
+// subscription and re-scans once after a short delay (messages can land during AddChannel).
+func (a *Agent) replayUnrespondedHistory(ctx context.Context, channel string) {
+	a.processUnrespondedHistory(ctx, channel)
+	timer := time.NewTimer(unrespondedHistoryReplayDelay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-a.stopCh:
+		return
+	case <-timer.C:
+	}
+	a.processUnrespondedHistory(ctx, channel)
+}
+
 // processUnrespondedHistory scans recent history for actionable messages that
 // this agent may have missed between channel join and subscription readiness.
-func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, history []*protocol.Message) {
-	if len(history) == 0 {
+func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string) {
+	history, err := a.bootstrapChannelHistory(channel)
+	if err != nil || len(history) == 0 {
 		return
 	}
 
@@ -363,7 +380,13 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, h
 		if candidate.From.ID == a.Info.ID || candidate.From.Name == a.Info.Name {
 			continue
 		}
-		if candidate.Type == protocol.MessageTypeAgentStatus {
+		if !protocol.IsUserLikeSender(candidate.From) {
+			continue
+		}
+		if candidate.Type == protocol.MessageTypeAgentStatus ||
+			candidate.Type == protocol.MessageTypeAgentJoin ||
+			candidate.Type == protocol.MessageTypeAgentLeave ||
+			candidate.Type == protocol.MessageTypeSystemInfo {
 			continue
 		}
 		if !a.shouldRespond(candidate) {
@@ -387,6 +410,7 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string, h
 // discoverChannels periodically checks for new channels this agent was added to.
 // Runs every second so agents respond promptly when added to new DM channels.
 func (a *Agent) discoverChannels(ctx context.Context) {
+	a.discoverChannelsOnce(ctx)
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -397,16 +421,20 @@ func (a *Agent) discoverChannels(ctx context.Context) {
 		case <-a.stopCh:
 			return
 		case <-ticker.C:
-			channels := a.Hub.GetAgentChannels(a.Info.ID)
-			for _, ch := range channels {
-				a.channelMu.Lock()
-				_, exists := a.activeChannels[ch]
-				a.channelMu.Unlock()
-				if !exists {
-					if err := a.AddChannel(ctx, ch); err != nil {
-						log.Printf("[%s] Failed to add discovered channel %s: %v", a.Info.Name, ch, err)
-					}
-				}
+			a.discoverChannelsOnce(ctx)
+		}
+	}
+}
+
+func (a *Agent) discoverChannelsOnce(ctx context.Context) {
+	channels := a.Hub.GetAgentChannels(a.Info.ID)
+	for _, ch := range channels {
+		a.channelMu.Lock()
+		_, exists := a.activeChannels[ch]
+		a.channelMu.Unlock()
+		if !exists {
+			if err := a.AddChannel(ctx, ch); err != nil {
+				log.Printf("[%s] Failed to add discovered channel %s: %v", a.Info.Name, ch, err)
 			}
 		}
 	}
@@ -1095,7 +1123,8 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 	// IDE file-tab routing applies only when the user did not @mention a specific agent.
-	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() {
+	// Skip in DMs: the channel partner is always the intended recipient.
+	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() && !a.isDMChannel(msg.Channel) {
 		if userRequestsCodeReview(msg.Content) {
 			return false
 		}

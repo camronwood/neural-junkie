@@ -191,5 +191,6 @@ Response includes: `session_summary`, `conversation_mode`, resolved intent (when
 ## Related
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — system overview and context stack pointer
+- [ADAPTIVE-ORCHESTRATION-NOTES.md](ADAPTIVE-ORCHESTRATION-NOTES.md) — external “adaptive intelligence” framing mapped to this stack
 - [DELEGATION.md](DELEGATION.md) — cross-specialist consult after intent
 - [CLI_AGENTS.md](CLI_AGENTS.md) — CLI subprocess context (separate stack today)
