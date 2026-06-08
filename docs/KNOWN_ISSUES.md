@@ -50,8 +50,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `pack-layout-first` | **Limitation** | With multiple domain packs enabled, the **first pack turned on** sets IDE vs team layout. |
 | `auto-update-first-install` | **Limitation** | In-app updates require an updater-enabled build (beta.27+). Older installers must upgrade once manually from [download.html](download.html) or GitHub Releases. |
 | `dev-update-check-404` | **Limitation** | `make gui` / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with installed release builds. |
-| `linux-appimage-ci` | **Active** | AppImage bundling still fails in CI. **`.deb` ships** from beta.31+ (slim build). Setup wizard auto-installs Ollama on Linux and Windows. |
-| `linux-no-bundled-ollama` | **By design** | Linux `.deb` and Windows `.msi` omit bundled Ollama (size + independent updates). Setup wizard auto-installs Ollama. macOS still bundles the runtime. |
+| `linux-no-bundled-ollama` | **Limitation** | Linux `.deb` and Windows `.msi` omit bundled Ollama (size + independent updates). Setup wizard **Install Ollama** on first launch. macOS still bundles the runtime. |
+| `linux-appimage-ci` | **Limitation** | AppImage bundling still fails in CI — use `.deb` from [download.html](download.html) or GitHub Releases. Does not affect installed `.deb` users. |
 
 ---
 
@@ -63,7 +63,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `standalone-agent-polling` | **Limitation** | `cmd/agent` processes use **HTTP polling**; in-process hub agents get push delivery (lower latency). |
 | `pause-not-abort` | **Limitation** | `/pause-agent` marks an agent paused in the roster; it does **not** abort an in-flight LLM call. |
 | `lmstudio-tools` | **Limitation** | MCP tool calling is strongest on **Ollama** (selected flows) and **Claude**; LM Studio / generic OpenAI-compat tool use is limited. |
-| `ollama-model-pull` | **Limitation** | Installers bundle the Ollama **runtime** only; models are pulled on first use (one-time download, can be several GB). |
+| `ollama-model-pull` | **Limitation** | macOS bundles the Ollama **runtime**; Linux and Windows install it via the setup wizard. **Models** are pulled on first use on every platform (one-time download, can be several GB). |
 | `macos-notarized` | **Limitation** | macOS builds are **ad-hoc signed**, not notarized — use **Right-click → Open** if Gatekeeper blocks the first launch. |
 
 ---

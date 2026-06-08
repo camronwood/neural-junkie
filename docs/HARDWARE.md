@@ -1,6 +1,6 @@
 # Hardware requirements
 
-**Last updated:** June 2026 · **Current beta:** [v1.0.0-beta.31](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.31)
+**Last updated:** June 2026 · **Current beta:** [v1.0.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32)
 
 Neural Junkie is lightweight as an **app**; the hardware story is about **models**, **concurrency**, and what you expect local agents to do. This doc is the authoritative reference for disk, RAM, and tiered model choices. The setup wizard and **Settings → AI Providers** use the same tiers via `GET /api/system/hardware`.
 
@@ -11,11 +11,11 @@ Neural Junkie is lightweight as an **app**; the hardware story is about **models
 | Component | Typical size |
 |-----------|----------------|
 | Desktop installer (Tauri + hub sidecar) | ~10–15 MB app bundle |
-| Bundled Ollama **runtime** (beta.22+) | ~1–2 GB per platform |
+| Ollama **runtime** (bundled macOS; wizard on Linux/Windows) | ~1–2 GB per platform |
 | Hub process | Modest CPU/RAM; listens on `http://localhost:18765` |
 | Session / config under `~/.neural-junkie/` | Grows with history; bounded per channel |
 
-Installers bundle the Ollama **runtime only** — not every model. First model pull is a one-time download (often several GB). See [DOWNLOAD.md](DOWNLOAD.md).
+macOS bundles the Ollama **runtime**; Linux and Windows install it via the setup wizard. Installers never bundle models — first model pull is a one-time download (often several GB). See [DOWNLOAD.md](DOWNLOAD.md).
 
 **From source:** Go 1.23+, Node 18+, Rust (desktop only). Downloaded builds need none of these.
 
@@ -114,8 +114,8 @@ See [USER_VALUE_GUIDE.md](USER_VALUE_GUIDE.md).
 |----------|-----------|-------|
 | macOS Apple Silicon | `.dmg` (`aarch64`) | Ad-hoc signed, not notarized — Right-click → Open |
 | macOS Intel | `.dmg` (`x64`) | Same Gatekeeper note |
-| Windows | `.msi` / `.exe` | Bundled Ollama since beta.22 |
-| Linux | `.AppImage` / `.deb` | Bundled Ollama since beta.22 |
+| Windows | `.msi` / `.exe` | Slim build — wizard **Install Ollama** (beta.32+) |
+| Linux | `.deb` | Slim build — wizard **Install Ollama**; no AppImage yet ([known issues](known-issues.html#linux-appimage-ci)) |
 
 Full install table: [DOWNLOAD.md](DOWNLOAD.md).
 
@@ -127,7 +127,8 @@ Public tracker: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) · [known-issues.html](known-
 
 | ID | Summary |
 |----|---------|
-| `ollama-model-pull` | Runtime bundled; models pulled on first use (several GB) |
+| `ollama-model-pull` | Runtime bundled on macOS; wizard on Linux/Windows; models pulled on first use (several GB) |
+| `linux-no-bundled-ollama` | Linux `.deb` and Windows `.msi` omit bundled Ollama — wizard installs |
 | `collab-model-variance` | Local models vary in collaboration quality and timeouts |
 | `lmstudio-tools` | MCP tool calling strongest on Ollama and Claude |
 | `single-hub` | Single-server — no horizontal scale |

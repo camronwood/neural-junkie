@@ -1,4 +1,4 @@
-# Download and first run (v1.0.0-beta.23)
+# Download and first run (v1.0.0-beta.32)
 
 Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases) — no Go, Node, or Rust required for the desktop app.
 
@@ -11,7 +11,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 | macOS (Apple Silicon) | `.dmg` with `aarch64` in the name |
 | macOS (Intel) | `.dmg` with `x64` or `x86_64` in the name |
 | Windows | `.msi` or setup `.exe` |
-| Linux | `.AppImage` and/or `.deb` |
+| Linux | `.deb` (no AppImage yet — see [known-issues.html](known-issues.html#linux-appimage-ci)) |
 
 **macOS:** Builds are ad-hoc signed but not notarized. If Gatekeeper blocks the app, right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
 
@@ -22,7 +22,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 1. Open **Neural Junkie**.
 2. Complete the **setup wizard**:
    - Pick a focus track or skip — install **domain packs** later from Settings (Software development, Life sciences, CAD, Specialist tuning). See [BIOLOGY_PACK.md](BIOLOGY_PACK.md) for life sciences.
-   - Choose **Ollama (local)** — bundled Ollama starts automatically; pull the suggested default model when prompted.
+   - Choose **Ollama (local)** — macOS starts bundled Ollama automatically; Linux/Windows use wizard **Install Ollama**; pull the suggested default model when prompted.
    - Or pick **cloud** and enter an API key (no local model pull).
 3. Sign in on the login screen (pick a username and channel — local dev defaults are fine).
 

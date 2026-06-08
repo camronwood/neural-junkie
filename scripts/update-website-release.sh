@@ -79,7 +79,6 @@ MAC_ARM="$(pick_asset 'aarch64\.dmg$' || true)"
 MAC_INTEL="$(pick_asset '(^|_)x64\.dmg$' || true)"
 WIN_MSI="$(pick_asset '\.msi$' || true)"
 WIN_EXE="$(pick_asset '\.exe$' || true)"
-LINUX_APPIMAGE="$(pick_asset '\.AppImage$' || true)"
 LINUX_DEB="$(pick_asset '\.deb$' || true)"
 
 cat > "${ROOT}/docs/download.html" <<HTML
@@ -157,11 +156,10 @@ $(if [[ -n "${WIN_EXE}" ]]; then printf '            <a class="btn btn-ghost dow
 
       <section class="download-card" aria-labelledby="dl-linux">
         <h2 id="dl-linux">Linux</h2>
-        <p class="download-card__meta">x86_64 · <code>.AppImage</code> or <code>.deb</code></p>
-        <p class="download-card__file">${LINUX_APPIMAGE:-${LINUX_DEB:-Pending CI upload}}</p>
-$(link_or_pending '\.AppImage$' 'Download AppImage')
-$(if [[ -n "${LINUX_DEB}" ]]; then printf '            <a class="btn btn-ghost download-card__btn-secondary" href="%s/%s" download>Download .deb</a>\n' "${RELEASE_BASE}" "${LINUX_DEB}"; fi)
-        <p class="download-card__note"><code>sudo dpkg -i neural-junkie_*.deb</code> or run AppImage. Wizard installs Ollama on first launch (internet required).</p>
+        <p class="download-card__meta">x86_64 · <code>.deb</code></p>
+        <p class="download-card__file">${LINUX_DEB:-Pending CI upload}</p>
+$(link_or_pending '\.deb$' 'Download .deb')
+        <p class="download-card__note"><code>sudo dpkg -i neural-junkie_*.deb</code>. Slim build — setup wizard <strong>Install Ollama</strong> on first launch (internet required). No AppImage yet — see <a href="known-issues.html#linux-appimage-ci">known issues</a>.</p>
       </section>
     </div>
 

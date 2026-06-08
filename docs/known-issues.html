@@ -37,7 +37,7 @@
       <h1>Known issues &amp; limitations</h1>
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
-        As of this update there are <strong>no open Active bugs</strong>; remaining entries are intentional limitations.
+        As of this update there are <strong>no open user-facing Active bugs</strong>; remaining entries are intentional limitations or CI-only gaps.
         Last updated <time datetime="2026-06-07">June 7, 2026</time> for <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32">v1.0.0-beta.32</a>.
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
@@ -165,6 +165,18 @@
           <strong>Dev builds cannot check for updates</strong>
           <p><code>make gui</code> / Tauri dev may show “Could not check for updates” — manifests target release builds, not dev. Test auto-update with an installed release build.</p>
         </li>
+        <!-- ISSUE: linux-no-bundled-ollama -->
+        <li class="issue-item" id="linux-no-bundled-ollama">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Linux &amp; Windows omit bundled Ollama</strong>
+          <p>Slim <code>.deb</code> and <code>.msi</code> installers skip the Ollama runtime (size + independent updates). The setup wizard <strong>Install Ollama</strong> on first launch. macOS still bundles the runtime.</p>
+        </li>
+        <!-- ISSUE: linux-appimage-ci -->
+        <li class="issue-item" id="linux-appimage-ci">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>No AppImage yet</strong>
+          <p>AppImage bundling still fails in CI — use the <code>.deb</code> from <a href="download.html">Download</a> or GitHub Releases. Does not affect installed <code>.deb</code> users.</p>
+        </li>
       </ul>
 
       <h2 id="hub-providers">Hub, agents &amp; providers</h2>
@@ -197,7 +209,7 @@
         <li class="issue-item" id="ollama-model-pull">
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Ollama model download</strong>
-          <p>Installers bundle the Ollama <em>runtime</em> only; models are pulled on first use (one-time download, can be several GB).</p>
+          <p>macOS bundles the Ollama <em>runtime</em>; Linux and Windows install it via the setup wizard. <strong>Models</strong> are pulled on first use on every platform (one-time download, can be several GB).</p>
         </li>
         <!-- ISSUE: macos-notarized -->
         <li class="issue-item" id="macos-notarized">

@@ -23,7 +23,7 @@
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
       <strong>v1.0.0-beta.32 — Linux .deb now shipping</strong>
-      <span><a href="download.html">Download</a> — Linux <code>.deb</code> available (install <a href="https://ollama.com">Ollama</a> separately; slim build due to GitHub size limits). macOS + Windows include bundled Ollama and in-app updates. Or <span class="dev-banner-highlight">build from source</span>. <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> welcome.</span>
+      <span><a href="download.html">Download</a> — Linux <code>.deb</code> ships; setup wizard <strong>Install Ollama</strong> on Linux and Windows (slim builds). macOS bundles Ollama + in-app updates. Or <span class="dev-banner-highlight">build from source</span>. <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> welcome.</span>
     </div>
   </div>
 
@@ -52,7 +52,7 @@
         <p class="hero-badge">Open source · Local-first · v1.0.0-beta.32</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
-          <strong>Neural Junkie</strong> is a native desktop workspace for <strong>multi-agent AI</strong> — custom experts for any domain, team chat habits, Slack mirroring, and structured collaboration with human approval. <strong>beta.31</strong> ships a Linux <code>.deb</code> (install Ollama separately); macOS and Windows bundle Ollama with in-app auto-updates. Plus hardware guidance, downloads page, and collab reliability from prior betas.
+          <strong>Neural Junkie</strong> is a native desktop workspace for <strong>multi-agent AI</strong> — custom experts for any domain, team chat habits, Slack mirroring, and structured collaboration with human approval. <strong>beta.32</strong> ships Linux <code>.deb</code> plus slim Windows/Linux installers — setup wizard <strong>Install Ollama</strong> on first launch; macOS bundles Ollama with in-app auto-updates.
         </p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="download.html">Download for macOS / Windows / Linux</a>
@@ -69,7 +69,7 @@
 
     <div class="stack-strip">
       <div class="wrap stack-inner">
-        <span><strong>Local-first</strong> bundled Ollama + optional cloud</span>
+        <span><strong>Local-first</strong> Ollama (bundled on macOS; wizard on Linux/Windows) + optional cloud</span>
         <span aria-hidden="true">·</span>
         <span><strong>Teams</strong> Slack Connect + threaded chat</span>
         <span aria-hidden="true">·</span>
@@ -151,7 +151,7 @@
             <li><strong>Phases you control</strong> — planning → review → approve → execute with visible status.</li>
             <li><strong>Runbooks &amp; HTTP actions</strong> — wire automations when plans need more than chat.</li>
             <li><strong>Personal learning</strong> — collaboration-scoped memory when Specialist tuning is on.</li>
-            <li><strong>beta.31</strong> — Linux <code>.deb</code> ships; install Ollama separately on Linux. macOS/Windows auto-updates + bundled Ollama. <a href="known-issues.html">Known issues</a>.</li>
+            <li><strong>beta.32</strong> — Linux <code>.deb</code> ships; wizard <strong>Install Ollama</strong> on Linux/Windows. macOS bundles Ollama + in-app updates. <a href="known-issues.html">Known issues</a>.</li>
           </ul>
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/multi-agent-collaboration.html">Collaboration deep dive →</a>
@@ -185,13 +185,13 @@
       <div class="wrap feature-spotlight-inner">
         <div class="feature-spotlight-copy">
           <p class="feature-spotlight-kicker">Install-and-go local AI</p>
-          <h2 id="bundled-ollama-heading">Download once. Run locally. No Ollama install step.</h2>
+          <h2 id="bundled-ollama-heading">Download once. Run locally. Wizard handles Ollama.</h2>
           <p class="feature-spotlight-lead">
-            Beta.22 installers ship the <strong>Ollama runtime</strong> on macOS, Windows, and Linux. Open Neural Junkie, complete the wizard, pull a default model once, and your agents run on your hardware — private by default, cloud optional. After first run, browse more models in the built-in <strong>Model library</strong>.
+            macOS installers bundle the <strong>Ollama runtime</strong>; Linux and Windows use slim builds and the setup wizard <strong>Install Ollama</strong> on first launch. Complete the wizard, pull a default model once, and your agents run on your hardware — private by default, cloud optional. After first run, browse more models in the built-in <strong>Model library</strong>.
           </p>
           <ul class="feature-list feature-list--tight">
             <li><strong>Auto-start</strong> — production app runs <code>ollama serve</code> with models in app data.</li>
-            <li><strong>Windows included</strong> — no separate Ollama download required anymore.</li>
+            <li><strong>Linux &amp; Windows</strong> — wizard installs Ollama (winget, silent installer, or <code>install.sh</code>).</li>
             <li><strong>Model library</strong> — curated Ollama + Hugging Face grid (⇧⌘M) when you want more than the default.</li>
             <li><strong>Cloud when you need it</strong> — Claude, OpenAI-compatible APIs, and per-agent routing in Settings.</li>
           </ul>
@@ -211,7 +211,7 @@
               <span class="spotlight-art__ollama-step spotlight-art__ollama-step--on">Multi-agent chat</span>
             </div>
           </div>
-          <figcaption>Runtime bundled — models pulled on first use (one-time download).</figcaption>
+          <figcaption>Runtime bundled on macOS; wizard on Linux/Windows — models pulled on first use.</figcaption>
         </figure>
       </div>
     </section>
@@ -222,7 +222,7 @@
           <p class="feature-spotlight-kicker">Hardware requirements</p>
           <h2 id="hardware-heading">The app is small. The models are not.</h2>
           <p class="feature-spotlight-lead">
-            Neural Junkie ships as a <strong>~15 MB desktop app</strong> plus a bundled Ollama runtime (~1–2 GB). Your first local pull for software development defaults to <strong>qwen2.5-coder:14b</strong> (~9 GB) and <strong>qwen2.5:7b</strong> (~4.5 GB) — roughly <strong>15–20 GB total</strong> on disk before you chat. The setup wizard reads your RAM and recommends model tags; Settings shows estimated disk and suggested RAM per model.
+            Neural Junkie ships as a <strong>~15 MB desktop app</strong> plus an Ollama runtime (~1–2 GB — bundled on macOS, wizard-installed on Linux/Windows). Your first local pull for software development defaults to <strong>qwen2.5-coder:14b</strong> (~9 GB) and <strong>qwen2.5:7b</strong> (~4.5 GB) — roughly <strong>15–20 GB total</strong> on disk before you chat. The setup wizard reads your RAM and recommends model tags; Settings shows estimated disk and suggested RAM per model.
           </p>
           <table class="release-install-table hardware-tier-table" aria-label="RAM tiers and recommended models">
             <thead>
@@ -525,7 +525,7 @@
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
           <p class="release-landing-version"><strong>v1.0.0-beta.32</strong> <time datetime="2026-06-07">June 7, 2026</time></p>
-          <p class="release-landing-summary">Linux <code>.deb</code> now available — install <a href="https://ollama.com">Ollama</a> first (slim build; GitHub 2 GiB limit). macOS and Windows include bundled Ollama, arch-suffixed updater bundles, and in-app updates.</p>
+          <p class="release-landing-summary">Linux <code>.deb</code> ships; slim Linux/Windows installers use the setup wizard <strong>Install Ollama</strong> on first launch. macOS bundles Ollama with arch-suffixed updater bundles and in-app updates.</p>
           <p class="release-landing-actions">
             <a class="btn btn-primary" href="download.html">Download v1.0.0-beta.32</a>
             <a class="btn btn-ghost" href="release-notes.html#v1.0.0-beta.32">Release notes</a>
@@ -539,7 +539,7 @@
       <div class="wrap">
         <div class="cta-band">
           <h2 id="cta-heading">Download the beta</h2>
-          <p>Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux AppImage/.deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
+          <p>Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases">GitHub Releases</a> (macOS .dmg, Windows .msi, Linux .deb). Prefer source? Clone the repo and run <code style="background:var(--bg-deep);padding:0.2em 0.45em;border-radius:6px;font-size:0.9em;">make start-all</code>. <a href="https://github.com/camronwood/neural-junkie/issues">File issues</a> or <a href="https://github.com/camronwood/neural-junkie/pulls">open a pull request</a> if you improve something.</p>
           <a class="btn btn-primary" href="download.html">Get the latest beta</a>
         </div>
       </div>
