@@ -1,6 +1,6 @@
 # Beta.12 feature ads — domain packs, memory, runbook actions, biology
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/latest
 
 **Regenerate graphics:**
 
@@ -28,7 +28,7 @@ Non-developer ads from beta.11 remain valid: [NONDEV-ADS.md](NONDEV-ADS.md), [SE
 
 > Neural Junkie v1.0.0-beta.12 — **Domain packs**: turn on **Software development** (Go, React, Rust, DevOps, security, MCP) or **Life sciences** (BiologyExpert, sequences, structures). Fresh install stays lean until you choose.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+> https://github.com/camronwood/neural-junkie/releases/latest
 
 ---
 
@@ -42,7 +42,7 @@ Non-developer ads from beta.11 remain valid: [NONDEV-ADS.md](NONDEV-ADS.md), [SE
 >
 > **v1.0.0-beta.12**: turn intent router (skip LLM on “thanks”) + rolling **session summary** injected into agent prompts. Clear history resets it.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+> https://github.com/camronwood/neural-junkie/releases/latest
 
 ---
 
@@ -56,7 +56,7 @@ Non-developer ads from beta.11 remain valid: [NONDEV-ADS.md](NONDEV-ADS.md), [SE
 >
 > **Action tasks**: `http_get`, `http_post`, `webhook`, conditional branches, bundled templates — wire checks before specialists execute.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+> https://github.com/camronwood/neural-junkie/releases/latest
 
 ---
 
@@ -68,7 +68,7 @@ Non-developer ads from beta.11 remain valid: [NONDEV-ADS.md](NONDEV-ADS.md), [SE
 
 > **Life sciences pack** in Neural Junkie: BiologyExpert, OpenBioLLM 8B, `analyze_sequence`, ESMFold → PDB, sequence review runbook template. Toggle in Settings — research use.
 >
-> https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+> https://github.com/camronwood/neural-junkie/releases/latest
 
 ---
 
@@ -76,6 +76,6 @@ Non-developer ads from beta.11 remain valid: [NONDEV-ADS.md](NONDEV-ADS.md), [SE
 
 Neural Junkie **v1.0.0-beta.12** — **Domain packs** (dev team or lab team), **session memory** for DMs, **runbook action** steps (HTTP/webhook + templates), and **Life sciences** with BiologyExpert. Plus collab recap and sidebar polish. macOS / Windows / Linux.
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+Download: https://github.com/camronwood/neural-junkie/releases/latest
 
 Site: https://camronwood.github.io/neural-junkie/

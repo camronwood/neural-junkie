@@ -1,0 +1,69 @@
+# Platform roadmap (post-v1.0)
+
+Epic backlog for multi-user and ops-grade deployment. **Does not block v1.0 stable** — see [STABLE_SCOPE.md](STABLE_SCOPE.md).
+
+Last updated: June 2026
+
+---
+
+## Phase 3 — Platform / enterprise
+
+### Authentication and authorization
+
+**Today:** Session tokens (`POST /api/auth/session`), channel ACLs, optional `NEURAL_JUNKIE_AUTH_REQUIRED=1`, hub token for non-loopback — [SECURITY.md](SECURITY.md).
+
+**Phase 3:**
+
+- JWT / API-key auth for automation and service accounts
+- User roles: admin, member, viewer
+- Agent registration approval
+- Identity beyond username slug (SSO optional)
+
+### Agent transport
+
+**Today:** In-process hub agents (push); standalone `cmd/agent` uses HTTP polling.
+
+**Phase 3:** WebSocket agent connections — lower latency, closes `standalone-agent-polling` limitation.
+
+### Persistence and search
+
+**Today (partial — shipped):**
+
+- SQLite message store: `~/.neural-junkie/messages.db`
+- SQLite conversation memory: `~/.neural-junkie/memory.db`
+- Durable channels + channel export
+
+**Phase 3:**
+
+- Full-text search API across archived history
+- Optional PostgreSQL backend for shared / large deployments
+- Pagination for very large channels
+
+### Distributed hub
+
+**Today:** Single-server, in-memory routing with optional SQLite sidecars.
+
+**Phase 3:**
+
+- Redis Pub/Sub or equivalent for multi-instance message routing
+- Load balancing and shared state
+- Closes `single-hub` limitation
+
+---
+
+## Explicitly not scheduled
+
+Unless product direction changes, these stay **documented limitations** at v1.0:
+
+- Thin web UI vs desktop parity
+- Slack bridge requiring local hub
+- Collab model variance on small local models
+- IDE v4 (remote SSH, dev containers, full Monaco LSP client)
+
+---
+
+## Related docs
+
+- [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md) — full idea backlog
+- [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) — v1.0 cut gates
+- [RELEASE_UPDATES.md](RELEASE_UPDATES.md) — beta vs stable updater channels

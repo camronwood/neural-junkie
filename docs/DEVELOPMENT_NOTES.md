@@ -167,7 +167,26 @@ make gui             # Open desktop app
 
 `make gui` / Tauri dev builds **do not** check the release updater manifest. Update checks are disabled in dev (`import.meta.env.DEV`) so you will not see a “Could not check for updates” banner. Test in-app auto-update with an installed release build from [DOWNLOAD.md](DOWNLOAD.md).
 
-## macOS notarization (deferred)
+## macOS notarization (release CI)
+
+Release CI signs and notarizes macOS builds when GitHub Actions secrets are configured:
+
+| Secret | Purpose |
+|--------|---------|
+| `APPLE_CERTIFICATE_BASE64` | Developer ID Application `.p12` (base64) |
+| `APPLE_CERTIFICATE_PASSWORD` | `.p12` export password |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Your Org (TEAMID)` |
+| `APPLE_ID` | Apple ID for notarytool |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarytool |
+| `APPLE_TEAM_ID` | Team ID |
+
+Scripts: [scripts/ci-import-apple-certificate.sh](../scripts/ci-import-apple-certificate.sh), [scripts/ci-set-macos-signing-identity.sh](../scripts/ci-set-macos-signing-identity.sh), [scripts/notarize-macos-artifacts.sh](../scripts/notarize-macos-artifacts.sh).
+
+Without these secrets, CI falls back to ad-hoc signing (`signingIdentity: "-"`). Local dev builds always use ad-hoc signing.
+
+**Verify on a beta tag before v1.0.0 stable:** install the `.dmg` on a clean Mac without Right-click → Open.
+
+## macOS notarization (local / deferred notes)
 
 Release CI currently produces **ad-hoc signed** `.dmg` files (`tauri.conf.json` `signingIdentity: "-"`). Gatekeeper may require **Right-click → Open** on first launch.
 

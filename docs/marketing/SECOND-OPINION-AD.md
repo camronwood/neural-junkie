@@ -2,7 +2,7 @@
 
 **Audience:** People who already use more than one AI (ChatGPT, Claude, Gemini, etc.) and sometimes paste the same question into a second chat to sanity-check the first answer — **not** developers looking for code review.
 
-**Canonical download:** https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+**Canonical download:** https://github.com/camronwood/neural-junkie/releases/latest
 
 **Regenerate graphic:**
 
@@ -34,7 +34,7 @@ Sub: Ask one expert. Have another check the answer — no new browser tab.
 >
 > Writing, travel, money, research — custom experts in one desktop.
 >
-> Open source beta: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+> Open source beta: https://github.com/camronwood/neural-junkie/releases/latest
 
 ---
 
@@ -48,7 +48,7 @@ Sub: Ask one expert. Have another check the answer — no new browser tab.
 >
 > Bigger decisions? `/collaborate` adds a structured team discussion and your approval before anything runs — still no codebase required.
 >
-> Beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+> Beta (macOS / Windows / Linux): https://github.com/camronwood/neural-junkie/releases/latest
 
 ---
 

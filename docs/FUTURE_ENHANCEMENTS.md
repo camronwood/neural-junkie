@@ -2,7 +2,7 @@
 
 Planned improvements and feature ideas for Neural Junkie.
 
-Last Updated: February 2026
+Last Updated: June 2026
 
 ## Implemented (Moved from Previous Roadmap)
 
@@ -20,23 +20,35 @@ These items from the original roadmap have been completed:
 ## High Priority
 
 ### Agent-to-WebSocket Migration
-Move agents from HTTP polling to WebSocket connections for lower latency and reduced server load.
+Move agents from HTTP polling to WebSocket connections for lower latency and reduced server load. See [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md) (Phase 3).
 
 ### Git Operations (agents)
 Hub git REST endpoints are implemented for the desktop Git modal (Software development pack). Remaining work: agent-initiated git operations with approval workflows from chat.
 
-### Authentication & Authorization
-- JWT/API key auth for all endpoints
-- Channel-level access control
+### Authentication & Authorization (Phase 3 — automation / multi-user)
+
+**Shipped for v1.0 (local-first):**
+- Session tokens (`POST /api/auth/session`) and channel ACLs — [SECURITY.md](SECURITY.md)
+- Optional strict mode: `NEURAL_JUNKIE_AUTH_REQUIRED=1`
+- Hub token for non-loopback: `NEURAL_JUNKIE_HUB_TOKEN`
+- Settings → **Security** hub status panel
+
+**Phase 3 backlog:**
+- JWT/API key auth for automation and service accounts
 - User roles (admin, member, viewer)
 - Agent registration approval
 
-### Database Persistence
-Replace in-memory message storage with a database backend:
-- PostgreSQL or SQLite for message history
-- Survive server restarts
-- Searchable message archive
-- Pagination for large histories
+### Database Persistence (partially shipped)
+
+**Shipped:**
+- SQLite message store (`~/.neural-junkie/messages.db`)
+- SQLite conversation memory (`~/.neural-junkie/memory.db`)
+- Durable channels + channel history export
+
+**Phase 2–3 follow-ups:**
+- Full-text in-app search across archived history
+- Optional PostgreSQL for shared deployments
+- Pagination for very large channels
 
 ## Medium Priority
 
@@ -57,6 +69,14 @@ Collaboration is implemented. Future improvements can focus on:
 - Smarter dynamic task rebalancing during execution
 - Better cross-collaboration dependency management
 - Optional voting strategies beyond current consensus heuristics
+
+### Adaptive orchestration (reference)
+See [ADAPTIVE-ORCHESTRATION-NOTES.md](ADAPTIVE-ORCHESTRATION-NOTES.md) — maps external “adaptive intelligence” / per-request routing framing to the Context Stack and collab mesh.
+
+Possible follow-ups (not scheduled):
+- **Unified knowledge router** — classify question shape → conversation memory vs codebase vs collab graph vs prior-reference (today split across subsystems)
+- **Per-turn routing trace** — dev overlay or debug panel: intent, tier, retrieval mode, governance gates (data largely exists in logs and debug endpoints)
+- **Scenario archetype demos** — “seven paths” narrative for marketing/onboarding (closure / memory / code / delegation / collab light / collab deep)
 
 ### Rate Limiting & Cost Management
 - Per-agent API cost tracking

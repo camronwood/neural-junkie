@@ -1,5 +1,7 @@
 # IDE v3 (Cursor-like coding in main chat)
 
+**Status:** General availability in v1.1 — Ask/Agent routing, @codebase, and IDE layout are supported for daily use. v4 (remote SSH, full Monaco LSP) remains deferred.
+
 IDE v3 routes **software-development** work through the **main channel chat** when using the **IDE layout preset** — no separate editor agent panel. Requires the **Software development** pack (see [IDE_V2.md](IDE_V2.md) for symbols, LSP, inline completion).
 
 ## Layout modes

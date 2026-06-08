@@ -1,4 +1,4 @@
-# Download and first run (v1.0.0-beta.32)
+# Download and first run (v1.0.0-beta.33)
 
 Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases) — no Go, Node, or Rust required for the desktop app.
 
@@ -13,7 +13,9 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 | Windows | `.msi` or setup `.exe` |
 | Linux | `.deb` (x86_64) |
 
-**macOS:** Builds are ad-hoc signed but not notarized. If Gatekeeper blocks the app, right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
+**macOS:** Official GitHub Release builds are **Developer ID signed and notarized** when Apple CI secrets are configured. Local builds from source use ad-hoc signing — if Gatekeeper blocks, right-click → **Open**.
+
+**Linux:** Stable releases ship **`.deb`** (x86_64). AppImage is not published on the download page (CI may build it best-effort on beta tags only).
 
 **Ollama:** **macOS** installers bundle the Ollama runtime. **Windows** and **Linux** use slim installers — the setup wizard **auto-installs Ollama** on first launch (internet required; Linux may prompt for password). All platforms need a **one-time model pull** on first run (internet required once). Cloud APIs remain optional in the wizard.
 

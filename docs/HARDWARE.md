@@ -1,6 +1,6 @@
 # Hardware requirements
 
-**Last updated:** June 2026 · **Current beta:** [v1.0.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32)
+**Last updated:** June 2026 · **Current beta:** [v1.0.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33)
 
 Neural Junkie is lightweight as an **app**; the hardware story is about **models**, **concurrency**, and what you expect local agents to do. This doc is the authoritative reference for disk, RAM, and tiered model choices. The setup wizard and **Settings → AI Providers** use the same tiers via `GET /api/system/hardware`.
 
@@ -112,10 +112,10 @@ See [USER_VALUE_GUIDE.md](USER_VALUE_GUIDE.md).
 
 | Platform | Installer | Notes |
 |----------|-----------|-------|
-| macOS Apple Silicon | `.dmg` (`aarch64`) | Ad-hoc signed, not notarized — Right-click → Open |
-| macOS Intel | `.dmg` (`x64`) | Same Gatekeeper note |
-| Windows | `.msi` / `.exe` | Slim build — wizard **Install Ollama** (beta.32+) |
-| Linux | `.deb` | Slim build — wizard **Install Ollama** |
+| macOS Apple Silicon | `.dmg` (`aarch64`) | Developer ID signed + notarized when CI secrets configured |
+| macOS Intel | `.dmg` (`x64`) | Same as Apple Silicon |
+| Windows | `.msi` / `.exe` | Slim build — wizard **Install Ollama** |
+| Linux | `.deb` | Slim build — wizard **Install Ollama**; AppImage not on stable download page |
 
 Full install table: [DOWNLOAD.md](DOWNLOAD.md).
 
@@ -132,7 +132,6 @@ Public tracker: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) · [known-issues.html](known-
 | `collab-model-variance` | Local models vary in collaboration quality and timeouts |
 | `lmstudio-tools` | MCP tool calling strongest on Ollama and Claude |
 | `single-hub` | Single-server — no horizontal scale |
-| `macos-notarized` | Gatekeeper may block first launch |
 | `web-ui-thin` | Browser hub UI is chat-only — use desktop for full workspace |
 
 ---

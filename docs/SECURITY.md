@@ -31,6 +31,8 @@ Strict mode (always require session for mutations):
 export NEURAL_JUNKIE_AUTH_REQUIRED=1
 ```
 
+**Desktop:** Settings → **Security** shows hub token, strict auth, and listen-all status (`GET /api/system/security`).
+
 ## Rate limiting
 
 Default: **300 GET** / **120 mutating** requests per minute per client key (IP, session, or hub token).

@@ -2,9 +2,9 @@
 
 **Last Updated:** June 2026
 
-## Current State: Active Development (Open Beta)
+## Current State: Open Beta → Stable (v1.0)
 
-Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.0.0-beta.23](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.23).
+Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.0.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
 
 **Marketing site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 
@@ -92,8 +92,8 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **Session auth** — Optional `NEURAL_JUNKIE_AUTH_REQUIRED=1`; see [SECURITY.md](SECURITY.md)
 - **Domain packs** — Multiple packs can be enabled; first enabled pack owns UI layout
 - **Collaboration variance** — Local models vary in plan quality; see known issues for active scenario gaps
-- **IDE v2/v3** — Beta; see [IDE_V2.md](IDE_V2.md) / [IDE_V3.md](IDE_V3.md)
-- **macOS** — Ad-hoc signed, not notarized
+- **IDE v3** — Cursor-like Ask/Agent routing in IDE layout; see [IDE_V3.md](IDE_V3.md)
+- **macOS releases** — Developer ID signed + notarized when Apple CI secrets are configured; local dev builds remain ad-hoc
 
 ## Documentation
 

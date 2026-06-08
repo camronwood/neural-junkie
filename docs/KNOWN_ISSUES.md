@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-08 · **Current beta:** [v1.0.0-beta.32](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.32)
+**Last updated:** 2026-06-08 · **Current beta:** [v1.0.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -45,7 +45,6 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 |----|--------|---------|
 | `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
 | `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
-| `ide-v3-beta` | **Limitation** | IDE v2/v3 layout, diagnostics, and Ask/Agent routing are **beta** — see [IDE_V2.md](IDE_V2.md) / [IDE_V3.md](IDE_V3.md). |
 
 ---
 
@@ -56,7 +55,6 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `single-hub` | **Limitation** | **Single-server** deployment — no horizontal scale or multi-region hub. |
 | `standalone-agent-polling` | **Limitation** | `cmd/agent` processes use **HTTP polling**; in-process hub agents get push delivery (lower latency). |
 | `lmstudio-tools` | **Limitation** | MCP tool calling is strongest on **Ollama** (selected flows) and **Claude**; LM Studio / generic OpenAI-compat tool use is limited. |
-| `macos-notarized` | **Limitation** | macOS builds are **ad-hoc signed**, not notarized — use **Right-click → Open** if Gatekeeper blocks the first launch. See [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md) for notarization follow-up. |
 
 ---
 

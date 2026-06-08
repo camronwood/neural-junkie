@@ -2,7 +2,7 @@
 
 **Canonical download link (use in every post):**
 
-https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+https://github.com/camronwood/neural-junkie/releases/latest
 
 **Site:** https://camronwood.github.io/neural-junkie/
 
@@ -18,7 +18,7 @@ https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
 
 Neural Junkie v1.0.0-beta.12 — **Domain packs**: Software dev specialists (Go, React, Rust, MCP) or **Life sciences** (BiologyExpert, sequences, ESMFold). **Session memory** for DMs, **runbook action** steps (HTTP/webhook + templates). macOS / Windows / Linux installers.
 
-Download: https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.12
+Download: https://github.com/camronwood/neural-junkie/releases/latest
 
 **Ads:** `docs/marketing/BETA12-ADS.md` · `./scripts/compose-beta12-ads.sh all`
 

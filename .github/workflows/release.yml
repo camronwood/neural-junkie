@@ -39,7 +39,7 @@ jobs:
 
             **Auto-update:** Installed builds from this release (and later) check for updates in-app. Beta builds use the beta channel; stable builds use the stable channel. One manual install is required if you are upgrading from a build that predates in-app updates.
 
-            **macOS:** Builds are ad-hoc signed but not notarized; first launch may still require right-click → **Open**, or allow in **System Settings → Privacy & Security**.
+            **macOS:** Official release builds are **Developer ID signed and notarized** when Apple CI secrets are configured. Without those secrets, builds are ad-hoc signed — first launch may require right-click → **Open**.
 
             **Ollama:** macOS bundles the runtime. Windows and Linux use slim installers — setup wizard auto-installs Ollama on first launch (internet required). All platforms need a one-time model pull. Cloud APIs remain optional.
 
@@ -81,6 +81,18 @@ jobs:
       - name: Prepare release build config
         run: chmod +x scripts/ci-prepare-release-build.sh && ./scripts/ci-prepare-release-build.sh "${{ github.ref_name }}"
 
+      - name: Import Apple Developer certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: chmod +x scripts/ci-import-apple-certificate.sh && ./scripts/ci-import-apple-certificate.sh
+
+      - name: Configure macOS code signing
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: chmod +x scripts/ci-set-macos-signing-identity.sh && ./scripts/ci-set-macos-signing-identity.sh
+
       - name: Cross-compile Go server
         run: |
           mkdir -p desktop/src-tauri/binaries
@@ -101,12 +113,32 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx tauri build --target aarch64-apple-darwin
+
+      - name: Notarize Apple Silicon artifacts
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          chmod +x scripts/notarize-macos-artifacts.sh
+          shopt -s nullglob
+          apps=(desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app)
+          dmgs=(desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
+          if [[ ${#apps[@]} -gt 0 || ${#dmgs[@]} -gt 0 ]]; then
+            ./scripts/notarize-macos-artifacts.sh "${apps[@]}" "${dmgs[@]}"
+          fi
 
       - name: Verify Apple Silicon updater artifacts
         run: bash scripts/verify-updater-artifacts.sh macos-aarch64 desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos
 
       - name: Verify Apple Silicon app signature
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app
 
       - name: Prepare Apple Silicon updater upload names
@@ -128,12 +160,32 @@ jobs:
         env:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx tauri build --target x86_64-apple-darwin
+
+      - name: Notarize Intel artifacts
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          chmod +x scripts/notarize-macos-artifacts.sh
+          shopt -s nullglob
+          apps=(desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app)
+          dmgs=(desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg)
+          if [[ ${#apps[@]} -gt 0 || ${#dmgs[@]} -gt 0 ]]; then
+            ./scripts/notarize-macos-artifacts.sh "${apps[@]}" "${dmgs[@]}"
+          fi
 
       - name: Verify Intel updater artifacts
         run: bash scripts/verify-updater-artifacts.sh macos-x86_64 desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos
 
       - name: Verify Intel macOS app signature
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: bash scripts/verify-macos-bundle-signature.sh desktop/src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app
 
       - name: Prepare Intel updater upload names

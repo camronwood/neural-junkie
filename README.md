@@ -107,7 +107,7 @@ Integrated **Files** tree and **Code Editor** alongside chat for repo-aware work
 
 The Go hub is bundled as a Tauri sidecar — you do **not** need Go installed to run the desktop app.
 
-**macOS:** Builds are ad-hoc signed but not notarized; use **Right-click → Open** the first time if Gatekeeper warns.
+**macOS:** GitHub Release builds are Developer ID signed and notarized when CI secrets are configured. Source/local builds may require **Right-click → Open** the first time if Gatekeeper warns.
 
 **Ollama:** Installers bundle the Ollama runtime on macOS, Windows, and Linux. First run pulls a default model once (internet required that one time). Cloud APIs remain optional in the wizard.
 
@@ -291,6 +291,9 @@ Full index: **[DOCS.md](DOCS.md)** (`make docs` prints the same file).
 | **[User Value Guide](docs/USER_VALUE_GUIDE.md)** | Product-oriented overview of what the app is, why it matters, and how to get value fast |
 | **[Development Notes](docs/DEVELOPMENT_NOTES.md)** | Internal layout, design decisions, contributor-focused notes |
 | **[Status](docs/STATUS.md)** | Current project status |
+| **[Stable scope](docs/STABLE_SCOPE.md)** | v1.0 in/out of scope |
+| **[Stable release checklist](docs/STABLE_RELEASE_CHECKLIST.md)** | Gates before tagging v1.0.0 |
+| **[Platform roadmap](docs/PLATFORM_ROADMAP.md)** | Post-v1.0 enterprise backlog |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
 
 ## Make Targets

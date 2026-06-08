@@ -38,7 +38,7 @@
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
         Remaining entries are intentional limitations. Several UX gaps were closed in the limitations sprint (layout owner picker, workspace gate banners, pause abort, channel export).
-        Last updated <time datetime="2026-06-08">June 8, 2026</time> (post–beta.32 limitations sprint).
+        Last updated <time datetime="2026-06-08">June 8, 2026</time> (beta.33; stable checklist in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>).
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -135,12 +135,6 @@
           <strong>Git requires dev pack</strong>
           <p>In-app Git needs the Software development pack, <code>git</code> on PATH, and a git workspace.</p>
         </li>
-        <!-- ISSUE: ide-v3-beta -->
-        <li class="issue-item" id="ide-v3-beta">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>IDE v2/v3 beta</strong>
-          <p>Layout presets, diagnostics, and Ask/Agent routing are evolving. <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V3.md">IDE_V3.md</a></p>
-        </li>
       </ul>
 
       <h2 id="hub-providers">Hub, agents &amp; providers</h2>
@@ -162,12 +156,6 @@
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>Tool calling varies by provider</strong>
           <p>MCP tools are best supported on Ollama (selected flows) and Claude; LM Studio / generic OpenAI-compat is limited.</p>
-        </li>
-        <!-- ISSUE: macos-notarized -->
-        <li class="issue-item" id="macos-notarized">
-          <span class="issue-badge issue-badge--limitation">Limitation</span>
-          <strong>macOS Gatekeeper</strong>
-          <p>Builds are ad-hoc signed, not notarized — use <strong>Right-click → Open</strong> on first launch if blocked.</p>
         </li>
       </ul>
 

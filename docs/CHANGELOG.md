@@ -6,7 +6,20 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-## [1.0.0-beta.33] - 2026-06-08
+### Added
+- **Stable release infrastructure** — macOS notarization CI, [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [STABLE_SCOPE.md](STABLE_SCOPE.md), [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md), `scripts/cut-stable-release.sh`.
+- **Settings → Security** — hub security status (`GET /api/system/security`).
+
+### Changed
+- **IDE v3 GA** — removed beta limitation from known issues; [IDE_V3.md](IDE_V3.md) updated.
+- **Docs sync** — STATUS, download links, marketing URLs → beta.33 / releases/latest.
+
+## [1.0.0] - TBD (stable channel)
+
+First **stable** release on the stable updater channel. Scope: [STABLE_SCOPE.md](STABLE_SCOPE.md). Cut procedure: [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and `./scripts/cut-stable-release.sh --execute`.
+
+Includes everything in **1.0.0-beta.33** plus notarized macOS builds (when Apple CI secrets are configured).
+
 
 ### Added
 - **Cursor-like composer** — Ask / Agent / Export modes on all channels with unified send pipeline and turn-intent metadata routing.
