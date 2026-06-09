@@ -21,6 +21,8 @@ func TestClassifyConversationalClosure(t *testing.T) {
 		{"how far to STL?", ClosureNone},
 		{"thanks but can you also check distance?", ClosureNone},
 		{"I know you said that already — what about traffic?", ClosureNone},
+		{"thanks — one more thing: how would you structure the theme?", ClosureNone},
+		{"One more thing — where should the theme toggle live in the settings UI?", ClosureNone},
 	}
 	for _, tc := range cases {
 		got := classifyConversationalClosure(tc.in)

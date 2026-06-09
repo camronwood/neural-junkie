@@ -30,6 +30,44 @@ DEFAULT_AGENT = "Assistant"
 DEFAULT_FROM = "ChatScenario"
 
 
+def _language_for_path(path: str) -> str:
+    ext = Path(path).suffix.lower()
+    return {
+        ".go": "go",
+        ".ts": "typescript",
+        ".tsx": "typescriptreact",
+        ".js": "javascript",
+        ".jsx": "javascriptreact",
+        ".py": "python",
+        ".md": "markdown",
+    }.get(ext, "text")
+
+
+def _load_open_files(workspace_root: Path, rel_paths: list, *, active: str | None = None) -> list[dict]:
+    active_rel = (active or (rel_paths[0] if rel_paths else "")).strip()
+    out: list[dict] = []
+    for rel in rel_paths:
+        rel = str(rel).strip()
+        if not rel:
+            continue
+        full = (workspace_root / rel).resolve()
+        content = ""
+        if full.is_file():
+            try:
+                content = full.read_text(encoding="utf-8", errors="replace")[:10000]
+            except OSError:
+                content = ""
+        out.append(
+            {
+                "path": str(full),
+                "language": _language_for_path(rel),
+                "content": content,
+                "is_active": rel == active_rel or (not active_rel and len(out) == 0),
+            }
+        )
+    return out
+
+
 def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
     """Mirror desktop sends: context_scope without workspace_context cannot trigger visibility replies."""
     if not meta:
@@ -43,11 +81,17 @@ def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
     fixture = (ws_cfg.get("fixture") or scenario.get("workspace_fixture") or "").strip()
     if fixture:
         root = str((ROOT / "scenarios" / "fixtures" / fixture).resolve())
+    open_rel = ws_cfg.get("open_files") or []
+    open_files = (
+        _load_open_files(Path(root), open_rel, active=(open_rel[0] if open_rel else None))
+        if open_rel
+        else []
+    )
     out["workspace_context"] = {
         "workspace_name": Path(root).name,
         "workspace_path": root,
         "file_tree": ws_cfg.get("file_tree") or "desktop/\ninternal/\ncmd/\n",
-        "open_files": ws_cfg.get("open_files") or [],
+        "open_files": open_files,
     }
     return out
 
@@ -148,19 +192,94 @@ def step_send(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     return True, content[:80] + ("…" if len(content) > 80 else "")
 
 
+def _last_agent_chat_message(ctx: ChatScenarioContext, from_agent: str) -> dict | None:
+    want = from_agent.strip().lstrip("@")
+    msgs = hub.chat_agent_messages(hub.list_messages(ctx.base, ctx.channel, 200))
+    agent_msgs = [m for m in msgs if (m.get("from") or {}).get("name") == want]
+    return agent_msgs[-1] if agent_msgs else None
+
+
+def _is_generation_error_reply(msg: dict | None) -> bool:
+    if not msg:
+        return False
+    body = (msg.get("content") or "").lower()
+    if "encountered an error while generating" in body or "provider_error" in body:
+        return True
+    if "workspace root not set" in body:
+        return True
+    if "implementation session finished" in body and "error" in body:
+        return True
+    return False
+
+
 def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     from_agent = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     timeout = hub.parse_timeout(step.get("timeout", 90))
     baseline = int(step.get("baseline", ctx.baseline_agent_count))
     max_new = int(step.get("max_new", 1))
-    return hub.wait_chat_reply(
-        ctx.base,
-        ctx.channel,
-        from_agent=from_agent,
-        baseline_count=baseline,
-        timeout=timeout,
-        max_new=max_new,
-    )
+    retries = max(0, int(step.get("retries", 0)))
+    resend_on_error = bool(step.get("resend_on_generation_error"))
+
+    for attempt in range(retries + 1):
+        ok, detail = hub.wait_chat_reply(
+            ctx.base,
+            ctx.channel,
+            from_agent=from_agent,
+            baseline_count=baseline,
+            timeout=timeout,
+            max_new=max_new,
+            detect_failures=True,
+        )
+        if not ok:
+            if attempt < retries and (
+                "failure" in detail.lower() or "timeout" in detail.lower()
+            ):
+                if resend_on_error and step.get("resend_content"):
+                    ctx.log(f"  wait_reply: {detail}; re-sending user message")
+                    hub.send_message(
+                        ctx.base,
+                        ctx.channel,
+                        str(step.get("resend_content")),
+                        metadata=enrich_send_metadata(step.get("resend_metadata"), ctx.scenario),
+                        from_name=(step.get("resend_from") or DEFAULT_FROM).strip(),
+                        max_retries=5,
+                    )
+                    baseline = hub.count_chat_agent_messages(
+                        hub.list_messages(ctx.base, ctx.channel, 200),
+                        from_agent,
+                    )
+                    time.sleep(3)
+                    continue
+                ctx.log(f"  wait_reply attempt {attempt + 1}: {detail}; retrying")
+                time.sleep(3)
+                continue
+            return ok, detail
+        last = _last_agent_chat_message(ctx, from_agent)
+        if _is_generation_error_reply(last):
+            if attempt < retries and resend_on_error and step.get("resend_content"):
+                ctx.log("  wait_reply got generation_error; re-sending user message")
+                hub.send_message(
+                    ctx.base,
+                    ctx.channel,
+                    str(step.get("resend_content")),
+                    metadata=enrich_send_metadata(step.get("resend_metadata"), ctx.scenario),
+                    from_name=(step.get("resend_from") or DEFAULT_FROM).strip(),
+                    max_retries=5,
+                )
+                baseline = hub.count_chat_agent_messages(
+                    hub.list_messages(ctx.base, ctx.channel, 200),
+                    from_agent,
+                )
+                time.sleep(2)
+                continue
+            if attempt < retries:
+                ctx.log("  wait_reply got generation_error; retrying poll")
+                time.sleep(3)
+                continue
+            return False, "agent returned generation_error reply"
+        suffix = f" (after retry {attempt})" if attempt else ""
+        return True, detail + suffix
+    return False, "wait_reply exhausted retries"
 
 
 def step_assert_messages(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
@@ -198,11 +317,58 @@ def step_assert_reply_count(ctx: ChatScenarioContext, step: dict) -> tuple[bool,
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
     from_agent = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     total = hub.count_chat_agent_messages(msgs, from_agent)
-    since = total - ctx.start_agent_count
+    baseline = int(step.get("baseline", ctx.baseline_agent_count if step.get("since_baseline") else ctx.start_agent_count))
+    since = total - baseline
     want = int(step.get("count", step.get("since_start", 1)))
+    label = "since baseline" if step.get("since_baseline") else "since start"
     if since != want:
-        return False, f"reply count since start: got {since} want {want} (total={total})"
-    return True, f"reply count since start={since}"
+        return False, f"reply count {label}: got {since} want {want} (total={total})"
+    return True, f"reply count {label}={since}"
+
+
+def step_channel_interject(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
+    held_by = (step.get("held_by") or DEFAULT_FROM).strip()
+    retries = max(0, int(step.get("retries", 0)))
+    for attempt in range(retries + 1):
+        ok, detail = hub.channel_interject(ctx.base, ctx.channel, held_by=held_by)
+        if ok:
+            ctx.baseline_agent_count = hub.count_chat_agent_messages(
+                hub.list_messages(ctx.base, ctx.channel, 200),
+                ctx.target_agent,
+            )
+            suffix = f" (retry {attempt})" if attempt else ""
+            return True, detail + suffix
+        if attempt < retries:
+            ctx.log(f"  interject attempt {attempt + 1} failed; retrying: {detail}")
+            time.sleep(2)
+    return False, detail
+
+
+def step_wait_no_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
+    from_agent = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    duration = hub.parse_timeout(step.get("duration", step.get("timeout", 8)))
+    baseline = int(step.get("baseline", ctx.baseline_agent_count))
+    retries = max(0, int(step.get("retries", 0)))
+    reinterject = bool(step.get("reinterject_on_retry"))
+
+    for attempt in range(retries + 1):
+        ok, detail = hub.wait_no_new_chat_replies(
+            ctx.base,
+            ctx.channel,
+            from_agent=from_agent,
+            baseline_count=baseline,
+            duration=duration,
+        )
+        if ok:
+            suffix = f" (after retry {attempt})" if attempt else ""
+            return True, detail + suffix
+        if attempt < retries:
+            ctx.log(f"  wait_no_reply attempt {attempt + 1} failed; retrying\n  {detail}")
+            if reinterject:
+                hub.channel_interject(ctx.base, ctx.channel, held_by=DEFAULT_FROM)
+            time.sleep(2)
+            continue
+    return False, detail
 
 
 def step_assert_suggested_commands(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
@@ -282,6 +448,8 @@ def run_step(ctx: ChatScenarioContext, step: dict, label: str) -> bool:
     handlers = {
         "send": step_send,
         "wait_reply": step_wait_reply,
+        "channel_interject": step_channel_interject,
+        "wait_no_reply": step_wait_no_reply,
         "assert_messages": step_assert_messages,
         "assert_reply_count": step_assert_reply_count,
         "assert_suggested_commands": step_assert_suggested_commands,

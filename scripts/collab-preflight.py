@@ -25,7 +25,7 @@ DEFAULT_ROSTER = [
     "PlatformEngineer",
 ]
 GEMINI_SCENARIOS = ("resource-api-schema-planning",)
-EXPECTED_SCENARIO_COUNT = 18
+EXPECTED_SCENARIO_COUNT = 21
 HUB_LOG = Path("/tmp/nj-hub.log")
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 

@@ -27,6 +27,18 @@ func TestExtractTasksFromCollaborationGoal_distinctDeliverables(t *testing.T) {
 	}
 }
 
+func TestExtractTasksFromCollaborationGoal_compoundInlineTasks(t *testing.T) {
+	goal := "Use exactly: - Task 1: @SoftwareArchitect - Write collabs/<id>/design.md. - Task 2: @BackendEngineer - Write collabs/<id>/filter.go."
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	tasks := ExtractTasksFromCollaborationGoal(goal, "abc-123", agents)
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks, got %d: %#v", len(tasks), taskTitles(tasks))
+	}
+}
+
 func TestExtractTasksFromCollaborationGoal_fileAssigneeList(t *testing.T) {
 	goal := "Produce a short plan with exactly three file tasks under collabs/<id>/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@PlatformEngineer)."
 	agents := []CollaborationAgent{

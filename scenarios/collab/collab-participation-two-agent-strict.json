@@ -1,0 +1,36 @@
+{
+  "name": "collab-participation-two-agent-strict",
+  "description": "Both pinned agents must contribute at least one planning discussion message before reviewing.",
+  "tags": ["collab", "conversation", "regression", "participation"],
+  "channel": "collab-scenarios",
+  "agents": "@SoftwareArchitect @BackendEngineer",
+  "required_agents": ["SoftwareArchitect", "BackendEngineer"],
+  "collaborate": {
+    "flags": ["--rounds", "2", "--messages", "4"],
+    "goal": "@SoftwareArchitect @BackendEngineer Design a tiny CLI log filter. Reply with ONLY these two lines (no other agents): - Task 1: @SoftwareArchitect - Write collabs/<id>/design.md with API outline. - Task 2: @BackendEngineer - Write collabs/<id>/filter.go implementing the core filter."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {
+      "action": "wait_discussion",
+      "min_total": 2,
+      "min_per_agent": 1,
+      "required_agents": ["SoftwareArchitect", "BackendEngineer"],
+      "timeout": "180s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 2,
+      "title_none_match": ["task is to ", "should perform ", "review will "]
+    },
+    {
+      "action": "assert_messages",
+      "deny_json_discussion": true,
+      "none_match": ["Grounding: I loaded"]
+    },
+    {"action": "assert_collab", "phase": "reviewing"}
+  ],
+  "cleanup": "cancel"
+}

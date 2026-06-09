@@ -63,3 +63,22 @@ func TestSelectRecapFacilitator_PrefersAssistantForFinal(t *testing.T) {
 		t.Fatalf("final recap facilitator = %q, want Assistant (as)", id)
 	}
 }
+
+func TestSelectRecapFacilitator_PrefersAssistantForPreApproval(t *testing.T) {
+	c := &Collaboration{
+		Agents: []CollaborationAgent{
+			{AgentID: "as", AgentName: "Assistant"},
+			{AgentID: "be", AgentName: "BackendEngineer"},
+		},
+		PlanningDiscussion: &DiscussionSession{
+			Messages: []*protocol.Message{
+				protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "ch",
+					protocol.AgentInfo{ID: "be", Name: "BackendEngineer"}, "last word"),
+			},
+		},
+	}
+	id := SelectRecapFacilitator(c, RecapKindPreApproval)
+	if id != "as" {
+		t.Fatalf("pre-approval recap facilitator = %q, want Assistant (as)", id)
+	}
+}

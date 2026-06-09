@@ -18,6 +18,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` |
 | Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
 | **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (≥4/5 PASS) |
+| Conversation routing + collab wiring | Agent intent/closure, hub DM/collab, desktop chat UI | `make test-conversation-contract` |
 
 See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORATION.md).
 
@@ -58,7 +59,7 @@ make test-regression-bundle
 | Tier | When | Commands |
 |------|------|----------|
 | **CI** | Every push/PR to `main` | `make test-all` (GitHub Actions [`.github/workflows/test.yml`](../.github/workflows/test.yml)) |
-| **Smoke** | Local dev, no LLM | `make collab-smoke`, `make test-collab-plan`, `make test-scenario-assert`, `make learning-lora-smoke`, `./scripts/mcp-smoke.sh`, `make slack-smoke` |
+| **Smoke** | Local dev, no LLM | `make test-conversation-contract`, `make collab-smoke`, `make test-collab-plan`, `make test-scenario-assert`, `make learning-lora-smoke`, `./scripts/mcp-smoke.sh`, `make slack-smoke` |
 | **Live regression** | Pre-release / beta | Checklist below |
 
 ## CI vs live: what each tier proves
@@ -81,7 +82,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen2.5:7b`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
-5. **`make test-regression-bundle`** — implement (7/7) + `chat-scenarios-regression` + `conversation-scenarios-regression`; log under `docs/testing/regression-bundle-*.log`
+5. **`make test-regression-bundle`** — implement (7/7) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`
 6. Optional: **`make test-parity-stable-restart`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)
 7. `make chat-scenarios-debug`
 8. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.

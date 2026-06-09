@@ -1,0 +1,36 @@
+{
+  "name": "collab-participation-three-agent",
+  "description": "Assistant, BackendEngineer, and SoftwareArchitect must each speak during planning.",
+  "tags": ["collab", "conversation", "regression", "participation"],
+  "channel": "collab-scenarios",
+  "agents": "@Assistant @BackendEngineer @SoftwareArchitect",
+  "required_agents": ["Assistant", "BackendEngineer", "SoftwareArchitect"],
+  "collaborate": {
+    "flags": ["--rounds", "2", "--messages", "5"],
+    "goal": "@Assistant @BackendEngineer @SoftwareArchitect Plan a minimal health-check HTTP service. End with exactly these three lines: - Task 1: @Assistant - Write collabs/<id>/requirements.md. - Task 2: @BackendEngineer - Write collabs/<id>/handler.go. - Task 3: @SoftwareArchitect - Write collabs/<id>/architecture.md."
+  },
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 25},
+    {
+      "action": "wait_discussion",
+      "min_total": 3,
+      "min_per_agent": 1,
+      "required_agents": ["Assistant", "BackendEngineer", "SoftwareArchitect"],
+      "timeout": "240s"
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "180s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 2,
+      "tasks_have_assignee": true
+    },
+    {
+      "action": "assert_messages",
+      "deny_json_discussion": true,
+      "none_match": ["Grounding: I loaded"]
+    },
+    {"action": "assert_collab", "phase": "reviewing"}
+  ],
+  "cleanup": "cancel"
+}

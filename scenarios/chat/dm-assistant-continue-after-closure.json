@@ -1,0 +1,49 @@
+{
+  "name": "dm-assistant-continue-after-closure",
+  "description": "Assistant DM: thanks closure then a new substantive question must get a real answer, not repeated closure boilerplate.",
+  "tags": ["dm", "assistant", "closure", "continuation", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "Assistant",
+  "required_agents": ["Assistant"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "In one short paragraph: how would you add a light/dark theme toggle in a React settings page?",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "90s" },
+    {
+      "action": "send",
+      "content": "ok thanks",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    { "action": "wait_reply", "from": "Assistant", "timeout": "30s" },
+    {
+      "action": "send",
+      "content": "One more thing — where should the theme toggle live in the settings UI?",
+      "metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    {
+      "action": "wait_reply",
+      "from": "Assistant",
+      "timeout": "180s",
+      "retries": 3,
+      "resend_on_generation_error": true,
+      "resend_content": "One more thing — where should the theme toggle live in the settings UI?",
+      "resend_metadata": { "conversation_mode": "chat", "context_scope": "none" }
+    },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "Assistant",
+      "any_match": ["settings|toggle|theme|sidebar|header|preferences"],
+      "none_match": [
+        "You're welcome",
+        "anything else I can help",
+        "won't repeat"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

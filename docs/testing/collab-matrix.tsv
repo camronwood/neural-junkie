@@ -17,3 +17,6 @@ reject-collabs-subfolder	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 resource-api-schema-regression	PASS	sprint2 sweep	2026-06-07T13:50:00Z
 resource-api-schema-planning	PASS	sprint2 sweep + collab planning grounding fix	2026-06-07T22:00:00Z
 solo-vs-collab-parity	PASS	solo leg joins Assistant to channel before send	2026-06-07T22:00:00Z
+collab-participation-two-agent-strict	PASS	conversation-scenarios-regression 23/23	2026-06-09T15:30:00Z
+collab-participation-three-agent	PASS	conversation-scenarios-regression 23/23	2026-06-09T15:30:00Z
+collab-human-planning-interject	PASS	conversation-scenarios-regression 23/23	2026-06-09T15:30:00Z

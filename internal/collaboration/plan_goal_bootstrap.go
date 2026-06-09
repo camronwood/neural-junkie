@@ -22,14 +22,31 @@ func substituteCollabIDPlaceholders(text, collabID string) string {
 }
 
 func extractInlineGoalTasks(goal string, agents []CollaborationAgent) []CollaborationTask {
+	var merged []CollaborationTask
+	for _, segment := range splitCompoundTaskLine(goal) {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			continue
+		}
+		if !strings.HasPrefix(strings.ToLower(segment), "task ") && !strings.HasPrefix(segment, "-") {
+			continue
+		}
+		if tasks := ExtractTasksFromPlan("## Plan\n\n"+segment, agents); len(tasks) > 0 {
+			merged = append(merged, tasks...)
+		}
+	}
+	if len(merged) > 0 {
+		return merged
+	}
 	matches := goalInlineTaskRe.FindAllString(goal, -1)
 	if len(matches) == 0 {
 		return nil
 	}
-	var merged []CollaborationTask
 	for _, m := range matches {
-		if tasks := ExtractTasksFromPlan("## Plan\n\n"+strings.TrimSpace(m), agents); len(tasks) > 0 {
-			merged = append(merged, tasks...)
+		for _, segment := range splitCompoundTaskLine(m) {
+			if tasks := ExtractTasksFromPlan("## Plan\n\n"+strings.TrimSpace(segment), agents); len(tasks) > 0 {
+				merged = append(merged, tasks...)
+			}
 		}
 	}
 	return merged
@@ -127,11 +144,14 @@ func formatPlanContentFromTasks(tasks []CollaborationTask) string {
 // ensurePlanTasksFromGoalLocked fills plan/tasks from the collaboration goal when
 // discussion synthesis produced no executable rows. Caller must hold cm.mu.
 func (cm *CollaborationManager) ensurePlanTasksFromGoalLocked(c *Collaboration) {
-	if c == nil || len(c.Tasks) > 0 {
+	if c == nil {
 		return
 	}
 	tasks := ExtractTasksFromCollaborationGoal(c.Description, c.ID, c.Agents)
 	if len(tasks) == 0 {
+		return
+	}
+	if len(c.Tasks) > 0 && len(tasks) <= len(c.Tasks) {
 		return
 	}
 	if c.Plan == nil {

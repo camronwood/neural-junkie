@@ -107,6 +107,12 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if userRequestsCodeReview(msg.Content) {
 		return false
 	}
+	// Explicit chat-mode turns are advisory only — never enter the file-edit loop unless
+	// the client also requested implementation_session / export composer mode.
+	if ConversationModeFromMessage(msg) == ConversationModeChat &&
+		!msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
+		return false
+	}
 
 	history := a.channelHistorySafe(msg.Channel)
 	if userReferencesPriorAssistantContent(msg.Content) &&

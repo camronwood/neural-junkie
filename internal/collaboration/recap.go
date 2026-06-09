@@ -12,17 +12,16 @@ const recapDiscussionMaxMessages = 6
 const recapDiscussionMaxChars = 800
 
 // SelectRecapFacilitator returns the agent ID that should deliver a user-facing recap.
-// For pre_approval: last non-system speaker in the current (planning) discussion.
-// For final: prefer @Assistant, then last execution speaker, then planning recap agent.
+// When @Assistant is on the roster, they facilitate both pre-approval and final recaps.
+// Otherwise pre_approval uses the last planning speaker; final uses last execution speaker,
+// then the planning recap agent, then the first roster agent.
 func SelectRecapFacilitator(c *Collaboration, kind RecapKind) string {
 	if c == nil {
 		return ""
 	}
-	if kind == RecapKindFinal {
-		for _, a := range c.Agents {
-			if strings.EqualFold(a.AgentName, "Assistant") {
-				return a.AgentID
-			}
+	for _, a := range c.Agents {
+		if strings.EqualFold(a.AgentName, "Assistant") {
+			return a.AgentID
 		}
 	}
 	disc := c.Discussion

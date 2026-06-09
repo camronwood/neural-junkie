@@ -37,6 +37,8 @@ def hub_request(
     method: str,
     path: str,
     body: dict | None = None,
+    *,
+    max_retries: int = 3,
 ) -> tuple[int, Any]:
     url = f"{base.rstrip('/')}{path}"
     data = None
@@ -44,20 +46,33 @@ def hub_request(
     if body is not None:
         data = json.dumps(body).encode()
         headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            raw = resp.read().decode()
-            if resp.status == 204 or not raw.strip():
-                return resp.status, None
-            return resp.status, json.loads(raw)
-    except urllib.error.HTTPError as e:
-        raw = e.read().decode()
+    last_err: Exception | None = None
+    for attempt in range(max_retries):
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            parsed = json.loads(raw) if raw.strip() else raw
-        except json.JSONDecodeError:
-            parsed = raw
-        return e.code, parsed
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                raw = resp.read().decode()
+                if resp.status == 204 or not raw.strip():
+                    return resp.status, None
+                return resp.status, json.loads(raw)
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode()
+            try:
+                parsed = json.loads(raw) if raw.strip() else raw
+            except json.JSONDecodeError:
+                parsed = raw
+            if e.code in (429, 500, 502, 503, 504) and attempt + 1 < max_retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            return e.code, parsed
+        except (urllib.error.URLError, TimeoutError) as e:
+            last_err = e
+            if attempt + 1 < max_retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+    if last_err is not None:
+        return 0, str(last_err)
+    return 0, "request failed"
 
 
 def check_health(base: str) -> dict | None:
@@ -384,6 +399,26 @@ def count_chat_agent_messages(messages: list[dict], from_agent: str | None = Non
     return sum(1 for m in pool if (m.get("from") or {}).get("name") == want)
 
 
+def is_agent_failure_message(msg: dict) -> bool:
+    """True for system_info or chat rows that report generation/timeout failures."""
+    if not isinstance(msg, dict):
+        return False
+    body = (msg.get("content") or "").lower()
+    if not body:
+        return False
+    markers = (
+        "encountered an error while generating",
+        "timed out before completion",
+        "provider_error",
+        "try again",
+    )
+    if msg.get("type") == "system_info":
+        return any(m in body for m in markers[:3])
+    if msg.get("type") in CHAT_REPLY_TYPES:
+        return markers[0] in body
+    return False
+
+
 def wait_chat_reply(
     base: str,
     channel: str,
@@ -392,6 +427,7 @@ def wait_chat_reply(
     baseline_count: int,
     timeout: float,
     max_new: int = 1,
+    detect_failures: bool = False,
 ) -> tuple[bool, str]:
     """Poll until from_agent posts max_new chat/answer messages above baseline_count."""
     want = from_agent.strip().lstrip("@")
@@ -402,10 +438,65 @@ def wait_chat_reply(
         agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == want]
         new_count = len(agent_msgs) - baseline_count
         if new_count >= max_new:
-            return True, f"{want} replied ({new_count} new)"
+            last = agent_msgs[-1]
+            if is_agent_failure_message(last):
+                if detect_failures:
+                    return False, f"@{want} returned failure reply"
+            else:
+                return True, f"{want} replied ({new_count} new)"
+        if detect_failures:
+            failures = [
+                m
+                for m in msgs
+                if (m.get("from") or {}).get("name") == want and is_agent_failure_message(m)
+            ]
+            if len(failures) > 0:
+                return False, f"@{want} posted failure system message"
         time.sleep(POLL_INTERVAL)
     counts = count_by_agent(chat_agent_messages(list_messages(base, channel, 50)))
     return False, f"timeout waiting for @{want} (baseline={baseline_count}, counts={counts})"
+
+
+def channel_interject(
+    base: str,
+    channel: str,
+    *,
+    held_by: str = "ChatScenario",
+) -> tuple[bool, str]:
+    """POST /api/channels/:channel/interject — hold agents until the user sends again."""
+    ch = urllib.parse.quote(channel.strip(), safe="")
+    code, data = hub_request(
+        base,
+        "POST",
+        f"/api/channels/{ch}/interject",
+        {"held_by": held_by},
+    )
+    if code != 200:
+        detail = data if isinstance(data, str) else json.dumps(data)
+        return False, f"interject HTTP {code}: {detail}"
+    return True, f"channel {channel!r} held"
+
+
+def wait_no_new_chat_replies(
+    base: str,
+    channel: str,
+    *,
+    from_agent: str,
+    baseline_count: int,
+    duration: float,
+) -> tuple[bool, str]:
+    """Fail if from_agent posts above baseline_count within duration seconds."""
+    want = from_agent.strip().lstrip("@")
+    deadline = time.time() + duration
+    while time.time() < deadline:
+        msgs = list_messages(base, channel, 200)
+        pool = chat_agent_messages(msgs)
+        agent_msgs = [m for m in pool if (m.get("from") or {}).get("name") == want]
+        new_count = len(agent_msgs) - baseline_count
+        if new_count > 0:
+            return False, f"@{want} posted {new_count} new message(s) while channel held"
+        time.sleep(min(POLL_INTERVAL, 0.5))
+    return True, f"no new replies from @{want} for {duration:.0f}s (baseline={baseline_count})"
 
 
 def resolve_agent_id(base: str, agent_name: str) -> str | None:

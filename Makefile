@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -172,6 +172,31 @@ conversation-scenarios-regression: ## Chat workspace + collab conversation quali
 
 test-collab-plan: ## Deterministic Go tests for collab plan parsing regressions (CI-safe)
 	@go test ./internal/collaboration/... ./internal/hub/... -count=1 -run 'Regression|DependencyProse|Findings|4ea36409|f7518f88|DocumentFindings|DistinctDeliverable|StackTool|FilterCollab|SuppressMCP'
+
+test-conversation-contract: ## CI-safe conversation + collab wiring contract (agent, hub, desktop, smoke)
+	@echo "🧪 Agent conversation routing..."
+	@go test ./internal/agent/ -count=1 -run 'ChatQuality|ConversationalClosure|ConversationMode|CollabGeneration|TurnIntent'
+	@echo "🧪 Hub conversation/collab wiring..."
+	@go test ./internal/hub/ -count=1 -run 'Collab|ChannelHold|Interject|DMMention|SessionCollab|CreateDM|MultiTurn'
+	@go test ./cmd/server/ -count=1 -run 'ChannelInterject'
+	@echo "🧪 Collab API smoke..."
+	@go test ./test/ -count=1 -run 'TestCollabSmokePhaseTransitions'
+	@echo "🧪 Scenario assertion helpers..."
+	@$(MAKE) test-scenario-assert
+	@echo "🧪 Desktop chat/collab Vitest..."
+	@cd desktop && npx vitest run \
+	  src/stores/chatStreamCoalesce.test.ts \
+	  src/stores/chatStoreChannelHold.test.ts \
+	  src/stores/chatStreamReasoning.test.ts \
+	  src/utils/outboundChatMetadata.test.ts \
+	  src/utils/prepareOutboundPayload.test.ts \
+	  src/utils/conversationMode.test.ts \
+	  src/utils/collaborationPanelState.test.ts \
+	  src/utils/collaborationConfirm.test.ts \
+	  src/utils/collaborationTaskOrchestration.test.ts \
+	  src/components/ChatWindow.collaboration.test.tsx \
+	  src/components/ChatWindow.interject.test.tsx \
+	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion helpers
 	@cd scripts/lib && python3 -m unittest scenario_assert_test.py

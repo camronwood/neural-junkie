@@ -789,7 +789,7 @@ func (cm *CollaborationManager) SetCollaborationTitle(collabID, title string) (*
 // synthesizePlanFromDiscussionLocked fills an empty plan artifact from discussion messages.
 // Caller must hold cm.mu.
 func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaboration) {
-	if c == nil || c.Plan == nil || strings.TrimSpace(c.Plan.Content) != "" {
+	if c == nil || c.Plan == nil {
 		return
 	}
 	planContent, tasks := SynthesizePlanFromDiscussion(c)

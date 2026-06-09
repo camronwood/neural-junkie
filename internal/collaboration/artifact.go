@@ -101,6 +101,105 @@ func ExtractPlanFromTaskLists(content string) string {
 	return strings.TrimSpace("## Plan\n\n" + strings.Join(taskLines, "\n"))
 }
 
+var inlineTaskSplitRe = regexp.MustCompile(`(?i)\s+-\s*Task\s+\d+:`)
+var taskLineIdentityRe = regexp.MustCompile(`(?i)Task\s+(\d+)\s*:?`)
+
+func taskLineIdentityKey(line string) string {
+	trimmed := strings.TrimSpace(line)
+	if m := taskLineIdentityRe.FindStringSubmatch(trimmed); len(m) >= 2 {
+		assignee := ""
+		if mm := agentMentionRe.FindStringSubmatch(trimmed); len(mm) >= 2 {
+			assignee = strings.ToLower(mm[1])
+		}
+		return m[1] + "|" + assignee
+	}
+	return strings.ToLower(trimmed)
+}
+
+// splitCompoundTaskLine breaks " - Task 1: ... - Task 2: ..." into separate task rows.
+func splitCompoundTaskLine(line string) []string {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return nil
+	}
+	locs := inlineTaskSplitRe.FindAllStringIndex(trimmed, -1)
+	if len(locs) == 0 {
+		return []string{trimmed}
+	}
+	var out []string
+	start := 0
+	for _, loc := range locs {
+		if loc[0] > start {
+			seg := strings.TrimSpace(trimmed[start:loc[0]])
+			if seg != "" {
+				out = append(out, seg)
+			}
+		}
+		start = loc[0] + 1
+	}
+	if tail := strings.TrimSpace(trimmed[start:]); tail != "" {
+		out = append(out, tail)
+	}
+	if len(out) == 0 {
+		return []string{trimmed}
+	}
+	return out
+}
+
+// mergeTaskLinesFromDiscussion unions structured task list lines from every agent turn.
+// Only lines with an @mention resolved to a collaboration participant are kept.
+func mergeTaskLinesFromDiscussion(disc *DiscussionSession, agents []CollaborationAgent) string {
+	if disc == nil {
+		return ""
+	}
+	agentByName := make(map[string]CollaborationAgent)
+	for _, a := range agents {
+		agentByName[strings.ToLower(a.AgentName)] = a
+	}
+	seen := make(map[string]struct{})
+	var taskLines []string
+	for _, m := range disc.Messages {
+		if m == nil || m.From.Name == "System" {
+			continue
+		}
+		body := strings.TrimSpace(m.Content)
+		if body == "" {
+			continue
+		}
+		for _, line := range strings.Split(body, "\n") {
+			for _, candidate := range splitCompoundTaskLine(line) {
+				trimmed := strings.TrimSpace(candidate)
+				if !isTaskListLine(trimmed) {
+					continue
+				}
+				resolved := false
+				for _, mention := range agentMentionRe.FindAllStringSubmatch(trimmed, -1) {
+					if len(mention) < 2 {
+						continue
+					}
+					if _, ok := agentByName[strings.ToLower(mention[1])]; ok {
+						resolved = true
+						break
+					}
+				}
+				if !resolved {
+					continue
+				}
+				key := taskLineIdentityKey(trimmed)
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				taskLines = append(taskLines, trimmed)
+			}
+		}
+	}
+	if len(taskLines) == 0 {
+		return ""
+	}
+	return strings.TrimSpace("## Plan\n\n" + strings.Join(taskLines, "\n"))
+}
+
 // SynthesizePlanFromDiscussion builds plan content and tasks from discussion messages.
 // It prefers the latest structured plan block instead of concatenating the full transcript.
 func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks []CollaborationTask) {
@@ -132,6 +231,13 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 			}
 		}
 	}
+	if merged := mergeTaskLinesFromDiscussion(disc, c.Agents); merged != "" {
+		mergedCount := len(ExtractTasksFromPlan(merged, c.Agents))
+		if mergedCount > bestTaskCount {
+			planContent = merged
+			bestTaskCount = mergedCount
+		}
+	}
 	if planContent == "" {
 		var b strings.Builder
 		for _, m := range disc.Messages {
@@ -155,6 +261,7 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 		}
 	}
 	tasks = DedupeTasks(ExtractTasksFromPlan(planContent, c.Agents))
+	AssignRoundRobinToUnassignedTasks(tasks, c.Agents)
 	return planContent, tasks
 }
 

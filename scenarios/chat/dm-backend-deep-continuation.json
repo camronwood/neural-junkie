@@ -1,0 +1,34 @@
+{
+  "name": "dm-backend-deep-continuation",
+  "description": "BackendEngineer DM: after a theme reply, go-deeper follow-up must stay on topic without echoing the first user message.",
+  "tags": ["dm", "backend", "continuation", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "steps": [
+    {
+      "action": "send",
+      "content": "I want to add light and dark theme support to this project",
+      "metadata": { "conversation_mode": "code", "context_scope": "hint" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "send",
+      "content": "go deeper on the approach — what would you implement first?",
+      "metadata": { "conversation_mode": "code", "context_scope": "hint" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "BackendEngineer",
+      "any_match": ["theme|dark|light|toggle|config|CSS|provider"],
+      "none_match": [
+        "I want to add light and dark theme",
+        "The user wants to add"
+      ]
+    }
+  ],
+  "cleanup": "clear"
+}

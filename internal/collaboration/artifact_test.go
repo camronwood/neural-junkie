@@ -243,3 +243,77 @@ func TestExtractTasksFromPlanSanitizesAssetMentionAssignee(t *testing.T) {
 		t.Fatalf("unexpected sanitized description %q", tasks[0].Description)
 	}
 }
+
+func TestSplitCompoundTaskLine(t *testing.T) {
+	line := "- Task 1: @SoftwareArchitect - design.md - Task 2: @BackendEngineer - filter.go"
+	parts := splitCompoundTaskLine(line)
+	if len(parts) != 2 {
+		t.Fatalf("expected 2 parts, got %d: %v", len(parts), parts)
+	}
+}
+
+func TestMergeTaskLinesFromDiscussion_splitsCompoundLines(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "SoftwareArchitect"},
+				"- Task 1: @SoftwareArchitect - design.md - Task 2: @BackendEngineer - filter.go"),
+		},
+	}
+	plan, tasks := SynthesizePlanFromDiscussion(&Collaboration{Agents: agents, Discussion: disc})
+	if len(tasks) < 2 {
+		t.Fatalf("expected >=2 tasks from compound line, got %d plan=%q", len(tasks), plan)
+	}
+}
+
+func TestMergeTaskLinesFromDiscussion_ignoresOffRosterMentions(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "Assistant"},
+				"- Task 1: @Assistant - orphan task"),
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "BackendEngineer"},
+				"- Task 2: @BackendEngineer - Write collabs/x/filter.go"),
+		},
+	}
+	merged := mergeTaskLinesFromDiscussion(disc, agents)
+	if !strings.Contains(merged, "filter.go") {
+		t.Fatalf("expected roster task in merge, got %q", merged)
+	}
+	if strings.Contains(strings.ToLower(merged), "@assistant") {
+		t.Fatalf("off-roster mention should be excluded: %q", merged)
+	}
+}
+
+func TestSynthesizePlanFromDiscussion_mergesTaskLinesAcrossMessages(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "SoftwareArchitect"},
+				"- Task 1: @SoftwareArchitect - Write collabs/x/requirements.md with scope"),
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "BackendEngineer"},
+				"I agree.\n- Task 2: @BackendEngineer - Write collabs/x/api-design.md with endpoints"),
+		},
+	}
+	c := &Collaboration{
+		Agents:     agents,
+		Discussion: disc,
+	}
+	plan, tasks := SynthesizePlanFromDiscussion(c)
+	if len(tasks) < 2 {
+		t.Fatalf("expected >=2 merged tasks, got %d plan=%q tasks=%v", len(tasks), plan, tasks)
+	}
+}

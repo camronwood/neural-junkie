@@ -69,6 +69,10 @@ func TestChatQualityCoverage_agentChannels(t *testing.T) {
 			content: "What?", wantIntent: IntentSubstantive},
 		{name: "theme_task_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
 			content: "I want to add theme support to this app", wantIntent: IntentTask},
+		{name: "deep_continuation_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
+			content: "go deeper on the approach — what would you implement first?", wantIntent: IntentTask},
+		{name: "topic_switch_chat_turn_dm", agentType: protocol.AgentTypeBackend, channel: "dm-u-be", channelType: protocol.ChannelTypeDM,
+			content: "what do you think about go vs rust for backend services?", metadata: metaChat(ContextScopeNone), wantIntent: IntentSubstantive, wantMode: ConversationModeChat},
 	}
 
 	for _, tc := range cases {

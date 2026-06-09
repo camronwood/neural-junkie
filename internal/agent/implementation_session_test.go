@@ -107,6 +107,41 @@ func TestShouldRunImplementationSession_weakAffirmAfterFailedSession(t *testing.
 	}
 }
 
+func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"general": {
+					{
+						Type:    protocol.MessageTypeQuestion,
+						From:    protocol.AgentInfo{ID: "u", Name: "User"},
+						Content: "how would you add a light/dark theme toggle in a React settings page?",
+					},
+					{
+						Type:    protocol.MessageTypeChat,
+						From:    protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant},
+						Content: "Use useState and a theme context provider.",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "u", Name: "User"},
+		"One more thing — where should the theme toggle live in the settings UI?",
+	)
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		MetadataContextScope:   ContextScopeNone,
+	}
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("chat-mode theme advice should not run implementation session")
+	}
+}
+
 func TestShouldRunImplementationSession_exportMode(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-u", protocol.AgentInfo{ID: "u1", Name: "User"}, "please save it")

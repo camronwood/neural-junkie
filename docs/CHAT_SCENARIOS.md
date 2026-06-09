@@ -57,6 +57,10 @@ Environment: `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
 | `dm-greeting` | DM | Assistant | dm, assistant, greeting |
 | `dm-backend-workspace` | DM | BackendEngineer | dm, backend, workspace, regression |
 | `dm-backend-echo-followup` | DM | BackendEngineer | dm, backend, echo, regression |
+| `dm-backend-deep-continuation` | DM | BackendEngineer | dm, backend, continuation, regression |
+| `dm-topic-switch` | DM | BackendEngineer | dm, backend, topic-switch, regression |
+| `dm-assistant-continue-after-closure` | DM | Assistant | dm, assistant, closure, continuation, regression |
+| `dm-backend-interject-resume` | DM | BackendEngineer | dm, backend, interject, regression |
 | `dm-frontend-greeting` | DM | FrontendEngineer | dm, frontend, greeting |
 | `dm-frontend-code-task` | DM | FrontendEngineer | dm, frontend, task |
 | `dm-security-review` | DM | SecurityReviewer | dm, security, task |
@@ -75,14 +79,21 @@ These cover the conversation bugs we hit in production chat:
 - **`dm-backend-workspace`** / **`public-backend-theme-workspace`** — theme ask → “can you see my workspace?” must not return fake `golang.org/x/themes` / Gin advice
 - **`dm-backend-echo-followup`** — “What?” after a long reply must not quote the first user message
 - **`already-said-closure`** — “I know you said that already” → canned won't-repeat closure
+- **`dm-backend-deep-continuation`** — “go deeper on the approach” stays on theme without echoing turn 1
+- **`dm-topic-switch`** — code → chat opinion → code without workspace dumps on the chat turn
+- **`dm-assistant-continue-after-closure`** — thanks closure then a new question gets a substantive answer
+- **`dm-backend-interject-resume`** — channel interject holds agents until the user sends again (requires `make server-regression`)
 
 ```bash
 make chat-scenarios-regression
+make conversation-scenarios-regression
 ```
 
 ## Scenario JSON
 
-Steps: `send`, `wait_reply`, `assert_messages`, `assert_reply_count`, `assert_debug_context`.
+Steps: `send`, `wait_reply`, `channel_interject`, `wait_no_reply`, `assert_messages`, `assert_reply_count` (`since_baseline: true` counts from last send/interject baseline), `assert_debug_context`.
+
+`channel_interject` calls `POST /api/channels/:channel/interject`. `wait_no_reply` asserts no new agent messages for `duration` (use after interject; optional `retries` + `reinterject_on_retry`).
 
 ```json
 {

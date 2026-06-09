@@ -10,6 +10,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS_DIR = ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS_DIR))
+
+from lib.hub_regression import wait_for_hub  # noqa: E402
 
 CHAT_SCENARIOS = [
     # Workspace visibility (all specialist DMs + public)
@@ -28,12 +32,20 @@ CHAT_SCENARIOS = [
     "public-frontend-theme-continuation",
     # IDE / routing
     "dm-ide-route-backend",
+    # Multi-turn conversation flow (continuation, topic switch, interject)
+    "dm-backend-deep-continuation",
+    "dm-topic-switch",
+    "dm-assistant-continue-after-closure",
+    "dm-backend-interject-resume",
 ]
 
 COLLAB_SCENARIOS = [
     "collab-conversation-quality-regression",
     "collab-no-edit-after-cancel",
     "collab-generation-error-resilience",
+    "collab-participation-two-agent-strict",
+    "collab-participation-three-agent",
+    "collab-human-planning-interject",
 ]
 
 
@@ -50,6 +62,13 @@ def main() -> int:
     parser.add_argument("--chat-only", action="store_true")
     parser.add_argument("--collab-only", action="store_true")
     args = parser.parse_args()
+
+    hub_url = os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765").rstrip("/")
+    print(f"Waiting for hub at {hub_url}...")
+    if not wait_for_hub(hub_url, timeout_s=120.0):
+        print("FAIL: hub not reachable (start with: make server-regression)", file=sys.stderr)
+        return 1
+    print("OK: hub ready")
 
     env_prefix: list[str] = []
     verbose = ["--verbose"] if args.verbose else []
