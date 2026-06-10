@@ -9,7 +9,8 @@ import (
 )
 
 func TestAppendLearningsForMessage_assistantPrompt(t *testing.T) {
-	t.Cleanup(learning.WaitPendingRecordUse)
+	unlock := learning.LockTestGlobals()
+	t.Cleanup(unlock)
 	dir := t.TempDir()
 	store, err := learning.NewStore(dir + "/learnings.json")
 	if err != nil {
@@ -17,10 +18,6 @@ func TestAppendLearningsForMessage_assistantPrompt(t *testing.T) {
 	}
 	learning.SetGlobalStore(store)
 	learning.SetEnabledChecker(func() bool { return true })
-	t.Cleanup(func() {
-		learning.SetGlobalStore(nil)
-		learning.SetEnabledChecker(nil)
-	})
 
 	_, err = store.Add(learning.Entry{
 		Scope:    learning.ScopeAgent,

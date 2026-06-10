@@ -9,17 +9,14 @@ import (
 )
 
 func TestAppendForAgent_scopedAndGated(t *testing.T) {
-	t.Cleanup(WaitPendingRecordUse)
+	unlock := LockTestGlobals()
+	t.Cleanup(unlock)
 	store, err := NewStore(t.TempDir() + "/learnings.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	SetGlobalStore(store)
 	SetEnabledChecker(func() bool { return true })
-	t.Cleanup(func() {
-		SetGlobalStore(nil)
-		SetEnabledChecker(nil)
-	})
 
 	if _, err := store.Add(Entry{AgentID: "a1", Content: "Alpha note", Category: CategoryPreference, Scope: ScopeAgent}); err != nil {
 		t.Fatal(err)
@@ -45,17 +42,14 @@ func TestAppendForAgent_scopedAndGated(t *testing.T) {
 }
 
 func TestGlobalScopeIsolation(t *testing.T) {
-	t.Cleanup(WaitPendingRecordUse)
+	unlock := LockTestGlobals()
+	t.Cleanup(unlock)
 	store, err := NewStore(t.TempDir() + "/learnings.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	SetGlobalStore(store)
 	SetEnabledChecker(func() bool { return true })
-	t.Cleanup(func() {
-		SetGlobalStore(nil)
-		SetEnabledChecker(nil)
-	})
 
 	if _, err := store.Add(Entry{AgentID: "a1", Content: "Use Go everywhere", Category: CategoryPreference, Scope: ScopeGlobal, UserID: "u1"}); err != nil {
 		t.Fatal(err)

@@ -28,7 +28,8 @@ func TestKeywordScoreFallback(t *testing.T) {
 }
 
 func TestSelectForPrompt_keywordFallback(t *testing.T) {
-	t.Cleanup(WaitPendingRecordUse)
+	unlock := LockTestGlobals()
+	t.Cleanup(unlock)
 	dir := t.TempDir()
 	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
@@ -41,11 +42,6 @@ func TestSelectForPrompt_keywordFallback(t *testing.T) {
 	SetGlobalStore(store)
 	SetEmbedStore(emb)
 	SetEnabledChecker(func() bool { return true })
-	t.Cleanup(func() {
-		SetGlobalStore(nil)
-		SetEmbedStore(nil)
-		SetEnabledChecker(nil)
-	})
 
 	_, _ = store.Add(Entry{AgentID: "a1", Content: "Prefer PostgreSQL over MySQL", Category: CategoryPreference, Scope: ScopeAgent})
 	_, _ = store.Add(Entry{AgentID: "a1", Content: "Use dark mode UI", Category: CategoryPreference, Scope: ScopeAgent})
@@ -69,17 +65,14 @@ func TestSelectForPrompt_keywordFallback(t *testing.T) {
 }
 
 func TestQueryPreview_scopes(t *testing.T) {
-	t.Cleanup(WaitPendingRecordUse)
+	unlock := LockTestGlobals()
+	t.Cleanup(unlock)
 	store, err := NewStore(filepath.Join(t.TempDir(), "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	SetGlobalStore(store)
 	SetEnabledChecker(func() bool { return true })
-	t.Cleanup(func() {
-		SetGlobalStore(nil)
-		SetEnabledChecker(nil)
-	})
 
 	_, _ = store.Add(Entry{AgentID: "a1", Content: "Global pref", Category: CategoryPreference, Scope: ScopeGlobal})
 	_, _ = store.Add(Entry{AgentID: "a1", Content: "Agent pref", Category: CategoryPreference, Scope: ScopeAgent})

@@ -55,6 +55,8 @@ func TestHandleLearningsRoute_gates(t *testing.T) {
 }
 
 func TestHandleLearningsCRUD(t *testing.T) {
+	unlock := learningpkg.LockTestGlobals()
+	defer unlock()
 	dir := t.TempDir()
 	chatHub = hub.NewHub()
 	defer func() {
@@ -118,6 +120,8 @@ func TestHandleLearningsCRUD(t *testing.T) {
 }
 
 func TestHandleLearningsUpdateAndQuery(t *testing.T) {
+	unlock := learningpkg.LockTestGlobals()
+	defer unlock()
 	dir := t.TempDir()
 	chatHub = hub.NewHub()
 	defer func() {

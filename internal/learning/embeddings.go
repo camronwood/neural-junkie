@@ -96,7 +96,9 @@ func ScheduleEmbed(entry Entry) {
 		onEntryChanged(entry)
 		return
 	}
+	recordUsePending.Add(1)
 	go func(e Entry) {
+		defer recordUsePending.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_, _ = ensureVector(ctx, e.ID, e.Content)
