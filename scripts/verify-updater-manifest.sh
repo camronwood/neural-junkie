@@ -36,9 +36,11 @@ manifests=(
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
 
+BETA_MANIFEST_BASE="${BETA_MANIFEST_BASE:-https://raw.githubusercontent.com/${REPO}/main/updater/beta}"
+
 for manifest in "${manifests[@]}"; do
   if [[ "${CHANNEL}" == "beta" ]]; then
-    url="https://github.com/${REPO}/releases/download/updater-beta/${manifest}"
+    url="${BETA_MANIFEST_BASE}/${manifest}"
   else
     url="https://github.com/${REPO}/releases/latest/download/${manifest}"
   fi

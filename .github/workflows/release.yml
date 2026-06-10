@@ -404,8 +404,12 @@ jobs:
       - build-linux
     if: ${{ needs.create-release.result == 'success' && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Publish updater manifests
         env:

@@ -7,7 +7,9 @@ Neural Junkie uses the [Tauri v1 updater](https://v1.tauri.app/v1/guides/distrib
 | Channel | Build tag | Manifest URL |
 |---------|-----------|--------------|
 | **Stable** | `v1.0.0`, `v1.1.0`, … | `https://github.com/camronwood/neural-junkie/releases/latest/download/update-{target}-{arch}.json` |
-| **Beta** | `v1.0.0-beta.N` | `https://github.com/camronwood/neural-junkie/releases/download/updater-beta/update-{target}-{arch}.json` |
+| **Beta** | `v1.0.0-beta.N` | `https://raw.githubusercontent.com/camronwood/neural-junkie/main/updater/beta/update-{target}-{arch}.json` |
+
+Rolling beta manifests are **git-backed** under [`updater/beta/`](../updater/beta/) because GitHub immutable releases block replacing assets on a rolling release tag (`updater-beta`, `beta-updater`, and `nj-beta-updater` are all burned). CI and `publish-updater-manifests.sh` commit updated JSON to `main` after each beta tag. Beta builds list the legacy `updater-beta` release URL first (404) and the raw `main` URL second so Tauri falls through to the working channel.
 
 Beta builds only receive beta updates. Stable builds only receive stable updates.
 
@@ -41,7 +43,7 @@ On each `v*` tag push:
    - macOS: `*.app.tar.gz` + `.sig`
    - Linux: `*.AppImage.tar.gz` + `.sig`
    - Windows: `*.msi.zip` + `.sig`
-3. `scripts/publish-updater-manifests.sh` generates `update-*.json` manifests and uploads them to the versioned release (and to `updater-beta` for beta tags).
+3. `scripts/publish-updater-manifests.sh` generates `update-*.json` manifests, uploads them to the versioned release, and commits copies to [`updater/beta/`](../updater/beta/) on `main` for the rolling beta channel.
 
 ## Version alignment
 
@@ -75,5 +77,6 @@ Users on installers from **before** auto-update was enabled must install one upd
 | `scripts/ci-prepare-release-build.sh` | Version + channel prep for CI |
 | `scripts/generate-update-manifests.sh` | Build platform manifest JSON from release assets |
 | `scripts/publish-updater-manifests.sh` | Upload manifests to GitHub Releases |
+| `scripts/bootstrap-beta-updater-channel.sh` | Sync `updater/beta/` manifests from a release tag |
 | `scripts/verify-updater-artifacts.sh` | Fail CI if signed bundles are missing |
 | `scripts/verify-updater-manifest.sh` | Validate published manifest URLs and signatures |

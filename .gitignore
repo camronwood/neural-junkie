@@ -85,3 +85,5 @@ nj-article-1.md
 /nj-artical-1.md
 scenarios/fixtures/minimal-repo/collabs/
 
+# Generated at repo root by release scripts (committed copies live in updater/beta/)
+/update-*.json

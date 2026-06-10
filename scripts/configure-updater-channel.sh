@@ -9,6 +9,7 @@ set -euo pipefail
 CHANNEL="${1:?Usage: $0 beta|stable}"
 CONF="desktop/src-tauri/tauri.conf.json"
 REPO="camronwood/neural-junkie"
+BETA_MANIFEST_BASE="https://raw.githubusercontent.com/${REPO}/main/updater/beta"
 
 if [[ ! -f "${CONF}" ]]; then
   echo "Missing ${CONF}" >&2
@@ -17,10 +18,16 @@ fi
 
 case "${CHANNEL}" in
   stable)
-    endpoint="https://github.com/${REPO}/releases/latest/download/update-{{target}}-{{arch}}.json"
+    endpoints_json='["https://github.com/'"${REPO}"'/releases/latest/download/update-{{target}}-{{arch}}.json"]'
     ;;
   beta)
-    endpoint="https://github.com/${REPO}/releases/download/updater-beta/update-{{target}}-{{arch}}.json"
+    # Rolling beta manifests live in git (updater/beta/) — immutable GitHub releases
+    # cannot replace assets, and legacy rolling tags (updater-beta) are burned.
+    # Legacy release URL first so old single-endpoint builds 404 then fall through.
+    endpoints_json='[
+      "https://github.com/'"${REPO}"'/releases/download/updater-beta/update-{{target}}-{{arch}}.json",
+      "'"${BETA_MANIFEST_BASE}"'/update-{{target}}-{{arch}}.json"
+    ]'
     ;;
   *)
     echo "Unknown channel: ${CHANNEL} (expected beta or stable)" >&2
@@ -31,10 +38,11 @@ esac
 node -e "
 const fs = require('fs');
 const confPath = process.argv[1];
-const endpoint = process.argv[2];
+const endpoints = JSON.parse(process.argv[2]);
 const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
-conf.tauri.updater.endpoints = [endpoint];
+conf.tauri.updater.endpoints = endpoints;
 fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
-" "${CONF}" "${endpoint}"
+" "${CONF}" "${endpoints_json}"
 
-echo "Configured updater channel=${CHANNEL} endpoint=${endpoint}"
+echo "Configured updater channel=${CHANNEL}"
+echo "${endpoints_json}" | node -e "JSON.parse(require('fs').readFileSync(0,'utf8')).forEach((u,i)=>console.log('  endpoint['+i+']='+u))"
