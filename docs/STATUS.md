@@ -93,7 +93,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **Domain packs** — Multiple packs can be enabled; first enabled pack owns UI layout
 - **Collaboration variance** — Local models vary in plan quality; see known issues for active scenario gaps
 - **IDE v3** — Cursor-like Ask/Agent routing in IDE layout; see [IDE_V3.md](IDE_V3.md)
-- **macOS releases** — Developer ID signed + notarized when Apple CI secrets are configured; local dev builds remain ad-hoc
+- **macOS releases** — Ad-hoc signed CI builds at v1.0.0 (Right-click → Open if Gatekeeper warns); Developer ID + notarized in v1.0.1 when Apple creds available; local dev builds remain ad-hoc
 
 ## Documentation
 

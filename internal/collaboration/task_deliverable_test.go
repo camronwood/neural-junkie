@@ -33,6 +33,32 @@ func TestTaskDispatchFileDeliverableNote(t *testing.T) {
 	}
 }
 
+func TestSanitizePathToken_rejectsTruncatedPaths(t *testing.T) {
+	cases := map[string]string{
+		"collabs/b222bffe/index....":           "",
+		"collabs/b2.../index.html":             "",
+		"collabs/x/<|redacted|>/plan.md":       "",
+		"collabs/x/frontend_architecture_plan.md": "collabs/x/frontend_architecture_plan.md",
+		"index.html":                           "index.html",
+	}
+	for in, want := range cases {
+		got := sanitizePathToken(in)
+		if got != want {
+			t.Fatalf("sanitizePathToken(%q) = %q want %q", in, got, want)
+		}
+	}
+}
+
+func TestReferencedDeliverablePaths_ignoresTruncatedTitleTokens(t *testing.T) {
+	task := CollaborationTask{
+		Title: "Create collabs/b222bffe/index.html, `collabs/b2...`",
+	}
+	paths := ReferencedDeliverablePaths(task)
+	if len(paths) != 1 || paths[0] != "collabs/b222bffe/index.html" {
+		t.Fatalf("expected single sanitized path, got %v", paths)
+	}
+}
+
 func TestTaskLooksLikeMarkdownDeliverable(t *testing.T) {
 	if !TaskLooksLikeMarkdownDeliverable(CollaborationTask{Description: "Write collabs/x/out.md"}) {
 		t.Fatal("expected markdown deliverable")

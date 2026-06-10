@@ -43,19 +43,40 @@ def _ok(msg: str) -> None:
 
 
 def load_expected_ollama_models() -> list[str]:
-    env_local = ROOT / "env.local"
+    """Models required for live regression (env.local + hub config defaults)."""
     models: list[str] = []
-    if not env_local.is_file():
-        return models
-    for line in env_local.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("OLLAMA_MODEL=") or line.startswith("OLLAMA_CODE_MODEL="):
-            _, _, val = line.partition("=")
-            val = val.strip().strip('"').strip("'")
-            if val and val not in models:
-                models.append(val)
+    env_local = ROOT / "env.local"
+    if env_local.is_file():
+        for line in env_local.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("OLLAMA_MODEL=") or line.startswith("OLLAMA_CODE_MODEL="):
+                _, _, val = line.partition("=")
+                val = val.strip().strip('"').strip("'")
+                if val and val not in models:
+                    models.append(val)
+
+    cfg_path = Path.home() / ".neural-junkie" / "config.json"
+    if cfg_path.is_file():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            cfg = {}
+        impl = cfg.get("implementation") if isinstance(cfg.get("implementation"), dict) else {}
+        tool = (impl.get("local_tool_model") or "").strip()
+        if tool and tool not in models:
+            models.append(tool)
+        for prov in cfg.get("ai", {}).get("providers") or []:
+            if not isinstance(prov, dict) or prov.get("type") != "ollama":
+                continue
+            tag = (prov.get("model") or "").strip()
+            if tag and tag not in models:
+                models.append(tag)
+
+    for default in ("qwen3.5:9b", "qwen3.5:27b"):
+        if default not in models:
+            models.append(default)
     return models
 
 

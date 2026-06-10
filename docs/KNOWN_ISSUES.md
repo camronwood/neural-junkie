@@ -1,6 +1,6 @@
 # Known limitations and issues
 
-**Last updated:** 2026-06-08 · **Current beta:** [v1.0.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
+**Last updated:** 2026-06-09 · **Current beta:** [v1.0.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33) · **Stable path:** [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md)
 
 Living list of what we know is wrong, flaky, or intentionally limited. **Remove an entry when it is fixed** (and note the fix in [CHANGELOG.md](CHANGELOG.md) / [release-notes.html](release-notes.html)).
 
@@ -45,6 +45,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 |----|--------|---------|
 | `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
 | `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
+| `macos-adhoc-sign` | **Limitation** | GitHub Release macOS builds are **ad-hoc signed** until Apple Developer credentials are available. First launch may require **Right-click → Open**. Planned fix: **v1.0.1** notarized builds. |
 
 ---
 
@@ -61,7 +62,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 ## How we track quality
 
 - **Deterministic:** `make test-collab-plan`, `make collab-smoke`, `go test ./...`
-- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (18/18 PASS)
+- **Live collab:** `make collab-scenario SCENARIO=…` — matrix in [testing/collab-matrix.tsv](testing/collab-matrix.tsv) (21/21 PASS)
 - **Chat regression:** `make chat-scenarios-regression` — workspace visibility, closure, echo (context v2)
 - **Implement parity:** `make implement-scenarios`, `make test-parity-stable` (3× with hub restart)
 

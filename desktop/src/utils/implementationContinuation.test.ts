@@ -6,6 +6,7 @@ import {
   hasFileExportSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
+  hasImplementationStatusCheckSignals,
   hasPriorReferenceExportSignals,
   hasCombinedContentDeliveryExport,
 } from './implementationContinuation';
@@ -35,6 +36,14 @@ describe('implementationContinuation', () => {
       )
     ).toBe(true);
     expect(hasImplementationRequestSignals('hello there')).toBe(false);
+    expect(hasImplementationRequestSignals('the app is not booting up can you fix it?')).toBe(true);
+  });
+
+  it('detects implementation status checks', () => {
+    expect(hasImplementationStatusCheckSignals('is it fixed?')).toBe(true);
+    expect(hasImplementationStatusCheckSignals('does it work now')).toBe(true);
+    expect(hasImplementationStatusCheckSignals('still broken')).toBe(true);
+    expect(hasImplementationStatusCheckSignals('hello')).toBe(false);
   });
 
   it('detects bare workspace directives', () => {

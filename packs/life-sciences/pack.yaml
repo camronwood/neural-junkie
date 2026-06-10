@@ -11,7 +11,7 @@ agents:
     implementation: builtin/biology
 models_to_ensure:
   - koesn/llama3-openbiollm-8b:latest
-  - qwen2.5:7b
+  - qwen3.5:9b
   - nj-bio:8b
 ollama_model: koesn/llama3-openbiollm-8b:latest
 expert_slug: biology

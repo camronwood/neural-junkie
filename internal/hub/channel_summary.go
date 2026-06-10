@@ -144,6 +144,7 @@ func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, g
 	if summary == "" {
 		return
 	}
+	summary = agent.ScrubStaleSessionSummary(summary, transcript)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()

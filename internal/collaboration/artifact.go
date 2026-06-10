@@ -201,7 +201,7 @@ func mergeTaskLinesFromDiscussion(disc *DiscussionSession, agents []Collaboratio
 }
 
 // SynthesizePlanFromDiscussion builds plan content and tasks from discussion messages.
-// It prefers the latest structured plan block instead of concatenating the full transcript.
+// It prefers the newest structured plan block that passes quality validation.
 func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks []CollaborationTask) {
 	if c == nil {
 		return "", nil
@@ -213,7 +213,6 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 	if disc == nil {
 		return "", nil
 	}
-	bestTaskCount := 0
 	for i := len(disc.Messages) - 1; i >= 0; i-- {
 		m := disc.Messages[i]
 		if m == nil || m.From.Name == "System" {
@@ -224,18 +223,17 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 			continue
 		}
 		if extracted := ExtractPlanFromResponse(body); extracted != "" {
-			taskCount := len(ExtractTasksFromPlan(extracted, c.Agents))
-			if taskCount > bestTaskCount || (taskCount == bestTaskCount && planContent == "") {
+			if ok, _ := ValidatePlanContent(extracted, c.Agents); ok {
 				planContent = extracted
-				bestTaskCount = taskCount
+				break
 			}
 		}
 	}
-	if merged := mergeTaskLinesFromDiscussion(disc, c.Agents); merged != "" {
-		mergedCount := len(ExtractTasksFromPlan(merged, c.Agents))
-		if mergedCount > bestTaskCount {
-			planContent = merged
-			bestTaskCount = mergedCount
+	if planContent == "" {
+		if merged := mergeTaskLinesFromDiscussion(disc, c.Agents); merged != "" {
+			if ok, _ := ValidatePlanContent(merged, c.Agents); ok {
+				planContent = merged
+			}
 		}
 	}
 	if planContent == "" {

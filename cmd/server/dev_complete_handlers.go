@@ -41,7 +41,7 @@ func handleDevComplete(w http.ResponseWriter, r *http.Request) {
 		model = config.DevOllamaCodeModel
 	}
 	if model == "" {
-		model = "qwen2.5-coder:14b"
+		model = "qwen3.5:27b"
 	}
 	endpoint := "http://localhost:11434"
 	if appConfig != nil {

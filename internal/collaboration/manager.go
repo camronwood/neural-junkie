@@ -759,6 +759,16 @@ func (cm *CollaborationManager) CancelCollaboration(collabID string) (*Collabora
 	if c.Discussion != nil {
 		c.Discussion.Status = DiscussionCancelled
 	}
+	c.AwaitingFinalize = false
+	c.FinalizeChannel = ""
+	c.FinalizeReason = ""
+	c.FinalizeMarkOpenTasks = false
+	if c.SessionRecapStatus == RecapStatusPending {
+		c.SessionRecapStatus = RecapStatusSkipped
+	}
+	if c.PlanningRecapStatus == RecapStatusPending {
+		c.PlanningRecapStatus = RecapStatusSkipped
+	}
 	cm.cleanupWorktreeLocked(c)
 
 	log.Printf("[CollaborationManager] Collaboration %s cancelled", collabID[:8])
@@ -791,6 +801,16 @@ func (cm *CollaborationManager) SetCollaborationTitle(collabID, title string) (*
 func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaboration) {
 	if c == nil || c.Plan == nil {
 		return
+	}
+	if existing := strings.TrimSpace(c.Plan.Content); existing != "" {
+		if ok, _ := ValidatePlanContent(existing, c.Agents); ok {
+			if len(c.Tasks) == 0 {
+				if retry := DedupeTasks(ExtractTasksFromPlan(existing, c.Agents)); len(retry) > 0 {
+					c.Tasks = retry
+				}
+			}
+			return
+		}
 	}
 	planContent, tasks := SynthesizePlanFromDiscussion(c)
 	if strings.TrimSpace(planContent) == "" {
@@ -984,6 +1004,49 @@ func (cm *CollaborationManager) TakeAwaitingFinalize(collabID string) (channel, 
 	c.FinalizeReason = ""
 	c.FinalizeMarkOpenTasks = false
 	return channel, reason, opts, true
+}
+
+// ClearAwaitingFinalize drops a pending post-recap finalize without completing it.
+func (cm *CollaborationManager) ClearAwaitingFinalize(collabID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil {
+		return
+	}
+	c.AwaitingFinalize = false
+	c.FinalizeChannel = ""
+	c.FinalizeReason = ""
+	c.FinalizeMarkOpenTasks = false
+	c.UpdatedAt = time.Now()
+}
+
+// SkipSessionRecap marks a pending final recap as skipped (e.g. user cancelled).
+func (cm *CollaborationManager) SkipSessionRecap(collabID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil {
+		return
+	}
+	if c.SessionRecapStatus == RecapStatusPending {
+		c.SessionRecapStatus = RecapStatusSkipped
+		c.UpdatedAt = time.Now()
+	}
+}
+
+// SkipPlanningRecap marks a pending planning recap as skipped (e.g. user cancelled).
+func (cm *CollaborationManager) SkipPlanningRecap(collabID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil {
+		return
+	}
+	if c.PlanningRecapStatus == RecapStatusPending {
+		c.PlanningRecapStatus = RecapStatusSkipped
+		c.UpdatedAt = time.Now()
+	}
 }
 
 // FailSessionRecap marks final recap as failed.

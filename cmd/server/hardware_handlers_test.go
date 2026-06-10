@@ -30,7 +30,7 @@ func TestHandleSystemHardware(t *testing.T) {
 }
 
 func TestHandleOllamaLibraryLookup(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/ollama/library/lookup?name=qwen2.5-coder:14b", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/ollama/library/lookup?name=qwen3.5:27b", nil)
 	rec := httptest.NewRecorder()
 	handleOllamaLibraryLookup(rec, req)
 	if rec.Code != http.StatusOK {
@@ -44,10 +44,10 @@ func TestHandleOllamaLibraryLookup(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &row); err != nil {
 		t.Fatal(err)
 	}
-	if row.Name != "qwen2.5-coder:14b" {
+	if row.Name != "qwen3.5:27b" {
 		t.Fatalf("name %q", row.Name)
 	}
-	if row.EstimatedRAMGB != 16 {
+	if row.EstimatedRAMGB != 26 {
 		t.Fatalf("ram %d", row.EstimatedRAMGB)
 	}
 

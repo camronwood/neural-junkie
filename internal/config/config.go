@@ -72,7 +72,7 @@ func (c ImplementationConfig) LocalToolModelOrDefault() string {
 	if m := strings.TrimSpace(c.LocalToolModel); m != "" {
 		return m
 	}
-	return "qwen2.5-coder:7b"
+	return "qwen3.5:9b"
 }
 
 type CollaborationConfig struct {
@@ -89,6 +89,9 @@ type CollaborationConfig struct {
 	// Each run uses <AssetsRoot>/<collaboration-id>/. Empty uses ~/.neural-junkie/collaborations.
 	// Overridden by NEURAL_JUNKIE_COLLAB_ASSETS_DIR when set.
 	AssetsRoot string `json:"assets_root,omitempty"`
+	// ExecutionTimeoutSeconds overrides the generation deadline for file-deliverable
+	// collaboration tasks (default 180). Non-file collab tasks use 120s.
+	ExecutionTimeoutSeconds int `json:"execution_timeout_seconds,omitempty"`
 }
 
 // AutoApproveDeliverablesEnabled reports whether collab deliverable files are auto-approved.
@@ -160,7 +163,7 @@ func DefaultConfig() *Config {
 		},
 		Implementation: ImplementationConfig{
 			RoutingEnabled:  true,
-			LocalToolModel:  "qwen2.5-coder:7b",
+			LocalToolModel:  "qwen3.5:9b",
 		},
 		Delegation: DefaultDelegationConfig(),
 		Features:   FeaturesConfig{PersonalLearningEnabled: false},

@@ -98,8 +98,8 @@ func developerPrimary(tier Tier, memoryGB int) (string, string) {
 			memoryGB, config.UtilityOllamaModel,
 		)
 	case TierLight:
-		return "qwen2.5-coder:7b", fmt.Sprintf(
-			"Your machine has about %d GB RAM. We recommend qwen2.5-coder:7b instead of the 14B default for coding specialists, plus %s for Assistant.",
+		return "qwen3.5:9b", fmt.Sprintf(
+			"Your machine has about %d GB RAM. We recommend qwen3.5:9b instead of the 27B default for coding specialists, plus %s for Assistant.",
 			memoryGB, config.UtilityOllamaModel,
 		)
 	case TierHeavy:

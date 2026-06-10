@@ -4,15 +4,15 @@ export type WizardTrack = 'developer' | 'lifeSciences' | 'cad' | 'general';
 
 /** Primary OpenBio chat model (Ollama Hub). Keep in sync with internal/config/wizard_profiles.go */
 export const BIO_OLLAMA_CHAT_MODEL = 'koesn/llama3-openbiollm-8b:latest';
-export const BIO_OLLAMA_TOOL_MODEL = 'qwen2.5:7b';
+export const BIO_OLLAMA_TOOL_MODEL = 'qwen3.5:9b';
 /** Optional HF GGUF import tag */
 export const BIO_OLLAMA_TAG = 'nj-bio:8b';
-export const DEV_OLLAMA_MODEL = 'qwen2.5-coder:14b';
-export const CAD_OLLAMA_CHAT_MODEL = 'qwen2.5-coder:14b';
-export const CAD_OLLAMA_CHAT_MODEL_LIGHT = 'qwen2.5-coder:7b';
-export const CAD_OLLAMA_TOOL_MODEL = 'qwen2.5:7b';
+export const DEV_OLLAMA_MODEL = 'qwen3.5:27b';
+export const CAD_OLLAMA_CHAT_MODEL = 'qwen3.5:27b';
+export const CAD_OLLAMA_CHAT_MODEL_LIGHT = 'qwen3.5:9b';
+export const CAD_OLLAMA_TOOL_MODEL = 'qwen3.5:9b';
 export const CAD_OLLAMA_TAG = 'nj-cad:27b';
-export const UTILITY_OLLAMA_MODEL = 'qwen2.5:7b';
+export const UTILITY_OLLAMA_MODEL = 'qwen3.5:9b';
 
 export interface WizardAgentChoice {
   type: string;

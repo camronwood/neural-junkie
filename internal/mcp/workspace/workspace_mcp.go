@@ -89,9 +89,10 @@ func (w *tools) register(mcpServer *server.MCPServer) {
 
 	mcpServer.AddTool(mcp.CreateTool(
 		"run_command",
-		"Run an allowlisted test/lint command in the workspace (npm test, go test, etc.)",
+		"Run an allowlisted verify command in the workspace (npm run build, npm test, go test, etc.). "+
+			"Use npm run build to verify boot fixes — npm install is NOT allowlisted.",
 		mcp.CreateMultiStringInputSchema(map[string]string{
-			"command": "Shell command (allowlisted prefixes only)",
+			"command": "Shell command (allowlisted: npm run build/test/lint, go test, cargo test, etc.)",
 			"cwd":     "Optional relative subdirectory",
 		}),
 		nil,
@@ -333,7 +334,7 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 	if err != nil {
 		return mcp.HandleToolError(err, "run_command"), nil
 	}
-	cmdStr := strings.TrimSpace(request.GetString("command", ""))
+	cmdStr := normalizeCommand(request.GetString("command", ""))
 	if cmdStr == "" {
 		return mcp.HandleToolError(fmt.Errorf("command is required"), "run_command"), nil
 	}

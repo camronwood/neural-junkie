@@ -74,18 +74,18 @@ func preferImplementationTargetPathForMessage(a *Agent, msg *protocol.Message) s
 				continue
 			}
 			if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
-				if p := preferImplementationTargetPath(m.Content, "", a.Info.Type); p != "" {
+				if p := preferImplementationTargetPath(a.resolveWorkspacePath(msg), m.Content, ""); p != "" {
 					return p
 				}
 			}
 		}
 		return ""
 	}
-	return preferImplementationTargetPath(content, "", a.Info.Type)
+	return preferImplementationTargetPath(a.resolveWorkspacePath(msg), content, "")
 }
 
 // preferImplementationTargetPath picks a sensible path when the model emitted a bad one.
-func preferImplementationTargetPath(userContent, modelPath string, agentType protocol.AgentType) string {
+func preferImplementationTargetPath(workspacePath, userContent, modelPath string) string {
 	if isValidFileChangeRelPath(modelPath) {
 		return normalizeFileChangeRelPath(modelPath)
 	}
@@ -95,7 +95,7 @@ func preferImplementationTargetPath(userContent, modelPath string, agentType pro
 	if userAffirmsPendingImplementation(userContent) {
 		return ""
 	}
-	for _, p := range implementationSeedCandidates(agentType, userContent, nil, nil) {
+	for _, p := range implementationSeedCandidates(workspacePath, userContent, nil, nil) {
 		if isValidFileChangeRelPath(p) {
 			return p
 		}

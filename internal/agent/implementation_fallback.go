@@ -51,6 +51,9 @@ func validateProposalContent(path, content string) error {
 	if looksLikePlaceholderProposalContent(content) {
 		return fmt.Errorf("proposal content looks like a placeholder template, not real deliverable text")
 	}
+	if LooksLikeCorruptSourceContent(content) {
+		return fmt.Errorf("proposal content looks corrupt (git diff debris or stub text), not valid source")
+	}
 	if isToolCallJSONContent(content) {
 		return fmt.Errorf("proposal content looks like a tool-call payload, not file source")
 	}
@@ -243,7 +246,7 @@ func resolveImplementationFallbackTarget(ctx context.Context, a *Agent, msg *pro
 	}
 	target := preferImplementationTargetPathForMessage(a, msg)
 	if target == "" {
-		target = preferImplementationTargetPath(userContent, "", a.Info.Type)
+		target = preferImplementationTargetPath(a.resolveWorkspacePath(msg), userContent, "")
 	}
 	return target
 }

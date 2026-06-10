@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { usePacksStore } from '../../../stores/packsStore';
 import { isTauriRuntime } from '../../../utils/promptAttachments';
+import { ipcWorkspaceRoots } from '../../../utils/ipcWorkspaceRoots';
 import { GENERIC_OVERLAY_FIELD_DOCS } from './packDevConstants';
 
 function errorMessage(e: unknown): string {
@@ -88,6 +89,7 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
           workspace_guide: workspaceGuide.trim() || null,
           runbooks_glob: runbooksGlob.trim() || null,
         },
+        ...ipcWorkspaceRoots(),
       });
       onScaffolded(outputDir, yaml);
     } catch (e) {

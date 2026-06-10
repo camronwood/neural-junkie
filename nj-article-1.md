@@ -1,1 +1,0 @@
-k smarter, not harder. Whether you're a small startup or a large enterprise, Neural Junkie offers the flexibility, efficiency, and collaboration capabilities you need to succeed in today’s competitive landscape.

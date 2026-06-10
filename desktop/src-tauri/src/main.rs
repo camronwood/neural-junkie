@@ -1,11 +1,14 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod command_security;
+mod path_security;
+
 use serde::{Deserialize, Serialize};
 use std::process::{Command, Stdio};
 use std::time::Instant;
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use tauri::Manager;
 use std::path::PathBuf;
@@ -32,6 +35,38 @@ struct PtySession {
 }
 
 type PtySessions = Arc<Mutex<HashMap<String, PtySession>>>;
+
+/// Paths returned by native pack directory / zip pickers (outside Tauri fs allowlist).
+type PackPathAllowlist = Arc<Mutex<HashSet<String>>>;
+
+fn allowlist_insert(allowlist: &PackPathAllowlist, path: &str) {
+    let trimmed = path.trim();
+    if !trimmed.is_empty() {
+        allowlist.lock().unwrap().insert(trimmed.to_string());
+    }
+}
+
+fn path_allowed(
+    roots: &[String],
+    allowlist: &PackPathAllowlist,
+    candidate: &str,
+) -> Result<PathBuf, String> {
+    if let Ok(p) = path_security::within_any_root(roots, candidate) {
+        return Ok(p);
+    }
+    let cand = candidate.trim();
+    let guard = allowlist.lock().unwrap();
+    for allowed in guard.iter() {
+        let base = allowed.trim();
+        if cand == base
+            || cand.starts_with(&format!("{}/", base))
+            || cand.starts_with(&format!("{}\\", base))
+        {
+            return Ok(PathBuf::from(cand));
+        }
+    }
+    Err(format!("path not allowed: {}", candidate))
+}
 
 fn default_home() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"))
@@ -187,8 +222,20 @@ async fn close_pty_session(
 async fn execute_command(
     command: String,
     working_dir: Option<String>,
+    allowed_roots: Vec<String>,
     app_handle: tauri::AppHandle,
 ) -> Result<CommandResult, String> {
+    if !command_security::command_allowed(&command) {
+        return Err(format!(
+            "command not allowed: {} (approve only allowlisted commands)",
+            command.lines().next().unwrap_or(&command)
+        ));
+    }
+    if allowed_roots.is_empty() {
+        return Err("no workspace roots configured".into());
+    }
+    path_security::validate_working_dir(&allowed_roots, working_dir.as_deref())?;
+
     let start_time = Instant::now();
     let command_id = uuid::Uuid::new_v4().to_string();
 
@@ -531,20 +578,46 @@ struct PackScaffoldRequest {
     runbooks_glob: Option<String>,
 }
 
+/// Register an absolute path from a native file/folder picker (pack dev / custom install).
+#[tauri::command]
+fn register_pack_path(path: String, app_handle: tauri::AppHandle) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("empty path".into());
+    }
+    let allowlist = app_handle.state::<PackPathAllowlist>();
+    allowlist_insert(allowlist.inner(), trimmed);
+    Ok(())
+}
+
 /// Pick a pack directory via native folder dialog.
 #[tauri::command]
-fn pick_pack_directory(title: Option<String>) -> Result<Option<String>, String> {
+fn pick_pack_directory(
+    title: Option<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<Option<String>, String> {
     use tauri::api::dialog::blocking::FileDialogBuilder;
     let mut builder = FileDialogBuilder::new();
     if let Some(t) = title {
         builder = builder.set_title(&t);
     }
-    Ok(builder.pick_folder().map(|p| p.to_string_lossy().into_owned()))
+    let picked = builder.pick_folder().map(|p| p.to_string_lossy().into_owned());
+    if let Some(ref path) = picked {
+        let allowlist = app_handle.state::<PackPathAllowlist>();
+        allowlist_insert(allowlist.inner(), path);
+    }
+    Ok(picked)
 }
 
 /// Create scaffold pack.yaml and starter assets in output_dir.
 #[tauri::command]
-fn write_pack_scaffold(req: PackScaffoldRequest) -> Result<String, String> {
+fn write_pack_scaffold(
+    req: PackScaffoldRequest,
+    allowed_roots: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let allowlist = app_handle.state::<PackPathAllowlist>();
+    path_allowed(&allowed_roots, allowlist.inner(), &req.output_dir)?;
     let output_dir = req.output_dir.trim();
     if output_dir.is_empty() {
         return Err("output_dir required".into());
@@ -627,7 +700,13 @@ fn write_pack_scaffold(req: PackScaffoldRequest) -> Result<String, String> {
 
 /// Read pack.yaml from an absolute pack directory.
 #[tauri::command]
-fn read_pack_yaml_from_dir(absolute_dir: String) -> Result<String, String> {
+fn read_pack_yaml_from_dir(
+    absolute_dir: String,
+    allowed_roots: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let allowlist = app_handle.state::<PackPathAllowlist>();
+    path_allowed(&allowed_roots, allowlist.inner(), &absolute_dir)?;
     let dir = absolute_dir.trim();
     if dir.is_empty() {
         return Err("empty directory".into());
@@ -638,7 +717,14 @@ fn read_pack_yaml_from_dir(absolute_dir: String) -> Result<String, String> {
 
 /// Write pack.yaml to an absolute pack directory.
 #[tauri::command]
-fn write_pack_yaml_to_dir(absolute_dir: String, yaml: String) -> Result<(), String> {
+fn write_pack_yaml_to_dir(
+    absolute_dir: String,
+    yaml: String,
+    allowed_roots: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let allowlist = app_handle.state::<PackPathAllowlist>();
+    path_allowed(&allowed_roots, allowlist.inner(), &absolute_dir)?;
     let dir = absolute_dir.trim();
     if dir.is_empty() {
         return Err("empty directory".into());
@@ -652,7 +738,13 @@ fn write_pack_yaml_to_dir(absolute_dir: String, yaml: String) -> Result<(), Stri
 
 /// Zip a pack directory for release testing; returns base64 payload.
 #[tauri::command]
-fn zip_pack_directory(absolute_dir: String) -> Result<String, String> {
+fn zip_pack_directory(
+    absolute_dir: String,
+    allowed_roots: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let allowlist = app_handle.state::<PackPathAllowlist>();
+    path_allowed(&allowed_roots, allowlist.inner(), &absolute_dir)?;
     use std::fs::File;
     use std::io::Write;
     use zip::write::SimpleFileOptions;
@@ -717,7 +809,13 @@ fn walkdir_for_pack(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, S
 
 /// Read a customer pack zip as base64 (dialog paths are outside Tauri fs allowlist).
 #[tauri::command]
-fn read_pack_zip_base64(absolute_path: String) -> Result<String, String> {
+fn read_pack_zip_base64(
+    absolute_path: String,
+    allowed_roots: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let allowlist = app_handle.state::<PackPathAllowlist>();
+    path_allowed(&allowed_roots, allowlist.inner(), &absolute_path)?;
     let path = absolute_path.trim();
     if path.is_empty() {
         return Err("empty path".into());
@@ -741,7 +839,10 @@ fn read_pack_zip_base64(absolute_path: String) -> Result<String, String> {
 
 /// Read text files from absolute paths for chat prompt attachments (drag-and-drop from Finder).
 #[tauri::command]
-async fn read_prompt_attachment_paths(paths: Vec<String>) -> Result<Vec<PromptAttachmentRead>, String> {
+async fn read_prompt_attachment_paths(
+    paths: Vec<String>,
+    allowed_roots: Vec<String>,
+) -> Result<Vec<PromptAttachmentRead>, String> {
     let mut out = Vec::new();
     let mut total = 0usize;
     for path in paths {
@@ -752,6 +853,7 @@ async fn read_prompt_attachment_paths(paths: Vec<String>) -> Result<Vec<PromptAt
         if path.is_empty() || is_binary_attachment_path(path) {
             continue;
         }
+        path_security::within_any_root(&allowed_roots, path)?;
         let meta = std::fs::metadata(path).map_err(|e| format!("{}: {}", path, e))?;
         if !meta.is_file() {
             continue;
@@ -821,8 +923,10 @@ fn decoding_result_to_samples(result: tiff::decoder::DecodingResult) -> Vec<f64>
 }
 
 #[tauri::command]
-fn decode_scan_well_tiff(absolute_path: String) -> Result<DecodedWellImage, String> {
+fn decode_scan_well_tiff(absolute_path: String, allowed_roots: Vec<String>) -> Result<DecodedWellImage, String> {
     use image::ImageEncoder;
+
+    path_security::within_any_root(&allowed_roots, &absolute_path)?;
 
     let data = std::fs::read(&absolute_path)
         .map_err(|e| format!("read {}: {}", absolute_path, e))?;
@@ -1315,6 +1419,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .manage(Arc::new(Mutex::new(HashMap::<String, PtySession>::new())) as PtySessions)
+        .manage(Arc::new(Mutex::new(HashSet::<String>::new())) as PackPathAllowlist)
         .manage(Arc::new(Mutex::new(None::<tauri::api::process::CommandChild>)) as SidecarChild)
         .manage(Arc::new(Mutex::new(None::<std::process::Child>)) as OllamaChild)
         .setup(|app| {
@@ -1388,6 +1493,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            register_pack_path,
             pick_pack_directory,
             write_pack_scaffold,
             read_pack_yaml_from_dir,

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen } from '@tauri-apps/api/event';
+import { getWorkspaceRoots } from '../utils/workspaceRoots';
 
 export interface CommandResult {
   id: string;
@@ -59,6 +60,7 @@ export class TerminalAPI {
     return invoke<CommandResult>('execute_command', {
       command,
       workingDir: workingDir ?? null,
+      allowedRoots: getWorkspaceRoots(),
     });
   }
 

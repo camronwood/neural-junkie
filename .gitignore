@@ -53,6 +53,7 @@ desktop/node_modules/
 /server
 /gui
 /tool-approval-hook
+/cli
 
 # Runtime session data / agent backups
 .neural-junkie/
@@ -75,5 +76,11 @@ workspace/
 ball.scad
 model.scad
 new-artical-test.md
+test-mermaid*.md
+test-file.txt
+test-marked.js
+debug_normalize.go
+nj-article-1.md
+/nj-artical-1.md
 scenarios/fixtures/minimal-repo/collabs/
 

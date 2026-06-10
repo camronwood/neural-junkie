@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import { usePacksStore } from '../../../stores/packsStore';
 import { isTauriRuntime } from '../../../utils/promptAttachments';
+import { ipcWorkspaceRoots, registerPackPickerPath } from '../../../utils/ipcWorkspaceRoots';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { getMonacoThemeId, registerMonacoThemes } from '../../../utils/editorThemes';
 import { MANIFEST_FIELD_HINTS } from './packDevConstants';
@@ -85,9 +86,13 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
       title: 'Open pack folder',
     });
     if (!selected || typeof selected !== 'string') return;
+    await registerPackPickerPath(selected);
     onPackDirChange(selected);
     try {
-      const content = await invoke<string>('read_pack_yaml_from_dir', { absoluteDir: selected });
+      const content = await invoke<string>('read_pack_yaml_from_dir', {
+        absoluteDir: selected,
+        ...ipcWorkspaceRoots(),
+      });
       setYaml(content);
       setDirty(false);
     } catch (e) {
@@ -104,7 +109,11 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
     setError(null);
     setMessage(null);
     try {
-      await invoke('write_pack_yaml_to_dir', { absoluteDir: packDir, yaml });
+      await invoke('write_pack_yaml_to_dir', {
+        absoluteDir: packDir,
+        yaml,
+        ...ipcWorkspaceRoots(),
+      });
       setDirty(false);
       setMessage('Saved pack.yaml');
       await runValidate(yaml, packDir);
@@ -142,7 +151,10 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
     setBusy(true);
     setError(null);
     try {
-      const base64 = await invoke<string>('zip_pack_directory', { absoluteDir: packDir });
+      const base64 = await invoke<string>('zip_pack_directory', {
+        absoluteDir: packDir,
+        ...ipcWorkspaceRoots(),
+      });
       const result = await validatePack({ pack_zip_base64: base64 });
       setReport(result);
     } catch (e) {
@@ -158,7 +170,10 @@ export function PackManifestEditor({ packDir, initialYaml, onPackDirChange }: Pa
     setError(null);
     setMessage(null);
     try {
-      const base64 = await invoke<string>('zip_pack_directory', { absoluteDir: packDir });
+      const base64 = await invoke<string>('zip_pack_directory', {
+        absoluteDir: packDir,
+        ...ipcWorkspaceRoots(),
+      });
       const result = await installPackFromZip(base64);
       setMessage(`Installed ${result.pack_id ?? 'pack'} from release zip.`);
     } catch (e) {

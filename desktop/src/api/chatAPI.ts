@@ -6,6 +6,7 @@ import {
   normalizeHubBaseURL,
   setHubSessionToken,
 } from '../config/hubUrl';
+import { buildChannelWebSocketURL, buildThreadWebSocketURL } from './chatAPI/wsUrl';
 
 /** Successful POST /api/send response; optional fields when a slash command requests a channel switch. */
 export interface SendMessageResponse {
@@ -1170,19 +1171,12 @@ export class ChatAPI {
 
   // Get WebSocket URL for a channel. extraChannels are additional hub channels to watch on the same socket.
   getWebSocketURL(channel: string, extraChannels: string[] = []): string {
-    const wsURL = this.baseURL.replace('http://', 'ws://').replace('https://', 'wss://');
-    let url = `${wsURL}/ws?channel=${encodeURIComponent(channel)}`;
-    const extra = extraChannels.filter((c) => c && c !== channel);
-    if (extra.length > 0) {
-      url += `&extra=${encodeURIComponent(extra.join(','))}`;
-    }
-    return url;
+    return buildChannelWebSocketURL(this.baseURL, channel, extraChannels);
   }
 
   // Get WebSocket URL for a thread
   getThreadWebSocketURL(channel: string, threadId: string): string {
-    const wsURL = this.baseURL.replace('http://', 'ws://').replace('https://', 'wss://');
-    return `${wsURL}/ws?channel=${encodeURIComponent(channel)}&thread=${encodeURIComponent(threadId)}`;
+    return buildThreadWebSocketURL(this.baseURL, channel, threadId);
   }
 
   // Fetch messages from a thread

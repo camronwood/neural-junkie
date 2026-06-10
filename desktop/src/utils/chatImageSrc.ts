@@ -34,7 +34,12 @@ export async function resolveEditorImageSrc(options: {
 export function resolveChatImageSrc(raw: string): string {
   const src = raw.trim().replace(/^<|>$/g, '');
   if (!src) return src;
-  if (src.startsWith('data:')) return src;
+  const lower = src.toLowerCase();
+  if (src.startsWith('data:')) {
+    if (!lower.startsWith('data:image/')) return '';
+    return src;
+  }
+  if (lower.startsWith('javascript:')) return '';
   if (/^https?:\/\//i.test(src)) return src;
 
   let path = src;

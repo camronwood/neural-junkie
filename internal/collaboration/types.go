@@ -199,6 +199,53 @@ type DependencyGroup struct {
 
 // Normalized returns a copy with all zero-value fields replaced by defaults
 // and all values clamped to hard maximums.
+// ScaledDiscussionConfig returns discussion caps scaled for participant count.
+func ScaledDiscussionConfig(agentCount int) DiscussionConfig {
+	if agentCount < 2 {
+		agentCount = 2
+	}
+	if agentCount > HardMaxAgentsPerCollaboration {
+		agentCount = HardMaxAgentsPerCollaboration
+	}
+	extra := agentCount - 2
+	if extra < 0 {
+		extra = 0
+	}
+	turnBudget := 2
+	if turnBudget > HardMaxTurnBudget {
+		turnBudget = HardMaxTurnBudget
+	}
+	maxRounds := 3
+	if maxRounds > HardMaxRounds {
+		maxRounds = HardMaxRounds
+	}
+	return DiscussionConfig{
+		MaxRounds:        maxRounds,
+		TurnBudget:       turnBudget,
+		MaxTotalMessages: DefaultMaxTotalMessages + extra*6,
+		Timeout:          DefaultTimeout,
+	}
+}
+
+// WithScaledDefaults fills zero-value fields from ScaledDiscussionConfig then Normalized().
+func (dc DiscussionConfig) WithScaledDefaults(agentCount int) DiscussionConfig {
+	scaled := ScaledDiscussionConfig(agentCount)
+	out := dc
+	if out.MaxRounds <= 0 {
+		out.MaxRounds = scaled.MaxRounds
+	}
+	if out.TurnBudget <= 0 {
+		out.TurnBudget = scaled.TurnBudget
+	}
+	if out.MaxTotalMessages <= 0 {
+		out.MaxTotalMessages = scaled.MaxTotalMessages
+	}
+	if out.Timeout <= 0 {
+		out.Timeout = scaled.Timeout
+	}
+	return out.Normalized()
+}
+
 func (dc DiscussionConfig) Normalized() DiscussionConfig {
 	out := dc
 	if out.MaxRounds <= 0 {
@@ -332,6 +379,7 @@ const (
 	RecapStatusPending  = "pending"
 	RecapStatusComplete = "complete"
 	RecapStatusFailed   = "failed"
+	RecapStatusSkipped  = "skipped"
 )
 
 // RecapKind distinguishes pre-approval vs end-of-session recaps.

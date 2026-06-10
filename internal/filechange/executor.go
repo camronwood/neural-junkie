@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 )
 
 // FileChangeExecutor handles execution of approved file changes
@@ -160,27 +162,13 @@ func (fce *FileChangeExecutor) validateFileChange(change *FileChange) error {
 
 // validatePath validates a file path for security
 func (fce *FileChangeExecutor) validatePath(path string) error {
-	// Check for directory traversal
-	if strings.Contains(path, "..") {
-		return fmt.Errorf("directory traversal not allowed: %s", path)
+	candidate := path
+	if !filepath.IsAbs(candidate) {
+		candidate = filepath.Join(fce.workspaceRoot, candidate)
 	}
-
-	// Ensure path is within workspace
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return fmt.Errorf("invalid path: %w", err)
+	if _, err := pathutil.WithinRoot(fce.workspaceRoot, candidate); err != nil {
+		return fmt.Errorf("path outside workspace: %w", err)
 	}
-
-	absWorkspace, err := filepath.Abs(fce.workspaceRoot)
-	if err != nil {
-		return fmt.Errorf("invalid workspace root: %w", err)
-	}
-
-	// Check if path is within workspace
-	if !strings.HasPrefix(absPath, absWorkspace) {
-		return fmt.Errorf("path outside workspace: %s", path)
-	}
-
 	return nil
 }
 

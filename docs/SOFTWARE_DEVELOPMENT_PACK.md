@@ -13,8 +13,8 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
 | **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
 | **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing), review bar. See [IDE_V3.md](IDE_V3.md) |
-| **Qwen Coder 14B** | `qwen2.5-coder:14b` — shared base for all specialists |
-| **Utility tier** | `qwen2.5:7b` — merged into `models_to_ensure` for background tasks |
+| **Qwen 3.5 27B** | `qwen3.5:27b` — shared base for all specialists |
+| **Utility tier** | `qwen3.5:9b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |
 | **FrontendEngineer** | Web/desktop UI, accessibility, design systems |
 | **PlatformEngineer** | Deployment, CI/CD, cloud infrastructure |
@@ -46,7 +46,7 @@ When enabled:
 
 - Seven engineering specialists are added to configured hub agents (toggle triggers reconcile + restart).
 - Preset slugs (`backend`, `frontend`, `devops`, `security`, `architecture`, `code-review`, `database`) appear in **New DM** and `/create-expert`.
-- `qwen2.5-coder:14b` and `qwen2.5:7b` are merged into **models to ensure** for Ollama.
+- `qwen3.5:27b` and `qwen3.5:9b` are merged into **models to ensure** for Ollama.
 - Optional LoRA adapters (security, code-review, backend) are in the separate **[Specialist tuning](SPECIALIST_TUNING_PACK.md)** pack — install and assign manually if desired.
 - If **Life sciences** is also enabled, the hub does **not** auto-switch your default Ollama chat model (avoid bio vs coder conflicts); pick the model in Settings.
 
@@ -57,8 +57,8 @@ You can also enable the pack via the **Software development** setup wizard track
 ## Install models
 
 ```bash
-ollama pull qwen2.5-coder:14b
-ollama pull qwen2.5:7b
+ollama pull qwen3.5:27b
+ollama pull qwen3.5:9b
 ```
 
 Or use **Model library** (⇧⌘M) → **Ollama** tab.

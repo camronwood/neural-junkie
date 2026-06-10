@@ -346,6 +346,17 @@ func (h *Hub) broadcastPlanningRecapReady(snap *collaboration.Collaboration, rec
 	_ = h.SendMessage(statusMsg)
 }
 
+func (h *Hub) cancelCollaborationRecaps(collabID string) {
+	if h.collabManager == nil || strings.TrimSpace(collabID) == "" {
+		return
+	}
+	h.clearRecapTimeout(collabID, collaboration.RecapKindPreApproval)
+	h.clearRecapTimeout(collabID, collaboration.RecapKindFinal)
+	h.collabManager.ClearAwaitingFinalize(collabID)
+	h.collabManager.SkipSessionRecap(collabID)
+	h.collabManager.SkipPlanningRecap(collabID)
+}
+
 func (h *Hub) requestFinalRecapAndFinalize(collabID, channel, reason string, opts collaboration.FinalizeOptions) {
 	if h.collabManager == nil {
 		return

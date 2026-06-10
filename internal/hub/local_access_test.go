@@ -36,6 +36,15 @@ func TestAllowHubRequest_token(t *testing.T) {
 	}
 }
 
+func TestAllowHubRequest_queryToken(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "ws-secret")
+	r := httptest.NewRequest("GET", "/ws?hub_token=ws-secret", nil)
+	r.RemoteAddr = "10.0.0.5:9999"
+	if !AllowHubRequest(r) {
+		t.Fatal("expected query hub_token allowed")
+	}
+}
+
 func TestIsLoopbackRemoteAddr(t *testing.T) {
 	if !IsLoopbackRemoteAddr("127.0.0.1:18765") {
 		t.Fatal("127.0.0.1")

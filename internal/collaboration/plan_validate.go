@@ -35,6 +35,8 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 		warnings = append(warnings, fmt.Sprintf("Dropped %d vague or malformed task line(s) from the plan.", droppedWeak))
 	}
 	tasks = mergeNearDuplicateTasks(filtered)
+	tasks, conflictWarnings := mergeConflictingDeliverableTasks(tasks)
+	warnings = append(warnings, conflictWarnings...)
 
 	if len(tasks) > MaxTasksPerCollaboration {
 		warnings = append(warnings, fmt.Sprintf("Task list truncated to %d (plan had more).", MaxTasksPerCollaboration))
@@ -51,6 +53,8 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 	if proseWarnings := ApplyPlanDependencyProse(planContent, tasks); len(proseWarnings) > 0 {
 		warnings = append(warnings, proseWarnings...)
 	}
+	inferDepsFromTaskDescriptions(tasks)
+	NormalizeDependencies(tasks)
 
 	return tasks, warnings
 }
@@ -91,6 +95,68 @@ func taskPassesExecutionQuality(t CollaborationTask) bool {
 		return false
 	}
 	return true
+}
+
+// mergeConflictingDeliverableTasks drops cross-assignee rows that target the same deliverable path.
+func mergeConflictingDeliverableTasks(tasks []CollaborationTask) ([]CollaborationTask, []string) {
+	if len(tasks) < 2 {
+		return tasks, nil
+	}
+	type slot struct {
+		idx   int
+		score int
+	}
+	byPath := make(map[string]slot)
+	drop := make(map[int]bool)
+	var warnings []string
+	for i, t := range tasks {
+		if drop[i] {
+			continue
+		}
+		paths := ReferencedDeliverablePaths(t)
+		if len(paths) == 0 {
+			continue
+		}
+		primary := paths[0]
+		sc := taskDeliverableScore(t)
+		if prev, ok := byPath[primary]; ok {
+			kept := tasks[prev.idx]
+			if drop[prev.idx] {
+				byPath[primary] = slot{idx: i, score: sc}
+				continue
+			}
+			if sameAssignee(t, kept) {
+				if sc > prev.score {
+					byPath[primary] = slot{idx: i, score: sc}
+				}
+				continue
+			}
+			if sc > prev.score {
+				drop[prev.idx] = true
+				byPath[primary] = slot{idx: i, score: sc}
+				warnings = append(warnings,
+					fmt.Sprintf("Dropped conflicting task for %s (kept @%s over @%s).",
+						primary, t.AssignedName, kept.AssignedName))
+			} else {
+				drop[i] = true
+				warnings = append(warnings,
+					fmt.Sprintf("Dropped conflicting task for %s (kept @%s over @%s).",
+						primary, kept.AssignedName, t.AssignedName))
+			}
+		} else {
+			byPath[primary] = slot{idx: i, score: sc}
+		}
+	}
+	if len(warnings) == 0 {
+		return tasks, nil
+	}
+	out := make([]CollaborationTask, 0, len(tasks))
+	for i, t := range tasks {
+		if !drop[i] {
+			out = append(out, t)
+		}
+	}
+	return out, warnings
 }
 
 func mergeNearDuplicateTasks(tasks []CollaborationTask) []CollaborationTask {

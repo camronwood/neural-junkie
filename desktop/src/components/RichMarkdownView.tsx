@@ -4,6 +4,7 @@ import {
   splitMarkdownAndMermaid,
 } from '../utils/markdownRenderer';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
+import { sanitizeMermaidSvg } from '../utils/mermaidSvgSanitize';
 import { MermaidModal } from './MermaidModal';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -38,7 +39,7 @@ function MermaidDiagram({ content, onExpand, compact }: MermaidDiagramProps) {
       const svg = await renderMermaidSvg(content);
 
       if (!mountedRef.current || !svgTargetRef.current) return;
-      svgTargetRef.current.innerHTML = svg;
+      svgTargetRef.current.innerHTML = sanitizeMermaidSvg(svg);
 
       requestAnimationFrame(() => {
         if (!mountedRef.current || !svgTargetRef.current) return;

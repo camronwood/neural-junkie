@@ -1,0 +1,71 @@
+{
+  "name": "vite-boot-fix-corrupt-appjs",
+  "description": "SoftwareArchitect fixes corrupt src/App.js blocking Vite boot (Qwen 14B benchmark).",
+  "tags": ["implement", "boot-fix", "react", "benchmark"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "SoftwareArchitect",
+  "required_agents": ["SoftwareArchitect"],
+  "workspace": { "fixture": "react-vite-corrupt-appjs" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "the app in this workspace is not booting up can you help me fix it?",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "send",
+      "content": "vite dev error log:\n\n✘ [ERROR] Expected \";\" but found \"git\"\n\n    src/App.js:1:7:\n      1 │ diff --git a/tailwind.config.js b/tailwind.config.js\n        │        ~~~\n        ╵        ;\n\nFailed to scan for dependencies from entries.",
+      "metadata": {
+        "editor_mode": "agent",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "420s",
+      "until_any_match": ["applied and verified|verification failed|proposals submitted|implementation session complete|src/App"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "SoftwareArchitect",
+      "last_reply_only": true,
+      "any_match": ["implementation session|applied and verified|App.js|App.tsx"],
+      "none_match": ["finished without file changes", "your valid javascript code here", "No matches found"]
+    },
+    {
+      "action": "assert_file_absent",
+      "path": "src/App.js"
+    },
+    {
+      "action": "send",
+      "content": "is it fixed?",
+      "metadata": {
+        "editor_mode": "agent",
+        "conversation_mode": "chat"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "SoftwareArchitect",
+      "timeout": "240s",
+      "until_any_match": ["applied and verified|verification failed|npm run build|implementation session|App.js"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "SoftwareArchitect",
+      "last_reply_only": true,
+      "none_match": ["command not allowlisted: npm", "npm  install", "No matches found"]
+    }
+  ],
+  "cleanup": "clear"
+}

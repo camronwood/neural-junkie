@@ -31,9 +31,13 @@ var deniedCommandPatterns = []string{
 	"mkfs",
 }
 
+func normalizeCommand(cmd string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(cmd)), " ")
+}
+
 // CommandAllowed reports whether cmd is permitted in run_command sandbox.
 func CommandAllowed(cmd string) bool {
-	cmd = strings.TrimSpace(cmd)
+	cmd = normalizeCommand(cmd)
 	if cmd == "" {
 		return false
 	}

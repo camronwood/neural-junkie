@@ -8,7 +8,11 @@ const WEAK_AFFIRMATION_ONLY_RE =
 
 /** Coding/build asks where the user expects file changes, not generic chat. */
 const IMPLEMENTATION_REQUEST_RE =
-  /\b(settings modal|font size|pick up where|finish (?:that |the )?work|theme support|dark[/ ]light|light[/ ]dark|dark mode|light mode|settings page|wire up|hook up|not working|does(?:n't| not) work|broken|debug this|blank screen|white screen|can you fix)\b/i;
+  /\b(settings modal|font size|pick up where|finish (?:that |the )?work|theme support|dark[/ ]light|light[/ ]dark|dark mode|light mode|settings page|wire up|hook up|not working|does(?:n't| not) work|not booting|won't boot|broken|debug this|blank screen|white screen|can you fix)\b/i;
+
+/** Short status check after a fix attempt in the same thread. */
+const IMPLEMENTATION_STATUS_CHECK_RE =
+  /^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$/i;
 
 /** User directs the agent to use the shared workspace instead of asking for pasted files. */
 export const WORKSPACE_DIRECTIVE_RE =
@@ -106,9 +110,16 @@ export function hasImplementationContinuationSignals(message: string): boolean {
   return IMPLEMENTATION_CONTINUATION_RE.test(text);
 }
 
+export function hasImplementationStatusCheckSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  return IMPLEMENTATION_STATUS_CHECK_RE.test(text);
+}
+
 export function hasImplementationRequestSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
+  if (hasImplementationStatusCheckSignals(text)) return true;
   if (WORKSPACE_DIRECTIVE_RE.test(text)) return true;
   if (IMPLEMENTATION_REQUEST_RE.test(text)) return true;
   if (/\badd(?:ing)?\b/i.test(text) && /\b(theme|themes|modal|settings)\b/i.test(text)) {

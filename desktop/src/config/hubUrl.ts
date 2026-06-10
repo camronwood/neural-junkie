@@ -83,7 +83,9 @@ export function getHubWebSocketURL(): string {
   try {
     const u = new URL(getHubBaseURL());
     const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${wsProto}//${u.host}/ws`;
+    const token = getHubAccessToken();
+    const qs = token ? `?hub_token=${encodeURIComponent(token)}` : '';
+    return `${wsProto}//${u.host}/ws${qs}`;
   } catch {
     return 'ws://127.0.0.1:18765/ws';
   }

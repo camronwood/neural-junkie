@@ -18,7 +18,7 @@
         "conversation_mode": "code"
       }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "300s" },
     { "action": "assert_no_file_change" }
   ],
   "cleanup": "clear"

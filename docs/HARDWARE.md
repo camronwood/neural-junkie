@@ -27,12 +27,12 @@ From [GETTING_STARTED.md](GETTING_STARTED.md) — software development track:
 
 | Role | Default tag | Disk (approx) |
 |------|-------------|---------------|
-| Coding specialists | `qwen2.5-coder:14b` | ~9 GB |
-| Moderator + Assistant | `qwen2.5:7b` | ~4.5 GB |
+| Coding specialists | `qwen3.5:27b` | ~17 GB |
+| Moderator + Assistant | `qwen3.5:9b` | ~6.6 GB |
 
 **Typical first-run disk:** installer + runtime + both models ≈ **15–20 GB**.
 
-Lighter alternatives in the Model library: `qwen2.5-coder:7b` (~4.7 GB), `llama3.2:3b` (~2 GB). Life sciences and CAD tracks use different defaults — see [BIOLOGY_PACK.md](BIOLOGY_PACK.md) and [CAD_PACK.md](CAD_PACK.md).
+Lighter alternatives in the Model library: `qwen3.5:9b` (~6.6 GB), `llama3.2:3b` (~2 GB). Life sciences and CAD tracks use different defaults — see [BIOLOGY_PACK.md](BIOLOGY_PACK.md) and [CAD_PACK.md](CAD_PACK.md).
 
 ---
 
@@ -53,14 +53,14 @@ flowchart TB
 
 | Tier | RAM | Developer / CAD primary | Utility | Good for |
 |------|-----|-------------------------|---------|----------|
-| **minimal** | &lt; 8 GB | `llama3.2:3b` or `qwen2.5-coder:7b` | `qwen2.5:7b` | Light chat; collab/repo work may struggle — prefer cloud hybrid |
-| **light** | 8–15 GB | `qwen2.5-coder:7b` | `qwen2.5:7b` | Safe local dev; skip 14B default |
-| **recommended** | 16–31 GB | `qwen2.5-coder:14b` | `qwen2.5:7b` | Full software pack, repo agents, collaboration |
-| **heavy** | 32 GB+ | `qwen2.5-coder:14b` (+ optional LoRA bases, 70B experiments) | `qwen2.5:7b` | Multi-model library, LoRA training with CUDA |
+| **minimal** | &lt; 8 GB | `llama3.2:3b` or `qwen3.5:9b` | `qwen3.5:9b` | Light chat; collab/repo work may struggle — prefer cloud hybrid |
+| **light** | 8–15 GB | `qwen3.5:9b` | `qwen3.5:9b` | Safe local dev; skip 27B default |
+| **recommended** | 16–31 GB | `qwen3.5:27b` | `qwen3.5:9b` | Full software pack, repo agents, collaboration |
+| **heavy** | 32 GB+ | `qwen3.5:27b` (+ optional LoRA bases, 70B experiments) | `qwen3.5:9b` | Multi-model library, LoRA training with CUDA |
 
-**Life sciences:** `koesn/llama3-openbiollm-8b:latest` + `qwen2.5:7b` for tools on most tiers; under 8 GB, prefer cloud Hugging Face in the wizard.
+**Life sciences:** `koesn/llama3-openbiollm-8b:latest` + `qwen3.5:9b` for tools on most tiers; under 8 GB, prefer cloud Hugging Face in the wizard.
 
-**Team chat / productivity:** `qwen2.5:7b` only — lowest local footprint.
+**Team chat / productivity:** `qwen3.5:9b` only — lowest local footprint.
 
 ### Estimated RAM for a model tag
 
@@ -70,7 +70,7 @@ For catalog models, the app derives:
 estimated_ram_gb = ceil(model_disk_gb × 1.25 + 4)
 ```
 
-The **4 GB** headroom covers OS, hub, and Ollama runtime. Example: `qwen2.5-coder:14b` (~9 GB disk) → **16 GB** suggested RAM. Lookup: `GET /api/ollama/library/lookup?name=qwen2.5-coder:14b`.
+The **4 GB** headroom covers OS, hub, and Ollama runtime. Example: `qwen3.5:27b` (~17 GB disk) → **26 GB** suggested RAM. Lookup: `GET /api/ollama/library/lookup?name=qwen3.5:27b`.
 
 ---
 

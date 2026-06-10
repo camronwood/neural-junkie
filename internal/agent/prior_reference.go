@@ -225,10 +225,32 @@ func (a *Agent) substituteFileExportContent(sourceMsg *protocol.Message, content
 	return resolved
 }
 
+// LooksLikeCorruptSourceContent reports git-diff debris or LLM stub text in source files.
+func LooksLikeCorruptSourceContent(content string) bool {
+	trim := strings.TrimSpace(content)
+	if trim == "" {
+		return false
+	}
+	if strings.HasPrefix(trim, "diff --git") {
+		return true
+	}
+	lower := strings.ToLower(trim)
+	if strings.Contains(lower, "your valid javascript code here") {
+		return true
+	}
+	if strings.Contains(lower, "// your valid javascript") {
+		return true
+	}
+	return false
+}
+
 func looksLikePlaceholderProposalContent(content string) bool {
 	content = strings.TrimSpace(content)
 	if content == "" {
 		return false
+	}
+	if LooksLikeCorruptSourceContent(content) {
+		return true
 	}
 	lower := strings.ToLower(content)
 	markers := []string{

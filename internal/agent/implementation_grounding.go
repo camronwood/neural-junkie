@@ -27,6 +27,9 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 	if len(s.DiscoverTools) >= 1 {
 		return true
 	}
+	if s.BootFixIntent {
+		return false
+	}
 	if s.StackManifest != nil && s.StackManifest.HasEntryPoint() {
 		return true
 	}

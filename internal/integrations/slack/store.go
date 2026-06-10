@@ -89,6 +89,8 @@ func SaveOAuthApp(c *OAuthAppCredentials) error {
 
 // PublicOAuthConfig is returned to the desktop (no secret).
 type PublicOAuthConfig struct {
+	OAuthRelayBase string `json:"oauth_relay_base,omitempty"`
+	UsesOAuthRelay bool   `json:"uses_oauth_relay,omitempty"`
 	ClientID     string `json:"client_id"`
 	RedirectURL  string `json:"redirect_url"`
 	SecretSet    bool   `json:"secret_set"`

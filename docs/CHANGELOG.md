@@ -6,22 +6,34 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-### Added
-- **Stable release infrastructure** — macOS notarization CI, [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [STABLE_SCOPE.md](STABLE_SCOPE.md), [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md), `scripts/cut-stable-release.sh`.
-- **Settings → Security** — hub security status (`GET /api/system/security`).
-
-### Changed
-- **IDE v3 GA** — removed beta limitation from known issues; [IDE_V3.md](IDE_V3.md) updated.
-- **Docs sync** — STATUS, download links, marketing URLs → beta.33 / releases/latest.
+_(Nothing yet — stable prep merged to main; date [1.0.0] when you cut.)_
 
 ## [1.0.0] - TBD (stable channel)
 
 First **stable** release on the stable updater channel. Scope: [STABLE_SCOPE.md](STABLE_SCOPE.md). Cut procedure: [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and `./scripts/cut-stable-release.sh --execute`.
 
-Includes everything in **1.0.0-beta.33** plus notarized macOS builds (when Apple CI secrets are configured).
+Includes everything in **1.0.0-beta.33** plus fixes and test coverage on `main` since beta.33 (DM subscription race, macOS tao patch, conversation scenario expansion). **macOS:** ad-hoc signed CI builds at v1.0.0 (Right-click → Open if Gatekeeper warns). **Notarization:** planned **v1.0.1** when Apple Developer credentials are available.
 
+### Added (since beta.33, on main)
+- **Stable release infrastructure** — macOS notarization CI (optional until Apple creds), [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [STABLE_SCOPE.md](STABLE_SCOPE.md), [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md), `scripts/cut-stable-release.sh`.
+- **Settings → Security** — hub security status (`GET /api/system/security`).
+- **`make test-conversation-contract`** — CI-safe conversation + collab wiring gate.
+- **Conversation scenario expansion** — 4 chat scenarios (continuation, topic switch, closure-then-continue, interject) + 3 collab participation scenarios; 23/23 `conversation-scenarios-regression` PASS.
+- **Platform smoke runbook** — [testing/stable-platform-smoke.md](testing/stable-platform-smoke.md).
 
-### Added
+### Changed (since beta.33)
+- **IDE v3 GA** — removed beta limitation from known issues; [IDE_V3.md](IDE_V3.md) updated.
+- **Stable scope** — v1.0.0 commits to ad-hoc macOS; notarization deferred to v1.0.1.
+- **Updater publish** — `publish-updater-manifests.sh` upload-only for existing `updater-beta` (immutable release rule fix).
+
+### Fixed (since beta.33)
+- **DM subscription race** — eager agent subscribe on `CreateDMChannel` with delayed history replay.
+- **macOS tao crash** — vendored patch for Cmd+KeyUp / keyWindow SIGABRT.
+
+### Known at stable cut
+- **`macos-adhoc-sign`** — documented limitation; not a release blocker for v1.0.0.
+
+### Added (beta line through v1.0.0-beta.33)
 - **Cursor-like composer** — Ask / Agent / Export modes on all channels with unified send pipeline and turn-intent metadata routing.
 - **Durable conversation memory** — SQLite-backed channel history bootstrap; prior-reference export survives hub restart.
 - **Tool-first file delivery** — `propose_file_edit` primary write path; legacy `[FILE_CHANGE]` parsing gated by env.

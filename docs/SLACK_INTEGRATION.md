@@ -19,24 +19,28 @@ The bridge runs **in-process** with the local hub (`127.0.0.1:18765` by default)
 
 ## Public path: Connect Slack (recommended)
 
-End users do **not** paste `xapp` or `xoxb` tokens. The desktop app uses a bundled **Neural Junkie** Slack app (maintainer build) and loopback OAuth on the hub.
+End users do **not** paste `xapp` or `xoxb` tokens. The desktop app uses a bundled **Neural Junkie** Slack app (maintainer build) and OAuth through a **public HTTPS relay** so the app can be installed in **any** Slack workspace (unlisted public distribution).
 
 ```mermaid
 sequenceDiagram
   participant User
   participant Desktop as NJ_desktop
   participant Hub as Local_hub
+  participant Relay as HTTPS_OAuth_relay
   participant Slack
 
   User->>Desktop: Connect_Slack
   Desktop->>Hub: GET /api/slack/oauth/start
-  Hub->>Slack: Authorize
-  Slack->>Hub: Redirect localhost callback
+  Hub->>Slack: Authorize redirect_uri HTTPS relay
+  Slack->>Relay: Browser callback code state
+  Relay->>Hub: Redirect loopback callback
   Hub->>Hub: Save xoxb encrypted
   Hub->>Hub: Apply bundled xapp and restart bridge
   Desktop->>Hub: Poll GET /api/slack/connection
   User->>Desktop: Pick channel binding
 ```
+
+**Public distribution vs App Directory:** Enable **Activate Public Distribution** in the Slack app (Manage Distribution). That allows OAuth installs in other workspaces. You do **not** need the Slack App Directory / Marketplace — Socket Mode apps cannot be listed there, and NJ does not require it.
 
 1. **Settings → Integrations → Slack** → **Connect Slack**
 2. Approve the app in the browser; the hub saves the bot token and starts the bridge
@@ -66,7 +70,39 @@ chmod +x scripts/slack-creds-to-vendor.sh
 ./scripts/slack-creds-to-vendor.sh
 ```
 
-This reads `scripts/.slack-creds` and writes `neural-junkie/internal/integrations/slack/vendor/oauth.json` with `client_id`, `client_secret`, and `app_token` only (no bot token in the bundle).
+This reads `scripts/.slack-creds` and writes `neural-junkie/internal/integrations/slack/vendor/oauth.json` with `client_id`, `client_secret`, `app_token`, and `oauth_relay_base` (no bot token in the bundle).
+
+### Public HTTPS OAuth relay (required for multi-workspace installs)
+
+Slack requires **HTTPS** `redirect_uri` values before you can enable public distribution. NJ ships a small relay service that:
+
+1. Receives the browser callback from Slack on HTTPS
+2. Forwards `code` + `state` to the user's local hub (`http://127.0.0.1:18765/...`)
+3. Lets the hub complete `oauth.v2.access` and save tokens locally
+
+Default relay base: `https://slack.oauth.neural-junkie.dev` (override in `vendor/oauth.json` → `oauth_relay_base` or env `NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE`).
+
+**Deploy the relay (maintainer, once per environment):**
+
+```bash
+aws sso login --profile AdministratorAccess-566982197870
+AWS_PROFILE=AdministratorAccess-566982197870 ./scripts/deploy-slack-oauth-relay-aws.sh
+```
+
+The script prints the Lambda Function URL. Register these in the Slack app (**OAuth & Permissions → Redirect URLs**):
+
+- `{relay_base}/api/slack/oauth/callback`
+- `{relay_base}/api/slack/oauth/user-dm/callback`
+
+Set the same base in CI / vendor JSON:
+
+```bash
+export SLACK_VENDOR_OAUTH_RELAY_BASE=https://YOUR_FUNCTION_URL.lambda-url.us-east-2.on.aws
+```
+
+Optional: map a custom domain (e.g. `slack.oauth.neural-junkie.dev`) via ACM + CloudFront in front of the Function URL.
+
+**Dev without relay:** Unset bundled vendor creds and use Advanced OAuth with loopback `http://localhost:18765/...` redirects (single-workspace Slack app only), or set `NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY=0`.
 
 4. Build the hub with the release embed tag:
 
@@ -85,6 +121,7 @@ Tagged releases (`.github/workflows/release.yml`) embed the real NJ Slack app so
    - `SLACK_VENDOR_CLIENT_ID`
    - `SLACK_VENDOR_CLIENT_SECRET`
    - `SLACK_VENDOR_APP_TOKEN` (`xapp-…`, scope `connections:write`)
+   - `SLACK_VENDOR_OAUTH_RELAY_BASE` (HTTPS relay origin, no trailing slash)
 
 2. From your maintainer creds file (same values as `scripts/.slack-creds`):
 
@@ -110,7 +147,9 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
 - `NEURAL_JUNKIE_SLACK_CLIENT_ID`
 - `NEURAL_JUNKIE_SLACK_CLIENT_SECRET`
 - `NEURAL_JUNKIE_SLACK_APP_TOKEN`
-- `NEURAL_JUNKIE_SLACK_REDIRECT_URL` (optional)
+- `NEURAL_JUNKIE_SLACK_REDIRECT_URL` (optional explicit `redirect_uri`)
+- `NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE` (override public relay origin)
+- `NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY=1` (force relay in dev builds without bundled creds)
 
 **Security:** `client_secret` and `xapp` in a shipped binary can be extracted. Rotate by revoking/regenerating tokens in Slack and shipping a new build.
 
@@ -135,11 +174,15 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
    - `im:read`
    - `chat:write`
    - `users:read`
-6. **OAuth & Permissions** → Redirect URLs (loopback):
-   - `http://localhost:18765/api/slack/oauth/callback`
-   - `http://localhost:18765/api/slack/oauth/user-dm/callback`
-   - Add `http://127.0.0.1:<port>/api/slack/oauth/callback` if you use a non-default hub port
-7. **Event Subscriptions** → **Enable Events** (required for **inbound**; Socket Mode does not auto-subscribe):
+6. **OAuth & Permissions** → Redirect URLs:
+   - **Public / release builds (HTTPS relay):**
+     - `https://slack.oauth.neural-junkie.dev/api/slack/oauth/callback` (or your deployed relay base)
+     - `https://slack.oauth.neural-junkie.dev/api/slack/oauth/user-dm/callback`
+   - **Dev / single-workspace only (loopback HTTP):**
+     - `http://localhost:18765/api/slack/oauth/callback`
+     - `http://localhost:18765/api/slack/oauth/user-dm/callback`
+7. **Settings → Manage Distribution** → complete checklist → **Activate Public Distribution** (not App Directory submission)
+8. **Event Subscriptions** → **Enable Events** (required for **inbound**; Socket Mode does not auto-subscribe):
    - Under **Subscribe to bot events**, add:
      - `message.channels` — public channels
      - **`message.groups`** — **private channels** (e.g. `#neural-junkie`)
@@ -147,7 +190,7 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
      - `app_mention` — when users @the bot
      - `reaction_added` — when you react to forward a message (optional)
    - Save changes. If you added new bot scopes, **reinstall the app** to the workspace.
-8. Invite the bot to channels you want to bind (`/invite @YourBot`).
+9. Invite the bot to channels you want to bind (`/invite @YourBot`).
 
 **Personal inbox:** After Connect Slack, open **Settings → Integrations → Slack → Personal inbox**, pick an agent, and DM the bot from Slack mobile. No channel binding required for DMs.
 
@@ -164,14 +207,16 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
 ### Release checklist (Slack console)
 
 - [ ] Socket Mode on; app token scope `connections:write`
-- [ ] Redirect URL `http://localhost:18765/api/slack/oauth/callback` (and custom port if documented)
+- [ ] HTTPS OAuth relay deployed (`./scripts/deploy-slack-oauth-relay-aws.sh`)
+- [ ] Redirect URLs use relay HTTPS base (`/api/slack/oauth/callback` and `/api/slack/oauth/user-dm/callback`)
+- [ ] **Activate Public Distribution** enabled (Manage Distribution — not App Directory)
 - [ ] Bot scopes listed in step 4 above (including `im:history`, `reactions:read`)
 - [ ] User token scopes listed in step 5 (human DM away mode)
 - [ ] Redirect URLs include `/api/slack/oauth/user-dm/callback`
 - [ ] Event subscriptions: `message.channels`, `message.groups`, `message.im`, `app_mention`, `reaction_added`
 - [ ] Reinstall app to workspace after scope changes
 - [ ] `vendor/oauth.json` generated locally; `go build -tags slackvendor` for release artifacts
-- [ ] GitHub Actions secrets `SLACK_VENDOR_*` set; release workflow builds with `-tags slackvendor`
+- [ ] GitHub Actions secrets `SLACK_VENDOR_*` and `SLACK_VENDOR_OAUTH_RELAY_BASE` set; release workflow builds with `-tags slackvendor`
 
 ## Hub configuration (Advanced / dev)
 

@@ -20,7 +20,7 @@ See also: [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [KNOWN_ISS
 | **Domain packs** | Official catalog + customer sideload zips (Pack dev studio) |
 | **Integrations** | Slack bridge (local hub), Confluence, GitHub CLI, bundled/wizard Ollama |
 | **Updates** | In-app updater — **stable** and **beta** channels |
-| **macOS releases** | Developer ID signed + notarized when Apple CI secrets are configured |
+| **macOS releases** | **Ad-hoc signed** CI builds; first launch may require Right-click → **Open** (Gatekeeper). **v1.0.1+** targets Developer ID + notarization when Apple Developer credentials are available. |
 
 ---
 
@@ -36,6 +36,7 @@ See also: [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md), [KNOWN_ISS
 | Web UI parity with desktop | Limitation | Browser chat at `/` stays thin |
 | IDE v4 (remote SSH, full Monaco LSP) | Deferred | [IDE_V3.md](IDE_V3.md) |
 | Agent WebSocket transport | Phase 3 | `cmd/agent` still polls |
+| Notarized macOS at v1.0.0 | Deferred | Planned **v1.0.1** when Apple account is available — see `macos-adhoc-sign` in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
 
 ---
 
@@ -47,6 +48,7 @@ These remain honest limits at v1.0 — see [known-issues.html](known-issues.html
 - Slack bridge requires local hub running
 - Single hub instance
 - LM Studio / generic OpenAI-compat tool calling is limited vs Ollama/Claude
+- GitHub Release macOS builds: ad-hoc signed until v1.0.1 notarization
 - Local `make gui` / dev builds: ad-hoc macOS sign only
 
 ---

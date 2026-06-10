@@ -100,7 +100,10 @@ func shouldContinueImplementationSession(a *Agent, msg *protocol.Message, state 
 		return false, ""
 	}
 	if msg.EditorAgentTrust() != editorTrustAutoApply && state.TrustMode != editorTrustAutoApply {
-		return false, ""
+		history := a.channelHistory(msg.Channel)
+		if !channelHasRecentFileChangeApproval(history, msg.ID, a.Info.ID) {
+			return false, ""
+		}
 	}
 	if len(state.FilesChanged) >= implSessionMaxFiles {
 		return false, ""

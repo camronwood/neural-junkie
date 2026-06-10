@@ -61,7 +61,9 @@ import {
   patchRevealForChannel,
   patchRevealSidebarItems,
 } from '../utils/sidebarVisibility';
-import { MessageList, chatScrollerElRef } from './MessageList';
+import { chatScrollerElRef } from './MessageList';
+import { ChatMessageList } from './chat/ChatMessageList';
+import { ChatInputArea } from './chat/ChatInputArea';
 import {
   shouldNotifySlackInbound,
   slackChannelLabel,
@@ -69,8 +71,6 @@ import {
   slackInboundSenderLabel,
 } from '../utils/slackNotification';
 import { isSlackHubChannelName } from '../utils/slackChannelDisplay';
-import { TypingIndicator } from './TypingIndicator';
-import { RichTextInput } from './RichTextInput';
 import { ThreadPanel } from './ThreadPanel';
 import { MyAgentsPanel } from './MyAgentsPanel';
 import { PendingChangesPanel } from './PendingChangesPanel';
@@ -103,14 +103,11 @@ import type { LoraTrainPrefill } from './LoraTrainingPanel';
 import { LeftSidebarIcon, RightSidebarIcon } from './Icons';
 import { ChatToolbarActions } from './ChatToolbarActions';
 import { ChatToolbarSidebar } from './ChatToolbarSidebar';
-import { ChatFindBar } from './ChatFindBar';
 import type {
   AssistantReminder,
   AssistantTask,
-  AgentInfo,
   Channel,
   Collaboration,
-  CollaborationAgent,
   CommandDefinition,
   Message,
   ThinkingAgent,
@@ -123,8 +120,7 @@ import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationC
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
 import { resolveTerminalCwd } from '../utils/terminalCwd';
-import { runAgentTerminalCommand } from '../utils/runTerminalCommand';
-import type { CommandSuggestion } from '../stores/terminalStore';
+import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
 import {
   ensureRepoAgentWorkspace,
   isRepoAgentWorkspaceAction,
@@ -150,21 +146,11 @@ import {
 import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
-import { ComposerModeControl } from './ComposerModeControl';
-
-const CLIENT_PALETTE_COMMANDS: CommandDefinition[] = [
-  {
-    name: '/nj-open-model-library',
-    description: 'Open model library (Ollama & Hugging Face — download, install, assign to agents)',
-    category: 'Neural Junkie',
-    arguments: [],
-  },
-];
-
-function withClientPaletteCommands(defs: CommandDefinition[]): CommandDefinition[] {
-  const names = new Set(CLIENT_PALETTE_COMMANDS.map((c) => c.name));
-  return [...CLIENT_PALETTE_COMMANDS, ...defs.filter((d) => !names.has(d.name))];
-}
+import {
+  agentsToCollaborationAgents,
+  showRunbookBuilderForCollab,
+  withClientPaletteCommands,
+} from './chat/chatWindowHelpers';
 
 const EMPTY_THINKING_AGENTS: ThinkingAgent[] = [];
 
@@ -220,7 +206,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const setMyAgentsPanelOpen = useChatStore((s) => s.setMyAgentsPanelOpen);
   const closeThread = useChatStore((s) => s.closeThread);
 
-  const { isPanelOpen, panelHeight, addSuggestedCommand, setPanelOpen } = useTerminalStore();
+  const { isPanelOpen, panelHeight, setPanelOpen } = useTerminalStore();
   const { layoutSettings, loadLayoutSettings, updateSettings, updateLayoutSettings } =
     useSettingsStore();
   const addToast = useToastStore(s => s.addToast);
@@ -444,6 +430,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [runbookBuilderDirty, setRunbookBuilderDirty] = useState(false);
   const activeCollabRef = useRef<Collaboration | null>(null);
   const collaborationsByIDRef = useRef<Record<string, Collaboration>>({});
+  const { handleSuggestedCommands } = useSuggestedCommands({
+    collaborationsByIDRef,
+    addToast,
+  });
   const [taskManagementOpen, setTaskManagementOpen] = useState(false);
   const secondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.panelOpen);
   const setSecondaryAnalysisOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
@@ -1551,42 +1541,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           void handleCADFilesWritten(message.metadata as Record<string, unknown> | undefined);
         }
 
-        if (message.metadata?.suggested_commands) {
-          const suggestions = message.metadata.suggested_commands as CommandSuggestion[];
-          const msgCh = message.channel || activeChannel;
-          const collabCtx = Object.values(collaborationsByIDRef.current).find(
-            (c) => c.channel === msgCh
-          );
-          for (const suggestion of suggestions) {
-            const enriched = {
-              ...suggestion,
-              cwd:
-                suggestion.cwd?.trim() ||
-                resolveTerminalCwd({ collaboration: collabCtx ?? null }),
-            };
-            if (enriched.is_safe) {
-              useTerminalStore.getState().setPanelOpen(true);
-              void runAgentTerminalCommand(enriched, {
-                collaboration: collabCtx ?? null,
-                channel: msgCh,
-                api,
-              });
-            } else {
-              addSuggestedCommand(enriched);
-              useTerminalStore.getState().setPanelOpen(true);
-              addToast({
-                type: 'warning',
-                title: `${enriched.agent_name} wants to run a command`,
-                message: enriched.command,
-                duration: 0,
-                action: {
-                  label: 'Review in terminal',
-                  onClick: () => useTerminalStore.getState().setPanelOpen(true),
-                },
-              });
-            }
-          }
-        }
+        handleSuggestedCommands(message, activeChannel);
 
         if (message.metadata?.event === 'agent-open-terminal') {
           const agentName = message.metadata.agent_name as string || 'Agent';
@@ -2529,87 +2484,29 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-hidden">
 
-        {isClosedCollaborationChannel && collaborationForChannel && (
-            <div
-              className={`mx-3 mt-2 px-3 py-2 rounded-md text-sm border ${
-                collaborationForChannel.phase === 'cancelled'
-                  ? 'border-red-700/50 bg-red-950/40 text-red-100'
-                  : 'border-emerald-700/50 bg-emerald-950/40 text-emerald-100'
-              }`}
-              role="status"
-            >
-              {collaborationForChannel.phase === 'cancelled' ? (
-                <>Collaboration cancelled — this channel is read-only.</>
-              ) : (
-                <>
-                  Collaboration complete —{' '}
-                  {collaborationForChannel.tasks?.filter(t => t.status === 'completed').length ?? 0}/
-                  {collaborationForChannel.tasks?.length ?? 0} tasks done.
-                  {collaborationForChannel.session_recap?.trim() ? (
-                    <>
-                      {' '}
-                      {collaborationForChannel.session_recap.trim().split('\n')[0].slice(0, 120)}
-                      {collaborationForChannel.session_recap.trim().length > 120 ? '…' : ''}
-                    </>
-                  ) : null}{' '}
-                  This channel is read-only.
-                </>
-              )}
-            </div>
-          )}
+        <ChatMessageList
+          channel={channel}
+          messageSearchQuery={messageSearchQuery}
+          chatFindOpen={chatFindOpen}
+          onMessageSearchQueryChange={setMessageSearchQuery}
+          onCloseFind={() => {
+            setChatFindOpen(false);
+            setMessageSearchQuery('');
+          }}
+          isClosedCollaborationChannel={isClosedCollaborationChannel}
+          collaborationForChannel={collaborationForChannel}
+          channelAwaitingWorkspaceCollab={channelAwaitingWorkspaceCollab}
+          onOpenWorkspaceGate={openWorkspaceGate}
+        />
 
-        {/* Messages */}
-        {chatFindOpen && (
-          <ChatFindBar
-            query={messageSearchQuery}
-            onQueryChange={setMessageSearchQuery}
-            onClose={() => {
-              setChatFindOpen(false);
-              setMessageSearchQuery('');
-            }}
-          />
-        )}
-        {channelAwaitingWorkspaceCollab && (
-          <div
-            data-testid="chat-workspace-gate-strip"
-            className="mx-3 mt-2 mb-1 px-3 py-2 rounded-md border border-amber-600/50 bg-amber-950/30 text-sm text-amber-100 flex items-center justify-between gap-3"
-          >
-            <span>
-              <strong>Confirm workspace</strong> — agents on #{channel} are waiting for your approval before
-              task prompts are sent.
-            </span>
-            <button
-              type="button"
-              className="shrink-0 px-3 py-1 rounded bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold"
-              onClick={openWorkspaceGate}
-            >
-              Continue
-            </button>
-          </div>
-        )}
-        <MessageList key={channel} searchQuery={messageSearchQuery} />
-
-        <div className="flex-shrink-0">
-          <TypingIndicator
-            agents={thinkingAgentsForChannel}
-            showStop={showAgentStop}
-            onStop={() => void handleChannelInterject()}
-          />
-        </div>
-
-        {channelHeld && (
-          <div
-            className="mx-3 mb-1 px-3 py-2 rounded-md text-sm border border-amber-700/50 bg-amber-950/40 text-amber-100"
-            role="status"
-          >
-            Agents paused — send a message to continue.
-          </div>
-        )}
-
-        <ComposerModeControl
-          mode={composerMode}
-          disabled={status !== 'connected' || isClosedCollaborationChannel}
-          onChange={(mode) => {
+        <ChatInputArea
+          channelHeld={channelHeld}
+          thinkingAgentsForChannel={thinkingAgentsForChannel}
+          showAgentStop={showAgentStop}
+          onChannelInterject={() => void handleChannelInterject()}
+          composerMode={composerMode}
+          composerModeDisabled={status !== 'connected' || isClosedCollaborationChannel}
+          onComposerModeChange={(mode) => {
             setComposerMode(mode);
             localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, mode);
             if (devPackEnabled) {
@@ -2618,13 +2515,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
               });
             }
           }}
-        />
-
-        {/* Input */}
-        <RichTextInput
           onSend={handleSendMessage}
-          disabled={status !== 'connected' || isClosedCollaborationChannel}
-          placeholder={
+          inputDisabled={status !== 'connected' || isClosedCollaborationChannel}
+          inputPlaceholder={
             isClosedCollaborationChannel
               ? 'Collaboration closed — read-only (slash commands still work)'
               : status === 'connected'
@@ -2632,21 +2525,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 : 'Connecting...'
           }
           agents={agents}
-          ref={inputRef}
+          inputRef={inputRef}
+          composerDraft={composerDraft}
           onDraftChange={setComposerDraft}
+          showContextIndicator={
+            workspaceContextMode === 'auto' || conversationModeSetting === 'auto'
+          }
+          contextIndicatorLabel={contextIndicatorLabel}
+          contextScopeReason={contextScopePreview.reason}
+          ideRoutingLabel={ideRoutingLabel}
         />
-
-        {(workspaceContextMode === 'auto' || conversationModeSetting === 'auto') && composerDraft.trim() && (
-          <div
-            className="px-3 py-1 text-xs text-slack-textMuted border-t border-slack-border"
-            title={contextScopePreview.reason}
-          >
-            Context: <span className="text-slack-text">{contextIndicatorLabel}</span>
-            {ideRoutingLabel ? (
-              <span className="ml-2 text-slack-accent">{ideRoutingLabel}</span>
-            ) : null}
-          </div>
-        )}
         </div>
         </div>
         )}
@@ -3001,21 +2889,4 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       </div>
     </ErrorBoundary>
   );
-}
-
-function showRunbookBuilderForCollab(collab: Collaboration): boolean {
-  return (
-    collab.source === 'runbook' &&
-    (collab.phase === 'draft' || collab.phase === 'reviewing')
-  );
-}
-
-function agentsToCollaborationAgents(agents: AgentInfo[]): CollaborationAgent[] {
-  return agents.map((a) => ({
-    agent_id: a.id,
-    agent_name: a.name,
-    agent_type: a.type,
-    expertise: a.expertise ?? [],
-    role: '',
-  }));
 }

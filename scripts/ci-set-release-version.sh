@@ -25,10 +25,18 @@ fi
 node -e "
 const fs = require('fs');
 const confPath = process.argv[1];
-const version = process.argv[2];
+const pkgPath = process.argv[2];
+const cargoPath = process.argv[3];
+const version = process.argv[4];
 const conf = JSON.parse(fs.readFileSync(confPath, 'utf8'));
 conf.package.version = version;
 fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + '\n');
-" "${CONF}" "${BUNDLE_VERSION}"
+const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+pkg.version = version;
+fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+let cargo = fs.readFileSync(cargoPath, 'utf8');
+cargo = cargo.replace(/^version = \".*\"/m, 'version = \"' + version + '\"');
+fs.writeFileSync(cargoPath, cargo);
+" "${CONF}" "${ROOT}/desktop/package.json" "${ROOT}/desktop/src-tauri/Cargo.toml" "${BUNDLE_VERSION}"
 
-echo "Set ${CONF} package.version to ${BUNDLE_VERSION} (from tag ${TAG}, platform=${PLATFORM:-default})"
+echo "Set desktop versions to ${BUNDLE_VERSION} (from tag ${TAG}, platform=${PLATFORM:-default})"

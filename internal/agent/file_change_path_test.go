@@ -1,10 +1,6 @@
 package agent
 
-import (
-	"testing"
-
-	"github.com/camronwood/neural-junkie/internal/protocol"
-)
+import "testing"
 
 func TestIsValidFileChangeRelPath(t *testing.T) {
 	t.Parallel()
@@ -37,7 +33,7 @@ func TestParseLooseFileChange_RejectsFileLabel(t *testing.T) {
 func TestPreferImplementationTargetPath(t *testing.T) {
 	t.Parallel()
 	user := "Please implement themes. Emit [FILE_CHANGE] for tailwind.config.js"
-	got := preferImplementationTargetPath(user, "File:", protocol.AgentTypeFrontend)
+	got := preferImplementationTargetPath("", user, "File:")
 	if got != "tailwind.config.js" {
 		t.Fatalf("got %q, want tailwind.config.js", got)
 	}

@@ -39,6 +39,9 @@ jobs:
       - name: make test-all
         run: make test-all
 
+      - name: make test-race
+        run: make test-race
+
   collab-preflight:
     if: github.event_name == 'workflow_dispatch' && inputs.collab_preflight
     runs-on: ubuntu-latest

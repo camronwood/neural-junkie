@@ -1,11 +1,30 @@
 package hub
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func TestCollabTaskDeliverableSatisfied_ignoresPlanStubs(t *testing.T) {
+	h := newTestHub(t)
+	root := t.TempDir()
+	stubPath := filepath.Join(root, "findings.md")
+	_ = os.WriteFile(stubPath, []byte("# findings.md\n\n_Initial stub created when the plan was approved. Replace with task output._\n"), 0644)
+
+	snap := &collaboration.Collaboration{
+		WorkingDirectory: root,
+	}
+	task := &collaboration.CollaborationTask{
+		Description: "Write collabs/test/findings.md",
+	}
+	if h.collabTaskDeliverableSatisfied(snap, task, nil) {
+		t.Fatal("plan stub file should not satisfy deliverable check")
+	}
+}
 
 func TestMaybeWarnPrematureTaskCompletion_BlocksWithoutProposal(t *testing.T) {
 	h := newTestHub(t)

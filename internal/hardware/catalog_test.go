@@ -53,7 +53,7 @@ func TestTierForMemoryGB(t *testing.T) {
 }
 
 func TestLookupModel(t *testing.T) {
-	row, err := LookupModel("qwen2.5-coder:14b")
+	row, err := LookupModel("qwen3.5:27b")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,10 +63,10 @@ func TestLookupModel(t *testing.T) {
 	if row.SizeHint == "" {
 		t.Fatal("expected size_hint")
 	}
-	if row.EstimatedDiskGB != 9 {
+	if row.EstimatedDiskGB != 17 {
 		t.Fatalf("disk gb %v", row.EstimatedDiskGB)
 	}
-	if row.EstimatedRAMGB != 16 {
+	if row.EstimatedRAMGB != 26 {
 		t.Fatalf("ram gb %v", row.EstimatedRAMGB)
 	}
 
@@ -81,11 +81,11 @@ func TestLookupModel(t *testing.T) {
 
 func TestRecommendationsForTier(t *testing.T) {
 	light := RecommendationsForTier(TierLight, 12)
-	if light["developer"].PrimaryModel != "qwen2.5-coder:7b" {
+	if light["developer"].PrimaryModel != "qwen3.5:9b" {
 		t.Fatalf("developer light: %s", light["developer"].PrimaryModel)
 	}
 	rec := RecommendationsForTier(TierRecommended, 16)
-	if rec["developer"].PrimaryModel != "qwen2.5-coder:14b" {
+	if rec["developer"].PrimaryModel != "qwen3.5:27b" {
 		t.Fatalf("developer recommended: %s", rec["developer"].PrimaryModel)
 	}
 }

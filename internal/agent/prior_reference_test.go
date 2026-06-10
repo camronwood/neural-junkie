@@ -71,6 +71,12 @@ func TestLooksLikePlaceholderProposalContent(t *testing.T) {
 	if looksLikePlaceholderProposalContent("# Real\n\nGrounded content from README.") {
 		t.Fatal("expected real content to pass")
 	}
+	if !looksLikePlaceholderProposalContent("// Your valid JavaScript code here") {
+		t.Fatal("expected JS stub to be rejected")
+	}
+	if !LooksLikeCorruptSourceContent("diff --git a/src/App.js b/src/App.js\n") {
+		t.Fatal("expected git diff debris to be corrupt")
+	}
 }
 
 func TestAppendPriorReferenceGuidance_fileExport(t *testing.T) {

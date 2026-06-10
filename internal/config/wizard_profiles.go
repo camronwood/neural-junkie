@@ -24,9 +24,9 @@ const (
 	// BioOllamaChatModel is the recommended local OpenBio chat model (Ollama hub; Llama 3 template).
 	BioOllamaChatModel = "koesn/llama3-openbiollm-8b:latest"
 	// BioOllamaToolModel runs MCP biology tools when the chat model lacks native tool calling.
-	BioOllamaToolModel = "qwen2.5:7b"
+	BioOllamaToolModel = "qwen3.5:9b"
 	// UtilityOllamaModel is the hub utility tier for session summaries and similar background tasks.
-	UtilityOllamaModel = "qwen2.5:7b"
+	UtilityOllamaModel = "qwen3.5:9b"
 	// BioOllamaTag is the canonical Ollama model name for OpenBioLLM (import via HF GGUF).
 	BioOllamaTag = "nj-bio:8b"
 	// BioHFRepo is the Hugging Face instruct model for hosted inference.
@@ -34,13 +34,13 @@ const (
 	// BioHFGGUFRepo is the GGUF catalog repo for local import.
 	BioHFGGUFRepo = "aaditya/OpenBioLLM-Llama3-8B-GGUF"
 	// CadOllamaChatModel is the balanced-tier default for CADExpert OpenSCAD authoring.
-	CadOllamaChatModel = "qwen2.5-coder:14b"
+	CadOllamaChatModel = "qwen3.5:27b"
 	// CadOllamaChatModelLight is the light-tier CAD chat model.
-	CadOllamaChatModelLight = "qwen2.5-coder:7b"
+	CadOllamaChatModelLight = "qwen3.5:9b"
 	// CadOllamaChatModelQuality is the quality-tier branded OpenSCAD instruct tag.
 	CadOllamaChatModelQuality = "nj-cad:27b"
 	// CadOllamaToolModel runs MCP CAD tools when the chat model lacks native tool calling.
-	CadOllamaToolModel = "qwen2.5:7b"
+	CadOllamaToolModel = "qwen3.5:9b"
 	// CadOllamaTag is the canonical Ollama name for optional OpenSCAD-instruct GGUF import.
 	CadOllamaTag = "nj-cad:27b"
 )

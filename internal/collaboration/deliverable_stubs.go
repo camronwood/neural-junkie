@@ -7,6 +7,25 @@ import (
 	"strings"
 )
 
+const deliverableStubMarker = "_Initial stub created when the plan was approved"
+
+// IsDeliverableStubContent reports plan-approval placeholder file bodies.
+func IsDeliverableStubContent(body []byte) bool {
+	return strings.Contains(string(body), deliverableStubMarker)
+}
+
+// IsDeliverableStubFile reads up to 4KB from absPath and checks for the stub marker.
+func IsDeliverableStubFile(absPath string) bool {
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return false
+	}
+	if len(data) > 4096 {
+		data = data[:4096]
+	}
+	return IsDeliverableStubContent(data)
+}
+
 // MaterializePlanDeliverableStubs creates placeholder markdown files for deliverable paths
 // referenced in the approved plan/tasks under the collaboration working directory.
 func MaterializePlanDeliverableStubs(c *Collaboration) ([]string, error) {
@@ -42,7 +61,7 @@ func MaterializePlanDeliverableStubs(c *Collaboration) ([]string, error) {
 		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
 			return created, fmt.Errorf("mkdir deliverable parent: %w", err)
 		}
-		header := fmt.Sprintf("# %s\n\n_Initial stub created when the plan was approved. Replace with task output._\n", filepath.Base(rel))
+		header := fmt.Sprintf("# %s\n\n%s. Replace with task output._\n", filepath.Base(rel), deliverableStubMarker)
 		if err := os.WriteFile(abs, []byte(header), 0644); err != nil {
 			return created, fmt.Errorf("write stub %s: %w", rel, err)
 		}
@@ -68,7 +87,7 @@ func collectPlanDeliverablePaths(c *Collaboration) []string {
 	}
 	if c.Plan != nil {
 		for _, rel := range taskPathTokenRE.FindAllString(c.Plan.Content, -1) {
-			add(rel)
+			add(sanitizePathToken(rel))
 		}
 	}
 	for _, t := range c.Tasks {

@@ -7,7 +7,7 @@ function mermaidInitForTheme(theme: ColorTheme): void {
     mermaid.initialize({
       startOnLoad: false,
       theme: 'base',
-      securityLevel: 'loose',
+      securityLevel: 'strict',
       fontFamily: 'ui-monospace, monospace',
       themeVariables: {
         darkMode: true,
@@ -31,7 +31,7 @@ function mermaidInitForTheme(theme: ColorTheme): void {
   mermaid.initialize({
     startOnLoad: false,
     theme: 'dark',
-    securityLevel: 'loose',
+    securityLevel: 'strict',
     fontFamily: 'ui-monospace, monospace',
   });
 }

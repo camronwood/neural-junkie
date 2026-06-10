@@ -47,7 +47,7 @@ var fileEditAgentCases = []struct {
 func TestPreferImplementationTargetPath_agentMatrix(t *testing.T) {
 	for _, tc := range fileEditAgentCases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := preferImplementationTargetPath(tc.userMsg, "File:", tc.agentType)
+			got := preferImplementationTargetPath("", tc.userMsg, "File:")
 			if got != tc.wantPath {
 				t.Fatalf("got %q want %q", got, tc.wantPath)
 			}

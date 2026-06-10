@@ -30,6 +30,12 @@ func taskDedupeKey(t CollaborationTask) string {
 	title = taskDedupeNoise.ReplaceAllString(title, " ")
 	title = strings.TrimSpace(title)
 	assignee := strings.ToLower(strings.TrimSpace(t.AssignedTo))
+	if assignee == "" {
+		assignee = strings.ToLower(strings.TrimSpace(t.AssignedName))
+	}
+	if paths := ReferencedDeliverablePaths(t); len(paths) > 0 {
+		return assignee + "|" + paths[0]
+	}
 	if len(title) > 72 {
 		title = title[:72]
 	}

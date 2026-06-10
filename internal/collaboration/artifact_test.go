@@ -264,9 +264,10 @@ func TestMergeTaskLinesFromDiscussion_splitsCompoundLines(t *testing.T) {
 				"- Task 1: @SoftwareArchitect - design.md - Task 2: @BackendEngineer - filter.go"),
 		},
 	}
-	plan, tasks := SynthesizePlanFromDiscussion(&Collaboration{Agents: agents, Discussion: disc})
+	merged := mergeTaskLinesFromDiscussion(disc, agents)
+	tasks := ExtractTasksFromPlan(merged, agents)
 	if len(tasks) < 2 {
-		t.Fatalf("expected >=2 tasks from compound line, got %d plan=%q", len(tasks), plan)
+		t.Fatalf("expected >=2 tasks from compound line, got %d plan=%q", len(tasks), merged)
 	}
 }
 
@@ -298,14 +299,15 @@ func TestSynthesizePlanFromDiscussion_mergesTaskLinesAcrossMessages(t *testing.T
 		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
 		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
 	}
+	// Neither message alone forms a valid structured plan; union merge is the fallback.
 	disc := &DiscussionSession{
 		Messages: []*protocol.Message{
 			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
 				protocol.AgentInfo{Name: "SoftwareArchitect"},
-				"- Task 1: @SoftwareArchitect - Write collabs/x/requirements.md with scope"),
+				"I can take requirements.\n- Task 1: @SoftwareArchitect - design.md"),
 			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
 				protocol.AgentInfo{Name: "BackendEngineer"},
-				"I agree.\n- Task 2: @BackendEngineer - Write collabs/x/api-design.md with endpoints"),
+				"Agreed.\n- Task 2: @BackendEngineer - filter.go"),
 		},
 	}
 	c := &Collaboration{

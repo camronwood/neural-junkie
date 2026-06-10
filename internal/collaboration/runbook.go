@@ -118,7 +118,7 @@ func (cm *CollaborationManager) createCollaborationCore(
 			HardMaxAgentsPerCollaboration, len(allIDs))
 	}
 
-	cfg = cfg.Normalized()
+	cfg = cfg.WithScaledDefaults(len(allIDs))
 	agents := make([]CollaborationAgent, 0, len(allIDs))
 	for _, id := range allIDs {
 		info, err := cm.hub.GetAgent(id)

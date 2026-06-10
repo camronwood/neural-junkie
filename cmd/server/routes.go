@@ -1,0 +1,223 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"strings"
+
+	_ "net/http/pprof"
+
+	"github.com/camronwood/neural-junkie/internal/mcp/resources"
+)
+
+func registerRoutes() {
+	// HTTP routes with CORS middleware
+	http.HandleFunc("/ws", localOnly(handleWebSocket))
+	http.HandleFunc("/api/channels", corsMiddleware(handleChannels))
+	http.HandleFunc("/api/channels/create", corsMiddleware(handleCreateChannel))
+	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(handleCreateDMAgent))
+	http.HandleFunc("/api/cli-agent-types", corsMiddleware(handleCLIAgentTypes))
+	http.HandleFunc("/api/cli-agents", corsMiddleware(handleCLIAgents))
+	http.HandleFunc("/api/cli-agents/", corsMiddleware(handleCLIAgentsSubRoute))
+	http.HandleFunc("/api/channels/join", corsMiddleware(handleJoinChannel))
+	http.HandleFunc("/api/channels/delete", corsMiddleware(localOnly(handleDeleteChannel)))
+	http.HandleFunc("/api/channels/clear-history", corsMiddleware(localOnly(handleClearChannelHistory)))
+	http.HandleFunc("/api/channel-export", corsMiddleware(localOnly(handleChannelExport)))
+	http.HandleFunc("/api/channel-durable", corsMiddleware(localOnly(handleChannelDurable)))
+	http.HandleFunc("/api/channel-durable/status", corsMiddleware(localOnly(handleChannelDurableGet)))
+	http.HandleFunc("/api/channels/agents", corsMiddleware(handleChannelAgentsManage))
+	http.HandleFunc("/api/channels/", corsMiddleware(localOnly(handleChannelInterjectRoute)))
+	http.HandleFunc("/api/agent-channels", corsMiddleware(handleAgentChannels))
+	http.HandleFunc("/api/agents", corsMiddleware(handleAgentsRoute))
+	http.HandleFunc("/api/agent-tools", corsMiddleware(handleAgentTools))
+	http.HandleFunc("/api/channel-tools", corsMiddleware(handleChannelTools))
+	http.HandleFunc("/api/my-agents", corsMiddleware(handleMyAgents))
+	http.HandleFunc("/api/cached-agents", corsMiddleware(handleCachedAgents)) // Keep for backwards compatibility
+	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
+	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
+	http.HandleFunc("/api/local-image", corsMiddleware(localOnly(handleLocalImage)))
+	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
+	http.HandleFunc("/api/collaborations/", corsMiddleware(handleCollaborationsSubRoute))
+	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(handleCollaborationWorkspaceAck))
+	http.HandleFunc("/api/runbooks", corsMiddleware(handleRunbooksRoute))
+	http.HandleFunc("/api/runbooks/", corsMiddleware(handleRunbooksRoute))
+	http.HandleFunc("/api/runbook-templates", corsMiddleware(handleRunbookTemplatesRoute))
+	http.HandleFunc("/api/runbook-templates/", corsMiddleware(handleRunbookTemplatesRoute))
+	http.HandleFunc("/api/auth/session", corsMiddleware(handleAuthSession))
+	http.HandleFunc("/api/hub-data/read", corsMiddleware(localOnly(handleHubDataRead)))
+	http.HandleFunc("/api/send", corsMiddleware(localOnly(handleSendMessage)))
+	http.HandleFunc("/api/broadcast", corsMiddleware(localOnly(handleBroadcastDirect)))
+	http.HandleFunc("/api/threads/", corsMiddleware(handleThreads)) // Thread endpoints
+	http.HandleFunc("/api/import", corsMiddleware(handleImport))
+	http.HandleFunc("/api/export", corsMiddleware(handleExport))
+	http.HandleFunc("/api/exports", corsMiddleware(handleExports))
+
+	if os.Getenv("ENABLE_MCP_RESOURCES") == "true" {
+		go func() {
+			rs, err := resources.NewResourceServer()
+			if err != nil {
+				log.Printf("MCP resource server not started: %v", err)
+				return
+			}
+			if err := rs.Start(); err != nil {
+				log.Printf("MCP resource server failed: %v", err)
+				return
+			}
+			log.Printf("MCP resource server listening (ENABLE_MCP_RESOURCES=true)")
+		}()
+	}
+
+	// File system API endpoints
+	http.HandleFunc("/api/workspaces", corsMiddleware(localOnly(handleWorkspaces)))
+	http.HandleFunc("/api/files", corsMiddleware(localOnly(handleFiles)))
+	http.HandleFunc("/api/file-content", corsMiddleware(localOnly(handleFileContent)))
+	http.HandleFunc("/api/file-create", corsMiddleware(localOnly(handleFileCreate)))
+	http.HandleFunc("/api/file-rename", corsMiddleware(localOnly(handleFileRename)))
+	http.HandleFunc("/api/file-delete", corsMiddleware(localOnly(handleFileDelete)))
+	http.HandleFunc("/api/scan-summary/well-image", corsMiddleware(handleScanSummaryWellImage))
+	http.HandleFunc("/api/secondary-analysis/", corsMiddleware(handleSecondaryAnalysisRoute))
+	http.HandleFunc("/api/secondary-analysis", corsMiddleware(handleSecondaryAnalysisRoute))
+	http.HandleFunc("/api/phoenix/", corsMiddleware(handlePhoenixRoute))
+	http.HandleFunc("/api/phoenix", corsMiddleware(handlePhoenixRoute))
+	http.HandleFunc("/api/cad/render", corsMiddleware(handleCADRender))
+	http.HandleFunc("/api/cad/mesh", corsMiddleware(handleCADMesh))
+	http.HandleFunc("/api/cad/params", corsMiddleware(handleCADParams))
+	http.HandleFunc("/api/cad/versions", corsMiddleware(handleCADVersions))
+	http.HandleFunc("/api/cad/versions/restore", corsMiddleware(handleCADVersionRestore))
+	http.HandleFunc("/api/cad/test-openscad", corsMiddleware(handleCADTestOpenSCAD))
+	http.HandleFunc("/api/git-status", corsMiddleware(localOnly(handleGitStatus)))
+	http.HandleFunc("/api/git-diff", corsMiddleware(localOnly(handleGitDiff)))
+	http.HandleFunc("/api/git-commit", corsMiddleware(localOnly(handleGitCommit)))
+	http.HandleFunc("/api/git-push", corsMiddleware(localOnly(handleGitPush)))
+	http.HandleFunc("/api/git-pull", corsMiddleware(localOnly(handleGitPull)))
+	http.HandleFunc("/api/git-file-sides", corsMiddleware(localOnly(handleGitFileSides)))
+	http.HandleFunc("/api/git-add", corsMiddleware(localOnly(handleGitAdd)))
+	http.HandleFunc("/api/git-reset", corsMiddleware(localOnly(handleGitReset)))
+	http.HandleFunc("/api/workspaces/files/search", corsMiddleware(localOnly(handleWorkspaceFileSearch)))
+	http.HandleFunc("/api/workspaces/symbols/search", corsMiddleware(localOnly(handleWorkspaceSymbolSearch)))
+	http.HandleFunc("/api/dev/fast-edit", corsMiddleware(handleDevFastEdit))
+	http.HandleFunc("/api/dev/complete", corsMiddleware(handleDevComplete))
+	http.HandleFunc("/api/dev/agent-turn", corsMiddleware(handleDevAgentTurn))
+	http.HandleFunc("/api/lsp/go/diagnostics", corsMiddleware(handleLSPGoDiagnostics))
+	http.HandleFunc("/api/lsp/rust/diagnostics", corsMiddleware(handleLSPRustDiagnostics))
+	http.HandleFunc("/api/lsp/python/diagnostics", corsMiddleware(handleLSPPythonDiagnostics))
+	http.HandleFunc("/api/repo/search/semantic", corsMiddleware(handleRepoSemanticSearch))
+	http.HandleFunc("/api/repo/index/status", corsMiddleware(handleRepoIndexStatus))
+
+	// File change API endpoints
+	http.HandleFunc("/api/file-changes", corsMiddleware(handleFileChanges))
+	http.HandleFunc("/api/file-changes/propose-from-message", corsMiddleware(localOnly(handleProposeFileChangeFromMessage)))
+	http.HandleFunc("/api/file-changes/approve/", corsMiddleware(localOnly(handleApproveFileChange)))
+	http.HandleFunc("/api/file-changes/reject/", corsMiddleware(localOnly(handleRejectFileChange)))
+	http.HandleFunc("/api/file-changes/", corsMiddleware(handleFileChangeDiff))
+
+	// AI Provider API endpoints
+	http.HandleFunc("/api/agents/", corsMiddleware(handleAgentProvider))
+	http.HandleFunc("/api/agents/switch-all-providers", corsMiddleware(handleSwitchAllProviders))
+	http.HandleFunc("/api/ollama/status", corsMiddleware(handleOllamaStatus))
+	http.HandleFunc("/api/ollama/models", corsMiddleware(handleOllamaModels))
+	http.HandleFunc("/api/test-ollama-connection", corsMiddleware(handleTestOllamaConnection))
+	http.HandleFunc("/api/lmstudio/status", corsMiddleware(handleLMStudioStatus))
+	http.HandleFunc("/api/lmstudio/models", corsMiddleware(handleLMStudioModels))
+	http.HandleFunc("/api/test-lmstudio-connection", corsMiddleware(handleTestLMStudioConnection))
+
+	// Tool approval endpoints (for Gemini CLI hook integration)
+	http.HandleFunc("/api/tool-approvals", corsMiddleware(handleToolApprovals))
+	http.HandleFunc("/api/tool-approvals/approve/", corsMiddleware(handleApproveToolCall))
+	http.HandleFunc("/api/tool-approvals/reject/", corsMiddleware(handleRejectToolCall))
+	http.HandleFunc("/api/tool-approvals/pending", corsMiddleware(handlePendingToolApprovals))
+
+	// Application config and health endpoints
+	http.HandleFunc("/api/health", corsMiddleware(handleHealth))
+	http.HandleFunc("/api/settings", corsMiddleware(handleSettings))
+	http.HandleFunc("/api/packs", corsMiddleware(handlePacksRoute))
+	http.HandleFunc("/api/packs/", corsMiddleware(handlePacksRoute))
+	http.HandleFunc("/api/expert-presets", corsMiddleware(handleExpertPresets))
+	http.HandleFunc("/api/agents/configured", corsMiddleware(handleConfiguredAgents))
+	http.HandleFunc("/api/agents/restart", corsMiddleware(localOnly(handleRestartAgents)))
+	http.HandleFunc("/api/providers", corsMiddleware(handleProviders))
+	http.HandleFunc("/api/providers/", corsMiddleware(handleProviderByID))
+	http.HandleFunc("/api/ollama/install-status", corsMiddleware(localOnly(handleOllamaInstallStatus)))
+	http.HandleFunc("/api/ollama/install", corsMiddleware(localOnly(handleOllamaInstall)))
+	http.HandleFunc("/api/ollama/start", corsMiddleware(localOnly(handleOllamaStart)))
+	http.HandleFunc("/api/ollama/stop", corsMiddleware(localOnly(handleOllamaStop)))
+	http.HandleFunc("/api/ollama/pull", corsMiddleware(localOnly(handleOllamaPull)))
+	http.HandleFunc("/api/ollama/catalog", corsMiddleware(handleOllamaCatalog))
+	http.HandleFunc("/api/ollama/library/search", corsMiddleware(handleOllamaLibrarySearch))
+	http.HandleFunc("/api/ollama/library/tags", corsMiddleware(handleOllamaLibraryTags))
+	http.HandleFunc("/api/ollama/library/lookup", corsMiddleware(handleOllamaLibraryLookup))
+	http.HandleFunc("/api/ollama/delete", corsMiddleware(localOnly(handleOllamaDelete)))
+	http.HandleFunc("/api/system/hardware", corsMiddleware(handleSystemHardware))
+	http.HandleFunc("/api/system/security", corsMiddleware(handleSystemSecurity))
+
+	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
+	http.HandleFunc("/api/hf/catalog", corsMiddleware(handleHfCatalog))
+	http.HandleFunc("/api/hf/search", corsMiddleware(handleHfSearch))
+	http.HandleFunc("/api/hf/files", corsMiddleware(handleHfFiles))
+	http.HandleFunc("/api/hf/test-connection", corsMiddleware(handleHfTestConnection))
+	http.HandleFunc("/api/hf/download", corsMiddleware(localOnly(handleHfDownload)))
+	http.HandleFunc("/api/hf/download/status", corsMiddleware(localOnly(handleHfDownloadStatus)))
+	http.HandleFunc("/api/hf/downloads/active", corsMiddleware(localOnly(handleHfDownloadsActive)))
+	http.HandleFunc("/api/hf/local", corsMiddleware(localOnly(handleHfLocal)))
+	http.HandleFunc("/api/hf/delete", corsMiddleware(localOnly(handleHfDelete)))
+	http.HandleFunc("/api/hf/import-ollama", corsMiddleware(localOnly(handleHfImportOllama)))
+	http.HandleFunc("/api/lora/train", corsMiddleware(localOnly(handleLoraTrainRoute)))
+	http.HandleFunc("/api/lora/train/", corsMiddleware(localOnly(handleLoraTrainRoute)))
+	http.HandleFunc("/api/learnings", corsMiddleware(handleLearningsRoute))
+	http.HandleFunc("/api/learnings/", corsMiddleware(handleLearningsRoute))
+	http.HandleFunc("/api/memory", corsMiddleware(handleMemoryRoute))
+	http.HandleFunc("/api/memory/", corsMiddleware(handleMemoryRoute))
+	http.HandleFunc("/api/user-rules", corsMiddleware(handleUserRules))
+
+	// Command palette metadata
+	http.HandleFunc("/api/commands", corsMiddleware(handleCommands))
+	http.HandleFunc("/api/assistant/state", corsMiddleware(handleAssistantState))
+	http.HandleFunc("/api/assistant/task-done", corsMiddleware(handleAssistantTaskDone))
+	http.HandleFunc("/api/assistant/reminder-dismiss", corsMiddleware(handleAssistantReminderDismiss))
+	http.HandleFunc("/api/assistant/google/config", corsMiddleware(handleAssistantGoogleConfig))
+	http.HandleFunc("/api/assistant/google/status", corsMiddleware(handleAssistantGoogleStatus))
+	http.HandleFunc("/api/assistant/google/auth", corsMiddleware(handleAssistantGoogleAuth))
+	http.HandleFunc("/api/assistant/google/callback", corsMiddleware(handleAssistantGoogleCallback))
+	http.HandleFunc("/api/assistant/google/disconnect", corsMiddleware(handleAssistantGoogleDisconnect))
+	http.HandleFunc("/api/assistant/google/sync", corsMiddleware(handleAssistantGoogleSync))
+
+	http.HandleFunc("/api/slack/status", corsMiddleware(handleSlackStatus))
+	http.HandleFunc("/api/slack/connection", corsMiddleware(handleSlackConnection))
+	http.HandleFunc("/api/slack/config", corsMiddleware(handleSlackConfig))
+	http.HandleFunc("/api/slack/bindings", corsMiddleware(handleSlackBindings))
+	http.HandleFunc("/api/slack/test-post", corsMiddleware(handleSlackTestPost))
+	http.HandleFunc("/api/slack/oauth/start", corsMiddleware(handleSlackOAuthStart))
+	http.HandleFunc("/api/slack/oauth/callback", corsMiddleware(handleSlackOAuthCallback))
+	http.HandleFunc("/api/slack/oauth/user-dm/start", corsMiddleware(handleSlackOAuthUserDMStart))
+	http.HandleFunc("/api/slack/oauth/user-dm/callback", corsMiddleware(handleSlackOAuthUserDMCallback))
+	http.HandleFunc("/api/slack/disconnect", corsMiddleware(handleSlackDisconnect))
+	http.HandleFunc("/api/slack/restart", corsMiddleware(handleSlackRestart))
+	http.HandleFunc("/api/slack/channels", corsMiddleware(handleSlackChannels))
+	http.HandleFunc("/api/slack/diagnose", corsMiddleware(handleSlackDiagnose))
+	http.HandleFunc("/api/slack/inbox", corsMiddleware(handleSlackInbox))
+	http.HandleFunc("/api/slack/inbox/test-dm", corsMiddleware(handleSlackInboxTestDM))
+	http.HandleFunc("/api/slack/inbox/dm-debug", corsMiddleware(handleSlackInboxDMDebug))
+	http.HandleFunc("/api/slack/inbox/human-dm-debug", corsMiddleware(handleSlackInboxHumanDMDebug))
+
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
+		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))
+		http.HandleFunc("/api/debug/channel-context", corsMiddleware(handleDebugChannelContext))
+		http.HandleFunc("/api/debug/delegation-resolve", corsMiddleware(handleDebugDelegationResolve))
+		pprofAddr := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PPROF_ADDR"))
+		if pprofAddr == "" {
+			pprofAddr = "127.0.0.1:6060"
+		}
+		go func() {
+			log.Printf("🔧 NEURAL_JUNKIE_DEBUG: Go pprof on http://%s/debug/pprof/ (heap, goroutine, etc.)", pprofAddr)
+			if err := http.ListenAndServe(pprofAddr, nil); err != nil {
+				log.Printf("NEURAL_JUNKIE_DEBUG pprof listener: %v", err)
+			}
+		}()
+		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: hub memory JSON at GET /api/debug/hub-memory")
+		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: channel context at GET /api/debug/channel-context?channel=...")
+	}
+
+	// Home page handler (must be last to avoid catching API routes)
+	http.HandleFunc("/", corsMiddleware(handleHome))
+}

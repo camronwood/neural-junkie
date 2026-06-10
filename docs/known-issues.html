@@ -135,6 +135,12 @@
           <strong>Git requires dev pack</strong>
           <p>In-app Git needs the Software development pack, <code>git</code> on PATH, and a git workspace.</p>
         </li>
+        <!-- ISSUE: macos-adhoc-sign -->
+        <li class="issue-item" id="macos-adhoc-sign">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>macOS ad-hoc signing</strong>
+          <p>GitHub Release macOS builds are ad-hoc signed until Apple Developer credentials are available. First launch may require <strong>Right-click → Open</strong>. Planned fix: <strong>v1.0.1</strong> notarized builds.</p>
+        </li>
       </ul>
 
       <h2 id="hub-providers">Hub, agents &amp; providers</h2>
@@ -162,7 +168,7 @@
       <h2 id="quality">How we test (and close items)</h2>
       <ul class="feature-list feature-list--tight">
         <li><strong>Go tests</strong> — orchestrator, plan parsing: <code>make test-collab-plan</code>, <code>make collab-smoke</code></li>
-        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (18/18 PASS)</li>
+        <li><strong>Live collab scenarios</strong> — <code>make collab-scenario SCENARIO=…</code>; matrix: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/collab-matrix.tsv">collab-matrix.tsv</a> (21/21 PASS)</li>
         <li><strong>Chat regression</strong> — <code>make chat-scenarios-regression</code> (workspace visibility, closure, echo)</li>
         <li><strong>Implement parity</strong> — <code>make implement-scenarios</code>, <code>make test-parity-stable</code> (3× with hub restart)</li>
       </ul>

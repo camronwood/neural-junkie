@@ -18,6 +18,8 @@ var (
 	themeImplementationRE  = regexp.MustCompile(`(?i)(?:\b(theme|themes|dark[/ ]?light|dark mode|light mode|ui theme)\b.{0,64}\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|toggle|finish)\b|\b(add(?:ing)?|implement(?:ing)?|build(?:ing)?|wire|finish)\b.{0,64}\b(theme|themes|ui theme|dark mode|light mode|font size)\b)`)
 	implementTypoRE        = regexp.MustCompile(`(?i)\bimpl[e]?ment\b`)
 	workspaceDirectiveRE   = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
+	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
+	implementationStatusCheckRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$`)
 	contentDeliveryRE      = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
 	fileExportRE           = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
 	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
@@ -36,7 +38,7 @@ var contentDeliveryDocSeeds = []string{
 	"desktop/package.json",
 }
 
-const maxImplementationSeedFiles = 6
+const maxImplementationSeedFiles = 8
 
 // userRequestsImplementation reports coding/build asks (themes, features, fixes) where the
 // user expects [FILE_CHANGE] deliverables, not a codebase overview.
@@ -69,7 +71,7 @@ func userRequestsImplementation(content string) bool {
 		"review the code for issues", "review the code for bugs", "review and fix",
 		"code for issues", "not working", "doesn't work",
 		"does not work", "does not seem to be working", "broken", "fix the app", "debug this", "troubleshoot",
-		"blank screen", "white screen", "can you fix",
+		"blank screen", "white screen", "can you fix", "not booting", "won't boot", "will not boot",
 	}
 	for _, p := range phrases {
 		if strings.Contains(lower, p) {
@@ -499,6 +501,10 @@ func userRequestsImplementationForMessage(a *Agent, msg *protocol.Message) bool 
 	if userRequestsImplementation(msg.Content) || userRequestsFileExportForMessage(msg) {
 		return true
 	}
+	if userRequestsImplementationStatusCheck(msg.Content) && a != nil &&
+		channelHasRecentImplementationActivity(a.channelHistory(msg.Channel), msg.ID, a.Info.ID) {
+		return true
+	}
 	if a != nil {
 		history := a.channelHistory(msg.Channel)
 		if msg.FileChangeApproved() && shouldSkipAgentResponseOnFileExportApproval(a, msg) {
@@ -532,6 +538,12 @@ func ShouldForceSessionSummaryRefresh(content string) bool {
 	if userRequestsImplementation(content) {
 		return true
 	}
+	if messageHasBootOrBuildError(content) {
+		return true
+	}
+	if userRequestsImplementationStatusCheck(content) {
+		return true
+	}
 	return false
 }
 
@@ -548,6 +560,35 @@ func ShouldForceSessionSummaryRefreshForMessage(msg *protocol.Message) bool {
 		return false
 	}
 	return ShouldForceSessionSummaryRefresh(msg.Content)
+}
+
+// ScrubStaleSessionSummary removes summary bullets contradicted by a boot/error log in the transcript.
+func ScrubStaleSessionSummary(summary, transcript string) string {
+	summary = strings.TrimSpace(summary)
+	if summary == "" || !messageHasBootOrBuildError(transcript) {
+		return summary
+	}
+	var kept []string
+	for _, line := range strings.Split(summary, "\n") {
+		trim := strings.TrimSpace(line)
+		if trim == "" {
+			continue
+		}
+		lower := strings.ToLower(trim)
+		if strings.Contains(lower, "still needed") &&
+			(strings.Contains(lower, "error message") || strings.Contains(lower, "symptoms") || strings.Contains(lower, "specific error")) {
+			continue
+		}
+		if strings.Contains(lower, "open questions") &&
+			(strings.Contains(lower, "what happens when") || strings.Contains(lower, "try to start")) {
+			continue
+		}
+		kept = append(kept, trim)
+	}
+	if len(kept) == 0 {
+		return summary
+	}
+	return strings.Join(kept, "\n")
 }
 
 // ShouldForceSessionSummaryRefreshOnAgentResponse reports agent replies that invalidate a stale summary.
@@ -694,6 +735,10 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	prompt.WriteString("Only ask for a path if a required file is missing from every context section.\n")
 	if a != nil {
 		history := a.channelHistory(msg.Channel)
+		if messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content) {
+			prompt.WriteString("Boot/build fix: use read_file on paths from the error log, then fix or delete conflicting files. ")
+			prompt.WriteString("Verify with npm run build (or go test ./...) — do NOT run npm install; dependencies are already in the repo.\n")
+		}
 		applied := channelRecentlyAppliedFilePaths(history, msg.ID, a.Info.ID)
 		if len(applied) > 0 {
 			prompt.WriteString(fmt.Sprintf(
@@ -710,24 +755,39 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	}
 }
 
-var frontendImplementationSeeds = []string{
-	"tailwind.config.js",
-	"tailwind.config.ts",
-	"postcss.config.js",
-	"package.json",
-	"src/index.css",
-	"src/App.tsx",
-	"src/App.jsx",
-	"src/main.tsx",
-	"src/main.ts",
-	"src/components/SettingsModal.tsx",
-	"src/SettingsModal.tsx",
-	"index.html",
+// messageHasBootOrBuildError reports Vite/esbuild/boot failure logs in message text.
+func messageHasBootOrBuildError(content string) bool {
+	return bootErrorIntentRE.MatchString(strings.TrimSpace(content))
+}
+
+// userRequestsImplementationStatusCheck reports short follow-ups after a fix attempt.
+func userRequestsImplementationStatusCheck(content string) bool {
+	return implementationStatusCheckRE.MatchString(strings.TrimSpace(content))
+}
+
+// messageImpliesBootFix reports boot/build failure signals in the message or recent history.
+func messageImpliesBootFix(content string, history []*protocol.Message) bool {
+	if messageHasBootOrBuildError(content) {
+		return true
+	}
+	seen := 0
+	for i := len(history) - 1; i >= 0 && seen < 12; i-- {
+		m := history[i]
+		if m == nil {
+			continue
+		}
+		seen++
+		if messageHasBootOrBuildError(m.Content) {
+			return true
+		}
+	}
+	return false
 }
 
 // implementationSeedCandidates returns paths to load from disk for implement turns.
+// Stack manifest drives seeds for all agent types; error-log paths are prioritized first.
 // exclude holds recently applied or otherwise skipped paths (may use basename keys).
-func implementationSeedCandidates(agentType protocol.AgentType, content string, history []*protocol.Message, exclude map[string]bool) []string {
+func implementationSeedCandidates(workspacePath string, content string, history []*protocol.Message, exclude map[string]bool) []string {
 	seen := make(map[string]bool)
 	var out []string
 	add := func(p string) {
@@ -757,14 +817,17 @@ func implementationSeedCandidates(agentType protocol.AgentType, content string, 
 			add(p)
 		}
 	}
-	if agentType == protocol.AgentTypeFrontend {
-		for _, p := range frontendImplementationSeeds {
+	if messageImpliesBootFix(content, history) {
+		for _, p := range []string{"src/App.js", "src/App.tsx", "src/main.tsx", "src/main.ts", "package.json"} {
 			add(p)
 		}
 	}
-	if agentType == protocol.AgentTypeBackend {
-		for _, p := range []string{"go.mod", "main.go", "cmd/main.go", "package.json"} {
-			add(p)
+	workspacePath = strings.TrimSpace(workspacePath)
+	if workspacePath != "" {
+		if manifest := DetectStackManifest(workspacePath); manifest != nil {
+			for _, p := range manifest.ImplementationSeedPaths() {
+				add(p)
+			}
 		}
 	}
 	return out
@@ -858,7 +921,7 @@ func AppendImplementationSeedFiles(prompt *strings.Builder, a *Agent, msg *proto
 		agentID = a.Info.ID
 	}
 	exclude := mergeAppliedPathsIntoExclude(excludePaths, channelRecentlyAppliedFilePaths(history, msg.ID, agentID))
-	paths := implementationSeedCandidates(agentType, msg.Content, history, exclude)
+	paths := implementationSeedCandidates(workspacePath, msg.Content, history, exclude)
 	if len(paths) == 0 {
 		return 0
 	}

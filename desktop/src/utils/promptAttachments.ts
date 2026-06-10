@@ -2,6 +2,7 @@ import type { PromptAttachmentPayload } from '../constants/promptMetadata';
 import type { WorkspaceFileDragPayload } from './workspaceFileDrag';
 import { isImagePreviewPath } from './editorFileKind';
 import { isScanSummaryWellPath } from './scanSummary';
+import { getWorkspaceRoots } from './workspaceRoots';
 
 export const MAX_ATTACH_BYTES = 80_000;
 export const MAX_ATTACH_COUNT = 12;
@@ -165,7 +166,10 @@ export async function attachmentsFromAbsolutePaths(
   }
   try {
     const { invoke } = await import('@tauri-apps/api/tauri');
-    const read = await invoke<PromptAttachmentPayload[]>('read_prompt_attachment_paths', { paths });
+    const read = await invoke<PromptAttachmentPayload[]>('read_prompt_attachment_paths', {
+      paths,
+      allowedRoots: getWorkspaceRoots(),
+    });
     return mergePromptAttachments(existing, read);
   } catch (e) {
     console.error('[attachmentsFromAbsolutePaths]', e);

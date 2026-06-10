@@ -19,8 +19,8 @@ import (
 const (
 	implSessionMaxToolIterations = 20
 	implSessionMaxEditRounds     = 3
-	implSessionTimeout           = 180 * time.Second
-	implSessionFrontendTimeout   = 300 * time.Second
+	implSessionTimeout           = 480 * time.Second
+	implSessionFrontendTimeout   = 600 * time.Second
 	editorTrustAutoApply         = "auto_apply_edits"
 )
 
@@ -54,6 +54,7 @@ type ImplementationSessionState struct {
 	DiscoverTools   []string
 	PreflightErrors []string
 	TrustMode       string
+	BootFixIntent   bool
 }
 
 func withImplementationSessionState(ctx context.Context, s *ImplementationSessionState) context.Context {
@@ -107,11 +108,16 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if userRequestsCodeReview(msg.Content) {
 		return false
 	}
-	// Explicit chat-mode turns are advisory only — never enter the file-edit loop unless
-	// the client also requested implementation_session / export composer mode.
+	// Explicit chat-mode turns are advisory only — unless continuing an active implementation
+	// thread (status check or boot-fix follow-up).
 	if ConversationModeFromMessage(msg) == ConversationModeChat &&
 		!msg.ImplementationSession() && !msg.IdeEditorModeIsExport() {
-		return false
+		history := a.channelHistorySafe(msg.Channel)
+		active := channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID)
+		if !active || (!userRequestsImplementationStatusCheck(msg.Content) &&
+			!userRequestsImplementation(msg.Content) && !messageHasBootOrBuildError(msg.Content)) {
+			return false
+		}
 	}
 
 	history := a.channelHistorySafe(msg.Channel)
@@ -132,6 +138,7 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	}
 
 	if activeThread && (userAffirmsPendingImplementation(msg.Content) || userRequestsImplementation(msg.Content) ||
+		userRequestsImplementationStatusCheck(msg.Content) ||
 		userRequestsFileExport(msg.Content) || msg.ImplementationSession()) {
 		if userAffirmsPendingImplementation(msg.Content) &&
 			!affirmationContinuesImplementation(history, msg.ID, a.Info.ID, msg.Content) &&
@@ -144,7 +151,8 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
-		if msg.IdeRouteAgentType() != "" || msg.ImplementationSession() || userRequestsImplementation(msg.Content) || msg.IdeEditorModeIsExport() {
+		if msg.IdeRouteAgentType() != "" || msg.ImplementationSession() || userRequestsImplementation(msg.Content) ||
+			userRequestsImplementationStatusCheck(msg.Content) || msg.IdeEditorModeIsExport() {
 			return true
 		}
 	}
@@ -181,12 +189,14 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
 	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, implSessionMaxToolIterations)
 
+	history := a.channelHistory(msg.Channel)
 	state := &ImplementationSessionState{
 		Phase:     "discover",
 		TrustMode: msg.EditorAgentTrust(),
 	}
 	if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
 		state.StackManifest = DetectStackManifest(wsPath)
+		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
 	}
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
 
@@ -457,9 +467,6 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 }
 
 func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Message) (output string, failed bool, skipped bool) {
-	if msg != nil && msg.EditorAgentTrust() != editorTrustAutoApply {
-		return "", false, true
-	}
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath == "" {
 		return "", false, true
@@ -594,6 +601,10 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 		} else {
 			b.WriteString("Implementation session complete — applied and verified.\n\n")
 		}
+	case proposed && state != nil && len(state.FilesChanged) > 0 && state.VerifyFailed:
+		b.WriteString(fmt.Sprintf("Implementation session complete — proposals submitted (changes to: %s); verification failed on current workspace.\n\n", strings.Join(state.FilesChanged, ", ")))
+	case proposed && state != nil && len(state.FilesChanged) > 0 && state.VerifyOutput != "" && !state.VerifyFailed && !state.VerifySkipped:
+		b.WriteString(fmt.Sprintf("Implementation session complete — proposals submitted and workspace verifies clean (changes to: %s).\n\n", strings.Join(state.FilesChanged, ", ")))
 	case proposed && state != nil && len(state.FilesChanged) > 0:
 		b.WriteString(fmt.Sprintf("Implementation session complete — proposals submitted for approval (changes to: %s).\n\n", strings.Join(state.FilesChanged, ", ")))
 	default:
@@ -621,12 +632,36 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 	return strings.TrimSpace(b.String())
 }
 
+func looksLikeListDirToolEcho(content string) bool {
+	trim := strings.TrimSpace(content)
+	if trim == "" {
+		return false
+	}
+	lines := strings.Split(trim, "\n")
+	dirLines := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasSuffix(line, " (file)") || strings.HasSuffix(line, " (dir)") {
+			dirLines++
+		}
+	}
+	return dirLines >= 3 && dirLines >= len(lines)/2
+}
+
 func sanitizeFailedImplementationResponse(lastResponse string, state *ImplementationSessionState) string {
 	trim := strings.TrimSpace(lastResponse)
 	if state == nil || state.SeedsLoaded < 1 {
 		return trim
 	}
 	lower := strings.ToLower(trim)
+	if trim == "No matches found." || (strings.Contains(lower, "no matches found") && len(trim) < 120) {
+		return "Workspace files were already loaded for this session, but search found no matches. " +
+			"Use read_file on paths from the error log (e.g. src/App.js, src/main.tsx) and emit [FILE_CHANGE] fixes."
+	}
+	if looksLikeListDirToolEcho(trim) {
+		return "Workspace files were already loaded for this session. " +
+			"Do not echo list_dir output — read the seeded files and emit [FILE_CHANGE] fixes for the boot error."
+	}
 	asksForPaste := strings.Contains(lower, "please provide") ||
 		strings.Contains(lower, "could you please share") ||
 		strings.Contains(lower, "paste the content") ||
@@ -639,13 +674,16 @@ func sanitizeFailedImplementationResponse(lastResponse string, state *Implementa
 		"Diagnose using src/main.tsx, src/App.tsx, index.html, and src-tauri/tauri.conf.json, then emit concrete fixes via [FILE_CHANGE] or propose_file_edit."
 }
 
-// resolveImplementationToolModel prefers the agent's own coder model for tool loops (e.g. qwen2.5-coder:14b)
-// instead of always downgrading to the global 7b default.
+// resolveImplementationToolModel prefers the agent's dedicated coder tag for tool loops
+// (e.g. qwen2.5-coder:14b). General qwen3.5:27b specialists use the configured tool model.
 func (a *Agent) resolveImplementationToolModel(planToolModel string) string {
 	if a != nil {
 		if agentModel := strings.TrimSpace(a.Info.AIModel); agentModel != "" {
 			lower := strings.ToLower(agentModel)
-			if strings.Contains(lower, "qwen2.5-coder") || strings.Contains(lower, "codestral") {
+			if strings.Contains(lower, "qwen2.5-coder") ||
+				strings.Contains(lower, "qwen3-coder") ||
+				strings.Contains(lower, "qwen3.5-coder") ||
+				strings.Contains(lower, "codestral") {
 				return agentModel
 			}
 		}
@@ -653,7 +691,7 @@ func (a *Agent) resolveImplementationToolModel(planToolModel string) string {
 	if m := strings.TrimSpace(planToolModel); m != "" {
 		return m
 	}
-	return "qwen2.5-coder:7b"
+	return "qwen3.5:9b"
 }
 
 func truncateImplLog(s string, max int) string {

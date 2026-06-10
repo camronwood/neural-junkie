@@ -1,6 +1,10 @@
 package collaboration
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestAgentReplyContainsStalePlanning(t *testing.T) {
 	content := "Looks good.\n\n**Approve the Plan:**\nUse the command /approve-plan to proceed.\n\nTASK_STATUS: completed\n"
@@ -32,5 +36,39 @@ func TestMaterializePlanDeliverableStubsSandbox(t *testing.T) {
 	}
 	if len(created) == 0 {
 		t.Fatal("expected stub files")
+	}
+}
+
+func TestIsDeliverableStubContent(t *testing.T) {
+	body := []byte("# plan.md\n\n" + deliverableStubMarker + ". Replace with task output._\n")
+	if !IsDeliverableStubContent(body) {
+		t.Fatal("expected stub marker detection")
+	}
+	if IsDeliverableStubContent([]byte("# real\n\nactual content here\n")) {
+		t.Fatal("real content should not be stub")
+	}
+}
+
+func TestMaterializePlanDeliverableStubs_skipsTruncatedPaths(t *testing.T) {
+	root := t.TempDir()
+	c := &Collaboration{
+		ID:               "abc-1234-5678-90ab-cdef00000000",
+		WorkingDirectory: root,
+		Tasks: []CollaborationTask{{
+			Title:       "Create `collabs/abc-1234/index....`",
+			Description: "Create collabs/abc-1234/index.html",
+		}},
+	}
+	created, err := MaterializePlanDeliverableStubs(c)
+	if err != nil {
+		t.Fatalf("MaterializePlanDeliverableStubs: %v", err)
+	}
+	for _, rel := range created {
+		if filepath.Base(rel) == "index...." {
+			t.Fatalf("should not create truncated stub %q", rel)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "index.html")); err != nil {
+		t.Fatalf("expected real index.html stub: %v", err)
 	}
 }

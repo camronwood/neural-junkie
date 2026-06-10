@@ -311,13 +311,14 @@ func handleSlackOAuthStart(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	state := newOAuthState()
+	redirectURI := oauth.RedirectURL
+	state := newSlackOAuthState(slackint.LocalBotOAuthCallbackURL(), redirectURI)
 	scopes := "app_mentions:read,channels:history,groups:history,im:history,channels:read,groups:read,chat:write,chat:write.customize,users:read,reactions:read"
 	u, _ := url.Parse("https://slack.com/oauth/v2/authorize")
 	q := u.Query()
 	q.Set("client_id", oauth.ClientID)
 	q.Set("scope", scopes)
-	q.Set("redirect_uri", oauth.RedirectURL)
+	q.Set("redirect_uri", redirectURI)
 	q.Set("state", state)
 	u.RawQuery = q.Encode()
 	if r.URL.Query().Get("json") == "1" {
@@ -416,16 +417,13 @@ func handleSlackOAuthUserDMStart(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Slack OAuth is not available"})
 		return
 	}
-	redirect := slackint.HubUserDMOAuthRedirectURL()
-	if redirect == "" {
-		redirect = "http://localhost:18765" + slackint.UserDMOAuthCallbackPath
-	}
-	state := newOAuthState()
+	redirectURI := slackint.ResolveUserDMOAuthRedirectFromConfig(&appConfig.Slack)
+	state := newSlackOAuthState(slackint.LocalUserDMOAuthCallbackURL(), redirectURI)
 	u, _ := url.Parse("https://slack.com/oauth/v2/authorize")
 	q := u.Query()
 	q.Set("client_id", oauth.ClientID)
 	q.Set("user_scope", slackUserDMScopes)
-	q.Set("redirect_uri", redirect)
+	q.Set("redirect_uri", redirectURI)
 	q.Set("state", state)
 	u.RawQuery = q.Encode()
 	if r.URL.Query().Get("json") == "1" {
@@ -458,15 +456,12 @@ func handleSlackOAuthUserDMCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "OAuth app not configured", http.StatusBadRequest)
 		return
 	}
-	redirect := slackint.HubUserDMOAuthRedirectURL()
-	if redirect == "" {
-		redirect = "http://localhost:18765" + slackint.UserDMOAuthCallbackPath
-	}
+	redirectURI := slackint.ResolveUserDMOAuthRedirectFromConfig(&appConfig.Slack)
 	form := url.Values{}
 	form.Set("client_id", oauth.ClientID)
 	form.Set("client_secret", oauth.ClientSecret)
 	form.Set("code", code)
-	form.Set("redirect_uri", redirect)
+	form.Set("redirect_uri", redirectURI)
 	resp, err := http.PostForm("https://slack.com/api/oauth.v2.access", form)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

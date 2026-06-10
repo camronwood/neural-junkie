@@ -87,8 +87,8 @@ make pull-models
 ```
 
 This pulls two model tiers:
-- **Code tier** (`qwen2.5-coder:14b`, ~9GB) -- used by specialist agents
-- **Utility tier** (`qwen2.5:7b`, ~4.5GB) -- used by Moderator and Assistant
+- **Code tier** (`qwen3.5:27b`, ~17GB) -- used by specialist agents
+- **Utility tier** (`qwen3.5:9b`, ~6.6GB) -- used by Moderator and Assistant
 
 The `make agents` target automatically uses these models via the `OLLAMA_CODE_MODEL` env var.
 
@@ -271,8 +271,8 @@ All make targets automatically load from `env.local`. Key variables:
 | `AI_HUB_ENDPOINT` | AI Hub URL | (configurable) |
 | `ANTHROPIC_API_KEY` | Claude API key | -- |
 | `AI_HUB_MODEL` | Claude model | `claude-sonnet` |
-| `OLLAMA_MODEL` | Ollama utility model | `qwen2.5:7b` |
-| `OLLAMA_CODE_MODEL` | Ollama code model | `qwen2.5-coder:14b` |
+| `OLLAMA_MODEL` | Ollama utility model | `qwen3.5:9b` |
+| `OLLAMA_CODE_MODEL` | Ollama code model | `qwen3.5:27b` |
 | `SERVER_PORT` | Server port | `18765` |
 | `ENABLE_MCP` | Enable MCP tool servers | `true` |
 | `CONFLUENCE_DOMAIN` | Confluence Cloud domain | -- |

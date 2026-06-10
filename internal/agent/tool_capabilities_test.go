@@ -24,13 +24,13 @@ func TestEffectiveToolLoopModelKoesnUsesQwenFallback(t *testing.T) {
 }
 
 func TestEffectiveToolLoopModelQwenNoFallback(t *testing.T) {
-	eff := ai.NewOllamaProviderWithConfig("http://localhost:11434", "qwen2.5:7b")
+	eff := ai.NewOllamaProviderWithConfig("http://localhost:11434", "qwen3.5:9b")
 	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBiology}}
 	model, fallback := a.effectiveToolLoopModel(eff)
 	if fallback {
 		t.Fatal("expected no fallback for qwen")
 	}
-	if model != "qwen2.5:7b" {
+	if model != "qwen3.5:9b" {
 		t.Fatalf("got %q", model)
 	}
 }

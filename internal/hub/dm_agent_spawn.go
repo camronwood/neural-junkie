@@ -432,8 +432,10 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 		return nil, fmt.Errorf("failed to create DM channel: %w", err)
 	}
 
+	ch.agentsMu.Lock()
 	ch.cliAgents[agentInstance.Info.ID] = agentInstance
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
+	ch.agentsMu.Unlock()
 	agent.SaveCLIAgent(cliType, name, workDir)
 
 	joinMsg := protocol.NewMessage(
@@ -450,8 +452,10 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 	// Start synchronously so the DM subscriber exists before the API returns.
 	if err := agentInstance.Start(context.Background(), dmCh.Name); err != nil {
 		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
+		ch.agentsMu.Lock()
 		delete(ch.cliAgents, agentInstance.Info.ID)
 		delete(ch.runtimeAgents, agentInstance.Info.ID)
+		ch.agentsMu.Unlock()
 		log.Printf("Failed to start CLI agent %s: %v", name, err)
 		return nil, fmt.Errorf("failed to start agent: %w", err)
 	}

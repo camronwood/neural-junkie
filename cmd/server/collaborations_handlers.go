@@ -8,6 +8,45 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 )
 
+func handleCollaborations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	includeTerminal := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_terminal")), "true")
+	collaborations := chatHub.ListCollaborationSnapshots(channel, includeTerminal)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(collaborations)
+}
+
+func handleCollaborationWorkspaceAck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		CollaborationID string `json:"collaboration_id"`
+		SourceRepoPath  string `json:"source_repo_path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	id := strings.TrimSpace(req.CollaborationID)
+	if id == "" {
+		http.Error(w, "collaboration_id required", http.StatusBadRequest)
+		return
+	}
+	if err := chatHub.AcknowledgeCollaborationWorkspace(id, strings.TrimSpace(req.SourceRepoPath)); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleCollaborationsSubRoute serves /api/collaborations/:id/...
 func handleCollaborationsSubRoute(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/collaborations/")

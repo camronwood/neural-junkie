@@ -10,7 +10,7 @@ func TestSelectProviderIDLocalFirst(t *testing.T) {
 	in := Input{
 		RoutingEnabled:  true,
 		LocalProviderID: "ollama-local",
-		LocalToolModel:  "qwen2.5-coder:7b",
+		LocalToolModel:  "qwen3.5:9b",
 		Providers: []config.ProviderConfig{
 			{ID: "ollama-local", Type: "ollama"},
 			{ID: "claude", Type: "anthropic"},
@@ -21,7 +21,7 @@ func TestSelectProviderIDLocalFirst(t *testing.T) {
 	if id != "ollama-local" {
 		t.Fatalf("id=%q", id)
 	}
-	if model != "qwen2.5-coder:7b" {
+	if model != "qwen3.5:9b" {
 		t.Fatalf("model=%q", model)
 	}
 	if reason != "local_ollama_first" {

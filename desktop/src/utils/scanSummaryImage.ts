@@ -3,6 +3,7 @@ import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import { workspaceAbsolutePath } from './editorFileKind';
 import { wellImageRelativePath } from './scanSummary';
+import { ipcWorkspaceRoots } from './ipcWorkspaceRoots';
 
 function isTauriShell(): boolean {
   return (
@@ -29,6 +30,7 @@ export async function resolveScanSummaryWellImageSrc(options: {
   if (isTauriShell()) {
     const result = await invoke<{ mime: string; content_base64: string }>('decode_scan_well_tiff', {
       absolutePath,
+      ...ipcWorkspaceRoots(),
     });
     return toDataUrl(result.mime || 'image/png', result.content_base64);
   }

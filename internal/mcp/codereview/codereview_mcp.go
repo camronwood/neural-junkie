@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
@@ -93,8 +94,25 @@ func (c *CodeReviewMCP) handleAnalyzeGoCode(ctx context.Context, request mcpgo.C
 
 func (c *CodeReviewMCP) handleRunGoTests(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	pkg := request.GetString("package_path", ".")
+	if !c.isValidGoPath(pkg) {
+		return mcp.HandleToolError(fmt.Errorf("package_path not found: %s", pkg), "run_go_tests"), nil
+	}
 	out, err := shared.RunCommand(ctx, c.workingDir(pkg), "go", "test", "-timeout", "30s", pkg)
 	return mcp.HandleToolSuccess(shared.FormatCommandResult("go test:", out, err)), nil
+}
+
+func (c *CodeReviewMCP) isValidGoPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	if path == "." {
+		return true
+	}
+	if strings.Contains(path, "..") {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (c *CodeReviewMCP) handleRunESLint(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {

@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/api/dialog';
 import { invoke } from '@tauri-apps/api/tauri';
 import { usePacksStore } from '../../stores/packsStore';
 import { isTauriRuntime } from '../../utils/promptAttachments';
+import { ipcWorkspaceRoots, registerPackPickerPath } from '../../utils/ipcWorkspaceRoots';
 
 function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -36,7 +37,11 @@ export function CustomPackInstall() {
       if (!selected || typeof selected !== 'string') {
         return;
       }
-      const base64 = await invoke<string>('read_pack_zip_base64', { absolutePath: selected });
+      await registerPackPickerPath(selected);
+      const base64 = await invoke<string>('read_pack_zip_base64', {
+        absolutePath: selected,
+        ...ipcWorkspaceRoots(),
+      });
       const result = await installPackFromZip(base64);
       const pack = result.packs?.find((p) => p.id === result.pack_id);
       setMessage(

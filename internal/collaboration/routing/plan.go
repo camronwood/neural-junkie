@@ -105,10 +105,19 @@ func PlanTask(in PlanInput) PlanResult {
 	}
 }
 
+func isArchitectureDocDeliverable(taskText string) bool {
+	lower := strings.ToLower(taskText)
+	return strings.Contains(lower, "frontend_architecture_plan.md") ||
+		strings.Contains(lower, "findings.md")
+}
+
 // keepAgentModelForCollabTask skips light local model downgrades for tasks that need full agent quality.
 func keepAgentModelForCollabTask(taskText string) bool {
 	taskText = strings.TrimSpace(taskText)
 	if taskText == "" {
+		return false
+	}
+	if isArchitectureDocDeliverable(taskText) {
 		return false
 	}
 	task := collaboration.CollaborationTask{Title: taskText, Description: taskText}

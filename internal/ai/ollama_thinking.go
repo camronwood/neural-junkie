@@ -42,6 +42,14 @@ func ollamaHTTPTimeout(model string) time.Duration {
 	if ollamaModelWantsThinking(model) {
 		return 300 * time.Second
 	}
+	m := strings.ToLower(strings.TrimSpace(model))
+	if strings.Contains(m, "qwen3.5:27b") ||
+		strings.Contains(m, "qwen3.5:122b") ||
+		strings.Contains(m, ":35b") ||
+		strings.Contains(m, ":27b") ||
+		strings.Contains(m, ":122b") {
+		return 600 * time.Second
+	}
 	return 120 * time.Second
 }
 

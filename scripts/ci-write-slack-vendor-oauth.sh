@@ -25,10 +25,12 @@ import json, os, sys
 from pathlib import Path
 
 out = Path(sys.argv[1])
+relay_base = os.environ.get("SLACK_VENDOR_OAUTH_RELAY_BASE", "https://slack.oauth.neural-junkie.dev").strip()
 payload = {
     "client_id": os.environ["SLACK_VENDOR_CLIENT_ID"].strip(),
     "client_secret": os.environ["SLACK_VENDOR_CLIENT_SECRET"].strip(),
     "app_token": os.environ["SLACK_VENDOR_APP_TOKEN"].strip(),
+    "oauth_relay_base": relay_base,
 }
 for key, val in payload.items():
     if not val:

@@ -19,7 +19,7 @@ func HubTokenConfigured() bool {
 	return HubAccessToken() != ""
 }
 
-// ExtractHubToken reads X-NJ-Hub-Token or Authorization: Bearer.
+// ExtractHubToken reads X-NJ-Hub-Token, Authorization: Bearer, or ?hub_token= query param.
 func ExtractHubToken(r *http.Request) string {
 	if h := strings.TrimSpace(r.Header.Get("X-NJ-Hub-Token")); h != "" {
 		return h
@@ -27,6 +27,9 @@ func ExtractHubToken(r *http.Request) string {
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
 		return strings.TrimSpace(auth[7:])
+	}
+	if q := strings.TrimSpace(r.URL.Query().Get("hub_token")); q != "" {
+		return q
 	}
 	return ""
 }

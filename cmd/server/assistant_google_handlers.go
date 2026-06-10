@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +13,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/google/meetnotes"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 )
 
 var (
@@ -61,25 +60,40 @@ func pruneOAuthStates() {
 	}
 }
 
-func newOAuthState() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	state := hex.EncodeToString(b)
+func registerOAuthNonce(nonce string) {
 	oauthStateMu.Lock()
-	oauthStates[state] = time.Now()
+	oauthStates[nonce] = time.Now()
 	oauthStateMu.Unlock()
 	pruneOAuthStates()
-	return state
+}
+
+func newOAuthState() string {
+	nonce := slackint.NewOAuthNonce()
+	registerOAuthNonce(nonce)
+	return nonce
+}
+
+func newSlackOAuthState(localCallback, redirectURI string) string {
+	nonce := slackint.NewOAuthNonce()
+	registerOAuthNonce(nonce)
+	if slackint.IsRelayRedirectURL(redirectURI) {
+		return slackint.FormatOAuthState(nonce, localCallback)
+	}
+	return nonce
 }
 
 func validOAuthState(state string) bool {
-	oauthStateMu.Lock()
-	defer oauthStateMu.Unlock()
-	created, ok := oauthStates[state]
+	nonce, ok := slackint.OAuthStateNonce(state)
 	if !ok {
 		return false
 	}
-	delete(oauthStates, state)
+	oauthStateMu.Lock()
+	defer oauthStateMu.Unlock()
+	created, ok := oauthStates[nonce]
+	if !ok {
+		return false
+	}
+	delete(oauthStates, nonce)
 	return time.Since(created) < 15*time.Minute
 }
 

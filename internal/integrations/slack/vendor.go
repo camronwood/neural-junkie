@@ -22,9 +22,10 @@ const (
 
 // bundledVendorCredentials is the shape of vendor/oauth.json (and .example).
 type bundledVendorCredentials struct {
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
-	AppToken     string `json:"app_token"`
+	ClientID       string `json:"client_id"`
+	ClientSecret   string `json:"client_secret"`
+	AppToken       string `json:"app_token"`
+	OAuthRelayBase string `json:"oauth_relay_base,omitempty"`
 }
 
 var (
@@ -104,15 +105,15 @@ func oauthFromBundled() (*OAuthAppCredentials, OAuthSource) {
 	if !ok {
 		return nil, OAuthSourceNone
 	}
-	redirect := HubOAuthRedirectURL()
-	if redirect == "" {
-		redirect = "http://localhost:18765" + OAuthCallbackPath
-	}
 	return &OAuthAppCredentials{
 		ClientID:     strings.TrimSpace(v.ClientID),
 		ClientSecret: strings.TrimSpace(v.ClientSecret),
-		RedirectURL:  redirect,
+		RedirectURL:  resolveBundledBotRedirectURL(),
 	}, OAuthSourceBundled
+}
+
+func resolveBundledBotRedirectURL() string {
+	return ResolveBotOAuthRedirectURL(slackRedirectHints{})
 }
 
 func oauthFromEnv() (*OAuthAppCredentials, OAuthSource) {
@@ -121,17 +122,10 @@ func oauthFromEnv() (*OAuthAppCredentials, OAuthSource) {
 	if cid == "" || secret == "" {
 		return nil, OAuthSourceNone
 	}
-	redirect := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_REDIRECT_URL"))
-	if redirect == "" {
-		redirect = HubOAuthRedirectURL()
-	}
-	if redirect == "" {
-		redirect = "http://localhost:18765" + OAuthCallbackPath
-	}
 	return &OAuthAppCredentials{
 		ClientID:     cid,
 		ClientSecret: secret,
-		RedirectURL:  redirect,
+		RedirectURL:  ResolveBotOAuthRedirectURL(slackRedirectHints{envRedirect: os.Getenv("NEURAL_JUNKIE_SLACK_REDIRECT_URL")}),
 	}, OAuthSourceEnv
 }
 
@@ -144,17 +138,10 @@ func oauthFromConfig(cfg *config.SlackConfig) (*OAuthAppCredentials, OAuthSource
 	if cid == "" || secret == "" {
 		return nil, OAuthSourceNone
 	}
-	redirect := strings.TrimSpace(cfg.RedirectURL)
-	if redirect == "" {
-		redirect = HubOAuthRedirectURL()
-	}
-	if redirect == "" {
-		redirect = "http://localhost:18765" + OAuthCallbackPath
-	}
 	return &OAuthAppCredentials{
 		ClientID:     cid,
 		ClientSecret: secret,
-		RedirectURL:  redirect,
+		RedirectURL:  ResolveBotOAuthRedirectURL(slackRedirectHints{configRedirect: strings.TrimSpace(cfg.RedirectURL)}),
 	}, OAuthSourceConfig
 }
 
@@ -165,9 +152,7 @@ func ResolveOAuthApp(cfg *config.SlackConfig) (*OAuthAppCredentials, OAuthSource
 	if err == nil && user != nil && strings.TrimSpace(user.ClientID) != "" && strings.TrimSpace(user.ClientSecret) != "" {
 		out := *user
 		if strings.TrimSpace(out.RedirectURL) == "" {
-			if r := HubOAuthRedirectURL(); r != "" {
-				out.RedirectURL = r
-			}
+			out.RedirectURL = ResolveBotOAuthRedirectURL(slackRedirectHints{userRedirect: out.RedirectURL})
 		}
 		return &out, OAuthSourceUser
 	}
@@ -201,6 +186,22 @@ func ResolveAppToken(cfg *config.SlackConfig) (token string, source OAuthSource)
 	return "", OAuthSourceNone
 }
 
+func oauthRedirectHints(cfg *config.SlackConfig) slackRedirectHints {
+	hints := slackRedirectHints{envRedirect: os.Getenv("NEURAL_JUNKIE_SLACK_REDIRECT_URL")}
+	if cfg != nil {
+		hints.configRedirect = strings.TrimSpace(cfg.RedirectURL)
+	}
+	if user, err := LoadOAuthApp(); err == nil && user != nil {
+		hints.userRedirect = strings.TrimSpace(user.RedirectURL)
+	}
+	return hints
+}
+
+// ResolveUserDMOAuthRedirectFromConfig picks user-scope redirect_uri using the same override order as bot OAuth.
+func ResolveUserDMOAuthRedirectFromConfig(cfg *config.SlackConfig) string {
+	return ResolveUserDMOAuthRedirectURL(oauthRedirectHints(cfg))
+}
+
 // OAuthReady reports whether Connect Slack can start OAuth.
 func OAuthReady(cfg *config.SlackConfig) bool {
 	o, _ := ResolveOAuthApp(cfg)
@@ -214,12 +215,14 @@ func PublicOAuthFromResolved(cfg *config.SlackConfig) PublicOAuthConfig {
 		return PublicOAuthConfig{OAuthSource: string(OAuthSourceNone)}
 	}
 	return PublicOAuthConfig{
-		ClientID:     o.ClientID,
-		RedirectURL:  o.RedirectURL,
-		SecretSet:    o.ClientSecret != "",
-		Configured:   true,
-		ConnectReady: true,
-		OAuthSource:  string(src),
+		ClientID:       o.ClientID,
+		RedirectURL:    o.RedirectURL,
+		OAuthRelayBase: OAuthRelayBase(),
+		UsesOAuthRelay: IsRelayRedirectURL(o.RedirectURL),
+		SecretSet:      o.ClientSecret != "",
+		Configured:     true,
+		ConnectReady:   true,
+		OAuthSource:    string(src),
 	}
 }
 

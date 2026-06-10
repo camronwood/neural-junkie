@@ -6,8 +6,8 @@
 #   ./scripts/cut-stable-release.sh --execute # tag, push, refresh site
 #
 # Prerequisites:
-#   - docs/STABLE_RELEASE_CHECKLIST.md gates signed off
-#   - Apple notarization verified on a beta tag first
+#   - docs/STABLE_RELEASE_CHECKLIST.md Definition of ready signed off
+#   - macOS ad-hoc install smoke PASS (notarization optional for v1.0.0; target v1.0.1)
 #   - gh authenticated, on main, clean tree
 set -euo pipefail
 
@@ -28,9 +28,9 @@ cd "${ROOT}"
 echo "Stable release cut: ${TAG}"
 echo ""
 echo "Pre-flight (run manually if not done):"
-echo "  1. Review docs/STABLE_RELEASE_CHECKLIST.md — all gates PASS"
-echo "  2. ./scripts/verify-updater-manifest.sh v1.0.0-beta.33 beta"
-echo "  3. macOS notarized .dmg verified on clean machine"
+echo "  1. Review docs/STABLE_RELEASE_CHECKLIST.md — Definition of ready to cut"
+echo "  2. ./scripts/verify-updater-manifest.sh v1.0.0-beta.33 beta  # or tag you ship"
+echo "  3. macOS ad-hoc install smoke PASS (notarization deferred to v1.0.1)"
 echo ""
 
 if [[ "${EXECUTE}" != "true" ]]; then

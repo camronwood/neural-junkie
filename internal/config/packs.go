@@ -16,7 +16,7 @@ const (
 )
 
 // DevOllamaCodeModel is the recommended local model for software-development specialists.
-const DevOllamaCodeModel = "qwen2.5-coder:14b"
+const DevOllamaCodeModel = "qwen3.5:27b"
 
 // devSpecialistTypes are in-process engineering agent types owned by the software-development pack.
 var devSpecialistTypes = []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "database"}

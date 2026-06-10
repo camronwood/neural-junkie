@@ -13,7 +13,7 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 | Windows | `.msi` or setup `.exe` |
 | Linux | `.deb` (x86_64) |
 
-**macOS:** Official GitHub Release builds are **Developer ID signed and notarized** when Apple CI secrets are configured. Local builds from source use ad-hoc signing — if Gatekeeper blocks, right-click → **Open**.
+**macOS:** Official GitHub Release builds are **ad-hoc signed** at v1.0.0 until Apple Developer credentials are available (**v1.0.1** targets notarization). If Gatekeeper blocks first launch, right-click → **Open**. Local builds from source use ad-hoc signing as well.
 
 **Linux:** Stable releases ship **`.deb`** (x86_64). AppImage is not published on the download page (CI may build it best-effort on beta tags only).
 

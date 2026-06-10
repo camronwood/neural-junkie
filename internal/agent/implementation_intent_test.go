@@ -272,7 +272,7 @@ func TestShouldUseFileChangeFenceFallback_bareWorkspaceDirective(t *testing.T) {
 
 func TestImplementationSeedCandidates_workspaceDirectiveLoadsReadme(t *testing.T) {
 	t.Parallel()
-	paths := implementationSeedCandidates(protocol.AgentTypeCodeReview, "use the workspace", nil, nil)
+	paths := implementationSeedCandidates("", "use the workspace", nil, nil)
 	found := false
 	for _, p := range paths {
 		if p == "README.md" {
@@ -310,9 +310,13 @@ func TestIsBareWorkspaceDirective(t *testing.T) {
 
 func TestResolveImplementationToolModel_prefersAgentCoderModel(t *testing.T) {
 	t.Parallel()
-	a := &Agent{Info: protocol.AgentInfo{AIModel: "qwen2.5-coder:14b"}}
-	if got := a.resolveImplementationToolModel("qwen2.5-coder:7b"); got != "qwen2.5-coder:14b" {
-		t.Fatalf("got %q want 14b", got)
+	a := &Agent{Info: protocol.AgentInfo{AIModel: "qwen3.5:27b"}}
+	if got := a.resolveImplementationToolModel("qwen3.5:9b"); got != "qwen3.5:9b" {
+		t.Fatalf("got %q want 9b tool model for general qwen3.5 specialist", got)
+	}
+	aCoder := &Agent{Info: protocol.AgentInfo{AIModel: "qwen2.5-coder:14b"}}
+	if got := aCoder.resolveImplementationToolModel("qwen3.5:9b"); got != "qwen2.5-coder:14b" {
+		t.Fatalf("got %q want 14b coder", got)
 	}
 }
 
@@ -421,7 +425,9 @@ func TestImplementationContinuation_skipsRecentlyAppliedPaths(t *testing.T) {
 		},
 	}
 	applied := channelRecentlyAppliedFilePaths(history, "u-next", agentID)
-	paths := implementationSeedCandidates(protocol.AgentTypeFrontend, "continue please", history, mergeAppliedPathsIntoExclude(nil, applied))
+	dir := t.TempDir()
+	writeImplementationReactFixture(t, dir)
+	paths := implementationSeedCandidates(dir, "continue please", history, mergeAppliedPathsIntoExclude(nil, applied))
 	for _, p := range paths {
 		if p == "tailwind.config.js" {
 			t.Fatalf("tailwind.config.js should be excluded after approval, got %v", paths)
@@ -451,7 +457,7 @@ func TestImplementationSeedCandidates_fromHistory(t *testing.T) {
 			Content: "src/components/SettingsModal.tsx src/components/MermaidModal.tsx",
 		},
 	}
-	paths := implementationSeedCandidates(protocol.AgentTypeFrontend, "ok goahead", history, nil)
+	paths := implementationSeedCandidates("", "ok goahead", history, nil)
 	found := false
 	for _, p := range paths {
 		if p == "src/components/SettingsModal.tsx" {
@@ -504,4 +510,123 @@ func dirOrSkip(t *testing.T) string {
 	t.Helper()
 	d := t.TempDir()
 	return d
+}
+
+func writeImplementationReactFixture(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{
+  "name": "fixture",
+  "scripts": { "build": "vite build", "dev": "vite" },
+  "dependencies": { "react": "^18.2.0", "react-dom": "^18.2.0" },
+  "devDependencies": { "vite": "^5.0.0", "typescript": "^5.0.0", "@vitejs/plugin-react": "^4.0.0" }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct{ path, body string }{
+		{"index.html", "<!doctype html><html><body><div id=\"root\"></div></body></html>"},
+		{"src/main.tsx", "import App from './App'\nexport {}"},
+		{"src/App.tsx", "export default function App() { return null }\n"},
+		{"tailwind.config.js", "module.exports = { content: ['./src/**/*.{tsx,ts}'] }\n"},
+	} {
+		if err := os.WriteFile(filepath.Join(dir, item.path), []byte(item.body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestImplementationSeedCandidates_stackSeedsForAllAgents(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeImplementationReactFixture(t, dir)
+	paths := implementationSeedCandidates(dir, "the app is not booting can you fix it?", nil, nil)
+	want := map[string]bool{"package.json": false, "src/main.tsx": false, "src/App.tsx": false}
+	for _, p := range paths {
+		if _, ok := want[p]; ok {
+			want[p] = true
+		}
+	}
+	for p, found := range want {
+		if !found {
+			t.Fatalf("expected stack seed %q in %v", p, paths)
+		}
+	}
+}
+
+func TestImplementationSeedCandidates_bootErrorAddsAppJS(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeImplementationReactFixture(t, dir)
+	corrupt := "diff --git a/tailwind.config.js b/tailwind.config.js\n"
+	if err := os.WriteFile(filepath.Join(dir, "src", "App.js"), []byte(corrupt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	errLog := "✘ [ERROR] Expected \";\" but found \"git\"\n    src/App.js:1:7:\n      1 │ diff --git"
+	paths := implementationSeedCandidates(dir, errLog, nil, nil)
+	found := false
+	for _, p := range paths {
+		if p == "src/App.js" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected src/App.js in seeds, got %v", paths)
+	}
+}
+
+func TestMessageHasBootOrBuildError(t *testing.T) {
+	t.Parallel()
+	if !messageHasBootOrBuildError("the app is not booting up can you help?") {
+		t.Fatal("expected booting phrase")
+	}
+	if !messageHasBootOrBuildError("✘ [ERROR] Expected \";\" but found \"git\" in src/App.js") {
+		t.Fatal("expected esbuild error")
+	}
+}
+
+func TestShouldForceSessionSummaryRefresh_bootError(t *testing.T) {
+	t.Parallel()
+	if !ShouldForceSessionSummaryRefresh("vite dev failed with esbuild error in src/App.js") {
+		t.Fatal("expected boot error log to force summary refresh")
+	}
+}
+
+func TestUserRequestsImplementationStatusCheck(t *testing.T) {
+	t.Parallel()
+	if !userRequestsImplementationStatusCheck("is it fixed?") {
+		t.Fatal("expected status check")
+	}
+	if userRequestsImplementationStatusCheck("hello") {
+		t.Fatal("greeting should not be status check")
+	}
+}
+
+func TestScrubStaleSessionSummary(t *testing.T) {
+	t.Parallel()
+	transcript := "user: vite error\n✘ [ERROR] Expected ; but found git\nsrc/App.js:1:7"
+	summary := "- Goal: fix boot\n- Key facts still needed: Specific error messages\n- Open questions: What happens when you try to start?"
+	out := ScrubStaleSessionSummary(summary, transcript)
+	if strings.Contains(strings.ToLower(out), "still needed") {
+		t.Fatalf("expected stale bullets removed, got %q", out)
+	}
+	if !strings.Contains(out, "fix boot") {
+		t.Fatalf("expected goal kept, got %q", out)
+	}
+}
+
+func TestDetectFilePaths_esbuildLocation(t *testing.T) {
+	t.Parallel()
+	paths := DetectFilePaths("src/App.js:1:7:\n  1 │ diff --git")
+	found := false
+	for _, p := range paths {
+		if p == "src/App.js" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected src/App.js from esbuild location, got %v", paths)
+	}
 }

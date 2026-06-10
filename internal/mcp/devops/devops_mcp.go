@@ -6,12 +6,45 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+var k8sNamePattern = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+
+var allowedK8sResources = map[string]bool{
+	"pods": true, "pod": true, "services": true, "service": true, "svc": true,
+	"deployments": true, "deployment": true, "deploy": true,
+	"namespaces": true, "namespace": true, "ns": true,
+	"nodes": true, "node": true, "configmaps": true, "configmap": true,
+	"secrets": true, "secret": true, "ingresses": true, "ingress": true,
+	"statefulsets": true, "statefulset": true, "daemonsets": true, "daemonset": true,
+	"jobs": true, "job": true, "cronjobs": true, "cronjob": true,
+}
+
+func isValidK8sName(name string) bool {
+	if name == "" || len(name) > 253 {
+		return false
+	}
+	return k8sNamePattern.MatchString(name)
+}
+
+func isAllowedK8sResource(resource string) bool {
+	return allowedK8sResources[strings.ToLower(strings.TrimSpace(resource))]
+}
+
+func isSafeYamlPath(path string) bool {
+	if path == "" || strings.Contains(path, "..") {
+		return false
+	}
+	clean := filepath.Clean(path)
+	return clean == path || !strings.HasPrefix(clean, "..")
+}
 
 // DevOpsMCP provides MCP tools for DevOps operations
 type DevOpsMCP struct {
@@ -110,6 +143,13 @@ func (d *DevOpsMCP) handleKubectlQuery(ctx context.Context, request mcpgo.CallTo
 	resource := request.GetString("resource", "")
 	namespace := request.GetString("namespace", "")
 
+	if !isAllowedK8sResource(resource) {
+		return mcp.HandleToolError(fmt.Errorf("unsupported kubernetes resource: %s", resource), "kubectl_query"), nil
+	}
+	if namespace != "" && !isValidK8sName(namespace) {
+		return mcp.HandleToolError(fmt.Errorf("invalid namespace: %s", namespace), "kubectl_query"), nil
+	}
+
 	// Build kubectl command
 	cmd := exec.CommandContext(ctx, "kubectl", "get", resource)
 	if namespace != "" {
@@ -136,11 +176,14 @@ func (d *DevOpsMCP) handleCheckDockerImage(ctx context.Context, request mcpgo.Ca
 	if imageName == "" {
 		return mcp.HandleToolError(fmt.Errorf("empty image name"), "check_docker_image"), nil
 	}
+	if strings.HasPrefix(imageName, "-") {
+		return mcp.HandleToolError(fmt.Errorf("invalid image name"), "check_docker_image"), nil
+	}
 
 	var results []string
 
 	// Get image information
-	cmd := exec.CommandContext(ctx, "docker", "inspect", imageName)
+	cmd := exec.CommandContext(ctx, "docker", "inspect", "--", imageName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		results = append(results, fmt.Sprintf("Failed to inspect image %s: %v", imageName, err))
@@ -180,7 +223,7 @@ func (d *DevOpsMCP) handleValidateYaml(ctx context.Context, request mcpgo.CallTo
 	}
 
 	yamlFile := request.GetString("yaml_file", "")
-	if !d.isValidFilePath(yamlFile) {
+	if !isSafeYamlPath(yamlFile) || !d.isValidFilePath(yamlFile) {
 		return mcp.HandleToolError(fmt.Errorf("invalid file path: %s", yamlFile), "validate_yaml"), nil
 	}
 
@@ -192,7 +235,7 @@ func (d *DevOpsMCP) handleValidateYaml(ctx context.Context, request mcpgo.CallTo
 	}
 
 	// Validate with kubectl if it's a Kubernetes YAML
-	cmd := exec.CommandContext(ctx, "kubectl", "apply", "--dry-run=client", "-f", yamlFile)
+	cmd := exec.CommandContext(ctx, "kubectl", "apply", "--dry-run=client", "-f", "--", yamlFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		results = append(results, fmt.Sprintf("Kubernetes validation failed: %v", err))
@@ -226,12 +269,19 @@ func (d *DevOpsMCP) handleCheckPodLogs(ctx context.Context, request mcpgo.CallTo
 	podName := request.GetString("pod_name", "")
 	namespace := request.GetString("namespace", "")
 
-	// Build kubectl logs command
-	cmd := exec.CommandContext(ctx, "kubectl", "logs", podName)
+	if !isValidK8sName(podName) {
+		return mcp.HandleToolError(fmt.Errorf("invalid pod name: %s", podName), "check_pod_logs"), nil
+	}
+	if namespace != "" && !isValidK8sName(namespace) {
+		return mcp.HandleToolError(fmt.Errorf("invalid namespace: %s", namespace), "check_pod_logs"), nil
+	}
+
+	// Build kubectl logs command (-- before pod name prevents flag injection)
+	cmd := exec.CommandContext(ctx, "kubectl", "logs", "--tail", "100")
 	if namespace != "" {
 		cmd.Args = append(cmd.Args, "-n", namespace)
 	}
-	cmd.Args = append(cmd.Args, "--tail", "100") // Limit to last 100 lines
+	cmd.Args = append(cmd.Args, "--", podName)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

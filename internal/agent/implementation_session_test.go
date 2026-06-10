@@ -142,6 +142,46 @@ func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
 	}
 }
 
+func TestShouldRunImplementationSession_statusCheckInChatMode(t *testing.T) {
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "sa-1", Type: protocol.AgentTypeArchitecture, Name: "SoftwareArchitect"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"dm-u-sa": {
+					{
+						ID:      "u1",
+						Type:    protocol.MessageTypeQuestion,
+						From:    protocol.AgentInfo{ID: "u0", Name: "User"},
+						Content: "the app is not booting can you fix it?",
+					},
+					{
+						ID:      "a1",
+						Type:    protocol.MessageTypeChat,
+						From:    protocol.AgentInfo{ID: "sa-1", Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture},
+						Content: "Implementation session complete — proposals submitted for approval (changes to: src/App.js).",
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "dm-u-sa", protocol.AgentInfo{ID: "u2", Name: "User"}, "is it fixed?")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		"editor_mode":            "agent",
+	}
+	if !shouldRunImplementationSession(a, msg) {
+		t.Fatal("expected status check after active implementation thread in chat mode")
+	}
+}
+
+func TestLooksLikeListDirToolEcho(t *testing.T) {
+	t.Parallel()
+	echo := "Implementation session finished without file changes.\n\nApp.js (file)\nApp.tsx (file)\nmain.tsx (file)\ncomponents (dir)"
+	if !looksLikeListDirToolEcho(echo) {
+		t.Fatal("expected list_dir echo detection")
+	}
+}
+
 func TestShouldRunImplementationSession_exportMode(t *testing.T) {
 	a := &Agent{Info: protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant}}
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-u", protocol.AgentInfo{ID: "u1", Name: "User"}, "please save it")

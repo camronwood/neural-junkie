@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { usePacksStore } from '../../../stores/packsStore';
 import { PACK_CAP } from '../../../stores/packCapabilities';
 import { isTauriRuntime } from '../../../utils/promptAttachments';
+import { ipcWorkspaceRoots } from '../../../utils/ipcWorkspaceRoots';
 import { RichMarkdownView } from '../../RichMarkdownView';
 import type { CustomerPackContext } from '../../../api/chatAPI';
 
@@ -78,7 +79,10 @@ export function PackTestPanel() {
     setError(null);
     setMessage(null);
     try {
-      const base64 = await invoke<string>('zip_pack_directory', { absoluteDir: src });
+      const base64 = await invoke<string>('zip_pack_directory', {
+        absoluteDir: src,
+        ...ipcWorkspaceRoots(),
+      });
       const result = await installPackFromZip(base64);
       setMessage(`Release zip smoke test installed ${result.pack_id ?? 'pack'}.`);
       await refreshContext();

@@ -87,8 +87,8 @@ def step_send(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
 
 
 def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
-    timeout = step.get("timeout", "180s")
-    secs = 180
+    timeout = step.get("timeout", "420s")
+    secs = 420
     if isinstance(timeout, str) and timeout.endswith("s"):
         try:
             secs = int(timeout[:-1])
@@ -153,6 +153,17 @@ def step_assert_file_exists(ctx: ImplementContext, step: dict) -> tuple[bool, st
     return True, rel
 
 
+def step_assert_file_absent(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    root = scenario_repo_root(ctx.scenario)
+    rel = (step.get("path") or "").strip()
+    if not rel:
+        return False, "path required"
+    full = Path(root) / rel
+    if full.is_file():
+        return False, f"expected absent, still exists: {full}"
+    return True, f"{rel} absent"
+
+
 def step_assert_no_file_change(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     msgs = hub.list_messages(ctx.base, ctx.channel, 50)
     for m in reversed(msgs):
@@ -173,6 +184,7 @@ HANDLERS = {
     "wait_reply": step_wait_reply,
     "assert_messages": step_assert_messages,
     "assert_file_exists": step_assert_file_exists,
+    "assert_file_absent": step_assert_file_absent,
     "assert_no_file_change": step_assert_no_file_change,
 }
 

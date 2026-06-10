@@ -1,0 +1,17 @@
+{
+  "name": "nj-slack-oauth-relay",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Public HTTPS Slack OAuth redirect relay for Neural Junkie",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "node --import tsx --test test/relay.test.ts"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250610.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.19.0"
+  }
+}

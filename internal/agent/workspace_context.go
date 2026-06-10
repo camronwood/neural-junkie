@@ -43,6 +43,9 @@ var filePathPattern = regexp.MustCompile(`(?:^|\s|["'\x60(])([./]?(?:(?:[a-zA-Z0
 // bareFilenamePattern matches standalone config/source filenames (e.g. tailwind.config.js).
 var bareFilenamePattern = regexp.MustCompile(`\b([a-zA-Z0-9][a-zA-Z0-9._\-]*\.(?:js|ts|tsx|jsx|mjs|cjs|css|scss|less|html|json|yaml|yml|vue|svelte|go|rs|py|md|toml))\b`)
 
+// esbuildLocationPattern matches compiler error locations like src/App.js:1:7.
+var esbuildLocationPattern = regexp.MustCompile(`\b((?:[./]?(?:[a-zA-Z0-9_\-]+/)*[a-zA-Z0-9_\-]+)\.[a-zA-Z0-9]{1,16}):\d+(?::\d+)?\b`)
+
 func appendDetectedPath(paths []string, seen map[string]bool, p string) []string {
 	p = strings.TrimSpace(p)
 	if p == "" {
@@ -88,6 +91,11 @@ func DetectFilePaths(content string) []string {
 	}
 	for _, p := range DetectBareFilenames(content) {
 		paths = appendDetectedPath(paths, seen, p)
+	}
+	for _, match := range esbuildLocationPattern.FindAllStringSubmatch(content, -1) {
+		if len(match) >= 2 {
+			paths = appendDetectedPath(paths, seen, match[1])
+		}
 	}
 
 	return paths

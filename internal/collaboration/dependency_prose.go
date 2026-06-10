@@ -13,6 +13,8 @@ var hardDepProseRe = regexp.MustCompile(`(?i)^(?:[-*]\s+)?task\s+(\d+)\s+depends
 // taskNumTokenRe finds task numbers in a dependency tail ("Task 2", "task 3", bare "2").
 var taskNumTokenRe = regexp.MustCompile(`(?i)(?:task\s*)?(\d+)`)
 
+var taskDescDepRe = regexp.MustCompile(`(?i)(?:based on (?:the plan in )?|depends on |after )task\s+(\d+)`)
+
 // parseHardDependencyProse extracts 1-based task indices from dependency prose.
 // Returns false for informational lines ("can be started", "should reference" without depends on).
 func parseHardDependencyProse(line string) (fromIndex int, toIndices []int, ok bool) {
@@ -132,4 +134,25 @@ func depRefPresent(ss []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// inferDepsFromTaskDescriptions adds 1-based dependency refs from task title/description prose.
+func inferDepsFromTaskDescriptions(tasks []CollaborationTask) {
+	for i := range tasks {
+		combined := tasks[i].Title + " " + tasks[i].Description
+		for _, sub := range taskDescDepRe.FindAllStringSubmatch(combined, -1) {
+			if len(sub) < 2 {
+				continue
+			}
+			ref := sub[1]
+			if depRefPresent(tasks[i].Dependencies, ref) {
+				continue
+			}
+			n, err := strconv.Atoi(ref)
+			if err != nil || n < 1 || n > len(tasks) || n == i+1 {
+				continue
+			}
+			tasks[i].Dependencies = append(tasks[i].Dependencies, ref)
+		}
+	}
 }

@@ -783,8 +783,8 @@ export interface Collaboration {
   pending_participant_requests?: ParticipantAddRequest[];
   planning_recap?: string;
   session_recap?: string;
-  planning_recap_status?: 'pending' | 'complete' | 'failed';
-  session_recap_status?: 'pending' | 'complete' | 'failed';
+  planning_recap_status?: 'pending' | 'complete' | 'failed' | 'skipped';
+  session_recap_status?: 'pending' | 'complete' | 'failed' | 'skipped';
   planning_recap_agent_id?: string;
   session_recap_agent_id?: string;
   /** Validation notices from the last plan approval (task hygiene). */

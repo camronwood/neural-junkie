@@ -160,7 +160,7 @@ Neural Junkie supports local and cloud AI providers. You need at least one. The 
 **Ollama (Local, Free)** -- Installers bundle the Ollama runtime (beta.22+). The app auto-starts `ollama serve` and walks you through a one-time model pull. For source builds:
 ```bash
 # Or install manually: https://ollama.ai
-make pull-models     # Downloads qwen2.5-coder:14b + qwen2.5:7b
+make pull-models     # Downloads qwen3.5:27b + qwen3.5:9b
 ```
 
 **Claude (Anthropic API)**

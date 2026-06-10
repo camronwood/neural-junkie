@@ -15,7 +15,7 @@ type ollamaShowResponse struct {
 }
 
 // OllamaBiologyFallbackModel is used when nj-bio returns empty replies (must be pulled in Ollama).
-const OllamaBiologyFallbackModel = "qwen2.5:7b"
+const OllamaBiologyFallbackModel = "qwen3.5:9b"
 
 // OllamaSmallChatModel reports local models that need short prompts and user-only history.
 func OllamaSmallChatModel(model string) bool {

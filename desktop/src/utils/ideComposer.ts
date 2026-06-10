@@ -9,7 +9,13 @@ import {
   PROMPT_ATTACHMENTS_METADATA_KEY,
 } from '../constants/promptMetadata';
 import { hasCodeTaskSignals } from './conversationMode';
-import { hasImplementationContinuationSignals, hasBareWorkspaceDirectiveOnly, hasContentDeliverySignals, hasFileExportSignals } from './implementationContinuation';
+import {
+  hasImplementationContinuationSignals,
+  hasImplementationStatusCheckSignals,
+  hasBareWorkspaceDirectiveOnly,
+  hasContentDeliverySignals,
+  hasFileExportSignals,
+} from './implementationContinuation';
 import { hasCodeReviewSignals } from './codeReviewSignals';
 
 export type EditorAgentMode = 'ask' | 'agent';
@@ -133,6 +139,7 @@ export function buildImplementationSessionMetadata(options: {
     !hasBareWorkspaceDirectiveOnly(options.content) &&
     (hasCodeTaskSignals(options.content) ||
       hasImplementationContinuationSignals(options.content) ||
+      hasImplementationStatusCheckSignals(options.content) ||
       hasFileExportSignals(options.content))
   ) {
     metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;

@@ -114,7 +114,32 @@
     <article class="feature-prose">
       <h2 id="v1-0-0" class="release-version-heading">1.0.0 <span class="release-date">— stable (cut when checklist passes)</span></h2>
 
-      <p><strong>First stable release.</strong> Same feature set as beta.33 with stable updater channel, notarized macOS builds (when Apple CI secrets are configured), and documented scope in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_SCOPE.md">STABLE_SCOPE.md</a>. Cut using <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md">STABLE_RELEASE_CHECKLIST.md</a>.</p>
+      <p><strong>First stable release.</strong> Same feature set as beta.33 plus fixes on <code>main</code> since beta.33 (DM subscription race, macOS tao patch, conversation scenario expansion). Stable updater channel. <strong>macOS:</strong> ad-hoc signed at v1.0.0 — Right-click → Open if Gatekeeper warns. <strong>Notarization:</strong> planned v1.0.1 when Apple Developer credentials are available. Scope: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_SCOPE.md">STABLE_SCOPE.md</a>. Cut using <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md">STABLE_RELEASE_CHECKLIST.md</a>.</p>
+
+      <h3>Added (since beta.33)</h3>
+      <ul>
+        <li><strong>Stable release infrastructure</strong> — checklist, scope, cut script, optional notarization CI.</li>
+        <li><strong>Settings → Security</strong> — hub security status.</li>
+        <li><strong><code>make test-conversation-contract</code></strong> — CI-safe conversation + collab wiring gate.</li>
+        <li><strong>Conversation scenarios</strong> — 4 chat + 3 collab participation scenarios; 23/23 regression PASS.</li>
+      </ul>
+
+      <h3>Changed (since beta.33)</h3>
+      <ul>
+        <li><strong>Stable scope</strong> — v1.0.0 ad-hoc macOS; notarization in v1.0.1.</li>
+        <li><strong>Beta updater publish</strong> — upload-only for <code>updater-beta</code> (immutable release fix).</li>
+      </ul>
+
+      <h3>Fixed (since beta.33)</h3>
+      <ul>
+        <li><strong>DM subscription race</strong> — eager subscribe on DM channel create.</li>
+        <li><strong>macOS tao crash</strong> — Cmd+KeyUp SIGABRT patch.</li>
+      </ul>
+
+      <h3>Known limitation</h3>
+      <ul>
+        <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
 
       <h2 id="v1-0-0-beta-33" class="release-version-heading">1.0.0-beta.33 <span class="release-date">— 2026-06-08</span></h2>
 

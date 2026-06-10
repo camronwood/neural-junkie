@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
+import { sanitizeMermaidSvg } from '../utils/mermaidSvgSanitize';
 import { MermaidModal } from './MermaidModal';
 import { CodeBlock } from './CodeBlock';
 import {
@@ -172,7 +173,16 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
           </code>
         );
         break;
-      case 'link':
+      case 'link': {
+        const href = m.url.trim().toLowerCase();
+        if (href.startsWith('javascript:') || href.startsWith('data:')) {
+          elements.push(
+            <span key={`link-${idx}`} className="text-slack-text">
+              {m.content}
+            </span>
+          );
+          break;
+        }
         elements.push(
           <a
             key={`link-${idx}`}
@@ -185,6 +195,7 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
           </a>
         );
         break;
+      }
     }
 
     currentIndex = m.index + m.length;
@@ -253,7 +264,7 @@ function MermaidDiagram({ content, onClick }: { content: string; onClick: () => 
     try {
       containerRef.current.innerHTML = '';
       const svg = await renderMermaidSvg(content);
-      containerRef.current.innerHTML = svg;
+      containerRef.current.innerHTML = sanitizeMermaidSvg(svg);
       setRetryCount(0);
     } catch (error) {
       console.error('Mermaid rendering error:', error);

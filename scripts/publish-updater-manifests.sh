@@ -39,16 +39,19 @@ gh release upload "${VERSION}" "${manifests[@]}" --repo "${REPO}" --clobber
 
 if [[ "${VERSION}" == *beta* ]]; then
   echo "Publishing beta channel manifests to updater-beta..."
-  # Recreate the rolling release so asset uploads are not blocked by immutability.
+  # Prefer upload-only: repo rules may block delete/recreate of immutable updater-beta tag.
   if gh release view updater-beta --repo "${REPO}" >/dev/null 2>&1; then
-    gh release delete updater-beta --repo "${REPO}" --yes --cleanup-tag
+    echo "updater-beta release exists — uploading manifests (--clobber)"
+    gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
+  else
+    echo "Creating updater-beta rolling release (first time)"
+    gh release create updater-beta \
+      --repo "${REPO}" \
+      --title "Beta updater channel" \
+      --notes "Rolling updater manifests for beta builds. Do not install manually." \
+      --prerelease
+    gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
   fi
-  gh release create updater-beta \
-    --repo "${REPO}" \
-    --title "Beta updater channel" \
-    --notes "Rolling updater manifests for beta builds. Do not install manually." \
-    --prerelease
-  gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
 fi
 
 echo "Updater manifests published."

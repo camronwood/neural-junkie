@@ -8,9 +8,25 @@ import (
 
 var (
 	taskFileVerbRE     = regexp.MustCompile(`(?i)\b(write|create|draft|produce|emit)\b`)
-	taskFileExtRE      = regexp.MustCompile(`(?i)[\w./-]+\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py)`)
-	taskPathTokenRE    = regexp.MustCompile(`(?i)(?:collabs/[\w-]+/[\w./-]+|[\w][\w./-]*\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py))`)
+	taskFileExtRE      = regexp.MustCompile(`(?i)[\w./-]+\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)`)
+	taskPathTokenRE    = regexp.MustCompile(`(?i)(?:collabs/[\w-]+/[\w./-]+\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)|[\w][\w./-]*\.(?:md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js))`)
+	deliverableExtRE   = regexp.MustCompile(`(?i)\.(md|markdown|yaml|yml|json|txt|go|rs|ts|tsx|py|html|css|js)$`)
 )
+
+// sanitizePathToken rejects truncated or corrupt path tokens from task titles.
+func sanitizePathToken(token string) string {
+	token = filepath.ToSlash(strings.Trim(token, "`\"' "))
+	if token == "" {
+		return ""
+	}
+	if strings.Contains(token, "...") || strings.Contains(token, "<|") {
+		return ""
+	}
+	if !deliverableExtRE.MatchString(token) {
+		return ""
+	}
+	return token
+}
 
 // TaskRequiresFileDeliverable is true when task text asks for a concrete file output.
 func TaskRequiresFileDeliverable(t CollaborationTask) bool {
@@ -51,16 +67,28 @@ func TaskLooksLikeMarkdownDeliverable(t CollaborationTask) bool {
 func ReferencedDeliverablePaths(t CollaborationTask) []string {
 	combined := t.Title + " " + t.Description
 	seen := make(map[string]bool)
-	var out []string
+	var candidates []string
 	for _, m := range taskPathTokenRE.FindAllString(combined, -1) {
-		p := filepath.ToSlash(strings.Trim(m, "`\"' "))
+		p := sanitizePathToken(m)
 		if p == "" || seen[p] {
 			continue
 		}
 		seen[p] = true
-		out = append(out, p)
+		candidates = append(candidates, p)
 	}
-	return out
+	var collab []string
+	var other []string
+	for _, p := range candidates {
+		if strings.HasPrefix(strings.ToLower(p), "collabs/") {
+			collab = append(collab, p)
+		} else {
+			other = append(other, p)
+		}
+	}
+	if len(collab) > 0 {
+		return collab
+	}
+	return other
 }
 
 // TaskDispatchFileDeliverableNote returns extra instructions for file-shaped tasks.

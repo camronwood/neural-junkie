@@ -35,6 +35,12 @@ slack-vendor-check: ## Fail if vendor/oauth.json is missing (release / CI)
 	@test -f $(SLACK_VENDOR_JSON) || (echo "❌ Missing $(SLACK_VENDOR_JSON) — run: make slack-vendor-json" >&2; exit 1)
 	@echo "✅ $(SLACK_VENDOR_JSON) present"
 
+slack-oauth-relay-deploy-cf: ## Deploy public HTTPS Slack OAuth relay to Cloudflare Workers (free)
+	@./scripts/deploy-slack-oauth-relay-cloudflare.sh
+
+slack-oauth-relay-deploy: ## Deploy public HTTPS Slack OAuth relay to AWS Lambda (requires AWS SSO)
+	@AWS_PROFILE=$${AWS_PROFILE:-AdministratorAccess-566982197870} ./scripts/deploy-slack-oauth-relay-aws.sh
+
 gallery-sync: ## Copy ads/screenshots to docs/media/gallery and rebuild manifest
 	@chmod +x ./scripts/sync-gallery.sh
 	@./scripts/sync-gallery.sh
@@ -345,6 +351,11 @@ test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@cd desktop && npm run test:coverage
 	@echo ""
 	@echo "✅ Full test pass complete (vet + Go + desktop tsc + Vitest + coverage)."
+
+test-race: ## Run Go race detector on concurrency-sensitive packages
+	@echo "🧪 Go race detector (hub + filechange)..."
+	@go test -race -count=1 ./internal/hub/... ./internal/filechange/...
+	@echo "✅ Race tests complete."
 
 demo-messages: ## Send demo messages to test the system
 	@./scripts/demo-messages.sh

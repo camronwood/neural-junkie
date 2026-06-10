@@ -42,7 +42,7 @@ Interactive trust skips verify (proposals await manual approval).
 
 Settings → **AI Providers → Implementation sessions**
 
-- **Local Ollama first** (`implementation.routing_enabled`) — default tool-loop model: `qwen2.5-coder:7b` (`ollama pull qwen2.5-coder:7b`)
+- **Local Ollama first** (`implementation.routing_enabled`) — default tool-loop model: `qwen3.5:9b` (`ollama pull qwen3.5:9b`)
 - **`implementation.fallback_provider_ids`** — used only when the configured **local Ollama provider is missing or unavailable**, not when a local model returns weak output. There is no automatic cloud escalation on implementation failure.
 - **Cloud-grade work** — use an explicit CLI agent (e.g. `@Cursor` in chat) when you choose; see [CLI_AGENTS.md](CLI_AGENTS.md).
 

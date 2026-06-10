@@ -305,11 +305,11 @@ Other channels are unaffected: two collaborations can execute **in parallel** on
 
 All discussions enforce hard caps:
 
-| Safeguard | Default | Hard Max |
-|---|---:|---:|
-| Max rounds | 2 | 10 |
-| Max turns per agent per round | 1 | 3 |
-| Max total messages | 12 | 50 |
+| Safeguard | Default (2 agents) | Default (3 agents) | Hard Max |
+|---|---:|---:|---:|
+| Max rounds | 3 | 3 | 10 |
+| Max turns per agent per round | 2 | 2 | 3 |
+| Max total messages | 12 | 18 | 50 |
 | Wall-clock timeout | 5 min | 30 min |
 | Max concurrent collaborations | 3 | n/a |
 | Max tasks per collaboration | 10 | n/a |

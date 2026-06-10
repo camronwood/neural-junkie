@@ -310,3 +310,47 @@ func TestRequestFinalRecap_DefersFinalizeUntilReply(t *testing.T) {
 		t.Fatalf("session_recap=%q", snap.SessionRecap)
 	}
 }
+
+func TestCancelCollaboration_ClearsFinalizeAndSessionRecap(t *testing.T) {
+	h := NewHub()
+	chName := "recap-cancel-cleanup"
+	_ = h.CreateChannel(chName, "collab", "test")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "AgentA", Type: protocol.AgentTypeBackend, Status: "active"}
+	a2 := &protocol.AgentInfo{ID: "a2", Name: "AgentB", Type: protocol.AgentTypeFrontend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+	_ = h.RegisterAgent(a2)
+
+	cm := h.GetCollaborationManager()
+	collab, err := cm.CreateCollaboration("cancel cleanup", []string{"a1", "a2"}, chName, "tester", collaboration.DiscussionConfig{})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	approveAndExecuteCollabForTest(t, cm, collab.ID)
+
+	h.requestFinalRecapAndFinalize(collab.ID, chName, "All tasks are done.", collaboration.FinalizeOptions{})
+
+	before, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if !before.AwaitingFinalize {
+		t.Fatal("expected awaiting_finalize before cancel")
+	}
+	if before.SessionRecapStatus != collaboration.RecapStatusPending {
+		t.Fatalf("session_recap_status=%s want pending", before.SessionRecapStatus)
+	}
+
+	if _, err := cm.CancelCollaboration(collab.ID); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	h.cancelCollaborationRecaps(collab.ID)
+
+	after, _ := cm.GetCollaborationSnapshot(collab.ID)
+	if after.AwaitingFinalize {
+		t.Fatal("expected awaiting_finalize cleared after cancel")
+	}
+	if after.SessionRecapStatus != collaboration.RecapStatusSkipped {
+		t.Fatalf("session_recap_status=%s want skipped", after.SessionRecapStatus)
+	}
+	if after.Phase != collaboration.PhaseCancelled {
+		t.Fatalf("phase=%s want cancelled", after.Phase)
+	}
+}

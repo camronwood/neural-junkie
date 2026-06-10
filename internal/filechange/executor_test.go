@@ -78,6 +78,30 @@ func TestExecutorRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestExecutorRejectsPrefixSibling(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "ws")
+	sibling := filepath.Join(t.TempDir(), "ws_evil")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(sibling, 0755); err != nil {
+		t.Fatal(err)
+	}
+	exec := NewFileChangeExecutor(root)
+	outside := filepath.Join(sibling, "oops.txt")
+	err := exec.ExecuteFileChange(&FileChange{
+		Operation:  FileOperationCreate,
+		FilePath:   outside,
+		NewContent: "nope",
+	})
+	if err == nil {
+		t.Fatal("expected prefix sibling rejection")
+	}
+	if !strings.Contains(err.Error(), "path outside workspace") {
+		t.Fatalf("expected outside workspace error, got %v", err)
+	}
+}
+
 func TestExecutorGetFileDiff(t *testing.T) {
 	root := t.TempDir()
 	exec := NewFileChangeExecutor(root)

@@ -193,8 +193,104 @@ func (m *StackManifest) FormatPromptBlock() string {
 	}
 	b.WriteString("Use ONLY paths that match this stack. Do not invent files for a different framework.\n")
 	b.WriteString("Do NOT use src-tauri/tailwind.config.js when Tailwind is listed at repo root.\n")
+	if hint := DetectEntryConflicts(m.WorkspaceRoot, m); hint != "" {
+		b.WriteString(hint)
+		b.WriteString("\n")
+	}
 	b.WriteString("=== END STACK MANIFEST ===\n\n")
 	return b.String()
+}
+
+// ImplementationSeedPaths returns stack-appropriate files to preload for implementation turns.
+// Used for all agent types — not limited to frontend/backend specialists.
+func (m *StackManifest) ImplementationSeedPaths() []string {
+	if m == nil {
+		return nil
+	}
+	root := strings.TrimSpace(m.WorkspaceRoot)
+	if root == "" {
+		return nil
+	}
+	var out []string
+	add := func(rel string) {
+		rel = filepath.ToSlash(strings.TrimSpace(rel))
+		if rel == "" {
+			return
+		}
+		if _, err := os.Stat(filepath.Join(root, rel)); err == nil {
+			out = append(out, rel)
+		}
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err == nil {
+		for _, p := range []string{"go.mod", "main.go", "cmd/main.go", "cmd/server/main.go", "package.json"} {
+			add(p)
+		}
+		return out
+	}
+	if _, err := os.Stat(filepath.Join(root, "Cargo.toml")); err == nil {
+		for _, p := range []string{"Cargo.toml", "src/main.rs", "src/lib.rs"} {
+			add(p)
+		}
+		return out
+	}
+
+	add("package.json")
+	add("index.html")
+	for _, p := range []string{"vite.config.ts", "vite.config.js", "vite.config.mjs"} {
+		add(p)
+	}
+	add("postcss.config.js")
+	if m.TailwindConfig != "" {
+		add(m.TailwindConfig)
+	}
+	for _, p := range []string{
+		"src/main.tsx", "src/main.ts", "src/main.jsx", "src/main.js",
+		"src/App.js", "src/App.jsx", "src/App.tsx",
+		"src/index.css",
+	} {
+		add(p)
+	}
+	return out
+}
+
+// DetectEntryConflicts reports App.js/App.tsx (or similar) resolution issues for the prompt.
+func DetectEntryConflicts(workspaceRoot string, manifest *StackManifest) string {
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	if workspaceRoot == "" || manifest == nil || !manifest.HasReact {
+		return ""
+	}
+	appJS := filepath.Join(workspaceRoot, "src", "App.js")
+	appTSX := filepath.Join(workspaceRoot, "src", "App.tsx")
+	if _, err := os.Stat(appJS); err != nil {
+		return ""
+	}
+	if _, err := os.Stat(appTSX); err != nil {
+		return ""
+	}
+	b, err := os.ReadFile(appJS)
+	if err != nil {
+		return ""
+	}
+	if !LooksLikeCorruptSourceContent(string(b)) {
+		return ""
+	}
+	mainEntry := ""
+	for _, p := range []string{"src/main.tsx", "src/main.ts", "src/main.jsx", "src/main.js"} {
+		if _, err := os.Stat(filepath.Join(workspaceRoot, p)); err == nil {
+			mainEntry = p
+			break
+		}
+	}
+	var hint strings.Builder
+	hint.WriteString("Entry conflict: src/App.js and src/App.tsx both exist; src/App.js has invalid content. ")
+	hint.WriteString("Imports like ./App resolve to App.js first. ")
+	if mainEntry != "" {
+		hint.WriteString(fmt.Sprintf("Delete or fix src/App.js, or change the import in %s to ./App.tsx. ", mainEntry))
+	} else {
+		hint.WriteString("Delete or fix src/App.js before editing App.tsx. ")
+	}
+	return strings.TrimSpace(hint.String())
 }
 
 // FormatRepairHints returns actionable path hints after preflight failure.

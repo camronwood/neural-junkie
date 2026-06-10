@@ -31,14 +31,18 @@ func (h *Hub) collabTaskDeliverableSatisfied(snap *collaboration.Collaboration, 
 		if collaboration.UsesProjectCollabDir(snap) && strings.TrimSpace(snap.SourceRepoPath) != "" {
 			abs := filepath.Join(snap.SourceRepoPath, filepath.FromSlash(rel))
 			if st, err := os.Stat(abs); err == nil && !st.IsDir() {
-				return true
+				if !collaboration.IsDeliverableStubFile(abs) {
+					return true
+				}
 			}
 		}
 		if root != "" {
 			norm := collaboration.NormalizeDeliverableRelPathForRoot(snap, rel)
 			abs := filepath.Join(root, filepath.FromSlash(norm))
 			if st, err := os.Stat(abs); err == nil && !st.IsDir() {
-				return true
+				if !collaboration.IsDeliverableStubFile(abs) {
+					return true
+				}
 			}
 		}
 		if h.fileChangeManager != nil && msg != nil {

@@ -12,11 +12,10 @@ agents:
     name: CADExpert
     implementation: builtin/cad
 models_to_ensure:
-  - qwen2.5-coder:14b
-  - qwen2.5-coder:7b
-  - qwen2.5:7b
+  - qwen3.5:27b
+  - qwen3.5:9b
   - nj-cad:27b
-ollama_model: qwen2.5-coder:14b
+ollama_model: qwen3.5:27b
 expert_slug: cad
 expert_label: CAD / Mechanical design
 mcp_agents:

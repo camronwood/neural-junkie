@@ -7,7 +7,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/config"
 )
 
-const DefaultLocalToolModel = "qwen2.5-coder:7b"
+const DefaultLocalToolModel = "qwen3.5:9b"
 
 // Input is the routing decision context for an implementation session.
 type Input struct {

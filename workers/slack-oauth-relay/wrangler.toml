@@ -1,0 +1,6 @@
+name = "nj-slack-oauth-relay"
+main = "src/index.ts"
+compatibility_date = "2024-06-10"
+
+[observability]
+enabled = true

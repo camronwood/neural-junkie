@@ -31,9 +31,9 @@ agents:
     name: DatabaseSpecialist
     implementation: builtin/database
 models_to_ensure:
-  - qwen2.5-coder:14b
-  - qwen2.5:7b
-ollama_model: qwen2.5-coder:14b
+  - qwen3.5:27b
+  - qwen3.5:9b
+ollama_model: qwen3.5:27b
 expert_presets:
   - slug: backend
     label: Backend

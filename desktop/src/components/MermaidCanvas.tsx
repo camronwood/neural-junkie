@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { renderMermaidSvg } from '../utils/mermaidConfig';
+import { sanitizeMermaidSvg } from '../utils/mermaidSvgSanitize';
 
 export interface MermaidCanvasProps {
   content: string;
@@ -111,7 +112,7 @@ export function MermaidCanvas({
       try {
         diagramRef.current!.innerHTML = '';
         const svg = await renderMermaidSvg(content);
-        diagramRef.current!.innerHTML = svg;
+        diagramRef.current!.innerHTML = sanitizeMermaidSvg(svg);
 
         requestAnimationFrame(() => {
           if (!diagramRef.current || !containerRef.current) return;
