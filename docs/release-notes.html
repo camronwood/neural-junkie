@@ -37,14 +37,16 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.34">v1.0.0-beta.34</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.35">v1.0.0-beta.35</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-0-0-beta-35">1.0.0-beta.35</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-34">1.0.0-beta.34</a>
       <span aria-hidden="true">·</span>
-      <a href="#v1.0.0-beta.34">1.0.0-beta.33</a>
+      <a href="#v1-0-0-beta-33">1.0.0-beta.33</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-32">1.0.0-beta.32</a>
       <span aria-hidden="true">·</span>
@@ -143,6 +145,27 @@
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
       </ul>
 
+      <h2 id="v1-0-0-beta-35" class="release-version-heading">1.0.0-beta.35 <span class="release-date">— 2026-06-10</span></h2>
+
+      <p><strong>Working beta auto-update.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.35">GitHub Releases</a>. Git-backed updater manifests on <code>main</code> plus dual endpoint fallback restore in-app update checks. Includes beta.34 Slack OAuth relay and release CI fixes.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Git-backed beta updater</strong> — rolling manifests at <code>updater/beta/</code>; CI syncs after each beta release.</li>
+        <li><strong>Dual updater endpoints</strong> — legacy <code>updater-beta</code> release, then raw GitHub <code>main</code> URL fallback.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Beta in-app auto-update</strong> — immutable GitHub releases blocked rolling tag recreation; beta.35+ installers use the new channel.</li>
+        <li><strong>Release CI</strong> — learning test stability, Slack relay secret in builds, macOS ad-hoc signing default, manifest publish to <code>main</code>.</li>
+      </ul>
+
+      <h3>Note</h3>
+      <ul>
+        <li><strong>beta.34 installers</strong> — single <code>updater-beta</code> endpoint only; upgrade to beta.35+ for working updates.</li>
+      </ul>
+
       <h2 id="v1-0-0-beta-34" class="release-version-heading">1.0.0-beta.34 <span class="release-date">— 2026-06-10</span></h2>
 
       <p><strong>Public Connect Slack.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.34">GitHub Releases</a>. Any Slack workspace can OAuth-install the bundled NJ app via a free Cloudflare Workers HTTPS relay — no AWS account required. Desktop chat panel resize respects open side panels.</p>
@@ -159,9 +182,9 @@
         <li><strong>Slack <code>redirect_uri</code> mismatch</strong> — hub upgrades loopback redirects to HTTPS relay for public distribution installs.</li>
       </ul>
 
-      <h2 id="v1.0.0-beta.34" class="release-version-heading">1.0.0-beta.33 <span class="release-date">— 2026-06-08</span></h2>
+      <h2 id="v1-0-0-beta-33" class="release-version-heading">1.0.0-beta.33 <span class="release-date">— 2026-06-08</span></h2>
 
-      <p><strong>Cursor-like composer + durable memory.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.34">GitHub Releases</a>. Ask / Agent / Export composer modes, SQLite-backed conversation memory for prior-reference continuity, tool-first file delivery, customer pack capability gating, and limitations-sprint hub/desktop polish.</p>
+      <p><strong>Cursor-like composer + durable memory.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33">GitHub Releases</a>. Ask / Agent / Export composer modes, SQLite-backed conversation memory for prior-reference continuity, tool-first file delivery, customer pack capability gating, and limitations-sprint hub/desktop polish.</p>
 
       <h3>Added</h3>
       <ul>

@@ -8,6 +8,21 @@ All notable changes to Neural Junkie.
 
 _(Nothing yet.)_
 
+## [1.0.0-beta.35] - 2026-06-10
+
+Working **beta in-app auto-update**: git-backed updater manifests on `main`, dual endpoint fallback, and release CI fixes bundled with beta.34 Slack OAuth relay.
+
+### Added
+- **Git-backed beta updater channel** — rolling manifests at `updater/beta/` on `main`; CI syncs after each beta release ([RELEASE_UPDATES.md](RELEASE_UPDATES.md)).
+- **Dual updater endpoints** — beta builds try legacy `updater-beta` GitHub release, then raw `main` URLs so Tauri update checks succeed despite immutable release tags.
+
+### Fixed
+- **Beta in-app auto-update** — GitHub immutable releases blocked rolling `updater-beta` tag recreation; git-backed channel + dual endpoints restore update checks on fresh installs.
+- **Release CI** — learning test globals lock/defer, `SLACK_VENDOR_OAUTH_RELAY_BASE` in build jobs, macOS ad-hoc signing default, manifest publish commits to `main`.
+
+### Note
+- **v1.0.0-beta.34 installers** use the old single `updater-beta` endpoint only — upgrade to **beta.35+** for working in-app updates.
+
 ## [1.0.0-beta.34] - 2026-06-10
 
 Public **Connect Slack** for any workspace: HTTPS OAuth relay on Cloudflare Workers, loopback redirect auto-upgrade, and desktop layout polish.
