@@ -12,10 +12,10 @@ import (
 func TestAppendForAgent_scopedAndGated(t *testing.T) {
 	unlock := LockTestGlobals()
 	dir := testDataDir(t)
-	t.Cleanup(func() {
+	defer func() {
 		unlock()
 		_ = os.RemoveAll(dir)
-	})
+	}()
 	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -49,10 +49,10 @@ func TestAppendForAgent_scopedAndGated(t *testing.T) {
 func TestGlobalScopeIsolation(t *testing.T) {
 	unlock := LockTestGlobals()
 	dir := testDataDir(t)
-	t.Cleanup(func() {
+	defer func() {
 		unlock()
 		_ = os.RemoveAll(dir)
-	})
+	}()
 	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
 		t.Fatal(err)

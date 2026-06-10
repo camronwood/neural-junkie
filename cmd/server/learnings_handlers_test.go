@@ -61,10 +61,10 @@ func TestHandleLearningsCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
+	defer func() {
 		unlock()
 		_ = os.RemoveAll(dir)
-	})
+	}()
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil
@@ -131,10 +131,10 @@ func TestHandleLearningsUpdateAndQuery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() {
+	defer func() {
 		unlock()
 		_ = os.RemoveAll(dir)
-	})
+	}()
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil
