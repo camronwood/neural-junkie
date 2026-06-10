@@ -1,0 +1,11 @@
+model_tag	scenario_kind	scenario	passed	duration_s	detail
+codegemma:7b	implement	go-handler	1	109.4	=== PASS: go-handler ===
+codegemma:7b	implement	theme-toggle	0	426.4	=== FAIL: theme-toggle ===
+codegemma:7b	implement	ask-mode-no-write	1	17.2	=== PASS: ask-mode-no-write ===
+codegemma:7b	chat	dm-backend-workspace	1	40.5	=== PASS: dm-backend-workspace ===
+codegemma:7b	chat	dm-backend-echo-followup	1	33.3	=== PASS: dm-backend-echo-followup ===
+gemma3:12b	implement	go-handler	1	41.2	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	0	424.1	=== FAIL: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	25.2	=== PASS: ask-mode-no-write ===
+gemma3:12b	chat	dm-backend-workspace	1	45.1	=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	1	32.6	=== PASS: dm-backend-echo-followup ===

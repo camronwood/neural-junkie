@@ -1,5 +1,23 @@
 [
   {
+    "name": "qwen3.5:27b",
+    "title": "Qwen 3.5 27B",
+    "description": "Balanced coding and agent model; default for Neural Junkie specialists.",
+    "tags": ["code", "recommended"],
+    "size_hint": "~17 GB",
+    "icon_key": "qwen",
+    "publisher": "Qwen"
+  },
+  {
+    "name": "qwen3.5:9b",
+    "title": "Qwen 3.5 9B",
+    "description": "Fast utility model for Assistant, tool loops, and session summaries.",
+    "tags": ["general", "recommended"],
+    "size_hint": "~6.6 GB",
+    "icon_key": "qwen",
+    "publisher": "Qwen"
+  },
+  {
     "name": "qwen2.5-coder:14b",
     "title": "Qwen 2.5 Coder 14B",
     "description": "Strong coding and tool use; default for Neural Junkie specialists.",
@@ -96,6 +114,24 @@
     "description": "Google Gemma 2 mid-size instruct.",
     "tags": ["general"],
     "size_hint": "~5.4 GB",
+    "icon_key": "gemma",
+    "publisher": "Google"
+  },
+  {
+    "name": "codegemma:7b",
+    "title": "CodeGemma 7B",
+    "description": "Google code-focused instruct model for completion and codegen.",
+    "tags": ["code"],
+    "size_hint": "~5 GB",
+    "icon_key": "gemma",
+    "publisher": "Google"
+  },
+  {
+    "name": "gemma3:12b",
+    "title": "Gemma 3 12B",
+    "description": "Google Gemma 3 mid-tier; multimodal-capable, strong on reasoning and code.",
+    "tags": ["code", "general"],
+    "size_hint": "~8.1 GB",
     "icon_key": "gemma",
     "publisher": "Google"
   },

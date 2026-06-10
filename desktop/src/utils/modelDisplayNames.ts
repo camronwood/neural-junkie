@@ -15,6 +15,21 @@ export function formatModelDisplayName(tag: string): string {
   if (t.startsWith('nj-biology:')) {
     return 'Biology LoRA 8B';
   }
+  if (t.includes('qwen3.5:27b')) {
+    return 'Qwen 3.5 27B';
+  }
+  if (t.includes('qwen3.5:9b') || t === 'qwen3.5:latest' || t.startsWith('qwen3.5:9b')) {
+    return 'Qwen 3.5 9B';
+  }
+  if (t.includes('codegemma:7b') || t.startsWith('codegemma:')) {
+    return 'CodeGemma 7B';
+  }
+  if (t.includes('gemma3:12b')) {
+    return 'Gemma 3 12B';
+  }
+  if (t.includes('gemma2:9b')) {
+    return 'Gemma 2 9B';
+  }
   if (t.includes('qwen2.5-coder:14b')) {
     return 'Qwen 2.5 Coder 14B';
   }

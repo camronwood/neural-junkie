@@ -1,0 +1,117 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 3 implement + 2 chat scenarios (~15\u201345 min per model on 14B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-10T15:47:38.506687+00:00",
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "codegemma-7b",
+      "model_tag": "codegemma:7b",
+      "title": "CodeGemma 7B",
+      "size_hint_gb": 5,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 109.39195495803142,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 426.35189691704,
+          "detail": "=== FAIL: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 17.187657749978825,
+          "detail": "=== PASS: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 40.47621325001819,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 33.337468667014036,
+          "detail": "=== PASS: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.004165249993093312,
+      "total_duration_s": 626.748226207972,
+      "passed_count": 4,
+      "total_count": 5,
+      "pass_rate": 0.8
+    },
+    {
+      "model_id": "gemma3-12b",
+      "model_tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 41.23853366699768,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.1071391670266,
+          "detail": "=== FAIL: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 25.16901049995795,
+          "detail": "=== PASS: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 45.11548366700299,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 32.56982375000371,
+          "detail": "=== PASS: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.00951591698685661,
+      "total_duration_s": 568.2079335420276,
+      "passed_count": 4,
+      "total_count": 5,
+      "pass_rate": 0.8
+    }
+  ]
+}

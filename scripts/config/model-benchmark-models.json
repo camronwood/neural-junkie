@@ -1,5 +1,5 @@
 {
-  "description": "Default top-5 local coder models for NJ live benchmarks (~9–15 GB class).",
+  "description": "Default local coder models for NJ live benchmarks (~5–15 GB class), including Qwen, Mistral, DeepSeek, and Google Gemma.",
   "models": [
     {
       "id": "qwen2.5-coder-14b",
@@ -35,6 +35,20 @@
       "title": "DeepSeek Coder 6.7B",
       "size_hint_gb": 3.8,
       "notes": "Lightweight coder reference"
+    },
+    {
+      "id": "codegemma-7b",
+      "tag": "codegemma:7b",
+      "title": "CodeGemma 7B",
+      "size_hint_gb": 5,
+      "notes": "Google code-focused instruct model; fill-in-middle and codegen"
+    },
+    {
+      "id": "gemma3-12b",
+      "tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "notes": "Google Gemma 3 mid-tier; strong reasoning and MBPP/HumanEval class"
     }
   ]
 }

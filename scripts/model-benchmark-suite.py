@@ -135,7 +135,7 @@ def main() -> int:
     p.add_argument("--suites-config", type=Path, default=SUITES_CONFIG)
     p.add_argument(
         "--models",
-        help="Comma-separated Ollama tags (overrides default top-5 list)",
+        help="Comma-separated Ollama tags (overrides default roster)",
     )
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
     p.add_argument("--pull", action="store_true", help="Pull missing models via hub before each run")

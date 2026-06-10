@@ -20,7 +20,7 @@ ollama pull qwen3.5:9b
 
 ## Quick smoke benchmark (default)
 
-Runs **3 implement + 2 chat** scenarios against the **top-5 roster** (~15–45 min per model on 14B-class hardware):
+Runs **3 implement + 2 chat** scenarios against the **default roster** (~15–45 min per model on 14B-class hardware):
 
 ```bash
 make model-benchmark
@@ -78,7 +78,7 @@ make publish-model-benchmarks
 
 **Website:** [Model benchmarks](https://camronwood.github.io/neural-junkie/benchmarks/) (`docs/benchmarks/index.html` on GitHub Pages).
 
-## Default top-5 roster
+## Default roster
 
 Configured in `scripts/config/model-benchmark-models.json`:
 
@@ -87,6 +87,8 @@ Configured in `scripts/config/model-benchmark-models.json`:
 3. `devstral:24b` — Mistral agentic coder
 4. `qwen3.5:9b` — fast modern baseline
 5. `deepseek-coder:6.7b` — lightweight reference
+6. `codegemma:7b` — Google code-focused instruct
+7. `gemma3:12b` — Google Gemma 3 mid-tier (~12B class)
 
 Edit that file or pass `--models` to change the roster.
 
