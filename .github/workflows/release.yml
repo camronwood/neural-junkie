@@ -97,6 +97,7 @@ jobs:
           SLACK_VENDOR_CLIENT_ID: ${{ secrets.SLACK_VENDOR_CLIENT_ID }}
           SLACK_VENDOR_CLIENT_SECRET: ${{ secrets.SLACK_VENDOR_CLIENT_SECRET }}
           SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
+          SLACK_VENDOR_OAUTH_RELAY_BASE: ${{ secrets.SLACK_VENDOR_OAUTH_RELAY_BASE }}
         run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
 
       - name: Write Google vendor OAuth (Connect Google in installers)
@@ -253,6 +254,7 @@ jobs:
           SLACK_VENDOR_CLIENT_ID: ${{ secrets.SLACK_VENDOR_CLIENT_ID }}
           SLACK_VENDOR_CLIENT_SECRET: ${{ secrets.SLACK_VENDOR_CLIENT_SECRET }}
           SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
+          SLACK_VENDOR_OAUTH_RELAY_BASE: ${{ secrets.SLACK_VENDOR_OAUTH_RELAY_BASE }}
         run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
 
       - name: Write Google vendor OAuth (Connect Google in installers)
@@ -347,6 +349,7 @@ jobs:
           SLACK_VENDOR_CLIENT_ID: ${{ secrets.SLACK_VENDOR_CLIENT_ID }}
           SLACK_VENDOR_CLIENT_SECRET: ${{ secrets.SLACK_VENDOR_CLIENT_SECRET }}
           SLACK_VENDOR_APP_TOKEN: ${{ secrets.SLACK_VENDOR_APP_TOKEN }}
+          SLACK_VENDOR_OAUTH_RELAY_BASE: ${{ secrets.SLACK_VENDOR_OAUTH_RELAY_BASE }}
         run: chmod +x scripts/ci-write-slack-vendor-oauth.sh && ./scripts/ci-write-slack-vendor-oauth.sh
 
       - name: Write Google vendor OAuth (Connect Google in installers)
