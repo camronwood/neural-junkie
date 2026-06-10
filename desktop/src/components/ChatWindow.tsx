@@ -131,6 +131,10 @@ import { useFileChangeStore } from '../stores/fileChangeStore';
 import { getHubBaseURL } from '../config/hubUrl';
 import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layoutPresets';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
+import {
+  mainChatMaxWidth,
+  type MainChatPanelVisibility,
+} from '../utils/mainChatMaxWidth';
 import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
 import { useChatShortcutHandlers } from '../hooks/useChatShortcutHandlers';
 import { useChatShortcutOverlays } from '../hooks/useChatShortcutOverlays';
@@ -234,6 +238,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const mainChatVisibilityRef = useRef<MainChatPanelVisibility>({
+    channelSidebarOpen: false,
+    fileExplorerOpen: false,
+    fileExplorerEmbedded: false,
+    threadOpen: false,
+    collaborationOpen: false,
+    taskManagementOpen: false,
+  });
   const mainChatResize = useHorizontalPanelResize({
     storageKey: 'main-chat-panel-width',
     defaultWidth: 420,
@@ -241,8 +253,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     maxWidthRatio: 0.9,
     getMaxWidth: () => {
       const el = mainContentRef.current;
-      if (!el) return window.innerWidth * 0.9;
-      return Math.max(260, el.clientWidth - 320);
+      const containerWidth = el?.clientWidth ?? window.innerWidth * 0.9;
+      return mainChatMaxWidth(containerWidth, mainChatVisibilityRef.current);
     },
     edge: 'left',
   });
@@ -606,6 +618,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const preferSidebarChips = toolbarChipsPlacement === 'sidebar';
   const useSidebarChips = !isWideViewport || preferSidebarChips;
   const showTopToolbarChips = isWideViewport && !preferSidebarChips;
+  const chatResizable = isWideViewport && chatPanelVisible;
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -922,6 +935,24 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     () => resolvePanelCollaboration(activeCollab, collaborationsByID),
     [activeCollab, collaborationsByID]
   );
+
+  useEffect(() => {
+    mainChatVisibilityRef.current = {
+      channelSidebarOpen,
+      fileExplorerOpen,
+      fileExplorerEmbedded: ideLayout && fileExplorerOpen,
+      threadOpen: !!openThreadId,
+      collaborationOpen: !!panelCollaboration,
+      taskManagementOpen,
+    };
+  }, [
+    channelSidebarOpen,
+    fileExplorerOpen,
+    ideLayout,
+    openThreadId,
+    panelCollaboration,
+    taskManagementOpen,
+  ]);
 
   const isClosedCollaborationChannel = Boolean(
     collaborationForChannel && isTerminalCollaborationPhase(collaborationForChannel.phase)
@@ -2438,21 +2469,35 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
-        {/* Code Editor */}
-        {codeEditorOpen && (
+        {/* Workspace slot — editor (IDE) or reclaimed space when chat is resized */}
+        {ideLayout && chatPanelVisible && (
+          <div className="flex flex-1 min-w-0 min-h-0 flex-col h-full border-r border-slack-border">
+            {codeEditorOpen ? (
+              <CodeEditorPanel
+                variant="embedded"
+                onClose={() => {
+                  setCodeEditorOpen(false);
+                  void updateLayoutSettings({ editorPanelVisible: false });
+                }}
+              />
+            ) : (
+              <div className="flex flex-1 min-h-0 items-center justify-center px-6 text-center text-sm text-slack-textMuted">
+                Open a file from the explorer to start editing
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Code Editor — overlay mode (team layout) */}
+        {codeEditorOpen && !ideLayout && (
           <CodeEditorPanel
-            variant={ideLayout ? 'embedded' : 'overlay'}
-            onClose={() => {
-              setCodeEditorOpen(false);
-              if (ideLayout) {
-                void updateLayoutSettings({ editorPanelVisible: false });
-              }
-            }}
+            variant="overlay"
+            onClose={() => setCodeEditorOpen(false)}
           />
         )}
 
-        {/* Keep chat pinned to the right when the editor is hidden (editor flex-1 normally fills this gap). */}
-        {ideLayout && !codeEditorOpen && chatPanelVisible && (
+        {/* Team layout: flex workspace absorbs space when chat is narrowed */}
+        {!ideLayout && chatResizable && !codeEditorOpen && (
           <div className="flex-1 min-w-0" aria-hidden="true" />
         )}
 
@@ -2460,13 +2505,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {chatPanelVisible && (
         <div
           className={
-            ideLayout
+            chatResizable
               ? 'flex flex-col h-full min-h-0 relative border-l border-slack-border'
               : 'flex flex-col flex-1 min-h-0 min-w-[220px] sm:min-w-[260px] transition-all duration-300 ease-in-out relative overflow-hidden'
           }
-          style={ideLayout ? shrinkablePanelStyle(mainChatResize.width, 220) : undefined}
+          style={chatResizable ? shrinkablePanelStyle(mainChatResize.width, 220) : undefined}
         >
-        {ideLayout && (
+        {chatResizable && (
           <div
             className="absolute left-0 top-0 bottom-0 cursor-col-resize z-[100] group"
             onMouseDown={mainChatResize.onResizeStart}

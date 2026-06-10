@@ -151,9 +151,7 @@ func ResolveOAuthApp(cfg *config.SlackConfig) (*OAuthAppCredentials, OAuthSource
 	user, err := LoadOAuthApp()
 	if err == nil && user != nil && strings.TrimSpace(user.ClientID) != "" && strings.TrimSpace(user.ClientSecret) != "" {
 		out := *user
-		if strings.TrimSpace(out.RedirectURL) == "" {
-			out.RedirectURL = ResolveBotOAuthRedirectURL(slackRedirectHints{userRedirect: out.RedirectURL})
-		}
+		out.RedirectURL = ResolveBotOAuthRedirectURL(slackRedirectHints{userRedirect: out.RedirectURL})
 		return &out, OAuthSourceUser
 	}
 	if o, src := oauthFromBundled(); o != nil {

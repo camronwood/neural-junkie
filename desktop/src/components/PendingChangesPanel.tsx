@@ -56,8 +56,15 @@ export function PendingChangesPanel({ onClose, initialChangeId = null }: Pending
   };
 
   const handleClosePreview = () => {
+    const changes = Array.isArray(pendingChanges) ? pendingChanges : [];
+    const closingLastVisible = changes.length <= 1;
+
     setSelectedChange(null);
     selectChange(null);
+
+    if (closingLastVisible) {
+      onClose();
+    }
   };
 
   const handleApprove = async (changeId: string) => {

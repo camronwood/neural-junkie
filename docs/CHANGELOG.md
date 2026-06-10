@@ -6,7 +6,24 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-_(Nothing yet — stable prep merged to main; date [1.0.0] when you cut.)_
+_(Nothing yet.)_
+
+## [1.0.0-beta.34] - 2026-06-10
+
+Public **Connect Slack** for any workspace: HTTPS OAuth relay on Cloudflare Workers, loopback redirect auto-upgrade, and desktop layout polish.
+
+### Added
+- **Cloudflare Workers Slack OAuth relay** — `workers/slack-oauth-relay/` + `make slack-oauth-relay-deploy-cf` for free `*.workers.dev` HTTPS redirects.
+- **`SLACK_VENDOR_OAUTH_RELAY_BASE`** — required CI secret; embeds relay URL in `slackvendor` builds.
+- **Relay docs** — [SLACK_OAUTH_RELAY_SETUP.md](SLACK_OAUTH_RELAY_SETUP.md), updated [SLACK_INTEGRATION.md](SLACK_INTEGRATION.md).
+- **Desktop chat max-width helper** — `mainChatMaxWidth` respects visible panel chrome when resizing the main chat column.
+
+### Changed
+- **Slack OAuth redirect** — loopback `redirect_url` values in user/config files upgrade to the public HTTPS relay by default (`NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY=0` to opt out for single-workspace dev).
+- **Pending changes / file explorer** — layout tweaks alongside chat panel resize behavior.
+
+### Fixed
+- **`redirect_uri did not match`** — Connect Slack no longer sends `http://localhost:18765/...` when Slack app only registers HTTPS relay URLs (public distribution).
 
 ## [1.0.0] - TBD (stable channel)
 

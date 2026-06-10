@@ -9,7 +9,7 @@ import (
 func TestPublicRelayBotCallbackURL_defaultBase(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE", "")
 	got := PublicRelayBotCallbackURL()
-	want := DefaultOAuthRelayBase + OAuthCallbackPath
+	want := DefaultOAuthRelayBase + OAuthCallbackPath // Cloudflare Workers default
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
 	}
@@ -17,7 +17,7 @@ func TestPublicRelayBotCallbackURL_defaultBase(t *testing.T) {
 
 func TestResolveBotOAuthRedirectURL_devLoopback(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE", "")
-	t.Setenv("NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY", "")
+	t.Setenv("NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY", "0")
 	SetHubPublicBaseURL("http://127.0.0.1:19999")
 	got := ResolveBotOAuthRedirectURL(slackRedirectHints{})
 	want := "http://127.0.0.1:19999/api/slack/oauth/callback"
@@ -39,6 +39,15 @@ func TestResolveBotOAuthRedirectURL_explicitOverride(t *testing.T) {
 	got := ResolveBotOAuthRedirectURL(slackRedirectHints{configRedirect: "https://custom.example/cb"})
 	if got != "https://custom.example/cb" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestResolveBotOAuthRedirectURL_loopbackUserFileUpgradesToRelay(t *testing.T) {
+	got := ResolveBotOAuthRedirectURL(slackRedirectHints{
+		userRedirect: "http://localhost:18765/api/slack/oauth/callback",
+	})
+	if !IsRelayRedirectURL(got) {
+		t.Fatalf("expected relay redirect, got %q", got)
 	}
 }
 

@@ -74,33 +74,45 @@ This reads `scripts/.slack-creds` and writes `neural-junkie/internal/integration
 
 ### Public HTTPS OAuth relay (required for multi-workspace installs)
 
+Step-by-step checklist: [SLACK_OAUTH_RELAY_SETUP.md](SLACK_OAUTH_RELAY_SETUP.md)
+
 Slack requires **HTTPS** `redirect_uri` values before you can enable public distribution. NJ ships a small relay service that:
 
 1. Receives the browser callback from Slack on HTTPS
 2. Forwards `code` + `state` to the user's local hub (`http://127.0.0.1:18765/...`)
 3. Lets the hub complete `oauth.v2.access` and save tokens locally
 
-Default relay base: `https://slack.oauth.neural-junkie.dev` (override in `vendor/oauth.json` → `oauth_relay_base` or env `NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE`).
+Default relay base (after deploy): `https://nj-slack-oauth-relay.<your-cf-subdomain>.workers.dev` — set in `vendor/oauth.json` → `oauth_relay_base` or env `NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE`.
 
-**Deploy the relay (maintainer, once per environment):**
+**Deploy the relay (maintainer, once — free Cloudflare Workers):**
 
 ```bash
-aws sso login --profile AdministratorAccess-566982197870
-AWS_PROFILE=AdministratorAccess-566982197870 ./scripts/deploy-slack-oauth-relay-aws.sh
+cd neural-junkie
+make slack-oauth-relay-deploy-cf
+# or: cd workers/slack-oauth-relay && npx wrangler login && npm run deploy
 ```
 
-The script prints the Lambda Function URL. Register these in the Slack app (**OAuth & Permissions → Redirect URLs**):
+Requires a personal [Cloudflare account](https://dash.cloudflare.com/sign-up) and `npx wrangler login` (interactive browser) or `CLOUDFLARE_API_TOKEN`.
+
+The script prints your `*.workers.dev` origin. Register these in the Slack app (**OAuth & Permissions → Redirect URLs**):
 
 - `{relay_base}/api/slack/oauth/callback`
 - `{relay_base}/api/slack/oauth/user-dm/callback`
 
+Smoke test:
+
+```bash
+SLACK_OAUTH_RELAY_BASE=https://nj-slack-oauth-relay.YOUR_SUBDOMAIN.workers.dev ./scripts/verify-slack-oauth-relay.sh
+```
+
 Set the same base in CI / vendor JSON:
 
 ```bash
-export SLACK_VENDOR_OAUTH_RELAY_BASE=https://YOUR_FUNCTION_URL.lambda-url.us-east-2.on.aws
+export SLACK_VENDOR_OAUTH_RELAY_BASE=https://nj-slack-oauth-relay.YOUR_SUBDOMAIN.workers.dev
+gh secret set SLACK_VENDOR_OAUTH_RELAY_BASE --repo camronwood/neural-junkie
 ```
 
-Optional: map a custom domain (e.g. `slack.oauth.neural-junkie.dev`) via ACM + CloudFront in front of the Function URL.
+**Optional — AWS Lambda relay** (work account): `./scripts/deploy-slack-oauth-relay-aws.sh`
 
 **Dev without relay:** Unset bundled vendor creds and use Advanced OAuth with loopback `http://localhost:18765/...` redirects (single-workspace Slack app only), or set `NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY=0`.
 
@@ -136,6 +148,7 @@ Or set manually:
 gh secret set SLACK_VENDOR_CLIENT_ID --repo camronwood/neural-junkie
 gh secret set SLACK_VENDOR_CLIENT_SECRET --repo camronwood/neural-junkie
 gh secret set SLACK_VENDOR_APP_TOKEN --repo camronwood/neural-junkie
+gh secret set SLACK_VENDOR_OAUTH_RELAY_BASE --repo camronwood/neural-junkie
 ```
 
 3. Push a new tag (e.g. `v1.0.0-beta.15`) or re-run the Release workflow on an existing tag after secrets exist.
@@ -175,9 +188,9 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
    - `chat:write`
    - `users:read`
 6. **OAuth & Permissions** → Redirect URLs:
-   - **Public / release builds (HTTPS relay):**
-     - `https://slack.oauth.neural-junkie.dev/api/slack/oauth/callback` (or your deployed relay base)
-     - `https://slack.oauth.neural-junkie.dev/api/slack/oauth/user-dm/callback`
+   - **Public / release builds (HTTPS Cloudflare Worker relay):**
+     - `https://nj-slack-oauth-relay.<subdomain>.workers.dev/api/slack/oauth/callback`
+     - `https://nj-slack-oauth-relay.<subdomain>.workers.dev/api/slack/oauth/user-dm/callback`
    - **Dev / single-workspace only (loopback HTTP):**
      - `http://localhost:18765/api/slack/oauth/callback`
      - `http://localhost:18765/api/slack/oauth/user-dm/callback`
@@ -207,7 +220,7 @@ Dev builds without `slackvendor` use the example embed (placeholders ignored), p
 ### Release checklist (Slack console)
 
 - [ ] Socket Mode on; app token scope `connections:write`
-- [ ] HTTPS OAuth relay deployed (`./scripts/deploy-slack-oauth-relay-aws.sh`)
+- [ ] HTTPS OAuth relay deployed (`make slack-oauth-relay-deploy-cf`)
 - [ ] Redirect URLs use relay HTTPS base (`/api/slack/oauth/callback` and `/api/slack/oauth/user-dm/callback`)
 - [ ] **Activate Public Distribution** enabled (Manage Distribution — not App Directory)
 - [ ] Bot scopes listed in step 4 above (including `im:history`, `reactions:read`)

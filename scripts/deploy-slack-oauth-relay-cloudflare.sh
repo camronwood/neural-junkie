@@ -24,8 +24,18 @@ if [[ ! -d node_modules ]]; then
 fi
 
 echo "==> wrangler deploy"
+set +e
 DEPLOY_OUT="$(npm run deploy 2>&1)"
+DEPLOY_STATUS=$?
+set -e
 echo "$DEPLOY_OUT"
+if [[ $DEPLOY_STATUS -ne 0 ]]; then
+  echo "" >&2
+  echo "Deploy failed. For first-time setup run interactively:" >&2
+  echo "  cd workers/slack-oauth-relay && npx wrangler login && npm run deploy" >&2
+  echo "Or set CLOUDFLARE_API_TOKEN (see workers/slack-oauth-relay/README.md)." >&2
+  exit "$DEPLOY_STATUS"
+fi
 
 # wrangler prints: https://nj-slack-oauth-relay.<account>.workers.dev
 RELAY_BASE="$(echo "$DEPLOY_OUT" | grep -Eo 'https://[a-zA-Z0-9._-]+\.workers\.dev' | head -1 || true)"

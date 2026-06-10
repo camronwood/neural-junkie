@@ -2,5 +2,5 @@
   "client_id": "YOUR_SLACK_CLIENT_ID",
   "client_secret": "YOUR_SLACK_CLIENT_SECRET",
   "app_token": "xapp-YOUR_APP_TOKEN",
-  "oauth_relay_base": "https://slack.oauth.neural-junkie.dev"
+  "oauth_relay_base": "https://nj-slack-oauth-relay.neuraljunkie.workers.dev"
 }

@@ -63,6 +63,7 @@ desktop/node_modules/
 # Python / Node artifacts
 __pycache__/
 node_modules/
+workers/slack-oauth-relay/.wrangler/
 yarn.lock
 
 # Local Go module cache (sandbox / CI)

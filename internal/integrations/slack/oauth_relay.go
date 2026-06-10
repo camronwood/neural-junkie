@@ -10,7 +10,10 @@ import (
 
 // DefaultOAuthRelayBase is the public HTTPS OAuth relay for distributed Slack installs.
 // Override with NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE or oauth_relay_base in vendor/oauth.json.
-const DefaultOAuthRelayBase = "https://slack.oauth.neural-junkie.dev"
+// DefaultOAuthRelayBase is the Cloudflare Workers origin after `make slack-oauth-relay-deploy-cf`.
+// Format: https://nj-slack-oauth-relay.<your-cf-subdomain>.workers.dev
+// Override via SLACK_VENDOR_OAUTH_RELAY_BASE / oauth_relay_base in vendor/oauth.json.
+const DefaultOAuthRelayBase = "https://nj-slack-oauth-relay.neuraljunkie.workers.dev"
 
 // ErrRelayDisallowedCallback is returned when a relay redirect targets a non-loopback URL.
 var ErrRelayDisallowedCallback = errors.New("slack oauth relay: callback must be loopback http")
@@ -59,10 +62,35 @@ func PublicRelayUserDMCallbackURL() string {
 	return OAuthRelayBase() + UserDMOAuthCallbackPath
 }
 
+func resolveExplicitRedirect(r string) string {
+	r = strings.TrimSpace(r)
+	if r == "" {
+		return ""
+	}
+	// Saved loopback URLs (oauth_app.json, config) must upgrade to HTTPS relay for public Slack distribution.
+	if relayPreferred() && isLoopbackURL(r) {
+		return PublicRelayBotCallbackURL()
+	}
+	return r
+}
+
+func resolveExplicitUserDMRedirect(r string) string {
+	r = strings.TrimSpace(r)
+	if r == "" {
+		return ""
+	}
+	if relayPreferred() && isLoopbackURL(r) {
+		return PublicRelayUserDMCallbackURL()
+	}
+	return r
+}
+
 // ResolveBotOAuthRedirectURL picks redirect_uri for bot OAuth (Slack authorize + token exchange).
 func ResolveBotOAuthRedirectURL(hints slackRedirectHints) string {
-	if r := firstNonEmpty(hints.userRedirect, hints.envRedirect, hints.configRedirect); r != "" {
-		return strings.TrimSpace(r)
+	for _, raw := range []string{hints.userRedirect, hints.envRedirect, hints.configRedirect} {
+		if r := resolveExplicitRedirect(raw); r != "" {
+			return r
+		}
 	}
 	if hub := HubOAuthRedirectURL(); hub != "" && isLoopbackURL(hub) && !relayPreferred() {
 		return hub
@@ -72,8 +100,10 @@ func ResolveBotOAuthRedirectURL(hints slackRedirectHints) string {
 
 // ResolveUserDMOAuthRedirectURL picks redirect_uri for user-scope OAuth.
 func ResolveUserDMOAuthRedirectURL(hints slackRedirectHints) string {
-	if r := firstNonEmpty(hints.userRedirect, hints.envRedirect, hints.configRedirect); r != "" {
-		return strings.TrimSpace(r)
+	for _, raw := range []string{hints.userRedirect, hints.envRedirect, hints.configRedirect} {
+		if r := resolveExplicitUserDMRedirect(raw); r != "" {
+			return r
+		}
 	}
 	if hub := HubUserDMOAuthRedirectURL(); hub != "" && isLoopbackURL(hub) && !relayPreferred() {
 		return hub
@@ -129,6 +159,9 @@ func IsAllowedLocalOAuthCallback(u *url.URL) bool {
 }
 
 func relayPreferred() bool {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY")), "0") {
+		return false
+	}
 	if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_OAUTH_RELAY_BASE")) != "" {
 		return true
 	}
@@ -138,7 +171,11 @@ func relayPreferred() bool {
 	if v, ok := parseBundledVendor(); ok && bundledVendorValid(v) {
 		return true
 	}
-	return strings.EqualFold(strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY")), "1")
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY")), "1") {
+		return true
+	}
+	// Default on: public HTTPS relay is required for Slack public distribution.
+	return strings.HasPrefix(DefaultOAuthRelayBase, "https://")
 }
 
 func isLoopbackURL(raw string) bool {

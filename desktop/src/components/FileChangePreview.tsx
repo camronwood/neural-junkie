@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FileChange } from '../types/protocol';
 import { useFileChangeStore } from '../stores/fileChangeStore';
 import { CodeBlock } from './CodeBlock';
@@ -17,6 +17,16 @@ export function FileChangePreview({ change, onClose, onApprove, onReject }: File
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
   const { previewData, loading } = useFileChangeStore();
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   const getOperationIcon = (operation: string) => {
     switch (operation) {
@@ -154,7 +164,14 @@ export function FileChangePreview({ change, onClose, onApprove, onReject }: File
   const expired = expiresLabel === 'Expired';
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <div className="bg-slack-bg border border-slack-border rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col text-slack-text">
         <div className="flex items-center justify-between p-4 border-b border-slack-border bg-slack-bgHover/50">
           <div className="flex items-center space-x-3 min-w-0">

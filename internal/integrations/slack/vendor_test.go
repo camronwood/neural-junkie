@@ -40,8 +40,20 @@ func TestResolveOAuthAppEnv(t *testing.T) {
 		}
 		t.Fatalf("env resolve: src=%s clientID=%q", src, cid)
 	}
-	if o.RedirectURL != "http://localhost:18765/api/slack/oauth/callback" {
-		t.Fatalf("redirect = %q", o.RedirectURL)
+	if !IsRelayRedirectURL(o.RedirectURL) {
+		t.Fatalf("redirect = %q, want public relay", o.RedirectURL)
+	}
+}
+
+func TestResolveOAuthAppEnv_loopbackOptOut(t *testing.T) {
+	useTempHomeDir(t)
+	t.Setenv("NEURAL_JUNKIE_SLACK_CLIENT_ID", "cid-test")
+	t.Setenv("NEURAL_JUNKIE_SLACK_CLIENT_SECRET", "secret-test")
+	t.Setenv("NEURAL_JUNKIE_SLACK_USE_OAUTH_RELAY", "0")
+	SetHubPublicBaseURL("http://localhost:18765")
+	o, src := ResolveOAuthApp(nil)
+	if src != OAuthSourceEnv || o.RedirectURL != "http://localhost:18765/api/slack/oauth/callback" {
+		t.Fatalf("src=%s redirect=%q", src, o.RedirectURL)
 	}
 }
 

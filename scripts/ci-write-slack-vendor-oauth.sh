@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${ROOT}/internal/integrations/slack/vendor/oauth.json"
 
-need=(SLACK_VENDOR_CLIENT_ID SLACK_VENDOR_CLIENT_SECRET SLACK_VENDOR_APP_TOKEN)
+need=(SLACK_VENDOR_CLIENT_ID SLACK_VENDOR_CLIENT_SECRET SLACK_VENDOR_APP_TOKEN SLACK_VENDOR_OAUTH_RELAY_BASE)
 missing=()
 for v in "${need[@]}"; do
   if [[ -z "${!v:-}" ]]; then
@@ -16,7 +16,7 @@ done
 if [[ ${#missing[@]} -gt 0 ]]; then
   echo "Missing GitHub Actions secrets (repo Settings → Secrets → Actions):" >&2
   printf '  - %s\n' "${missing[@]}" >&2
-  echo "Values: Neural Junkie Slack app client_id, client_secret, app_token (xapp-)." >&2
+  echo "Values: Slack client_id, client_secret, app_token (xapp-), oauth relay base (Cloudflare Worker HTTPS)." >&2
   exit 1
 fi
 
@@ -25,7 +25,7 @@ import json, os, sys
 from pathlib import Path
 
 out = Path(sys.argv[1])
-relay_base = os.environ.get("SLACK_VENDOR_OAUTH_RELAY_BASE", "https://slack.oauth.neural-junkie.dev").strip()
+relay_base = os.environ.get("SLACK_VENDOR_OAUTH_RELAY_BASE", "").strip()
 payload = {
     "client_id": os.environ["SLACK_VENDOR_CLIENT_ID"].strip(),
     "client_secret": os.environ["SLACK_VENDOR_CLIENT_SECRET"].strip(),
@@ -41,6 +41,9 @@ for key, val in payload.items():
         sys.exit(1)
 if not payload["app_token"].startswith("xapp-"):
     sys.stderr.write("app_token must start with xapp-\n")
+    sys.exit(1)
+if not relay_base.startswith("https://"):
+    sys.stderr.write("SLACK_VENDOR_OAUTH_RELAY_BASE must be https:// origin (Cloudflare Worker)\n")
     sys.exit(1)
 
 out.parent.mkdir(parents=True, exist_ok=True)

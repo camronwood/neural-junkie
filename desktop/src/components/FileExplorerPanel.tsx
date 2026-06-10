@@ -980,10 +980,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     <div 
       className={
         embedded
-          ? 'border-r border-slack-border bg-slack-bg flex flex-col h-full min-w-[200px] max-w-[360px] w-[280px] relative'
+          ? 'border-r border-slack-border bg-slack-bg flex flex-col h-full min-w-[200px] relative'
           : 'border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left'
       }
-      style={embedded ? undefined : shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)}
+      style={
+        embedded
+          ? { flex: '1 1 280px', minWidth: MIN_WIDTH, maxWidth: 600 }
+          : shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)
+      }
     >
         {!embedded && (
         <div

@@ -48,6 +48,11 @@ echo "Setting GitHub Actions secrets on ${REPO} ..."
 printf '%s' "$SLACK_CLIENT_ID" | gh secret set SLACK_VENDOR_CLIENT_ID --repo "$REPO"
 printf '%s' "$SLACK_CLIENT_SECRET" | gh secret set SLACK_VENDOR_CLIENT_SECRET --repo "$REPO"
 printf '%s' "$SLACK_APP_TOKEN" | gh secret set SLACK_VENDOR_APP_TOKEN --repo "$REPO"
-RELAY_BASE="${SLACK_VENDOR_OAUTH_RELAY_BASE:-https://slack.oauth.neural-junkie.dev}"
-printf '%s' "$RELAY_BASE" | gh secret set SLACK_VENDOR_OAUTH_RELAY_BASE --repo "$REPO"
-echo "Done (including SLACK_VENDOR_OAUTH_RELAY_BASE=${RELAY_BASE}). Re-run Release workflow or tag a new version."
+if [[ -n "${SLACK_VENDOR_OAUTH_RELAY_BASE:-}" ]]; then
+  printf '%s' "$SLACK_VENDOR_OAUTH_RELAY_BASE" | gh secret set SLACK_VENDOR_OAUTH_RELAY_BASE --repo "$REPO"
+  echo "Done (SLACK_VENDOR_OAUTH_RELAY_BASE=${SLACK_VENDOR_OAUTH_RELAY_BASE}). Re-run Release workflow or tag a new version."
+else
+  echo "Done. Set relay after Cloudflare deploy:"
+  echo "  make slack-oauth-relay-deploy-cf"
+  echo "  SLACK_VENDOR_OAUTH_RELAY_BASE=https://nj-slack-oauth-relay.<subdomain>.workers.dev gh secret set SLACK_VENDOR_OAUTH_RELAY_BASE --repo $REPO"
+fi
