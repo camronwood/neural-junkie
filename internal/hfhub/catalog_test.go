@@ -89,6 +89,10 @@ func TestCatalogLocalDownloadURLsReachable(t *testing.T) {
 			if resp.StatusCode == http.StatusNotFound {
 				t.Fatalf("%s file %q: 404 at %s", entry.RepoID, f.Filename, hubRepo)
 			}
+			if resp.StatusCode == http.StatusTooManyRequests {
+				t.Logf("skip rate-limited check for %s (%d)", entry.RepoID, resp.StatusCode)
+				continue
+			}
 			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusFound &&
 				resp.StatusCode != http.StatusMovedPermanently && resp.StatusCode != http.StatusTemporaryRedirect &&
 				resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {

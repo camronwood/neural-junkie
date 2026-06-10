@@ -9,6 +9,7 @@ import (
 )
 
 func TestAppendForAgent_scopedAndGated(t *testing.T) {
+	t.Cleanup(WaitPendingRecordUse)
 	store, err := NewStore(t.TempDir() + "/learnings.json")
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +45,7 @@ func TestAppendForAgent_scopedAndGated(t *testing.T) {
 }
 
 func TestGlobalScopeIsolation(t *testing.T) {
+	t.Cleanup(WaitPendingRecordUse)
 	store, err := NewStore(t.TempDir() + "/learnings.json")
 	if err != nil {
 		t.Fatal(err)

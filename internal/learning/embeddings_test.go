@@ -28,6 +28,7 @@ func TestKeywordScoreFallback(t *testing.T) {
 }
 
 func TestSelectForPrompt_keywordFallback(t *testing.T) {
+	t.Cleanup(WaitPendingRecordUse)
 	dir := t.TempDir()
 	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
@@ -68,6 +69,7 @@ func TestSelectForPrompt_keywordFallback(t *testing.T) {
 }
 
 func TestQueryPreview_scopes(t *testing.T) {
+	t.Cleanup(WaitPendingRecordUse)
 	store, err := NewStore(filepath.Join(t.TempDir(), "learnings.json"))
 	if err != nil {
 		t.Fatal(err)

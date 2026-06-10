@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/embed"
@@ -62,7 +63,12 @@ var (
 	embedClient      *embed.Client
 	collabResolver   func(channel string) string
 	onEntryChanged   func(entry Entry)
+	recordUsePending sync.WaitGroup
 )
+
+// WaitPendingRecordUse blocks until async RecordUse calls from SelectForPrompt finish.
+// Tests should register this on t.Cleanup to avoid TempDir races under parallel packages.
+func WaitPendingRecordUse() { recordUsePending.Wait() }
 
 func SetEmbedStore(es *EmbedStore) { globalEmbedStore = es }
 
@@ -149,7 +155,12 @@ func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (g
 		ids = append(ids, e.ID)
 	}
 	if len(ids) > 0 {
-		go globalStore.RecordUse(ids)
+		store := globalStore
+		recordUsePending.Add(1)
+		go func() {
+			defer recordUsePending.Done()
+			store.RecordUse(ids)
+		}()
 	}
 	return global, agent, collab, ids
 }

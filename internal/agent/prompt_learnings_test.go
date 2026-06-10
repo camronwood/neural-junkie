@@ -9,6 +9,7 @@ import (
 )
 
 func TestAppendLearningsForMessage_assistantPrompt(t *testing.T) {
+	t.Cleanup(learning.WaitPendingRecordUse)
 	dir := t.TempDir()
 	store, err := learning.NewStore(dir + "/learnings.json")
 	if err != nil {
