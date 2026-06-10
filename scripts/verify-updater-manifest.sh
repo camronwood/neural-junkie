@@ -47,6 +47,10 @@ for manifest in "${manifests[@]}"; do
 
   echo "==> ${manifest}"
   if ! curl -fsSL "${url}" -o "${tmpdir}/${manifest}"; then
+    if [[ "${CHANNEL}" == "beta" && "${manifest}" == "update-linux-x86_64.json" ]]; then
+      echo "WARN: Linux beta updater manifest not published yet; skipping"
+      continue
+    fi
     echo "FAIL: could not fetch ${url}" >&2
     exit 1
   fi
