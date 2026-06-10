@@ -45,12 +45,16 @@ if [[ "${VERSION}" == *beta* ]]; then
     gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
   else
     echo "Creating updater-beta rolling release (first time)"
-    gh release create updater-beta \
+    if ! gh release create updater-beta \
       --repo "${REPO}" \
       --title "Beta updater channel" \
       --notes "Rolling updater manifests for beta builds. Do not install manually." \
-      --prerelease
-    gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
+      --prerelease 2>&1; then
+      echo "WARN: Could not create updater-beta release (repo rules may block tag creation)." >&2
+      echo "WARN: Beta in-app updates may not work until updater-beta exists; versioned manifests were uploaded to ${VERSION}." >&2
+    else
+      gh release upload updater-beta "${manifests[@]}" --repo "${REPO}" --clobber
+    fi
   fi
 fi
 
