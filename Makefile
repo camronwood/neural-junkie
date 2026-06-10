@@ -329,7 +329,7 @@ test-messages: ## Test message sending functionality
 
 test-go: ## Run Go unit tests only (repeatable: -count=1)
 	@echo "🧪 Running Go unit tests..."
-	@go test ./... -count=1
+	@go test ./... -count=1 -p 1
 	@chmod +x ./scripts/cleanup-test-artifacts.py
 	@./scripts/cleanup-test-artifacts.py || true
 	@echo "✅ Go tests complete."
@@ -339,7 +339,7 @@ test-all: ## Run go vet, Go tests, desktop tsc, and Vitest (full CI-style)
 	@go vet ./...
 	@echo ""
 	@echo "🧪 Go tests..."
-	@go test ./... -count=1
+	@go test ./... -count=1 -p 1
 	@echo ""
 	@echo "🧪 Desktop typecheck (tsc)..."
 	@cd desktop && npx tsc --noEmit

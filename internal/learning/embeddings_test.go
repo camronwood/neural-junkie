@@ -2,6 +2,7 @@ package learning
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -29,8 +30,11 @@ func TestKeywordScoreFallback(t *testing.T) {
 
 func TestSelectForPrompt_keywordFallback(t *testing.T) {
 	unlock := LockTestGlobals()
-	t.Cleanup(unlock)
-	dir := t.TempDir()
+	dir := testDataDir(t)
+	t.Cleanup(func() {
+		unlock()
+		_ = os.RemoveAll(dir)
+	})
 	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -66,8 +70,12 @@ func TestSelectForPrompt_keywordFallback(t *testing.T) {
 
 func TestQueryPreview_scopes(t *testing.T) {
 	unlock := LockTestGlobals()
-	t.Cleanup(unlock)
-	store, err := NewStore(filepath.Join(t.TempDir(), "learnings.json"))
+	dir := testDataDir(t)
+	t.Cleanup(func() {
+		unlock()
+		_ = os.RemoveAll(dir)
+	})
+	store, err := NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

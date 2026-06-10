@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -56,8 +57,14 @@ func TestHandleLearningsRoute_gates(t *testing.T) {
 
 func TestHandleLearningsCRUD(t *testing.T) {
 	unlock := learningpkg.LockTestGlobals()
-	defer unlock()
-	dir := t.TempDir()
+	dir, err := os.MkdirTemp("", "nj-learning-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		unlock()
+		_ = os.RemoveAll(dir)
+	})
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil
@@ -67,7 +74,6 @@ func TestHandleLearningsCRUD(t *testing.T) {
 
 	enablePersonalLearningForTest(t)
 	storePath := filepath.Join(dir, "learnings.json")
-	var err error
 	learningStore, err = learningpkg.NewStore(storePath)
 	if err != nil {
 		t.Fatal(err)
@@ -121,8 +127,14 @@ func TestHandleLearningsCRUD(t *testing.T) {
 
 func TestHandleLearningsUpdateAndQuery(t *testing.T) {
 	unlock := learningpkg.LockTestGlobals()
-	defer unlock()
-	dir := t.TempDir()
+	dir, err := os.MkdirTemp("", "nj-learning-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		unlock()
+		_ = os.RemoveAll(dir)
+	})
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil
@@ -132,7 +144,6 @@ func TestHandleLearningsUpdateAndQuery(t *testing.T) {
 
 	enablePersonalLearningForTest(t)
 	storePath := filepath.Join(dir, "learnings.json")
-	var err error
 	learningStore, err = learningpkg.NewStore(storePath)
 	if err != nil {
 		t.Fatal(err)

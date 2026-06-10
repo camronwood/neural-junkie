@@ -157,12 +157,7 @@ func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (g
 		ids = append(ids, e.ID)
 	}
 	if len(ids) > 0 {
-		store := globalStore
-		recordUsePending.Add(1)
-		go func() {
-			defer recordUsePending.Done()
-			store.RecordUse(ids)
-		}()
+		globalStore.RecordUse(ids)
 	}
 	return global, agent, collab, ids
 }

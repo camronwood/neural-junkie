@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -10,9 +12,15 @@ import (
 
 func TestAppendLearningsForMessage_assistantPrompt(t *testing.T) {
 	unlock := learning.LockTestGlobals()
-	t.Cleanup(unlock)
-	dir := t.TempDir()
-	store, err := learning.NewStore(dir + "/learnings.json")
+	dir, err := os.MkdirTemp("", "nj-learning-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		unlock()
+		_ = os.RemoveAll(dir)
+	})
+	store, err := learning.NewStore(filepath.Join(dir, "learnings.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
