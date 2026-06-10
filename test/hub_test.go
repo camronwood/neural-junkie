@@ -813,7 +813,10 @@ func TestHubAutoIngestsPlanAndTasks(t *testing.T) {
 		t.Fatalf("create collaboration: %v", err)
 	}
 
-	planMsg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "test-collab", *agentA, "Here's my proposal\n\n## Plan\n\n- Task 1: @AgentA - Build API\n- Task 2: @AgentB - Build UI")
+	planMsg := protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "test-collab", *agentA,
+		"Here's my proposal for the settings feature with concrete deliverables.\n\n## Plan\n\n"+
+			"- Task 1: @AgentA - Implement settings API in `internal/api/settings_handlers.go` with persistence tests\n"+
+			"- Task 2: @AgentB - Build settings form UI in `desktop/src/components/SettingsPanel.tsx` with validation")
 	planMsg.SetCollaborationID(collab.ID)
 	planMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
 	if err := h.SendMessage(planMsg); err != nil {

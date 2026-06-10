@@ -116,8 +116,9 @@ func TestCreateCollaboration(t *testing.T) {
 	if collab.Plan == nil {
 		t.Fatal("expected plan artifact to be created")
 	}
-	if collab.Discussion.MaxRounds != collaboration.DefaultMaxRounds {
-		t.Errorf("expected default max rounds %d, got %d", collaboration.DefaultMaxRounds, collab.Discussion.MaxRounds)
+	wantRounds := collaboration.ScaledDiscussionConfig(len(collab.Agents)).MaxRounds
+	if collab.Discussion.MaxRounds != wantRounds {
+		t.Errorf("expected scaled max rounds %d, got %d", wantRounds, collab.Discussion.MaxRounds)
 	}
 }
 
