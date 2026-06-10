@@ -1,0 +1,267 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 3 implement + 2 chat scenarios (~15\u201345 min per model on 14B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-10T02:35:46.390955+00:00",
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "qwen2.5-coder-14b",
+      "model_tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 25.201656999997795,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 33.294741958001396,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 39.33085179098998,
+          "detail": "=== PASS: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 52.422284666012274,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 49.3755832920142,
+          "detail": "=== PASS: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.0026082499825861305,
+      "total_duration_s": 199.62688379199244,
+      "passed_count": 5,
+      "total_count": 5,
+      "pass_rate": 1.0
+    },
+    {
+      "model_id": "codestral-22b",
+      "model_tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 49.220524999982445,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 73.29294087499147,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 75.288905333,
+          "detail": "=== FAIL: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 86.47968099999707,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.64102454201202,
+          "detail": "=== FAIL: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.006973208015551791,
+      "total_duration_s": 404.9239140000136,
+      "passed_count": 3,
+      "total_count": 5,
+      "pass_rate": 0.6
+    },
+    {
+      "model_id": "devstral-24b",
+      "model_tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 49.20902283300529,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 85.31979079201119,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 77.273001708003,
+          "detail": "=== PASS: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.78818345800391,
+          "detail": "=== FAIL: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 65.41759900000761,
+          "detail": "=== PASS: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.004573125013848767,
+      "total_duration_s": 398.0085213750135,
+      "passed_count": 4,
+      "total_count": 5,
+      "pass_rate": 0.8
+    },
+    {
+      "model_id": "qwen3.5-9b",
+      "model_tag": "qwen3.5:9b",
+      "title": "Qwen 3.5 9B",
+      "size_hint_gb": 6.6,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 23.151547333982307,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 75.2412805420172,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 75.24965270797838,
+          "detail": "=== PASS: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 70.3678975829971,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 168.82828762498684,
+          "detail": "=== FAIL: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.0034832919773180038,
+      "total_duration_s": 412.8392012080003,
+      "passed_count": 4,
+      "total_count": 5,
+      "pass_rate": 0.8
+    },
+    {
+      "model_id": "deepseek-coder-6.7b",
+      "model_tag": "deepseek-coder:6.7b",
+      "title": "DeepSeek Coder 6.7B",
+      "size_hint_gb": 3.8,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 45.18152166600339,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 107.2936434589792,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 73.24179737499799,
+          "detail": "=== FAIL: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 95.5306925420009,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.62085441601812,
+          "detail": "=== FAIL: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.0038899579958524555,
+      "total_duration_s": 441.86902274997556,
+      "passed_count": 3,
+      "total_count": 5,
+      "pass_rate": 0.6
+    }
+  ]
+}

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Model benchmarks — Neural Junkie</title>
+  <meta name="description" content="Live Ollama model benchmarks against Neural Junkie implement and chat scenarios — pass rates, timings, and historical runs." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/benchmarks.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Home</a>
+        <a class="btn btn-ghost" href="../features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap benchmarks-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · Model benchmarks
+    </nav>
+    <header class="benchmarks-hero">
+      <h1>Model benchmarks</h1>
+      <p class="benchmarks-hero-lead" id="benchmarks-about">Loading…</p>
+    </header>
+
+    <div id="benchmarks-error" class="benchmarks-error" hidden></div>
+
+    <div class="benchmarks-toolbar" id="benchmarks-toolbar" hidden>
+      <label>
+        Benchmark run
+        <select id="run-select" aria-label="Select benchmark run"></select>
+      </label>
+      <span class="benchmarks-meta" id="run-meta"></span>
+    </div>
+
+    <div class="benchmarks-winner" id="benchmarks-winner" hidden></div>
+
+    <section aria-labelledby="leaderboard-heading">
+      <h2 id="leaderboard-heading">Leaderboard</h2>
+      <div class="benchmarks-table-wrap">
+        <table class="benchmarks-table" id="leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Model</th>
+              <th>Pass</th>
+              <th>Rate</th>
+              <th>Implement</th>
+              <th>Chat</th>
+              <th>Total time</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section aria-labelledby="matrix-heading">
+      <h2 id="matrix-heading">Per-scenario matrix</h2>
+      <div class="benchmarks-table-wrap">
+        <table class="benchmarks-table" id="matrix-table">
+          <thead id="matrix-head"></thead>
+          <tbody id="matrix-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="benchmarks-history" aria-labelledby="history-heading" id="history-section" hidden>
+      <h2 id="history-heading">Run history</h2>
+      <div class="benchmarks-table-wrap">
+        <table class="benchmarks-table">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Suite</th>
+              <th>Date (UTC)</th>
+              <th>Models</th>
+              <th>Top model</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="benchmarks-how" aria-label="How benchmarks are run">
+      <strong>How we benchmark</strong>
+      <p style="margin: 0.5rem 0 0;">
+        Each run uses <code>make model-benchmark</code> against a live hub: switch all agents to one Ollama tag,
+        then execute the same implement + chat scenarios. Results are published with
+        <code>make publish-model-benchmarks</code>.
+        <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/MODEL_BENCHMARK.md">Full methodology</a>
+        · <a href="https://github.com/camronwood/neural-junkie/tree/main/docs/testing">Raw logs</a>
+      </p>
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>
+        <a href="../index.html">Neural Junkie</a>
+        — benchmarks updated <span id="catalog-updated">—</span>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    const DATA_URL = '../data/model-benchmarks.json';
+
+    function fmtDuration(seconds) {
+      if (!seconds || seconds < 0) return '—';
+      if (seconds < 60) return Math.round(seconds) + 's';
+      const m = Math.floor(seconds / 60);
+      const s = Math.round(seconds % 60);
+      return m + 'm' + String(s).padStart(2, '0') + 's';
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      try {
+        return new Date(iso).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+      } catch {
+        return iso;
+      }
+    }
+
+    function activeResults(run) {
+      return (run.results || []).filter((r) => !r.skipped && (r.scenarios || []).length);
+    }
+
+    function winnerForRun(run) {
+      const active = activeResults(run);
+      if (!active.length) return null;
+      return active.sort((a, b) => {
+        const ar = a.pass_rate ?? (a.passed_count / Math.max(a.total_count, 1));
+        const br = b.pass_rate ?? (b.passed_count / Math.max(b.total_count, 1));
+        if (br !== ar) return br - ar;
+        if ((b.passed_count || 0) !== (a.passed_count || 0)) return (b.passed_count || 0) - (a.passed_count || 0);
+        return (a.total_duration_s || 0) - (b.total_duration_s || 0);
+      })[0];
+    }
+
+    function scenarioRows(run) {
+      const impl = run.implement_scenarios || [];
+      const chat = run.chat_scenarios || [];
+      return [
+        ...impl.map((n) => ({ kind: 'implement', name: n })),
+        ...chat.map((n) => ({ kind: 'chat', name: n })),
+      ];
+    }
+
+    function renderLeaderboard(run) {
+      const tbody = document.getElementById('leaderboard-body');
+      tbody.innerHTML = '';
+      const active = activeResults(run).sort((a, b) => {
+        const ar = a.pass_rate ?? 0;
+        const br = b.pass_rate ?? 0;
+        if (br !== ar) return br - ar;
+        return (b.passed_count || 0) - (a.passed_count || 0);
+      });
+      const win = winnerForRun(run);
+      active.forEach((r, i) => {
+        const impl = (r.scenarios || []).filter((s) => s.kind === 'implement');
+        const chat = (r.scenarios || []).filter((s) => s.kind === 'chat');
+        const implPass = impl.filter((s) => s.passed).length;
+        const chatPass = chat.filter((s) => s.passed).length;
+        const rate = Math.round((r.pass_rate ?? 0) * 100);
+        const tr = document.createElement('tr');
+        const rankClass = r.model_tag === win?.model_tag && r.passed_count === r.total_count ? 'rank-1' : '';
+        tr.innerHTML = `
+          <td class="${rankClass}">${i + 1}</td>
+          <td class="mono">${r.model_tag}</td>
+          <td>${r.passed_count}/${r.total_count}</td>
+          <td><span class="rate-bar" aria-hidden="true"><span style="width:${rate}%"></span></span>${rate}%</td>
+          <td>${impl.length ? implPass + '/' + impl.length : '—'}</td>
+          <td>${chat.length ? chatPass + '/' + chat.length : '—'}</td>
+          <td class="mono">${fmtDuration(r.total_duration_s)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderMatrix(run) {
+      const head = document.getElementById('matrix-head');
+      const body = document.getElementById('matrix-body');
+      const models = activeResults(run);
+      head.innerHTML = '<tr><th>Scenario</th>' + models.map((m) => `<th class="mono">${m.model_tag}</th>`).join('') + '</tr>';
+      body.innerHTML = '';
+      for (const row of scenarioRows(run)) {
+        const tr = document.createElement('tr');
+        const label = `${row.kind}/${row.name}`;
+        let cells = `<td class="mono">${label}</td>`;
+        for (const m of models) {
+          const hit = (m.scenarios || []).find((s) => s.kind === row.kind && s.name === row.name);
+          if (!hit) {
+            cells += '<td class="cell-skip">—</td>';
+          } else if (hit.passed) {
+            cells += `<td class="cell-pass">✓ ${fmtDuration(hit.duration_s)}</td>`;
+          } else {
+            cells += `<td class="cell-fail">✗ ${fmtDuration(hit.duration_s)}</td>`;
+          }
+        }
+        tr.innerHTML = cells;
+        body.appendChild(tr);
+      }
+    }
+
+    function renderRun(run, catalog) {
+      const win = winnerForRun(run);
+      const winnerEl = document.getElementById('benchmarks-winner');
+      if (win) {
+        winnerEl.hidden = false;
+        const rate = Math.round((win.pass_rate ?? 0) * 100);
+        winnerEl.innerHTML = `
+          <div><strong>Top model this run</strong></div>
+          <code>${win.model_tag}</code>
+          <span>${win.passed_count}/${win.total_count} scenarios (${rate}%) · ${fmtDuration(win.total_duration_s)}</span>
+        `;
+      } else {
+        winnerEl.hidden = true;
+      }
+      document.getElementById('run-meta').textContent =
+        `${run.suite} suite · ${fmtDate(run.generated_at)}` +
+        (run.description ? ` · ${run.description}` : '');
+      renderLeaderboard(run);
+      renderMatrix(run);
+    }
+
+    function renderHistory(runs) {
+      if (runs.length < 2) return;
+      document.getElementById('history-section').hidden = false;
+      const tbody = document.getElementById('history-body');
+      tbody.innerHTML = '';
+      for (const run of runs) {
+        const win = winnerForRun(run);
+        const active = activeResults(run);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="mono">${run.id}</td>
+          <td>${run.suite}</td>
+          <td>${fmtDate(run.generated_at)}</td>
+          <td>${active.length}</td>
+          <td class="mono">${win ? win.model_tag : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function init() {
+      try {
+        const res = await fetch(DATA_URL);
+        if (!res.ok) throw new Error('Failed to load benchmark data (' + res.status + ')');
+        const catalog = await res.json();
+        document.getElementById('benchmarks-about').textContent = catalog.about || '';
+        document.getElementById('catalog-updated').textContent = fmtDate(catalog.updated_at);
+        const runs = catalog.runs || [];
+        if (!runs.length) throw new Error('No benchmark runs published yet.');
+        const select = document.getElementById('run-select');
+        runs.forEach((run, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = `${run.id} (${fmtDate(run.generated_at)})`;
+          select.appendChild(opt);
+        });
+        document.getElementById('benchmarks-toolbar').hidden = false;
+        const show = (idx) => renderRun(runs[Number(idx)], catalog);
+        select.addEventListener('change', () => show(select.value));
+        show(0);
+        renderHistory(runs);
+      } catch (err) {
+        const el = document.getElementById('benchmarks-error');
+        el.hidden = false;
+        el.textContent = String(err.message || err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

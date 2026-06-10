@@ -1,0 +1,26 @@
+model_tag	scenario_kind	scenario	passed	duration_s	detail
+qwen2.5-coder:14b	implement	go-handler	1	25.2	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	33.3	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	39.3	=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	52.4	=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	49.4	=== PASS: dm-backend-echo-followup ===
+codestral:22b	implement	go-handler	1	49.2	=== PASS: go-handler ===
+codestral:22b	implement	theme-toggle	1	73.3	=== PASS: theme-toggle ===
+codestral:22b	implement	ask-mode-no-write	0	75.3	=== FAIL: ask-mode-no-write ===
+codestral:22b	chat	dm-backend-workspace	1	86.5	=== PASS: dm-backend-workspace ===
+codestral:22b	chat	dm-backend-echo-followup	0	120.6	=== FAIL: dm-backend-echo-followup ===
+devstral:24b	implement	go-handler	1	49.2	=== PASS: go-handler ===
+devstral:24b	implement	theme-toggle	1	85.3	=== PASS: theme-toggle ===
+devstral:24b	implement	ask-mode-no-write	1	77.3	=== PASS: ask-mode-no-write ===
+devstral:24b	chat	dm-backend-workspace	0	120.8	=== FAIL: dm-backend-workspace ===
+devstral:24b	chat	dm-backend-echo-followup	1	65.4	=== PASS: dm-backend-echo-followup ===
+qwen3.5:9b	implement	go-handler	1	23.2	=== PASS: go-handler ===
+qwen3.5:9b	implement	theme-toggle	1	75.2	=== PASS: theme-toggle ===
+qwen3.5:9b	implement	ask-mode-no-write	1	75.2	=== PASS: ask-mode-no-write ===
+qwen3.5:9b	chat	dm-backend-workspace	1	70.4	=== PASS: dm-backend-workspace ===
+qwen3.5:9b	chat	dm-backend-echo-followup	0	168.8	=== FAIL: dm-backend-echo-followup ===
+deepseek-coder:6.7b	implement	go-handler	1	45.2	=== PASS: go-handler ===
+deepseek-coder:6.7b	implement	theme-toggle	1	107.3	=== PASS: theme-toggle ===
+deepseek-coder:6.7b	implement	ask-mode-no-write	0	73.2	=== FAIL: ask-mode-no-write ===
+deepseek-coder:6.7b	chat	dm-backend-workspace	1	95.5	=== PASS: dm-backend-workspace ===
+deepseek-coder:6.7b	chat	dm-backend-echo-followup	0	120.6	=== FAIL: dm-backend-echo-followup ===

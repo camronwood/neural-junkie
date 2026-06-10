@@ -1,0 +1,11 @@
+model_tag	scenario_kind	scenario	passed	duration_s	detail
+codestral:22b	implement	go-handler	1	51.2	=== PASS: go-handler ===
+codestral:22b	implement	theme-toggle	1	69.3	=== PASS: theme-toggle ===
+codestral:22b	implement	ask-mode-no-write	0	67.3	=== FAIL: ask-mode-no-write ===
+codestral:22b	chat	dm-backend-workspace	1	115.6	=== PASS: dm-backend-workspace ===
+codestral:22b	chat	dm-backend-echo-followup	0	193.0	=== FAIL: dm-backend-echo-followup ===
+devstral:24b	implement	go-handler	1	93.3	=== PASS: go-handler ===
+devstral:24b	implement	theme-toggle	1	73.3	=== PASS: theme-toggle ===
+devstral:24b	implement	ask-mode-no-write	1	85.3	=== PASS: ask-mode-no-write ===
+devstral:24b	chat	dm-backend-workspace	1	98.7	=== PASS: dm-backend-workspace ===
+devstral:24b	chat	dm-backend-echo-followup	1	108.6	=== PASS: dm-backend-echo-followup ===

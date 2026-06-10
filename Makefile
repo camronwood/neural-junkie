@@ -101,7 +101,7 @@ collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, 
 
 test-regression-live: ## Print pre-release live regression checklist (does not start hub)
 	@echo "Pre-release live regression (see docs/TESTING.md):"
-	@echo "  0. ollama serve  &&  ollama pull qwen2.5:7b   # required for Ollama-backed agents"
+	@echo "  0. ollama serve  &&  ollama pull qwen3.5:9b && ollama pull qwen3.5:27b"
 	@echo "  0b. make server-regression && make collab-preflight"
 	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
 	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
@@ -253,6 +253,25 @@ test-regression-bundle: ## Live bundle: implement + chat-regression + conversati
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/regression-bundle.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(VERBOSE),--verbose,)
 
+model-benchmark: ## Benchmark top coder models (SUITE=quick|standard|implement; PULL=1; MODELS=tag1,tag2)
+	@chmod +x scripts/model-benchmark-suite.py
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/model-benchmark-suite.py \
+		--suite $(or $(SUITE),quick) \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		$(if $(PULL),--pull,) \
+		$(if $(SKIP_MISSING),--skip-missing,) \
+		$(if $(MODELS),--models "$(MODELS)",) \
+		$(if $(VERBOSE),--verbose,)
+
+model-benchmark-list: ## List benchmark suites and default model roster
+	@python3 scripts/model-benchmark-suite.py --list-suites
+	@echo ""
+	@python3 scripts/model-benchmark-suite.py --list-models
+
+publish-model-benchmarks: ## Merge docs/testing/model-benchmark-*.json → docs/data for website
+	@chmod +x scripts/publish-model-benchmarks.py
+	@python3 scripts/publish-model-benchmarks.py
+
 chat: ## Start interactive chat client
 	@echo "💬 Starting interactive chat client..."
 	@go run cmd/chat/main.go
@@ -376,17 +395,17 @@ agent-code-review: setup-env ## Start code reviewer agent
 
 agents: setup-env ## Start all agents with environment loaded
 	@echo "🤖 Starting all agents with environment from env.local..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "BackendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "BackendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
 	@sleep 2
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "FrontendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "FrontendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "PlatformEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "PlatformEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type architecture --name "SoftwareArchitect" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type architecture --name "SoftwareArchitect" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type code-review --name "CodeReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen2.5-coder:14b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type code-review --name "CodeReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
 	@echo "✅ All agents started!"
 
 stop: ## Stop all running processes (server, agents, GUI)
@@ -492,10 +511,10 @@ ensure-lora-deps: ## Ensure LoRA training venv exists (install once)
 
 pull-models: ## Pull required Ollama models (code tier + utility tier + LoRA bases)
 	@echo "📥 Pulling Ollama models..."
-	@echo "  Code tier: qwen2.5-coder:14b (~9GB)..."
-	@ollama pull qwen2.5-coder:14b
-	@echo "  Utility tier: qwen2.5:7b (~4.5GB)..."
-	@ollama pull qwen2.5:7b
+	@echo "  Code tier: qwen3.5:27b (~17GB)..."
+	@ollama pull qwen3.5:27b
+	@echo "  Utility tier: qwen3.5:9b (~6.6GB)..."
+	@ollama pull qwen3.5:9b
 	@echo "  LoRA base: llama3:8b (~4.7GB, biology pack)..."
 	@ollama pull llama3:8b
 	@echo "  LoRA training base: llama3.1:8b (~4.9GB, recommended for train → compose)..."

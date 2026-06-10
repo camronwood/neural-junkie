@@ -427,7 +427,7 @@ export function OllamaModelLibrary({
           };
 
       const detailActions: StoreModelAction[] = [];
-      const tagInfo = tagCache[row.name];
+      const tagInfo = tagCache[familyName(row.name)];
       if (tagInfo?.tags?.length) {
         for (const tag of tagInfo.tags) {
           detailActions.push({
@@ -495,14 +495,18 @@ export function OllamaModelLibrary({
   ]);
 
   useEffect(() => {
+    const families = new Set<string>();
     for (const row of filtered) {
-      if (row.name.includes(':')) continue;
+      const fam = familyName(row.name);
+      if (fam) families.add(fam);
+    }
+    for (const fam of families) {
       void (async () => {
         try {
-          const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(row.name)}`);
+          const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(fam)}`);
           if (!r.ok) return;
           const data = (await r.json()) as RegistryTagsResponse;
-          setTagCache((prev) => (prev[row.name] ? prev : { ...prev, [row.name]: data }));
+          setTagCache((prev) => (prev[fam] ? prev : { ...prev, [fam]: data }));
         } catch {
           /* optional enrichment */
         }

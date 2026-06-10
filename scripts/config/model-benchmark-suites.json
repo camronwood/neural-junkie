@@ -1,0 +1,34 @@
+{
+  "quick": {
+    "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on 14B class).",
+    "implement": [
+      "go-handler",
+      "theme-toggle",
+      "ask-mode-no-write"
+    ],
+    "chat": [
+      "dm-backend-workspace",
+      "dm-backend-echo-followup"
+    ]
+  },
+  "implement": {
+    "description": "Full implement scenario suite (all scenarios/implement/*.json).",
+    "implement": "all",
+    "chat": []
+  },
+  "chat-regression": {
+    "description": "All chat scenarios tagged regression.",
+    "implement": [],
+    "chat_tag": "regression"
+  },
+  "standard": {
+    "description": "Balanced gate — quick implement + regression chat tag filter.",
+    "implement": [
+      "go-handler",
+      "theme-toggle",
+      "react-theme-toggle",
+      "ask-mode-no-write"
+    ],
+    "chat_tag": "regression"
+  }
+}

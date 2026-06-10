@@ -1,0 +1,188 @@
+/* Model benchmarks — extends landing.css */
+.benchmarks-page {
+  padding-top: clamp(1.5rem, 4vw, 2.5rem);
+  padding-bottom: 4rem;
+}
+
+.benchmarks-hero {
+  margin-bottom: 2rem;
+}
+
+.benchmarks-hero h1 {
+  font-size: clamp(1.75rem, 4vw, 2.35rem);
+  margin: 0 0 0.75rem;
+  line-height: 1.15;
+}
+
+.benchmarks-hero-lead {
+  color: var(--text-muted);
+  max-width: 62ch;
+  margin: 0 0 1rem;
+}
+
+.benchmarks-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.benchmarks-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.benchmarks-toolbar select {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 16rem;
+}
+
+.benchmarks-meta {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.benchmarks-winner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, rgba(233, 69, 96, 0.12), rgba(83, 52, 131, 0.12));
+  border: 1px solid rgba(233, 69, 96, 0.25);
+  border-radius: var(--radius);
+}
+
+.benchmarks-winner strong {
+  font-size: 1.1rem;
+}
+
+.benchmarks-winner code {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+
+.benchmarks-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.benchmarks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.benchmarks-table th,
+.benchmarks-table td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.benchmarks-table th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+}
+
+.benchmarks-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.benchmarks-table .mono {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+.benchmarks-table .rank-1 {
+  color: #7ee787;
+}
+
+.cell-pass {
+  color: #7ee787;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.cell-fail {
+  color: #f85149;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.cell-skip {
+  color: var(--text-muted);
+}
+
+.rate-bar {
+  display: inline-block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  width: 4rem;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+  overflow: hidden;
+}
+
+.rate-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+.benchmarks-history {
+  margin-top: 2rem;
+}
+
+.benchmarks-history h2 {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.benchmarks-how {
+  margin-top: 2.5rem;
+  padding: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.benchmarks-how code {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.benchmarks-error {
+  padding: 1rem;
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: var(--radius);
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.08);
+}

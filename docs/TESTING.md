@@ -24,12 +24,14 @@ See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORA
 
 ## Phase 1 acceptance (~80% Cursor “implement this feature”)
 
-**Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen2.5-coder:7b` or Settings → Implementation tool model).
+**Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen3.5:9b` or Settings → Implementation tool model).
 
 ```bash
 ollama serve
-ollama pull qwen2.5-coder:7b   # if not already present
+ollama pull qwen3.5:9b    # tool loop + utility
+ollama pull qwen3.5:27b   # specialists (or set OLLAMA_CODE_MODEL in env.local)
 make server-regression         # terminal 1
+make agents                    # terminal 1b — picks up env.local models
 make implement-scenarios       # terminal 2 — need 7/7 PASS
 make test-parity-stable        # optional — 3× sweeps at 7/7 under server-regression
 ```
@@ -50,6 +52,14 @@ make test-parity-stable-restart      # 3× with hub restart between sweeps
 make server-regression
 make test-regression-bundle
 # log: docs/testing/regression-bundle-*.log
+```
+
+**Model benchmark:** compare top local coder models against the same scenarios — see [testing/MODEL_BENCHMARK.md](testing/MODEL_BENCHMARK.md):
+
+```bash
+make model-benchmark-list
+make model-benchmark SUITE=quick MODELS='qwen2.5-coder:14b,qwen3.5:9b'
+# reports: docs/testing/model-benchmark-*.md|.json|.tsv
 ```
 
 **Manual spot-check (real app):** Share workspace on a React+Tailwind repo (e.g. dickory-docs with `.neural-junkie/rules.md`), Agent mode + `auto_apply_edits`, prompt: implement light/dark theme. Expect root `tailwind.config.js` with `darkMode`, `.tsx` paths only (no `.vue`), and honest session summary (`applied and verified` or `proposals submitted`).
@@ -79,7 +89,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 ## Pre-release checklist
 
 1. CI green on branch (`make test-all` locally if needed).
-2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen2.5:7b`).
+2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen3.5:9b` and `qwen3.5:27b`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
 5. **`make test-regression-bundle`** — implement (7/7) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`

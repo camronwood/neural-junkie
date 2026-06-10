@@ -1,0 +1,117 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 3 implement + 2 chat scenarios (~15\u201345 min per model on 14B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-09T23:44:49.043570+00:00",
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "codestral-22b",
+      "model_tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 51.23211762498249,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 69.30068058302277,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 67.28643366697361,
+          "detail": "=== FAIL: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 115.62987624999369,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 193.00189108299674,
+          "detail": "=== FAIL: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.003527583001414314,
+      "total_duration_s": 496.45188295899425,
+      "passed_count": 3,
+      "total_count": 5,
+      "pass_rate": 0.6
+    },
+    {
+      "model_id": "devstral-24b",
+      "model_tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 93.30077062500641,
+          "detail": "=== PASS: go-handler ==="
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 73.27285770798335,
+          "detail": "=== PASS: theme-toggle ==="
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 85.31042858402361,
+          "detail": "=== PASS: ask-mode-no-write ==="
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 98.67978829200729,
+          "detail": "=== PASS: dm-backend-workspace ==="
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 108.61230462498497,
+          "detail": "=== PASS: dm-backend-echo-followup ==="
+        }
+      ],
+      "switch_duration_s": 0.00398158299503848,
+      "total_duration_s": 459.17702641699,
+      "passed_count": 5,
+      "total_count": 5,
+      "pass_rate": 1.0
+    }
+  ]
+}

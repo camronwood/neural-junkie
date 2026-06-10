@@ -1,0 +1,40 @@
+{
+  "description": "Default top-5 local coder models for NJ live benchmarks (~9–15 GB class).",
+  "models": [
+    {
+      "id": "qwen2.5-coder-14b",
+      "tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "notes": "NJ historical specialist default; strong tool loops"
+    },
+    {
+      "id": "codestral-22b",
+      "tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "notes": "Mistral code model; NJ treats codestral as dedicated coder"
+    },
+    {
+      "id": "devstral-24b",
+      "tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "notes": "Mistral agentic coding model; needs ~32 GB RAM for comfort"
+    },
+    {
+      "id": "qwen3.5-9b",
+      "tag": "qwen3.5:9b",
+      "title": "Qwen 3.5 9B",
+      "size_hint_gb": 6.6,
+      "notes": "Fast modern baseline; also used as NJ utility/tool tier"
+    },
+    {
+      "id": "deepseek-coder-6.7b",
+      "tag": "deepseek-coder:6.7b",
+      "title": "DeepSeek Coder 6.7B",
+      "size_hint_gb": 3.8,
+      "notes": "Lightweight coder reference"
+    }
+  ]
+}

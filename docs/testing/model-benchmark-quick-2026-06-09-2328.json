@@ -1,0 +1,45 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 3 implement + 2 chat scenarios (~15\u201345 min per model on 14B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-09T23:28:20.484256+00:00",
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "codestral-22b",
+      "model_tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "skipped": true,
+      "skip_reason": "model not installed (use --pull or ollama pull)",
+      "scenarios": [],
+      "switch_duration_s": 0.0,
+      "total_duration_s": 0.0,
+      "passed_count": 0,
+      "total_count": 0,
+      "pass_rate": 0.0
+    },
+    {
+      "model_id": "devstral-24b",
+      "model_tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "skipped": true,
+      "skip_reason": "model not installed (use --pull or ollama pull)",
+      "scenarios": [],
+      "switch_duration_s": 0.0,
+      "total_duration_s": 0.0,
+      "passed_count": 0,
+      "total_count": 0,
+      "pass_rate": 0.0
+    }
+  ]
+}
