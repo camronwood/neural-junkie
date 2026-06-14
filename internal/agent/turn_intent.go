@@ -112,10 +112,14 @@ func classifyTurnIntent(msg *protocol.Message, channelType protocol.ChannelType,
 func (a *Agent) classifyTurnIntentForMessage(msg *protocol.Message) TurnIntent {
 	if msg != nil {
 		caps := protocol.ResolveTurnCapabilities(msg)
-		if caps.ComposerMode == "export" || (caps.CanRunImplSession && msg.ImplementationSession()) {
-			return IntentTask
-		}
 		if caps.ComposerMode == "ask" {
+			return IntentSubstantive
+		}
+		taskFromComposer := caps.ComposerMode == "export" || (caps.CanRunImplSession && msg.ImplementationSession())
+		if taskFromComposer {
+			if a.Info.Type != protocol.AgentTypeAssistant || assistantAllowsImplementationSession(a, msg) {
+				return IntentTask
+			}
 			return IntentSubstantive
 		}
 	}
@@ -274,6 +278,10 @@ func trimHistoryTail(history []*protocol.Message, max int) []*protocol.Message {
 
 func (a *Agent) shouldAugmentPromptWithWorkspace(intent TurnIntent, msg *protocol.Message) bool {
 	if intent == IntentLowSignal || intent == IntentMeta || intent == IntentClosure {
+		return false
+	}
+	if a.Info.Type == protocol.AgentTypeAssistant && a.isDMChannel(msg.Channel) &&
+		!assistantAllowsImplementationSession(a, msg) {
 		return false
 	}
 	if a.useOllamaContextGuardrails(msg) {

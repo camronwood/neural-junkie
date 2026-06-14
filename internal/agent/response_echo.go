@@ -227,6 +227,9 @@ func (a *Agent) maybeRetryConversationalQuality(ctx context.Context, msg *protoc
 	}
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	if looksLikeAsksUserToPasteWorkspaceFiles(msg, response) {
+		if a.Info.Type == protocol.AgentTypeAssistant && !assistantAllowsImplementationSession(a, msg) {
+			return response
+		}
 		retry, err := eff.GenerateResponse(approvalCtx, a.buildWorkspaceGroundedRetryPrompt(msg), nil)
 		if err == nil && strings.TrimSpace(retry) != "" &&
 			!looksLikeAsksUserToPasteWorkspaceFiles(msg, retry) {

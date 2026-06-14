@@ -8,18 +8,21 @@ import (
 	"github.com/camronwood/neural-junkie/internal/integrations/websearch"
 )
 
+func webSearchConfigPublic() map[string]interface{} {
+	return map[string]interface{}{
+		"enabled":     appConfig.WebSearch.Enabled,
+		"provider":    appConfig.WebSearch.ProviderName(),
+		"max_results": appConfig.WebSearch.MaxResultsOrDefault(),
+		"api_key_set": appConfig.WebSearch.APIKey != "",
+		"keyless":     appConfig.WebSearch.Keyless,
+		"ready":       appConfig.WebSearch.Ready(),
+	}
+}
+
 func handleWebSearchConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		pub := map[string]interface{}{
-			"enabled":     appConfig.WebSearch.Enabled,
-			"provider":    appConfig.WebSearch.ProviderName(),
-			"max_results": appConfig.WebSearch.MaxResultsOrDefault(),
-			"api_key_set": appConfig.WebSearch.APIKey != "",
-			"keyless":     appConfig.WebSearch.Keyless,
-			"ready":       appConfig.WebSearch.Ready(),
-		}
-		writeJSON(w, http.StatusOK, pub)
+		writeJSON(w, http.StatusOK, webSearchConfigPublic())
 	case http.MethodPut, http.MethodPost:
 		var body struct {
 			Enabled    *bool  `json:"enabled"`
@@ -51,8 +54,9 @@ func handleWebSearchConfig(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+		syncMCPFromConfig()
 		applyCollabActionConfig()
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, webSearchConfigPublic())
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}

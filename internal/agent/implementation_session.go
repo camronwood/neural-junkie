@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+var assistantExportContinuationRE = regexp.MustCompile(`(?i)\b(save|store|export|write)\s+(it|that|this)\b`)
 
 const (
 	implSessionMaxToolIterations = 20
@@ -81,6 +84,32 @@ func implementationSessionRoundFromContext(ctx context.Context) int {
 	return r
 }
 
+// assistantAllowsImplementationSession gates the personal Assistant out of the file-edit
+// implementation loop unless the user clearly wants code changes or export-to-file work.
+// Composer export/implementation_session metadata alone is not enough (e.g. travel planning in a DM).
+func assistantAllowsImplementationSession(a *Agent, msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if userRequestsImplementation(msg.Content) || userRequestsFileExport(msg.Content) {
+		return true
+	}
+	if userReferencesPriorAssistantContent(msg.Content) {
+		return true
+	}
+	if msg.IdeEditorModeIsExport() && assistantExportContinuationRE.MatchString(msg.Content) {
+		return true
+	}
+	history := a.channelHistorySafe(msg.Channel)
+	if channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID) {
+		return userAffirmsPendingImplementation(msg.Content) ||
+			userRequestsImplementation(msg.Content) ||
+			userRequestsImplementationStatusCheck(msg.Content) ||
+			userRequestsFileExport(msg.Content)
+	}
+	return false
+}
+
 // shouldRunImplementationSession reports whether to use the bounded implementation loop.
 func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if a == nil || msg == nil {
@@ -90,6 +119,9 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
+		return false
+	}
+	if a.Info.Type == protocol.AgentTypeAssistant && !assistantAllowsImplementationSession(a, msg) {
 		return false
 	}
 	// Short status follow-ups ("is it fixed?") get a conversational reply, not a new session.

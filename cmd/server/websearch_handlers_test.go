@@ -40,8 +40,11 @@ func TestHandleWebSearchConfigPut(t *testing.T) {
 	appConfig.WebSearch.Enabled = false
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"enabled": true,
-		"api_key": "new-key",
+		"enabled":     true,
+		"provider":    "tavily",
+		"keyless":     true,
+		"max_results": 7,
+		"api_key":     "new-key",
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/web-search/config", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -49,7 +52,26 @@ func TestHandleWebSearchConfigPut(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if !appConfig.WebSearch.Enabled || appConfig.WebSearch.APIKey != "new-key" {
+	if !appConfig.WebSearch.Enabled || appConfig.WebSearch.APIKey != "new-key" || !appConfig.WebSearch.Keyless {
 		t.Fatalf("config not updated: %+v", appConfig.WebSearch)
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["enabled"] != true || resp["ready"] != true {
+		t.Fatalf("PUT response = %+v", resp)
+	}
+
+	reloaded, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.WebSearch.Enabled || !reloaded.WebSearch.Keyless || reloaded.WebSearch.MaxResults != 7 {
+		t.Fatalf("reloaded config = %+v", reloaded.WebSearch)
+	}
+	if reloaded.WebSearch.APIKey != "new-key" {
+		t.Fatalf("reloaded api key = %q", reloaded.WebSearch.APIKey)
 	}
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildHumanOutboundMetadata,
   isCollabSandboxPath,
   isCollaborateCommand,
   trimWorkspaceContext,
@@ -79,5 +80,57 @@ describe('trimWorkspaceContext', () => {
     );
     expect(trimmed?.scan_summary?.summary_dir).toBe('scan-1');
     expect(trimmed?.scan_summary?.note).toContain('metadata');
+  });
+});
+
+describe('buildHumanOutboundMetadata DM personal questions', () => {
+  it('downgrades export/agent composer to ask for non-code DM messages', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      message:
+        'Can you check flight times? I need to plan a trip from St. Louis, MO to Chicago, IL.',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: {
+        editor_mode: 'export',
+        implementation_session: true,
+      },
+    });
+    expect(meta?.editor_mode).toBe('ask');
+    expect(meta?.composer_mode).toBe('ask');
+    expect(meta?.can_run_impl_session).toBe(false);
+    expect(meta?.implementation_session).toBeUndefined();
+  });
+
+  it('keeps export metadata for explicit save-to-file asks in DMs', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      message: 'please save that article to docs/plan.md',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: {
+        editor_mode: 'export',
+        implementation_session: true,
+      },
+    });
+    expect(meta?.editor_mode).toBe('export');
+    expect(meta?.can_run_impl_session).toBe(true);
+  });
+
+  it('strips workspace context for personal assistant DM questions', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'always',
+      message: 'What Amtrak trains run from St. Louis to Chicago tomorrow?',
+      channel: 'dm-camron-assistant',
+      channelType: 'dm',
+      composerMetadata: {
+        editor_mode: 'agent',
+        implementation_session: true,
+      },
+    });
+    expect(meta?.editor_mode).toBe('ask');
+    expect(meta?.context_scope).toBe('none');
+    expect(meta?.conversation_mode).toBe('chat');
+    expect(meta?.workspace_context).toBeUndefined();
   });
 });

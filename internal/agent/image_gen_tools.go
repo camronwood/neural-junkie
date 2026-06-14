@@ -394,10 +394,14 @@ func (a *Agent) generateWithAgentTools(
 		return text, nil
 	}
 
-	text, err := toolProvider.GenerateResponseWithTools(ctx, prompt, histMsgs, tools,
+	text, err := toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
 			log.Printf("[%s] Tool call: %s", a.Info.Name, req.Name)
-			return a.executeAgentTool(ctx, msg, req.Name, req.Input)
+			result, err := a.executeAgentTool(ctx, msg, req.Name, req.Input)
+			if err != nil {
+				return result, err
+			}
+			return guardWebSearchToolResult(ctx, req.Name, result), nil
 		})
 	if err != nil {
 		return "", err

@@ -651,9 +651,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		msg.From.Type == protocol.AgentTypeModerator ||
 		msg.From.Type == protocol.AgentTypeCLI
 
-	// If message has @mentions, ONLY respond if explicitly mentioned
-	// This works even for agent-to-agent communication if explicitly mentioned
-	if msg.HasMentions() {
+	// If message has @mentions, ONLY respond if explicitly mentioned.
+	// History replay may drop Mentions; re-parse @tokens from content first.
+	a.backfillMentionsFromContent(msg)
+	contentMentions := exclusiveMentionTokens(msg)
+	if msg.HasMentions() || len(contentMentions) > 0 {
 		if msg.IsMentioned(a.Info.ID) {
 			// Check if this is a review request (replying to another agent's message)
 			if msg.ReplyTo != "" {
@@ -706,6 +708,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 
 			// Not a review, or regular mention - always respond
 			log.Printf("[%s] ✅ EXPLICITLY MENTIONED - will respond", a.Info.Name)
+			return true
+		}
+		if a.isMentionedByContentTokens(contentMentions) {
+			log.Printf("[%s] ✅ MENTIONED (content token) - will respond", a.Info.Name)
 			return true
 		}
 		// Not mentioned but message has mentions - don't respond

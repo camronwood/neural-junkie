@@ -155,9 +155,13 @@ func (a *Agent) generateWithMCPTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	return toolProvider.GenerateResponseWithTools(ctx, prompt, histMsgs, tools,
+	return toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
 			log.Printf("[%s] MCP tool call: %s", a.Info.Name, req.Name)
-			return executeMCPTool(ctx, mcpServer, req.Name, req.Input)
+			result, err := executeMCPTool(ctx, mcpServer, req.Name, req.Input)
+			if err != nil {
+				return result, err
+			}
+			return guardWebSearchToolResult(ctx, req.Name, result), nil
 		})
 }

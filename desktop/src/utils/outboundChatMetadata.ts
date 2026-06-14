@@ -30,12 +30,13 @@ import {
   messageAsksWorkspaceVisibility,
   type ChannelKind,
 } from './inferContextScope';
-import { resolveConversationMode } from './conversationMode';
+import { hasCodeTaskSignals, resolveConversationMode } from './conversationMode';
 import {
   hasContentDeliverySignals,
   hasFileExportSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
+  hasPriorReferenceExportSignals,
 } from './implementationContinuation';
 import { hasCodeReviewSignals } from './codeReviewSignals';
 import type { ComposerMode } from '../constants/composerMode';
@@ -371,10 +372,25 @@ export function buildHumanOutboundMetadata(options: {
     ideCoding,
   });
 
-  const explicitEditorMode =
+  let explicitEditorMode =
     typeof composerMetadata?.[EDITOR_MODE_KEY] === 'string'
       ? String(composerMetadata[EDITOR_MODE_KEY]).trim()
       : '';
+
+  // Personal-assistant DMs should stay read-only unless the message is clearly a code/export task.
+  if (
+    channelKind === 'dm' &&
+    explicitEditorMode !== 'ask' &&
+    !hasFileExportSignals(message) &&
+    !hasPriorReferenceExportSignals(message) &&
+    !hasImplementationRequestSignals(message) &&
+    !hasImplementationContinuationSignals(message) &&
+    !hasCodeTaskSignals(message)
+  ) {
+    meta[EDITOR_MODE_KEY] = 'ask';
+    delete meta[IMPLEMENTATION_SESSION_METADATA_KEY];
+    explicitEditorMode = 'ask';
+  }
 
   if (explicitEditorMode === 'export' && contextMode !== 'off') {
     scope = activeTabPath ? 'focus' : 'outline';
@@ -466,6 +482,26 @@ export function buildHumanOutboundMetadata(options: {
 
   meta[CONTEXT_SCOPE_KEY] = scope;
   meta[CONTEXT_SCOPE_REASON_KEY] = reason;
+
+  // Personal Assistant DMs: no project workspace unless the user asked for code/export work.
+  if (
+    channelKind === 'dm' &&
+    meta[EDITOR_MODE_KEY] === 'ask' &&
+    !hasFileExportSignals(message) &&
+    !hasPriorReferenceExportSignals(message) &&
+    !hasImplementationRequestSignals(message) &&
+    !hasImplementationContinuationSignals(message) &&
+    !hasCodeTaskSignals(message) &&
+    !hasContentDeliverySignals(message) &&
+    !messageAsksWorkspaceVisibility(message)
+  ) {
+    scope = 'none';
+    reason = 'personal assistant DM';
+    meta[CONTEXT_SCOPE_KEY] = scope;
+    meta[CONTEXT_SCOPE_REASON_KEY] = reason;
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'chat';
+    delete meta.workspace_context;
+  }
 
   const collabMode = composerMetadata?.[COLLAB_SOURCE_MODE_KEY];
   const collabPath = composerMetadata?.[COLLAB_SOURCE_PATH_KEY];

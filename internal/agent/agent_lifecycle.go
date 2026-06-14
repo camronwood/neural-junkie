@@ -135,10 +135,14 @@ func (a *Agent) processUnrespondedHistory(ctx context.Context, channel string) {
 			candidate.Type == protocol.MessageTypeSystemInfo {
 			continue
 		}
+		a.backfillMentionsFromContent(candidate)
 		if !a.shouldRespond(candidate) {
 			continue
 		}
 		if messageTooOldForUnansweredReplay(candidate) {
+			continue
+		}
+		if mentionTargetAlreadyAnswered(history, i, candidate) {
 			continue
 		}
 		if agentRespondedToUser(history, i, a.Info.ID, a.Info.Name, candidate.ID) {
