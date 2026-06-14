@@ -205,7 +205,7 @@ export function MemoryMonitorChip({
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    onOpenSettings('layout');
+                    onOpenSettings('models-performance');
                   }}
                   className="w-full text-left text-xs text-slack-textMuted hover:text-slack-text"
                 >

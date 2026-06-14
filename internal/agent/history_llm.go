@@ -4,12 +4,20 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/chatcontext"
+	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-// MaxLLMHistoryMessages is the number of prior channel messages sent to the LLM
-// (excluding the current turn, which lives in the prompt user section).
+// MaxLLMHistoryMessages is the default tail channel history sent to the LLM
+// when hub performance settings are unavailable.
 const MaxLLMHistoryMessages = 10
+
+func maxLLMHistoryMessages() int {
+	if cfg := mcp.AppConfig(); cfg != nil {
+		return cfg.Performance.MaxHistoryMessagesOrDefault()
+	}
+	return MaxLLMHistoryMessages
+}
 
 // unrespondedHistoryMaxAge limits replay of stale user messages when an agent joins a channel after restore.
 const unrespondedHistoryMaxAge = 20 * time.Minute
@@ -30,7 +38,7 @@ func historyForGeneration(history []*protocol.Message, excludeID string) []*prot
 		}
 		out = append(out, m)
 	}
-	return chatcontext.TrimTail(out, MaxLLMHistoryMessages)
+	return chatcontext.TrimTail(out, maxLLMHistoryMessages())
 }
 
 func omitMessageFromLLMHistory(m *protocol.Message) bool {

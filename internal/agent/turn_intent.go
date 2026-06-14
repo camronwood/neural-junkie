@@ -265,7 +265,7 @@ func maxHistoryForIntent(intent TurnIntent, hasSummary bool) int {
 		}
 		return 8
 	default:
-		return MaxLLMHistoryMessages
+		return maxLLMHistoryMessages()
 	}
 }
 

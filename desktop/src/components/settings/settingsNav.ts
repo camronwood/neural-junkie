@@ -1,0 +1,73 @@
+export type SettingsTab =
+  | 'appearance'
+  | 'layout'
+  | 'keyboard'
+  | 'chat'
+  | 'providers'
+  | 'models-performance'
+  | 'collab-routing'
+  | 'memory-learning'
+  | 'api-credentials'
+  | 'assistant-tools'
+  | 'slack'
+  | 'domain-packs'
+  | 'security'
+  | 'about';
+
+/** Map deprecated tab ids from older deep links. */
+export const SETTINGS_TAB_ALIASES: Record<string, SettingsTab> = {
+  'ai-providers': 'providers',
+  integrations: 'api-credentials',
+};
+
+export function resolveSettingsTab(tab?: string): SettingsTab | undefined {
+  if (!tab) return undefined;
+  if (SETTINGS_TAB_ALIASES[tab]) return SETTINGS_TAB_ALIASES[tab];
+  return tab as SettingsTab;
+}
+
+export type SettingsNavGroup = {
+  title: string;
+  items: Array<{ id: SettingsTab; label: string }>;
+};
+
+export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
+  {
+    title: 'General',
+    items: [
+      { id: 'appearance', label: 'Appearance' },
+      { id: 'layout', label: 'Layout' },
+      { id: 'keyboard', label: 'Keyboard' },
+      { id: 'chat', label: 'Chat' },
+    ],
+  },
+  {
+    title: 'AI',
+    items: [
+      { id: 'providers', label: 'Providers' },
+      { id: 'models-performance', label: 'Models & performance' },
+      { id: 'collab-routing', label: 'Routing & collab' },
+      { id: 'memory-learning', label: 'Memory & learning' },
+    ],
+  },
+  {
+    title: 'External',
+    items: [
+      { id: 'api-credentials', label: 'API credentials' },
+      { id: 'assistant-tools', label: 'Assistant tools' },
+      { id: 'slack', label: 'Slack' },
+    ],
+  },
+  {
+    title: 'Advanced',
+    items: [
+      { id: 'domain-packs', label: 'Domain packs' },
+      { id: 'security', label: 'Security' },
+      { id: 'about', label: 'About' },
+    ],
+  },
+];
+
+export const ALL_SETTINGS_TABS: SettingsTab[] = SETTINGS_NAV_GROUPS.flatMap((g) =>
+  g.items.map((i) => i.id)
+);

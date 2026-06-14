@@ -485,6 +485,16 @@ export interface OllamaSettings {
   availableModels: string[];
 }
 
+export interface PerformanceSettings {
+  contextBudgetKB: number;
+  ideContextBudgetKB: number;
+  implSessionBudgetKB: number;
+  maxHistoryMessages: number;
+  ollamaNumCtx: number;
+  ollamaNumPredict: number;
+  ollamaKeepAlive: string;
+}
+
 export interface LMStudioSettings {
   endpoint: string;
   defaultModel: string;

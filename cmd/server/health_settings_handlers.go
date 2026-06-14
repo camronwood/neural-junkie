@@ -64,6 +64,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Collaboration = incoming.Collaboration
 		appConfig.Delegation = incoming.Delegation.Normalized()
 		appConfig.Features = incoming.Features
+		appConfig.Performance = incoming.Performance
 		if incoming.Packs.Enabled != nil {
 			appConfig.Packs = incoming.Packs
 		}
@@ -82,6 +83,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		syncMCPFromConfig()
 		reconcileConfiguredSpecialists()
 
 		w.Header().Set("Content-Type", "application/json")

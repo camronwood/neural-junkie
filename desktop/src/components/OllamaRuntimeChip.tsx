@@ -203,7 +203,7 @@ export function OllamaRuntimeChip({
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    onOpenSettings('ai-providers');
+                    onOpenSettings('providers');
                   }}
                   className="w-full text-left text-xs text-slack-textMuted hover:text-slack-text"
                 >

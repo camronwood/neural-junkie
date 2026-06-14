@@ -46,6 +46,12 @@ type AIConfig struct {
 type OllamaConfig struct {
 	AutoStart      bool     `json:"auto_start"`
 	ModelsToEnsure []string `json:"models_to_ensure"`
+	// NumCtx sets Ollama options.num_ctx (0 = model/server default).
+	NumCtx int `json:"num_ctx,omitempty"`
+	// NumPredict caps output tokens (0 = provider heuristics / model default).
+	NumPredict int `json:"num_predict,omitempty"`
+	// KeepAlive controls model unload (e.g. "5m", "0", "-1" for immediate unload). Empty = Ollama default.
+	KeepAlive string `json:"keep_alive,omitempty"`
 }
 
 // HFConfig holds Hugging Face Hub download and token defaults.
@@ -128,6 +134,7 @@ type Config struct {
 	Features          FeaturesConfig                       `json:"features"`
 	Slack          SlackConfig          `json:"slack"`
 	WebSearch      WebSearchConfig      `json:"web_search"`
+	Performance    PerformanceConfig    `json:"performance"`
 	Phoenix        PhoenixConfig        `json:"phoenix"`
 
 	mu       sync.RWMutex `json:"-"`
@@ -638,6 +645,7 @@ func (c *Config) Redacted() *Config {
 	}
 	mcpCfg := c.MCP
 	webSearch := c.WebSearch
+	performance := c.Performance
 	filePath := c.filePath
 	c.mu.RUnlock()
 
@@ -681,6 +689,7 @@ func (c *Config) Redacted() *Config {
 		Delegation:    delegation,
 		Features:      features,
 		WebSearch:     redactedWebSearch,
+		Performance: performance,
 		filePath:      filePath,
 	}
 }

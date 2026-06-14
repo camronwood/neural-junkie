@@ -51,12 +51,13 @@ type OllamaToolCall struct {
 
 // OllamaRequest represents a request to Ollama API
 type OllamaRequest struct {
-	Model    string                 `json:"model"`
-	Messages []OllamaMessage        `json:"messages"`
-	Stream   bool                   `json:"stream"`
-	Think    *bool                  `json:"think,omitempty"`
-	Tools    []OllamaTool           `json:"tools,omitempty"`
-	Options  map[string]interface{} `json:"options,omitempty"`
+	Model     string                 `json:"model"`
+	Messages  []OllamaMessage        `json:"messages"`
+	Stream    bool                   `json:"stream"`
+	KeepAlive interface{}            `json:"keep_alive,omitempty"`
+	Think     *bool                  `json:"think,omitempty"`
+	Tools     []OllamaTool           `json:"tools,omitempty"`
+	Options   map[string]interface{} `json:"options,omitempty"`
 }
 
 // OllamaMessage represents a message in Ollama API format
@@ -137,7 +138,7 @@ func (o *OllamaProvider) buildChatMessages(systemPrompt, userMessage string, con
 	if systemPrompt != "" {
 		messages = append(messages, OllamaMessage{Role: "system", Content: systemPrompt})
 	}
-	historyLimit := 10
+	historyLimit := MaxHistoryMessages()
 	if len(conversationHistory) > historyLimit {
 		conversationHistory = conversationHistory[len(conversationHistory)-historyLimit:]
 	}
@@ -162,21 +163,43 @@ func (o *OllamaProvider) newChatRequest(messages []OllamaMessage, stream bool) O
 		Stream:   stream,
 		Options:  ollamaChatOptions(o.Model),
 	}
+	if keep := ollamaKeepAliveValue(); keep != nil {
+		req.KeepAlive = keep
+	}
 	if ollamaModelWantsThinking(o.Model) {
 		req.Think = boolPtr(true)
 	}
 	return req
 }
 
+func ollamaKeepAliveValue() interface{} {
+	raw := strings.TrimSpace(ollamaRuntimeConfig().KeepAlive)
+	if raw == "" {
+		return nil
+	}
+	if raw == "0" || raw == "-1" {
+		return 0
+	}
+	return raw
+}
+
 // ollamaChatOptions tunes generation; compact GGUF models need conservative settings.
 func ollamaChatOptions(model string) map[string]interface{} {
-	if ollamaModelLikelyNoNativeTools(model) {
-		return map[string]interface{}{
-			"temperature": 0.7,
-			"num_predict": 512,
-		}
+	opts := map[string]interface{}{}
+	runtime := ollamaRuntimeConfig()
+	if runtime.NumCtx > 0 {
+		opts["num_ctx"] = runtime.NumCtx
 	}
-	return nil
+	if runtime.NumPredict > 0 {
+		opts["num_predict"] = runtime.NumPredict
+	} else if ollamaModelLikelyNoNativeTools(model) {
+		opts["temperature"] = 0.7
+		opts["num_predict"] = 512
+	}
+	if len(opts) == 0 {
+		return nil
+	}
+	return opts
 }
 
 // GenerateResponse generates a response using Ollama API

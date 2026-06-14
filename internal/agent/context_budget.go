@@ -4,19 +4,17 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
-
-const defaultContextBudgetBytes = 32 * 1024
 
 const (
 	maxBudgetSessionSummary   = 2 * 1024
 	maxBudgetRelevantMemory   = 1536
 	maxBudgetHistoryBody      = 12 * 1024
 	maxBudgetWorkspaceOutline = 4 * 1024
-	ideContextBudgetBytes     = 48 * 1024
 	ideWorkspaceOutlineBytes  = 16 * 1024
-	implSessionBudgetBytes    = 64 * 1024
 )
 
 const (
@@ -31,8 +29,23 @@ type ContextBudgetStats struct {
 	Truncated     bool `json:"truncated"`
 }
 
+func performanceFromHub() config.PerformanceConfig {
+	if cfg := mcp.AppConfig(); cfg != nil {
+		return cfg.Performance
+	}
+	return config.PerformanceConfig{}
+}
+
 func contextBudgetLimit() int {
-	return defaultContextBudgetBytes
+	return performanceFromHub().ContextBudgetBytes()
+}
+
+func ideContextBudgetLimit() int {
+	return performanceFromHub().IdeContextBudgetBytes()
+}
+
+func implSessionBudgetLimit() int {
+	return performanceFromHub().ImplSessionBudgetBytes()
 }
 
 // applyContextBudget trims non-essential system sections when the prompt exceeds the budget.
@@ -44,10 +57,10 @@ func applyContextBudgetForMessage(msg *protocol.Message, prompt string) (string,
 	limit := contextBudgetLimit()
 	outline := maxBudgetWorkspaceOutline
 	if msg != nil && msg.ImplementationSession() {
-		limit = implSessionBudgetBytes
+		limit = implSessionBudgetLimit()
 		outline = ideWorkspaceOutlineBytes
 	} else if msg != nil && msg.IdeRouteAgentType() != "" {
-		limit = ideContextBudgetBytes
+		limit = ideContextBudgetLimit()
 		outline = ideWorkspaceOutlineBytes
 	}
 	return applyContextBudgetWithLimit(prompt, limit, outline)

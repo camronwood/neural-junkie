@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/mcp"
@@ -16,6 +17,7 @@ import (
 func syncMCPFromConfig() {
 	if appConfig != nil {
 		mcp.SetAppConfig(appConfig)
+		ai.SetHubRuntimeOptions(appConfig.Performance, appConfig.Ollama)
 	}
 }
 
