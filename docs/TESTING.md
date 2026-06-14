@@ -28,8 +28,7 @@ See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORA
 
 ```bash
 ollama serve
-ollama pull qwen3.5:9b    # tool loop + utility
-ollama pull qwen3.5:27b   # specialists (or set OLLAMA_CODE_MODEL in env.local)
+ollama pull qwen3.5:9b    # specialists, tool loop, and utility (OLLAMA_CODE_MODEL / OLLAMA_MODEL)
 make server-regression         # terminal 1
 make agents                    # terminal 1b — picks up env.local models
 make implement-scenarios       # terminal 2 — need 7/7 PASS
@@ -37,6 +36,8 @@ make test-parity-stable        # optional — 3× sweeps at 7/7 under server-reg
 ```
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
+
+**Deliverable contract (`expect_deliverables`):** File-producing implement and collab scenarios declare expected paths plus question-aligned quality bars (`for_question.any_match` / `none_match` / `contains_all`). Live runs with `llm_judge: true` also ask an **independent cloud CLI agent** (default **Gemini** via hub DM — not the same Ollama model that produced the file). Override with `NJ_DELIVERABLE_JUDGE_PROVIDER=cursor` and `NJ_DELIVERABLE_JUDGE_AGENT=Cursor`, or `NJ_DELIVERABLE_JUDGE_MODE=cli` for direct `gemini`/`agent` subprocess. CI smoke enforces the JSON contract via `make test-scenario-assert`; `NJ_DELIVERABLE_JUDGE_SKIP=1` skips cloud judge during live runs.
 
 **Stability gate (beta.24+):** archives logs to `docs/testing/parity-stable-*.log`:
 
@@ -52,6 +53,15 @@ make test-parity-stable-restart      # 3× with hub restart between sweeps
 make server-regression
 make test-regression-bundle
 # log: docs/testing/regression-bundle-*.log
+```
+
+**Full test sweep (beta.26+):** CI smoke + live harness in one run; reviewable summary + full log:
+
+```bash
+make test-everything              # CI + live (hub + agents required)
+make test-everything SKIP_LIVE=1  # CI/smoke only, no hub
+make test-everything-full         # above + collab-scenarios-all (~1-3h extra)
+# reports: docs/testing/test-everything-*.md (summary) + test-everything-*.log (full output)
 ```
 
 **Model benchmark:** compare top local coder models against the same scenarios — see [testing/MODEL_BENCHMARK.md](testing/MODEL_BENCHMARK.md):
@@ -89,7 +99,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 ## Pre-release checklist
 
 1. CI green on branch (`make test-all` locally if needed).
-2. `ollama serve` and models from `env.local` (e.g. `ollama pull qwen3.5:9b` and `qwen3.5:27b`).
+2. `ollama serve` and `ollama pull qwen3.5:9b` (specialists + tool loop; set `OLLAMA_CODE_MODEL=qwen3.5:9b` in `env.local`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
 5. **`make test-regression-bundle`** — implement (7/7) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`

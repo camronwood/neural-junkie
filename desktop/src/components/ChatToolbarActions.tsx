@@ -18,7 +18,9 @@ import type { ConversationModeSetting } from '../utils/conversationMode';
 import type { WorkspaceContextMode } from '../constants/promptMetadata';
 import type { SettingsTab } from './SettingsModal';
 import { OllamaRuntimeChip } from './OllamaRuntimeChip';
+import { MemoryMonitorChip } from './MemoryMonitorChip';
 import { useApprovalStore } from '../stores/approvalStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import { formatChord } from '../shortcuts/format';
 
 export type ChatToolbarActionsLayout = 'horizontal' | 'vertical';
@@ -103,6 +105,9 @@ export function ChatToolbarActions({
   const suggestedCount = useTerminalStore((s) => s.suggestedCommands.length);
   const pendingToolCount = useApprovalStore((s) => s.pendingTools.length);
   const approvalCount = suggestedCount + pendingToolCount;
+  const memoryMonitorEnabled = useSettingsStore(
+    (s) => s.layoutSettings.memoryMonitorEnabled !== false,
+  );
   const isVertical = layout === 'vertical';
 
   const rootClass = isVertical
@@ -336,6 +341,15 @@ export function ChatToolbarActions({
       <ToolbarDivider layout={layout} />
 
       <div className={groupClass} aria-label="Models and account">
+        {memoryMonitorEnabled && (
+          <MemoryMonitorChip
+            layout={layout}
+            serverAddr={serverAddr}
+            onOpenModelLibrary={onOpenModelLibrary}
+            onOpenSettings={onOpenSettings}
+          />
+        )}
+
         <OllamaRuntimeChip
           layout={layout}
           serverAddr={serverAddr}

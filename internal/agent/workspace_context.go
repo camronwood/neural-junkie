@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -104,26 +105,9 @@ func DetectFilePaths(content string) []string {
 // ReadFileForPrompt reads a file and returns its content with line numbers,
 // capped to maxFileSize. Returns empty string if file can't be read.
 func ReadFileForPrompt(filePath string, workspacePath string) (content string, resolvedPath string, err error) {
-	// Resolve relative paths against workspace
-	resolved := filePath
-	if !filepath.IsAbs(resolved) {
-		resolved = filepath.Join(workspacePath, resolved)
-	}
-
-	// Clean the path to prevent traversal
-	resolved = filepath.Clean(resolved)
-
-	// Safety: ensure the resolved path is within the workspace
-	absWorkspace, err := filepath.Abs(workspacePath)
+	absResolved, err := pathutil.ResolveRelWithinRoot(workspacePath, filePath)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid workspace path: %w", err)
-	}
-	absResolved, err := filepath.Abs(resolved)
-	if err != nil {
-		return "", "", fmt.Errorf("invalid file path: %w", err)
-	}
-	if !strings.HasPrefix(absResolved, absWorkspace+string(filepath.Separator)) && absResolved != absWorkspace {
-		return "", "", fmt.Errorf("path %s is outside workspace", filePath)
+		return "", "", fmt.Errorf("file not found: %s", filePath)
 	}
 
 	// Check if file exists and get size

@@ -5,6 +5,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/config"
+	unified "github.com/camronwood/neural-junkie/internal/routing"
 )
 
 // PlanInput is the static context for predicting collaboration task routing.
@@ -42,12 +43,19 @@ func PlanTask(in PlanInput) PlanResult {
 		providerID = override
 		providerReason = "task_provider_metadata"
 	} else if in.SmartRoutingEnabled {
-		selID, reason := SelectProviderID(Input{
-			TaskText:            in.TaskText,
-			HasUserImages:       in.HasUserImages,
-			Providers:           in.Providers,
-			DefaultProviderID:   in.DefaultProviderID,
-			AvailableLoRATags:   in.InstalledLoRATags,
+		dec := unified.ClassifyRules(unified.Input{
+			Text:          in.TaskText,
+			AgentType:     in.AgentType,
+			AgentModel:    in.AgentModel,
+			HasUserImages: in.HasUserImages,
+			InstalledTags: in.InstalledLoRATags,
+		})
+		selID, reason := unified.PickProviderID(unified.ProviderPickInput{
+			Decision:          dec,
+			HasUserImages:     in.HasUserImages,
+			Providers:         in.Providers,
+			DefaultProviderID: in.DefaultProviderID,
+			InstalledTags:     in.InstalledLoRATags,
 		})
 		if strings.TrimSpace(selID) != "" {
 			providerID = selID
@@ -65,12 +73,21 @@ func PlanTask(in PlanInput) PlanResult {
 	}
 
 	if in.HasLoRACapability {
-		tag, tagReason := SelectComposedTag(LoRAInput{
-			TaskText:      in.TaskText,
+		dec := unified.ClassifyRules(unified.Input{
+			Text:          in.TaskText,
 			AgentType:     in.AgentType,
 			AgentModel:    in.AgentModel,
 			InstalledTags: in.InstalledLoRATags,
 		})
+		tag, tagReason := dec.LoRATag, dec.Reason
+		if tag == "" {
+			tag, tagReason = SelectComposedTag(LoRAInput{
+				TaskText:      in.TaskText,
+				AgentType:     in.AgentType,
+				AgentModel:    in.AgentModel,
+				InstalledTags: in.InstalledLoRATags,
+			})
+		}
 		if tag != "" {
 			return PlanResult{
 				ProviderID:     providerID,

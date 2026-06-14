@@ -40,9 +40,19 @@ func (a *Agent) EffectiveImplementationProvider(ctx context.Context, msg *protoc
 	if globalImplementationRouting == nil {
 		return base
 	}
-	_, eff := globalImplementationRouting.Plan(ctx, base, a.Info, msg)
+	plan, eff := globalImplementationRouting.Plan(ctx, base, a.Info, msg)
 	if eff == nil {
 		return base
 	}
+	snap := RoutingSnapshot{
+		ProviderID: plan.ProviderID,
+		ToolModel:  plan.ToolModel,
+		Reason:     plan.Reason,
+		Source:     "rules",
+	}
+	if m := eff.GetModel(); m != "" {
+		snap.ChatModel = m
+	}
+	a.RecordRoutingSnapshot(snap)
 	return eff
 }

@@ -105,6 +105,10 @@ export interface LayoutSettings {
   editorAgentTrust?: 'interactive' | 'auto_apply_edits' | 'yolo';
   /** Where toolbar action chips live on wide screens (lg+). */
   toolbarChipsPlacement?: ToolbarChipsPlacement;
+  /** Live RAM + Ollama memory chip in the toolbar. */
+  memoryMonitorEnabled?: boolean;
+  /** Show routing model badge on agent response messages. */
+  showRoutingOnMessages?: boolean;
 }
 
 interface SettingsState {
@@ -204,6 +208,8 @@ const defaultLayoutSettings: LayoutSettings = {
   inlineCompletionModel: 'qwen2.5-coder:1.5b',
   editorAgentTrust: 'auto_apply_edits',
   toolbarChipsPlacement: 'top',
+  memoryMonitorEnabled: true,
+  showRoutingOnMessages: true,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

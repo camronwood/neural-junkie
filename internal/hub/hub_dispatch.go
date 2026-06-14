@@ -416,7 +416,7 @@ func (h *Hub) maybeIngestPlanArtifact(msg *protocol.Message, collabID string) {
 	if collabSnapshot.Plan != nil && strings.TrimSpace(collabSnapshot.Plan.Content) == strings.TrimSpace(planContent) {
 		return
 	}
-	if ok, reason := collaboration.ValidatePlanContent(planContent, collabSnapshot.Agents); !ok {
+	if ok, reason := collaboration.ValidatePlanForCollaboration(collabSnapshot, planContent); !ok {
 		log.Printf("[Collaboration] Skipping corrupt plan ingest for %s: %s", collabID[:8], reason)
 		hint := protocol.NewMessage(
 			protocol.MessageTypeSystemInfo,

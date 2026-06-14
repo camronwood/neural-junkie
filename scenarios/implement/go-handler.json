@@ -7,6 +7,18 @@
   "target_agent": "BackendEngineer",
   "required_agents": ["BackendEngineer"],
   "workspace": { "fixture": "minimal-repo" },
+  "expect_deliverables": [
+    {
+      "path": "core/sample/main.go",
+      "min_bytes": 40,
+      "for_question": {
+        "contains_all": ["HelloWorld"],
+        "any_match": ["func HelloWorld", "HelloWorld\\("],
+        "none_match": ["index\\.js", "utils\\.js"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {
       "action": "send",

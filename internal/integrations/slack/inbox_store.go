@@ -177,6 +177,17 @@ func (s *InboxStore) UpdateDMChannelID(dmChannelID string) error {
 	return s.saveLocked()
 }
 
+// ClearDMChannelID removes a stale cached owner↔bot DM channel id.
+func (s *InboxStore) ClearDMChannelID() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cfg.SlackDMChannelID == "" {
+		return nil
+	}
+	s.cfg.SlackDMChannelID = ""
+	return s.saveLocked()
+}
+
 // SeedInboxFromInstall creates a default inbox config when OAuth completes.
 func SeedInboxFromInstall(ownerUserID, ownerUserName string) error {
 	ownerUserID = strings.TrimSpace(ownerUserID)

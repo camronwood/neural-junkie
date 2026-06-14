@@ -85,7 +85,7 @@ func TestRecommendationsForTier(t *testing.T) {
 		t.Fatalf("developer light: %s", light["developer"].PrimaryModel)
 	}
 	rec := RecommendationsForTier(TierRecommended, 16)
-	if rec["developer"].PrimaryModel != "qwen3.5:27b" {
+	if rec["developer"].PrimaryModel != "qwen3.5:9b" {
 		t.Fatalf("developer recommended: %s", rec["developer"].PrimaryModel)
 	}
 }

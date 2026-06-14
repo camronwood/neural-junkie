@@ -9,7 +9,7 @@ var cliAutoEditFileTools = map[string]bool{
 
 var workspaceReadOnlyMCPTools = map[string]bool{
 	"read_file": true, "grep": true, "glob_file_search": true, "semantic_search": true,
-	"list_directory": true,
+	"list_directory": true, "web_search": true,
 }
 
 // IsCLIShellToolName reports whether a CLI agent tool call is a shell invocation.

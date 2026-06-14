@@ -62,6 +62,9 @@ func (a *Agent) promptPersonaTier(msg *protocol.Message) PromptPersonaTier {
 }
 
 func (a *Agent) shouldIncludeToolingInPrompt(msg *protocol.Message, intent TurnIntent) bool {
+	if isAskModeReadOnly(msg) {
+		return false
+	}
 	if intent == IntentClosure || intent == IntentLowSignal || intent == IntentMeta {
 		return false
 	}

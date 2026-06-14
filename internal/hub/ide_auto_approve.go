@@ -31,7 +31,9 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	if msg.IdeEditorMode() == "ask" {
 		return
 	}
-	if operation != filechange.FileOperationCreate && operation != filechange.FileOperationEdit {
+	if operation != filechange.FileOperationCreate &&
+		operation != filechange.FileOperationEdit &&
+		operation != filechange.FileOperationDelete {
 		return
 	}
 	approvedBy := "system"

@@ -40,6 +40,8 @@ Lighter alternatives in the Model library: `qwen3.5:9b` (~6.6 GB), `llama3.2:3b`
 
 The hub classifies installed RAM into four tiers (`GET /api/system/hardware`). Boundaries use whole GB (floor from total bytes).
 
+**Live memory monitor:** `GET /api/system/memory` reports system RAM usage. On macOS it uses the same **App + Wired + Compressed** formula as Activity Monitor’s breakdown (via `vm_stat` + `vm.page_pageable_internal_count`). The headline “Memory Used” figure in Activity Monitor can read slightly higher than that sum because Apple also accounts for cached/file-backed pages separately.
+
 ```mermaid
 flowchart TB
   subgraph tiers [RAM tiers]
@@ -61,6 +63,19 @@ flowchart TB
 **Life sciences:** `koesn/llama3-openbiollm-8b:latest` + `qwen3.5:9b` for tools on most tiers; under 8 GB, prefer cloud Hugging Face in the wizard.
 
 **Team chat / productivity:** `qwen3.5:9b` only — lowest local footprint.
+
+### Recommended stacks (inference + LoRA)
+
+Neural Junkie uses a **two-tier model strategy**: Qwen for day-to-day inference and tool loops; Llama/Mistral bases for composed `nj-*` LoRA specialists. The hub exposes the same stacks via `GET /api/system/hardware` (`recommended_stacks`).
+
+| Tier | Inference stack | LoRA stack (optional) | Disk (approx) |
+|------|-----------------|----------------------|---------------|
+| **minimal** | `qwen3.5:9b` + cloud hybrid | none | ~10 GB |
+| **light** | `qwen3.5:9b` (chat + tools) | 1 base + 1 composed tag (e.g. `nj-security:14b`) | ~15 GB |
+| **recommended** | `qwen3.5:27b` + `qwen3.5:9b` | 3 bases + 4 bootstrap tags | ~35 GB |
+| **heavy** | above + OpenBio / optional CAD imports | full specialist-tuning bootstrap | ~50+ GB |
+
+Collab smart routing may suggest composed tags you have not installed yet — the router falls back to your agent default model. See [LORA_ADAPTERS.md](LORA_ADAPTERS.md).
 
 ### Estimated RAM for a model tag
 
@@ -141,6 +156,7 @@ Public tracker: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) · [known-issues.html](known-
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/system/hardware` | Total RAM, tier, per-track model recommendations |
+| `GET` | `/api/system/memory` | Live RAM usage, tier, Ollama loaded models (`/api/ps`) |
 | `GET` | `/api/ollama/library/lookup?name=…` | Catalog `size_hint`, estimated disk/RAM |
 
 Implementation: [`internal/hardware/`](../internal/hardware/).

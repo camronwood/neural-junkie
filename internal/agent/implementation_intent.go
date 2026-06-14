@@ -765,6 +765,48 @@ func userRequestsImplementationStatusCheck(content string) bool {
 	return implementationStatusCheckRE.MatchString(strings.TrimSpace(content))
 }
 
+// tryImplementationStatusCheckShortcut answers "is it fixed?" from recent session context
+// without calling the LLM (avoids slow re-runs during boot-fix follow-ups).
+func (a *Agent) tryImplementationStatusCheckShortcut(msg *protocol.Message) (string, bool) {
+	if a == nil || msg == nil || !userRequestsImplementationStatusCheck(msg.Content) {
+		return "", false
+	}
+	history := a.channelHistory(msg.Channel)
+	if !channelHasRecentImplementationActivity(history, msg.ID, a.Info.ID) {
+		return "", false
+	}
+	var prior string
+	for i := len(history) - 1; i >= 0; i-- {
+		m := history[i]
+		if m == nil || m.From.ID != a.Info.ID {
+			continue
+		}
+		lower := strings.ToLower(m.Content)
+		if strings.Contains(lower, "implementation session complete") ||
+			strings.Contains(lower, "implementation session finished") {
+			prior = strings.TrimSpace(m.Content)
+			break
+		}
+	}
+	if prior == "" {
+		return "", false
+	}
+	lower := strings.ToLower(prior)
+	wsPath := a.resolveWorkspacePath(msg)
+	if wsPath != "" && strings.Contains(lower, "app.js") {
+		if _, err := os.Stat(filepath.Join(wsPath, "src", "App.js")); err != nil {
+			return "Yes — src/App.js was removed so Vite resolves ./App to App.tsx. The corrupt App.js diff paste should no longer block boot.", true
+		}
+	}
+	if strings.Contains(lower, "applied and verified") {
+		return "Yes — the last implementation session applied and verified successfully.", true
+	}
+	if strings.Contains(lower, "verification failed") {
+		return "Not fully — the last session applied changes but verification failed. Check the prior message for command output.", true
+	}
+	return "The last implementation session submitted changes; see the prior reply for details.", true
+}
+
 // messageImpliesBootFix reports boot/build failure signals in the message or recent history.
 func messageImpliesBootFix(content string, history []*protocol.Message) bool {
 	if messageHasBootOrBuildError(content) {

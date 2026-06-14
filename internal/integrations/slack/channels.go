@@ -134,6 +134,13 @@ func ValidateChannel(api *slackapi.Client, channelID string) error {
 	return err
 }
 
+func isNotInChannelErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "not_in_channel")
+}
+
 // ResolveChannelName returns the Slack channel name (without #) for a channel ID, or "" on failure.
 func ResolveChannelName(api *slackapi.Client, channelID string) string {
 	channelID = strings.TrimSpace(channelID)

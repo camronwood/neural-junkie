@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -47,5 +49,27 @@ func TestSynthesizeGoMainEdit_PrintVersion(t *testing.T) {
 	got, ok := synthesizeGoMainEdit("implement a PrintVersion helper in core/sample/main.go", existing)
 	if !ok || !strings.Contains(got, "func PrintVersion") {
 		t.Fatalf("got ok=%v body=%q", ok, got)
+	}
+}
+
+func TestCorruptAppJSEntryConflict(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	write := func(rel, body string) {
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("package.json", `{"dependencies":{"react":"18.0.0"}}`)
+	write("src/App.js", "diff --git a/tailwind.config.js b/tailwind.config.js\n")
+	write("src/App.tsx", "export default function App() { return null }\n")
+	write("src/main.tsx", "import App from './App'\n")
+	manifest := DetectStackManifest(dir)
+	if !corruptAppJSEntryConflict(dir, manifest) {
+		t.Fatal("expected corrupt App.js entry conflict")
 	}
 }

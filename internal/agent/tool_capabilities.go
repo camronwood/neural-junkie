@@ -37,7 +37,7 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 	out.ToolLoopModel = loopModel
 	out.ToolLoopUsesFallback = usesFallback
 
-	for _, td := range a.agentToolDefinitions() {
+	for _, td := range a.agentToolDefinitions(nil) {
 		source := "mcp"
 		if td.Name == generateImageToolName {
 			source = "builtin"

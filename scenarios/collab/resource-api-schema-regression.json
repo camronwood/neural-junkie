@@ -13,6 +13,17 @@
     "flags": ["--rounds", "2", "--messages", "10", "--workspace"],
     "goal": "@Assistant @BackendEngineer @FrontendEngineer Investigate resource api document schema standardization/registration. Use plan tasks like: ### Task 1: Define Scope (@Assistant) with Deliverable collabs/<id>/scope.md; ### Task 2: Review API docs (@BackendEngineer) with Deliverable collabs/<id>/existing-schema.md. Produce real markdown deliverables, not chat-only summaries."
   },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/scope.md",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["scope|schema|api|standardiz|registr|resource"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 45},
     {

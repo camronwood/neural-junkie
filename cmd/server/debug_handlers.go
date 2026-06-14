@@ -117,6 +117,27 @@ func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(out)
 }
 
+func handleDebugRoutingClassify(w http.ResponseWriter, r *http.Request) {
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") != "1" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		http.Error(w, "q query parameter required", http.StatusBadRequest)
+		return
+	}
+	agentType := strings.TrimSpace(r.URL.Query().Get("agent_type"))
+	loraTags := collectInstalledLoRATags(r.Context())
+	dec := classifyTask(r.Context(), appConfig, q, agentType, "", false, loraTags)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(dec)
+}
+
 func classifyTurnIntentForDebug(msg *protocol.Message, chType protocol.ChannelType) agent.TurnIntent {
 	// Lightweight mirror for debug endpoint without spinning up a full agent.
 	return agent.ClassifyTurnIntentPublic(msg, chType, "", nil)

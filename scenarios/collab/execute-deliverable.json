@@ -12,6 +12,18 @@
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
     "goal": "@ChatModerator @Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write findings.md with paths and facts from those files."
   },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/findings.md",
+      "min_bytes": 40,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["main\\.go", "core/sample", "minimal"],
+        "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module", "security vulnerabilities identified"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 20},
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},

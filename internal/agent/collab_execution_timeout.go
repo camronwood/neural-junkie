@@ -4,20 +4,44 @@ import (
 	"context"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-// collabGenerationContext applies a deadline for collaboration task generation when requested.
+const (
+	defaultCollabRecapTimeoutSeconds      = 240
+	defaultCollabDiscussionTimeoutSeconds = 480
+)
+
+// collabGenerationContext applies a deadline for collaboration turns (tasks, recap, discussion).
 func collabGenerationContext(ctx context.Context, msg *protocol.Message) (context.Context, context.CancelFunc) {
 	cancel := context.CancelFunc(func() {})
-	if msg == nil || msg.Type != protocol.MessageTypeCollabTask {
+	if msg == nil {
 		return ctx, cancel
 	}
-	sec := executionTimeoutFromMetadata(msg.Metadata)
+	sec := collabGenerationTimeoutSeconds(msg)
 	if sec <= 0 {
 		return ctx, cancel
 	}
 	return context.WithTimeout(ctx, time.Duration(sec)*time.Second)
+}
+
+func collabGenerationTimeoutSeconds(msg *protocol.Message) int {
+	switch msg.Type {
+	case protocol.MessageTypeCollabTask:
+		if sec := executionTimeoutFromMetadata(msg.Metadata); sec > 0 {
+			return sec
+		}
+		return collaboration.DefaultCollabFileExecutionTimeoutSeconds
+	case protocol.MessageTypeCollabRecap:
+		return defaultCollabRecapTimeoutSeconds
+	case protocol.MessageTypeCollabDiscussion:
+		switch msg.GetCollaborationPhase() {
+		case "planning", "reviewing", "executing":
+			return defaultCollabDiscussionTimeoutSeconds
+		}
+	}
+	return 0
 }
 
 func executionTimeoutFromMetadata(md map[string]interface{}) int {

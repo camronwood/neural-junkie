@@ -71,6 +71,9 @@ type Agent struct {
 	delegationMu            sync.Mutex
 	lastDelegationConsulted []string
 
+	// routingSnap records provider/model used for the current turn (observability metadata).
+	routingSnap routingSnapshotHolder
+
 	// cadWrittenPaths tracks workspace-relative .scad paths written during the current turn.
 	cadWrittenMu    sync.Mutex
 	cadWrittenPaths []string

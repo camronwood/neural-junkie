@@ -106,6 +106,8 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 
 	// Log that we're processing this message
+	a.resetRoutingSnapshot()
+
 	log.Printf("[%s] ⬇️ RECEIVED msg ID %s from %s (mentions: %v)", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Mentions)
 	log.Printf("[%s] ✅ MARKED msg %s as responded", a.Info.Name, msg.ID[:8])
 
@@ -136,10 +138,15 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
+	if msg.Type != protocol.MessageTypeCollabTask && !shouldRunImplementationSession(a, msg) {
+		a.RecordRoutingFromProvider(eff, "default_agent_provider", "rules")
+	}
 
 	var implSessionProposed bool
 	var implSessionFiles []string
-	if shouldRunImplementationSession(a, msg) {
+	if resp, ok := a.tryImplementationStatusCheckShortcut(msg); ok {
+		response = resp
+	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 			streamMsgID = uuid.New().String()
@@ -181,9 +188,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if implSessionProposed {
 		proposedFileChange = true
 	} else if !shouldRunImplementationSession(a, msg) {
-		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
-		if !proposedFileChange && proposalErr == nil {
-			response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
+		if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
+			response = sanitizeAskModeResponse(response)
+		} else {
+			response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
+			if !proposedFileChange && proposalErr == nil {
+				response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
+			}
 		}
 	}
 	if proposalErr != nil {
@@ -312,6 +323,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 
 	ApplyCollaborationTaskMetadataOnReply(responseMsg, msg, response)
+	a.ApplyRoutingMetadataToResponse(responseMsg)
 
 	// Detect commands in the response and add them to metadata
 	commandDetector := protocol.NewCommandDetector(nil)
@@ -704,6 +716,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	// Only respond to human messages when not explicitly mentioned
 	if isFromAgent {
 		return false
+	}
+
+	if userRequestsImplementationStatusCheck(msg.Content) &&
+		channelHasRecentImplementationActivity(a.channelHistory(msg.Channel), msg.ID, a.Info.ID) {
+		log.Printf("[%s] ✅ IMPLEMENTATION STATUS CHECK — will respond", a.Info.Name)
+		return true
 	}
 
 	// Always respond if mentioned by name in the content

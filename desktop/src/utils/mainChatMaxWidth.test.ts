@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import {
   MAIN_CHAT_MIN_WIDTH,
   mainChatMaxWidth,
+  measureMainChatMaxWidth,
   reservedWidthForPanels,
+  reservedWidthForRightPanels,
   type MainChatPanelVisibility,
 } from './mainChatMaxWidth';
 
@@ -44,6 +46,21 @@ describe('reservedWidthForPanels', () => {
   });
 });
 
+describe('reservedWidthForRightPanels', () => {
+  it('only reserves panels to the right of chat', () => {
+    expect(
+      reservedWidthForRightPanels({
+        channelSidebarOpen: true,
+        fileExplorerOpen: true,
+        fileExplorerEmbedded: true,
+        threadOpen: true,
+        collaborationOpen: true,
+        taskManagementOpen: false,
+      }),
+    ).toBe(220 + 240);
+  });
+});
+
 describe('mainChatMaxWidth', () => {
   it('allows chat to use nearly full container when no chrome is visible', () => {
     expect(mainChatMaxWidth(2000, none)).toBe(2000);
@@ -57,5 +74,45 @@ describe('mainChatMaxWidth', () => {
 
   it('clamps to min width on tiny containers', () => {
     expect(mainChatMaxWidth(300, { ...none, channelSidebarOpen: true })).toBe(MAIN_CHAT_MIN_WIDTH);
+  });
+});
+
+describe('measureMainChatMaxWidth', () => {
+  let container: HTMLDivElement;
+  let sidebar: HTMLDivElement;
+  let workspace: HTMLDivElement;
+  let chat: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    sidebar = document.createElement('div');
+    workspace = document.createElement('div');
+    chat = document.createElement('div');
+
+    Object.defineProperty(container, 'clientWidth', { value: 1600, configurable: true });
+    Object.defineProperty(sidebar, 'offsetWidth', { value: 220, configurable: true });
+    Object.defineProperty(workspace, 'offsetWidth', { value: 400, configurable: true });
+    Object.defineProperty(chat, 'offsetWidth', { value: 420, configurable: true });
+
+    workspace.style.flexGrow = '1';
+    container.append(sidebar, workspace, chat);
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    container.remove();
+  });
+
+  it('uses measured left panel widths and skips flex-grow workspace', () => {
+    expect(measureMainChatMaxWidth(container, chat, none)).toBe(1600 - 220);
+  });
+
+  it('reserves compact mins for right-side panels', () => {
+    expect(
+      measureMainChatMaxWidth(container, chat, {
+        ...none,
+        threadOpen: true,
+      }),
+    ).toBe(1600 - 220 - 220);
   });
 });

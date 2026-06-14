@@ -45,7 +45,7 @@ func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
 		},
 		Hub: hub,
 	}
-	tools := a.agentToolDefinitions()
+	tools := a.agentToolDefinitions(nil)
 	if len(tools) != 1 || tools[0].Name != generateImageToolName {
 		t.Fatalf("expected generate_image tool, got %+v", tools)
 	}
@@ -77,7 +77,7 @@ func TestImageGenerationToolsDisabledWithoutFlag(t *testing.T) {
 		Info: protocol.AgentInfo{Name: "Backend", Type: protocol.AgentTypeBackend},
 		Hub:  hub,
 	}
-	if len(a.agentToolDefinitions()) != 0 {
+	if len(a.agentToolDefinitions(nil)) != 0 {
 		t.Fatalf("backend agent should not get image tools")
 	}
 }

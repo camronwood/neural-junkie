@@ -2,35 +2,13 @@ package slack
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	slackapi "github.com/slack-go/slack"
 )
-
-var slackRetryAfterRE = regexp.MustCompile(`(?i)retry after (\d+)`)
-
-func slackRateLimitBackoff(err error) (time.Duration, bool) {
-	if err == nil {
-		return 0, false
-	}
-	var rateErr *slackapi.RateLimitedError
-	if errors.As(err, &rateErr) && rateErr.RetryAfter > 0 {
-		return rateErr.RetryAfter, true
-	}
-	msg := err.Error()
-	if m := slackRetryAfterRE.FindStringSubmatch(msg); len(m) == 2 {
-		if sec, convErr := strconv.Atoi(m[1]); convErr == nil && sec > 0 {
-			return time.Duration(sec) * time.Second, true
-		}
-	}
-	return 0, false
-}
 
 func (b *Bridge) runHumanDMPoll(ctx context.Context) {
 	var lastPoll time.Time
@@ -260,25 +238,8 @@ func (b *Bridge) pollHumanDMChannel(ctx context.Context, client *slackapi.Client
 
 	if oldest == "" {
 		cursors[channelID] = hist.Messages[0].Timestamp
-		// Seed cursor but still handle the newest peer line so a message sent just
-		// before/after restart is not dropped.
-		for i := 0; i < len(hist.Messages); i++ {
-			m := hist.Messages[i]
-			if !shouldProcessHumanDMMessage(m, inbox.OwnerSlackUserID, b.botUserID) {
-				continue
-			}
-			in := InboundInput{
-				WorkspaceID: b.teamID,
-				ChannelID:   channelID,
-				UserID:      m.User,
-				Text:        m.Text,
-				SlackTS:     m.Timestamp,
-				ThreadTS:    m.ThreadTimestamp,
-				BotID:       m.BotID,
-				Subtype:     m.SubType,
-			}
-			b.processHumanDMInbound(ctx, in, inbox)
-			break
+		if InboundDebugEnabled() {
+			log.Printf("[slack] human_dm poll seeded %s at ts=%s (only new peer messages forwarded)", channelID, hist.Messages[0].Timestamp)
 		}
 		return
 	}

@@ -7,6 +7,17 @@
   "target_agent": "BackendEngineer",
   "required_agents": ["BackendEngineer"],
   "workspace": { "fixture": "minimal-repo" },
+  "expect_deliverables": [
+    {
+      "path": "core/sample/main.go",
+      "for_question": {
+        "contains_all": ["PrintVersion"],
+        "any_match": ["func PrintVersion", "PrintVersion\\("],
+        "none_match": ["index\\.js"]
+      },
+      "llm_judge": true
+    }
+  ],
   "setup": [
     {
       "action": "send",

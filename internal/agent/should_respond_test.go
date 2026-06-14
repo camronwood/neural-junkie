@@ -438,3 +438,43 @@ func TestShouldRespond_CollaborationAgentMentionInPlanDoesNotStealTurn(t *testin
 		t.Fatal("PlatformEngineer must not respond to @mention in another agent's planning prose when it is not their turn")
 	}
 }
+
+func TestShouldRespond_implementationStatusCheckPublicChannel(t *testing.T) {
+	t.Parallel()
+	ch := "implement-scenarios"
+	hubStub := shouldRespondTestHub{}
+	sa := NewAgent(protocol.AgentTypeArchitecture, "SoftwareArchitect", []string{"design"}, ai.NewMockProvider(), hubStub)
+	sa.Info.ID = "sa-1"
+	be := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{"api"}, ai.NewMockProvider(), hubStub)
+	be.Info.ID = "be-1"
+	sa.replaceChannelHistory(ch, []*protocol.Message{
+		{
+			ID:      "u1",
+			Channel: ch,
+			Type:    protocol.MessageTypeQuestion,
+			From:    protocol.AgentInfo{ID: "u0", Name: "User"},
+			Content: "the app is not booting can you fix it?",
+		},
+		{
+			ID:      "a1",
+			Channel: ch,
+			Type:    protocol.MessageTypeChat,
+			From:    sa.Info,
+			Content: "Implementation session complete — proposals submitted for approval (changes to: src/App.js).",
+		},
+	})
+	be.replaceChannelHistory(ch, sa.channelHistory(ch))
+
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, ch, protocol.AgentInfo{ID: "u2", Name: "User"}, "is it fixed?")
+	msg.Metadata = map[string]interface{}{
+		MetadataConversationMode: ConversationModeChat,
+		"editor_mode":            "agent",
+	}
+
+	if !sa.shouldRespond(msg) {
+		t.Fatal("SoftwareArchitect should respond to status check after its implementation session")
+	}
+	if be.shouldRespond(msg) {
+		t.Fatal("BackendEngineer should not respond when it did not run the implementation session")
+	}
+}

@@ -3,10 +3,14 @@ import type { Message as MessageType, CommandOutput as CommandOutputType, Messag
 import {
   getAgentColor,
   getReasoningText,
+  getRoutingMeta,
+  formatRoutingBadgeLabel,
+  formatRoutingTooltip,
   getToolSteps,
   isSystemMessage,
   isCollaborationMessage,
 } from '../types/protocol';
+import { useSettingsStore } from '../stores/settingsStore';
 import { MessageContent } from './MessageContent';
 import { CommandOutput } from './CommandOutput';
 import { DesignOutput } from './DesignOutput';
@@ -217,6 +221,14 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const senderName = slackSenderDisplayName(message);
   const sharedContextBadge = workspaceContextBadge(message.metadata as Record<string, unknown> | undefined);
   const imageAttached = hasUserImages(message.metadata as Record<string, unknown> | undefined);
+  const showRoutingOnMessages = useSettingsStore(
+    (s) => s.layoutSettings.showRoutingOnMessages !== false,
+  );
+  const routingMeta = getRoutingMeta(message.metadata as Record<string, unknown> | undefined);
+  const routingBadgeLabel =
+    showRoutingOnMessages && routingMeta ? formatRoutingBadgeLabel(routingMeta) : '';
+  const routingTooltip =
+    showRoutingOnMessages && routingMeta ? formatRoutingTooltip(routingMeta) : '';
 
   // Parse command output from metadata if present
   let commandOutput: CommandOutputType | null = null;
@@ -357,6 +369,14 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             title="This message included image pixels as an attachment."
           >
             image attached
+          </span>
+        )}
+        {routingBadgeLabel && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-mono"
+            title={routingTooltip || routingBadgeLabel}
+          >
+            {routingBadgeLabel}
           </span>
         )}
         {sharedContextBadge && (

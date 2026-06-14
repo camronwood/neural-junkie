@@ -8,14 +8,8 @@ import (
 )
 
 func TestImportAnalysisIntegration(t *testing.T) {
-	authPath := os.Getenv("PHOENIX_AUTH_CONFIG_PATH")
-	if authPath == "" {
-		authPath = "/Users/camronwood/development/phoenix-tim-test-suite/.phoenix-customer-cli-creds"
-	}
-	if _, err := os.Stat(authPath); err != nil {
-		t.Skip("auth config not available")
-	}
-	settings := Settings{Environment: "dev", AuthConfigPath: authPath}
+	settings := phoenixIntegrationSettings(t)
+	requirePhoenixAuthenticated(t, settings)
 	items, err := ListAnalyses(context.Background(), settings, 1)
 	if err != nil {
 		t.Fatal(err)

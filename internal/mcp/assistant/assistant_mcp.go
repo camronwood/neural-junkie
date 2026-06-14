@@ -6,6 +6,7 @@ import (
 
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
+	webmcp "github.com/camronwood/neural-junkie/internal/mcp/web"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -37,4 +38,9 @@ func (a *AssistantMCP) Start() error {
 // using the agent's current WorkspacePath as root.
 func (a *AssistantMCP) AttachWorkspaceTools(root workspace.RootResolver) {
 	workspace.AttachTools(a.mcpServer, root)
+}
+
+// AttachWebTools registers web_search and fetch_url (requires hub web search config).
+func (a *AssistantMCP) AttachWebTools() {
+	webmcp.AttachTools(a.mcpServer)
 }

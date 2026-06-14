@@ -118,9 +118,7 @@ func (w *tools) workspaceRoot() (string, error) {
 }
 
 func (w *tools) resolveRel(root, rel string) (string, error) {
-	rel = strings.TrimPrefix(strings.TrimSpace(rel), "/")
-	full := filepath.Join(root, filepath.FromSlash(rel))
-	return pathutil.WithinRoot(root, full)
+	return pathutil.ResolveRelWithinRoot(root, rel)
 }
 
 func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {

@@ -980,16 +980,11 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     <div 
       className={
         embedded
-          ? 'border-r border-slack-border bg-slack-bg flex flex-col h-full min-w-[200px] relative'
+          ? 'border-r border-slack-border bg-slack-bg flex flex-col h-full relative'
           : 'border-r border-slack-border bg-slack-bg flex flex-col h-full relative animate-slide-in-left'
       }
-      style={
-        embedded
-          ? { flex: '1 1 280px', minWidth: MIN_WIDTH, maxWidth: 600 }
-          : shrinkablePanelStyle(width, COMPACT_MIN_WIDTH)
-      }
+      style={shrinkablePanelStyle(width, embedded ? MIN_WIDTH : COMPACT_MIN_WIDTH)}
     >
-        {!embedded && (
         <div
           className="absolute right-0 top-0 bottom-0 cursor-col-resize z-[100] group"
           onMouseDown={handleResizeStart}
@@ -1003,7 +998,6 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           <div className="absolute inset-0 bg-transparent group-hover:bg-blue-500/30 transition-colors" />
           <div className="absolute right-1/2 top-1/2 -translate-y-1/2 translate-x-1/2 w-1 h-8 bg-gray-400 group-hover:bg-blue-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
-        )}
       
       {/* Header */}
       <div className="px-4 py-3 border-b border-slack-border flex items-center justify-between bg-slack-bgHover">

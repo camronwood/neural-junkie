@@ -30,6 +30,12 @@ func TestIsMissingScopeErr(t *testing.T) {
 	}
 }
 
+func TestIsChannelNotFoundErr(t *testing.T) {
+	if !isChannelNotFoundErr(errString("channel_not_found")) {
+		t.Fatal("expected channel_not_found")
+	}
+}
+
 type errString string
 
 func (e errString) Error() string { return string(e) }

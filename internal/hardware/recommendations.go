@@ -23,12 +23,23 @@ type TrackRecommendation struct {
 	Message      string `json:"message"`
 }
 
+// RecommendedStack is a full inference + optional LoRA composition for a RAM tier.
+type RecommendedStack struct {
+	Tier            Tier     `json:"tier"`
+	InferenceModels []string `json:"inference_models"`
+	LoRABases       []string `json:"lora_bases,omitempty"`
+	ComposedTags    []string `json:"composed_tags,omitempty"`
+	DiskEstimateGB  int      `json:"disk_estimate_gb"`
+	Notes           string   `json:"notes,omitempty"`
+}
+
 // Snapshot is the full hardware assessment returned by the hub API.
 type Snapshot struct {
-	TotalMemoryBytes uint64                         `json:"total_memory_bytes"`
-	TotalMemoryGB    int                            `json:"total_memory_gb"`
-	Tier             Tier                           `json:"tier"`
-	Recommendations  map[string]TrackRecommendation `json:"recommendations"`
+	TotalMemoryBytes  uint64                         `json:"total_memory_bytes"`
+	TotalMemoryGB     int                            `json:"total_memory_gb"`
+	Tier              Tier                           `json:"tier"`
+	Recommendations   map[string]TrackRecommendation `json:"recommendations"`
+	RecommendedStacks []RecommendedStack             `json:"recommended_stacks,omitempty"`
 }
 
 // TierForMemoryGB maps installed RAM to a tier (whole GB, floor from bytes).
@@ -54,11 +65,52 @@ func BuildSnapshot() (Snapshot, error) {
 	gb := MemoryGB(totalBytes)
 	tier := TierForMemoryGB(gb)
 	return Snapshot{
-		TotalMemoryBytes: totalBytes,
-		TotalMemoryGB:    gb,
-		Tier:             tier,
-		Recommendations:  RecommendationsForTier(tier, gb),
+		TotalMemoryBytes:  totalBytes,
+		TotalMemoryGB:     gb,
+		Tier:              tier,
+		Recommendations:   RecommendationsForTier(tier, gb),
+		RecommendedStacks: RecommendedStacksForTier(tier),
 	}, nil
+}
+
+// RecommendedStacksForTier returns modular-AI stack compositions per RAM tier.
+func RecommendedStacksForTier(tier Tier) []RecommendedStack {
+	switch tier {
+	case TierMinimal:
+		return []RecommendedStack{{
+			Tier:            TierMinimal,
+			InferenceModels: []string{"qwen3.5:9b"},
+			DiskEstimateGB:  10,
+			Notes:           "Cloud hybrid recommended for collab and repo-heavy work.",
+		}}
+	case TierLight:
+		return []RecommendedStack{{
+			Tier:            TierLight,
+			InferenceModels: []string{"qwen3.5:9b"},
+			LoRABases:       []string{"llama3:8b"},
+			ComposedTags:    []string{"nj-security:14b"},
+			DiskEstimateGB:  15,
+			Notes:           "Single utility model for chat + tools; one LoRA base optional.",
+		}}
+	case TierHeavy:
+		return []RecommendedStack{{
+			Tier:            TierHeavy,
+			InferenceModels: []string{"qwen3.5:27b", "qwen3.5:9b", config.BioOllamaChatModel},
+			LoRABases:       []string{"llama3.1:8b", "llama3:8b", "llama3.2:3b", "mistral:7b"},
+			ComposedTags:    []string{"nj-security:14b", "nj-code-review:14b", "nj-backend:14b", "nj-biology:8b"},
+			DiskEstimateGB:  50,
+			Notes:           "Full specialist-tuning bootstrap; optional nj-bio:8b and nj-cad:27b HF imports.",
+		}}
+	default:
+		return []RecommendedStack{{
+			Tier:            TierRecommended,
+			InferenceModels: []string{"qwen3.5:27b", "qwen3.5:9b"},
+			LoRABases:       []string{"llama3.1:8b", "llama3:8b", "mistral:7b"},
+			ComposedTags:    []string{"nj-security:14b", "nj-code-review:14b", "nj-backend:14b", "nj-biology:8b"},
+			DiskEstimateGB:  35,
+			Notes:           "Qwen inference tier + Llama/Mistral LoRA compose bases.",
+		}}
+	}
 }
 
 // RecommendationsForTier returns wizard-track model picks for a tier.

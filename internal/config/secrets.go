@@ -148,6 +148,10 @@ func (c *Config) EncryptSecretsBeforeSave() error {
 	if err != nil {
 		return err
 	}
+	c.WebSearch.APIKey, err = encryptString(c.WebSearch.APIKey, key)
+	if err != nil {
+		return err
+	}
 	c.HF.Token, err = encryptString(c.HF.Token, key)
 	if err != nil {
 		return err
@@ -184,6 +188,7 @@ func (c *Config) DecryptSecretsAfterLoad() error {
 	c.Slack.AppToken = dec(c.Slack.AppToken)
 	c.Slack.BotToken = dec(c.Slack.BotToken)
 	c.Slack.ClientSecret = dec(c.Slack.ClientSecret)
+	c.WebSearch.APIKey = dec(c.WebSearch.APIKey)
 	c.HF.Token = dec(c.HF.Token)
 	for i := range c.AI.Providers {
 		c.AI.Providers[i].APIKey = dec(c.AI.Providers[i].APIKey)

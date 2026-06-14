@@ -6,7 +6,7 @@ Neural Junkie composes **Ollama model tags** from a LoRA-compatible base plus a 
 
 | Tier | Default model | Purpose |
 |------|---------------|---------|
-| **Inference** | `qwen2.5-coder:14b` | Day-to-day specialist chat, tools, implementation (Software development pack) |
+| **Inference** | `qwen3.5:9b` / `qwen3.5:27b` | Day-to-day specialist chat, tools, implementation (Software development pack) |
 | **LoRA compose / train** | `llama3.1:8b` | Download community adapters, train repo experts, `ollama create` composed tags |
 
 Ollama safetensors `ADAPTER` supports **Llama, Mistral, Gemma** — not Qwen. Qwen remains the recommended inference model; LoRA bootstrap and training use Llama/Mistral bases. Assign composed tags (`nj-security:14b`, etc.) when you want domain-tuned weights.
@@ -17,7 +17,7 @@ See also [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) for th
 
 | Piece | Example | Role |
 |-------|---------|------|
-| **Inference base** | `qwen2.5-coder:14b` | Default specialist model (optional override with composed tag) |
+| **Inference base** | `qwen3.5:9b` | Default specialist model (optional override with composed tag) |
 | **LoRA base** | `llama3.1:8b` | Full weights for compose/train; must exist before compose |
 | **Adapter** | `adapter_model.safetensors` | Small HF LoRA delta (~ tens of MB) |
 | **Composed tag** | `nj-security:14b` | `ollama create` result used at inference time |

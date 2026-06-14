@@ -13,7 +13,7 @@ import (
 
 // AgentToolDefinitionsForConsult exposes MCP tools for hub delegation consults.
 func (a *Agent) AgentToolDefinitionsForConsult() []ai.ClaudeToolDefinition {
-	return a.agentToolDefinitions()
+	return a.agentToolDefinitions(nil)
 }
 
 // GenerateConsultResponse runs an internal consult without broadcasting to the channel.
@@ -40,7 +40,7 @@ func (a *Agent) GenerateConsultResponse(ctx context.Context, subQuestion string,
 		msg.Channel = "delegation-internal"
 	}
 	approvalCtx := ai.WithToolApprovalChannel(ctx, channel)
-	if intent == delegation.IntentDomainTools && len(a.agentToolDefinitions()) > 0 {
+	if intent == delegation.IntentDomainTools && len(a.agentToolDefinitions(msg)) > 0 {
 		return a.generateWithAgentTools(approvalCtx, msg, prompt, nil, eff)
 	}
 	return eff.GenerateResponse(approvalCtx, prompt, nil)

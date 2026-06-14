@@ -1,8 +1,8 @@
 package collaboration
 
 const (
-	DefaultCollabExecutionTimeoutSeconds     = 120
-	DefaultCollabFileExecutionTimeoutSeconds = 180
+	DefaultCollabExecutionTimeoutSeconds     = 180
+	DefaultCollabFileExecutionTimeoutSeconds = 300
 )
 
 // ExecutionTimeoutSeconds returns the generation deadline for a collaboration task.

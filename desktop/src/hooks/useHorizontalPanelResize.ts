@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
 type ResizeEdge = 'left' | 'right';
 
@@ -11,6 +11,10 @@ interface UseHorizontalPanelResizeOptions {
   getMaxWidth?: () => number;
   /** Handle on left edge (panel on right) or right edge (panel on left). */
   edge: ResizeEdge;
+  /** Observe container size changes and reclamp saved width (e.g. flex row). */
+  containerRef?: RefObject<HTMLElement | null>;
+  /** When this value changes, reclamp width (e.g. panel visibility toggles). */
+  reclampKey?: string;
 }
 
 function resolveMaxWidth(maxWidthRatio: number, getMaxWidth?: () => number): number {
@@ -21,6 +25,10 @@ function resolveMaxWidth(maxWidthRatio: number, getMaxWidth?: () => number): num
   return window.innerWidth * maxWidthRatio;
 }
 
+function clampWidth(width: number, minWidth: number, max: number): number {
+  return Math.min(max, Math.max(minWidth, width));
+}
+
 export function useHorizontalPanelResize({
   storageKey,
   defaultWidth,
@@ -28,6 +36,8 @@ export function useHorizontalPanelResize({
   maxWidthRatio = 0.65,
   getMaxWidth,
   edge,
+  containerRef,
+  reclampKey,
 }: UseHorizontalPanelResizeOptions) {
   const getMaxWidthRef = useRef(getMaxWidth);
   getMaxWidthRef.current = getMaxWidth;
@@ -49,6 +59,34 @@ export function useHorizontalPanelResize({
     currentWidthRef.current = width;
   }, [width]);
 
+  const reclamp = useCallback(() => {
+    if (isResizing) return;
+    const max = resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current);
+    const next = clampWidth(currentWidthRef.current, minWidth, max);
+    if (next === currentWidthRef.current) return;
+    currentWidthRef.current = next;
+    setWidth(next);
+    localStorage.setItem(storageKey, String(next));
+  }, [isResizing, minWidth, maxWidthRatio, storageKey]);
+
+  useEffect(() => {
+    const onWindowResize = () => reclamp();
+    window.addEventListener('resize', onWindowResize);
+    return () => window.removeEventListener('resize', onWindowResize);
+  }, [reclamp]);
+
+  useEffect(() => {
+    const el = containerRef?.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => reclamp());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [containerRef, reclamp]);
+
+  useEffect(() => {
+    reclamp();
+  }, [reclampKey, reclamp]);
+
   useEffect(() => {
     if (!isResizing) return;
 
@@ -58,7 +96,7 @@ export function useHorizontalPanelResize({
           ? resizeStartX.current - e.clientX
           : e.clientX - resizeStartX.current;
       const max = resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current);
-      const next = Math.min(max, Math.max(minWidth, resizeStartWidth.current + delta));
+      const next = clampWidth(resizeStartWidth.current + delta, minWidth, max);
       setWidth(next);
     };
 

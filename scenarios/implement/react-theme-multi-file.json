@@ -7,6 +7,24 @@
   "target_agent": "FrontendEngineer",
   "required_agents": ["FrontendEngineer"],
   "workspace": { "fixture": "react-tailwind-minimal" },
+  "expect_deliverables": [
+    {
+      "path": "tailwind.config.js",
+      "for_question": {
+        "contains_all": ["darkMode"],
+        "none_match": ["\\.vue", "ThemeToggle\\.vue"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "src/App.tsx",
+      "for_question": {
+        "any_match": ["toggleTheme|setTheme|useState.*theme|dark|light"],
+        "none_match": ["\\.vue", "ThemeToggle\\.vue"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {
       "action": "send",

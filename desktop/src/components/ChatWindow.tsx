@@ -133,6 +133,7 @@ import { isIdeLayout, layoutPresetLabel, panelsForPreset } from '../utils/layout
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import {
   mainChatMaxWidth,
+  measureMainChatMaxWidth,
   type MainChatPanelVisibility,
 } from '../utils/mainChatMaxWidth';
 import { useHorizontalPanelResize } from '../hooks/useHorizontalPanelResize';
@@ -238,6 +239,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const chatPanelRef = useRef<HTMLDivElement>(null);
+  const [mainChatReclampKey, setMainChatReclampKey] = useState('');
   const mainChatVisibilityRef = useRef<MainChatPanelVisibility>({
     channelSidebarOpen: false,
     fileExplorerOpen: false,
@@ -251,9 +254,15 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     defaultWidth: 420,
     minWidth: 260,
     maxWidthRatio: 0.9,
+    containerRef: mainContentRef,
+    reclampKey: mainChatReclampKey,
     getMaxWidth: () => {
-      const el = mainContentRef.current;
-      const containerWidth = el?.clientWidth ?? window.innerWidth * 0.9;
+      const container = mainContentRef.current;
+      const chatEl = chatPanelRef.current;
+      if (container && chatEl) {
+        return measureMainChatMaxWidth(container, chatEl, mainChatVisibilityRef.current);
+      }
+      const containerWidth = container?.clientWidth ?? window.innerWidth * 0.9;
       return mainChatMaxWidth(containerWidth, mainChatVisibilityRef.current);
     },
     edge: 'left',
@@ -945,6 +954,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       collaborationOpen: !!panelCollaboration,
       taskManagementOpen,
     };
+    setMainChatReclampKey(
+      [
+        channelSidebarOpen,
+        fileExplorerOpen,
+        ideLayout,
+        openThreadId,
+        panelCollaboration?.id,
+        taskManagementOpen,
+      ].join(':')
+    );
   }, [
     channelSidebarOpen,
     fileExplorerOpen,
@@ -2504,6 +2523,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         {/* Main Chat Area */}
         {chatPanelVisible && (
         <div
+          ref={chatPanelRef}
           className={
             chatResizable
               ? 'flex flex-col h-full min-h-0 relative border-l border-slack-border'

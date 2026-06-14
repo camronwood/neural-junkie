@@ -223,7 +223,7 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 			continue
 		}
 		if extracted := ExtractPlanFromResponse(body); extracted != "" {
-			if ok, _ := ValidatePlanContent(extracted, c.Agents); ok {
+			if ok, _ := ValidatePlanForCollaboration(c, extracted); ok {
 				planContent = extracted
 				break
 			}
@@ -231,7 +231,7 @@ func SynthesizePlanFromDiscussion(c *Collaboration) (planContent string, tasks [
 	}
 	if planContent == "" {
 		if merged := mergeTaskLinesFromDiscussion(disc, c.Agents); merged != "" {
-			if ok, _ := ValidatePlanContent(merged, c.Agents); ok {
+			if ok, _ := ValidatePlanForCollaboration(c, merged); ok {
 				planContent = merged
 			}
 		}

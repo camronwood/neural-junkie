@@ -1118,6 +1118,37 @@ fn wait_for_ollama_health(timeout: std::time::Duration) -> bool {
     false
 }
 
+fn wait_for_ollama_stopped(timeout: std::time::Duration) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if !is_ollama_healthy() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    false
+}
+
+/// Stop any process listening on port (e.g. orphaned `ollama serve` not tracked by Tauri).
+fn kill_listeners_on_port(port: u16) {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        let port_arg = format!(":{}", port);
+        if let Ok(out) = Command::new("lsof").args(["-ti", &port_arg]).output() {
+            for pid in String::from_utf8_lossy(&out.stdout).split_whitespace() {
+                let _ = Command::new("kill").arg(pid).status();
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                let _ = Command::new("kill").args(["-9", pid]).status();
+            }
+        }
+    }
+}
+
+fn stop_all_ollama_on_port() {
+    kill_listeners_on_port(11434);
+    let _ = wait_for_ollama_stopped(std::time::Duration::from_secs(8));
+}
+
 fn bundled_ollama_version(binary: &std::path::Path) -> Option<String> {
     Command::new(binary)
         .arg("--version")
@@ -1147,6 +1178,11 @@ fn spawn_bundled_ollama(
             binary.display()
         );
         return None;
+    }
+
+    if is_ollama_healthy() {
+        eprintln!("Ollama already running at http://127.0.0.1:11434");
+        return Some(binary);
     }
 
     let models_dir = ollama_models_dir(app);
@@ -1353,6 +1389,15 @@ fn restart_bundled_ollama(
 ) -> Result<(), String> {
     stop_bundled_ollama_child(ollama_state.inner());
     std::thread::sleep(std::time::Duration::from_millis(400));
+    if is_ollama_healthy() {
+        stop_all_ollama_on_port();
+    }
+    if is_ollama_healthy() {
+        return Err(
+            "Ollama is still running on port 11434 (stop `ollama serve` or quit other NJ instances, then retry)"
+                .into(),
+        );
+    }
     let state = ollama_state.inner().clone();
     spawn_bundled_ollama(&app, &state)
         .ok_or_else(|| "Bundled Ollama runtime is not available in this build".to_string())?;
@@ -1456,7 +1501,13 @@ fn main() {
                     return;
                 }
 
-                let bundled_ollama = spawn_bundled_ollama(&app_handle, &ollama_state);
+                let bundled_ollama = if is_ollama_healthy() {
+                    bundled_ollama_runtime_dir(&app_handle)
+                        .map(|dir| bundled_ollama_binary(&dir))
+                        .filter(|bin| bin.exists())
+                } else {
+                    spawn_bundled_ollama(&app_handle, &ollama_state)
+                };
 
                 match spawn_sidecar(&app_handle, bundled_ollama.as_ref()) {
                     Ok(child) => {

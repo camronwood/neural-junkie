@@ -29,8 +29,8 @@ func TestResolveSkipsSelfAndLowerScores(t *testing.T) {
 	}
 }
 
-func TestLooksBioTools(t *testing.T) {
-	if !looksBioTools("please fold_protein on this peptide") {
+func TestClassifyForAgentBioTools(t *testing.T) {
+	if ClassifyForAgent(protocol.AgentTypeBiology, "please fold_protein on this peptide") != IntentDomainTools {
 		t.Fatal("expected bio tools intent")
 	}
 }

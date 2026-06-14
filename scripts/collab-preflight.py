@@ -24,8 +24,8 @@ DEFAULT_ROSTER = [
     "SoftwareArchitect",
     "PlatformEngineer",
 ]
-GEMINI_SCENARIOS = ("resource-api-schema-planning",)
-EXPECTED_SCENARIO_COUNT = 21
+GEMINI_SCENARIOS = ("resource-api-schema-planning", "collaboration-station-website", "collaboration-station-website-sa", "make-me-a-website")
+EXPECTED_SCENARIO_COUNT = 24
 HUB_LOG = Path("/tmp/nj-hub.log")
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 
@@ -74,7 +74,7 @@ def load_expected_ollama_models() -> list[str]:
             if tag and tag not in models:
                 models.append(tag)
 
-    for default in ("qwen3.5:9b", "qwen3.5:27b"):
+    for default in ("qwen3.5:9b",):
         if default not in models:
             models.append(default)
     return models
@@ -135,6 +135,30 @@ def check_ollama(expected_models: list[str]) -> bool:
     return True
 
 
+def _deliverable_judge_agent() -> str | None:
+    if os.environ.get("NJ_DELIVERABLE_JUDGE_SKIP", "").strip().lower() in ("1", "true", "yes"):
+        return None
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    if provider == "ollama":
+        return None
+    agent = (os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT") or "").strip().lstrip("@")
+    if not agent:
+        agent = "Cursor" if provider == "cursor" else "Gemini"
+    return agent
+
+
+def check_deliverable_judge(base: str) -> bool:
+    agent = _deliverable_judge_agent()
+    if not agent:
+        return True
+    ok, missing = hub.verify_agents_online(base, [agent])
+    if not ok:
+        _fail(f"deliverable judge agent offline: {', '.join(missing)} (start hub with {agent} CLI on PATH)")
+        return False
+    _ok(f"deliverable judge agent online: {agent}")
+    return True
+
+
 def check_agents(base: str, *, require_gemini: bool) -> bool:
     ok, missing = hub.verify_agents_online(base, DEFAULT_ROSTER)
     if not ok:
@@ -190,6 +214,7 @@ def main() -> int:
         check_hub(base),
         check_ollama(load_expected_ollama_models()),
         check_agents(base, require_gemini=args.require_gemini),
+        check_deliverable_judge(base),
         check_scenario_list(),
     ]
     check_regression_log_hint()

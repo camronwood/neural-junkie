@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -36,6 +37,8 @@ type Bridge struct {
 	inboxOutboundCancel    context.CancelFunc
 	lastInboxEnsureKey     string
 	lastInboxOutboundKey   string
+	botRateLimitUntil      time.Time
+	inboxDMResolveUntil    time.Time
 	displayName            string
 	iconURL                string
 
@@ -437,7 +440,84 @@ func (b *Bridge) PostTestMessage(channelID, text string) error {
 		text = "Neural Junkie Slack bridge test."
 	}
 	_, err := b.PostRunbookMessage(channelID, text, "", "")
+	if err != nil {
+		b.noteBotRateLimit(err)
+	}
 	return err
+}
+
+// ValidateBindingChannel checks the bot can access a Slack channel; skips when rate limited.
+func (b *Bridge) ValidateBindingChannel(channelID string) error {
+	if b == nil || b.api == nil {
+		return fmt.Errorf("slack bridge not running")
+	}
+	if b.botRateLimited() {
+		log.Printf("[slack] binding validate skipped (rate limited): %s", channelID)
+		return nil
+	}
+	err := ValidateChannel(b.api, channelID)
+	if err != nil && isSlackRateLimited(err) {
+		b.noteBotRateLimit(err)
+		log.Printf("[slack] binding validate skipped (rate limited): %s", channelID)
+		return nil
+	}
+	if err == nil {
+		b.noteBotRateLimit(nil)
+	}
+	return err
+}
+
+func (b *Bridge) botRateLimited() bool {
+	if b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return time.Now().Before(b.botRateLimitUntil)
+}
+
+func (b *Bridge) noteBotRateLimit(err error) {
+	if b == nil || err == nil {
+		return
+	}
+	if wait, ok := slackRateLimitBackoff(err); ok {
+		b.mu.Lock()
+		until := time.Now().Add(wait)
+		if until.After(b.botRateLimitUntil) {
+			b.botRateLimitUntil = until
+		}
+		b.mu.Unlock()
+	}
+}
+
+func (b *Bridge) inboxResolveBackedOff() bool {
+	if b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return time.Now().Before(b.inboxDMResolveUntil)
+}
+
+func (b *Bridge) setInboxResolveBackoff(d time.Duration) {
+	if b == nil || d <= 0 {
+		return
+	}
+	b.mu.Lock()
+	until := time.Now().Add(d)
+	if until.After(b.inboxDMResolveUntil) {
+		b.inboxDMResolveUntil = until
+	}
+	b.mu.Unlock()
+}
+
+func (b *Bridge) clearInboxResolveBackoff() {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	b.inboxDMResolveUntil = time.Time{}
+	b.mu.Unlock()
 }
 
 // PostRunbookMessage sends a runbook action message to Slack and returns the message ts.

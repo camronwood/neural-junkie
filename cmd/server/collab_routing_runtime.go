@@ -7,8 +7,9 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
-	"github.com/camronwood/neural-junkie/internal/collaboration/routing"
+	collabrouting "github.com/camronwood/neural-junkie/internal/collaboration/routing"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
 type collabRoutingRuntime struct{}
@@ -46,12 +47,13 @@ func (collabRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider,
 		snap := appConfig.ListProvidersSnapshot()
 		defaultID := defaultProviderIDForAgentName(info.Name)
 		hasImages := len(protocol.ExtractUserImages(msg)) > 0 && info.SupportsVision
-		selID, reason := routing.SelectProviderID(routing.Input{
-			TaskText:          msg.Content,
+		dec := classifyTask(ctx, appConfig, msg.Content, string(info.Type), agentModelForName(info.Name), hasImages, loraTags)
+		selID, reason := routing.PickProviderID(routing.ProviderPickInput{
+			Decision:          dec,
 			HasUserImages:     hasImages,
 			Providers:         snap,
 			DefaultProviderID: defaultID,
-			AvailableLoRATags: loraTags,
+			InstalledTags:     loraTags,
 		})
 		if next, err := globalProviderCache.Get(appConfig, selID); err == nil {
 			p = next
@@ -67,17 +69,21 @@ func (collabRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider,
 
 func (collabRoutingRuntime) PlanTask(ctx context.Context, assignee protocol.AgentInfo, taskText string, overrides agent.TaskRoutingOverrides) agent.TaskRoutingPlan {
 	in := buildCollabPlanInput(ctx, assignee, taskText, overrides)
-	plan := routing.PlanTask(in)
+	plan := collabrouting.PlanTask(in)
 	model := plan.ExpectedModel(in.Providers)
+	dec := classifyTask(ctx, appConfig, taskText, string(assignee.Type), in.AgentModel, in.HasUserImages, in.InstalledLoRATags)
 	return agent.TaskRoutingPlan{
 		ProviderID: plan.ProviderID,
 		Model:      model,
 		Reason:     plan.RoutingReason(),
+		Source:     dec.Source,
+		Domain:     dec.Domain,
+		CostTier:   dec.CostTier,
 	}
 }
 
-func buildCollabPlanInput(ctx context.Context, assignee protocol.AgentInfo, taskText string, overrides agent.TaskRoutingOverrides) routing.PlanInput {
-	in := routing.PlanInput{
+func buildCollabPlanInput(ctx context.Context, assignee protocol.AgentInfo, taskText string, overrides agent.TaskRoutingOverrides) collabrouting.PlanInput {
+	in := collabrouting.PlanInput{
 		TaskText:               taskText,
 		AgentName:              assignee.Name,
 		AgentType:              string(assignee.Type),
@@ -118,7 +124,7 @@ func applyCollabModelOverrides(ctx context.Context, p ai.AIProvider, info protoc
 		}
 	}
 
-	plan := routing.PlanTask(buildCollabPlanInput(ctx, info, msg.Content, overrides))
+	plan := collabrouting.PlanTask(buildCollabPlanInput(ctx, info, msg.Content, overrides))
 	tag := strings.TrimSpace(plan.OllamaModel)
 	if plan.ModelReason == "deliverable_task_keep_agent_model" {
 		log.Printf("[collab-routing] %s: model=%s reason=deliverable_task_keep_agent_model (provider=%s)", info.Name, tag, providerReason)

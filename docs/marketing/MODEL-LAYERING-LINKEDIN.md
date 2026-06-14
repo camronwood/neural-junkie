@@ -288,6 +288,8 @@ Download: https://github.com/camronwood/neural-junkie/releases/latest
 
 If you run a multi-model setup and hit a routing edge case — wrong model on a collab task, delegation firing on small talk, LoRA compose failing — GitHub issues welcome. That feedback becomes the next scenario in the harness.
 
+**Next:** [Modular AI composition](MODULAR-AI-COMPOSITION-LINKEDIN.md) — unified router, pack compose templates, routing badges, and per-tier stacks.
+
 Camron Wood — Neural Junkie (personal project)
 
 ## PASTE END

@@ -45,7 +45,7 @@ func (a *Agent) imageGenerationToolsEnabled() bool {
 	return a.Info.SupportsImageGeneration && a.Hub != nil && a.Hub.ImageGenerationEnabled()
 }
 
-func (a *Agent) agentToolDefinitions() []ai.ClaudeToolDefinition {
+func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefinition {
 	var tools []ai.ClaudeToolDefinition
 	if a.imageGenerationToolsEnabled() {
 		tools = append(tools, generateImageToolDefinition())
@@ -53,7 +53,7 @@ func (a *Agent) agentToolDefinitions() []ai.ClaudeToolDefinition {
 	if a.MCPServer != nil {
 		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer))...)
 	}
-	if a.hasWorkspaceTools() {
+	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
 		tools = append(tools, proposeFileEditToolDefinition())
 	}
 	return tools
@@ -374,7 +374,7 @@ func (a *Agent) generateWithAgentTools(
 	eff ai.AIProvider,
 ) (string, error) {
 	histMsgs := historyToMessages(history)
-	tools := a.agentToolDefinitions()
+	tools := a.agentToolDefinitions(msg)
 	if len(tools) == 0 {
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
@@ -562,9 +562,9 @@ func tryParsePlaintextToolCallJSON(text string) (name string, input json.RawMess
 	return name, raw, true
 }
 
-func (a *Agent) agentToolNames() map[string]bool {
+func (a *Agent) agentToolNames(msg *protocol.Message) map[string]bool {
 	names := make(map[string]bool)
-	for _, td := range a.agentToolDefinitions() {
+	for _, td := range a.agentToolDefinitions(msg) {
 		names[td.Name] = true
 	}
 	return names
@@ -576,7 +576,7 @@ func (a *Agent) recoverPlaintextToolResponse(ctx context.Context, msg *protocol.
 	if !ok {
 		return "", false
 	}
-	tools := a.agentToolNames()
+	tools := a.agentToolNames(msg)
 	if !tools[name] {
 		return "", false
 	}

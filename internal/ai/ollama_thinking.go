@@ -40,7 +40,7 @@ func ollamaModelWantsThinking(model string) bool {
 
 func ollamaHTTPTimeout(model string) time.Duration {
 	if ollamaModelWantsThinking(model) {
-		return 300 * time.Second
+		return 360 * time.Second
 	}
 	m := strings.ToLower(strings.TrimSpace(model))
 	if strings.Contains(m, "qwen3.5:27b") ||
@@ -50,7 +50,24 @@ func ollamaHTTPTimeout(model string) time.Duration {
 		strings.Contains(m, ":122b") {
 		return 600 * time.Second
 	}
+	if ollamaModelNeedsCollabTimeout(m) {
+		return 360 * time.Second
+	}
 	return 120 * time.Second
+}
+
+// ollamaModelNeedsCollabTimeout reports models that routinely exceed 120s on collab planning/execution.
+func ollamaModelNeedsCollabTimeout(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	prefixes := []string{
+		"qwen3.5:", "qwen2.5-coder:", "gemma3:", "devstral:", "codestral:", "deepseek-coder:",
+	}
+	for _, p := range prefixes {
+		if strings.Contains(m, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func boolPtr(v bool) *bool {

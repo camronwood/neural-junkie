@@ -32,12 +32,21 @@ type Manifest struct {
 	LoRAAdapters    []LoRAAdapterSpec `yaml:"lora_adapters,omitempty"`
 }
 
+// AgentComposeSpec declares chat/tool/LoRA composition for a specialist.
+type AgentComposeSpec struct {
+	ChatModel       string   `yaml:"chat_model,omitempty"`
+	ToolModel       string   `yaml:"tool_model,omitempty"`
+	LoRATag         string   `yaml:"lora_tag,omitempty"`
+	ConsultTriggers []string `yaml:"consult_triggers,omitempty"`
+}
+
 // AgentSpec declares one in-process specialist from a pack.
 type AgentSpec struct {
-	Type           string `yaml:"type"`
-	Name           string `yaml:"name"`
-	Implementation string `yaml:"implementation"`
-	OllamaModel    string `yaml:"ollama_model,omitempty"`
+	Type           string            `yaml:"type"`
+	Name           string            `yaml:"name"`
+	Implementation string            `yaml:"implementation"`
+	OllamaModel    string            `yaml:"ollama_model,omitempty"`
+	Compose        *AgentComposeSpec `yaml:"compose,omitempty"`
 }
 
 // LoRAAdapterSpec declares a pack LoRA to download and compose in Ollama.

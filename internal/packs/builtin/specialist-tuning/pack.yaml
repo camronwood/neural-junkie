@@ -9,7 +9,7 @@ capabilities:
   - lora-compose
   - lora-adapters
 models_to_ensure:
-  - qwen2.5-coder:14b
+  - qwen3.5:9b
   - llama3.1:8b
   - llama3:8b
   - llama3.2:3b

@@ -1,72 +1,20 @@
 package delegation
 
 import (
-	"strings"
-
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
 // ClassifyForAgent picks consult intent for a target specialist type.
 func ClassifyForAgent(agentType protocol.AgentType, question string) Intent {
-	q := strings.ToLower(question)
-	switch agentType {
-	case protocol.AgentTypeBiology:
-		if looksBioTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeBackend:
-		if looksBackendTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeDevOps:
-		if looksDevOpsTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeDatabase:
-		if looksDatabaseTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeFrontend:
-		if looksFrontendTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeSecurity:
-		if looksSecurityTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeCodeReview:
-		if looksCodeReviewTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeArchitecture:
-		if looksArchitectureTools(q) {
-			return IntentDomainTools
-		}
-	case protocol.AgentTypeRust:
-		if looksRustTools(q) {
-			return IntentDomainTools
-		}
+	dec := routing.ClassifyRules(routing.Input{
+		Text:      question,
+		AgentType: string(agentType),
+	})
+	if dec.ToolNeed {
+		return IntentDomainTools
 	}
 	return IntentDomainReasoning
-}
-
-func looksBioTools(q string) bool {
-	tools := []string{
-		"analyze_sequence", "fold_protein", "esmfold", "fold this", "fold the",
-		"sequence analysis", "reverse complement", "pdb", "analyze this sequence",
-		"fold the sequence", "run fold", "structure prediction",
-	}
-	for _, t := range tools {
-		if strings.Contains(q, t) {
-			return true
-		}
-	}
-	if strings.Contains(q, "dna") || strings.Contains(q, "rna") || strings.Contains(q, "peptide") {
-		if strings.Contains(q, "fold") || strings.Contains(q, "analyze") || strings.Contains(q, "sequence") {
-			return true
-		}
-	}
-	return false
 }
 
 // ClassifyMessage inspects the user message for multi-domain signals.

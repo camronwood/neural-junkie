@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	unified "github.com/camronwood/neural-junkie/internal/routing"
 )
 
 const DefaultLocalToolModel = "qwen3.5:9b"
@@ -17,6 +18,8 @@ type Input struct {
 	FallbackProviderIDs []string
 	Providers           []config.ProviderConfig
 	DefaultProviderID   string
+	TaskText            string
+	AgentType           string
 }
 
 // SelectProviderID returns provider id, tool-loop model tag, and reason code.
@@ -24,6 +27,12 @@ func SelectProviderID(in Input) (id string, toolModel string, reason string) {
 	toolModel = strings.TrimSpace(in.LocalToolModel)
 	if toolModel == "" {
 		toolModel = DefaultLocalToolModel
+	}
+	if text := strings.TrimSpace(in.TaskText); text != "" {
+		dec := unified.ClassifyRules(unified.Input{Text: text, AgentType: in.AgentType})
+		if dec.CostTier == unified.CostCheap {
+			toolModel = DefaultLocalToolModel
+		}
 	}
 	if !in.RoutingEnabled || len(in.Providers) == 0 {
 		if in.DefaultProviderID != "" {

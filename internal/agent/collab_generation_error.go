@@ -63,6 +63,8 @@ func (a *Agent) sendCollabVisibleGenerationError(msg *protocol.Message, userMsg,
 	if a.Collab != nil {
 		if err := a.Collab.RecordMessage(collabID, collabMsg); err != nil {
 			log.Printf("[%s] Warning: failed to record collab generation error: %v", a.Info.Name, err)
+		} else {
+			a.promptNextCollaborationTurn(collabMsg, collabID)
 		}
 	}
 }

@@ -25,7 +25,14 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
-from lib.scenario_assert import check_text_patterns, looks_like_stack_tool_command  # noqa: E402
+from lib.scenario_assert import (  # noqa: E402
+    check_file_deliverable,
+    check_text_patterns,
+    expand_deliverable_steps,
+    looks_like_stack_tool_command,
+    merge_deliverable_step,
+    scenario_question,
+)
 
 SCENARIOS_DIR = ROOT / "scenarios" / "collab"
 DEFAULT_CHANNEL = "collab-scenarios"
@@ -643,35 +650,26 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     return False, f"no file change approved (pending={n}, ids={ids})"
 
 
-def step_assert_files(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
-    rel = (step.get("path") or "").strip()
+def step_assert_deliverable(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    spec = merge_deliverable_step(ctx.scenario, step)
+    rel = (spec.get("path") or "").strip()
     if not rel:
-        return False, "assert_files: path required"
-    rel = rel.replace("<collab-id>", ctx.collab_id)
+        return False, "assert_deliverable: path required"
     root = step.get("root") or ctx.workspace_root
     if not root:
-        return False, "assert_files: no workspace root"
-    full = Path(root) / rel
-    if step.get("must_exist", True) and not full.is_file():
-        return False, f"missing file {full}"
-    if step.get("must_not_exist") and full.exists():
-        return False, f"file should not exist: {full}"
-    min_bytes = int(step.get("min_bytes", 0))
-    if min_bytes > 0 and full.is_file() and full.stat().st_size < min_bytes:
-        return False, f"file too small: {full}"
-    if full.is_file():
-        body = full.read_text(encoding="utf-8", errors="replace")
-        if step.get("deny_task_status") and re.search(r"TASK_STATUS:\s*\S+", body, re.I):
-            return False, "file contains TASK_STATUS (chat leakage)"
-        ok, detail = check_text_patterns(
-            body,
-            any_match=step.get("any_match") or step.get("content_any_match"),
-            none_match=step.get("none_match") or step.get("content_none_match"),
-            label="file",
-        )
-        if not ok:
-            return False, detail
-    return True, str(full)
+        return False, "assert_deliverable: no workspace root"
+    return check_file_deliverable(
+        root=root,
+        rel=rel,
+        spec=spec,
+        question=scenario_question(ctx.scenario),
+        collab_id=ctx.collab_id,
+        hub_base=ctx.base,
+    )
+
+
+def step_assert_files(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
+    return step_assert_deliverable(ctx, step)
 
 
 def step_assert_deliverable_stubs(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
@@ -724,6 +722,7 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         "workspace_ack": step_workspace_ack,
         "wait_tasks": step_wait_tasks,
         "approve_file_changes": step_approve_file_changes,
+        "assert_deliverable": step_assert_deliverable,
         "assert_files": step_assert_files,
         "assert_deliverable_stubs": step_assert_deliverable_stubs,
     }
@@ -939,7 +938,8 @@ def run_scenario(
         print(f"  started collab {ctx.collab_id[:8]} → {ctx.collab_channel}")
 
         all_ok = True
-        for i, step in enumerate(scenario.get("steps") or [], 1):
+        steps = list(scenario.get("steps") or []) + expand_deliverable_steps(scenario)
+        for i, step in enumerate(steps, 1):
             if not run_step(ctx, step, f"{i}"):
                 all_ok = False
                 break

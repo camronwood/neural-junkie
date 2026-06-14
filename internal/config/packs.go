@@ -15,8 +15,8 @@ const (
 	PackCAD                 = "cad"
 )
 
-// DevOllamaCodeModel is the recommended local model for software-development specialists.
-const DevOllamaCodeModel = "qwen3.5:27b"
+// DevOllamaCodeModel is the default local model for software-development specialists and live regression.
+const DevOllamaCodeModel = "qwen3.5:9b"
 
 // devSpecialistTypes are in-process engineering agent types owned by the software-development pack.
 var devSpecialistTypes = []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "database"}
@@ -205,11 +205,15 @@ func (c *Config) IsPackInstalled(packID string) bool {
 
 // IsPackEnabled reports whether a pack is on (must be installed).
 func (c *Config) IsPackEnabled(packID string) bool {
-	if c == nil || !c.IsPackInstalled(packID) {
+	if c == nil {
 		return false
 	}
+	packID = strings.TrimSpace(packID)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if !c.packInstalledLocked(packID) {
+		return false
+	}
 	if c.Packs.Enabled == nil {
 		return false
 	}
@@ -584,7 +588,58 @@ func (c *Config) SyncAgentsFromPacks() {
 	}
 
 	c.mergeModelsToEnsureFromPacksLocked()
+	c.mergeSpecialistComposeFromPacksLocked()
 	c.syncMCPFromPacksLocked()
+}
+
+func (c *Config) mergeSpecialistComposeFromPacksLocked() {
+	if c.SpecialistCompose == nil {
+		c.SpecialistCompose = make(map[string]SpecialistComposeEntry)
+	}
+	manifests, _ := c.installedPackManifestsLocked()
+	for _, m := range manifests {
+		if m == nil || !c.packEnabledLocked(m.ID) {
+			continue
+		}
+		for _, a := range m.Agents {
+			if a.Compose == nil {
+				continue
+			}
+			t := strings.ToLower(strings.TrimSpace(a.Type))
+			if t == "" {
+				continue
+			}
+			entry := SpecialistComposeEntry{
+				ChatModel:       strings.TrimSpace(a.Compose.ChatModel),
+				ToolModel:       strings.TrimSpace(a.Compose.ToolModel),
+				LoRATag:         strings.TrimSpace(a.Compose.LoRATag),
+				ConsultTriggers: append([]string(nil), a.Compose.ConsultTriggers...),
+			}
+			if entry.ChatModel == "" && strings.TrimSpace(a.OllamaModel) != "" {
+				entry.ChatModel = strings.TrimSpace(a.OllamaModel)
+			}
+			c.SpecialistCompose[t] = entry
+		}
+	}
+	c.migrateBiologyComposeFromMCPLocked()
+}
+
+func (c *Config) migrateBiologyComposeFromMCPLocked() {
+	t := "biology"
+	if _, ok := c.SpecialistCompose[t]; ok {
+		return
+	}
+	if !c.packEnabledLocked(PackLifeSciences) {
+		return
+	}
+	c.SpecialistCompose[t] = SpecialistComposeEntry{
+		ChatModel: c.biologyChatModelUnlocked(),
+		ToolModel: c.biologyToolModelUnlocked(),
+		LoRATag:   "nj-biology:8b",
+		ConsultTriggers: []string{
+			"biology", "protein", "sequence", "dna", "rna", "peptide",
+		},
+	}
 }
 
 func (c *Config) packCatalogLocked() []DomainPack {
@@ -993,14 +1048,28 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 			row.LoRAAdapterCount = len(m.LoRAAdapters)
 			if row.LoRAAdapterCount > 0 {
 				seen := make(map[string]struct{})
+				addBase := func(tag string) {
+					tag = strings.TrimSpace(tag)
+					if tag == "" {
+						return
+					}
+					if _, ok := seen[tag]; !ok {
+						seen[tag] = struct{}{}
+						row.LoRABaseTags = append(row.LoRABaseTags, tag)
+					}
+				}
+				addBase("llama3.1:8b")
 				for _, la := range m.LoRAAdapters {
 					tag := strings.TrimSpace(la.BaseOllamaTag)
 					if tag == "" {
 						tag = "llama3.1:8b"
 					}
-					if _, ok := seen[tag]; !ok {
-						seen[tag] = struct{}{}
-						row.LoRABaseTags = append(row.LoRABaseTags, tag)
+					addBase(tag)
+				}
+				for _, model := range m.ModelsToEnsure {
+					model = strings.TrimSpace(model)
+					if model == "llama3.1:8b" || model == "llama3:8b" || model == "llama3.2:3b" || model == "mistral:7b" {
+						addBase(model)
 					}
 				}
 			}

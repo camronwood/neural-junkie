@@ -9,6 +9,17 @@ agents:
     name: BiologyExpert
     ollama_model: koesn/llama3-openbiollm-8b:latest
     implementation: builtin/biology
+    compose:
+      chat_model: koesn/llama3-openbiollm-8b:latest
+      tool_model: qwen3.5:9b
+      lora_tag: nj-biology:8b
+      consult_triggers:
+        - biology
+        - protein
+        - sequence
+        - dna
+        - rna
+        - peptide
 models_to_ensure:
   - koesn/llama3-openbiollm-8b:latest
   - qwen3.5:9b

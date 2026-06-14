@@ -27,6 +27,10 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 			break
 		}
 	}
+	taskText := ""
+	if msg != nil {
+		taskText = msg.Content
+	}
 	selID, toolModel, reason := implrouting.SelectProviderID(implrouting.Input{
 		RoutingEnabled:      cfg.RoutingEnabled,
 		LocalProviderID:     cfg.LocalProviderID,
@@ -34,6 +38,8 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		FallbackProviderIDs: cfg.FallbackProviderIDs,
 		Providers:           appConfig.ListProvidersSnapshot(),
 		DefaultProviderID:   defaultID,
+		TaskText:            taskText,
+		AgentType:           string(info.Type),
 	})
 	plan = agent.ImplementationRoutingPlan{
 		ProviderID: selID,

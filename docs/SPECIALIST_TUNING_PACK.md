@@ -4,7 +4,7 @@ Neural Junkie can train and compose **LoRA adapters** locally so your experts (e
 
 ## Two-tier models
 
-- **Inference (Software development pack):** specialists default to `qwen2.5-coder:14b`.
+- **Inference (Software development pack):** specialists default to `qwen3.5:9b` (or `qwen3.5:27b` on 16 GB+ RAM).
 - **LoRA (this pack):** train and compose on `llama3.1:8b` (code default), plus bootstrap bases `llama3.2:3b`, `llama3:8b`, `mistral:7b`.
 
 Assign composed tags when you want LoRA-tuned inference; otherwise agents keep Qwen.

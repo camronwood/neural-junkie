@@ -119,7 +119,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if resp, ok := a.tryBiologyScanToolShortcut(approvalCtx, msg); ok {
 		return resp, nil
 	}
-	if len(a.agentToolDefinitions()) > 0 {
+	if len(a.agentToolDefinitions(msg)) > 0 {
 		response, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 		if err != nil {
 			return "", err
@@ -278,7 +278,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		close(tokenCh)
 		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
-	if len(a.agentToolDefinitions()) > 0 {
+	if len(a.agentToolDefinitions(msg)) > 0 {
 		toolCtx := ai.WithToolStepObserver(approvalCtx, func(ev ai.ToolStepEvent) {
 			a.broadcastToolStep(approvalCtx, msg, streamMsgID, ev)
 		})

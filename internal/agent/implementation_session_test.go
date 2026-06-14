@@ -169,8 +169,8 @@ func TestShouldRunImplementationSession_statusCheckInChatMode(t *testing.T) {
 		MetadataConversationMode: ConversationModeChat,
 		"editor_mode":            "agent",
 	}
-	if !shouldRunImplementationSession(a, msg) {
-		t.Fatal("expected status check after active implementation thread in chat mode")
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("status check follow-up should use conversational reply, not implementation session")
 	}
 }
 

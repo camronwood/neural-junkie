@@ -155,6 +155,10 @@ func (m *Manager) IsServerRunning(ctx context.Context) bool {
 }
 
 func (m *Manager) StartServer(ctx context.Context) error {
+	if m.IsServerRunning(ctx) {
+		return nil
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -284,6 +288,59 @@ func (m *Manager) ListModels(ctx context.Context) ([]string, error) {
 		names[i] = m.Name
 	}
 	return names, nil
+}
+
+// RunningModel describes a model currently loaded in Ollama memory.
+type RunningModel struct {
+	Name      string `json:"name"`
+	SizeBytes int64  `json:"size_bytes"`
+	VRAMBytes int64  `json:"vram_bytes"`
+}
+
+// RunningModels returns models currently resident in Ollama (GET /api/ps).
+func (m *Manager) RunningModels(ctx context.Context) ([]RunningModel, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", m.endpoint+"/api/ps", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Ollama: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ollama /api/ps status %d: %s", resp.StatusCode, string(data))
+	}
+
+	var result struct {
+		Models []struct {
+			Name     string `json:"name"`
+			Model    string `json:"model"`
+			Size     int64  `json:"size"`
+			SizeVRAM int64  `json:"size_vram"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	out := make([]RunningModel, 0, len(result.Models))
+	for _, row := range result.Models {
+		name := strings.TrimSpace(row.Name)
+		if name == "" {
+			name = strings.TrimSpace(row.Model)
+		}
+		if name == "" {
+			continue
+		}
+		out = append(out, RunningModel{
+			Name:      name,
+			SizeBytes: row.Size,
+			VRAMBytes: row.SizeVRAM,
+		})
+	}
+	return out, nil
 }
 
 // HasModel reports whether an Ollama tag is installed locally.

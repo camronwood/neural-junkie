@@ -163,6 +163,69 @@ export function getToolSteps(metadata?: Record<string, unknown>): ToolStepMeta[]
   return raw.filter((x) => x && typeof x === 'object') as ToolStepMeta[];
 }
 
+export const ROUTING_MODEL_METADATA_KEY = 'routing_model';
+export const ROUTING_TOOL_MODEL_METADATA_KEY = 'routing_tool_model';
+export const ROUTING_REASON_METADATA_KEY = 'routing_reason';
+export const ROUTING_SOURCE_METADATA_KEY = 'routing_source';
+export const ROUTING_DOMAIN_METADATA_KEY = 'routing_domain';
+export const ROUTING_COST_TIER_METADATA_KEY = 'routing_cost_tier';
+export const ROUTING_PROVIDER_ID_METADATA_KEY = 'routing_provider_id';
+
+export type RoutingMeta = {
+  provider_id?: string;
+  model?: string;
+  tool_model?: string;
+  reason?: string;
+  source?: string;
+  domain?: string;
+  cost_tier?: string;
+};
+
+export function getRoutingMeta(metadata?: Record<string, unknown>): RoutingMeta | null {
+  if (!metadata) return null;
+  const model = metadata[ROUTING_MODEL_METADATA_KEY];
+  const reason = metadata[ROUTING_REASON_METADATA_KEY];
+  if (typeof model !== 'string' && typeof reason !== 'string') return null;
+  const out: RoutingMeta = {};
+  if (typeof metadata[ROUTING_PROVIDER_ID_METADATA_KEY] === 'string') {
+    out.provider_id = metadata[ROUTING_PROVIDER_ID_METADATA_KEY] as string;
+  }
+  if (typeof model === 'string') out.model = model;
+  if (typeof metadata[ROUTING_TOOL_MODEL_METADATA_KEY] === 'string') {
+    out.tool_model = metadata[ROUTING_TOOL_MODEL_METADATA_KEY] as string;
+  }
+  if (typeof reason === 'string') out.reason = reason;
+  if (typeof metadata[ROUTING_SOURCE_METADATA_KEY] === 'string') {
+    out.source = metadata[ROUTING_SOURCE_METADATA_KEY] as string;
+  }
+  if (typeof metadata[ROUTING_DOMAIN_METADATA_KEY] === 'string') {
+    out.domain = metadata[ROUTING_DOMAIN_METADATA_KEY] as string;
+  }
+  if (typeof metadata[ROUTING_COST_TIER_METADATA_KEY] === 'string') {
+    out.cost_tier = metadata[ROUTING_COST_TIER_METADATA_KEY] as string;
+  }
+  return out;
+}
+
+export function formatRoutingBadgeLabel(meta: RoutingMeta): string {
+  const model = meta.model?.trim();
+  if (!model) return '';
+  const source = meta.source?.trim();
+  return source ? `${model} · ${source}` : model;
+}
+
+export function formatRoutingTooltip(meta: RoutingMeta): string {
+  const lines: string[] = [];
+  if (meta.model) lines.push(`Chat model: ${meta.model}`);
+  if (meta.tool_model) lines.push(`Tool model: ${meta.tool_model}`);
+  if (meta.provider_id) lines.push(`Provider: ${meta.provider_id}`);
+  if (meta.domain) lines.push(`Domain: ${meta.domain}`);
+  if (meta.cost_tier) lines.push(`Cost tier: ${meta.cost_tier}`);
+  if (meta.reason) lines.push(`Reason: ${meta.reason}`);
+  if (meta.source) lines.push(`Classifier: ${meta.source}`);
+  return lines.join('\n');
+}
+
 export function isToolStepStreamDelta(metadata?: Record<string, unknown>): boolean {
   return typeof metadata?.tool_step === 'string';
 }
@@ -299,6 +362,15 @@ export interface GoogleMeetNotesStatus {
   oauth_configured: boolean;
   connect_ready?: boolean;
   oauth_source?: string;
+}
+
+export interface WebSearchConfigResponse {
+  enabled: boolean;
+  provider: string;
+  max_results: number;
+  api_key_set: boolean;
+  keyless: boolean;
+  ready: boolean;
 }
 
 export type SlackPolicy = 'mention_only' | 'questions' | 'always';

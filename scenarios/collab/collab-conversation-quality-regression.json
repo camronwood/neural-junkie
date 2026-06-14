@@ -15,6 +15,17 @@
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
     "goal": "@ChatModerator @Assistant Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go with three concrete bullets."
   },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/findings.md",
+      "min_bytes": 40,
+      "for_question": {
+        "any_match": ["README|main\\.go|minimal|sample"],
+        "none_match": ["\\[Insert", "insert file name", "lorem ipsum", "TASK_STATUS:"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 20},
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},

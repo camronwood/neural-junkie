@@ -13,6 +13,18 @@
     "flags": ["--rounds", "3", "--messages", "15", "--workspace"],
     "goal": "@SoftwareArchitect @BackendEngineer @Assistant Investigate resource api document schema standardization/registration, and produce a markdown document under collabs/<id>/resource-api-schema-registration.md. Focus on resource-api/json_endpoints and docs/tim — not core/sample/main.go."
   },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/resource-api-schema-registration.md",
+      "min_bytes": 200,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["schema|standardiz|registr|resource.api|json_endpoints"],
+        "none_match": ["core/sample/main\\.go only", "index\\.js"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 45},
     {

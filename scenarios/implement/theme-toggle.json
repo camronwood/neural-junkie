@@ -7,6 +7,17 @@
   "target_agent": "FrontendEngineer",
   "required_agents": ["FrontendEngineer"],
   "workspace": { "fixture": "minimal-repo" },
+  "expect_deliverables": [
+    {
+      "path": "src/theme.css",
+      "min_bytes": 20,
+      "for_question": {
+        "contains_all": ["dark"],
+        "any_match": ["light|--dark|var\\(|\\.dark"]
+      },
+      "llm_judge": true
+    }
+  ],
   "steps": [
     {
       "action": "send",

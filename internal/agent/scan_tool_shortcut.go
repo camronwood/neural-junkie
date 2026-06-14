@@ -195,7 +195,7 @@ func (a *Agent) tryBiologyScanToolShortcut(ctx context.Context, msg *protocol.Me
 	if toolName == "" {
 		return "", false
 	}
-	if !a.agentToolNames()[toolName] {
+	if !a.agentToolNames(msg)[toolName] {
 		return "", false
 	}
 

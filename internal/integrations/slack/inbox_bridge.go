@@ -2,6 +2,7 @@ package slack
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -553,13 +554,44 @@ func (b *Bridge) fetchSlackMessageText(channelID, ts string) (text, userID strin
 
 // PostInboxTestDM sends a test message to the owner's DM channel.
 func (b *Bridge) PostInboxTestDM(inbox InboxConfig, text string) error {
-	channelID, err := b.resolveOwnerBotDMChannel(inbox.OwnerSlackUserID)
-	if err != nil {
-		return err
+	if b.botRateLimited() {
+		return fmt.Errorf("slack rate limit active — wait a minute and retry")
 	}
-	_ = b.inbox.UpdateDMChannelID(channelID)
+	channelID := strings.TrimSpace(inbox.SlackDMChannelID)
+	if channelID == "" {
+		var err error
+		channelID, err = b.resolveAndPersistOwnerDMChannel(inbox)
+		if err != nil {
+			return inboxDMTestErr(err)
+		}
+	}
 	if text == "" {
 		text = "Neural Junkie personal inbox test — reply here anytime; this is your DM with the bot (not note-to-self)."
 	}
-	return b.PostTestMessage(channelID, text)
+	err := b.PostTestMessage(channelID, text)
+	if err != nil && (isChannelNotFoundErr(err) || isNotInChannelErr(err)) {
+		_ = b.inbox.ClearDMChannelID()
+		channelID, resolveErr := b.resolveAndPersistOwnerDMChannel(inbox)
+		if resolveErr != nil {
+			return inboxDMTestErr(resolveErr)
+		}
+		return b.PostTestMessage(channelID, text)
+	}
+	if err != nil {
+		return inboxDMTestErr(err)
+	}
+	return nil
+}
+
+func inboxDMTestErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if isMissingScopeErr(err) {
+		return fmt.Errorf("%w — add bot scopes im:write and im:history, reinstall the app, then DM @your-bot once in Slack", err)
+	}
+	if isChannelNotFoundErr(err) {
+		return fmt.Errorf("%w — open Slack → Direct Messages → message the NJ bot app (not note-to-self), then retry Test DM", err)
+	}
+	return err
 }

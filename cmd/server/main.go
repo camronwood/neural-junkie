@@ -118,6 +118,7 @@ func main() {
 		}
 	}
 	chatHub = hub.NewHub()
+	applyCollabActionConfig()
 	initMessageStore()
 	initConversationMemory()
 	if appConfig != nil {

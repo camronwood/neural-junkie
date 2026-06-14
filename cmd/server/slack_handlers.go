@@ -14,6 +14,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/config"
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
+	"github.com/camronwood/neural-junkie/internal/integrations/websearch"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	slackapi "github.com/slack-go/slack"
 )
@@ -54,6 +55,10 @@ func startSlackBridge(ctx context.Context) {
 }
 
 func applyCollabSlackActionConfig() {
+	applyCollabActionConfig()
+}
+
+func applyCollabActionConfig() {
 	if chatHub == nil {
 		return
 	}
@@ -68,6 +73,18 @@ func applyCollabSlackActionConfig() {
 		}
 		cfg.SlackPost = func(ctx context.Context, channelID, text, threadTS, username string) (string, error) {
 			return slackBridge.PostRunbookMessage(channelID, text, threadTS, username)
+		}
+	}
+	if appConfig != nil {
+		client := websearch.NewClient(appConfig.WebSearch)
+		if client.Ready() {
+			cfg.WebSearchQuery = func(ctx context.Context, query string) ([]map[string]interface{}, error) {
+				results, err := client.Search(ctx, query, appConfig.WebSearch.MaxResultsOrDefault())
+				if err != nil {
+					return nil, err
+				}
+				return websearch.ResultsForRunbook(results), nil
+			}
 		}
 	}
 	chatHub.SetCollabActionRunnerConfig(cfg)
@@ -213,7 +230,7 @@ func handleSlackBindings(w http.ResponseWriter, r *http.Request) {
 			body.SlackChannelName = slackint.ResolveChannelName(slackBridge.API(), body.SlackChannelID)
 		}
 		if slackBridge != nil {
-			if err := slackint.ValidateChannel(slackBridge.API(), body.SlackChannelID); err != nil {
+			if err := slackBridge.ValidateBindingChannel(body.SlackChannelID); err != nil {
 				writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 				return
 			}

@@ -46,6 +46,9 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 	if w := warnMissingFileDeliverableTasks(c, tasks); w != "" {
 		warnings = append(warnings, w)
 	}
+	if w := WarnWebsitePlanMissingHTML(c, tasks); w != "" {
+		warnings = append(warnings, w)
+	}
 	if w := warnMissingSourceRepoForFileCollab(c, tasks); w != "" {
 		warnings = append(warnings, w)
 	}
@@ -272,6 +275,9 @@ func taskDeliverableScore(t CollaborationTask) int {
 	combined := strings.ToLower(t.Title + " " + t.Description)
 	if strings.Contains(combined, "collabs/") {
 		score += 4
+	}
+	if strings.Contains(combined, ".html") || strings.Contains(combined, ".css") {
+		score += 5
 	}
 	if strings.Contains(combined, ".md") || strings.Contains(combined, ".yaml") || strings.Contains(combined, ".yml") {
 		score += 3

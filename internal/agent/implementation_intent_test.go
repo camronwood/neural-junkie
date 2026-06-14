@@ -594,6 +594,43 @@ func TestShouldForceSessionSummaryRefresh_bootError(t *testing.T) {
 	}
 }
 
+func TestTryImplementationStatusCheckShortcut_appJSRemoved(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "src/App.tsx", "export default function App() {}\n")
+	a := &Agent{
+		Info: protocol.AgentInfo{ID: "sa-1", Type: protocol.AgentTypeArchitecture, Name: "SoftwareArchitect"},
+		Context: &ConversationContext{
+			History: map[string][]*protocol.Message{
+				"implement-scenarios": {
+					{
+						ID:      "a1",
+						Channel: "implement-scenarios",
+						Type:    protocol.MessageTypeChat,
+						From:    protocol.AgentInfo{ID: "sa-1", Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture},
+						Content: "Implementation session complete — proposals submitted (changes to: src/App.js).",
+						Metadata: map[string]interface{}{
+							"workspace_context": map[string]interface{}{
+								"workspace_path": dir,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios", protocol.AgentInfo{ID: "u2", Name: "User"}, "is it fixed?")
+	msg.Metadata = map[string]interface{}{
+		"workspace_context": map[string]interface{}{
+			"workspace_path": dir,
+		},
+	}
+	resp, ok := a.tryImplementationStatusCheckShortcut(msg)
+	if !ok || !strings.Contains(resp, "src/App.js") {
+		t.Fatalf("expected shortcut reply, ok=%v resp=%q", ok, resp)
+	}
+}
+
 func TestUserRequestsImplementationStatusCheck(t *testing.T) {
 	t.Parallel()
 	if !userRequestsImplementationStatusCheck("is it fixed?") {

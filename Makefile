@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract test-everything test-everything-full slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -107,7 +107,11 @@ collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, 
 
 test-regression-live: ## Print pre-release live regression checklist (does not start hub)
 	@echo "Pre-release live regression (see docs/TESTING.md):"
-	@echo "  0. ollama serve  &&  ollama pull qwen3.5:9b && ollama pull qwen3.5:27b"
+	@echo ""
+	@echo "  make test-everything              # CI + live harness; review docs/testing/test-everything-*.md"
+	@echo "  make test-everything-full         # above + all collab scenarios (~1-3h extra)"
+	@echo ""
+	@echo "  0. ollama serve  &&  ollama pull qwen3.5:9b"
 	@echo "  0b. make server-regression && make collab-preflight"
 	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
 	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
@@ -171,6 +175,9 @@ collab-scenario-regression: ## Run collab edge-case regression scenarios (plan p
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execution-no-stack-commands $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-conversation-quality-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-no-edit-after-cancel $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collaboration-station-website $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collaboration-station-website-sa $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario make-me-a-website $(if $(VERBOSE),--verbose,)
 
 conversation-scenarios-regression: ## Chat workspace + collab conversation quality (session-issue guards)
 	@chmod +x scripts/conversation-scenarios-regression.py
@@ -204,8 +211,9 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/ChatWindow.interject.test.tsx \
 	  src/components/CollaborationPanel.test.tsx
 
-test-scenario-assert: ## Python unit tests for scenario assertion helpers
-	@cd scripts/lib && python3 -m unittest scenario_assert_test.py
+test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
+	@cd scripts/lib && python3 -m unittest scenario_assert_test.py scenario_contract_test.py
+	@python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make chat-scenario SCENARIO=greeting-chat-mode [VERBOSE=1] [KEEP=1]"; exit 1; fi
@@ -258,6 +266,18 @@ test-regression-bundle: ## Live bundle: implement + chat-regression + conversati
 	@chmod +x scripts/regression-bundle.py
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/regression-bundle.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(VERBOSE),--verbose,)
+
+test-everything: ## CI smoke + live harness; writes docs/testing/test-everything-*.md (SKIP_LIVE=1 CI-only; FULL=1 all collab)
+	@chmod +x scripts/test-everything.py
+	@python3 scripts/test-everything.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		$(if $(FULL),--full,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(SKIP_LIVE),--skip-live,) \
+		$(if $(CONTINUE),--continue-on-fail,)
+
+test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-all, ~1-3h)
+	@$(MAKE) test-everything FULL=1 $(if $(VERBOSE),VERBOSE=1,) $(if $(CONTINUE),CONTINUE=1,)
 
 model-benchmark: ## Benchmark top coder models (SUITE=quick|standard|implement; PULL=1; MODELS=tag1,tag2)
 	@chmod +x scripts/model-benchmark-suite.py
@@ -406,17 +426,17 @@ agent-code-review: setup-env ## Start code reviewer agent
 
 agents: setup-env ## Start all agents with environment loaded
 	@echo "🤖 Starting all agents with environment from env.local..."
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "BackendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type backend --name "BackendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:9b}" &'
 	@sleep 2
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "FrontendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type frontend --name "FrontendEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:9b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "PlatformEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type devops --name "PlatformEngineer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:9b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type security --name "SecurityReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:9b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type architecture --name "SoftwareArchitect" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type architecture --name "SoftwareArchitect" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:9b}" &'
 	@sleep 1
-	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type code-review --name "CodeReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:27b}" &'
+	@bash -c 'source load-env.sh && go run cmd/agent/main.go --type code-review --name "CodeReviewer" --model "$${OLLAMA_CODE_MODEL:-qwen3.5:9b}" &'
 	@echo "✅ All agents started!"
 
 stop: ## Stop all running processes (server, agents, GUI)

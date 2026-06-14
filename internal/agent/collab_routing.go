@@ -12,6 +12,9 @@ type TaskRoutingPlan struct {
 	ProviderID string
 	Model      string
 	Reason     string
+	Source     string
+	Domain     string
+	CostTier   string
 }
 
 // TaskRoutingOverrides carries explicit per-task routing metadata when set.
@@ -47,5 +50,36 @@ func (a *Agent) EffectiveAIProvider(ctx context.Context, msg *protocol.Message) 
 	if globalCollabRouting == nil {
 		return base
 	}
-	return globalCollabRouting.EffectiveAI(ctx, base, a.Info, a.getCollaborationContext(msg), msg)
+	eff := globalCollabRouting.EffectiveAI(ctx, base, a.Info, a.getCollaborationContext(msg), msg)
+	if msg != nil && msg.Type == protocol.MessageTypeCollabTask {
+		overrides := TaskRoutingOverrides{}
+		if msg.Metadata != nil {
+			if pid, ok := msg.Metadata["task_provider_id"].(string); ok {
+				overrides.ProviderID = pid
+			}
+			if m, ok := msg.Metadata["task_ollama_model"].(string); ok {
+				overrides.OllamaModel = m
+			}
+		}
+		plan := globalCollabRouting.PlanTask(ctx, a.Info, msg.Content, overrides)
+		source := plan.Source
+		if source == "" {
+			source = "rules"
+		}
+		snap := RoutingSnapshot{
+			ProviderID: plan.ProviderID,
+			ChatModel:  plan.Model,
+			Reason:     plan.Reason,
+			Source:     source,
+			Domain:     plan.Domain,
+			CostTier:   plan.CostTier,
+		}
+		if eff != nil {
+			if m := eff.GetModel(); snap.ChatModel == "" {
+				snap.ChatModel = m
+			}
+		}
+		a.RecordRoutingSnapshot(snap)
+	}
+	return eff
 }

@@ -68,6 +68,61 @@ func TestSendGenerationFailureMessages_CollabDiscussion(t *testing.T) {
 	}
 }
 
+type collabErrorRecordStub struct {
+	recorded int
+}
+
+func (c *collabErrorRecordStub) IsParticipant(string, string) bool          { return true }
+func (c *collabErrorRecordStub) IsAgentTurn(string, string) bool            { return true }
+func (c *collabErrorRecordStub) IsActive(string) bool                       { return true }
+func (c *collabErrorRecordStub) GetCurrentTurnAgent(string) (string, error) { return "sa-1", nil }
+func (c *collabErrorRecordStub) GetCollaborationForAgent(string) CollaborationInfo {
+	return CollaborationInfo{}
+}
+func (c *collabErrorRecordStub) GetCollaboration(string, string) CollaborationInfo {
+	return CollaborationInfo{Phase: "planning"}
+}
+func (c *collabErrorRecordStub) GetCollaborationWorkingDirectory(string) string { return "" }
+func (c *collabErrorRecordStub) RecordMessage(string, *protocol.Message) error {
+	c.recorded++
+	return nil
+}
+func (c *collabErrorRecordStub) AnalyzeConsensus(string, *protocol.Message) string { return "" }
+func (c *collabErrorRecordStub) AgentOutOfTurnMentionAllowed(string) bool           { return true }
+
+func TestSendCollabVisibleGenerationError_PromptsNextTurn(t *testing.T) {
+	hub := &collabErrorCaptureHub{}
+	collab := &collabErrorRecordStub{}
+	a := &Agent{
+		Info:   protocol.AgentInfo{ID: "be-1", Name: "BackendEngineer", Type: protocol.AgentTypeBackend},
+		Hub:    hub,
+		Collab: collab,
+	}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-abc",
+		protocol.AgentInfo{Name: "System", Type: protocol.AgentTypeGeneral},
+		"handoff",
+	)
+	msg.SetCollaborationID("collab-uuid-1")
+	msg.SetCollaborationPhase("planning")
+
+	a.sendCollabVisibleGenerationError(msg, "timed out", "timeout", true)
+
+	if collab.recorded != 1 {
+		t.Fatalf("expected RecordMessage once, got %d", collab.recorded)
+	}
+	handoffs := 0
+	for _, m := range hub.sent {
+		if m.Type == protocol.MessageTypeCollabDiscussion && strings.Contains(m.Content, "Collaboration turn handoff") {
+			handoffs++
+		}
+	}
+	if handoffs != 1 {
+		t.Fatalf("expected one turn handoff after generation error, got %d", handoffs)
+	}
+}
+
 func TestSendCollabVisibleGenerationError_SkipsNonCollabChannel(t *testing.T) {
 	hub := &collabErrorCaptureHub{}
 	a := &Agent{

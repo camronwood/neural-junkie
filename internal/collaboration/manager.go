@@ -803,7 +803,7 @@ func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaborat
 		return
 	}
 	if existing := strings.TrimSpace(c.Plan.Content); existing != "" {
-		if ok, _ := ValidatePlanContent(existing, c.Agents); ok {
+		if ok, _ := ValidatePlanForCollaboration(c, existing); ok {
 			if len(c.Tasks) == 0 {
 				if retry := DedupeTasks(ExtractTasksFromPlan(existing, c.Agents)); len(retry) > 0 {
 					c.Tasks = retry

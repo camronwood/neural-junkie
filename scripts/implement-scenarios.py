@@ -14,7 +14,13 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
-from lib.scenario_assert import check_text_patterns  # noqa: E402
+from lib.scenario_assert import (  # noqa: E402
+    check_file_deliverable,
+    check_text_patterns,
+    expand_deliverable_steps,
+    merge_deliverable_step,
+    scenario_question,
+)
 
 SCENARIOS_DIR = ROOT / "scenarios" / "implement"
 DEFAULT_CHANNEL = "implement-scenarios"
@@ -77,9 +83,17 @@ class ImplementContext:
         self.scenario = scenario
         self.channel = (scenario.get("channel") or DEFAULT_CHANNEL).strip()
         self.target_agent = (scenario.get("target_agent") or "BackendEngineer").strip().lstrip("@")
+        self.baseline_agent_count: dict[str, int] = {}
+
+
+def _chat_baseline(ctx: ImplementContext, agent: str) -> int:
+    msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+    return hub.count_chat_agent_messages(hub.chat_agent_messages(msgs), agent)
 
 
 def step_send(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    ctx.baseline_agent_count[from_name] = _chat_baseline(ctx, from_name)
     content = (step.get("content") or "").strip()
     meta = enrich_send_metadata(step.get("metadata"), ctx.scenario)
     code, _ = hub.send_message(ctx.base, ctx.channel, content, metadata=meta, from_name=DEFAULT_FROM)
@@ -96,20 +110,20 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             pass
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     until_any = step.get("until_any_match")
+    baseline = int(step.get("baseline", ctx.baseline_agent_count.get(from_name, _chat_baseline(ctx, from_name))))
     deadline = time.time() + secs
     while time.time() < deadline:
-        msgs = hub.list_messages(ctx.base, ctx.channel, 40)
-        candidates = [m for m in msgs if m.get("from", {}).get("name") == from_name]
-        if not candidates:
-            time.sleep(2)
-            continue
-        text = candidates[-1].get("content") or ""
-        if until_any:
-            ok, detail = check_text_patterns(text, any_match=until_any)
-            if ok:
-                return True, f"reply from {from_name} ({detail})"
-        else:
-            return True, f"reply from {from_name}"
+        msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+        pool = hub.chat_agent_messages(msgs)
+        candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+        for msg in candidates[baseline:]:
+            text = msg.get("content") or ""
+            if until_any:
+                ok, detail = check_text_patterns(text, any_match=until_any)
+                if ok:
+                    return True, f"reply from {from_name} ({detail})"
+            else:
+                return True, f"reply from {from_name}"
         time.sleep(2)
     return False, f"timeout waiting for {from_name}"
 
@@ -134,34 +148,25 @@ def step_assert_messages(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     return True, "message assertions ok"
 
 
-def step_assert_file_exists(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+def step_assert_deliverable(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     root = scenario_repo_root(ctx.scenario)
-    rel = (step.get("path") or "").strip()
-    if not rel:
-        return False, "path required"
-    full = Path(root) / rel
-    if not full.is_file():
-        return False, f"missing {full}"
-    text = full.read_text(encoding="utf-8", errors="replace")
-    if any_match := step.get("any_match"):
-        ok, detail = check_text_patterns(text, any_match=any_match)
-        if not ok:
-            return False, f"{rel}: {detail}"
-    if want := step.get("contains"):
-        if want not in text:
-            return False, f"{rel} missing {want!r}"
-    return True, rel
+    spec = merge_deliverable_step(ctx.scenario, step)
+    rel = (spec.get("path") or "").strip()
+    return check_file_deliverable(
+        root=root,
+        rel=rel,
+        spec=spec,
+        question=scenario_question(ctx.scenario),
+        hub_base=ctx.base,
+    )
+
+
+def step_assert_file_exists(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    return step_assert_deliverable(ctx, step)
 
 
 def step_assert_file_absent(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
-    root = scenario_repo_root(ctx.scenario)
-    rel = (step.get("path") or "").strip()
-    if not rel:
-        return False, "path required"
-    full = Path(root) / rel
-    if full.is_file():
-        return False, f"expected absent, still exists: {full}"
-    return True, f"{rel} absent"
+    return step_assert_deliverable(ctx, {**step, "action": "assert_file_absent"})
 
 
 def step_assert_no_file_change(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
@@ -183,6 +188,7 @@ HANDLERS = {
     "send": step_send,
     "wait_reply": step_wait_reply,
     "assert_messages": step_assert_messages,
+    "assert_deliverable": step_assert_deliverable,
     "assert_file_exists": step_assert_file_exists,
     "assert_file_absent": step_assert_file_absent,
     "assert_no_file_change": step_assert_no_file_change,
@@ -219,11 +225,17 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
         return False
     if not ensure_channel(ctx):
         return False
+    if scenario.get("cleanup", "clear") == "clear" and not keep:
+        hub.clear_channel_history(ctx.base, ctx.channel)
     reset_fixture_baseline(scenario)
     # In-process agents discover new channels on a ~1s tick; allow subscribe before send.
     time.sleep(3.0)
     all_ok = True
-    combined_steps = list(scenario.get("setup") or []) + list(scenario.get("steps") or [])
+    combined_steps = (
+        list(scenario.get("setup") or [])
+        + list(scenario.get("steps") or [])
+        + expand_deliverable_steps(scenario)
+    )
     for i, step in enumerate(combined_steps, 1):
         action = (step.get("action") or "").strip()
         fn = HANDLERS.get(action)

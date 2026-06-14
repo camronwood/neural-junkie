@@ -40,6 +40,24 @@ func sanitizeAbsolutePathFileChangeFromResponse(response string) string {
 	return strings.TrimSpace(absolutePathFileChangeRE.ReplaceAllString(response, ""))
 }
 
+// stripFileChangeBlocksFromResponse removes [FILE_CHANGE] blocks from model text (ask mode, malformed proposals).
+func stripFileChangeBlocksFromResponse(response string) string {
+	return strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+}
+
+var askModeFileChangeMentionRE = regexp.MustCompile(`(?i)\[file_change\]|propose_file_edit`)
+
+// sanitizeAskModeResponse strips file-edit mechanisms from ask-mode advisory replies.
+func sanitizeAskModeResponse(response string) string {
+	out := stripFileChangeBlocksFromResponse(response)
+	out = askModeFileChangeMentionRE.ReplaceAllString(out, "")
+	return strings.TrimSpace(out)
+}
+
+func isAskModeReadOnly(sourceMsg *protocol.Message) bool {
+	return sourceMsg != nil && (sourceMsg.IdeEditorModeIsAsk() || sourceMsg.IdeEditorMode() == "ask")
+}
+
 func sanitizeInternalToolNames(response string) string {
 	replacer := strings.NewReplacer(
 		"ProposeFileEdit", "a file-change proposal",
@@ -51,6 +69,12 @@ func sanitizeInternalToolNames(response string) string {
 }
 
 func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
+	if isAskModeReadOnly(sourceMsg) {
+		if fileChangeBlockRegex.MatchString(response) {
+			log.Printf("[%s] ask_mode_file_change_stripped", a.Info.Name)
+		}
+		return stripFileChangeBlocksFromResponse(response), false, nil
+	}
 	match := fileChangeBlockRegex.FindStringSubmatch(response)
 	if len(match) < 2 {
 		if loose, ok := parseLooseFileChange(response); ok && legacyFileChangeParseEnabled() {
@@ -227,7 +251,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			return response, false, err
 		}
 	case "delete":
-		if err := a.proposeFileDeleteInChannel(channel, directive.Path); err != nil {
+		if err := a.proposeFileDeleteInChannel(channel, directive.Path, sourceMsg); err != nil {
 			return response, false, err
 		}
 	case "move":
@@ -491,6 +515,9 @@ func (a *Agent) shouldUseFileChangeFenceFallback(sourceMsg *protocol.Message) bo
 	if sourceMsg == nil {
 		return false
 	}
+	if isAskModeReadOnly(sourceMsg) {
+		return false
+	}
 	content := sourceMsg.Content
 	if sourceMsg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(sourceMsg) {
 		return true
@@ -657,10 +684,10 @@ func (a *Agent) proposeFileCreateInChannel(channel, path, content string, source
 
 // ProposeFileDelete proposes deleting a file
 func (a *Agent) ProposeFileDelete(path string) error {
-	return a.proposeFileDeleteInChannel(a.Context.CurrentChannel, path)
+	return a.proposeFileDeleteInChannel(a.Context.CurrentChannel, path, nil)
 }
 
-func (a *Agent) proposeFileDeleteInChannel(channel, path string) error {
+func (a *Agent) proposeFileDeleteInChannel(channel, path string, sourceMsg *protocol.Message) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
@@ -682,6 +709,7 @@ func (a *Agent) proposeFileDeleteInChannel(channel, path string) error {
 		fmt.Sprintf("🗑️ Proposing to delete file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
+	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
 	return a.Hub.SendMessage(msg)
 }

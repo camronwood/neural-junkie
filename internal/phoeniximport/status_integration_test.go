@@ -2,44 +2,23 @@ package phoeniximport
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 )
 
-// Integration test — uses local bbio credentials + auth config when present.
+// Integration test — uses local bbio credentials + auth config when PHOENIX_INTEGRATION=1.
 func TestCheckStatusIntegration(t *testing.T) {
-	authPath := os.Getenv("PHOENIX_AUTH_CONFIG_PATH")
-	if authPath == "" {
-		authPath = "/Users/camronwood/development/phoenix-tim-test-suite/.phoenix-customer-cli-creds"
-	}
-	if _, err := os.Stat(authPath); err != nil {
-		t.Skip("auth config not available")
-	}
-	st := CheckStatus(context.Background(), Settings{
-		Environment:    "dev",
-		AuthConfigPath: authPath,
-	})
-	if !st.Authenticated {
-		t.Fatalf("expected authenticated: %+v", st)
-	}
+	settings := phoenixIntegrationSettings(t)
+	st := requirePhoenixAuthenticated(t, settings)
 	if st.Identity == "" {
 		t.Fatal("expected identity")
 	}
 }
 
 func TestListAnalysesIntegration(t *testing.T) {
-	authPath := os.Getenv("PHOENIX_AUTH_CONFIG_PATH")
-	if authPath == "" {
-		authPath = "/Users/camronwood/development/phoenix-tim-test-suite/.phoenix-customer-cli-creds"
-	}
-	if _, err := os.Stat(authPath); err != nil {
-		t.Skip("auth config not available")
-	}
-	items, err := ListAnalyses(context.Background(), Settings{
-		Environment:    "dev",
-		AuthConfigPath: authPath,
-	}, 5)
+	settings := phoenixIntegrationSettings(t)
+	requirePhoenixAuthenticated(t, settings)
+	items, err := ListAnalyses(context.Background(), settings, 5)
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 500") {
 			t.Skip("TIM list analyses returned 500 (server-side; auth OK)")

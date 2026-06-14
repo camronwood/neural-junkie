@@ -278,6 +278,10 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 	}
 	var paths []string
 
+	if a.attemptCorruptAppJSBootFix(ctx, msg, wsPath, channel, userContent, implementationSessionStateFromContext(ctx)) {
+		return true, []string{"src/App.js"}
+	}
+
 	target := resolveImplementationFallbackTarget(ctx, a, msg, wsPath, userContent)
 	if target == "" {
 		return false, nil
@@ -474,4 +478,101 @@ func (a *Agent) repairAppThemeIfNeeded(ctx context.Context, msg *protocol.Messag
 	state.ProposedCount++
 	state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
 	log.Printf("[%s] app_theme_repair(path=%s)", a.Info.Name, rel)
+}
+
+func corruptAppJSEntryConflict(wsPath string, manifest *StackManifest) bool {
+	return DetectEntryConflicts(wsPath, manifest) != ""
+}
+
+func (a *Agent) shouldRepairCorruptAppJSEntry(msg *protocol.Message, wsPath, userContent string, manifest *StackManifest) bool {
+	if wsPath == "" || manifest == nil || !corruptAppJSEntryConflict(wsPath, manifest) {
+		return false
+	}
+	content := userContent
+	if msg != nil {
+		content = msg.Content + "\n" + userContent
+	}
+	return messageHasBootOrBuildError(content) || messageImpliesBootFix(content, a.channelHistory(msg.Channel))
+}
+
+func (a *Agent) attemptCorruptAppJSBootFix(ctx context.Context, msg *protocol.Message, wsPath, channel, userContent string, state *ImplementationSessionState) bool {
+	if a == nil || msg == nil {
+		return false
+	}
+	manifest := a.manifestForProposal(ctx, msg)
+	if !a.shouldRepairCorruptAppJSEntry(msg, wsPath, userContent, manifest) {
+		return false
+	}
+	rel := "src/App.js"
+	if _, err := os.Stat(filepath.Join(wsPath, rel)); err != nil {
+		return false
+	}
+	if err := a.proposeFileDeleteInChannel(channel, rel, msg); err != nil {
+		return false
+	}
+	if state != nil {
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+	}
+	log.Printf("[%s] corrupt_appjs_entry_repair(path=%s)", a.Info.Name, rel)
+	return true
+}
+
+// tryEarlyCorruptAppJSBootFix deletes corrupt src/App.js before LLM rounds when boot-fix
+// intent is set. BootFixIntent keeps groundingSatisfied() false, so the round-0 fallback
+// would not run without this preflight.
+func (a *Agent) tryEarlyCorruptAppJSBootFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
+	if a == nil || msg == nil || state == nil || !state.BootFixIntent || wsPath == "" || state.StackManifest == nil {
+		return false
+	}
+	channel := msg.Channel
+	if channel == "" {
+		channel = "general"
+	}
+	return a.attemptCorruptAppJSBootFix(ctx, msg, wsPath, channel, msg.Content, state)
+}
+
+func (a *Agent) repairCorruptAppJSEntryIfNeeded(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) {
+	if a == nil || msg == nil || state == nil || state.StackManifest == nil {
+		return
+	}
+	wsPath := a.resolveWorkspacePath(msg)
+	if wsPath == "" {
+		return
+	}
+	channel := msg.Channel
+	if channel == "" {
+		channel = "general"
+	}
+	userContent := msg.Content
+	if userAffirmsPendingImplementation(msg.Content) {
+		for i := len(a.channelHistory(msg.Channel)) - 1; i >= 0; i-- {
+			m := a.channelHistory(msg.Channel)[i]
+			if m == nil || m.ID == msg.ID {
+				continue
+			}
+			if protocol.IsUserLikeSender(m.From) && (userRequestsImplementation(m.Content) || messageHasBootOrBuildError(m.Content)) {
+				userContent = m.Content
+				break
+			}
+		}
+	}
+	if !a.shouldRepairCorruptAppJSEntry(msg, wsPath, userContent, state.StackManifest) {
+		return
+	}
+	rel := "src/App.js"
+	if _, err := os.Stat(filepath.Join(wsPath, rel)); err != nil {
+		return
+	}
+	for _, changed := range state.FilesChanged {
+		if normalizeFileChangeRelPath(changed) == rel {
+			return
+		}
+	}
+	if err := a.proposeFileDeleteInChannel(channel, rel, msg); err != nil {
+		return
+	}
+	state.ProposedCount++
+	state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+	log.Printf("[%s] corrupt_appjs_entry_repair(path=%s)", a.Info.Name, rel)
 }

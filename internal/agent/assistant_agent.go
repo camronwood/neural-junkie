@@ -96,6 +96,7 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		log.Printf("Failed to create Assistant MCP server: %v", err)
 	} else {
 		assistantMCP.AttachWorkspaceTools(func() string { return baseAgent.WorkspacePath })
+		assistantMCP.AttachWebTools()
 		baseAgent.MCPServer = assistantMCP
 		log.Printf("Assistant workspace MCP tools registered for agent: %s", name)
 	}
@@ -253,6 +254,11 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• Provide summaries of recent meetings\n")
 	prompt.WriteString("• Answer questions about meeting discussions and decisions\n")
 	prompt.WriteString("• Full meeting-note and email context is loaded only when the user asks about meetings or email\n\n")
+
+	prompt.WriteString("**Web lookup (Assistant MCP tools):**\n")
+	prompt.WriteString("• web_search — query the public web when the user needs current or external facts\n")
+	prompt.WriteString("• fetch_url — read a public HTTPS page after search when snippets are not enough\n")
+	prompt.WriteString("• Requires Settings → Integrations → Web search (Tavily recommended; Brave also supported).\n\n")
 
 	prompt.WriteString("**Conversation Summarization:**\n")
 	prompt.WriteString("• Summarize long discussions\n")

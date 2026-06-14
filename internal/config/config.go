@@ -123,8 +123,11 @@ type Config struct {
 	Collaboration  CollaborationConfig  `json:"collaboration"`
 	Implementation ImplementationConfig `json:"implementation"`
 	Delegation     DelegationConfig     `json:"delegation"`
-	Features       FeaturesConfig       `json:"features"`
+	Routing           RoutingConfig                        `json:"routing"`
+	SpecialistCompose map[string]SpecialistComposeEntry    `json:"specialist_compose,omitempty"`
+	Features          FeaturesConfig                       `json:"features"`
 	Slack          SlackConfig          `json:"slack"`
+	WebSearch      WebSearchConfig      `json:"web_search"`
 	Phoenix        PhoenixConfig        `json:"phoenix"`
 
 	mu       sync.RWMutex `json:"-"`
@@ -166,6 +169,7 @@ func DefaultConfig() *Config {
 			LocalToolModel:  "qwen3.5:9b",
 		},
 		Delegation: DefaultDelegationConfig(),
+		Routing:    DefaultRoutingConfig(),
 		Features:   FeaturesConfig{PersonalLearningEnabled: false},
 		Packs:      DefaultPacksConfig(),
 		MCP:        DefaultMCPConfig(),
@@ -565,16 +569,8 @@ func (c *Config) ProviderForAgent(a AgentConfig) *ProviderConfig {
 		return nil
 	}
 	copy := *p
-	if a.Type == "biology" && c.IsPackEnabled(PackLifeSciences) {
-		// BiologyExpert uses mcp.biology.chat_model unless the agent row has an explicit model override.
-		if strings.TrimSpace(a.Model) == "" {
-			copy.Model = c.BiologyChatModelOrDefault()
-		}
-	}
-	if a.Type == "cad" && c.IsPackEnabled(PackCAD) {
-		if strings.TrimSpace(a.Model) == "" {
-			copy.Model = c.CadMCPSettings().ChatModelOrDefault()
-		}
+	if chatModel := c.ChatModelForAgent(a.Type, a.Model); chatModel != "" {
+		copy.Model = chatModel
 	}
 	if isDevSpecialistAgentType(a.Type) && c.IsPackEnabled(PackSoftwareDevelopment) {
 		agentModel := strings.TrimSpace(a.Model)
@@ -641,6 +637,7 @@ func (c *Config) Redacted() *Config {
 		packs.Enabled = make(map[string]bool)
 	}
 	mcpCfg := c.MCP
+	webSearch := c.WebSearch
 	filePath := c.filePath
 	c.mu.RUnlock()
 
@@ -663,6 +660,14 @@ func (c *Config) Redacted() *Config {
 			redactedHF.Token = "***"
 		}
 	}
+	redactedWebSearch := webSearch
+	if redactedWebSearch.APIKey != "" {
+		if len(redactedWebSearch.APIKey) > 8 {
+			redactedWebSearch.APIKey = redactedWebSearch.APIKey[:4] + "..." + redactedWebSearch.APIKey[len(redactedWebSearch.APIKey)-4:]
+		} else {
+			redactedWebSearch.APIKey = "***"
+		}
+	}
 	return &Config{
 		Server:        server,
 		AI:            AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
@@ -675,6 +680,7 @@ func (c *Config) Redacted() *Config {
 		Collaboration: collab,
 		Delegation:    delegation,
 		Features:      features,
+		WebSearch:     redactedWebSearch,
 		filePath:      filePath,
 	}
 }
@@ -729,6 +735,13 @@ func (c *Config) mergeEnvVars() {
 			}
 		}
 	}
+	if v := strings.TrimSpace(os.Getenv("OLLAMA_CODE_MODEL")); v != "" {
+		for i := range c.Agents {
+			if isDevSpecialistAgentType(c.Agents[i].Type) {
+				c.Agents[i].Model = v
+			}
+		}
+	}
 
 	if v := os.Getenv("NEURAL_JUNKIE_SLACK_ENABLED"); v == "1" || strings.EqualFold(v, "true") {
 		c.Slack.Enabled = true
@@ -741,6 +754,19 @@ func (c *Config) mergeEnvVars() {
 	}
 	if v := os.Getenv("NEURAL_JUNKIE_SLACK_DISPLAY_NAME"); v != "" {
 		c.Slack.DisplayName = v
+	}
+
+	if v := os.Getenv("NEURAL_JUNKIE_WEB_SEARCH_ENABLED"); v == "1" || strings.EqualFold(v, "true") {
+		c.WebSearch.Enabled = true
+	}
+	if v := os.Getenv("NEURAL_JUNKIE_WEB_SEARCH_API_KEY"); v != "" {
+		c.WebSearch.APIKey = v
+	}
+	if v := os.Getenv("NEURAL_JUNKIE_WEB_SEARCH_PROVIDER"); v != "" {
+		c.WebSearch.Provider = v
+	}
+	if v := os.Getenv("NEURAL_JUNKIE_WEB_SEARCH_KEYLESS"); v == "1" || strings.EqualFold(v, "true") {
+		c.WebSearch.Keyless = true
 	}
 }
 

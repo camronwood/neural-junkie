@@ -1,0 +1,115 @@
+{
+  "name": "collaboration-station-website",
+  "description": "Replay of last-session b1c8ce0a: FrontendEngineer, SecurityReviewer, and Gemini plan and execute a three-page website collab with prior HTML/CSS under collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/.",
+  "tags": ["collab", "execution", "regression", "website", "gemini"],
+  "channel": "collab-scenarios",
+  "agents": "@FrontendEngineer @SecurityReviewer @Gemini",
+  "required_agents": ["FrontendEngineer", "SecurityReviewer", "Gemini"],
+  "workspace": {
+    "fixture": "website-prior-collab",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/frontend_architecture_plan.md\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/index.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/about.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/contact.html\ncollabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/style.css\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "3", "--messages", "18"],
+    "goal": "@FrontendEngineer @SecurityReviewer @Gemini Design a website named Collaboration Station. Colors: black, white, gray, blue, red. Three pages: home, about, contact. Review existing work under collabs/b222bffe-39e8-4b00-91ca-ee1c555b9592/ (frontend_architecture_plan.md, HTML, CSS) before planning. End with exactly three file tasks under collabs/<id>/: Task 1 @FrontendEngineer Write architecture-review.md comparing b222bffe frontend_architecture_plan.md to the new color spec; Task 2 @SecurityReviewer Write security-audit.md reviewing b222bffe HTML/CSS for XSS and contact-form handling; Task 3 @Gemini Write homepage.html, aboutpage.html, contactpage.html using reviews from Tasks 1-2 (Task 3 depends on Tasks 1-2)."
+  },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/architecture-review.md",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["architecture|color|b222bffe|frontend_architecture|Collaboration Station"],
+        "none_match": ["_Initial stub created"]
+      },
+      "llm_judge": true
+    },
+    {
+      "path": "collabs/<collab-id>/security-audit.md",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["security|XSS|contact|HTML|CSS|audit"],
+        "none_match": ["_Initial stub created", "index\\.js", "utils\\.js"]
+      },
+      "llm_judge": true
+    }
+  ],
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 45},
+    {
+      "action": "wait_discussion",
+      "min_total": 3,
+      "min_per_agent": 1,
+      "required_agents": ["FrontendEngineer", "SecurityReviewer", "Gemini"],
+      "timeout": "300s",
+      "retries": 1,
+      "nudge_agents": ["SecurityReviewer"]
+    },
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "240s"},
+    {"action": "wait_planning_recap", "timeout": "300s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 3,
+      "max_tasks": 5,
+      "tasks_have_assignee": true,
+      "tasks_have_file_deliverable": true,
+      "assignee_min_tasks": {"FrontendEngineer": 1, "SecurityReviewer": 1, "Gemini": 1},
+      "content_any_match": ["architecture-review\\.md", "security-audit", "homepage|aboutpage|contactpage|\\.html"]
+    },
+    {
+      "action": "assert_messages",
+      "any_match": ["b222bffe"],
+      "none_match": ["Grounding: I loaded", "index\\.js", "utils\\.js"]
+    },
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 60},
+    {
+      "action": "assert_collab",
+      "phase": "executing",
+      "workspace_acknowledged": true,
+      "tasks_dispatched": true,
+      "source_repo_path_nonempty": true
+    },
+    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {
+      "action": "wait_tasks",
+      "min_completed": 2,
+      "all_match": false,
+      "timeout": "420s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "architecture-review.md",
+      "target_rel": "collabs/<collab-id>/architecture-review.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "security-audit.md",
+      "target_rel": "collabs/<collab-id>/security-audit.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/architecture-review.md",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "none_match": ["_Initial stub created"]
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/security-audit.md",
+      "min_bytes": 80,
+      "deny_task_status": true,
+      "none_match": ["_Initial stub created", "index\\.js", "utils\\.js"]
+    }
+  ],
+  "cleanup": "cancel"
+}

@@ -149,6 +149,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/ollama/library/lookup", corsMiddleware(handleOllamaLibraryLookup))
 	http.HandleFunc("/api/ollama/delete", corsMiddleware(localOnly(handleOllamaDelete)))
 	http.HandleFunc("/api/system/hardware", corsMiddleware(handleSystemHardware))
+	http.HandleFunc("/api/system/memory", corsMiddleware(handleSystemMemory))
 	http.HandleFunc("/api/system/security", corsMiddleware(handleSystemSecurity))
 
 	http.HandleFunc("/api/hf/status", corsMiddleware(handleHfStatus))
@@ -199,11 +200,14 @@ func registerRoutes() {
 	http.HandleFunc("/api/slack/inbox/test-dm", corsMiddleware(handleSlackInboxTestDM))
 	http.HandleFunc("/api/slack/inbox/dm-debug", corsMiddleware(handleSlackInboxDMDebug))
 	http.HandleFunc("/api/slack/inbox/human-dm-debug", corsMiddleware(handleSlackInboxHumanDMDebug))
+	http.HandleFunc("/api/web-search/config", corsMiddleware(handleWebSearchConfig))
+	http.HandleFunc("/api/web-search/test", corsMiddleware(handleWebSearchTest))
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))
 		http.HandleFunc("/api/debug/channel-context", corsMiddleware(handleDebugChannelContext))
 		http.HandleFunc("/api/debug/delegation-resolve", corsMiddleware(handleDebugDelegationResolve))
+		http.HandleFunc("/api/debug/routing-classify", corsMiddleware(handleDebugRoutingClassify))
 		pprofAddr := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PPROF_ADDR"))
 		if pprofAddr == "" {
 			pprofAddr = "127.0.0.1:6060"

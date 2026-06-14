@@ -92,6 +92,13 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
 		return false
 	}
+	// Short status follow-ups ("is it fixed?") get a conversational reply, not a new session.
+	if userRequestsImplementationStatusCheck(msg.Content) &&
+		!userRequestsImplementation(msg.Content) &&
+		!messageHasBootOrBuildError(msg.Content) &&
+		!msg.ImplementationSession() {
+		return false
+	}
 	if shouldSkipAgentResponseOnFileExportApproval(a, msg) {
 		return false
 	}
@@ -194,11 +201,22 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		Phase:     "discover",
 		TrustMode: msg.EditorAgentTrust(),
 	}
-	if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
+	wsPath := a.resolveWorkspacePath(msg)
+	if wsPath != "" {
 		state.StackManifest = DetectStackManifest(wsPath)
 		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
 	}
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
+
+	if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		summary := a.formatImplementationSessionSummary("", state, true, msg)
+		return summary, streamMsgID, true, state.FilesChanged, nil
+	}
 
 	var lastResponse string
 	proposedAny := false
@@ -299,6 +317,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 	a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
 	a.repairAppThemeIfNeeded(sessionCtx, msg, state)
+	a.repairCorruptAppJSEntryIfNeeded(sessionCtx, msg, state)
 	if !cycleProposed {
 		for _, p := range state.FilesChanged {
 			if strings.Contains(strings.ToLower(p), "tailwind.config") || strings.HasSuffix(strings.ToLower(p), "app.tsx") {
@@ -460,7 +479,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)
 	eff = a.toolCapableProvider(approvalCtx, eff)
-	if len(a.agentToolDefinitions()) > 0 {
+	if len(a.agentToolDefinitions(msg)) > 0 {
 		return a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 	}
 	return eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
@@ -771,6 +790,9 @@ func proposeFileEditToolDefinition() ai.ClaudeToolDefinition {
 }
 
 func (a *Agent) executeProposeFileEditTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
+	if isAskModeReadOnly(msg) {
+		return "", fmt.Errorf("ask mode is read-only")
+	}
 	var args struct {
 		Path      string `json:"path"`
 		Content   string `json:"content"`

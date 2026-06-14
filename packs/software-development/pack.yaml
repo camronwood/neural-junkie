@@ -21,6 +21,15 @@ agents:
   - type: security
     name: SecurityReviewer
     implementation: builtin/security
+    compose:
+      tool_model: qwen3.5:9b
+      lora_tag: nj-security:14b
+      consult_triggers:
+        - security
+        - auth
+        - oauth
+        - jwt
+        - cve
   - type: architecture
     name: SoftwareArchitect
     implementation: builtin/architecture
@@ -31,9 +40,8 @@ agents:
     name: DatabaseSpecialist
     implementation: builtin/database
 models_to_ensure:
-  - qwen3.5:27b
   - qwen3.5:9b
-ollama_model: qwen3.5:27b
+ollama_model: qwen3.5:9b
 expert_presets:
   - slug: backend
     label: Backend

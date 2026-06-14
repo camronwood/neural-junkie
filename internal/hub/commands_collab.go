@@ -231,6 +231,10 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	turnMsg.SetCollaborationID(collab.ID)
 	turnMsg.SetCollaborationPhase(string(collaboration.PhasePlanning))
 	turnMsg.Mentions = []string{firstAgent.AgentID}
+	if turnMsg.Metadata == nil {
+		turnMsg.Metadata = map[string]interface{}{}
+	}
+	turnMsg.Metadata["collab_internal_event"] = true
 	if flagParse.AttachWorkspace {
 		ch.attachCollaborationWorkspaceMetadata(msg, turnMsg, false)
 	}
