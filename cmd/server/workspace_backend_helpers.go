@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/remotetokens"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
@@ -28,6 +29,19 @@ func (h hubWorkspaceSource) GetWorkspace(id string) (workspacebackend.WorkspaceR
 		Kind:       ws.Kind,
 		SidecarURL: ws.SidecarURL,
 	}, true
+}
+
+func wireAgentWorkspaceBackend(a *agent.Agent) {
+	if a == nil || workspaceBackendResolver == nil {
+		return
+	}
+	a.SetWorkspaceBackendLookup(func(workspaceID string) workspacebackend.Backend {
+		b, err := workspaceBackendResolver.ForWorkspace(workspaceID)
+		if err != nil {
+			return nil
+		}
+		return b
+	})
 }
 
 func resolveWorktreeBackend(repoPath string) workspacebackend.Backend {

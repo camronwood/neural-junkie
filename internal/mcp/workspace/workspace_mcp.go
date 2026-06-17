@@ -182,6 +182,34 @@ func (w *tools) handleGrep(ctx context.Context, request mcpgo.CallToolRequest) (
 		return mcp.HandleToolError(fmt.Errorf("pattern is required"), "grep"), nil
 	}
 	sub := request.GetString("path", ".")
+	if b := shared.BackendFromContext(ctx); b != nil {
+		relCwd := strings.TrimPrefix(strings.TrimSpace(sub), "/")
+		if relCwd == "" {
+			relCwd = "."
+		}
+		res, err := b.Exec(ctx, workspacebackend.ExecRequest{
+			Command: "rg",
+			Args:    []string{"-n", "--no-heading", "--color=never", pattern, "."},
+			RelCwd:  relCwd,
+			Timeout: 60 * time.Second,
+		})
+		out := res.Stdout
+		if res.Stderr != "" {
+			if out != "" {
+				out += "\n"
+			}
+			out += res.Stderr
+		}
+		if err == nil || strings.TrimSpace(out) != "" {
+			if len(out) > maxReadBytes {
+				out = out[:maxReadBytes] + "\n...(truncated)"
+			}
+			if strings.TrimSpace(out) == "" {
+				return mcp.HandleToolSuccess("No matches found."), nil
+			}
+			return mcp.HandleToolSuccess(out), nil
+		}
+	}
 	searchRoot, err := w.resolveRel(root, sub)
 	if err != nil {
 		return mcp.HandleToolError(err, "grep"), nil

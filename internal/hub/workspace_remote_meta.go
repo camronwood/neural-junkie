@@ -20,15 +20,34 @@ func (h *Hub) enrichRemoteWorkspaceMetadata(msg *protocol.Message) {
 	if ws == nil || !isRemoteWorkspaceRecord(ws) {
 		return
 	}
-	raw["workspace_id"] = ws.ID
-	raw["workspace_kind"] = ws.Kind
-	if strings.TrimSpace(ws.SidecarURL) != "" {
-		raw["sidecar_url"] = ws.SidecarURL
-	}
-	if token, err := GetRemoteToken(ws.ID); err == nil && strings.TrimSpace(token) != "" {
-		raw["sidecar_token"] = token
-	}
+	h.applyRemoteWorkspaceRoutingFields(raw, ws)
 	msg.Metadata["workspace_context"] = raw
+}
+
+// applyRemoteWorkspaceRoutingFields sets workspace_id/sidecar_url on a workspace_context map (no secrets).
+func (h *Hub) applyRemoteWorkspaceRoutingFields(ctx map[string]interface{}, ws *Workspace) {
+	if ctx == nil || ws == nil || !isRemoteWorkspaceRecord(ws) {
+		return
+	}
+	ctx["workspace_id"] = ws.ID
+	ctx["workspace_kind"] = ws.Kind
+	if strings.TrimSpace(ws.SidecarURL) != "" {
+		ctx["sidecar_url"] = ws.SidecarURL
+	}
+}
+
+func (h *Hub) remoteWorkspaceForRepoPath(repoPath string) *Workspace {
+	if h == nil || h.workspaceManager == nil {
+		return nil
+	}
+	repoPath = strings.TrimSpace(repoPath)
+	if repoPath == "" {
+		return nil
+	}
+	if ws, ok := h.workspaceManager.FindWorkspaceByPath(repoPath); ok && isRemoteWorkspaceRecord(ws) {
+		return ws
+	}
+	return nil
 }
 
 func (h *Hub) workspaceFromContext(ctx map[string]interface{}) *Workspace {

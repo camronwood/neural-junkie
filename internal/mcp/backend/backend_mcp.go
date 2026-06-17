@@ -99,26 +99,26 @@ func (b *BackendMCP) handleAnalyzeGoCode(ctx context.Context, request mcpgo.Call
 	if filePath == "" {
 		return mcp.HandleToolError(fmt.Errorf("file_path is required"), "analyze_go_code"), nil
 	}
-	if !b.isValidGoPath(filePath) {
+	if !b.isValidGoPath(ctx, filePath) {
 		return mcp.HandleToolError(fmt.Errorf("invalid Go file path: %s", filePath), "analyze_go_code"), nil
 	}
 
 	var results []string
 	var errors []string
 
-	if result, err := b.runGoVet(filePath); err != nil {
+	if result, err := b.runGoVet(ctx, filePath); err != nil {
 		errors = append(errors, fmt.Sprintf("go vet error: %v", err))
 	} else if result != "" {
 		results = append(results, "=== go vet ===", result)
 	}
 
-	if result, err := b.runStaticcheck(filePath); err != nil {
+	if result, err := b.runStaticcheck(ctx, filePath); err != nil {
 		errors = append(errors, fmt.Sprintf("staticcheck error: %v", err))
 	} else if result != "" {
 		results = append(results, "=== staticcheck ===", result)
 	}
 
-	if result, err := b.runGolangciLint(filePath); err != nil {
+	if result, err := b.runGolangciLint(ctx, filePath); err != nil {
 		errors = append(errors, fmt.Sprintf("golangci-lint error: %v", err))
 	} else if result != "" {
 		results = append(results, "=== golangci-lint ===", result)
@@ -145,19 +145,19 @@ func (b *BackendMCP) handleRunGoTests(ctx context.Context, request mcpgo.CallToo
 	}
 
 	packagePath := request.GetString("package_path", "")
-	if !b.isValidGoPath(packagePath) {
+	if !b.isValidGoPath(ctx, packagePath) {
 		return mcp.HandleToolError(fmt.Errorf("invalid Go package path: %s", packagePath), "run_go_tests"), nil
 	}
 
 	var output []byte
 	var err error
 	if shared.BackendFromContext(ctx) != nil {
-		out, runErr := shared.RunCommandMaybeRemote(ctx, b.getWorkingDir(packagePath), "go", "test", "-v", "-timeout", "30s", packagePath)
+		out, runErr := shared.RunCommandMaybeRemote(ctx, b.getWorkingDir(ctx, packagePath), "go", "test", "-v", "-timeout", "30s", packagePath)
 		output = []byte(out)
 		err = runErr
 	} else {
 		cmd := exec.CommandContext(ctx, "go", "test", "-v", "-timeout", "30s", packagePath)
-		cmd.Dir = b.getWorkingDir(packagePath)
+		cmd.Dir = b.getWorkingDir(ctx, packagePath)
 		output, err = cmd.CombinedOutput()
 	}
 	if err != nil {
@@ -175,7 +175,7 @@ func (b *BackendMCP) handleProfilePerformance(ctx context.Context, request mcpgo
 	binaryPath := request.GetString("binary_path", "")
 	endpoint := request.GetString("endpoint", "")
 
-	if !b.isValidGoPath(binaryPath) {
+	if !b.isValidGoPath(ctx, binaryPath) {
 		return mcp.HandleToolError(fmt.Errorf("invalid binary path: %s", binaryPath), "profile_performance"), nil
 	}
 
@@ -191,7 +191,7 @@ func (b *BackendMCP) handleCheckDependencies(ctx context.Context, request mcpgo.
 	}
 
 	modulePath := request.GetString("module_path", "")
-	if !b.isValidGoPath(modulePath) {
+	if !b.isValidGoPath(ctx, modulePath) {
 		return mcp.HandleToolError(fmt.Errorf("invalid module path: %s", modulePath), "check_dependencies"), nil
 	}
 
@@ -234,12 +234,12 @@ func (b *BackendMCP) handleDetectRaceConditions(ctx context.Context, request mcp
 	}
 
 	packagePath := request.GetString("package_path", "")
-	if !b.isValidGoPath(packagePath) {
+	if !b.isValidGoPath(ctx, packagePath) {
 		return mcp.HandleToolError(fmt.Errorf("invalid package path: %s", packagePath), "detect_race_conditions"), nil
 	}
 
 	cmd := exec.CommandContext(ctx, "go", "test", "-race", "-timeout", "30s", packagePath)
-	cmd.Dir = b.getWorkingDir(packagePath)
+	cmd.Dir = b.getWorkingDir(ctx, packagePath)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -249,15 +249,22 @@ func (b *BackendMCP) handleDetectRaceConditions(ctx context.Context, request mcp
 	return mcp.HandleToolSuccess(fmt.Sprintf("No race conditions detected in %s", packagePath)), nil
 }
 
-func (b *BackendMCP) isValidGoPath(path string) bool {
+func (b *BackendMCP) isValidGoPath(ctx context.Context, path string) bool {
+	path = strings.TrimSpace(path)
 	if path == "" {
 		return false
+	}
+	if shared.BackendFromContext(ctx) != nil {
+		return !strings.Contains(path, "..")
 	}
 	_, err := os.Stat(path)
 	return err == nil
 }
 
-func (b *BackendMCP) getWorkingDir(path string) string {
+func (b *BackendMCP) getWorkingDir(ctx context.Context, path string) string {
+	if wb := shared.BackendFromContext(ctx); wb != nil {
+		return wb.Root()
+	}
 	if filepath.IsAbs(path) {
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			return filepath.Dir(path)
@@ -279,9 +286,12 @@ func (b *BackendMCP) getWorkingDir(path string) string {
 	return dir
 }
 
-func (b *BackendMCP) runGoVet(path string) (string, error) {
-	cmd := exec.Command("go", "vet", path)
-	cmd.Dir = b.getWorkingDir(path)
+func (b *BackendMCP) runGoVet(ctx context.Context, path string) (string, error) {
+	if shared.BackendFromContext(ctx) != nil {
+		return shared.RunCommandMaybeRemote(ctx, b.getWorkingDir(ctx, path), "go", "vet", path)
+	}
+	cmd := exec.CommandContext(ctx, "go", "vet", path)
+	cmd.Dir = b.getWorkingDir(ctx, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(output), err
@@ -289,9 +299,16 @@ func (b *BackendMCP) runGoVet(path string) (string, error) {
 	return "", nil
 }
 
-func (b *BackendMCP) runStaticcheck(path string) (string, error) {
-	cmd := exec.Command("staticcheck", path)
-	cmd.Dir = b.getWorkingDir(path)
+func (b *BackendMCP) runStaticcheck(ctx context.Context, path string) (string, error) {
+	if shared.BackendFromContext(ctx) != nil {
+		out, err := shared.RunCommandMaybeRemote(ctx, b.getWorkingDir(ctx, path), "staticcheck", path)
+		if err != nil {
+			return "", fmt.Errorf("staticcheck not available: %w", err)
+		}
+		return out, nil
+	}
+	cmd := exec.CommandContext(ctx, "staticcheck", path)
+	cmd.Dir = b.getWorkingDir(ctx, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("staticcheck not available: %w", err)
@@ -299,9 +316,16 @@ func (b *BackendMCP) runStaticcheck(path string) (string, error) {
 	return string(output), nil
 }
 
-func (b *BackendMCP) runGolangciLint(path string) (string, error) {
-	cmd := exec.Command("golangci-lint", "run", path)
-	cmd.Dir = b.getWorkingDir(path)
+func (b *BackendMCP) runGolangciLint(ctx context.Context, path string) (string, error) {
+	if shared.BackendFromContext(ctx) != nil {
+		out, err := shared.RunCommandMaybeRemote(ctx, b.getWorkingDir(ctx, path), "golangci-lint", "run", path)
+		if err != nil {
+			return "", fmt.Errorf("golangci-lint not available: %w", err)
+		}
+		return out, nil
+	}
+	cmd := exec.CommandContext(ctx, "golangci-lint", "run", path)
+	cmd.Dir = b.getWorkingDir(ctx, path)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("golangci-lint not available: %w", err)

@@ -9,14 +9,37 @@ import (
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
-// withWorkspaceBackendFromMessage attaches a remote workspace backend when sidecar metadata is present.
-func withWorkspaceBackendFromMessage(ctx context.Context, msg *protocol.Message) context.Context {
+// SetWorkspaceBackendLookup wires hub-side backend resolution (includes sidecar token).
+func (a *Agent) SetWorkspaceBackendLookup(fn func(workspaceID string) workspacebackend.Backend) {
+	if a == nil {
+		return
+	}
+	a.workspaceBackendLookup = fn
+}
+
+func (a *Agent) contextWithWorkspaceBackend(ctx context.Context, msg *protocol.Message) context.Context {
+	return withWorkspaceBackendFromMessage(ctx, msg, a.workspaceBackendLookup)
+}
+
+// withWorkspaceBackendFromMessage attaches a remote workspace backend when routing metadata is present.
+func withWorkspaceBackendFromMessage(
+	ctx context.Context,
+	msg *protocol.Message,
+	lookup func(workspaceID string) workspacebackend.Backend,
+) context.Context {
 	if msg == nil || msg.Metadata == nil {
 		return ctx
 	}
 	raw, ok := msg.Metadata["workspace_context"].(map[string]interface{})
 	if !ok {
 		return ctx
+	}
+	if lookup != nil {
+		if id, _ := raw["workspace_id"].(string); strings.TrimSpace(id) != "" {
+			if b := lookup(strings.TrimSpace(id)); b != nil {
+				return shared.ContextWithBackend(ctx, b)
+			}
+		}
 	}
 	sidecarURL, _ := raw["sidecar_url"].(string)
 	sidecarURL = strings.TrimSpace(sidecarURL)
@@ -28,7 +51,19 @@ func withWorkspaceBackendFromMessage(ctx context.Context, msg *protocol.Message)
 	if root == "" {
 		return ctx
 	}
-	token, _ := raw["sidecar_token"].(string)
-	remote := workspacebackend.NewRemote(root, sidecarURL, strings.TrimSpace(token))
-	return shared.ContextWithBackend(ctx, remote)
+	// No token in metadata — lookup by workspace_id is required for authenticated sidecars.
+	return ctx
+}
+
+// RedactSidecarSecrets removes sidecar bearer tokens from message metadata before client export.
+func RedactSidecarSecrets(msg *protocol.Message) {
+	if msg == nil || msg.Metadata == nil {
+		return
+	}
+	raw, ok := msg.Metadata["workspace_context"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	delete(raw, "sidecar_token")
+	msg.Metadata["workspace_context"] = raw
 }

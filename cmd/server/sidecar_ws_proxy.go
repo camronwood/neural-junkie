@@ -77,6 +77,11 @@ func proxySidecarHTTPBytes(w http.ResponseWriter, r *http.Request, ws *hub.Works
 		return
 	}
 	proxyReq.Header = r.Header.Clone()
+	proxyReq.Header.Del("Content-Length")
+	proxyReq.Header.Del("Transfer-Encoding")
+	if len(body) > 0 {
+		proxyReq.ContentLength = int64(len(body))
+	}
 	if token != "" {
 		proxyReq.Header.Set("Authorization", "Bearer "+token)
 	}

@@ -54,9 +54,25 @@ func CreateViaBackend(ctx context.Context, b workspacebackend.Backend, opts Crea
 	if branch == "" {
 		branch = DefaultBranchName(collabID)
 	}
+	branch = uniqueBranchNameViaBackend(ctx, b, branch)
 	worktreeRel := filepath.ToSlash(filepath.Join(remoteWorktreesDir, collabID))
+	parentRel := filepath.ToSlash(filepath.Dir(worktreeRel))
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
+	if parentRel != "." && parentRel != "" {
+		mkdirRes, mkdirErr := b.Exec(ctx, workspacebackend.ExecRequest{
+			Command: "mkdir",
+			Args:    []string{"-p", parentRel},
+			RelCwd:  ".",
+		})
+		if mkdirErr != nil || mkdirRes.ExitCode != 0 {
+			msg := strings.TrimSpace(mkdirRes.Stdout + mkdirRes.Stderr)
+			if msg == "" && mkdirErr != nil {
+				msg = mkdirErr.Error()
+			}
+			return nil, fmt.Errorf("worktree parent directory: %s", msg)
+		}
+	}
 	res, err := b.Exec(ctx, workspacebackend.ExecRequest{
 		Command: "git",
 		Args:    []string{"worktree", "add", "-b", branch, worktreeRel},
@@ -117,4 +133,27 @@ func RemoveViaBackend(ctx context.Context, b workspacebackend.Backend, opts Remo
 		}
 	}
 	return nil
+}
+
+func uniqueBranchNameViaBackend(ctx context.Context, b workspacebackend.Backend, branch string) string {
+	if !branchExistsViaBackend(ctx, b, branch) {
+		return branch
+	}
+	for i := 2; i < 100; i++ {
+		candidate := fmt.Sprintf("%s-%d", branch, i)
+		if !branchExistsViaBackend(ctx, b, candidate) {
+			return candidate
+		}
+	}
+	return branch + "-" + fmt.Sprintf("%d", time.Now().Unix())
+}
+
+func branchExistsViaBackend(ctx context.Context, b workspacebackend.Backend, branch string) bool {
+	res, err := b.Exec(ctx, workspacebackend.ExecRequest{
+		Command: "git",
+		Args:    []string{"show-ref", "--verify", "--quiet", "refs/heads/" + branch},
+		RelCwd:  ".",
+		Timeout: 15 * time.Second,
+	})
+	return err == nil && res.ExitCode == 0
 }

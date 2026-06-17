@@ -160,7 +160,7 @@ func (a *Agent) generateWithMCPTools(
 			log.Printf("[%s] MCP tool call: %s", a.Info.Name, req.Name)
 			toolCtx := ctx
 			if len(history) > 0 {
-				toolCtx = withWorkspaceBackendFromMessage(ctx, history[len(history)-1])
+				toolCtx = a.contextWithWorkspaceBackend(ctx, history[len(history)-1])
 			}
 			result, err := executeMCPTool(toolCtx, mcpServer, req.Name, req.Input)
 			if err != nil {

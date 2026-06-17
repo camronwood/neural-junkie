@@ -6,6 +6,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collaboration) map[string]interface{} {
@@ -22,13 +23,23 @@ func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collabor
 		wsName = fmt.Sprintf("Collab worktree: %s", name)
 	}
 	outputPath := collaboration.PlannedOutputDirectory(snap, "")
+	sourcePath := strings.TrimSpace(snap.SourceRepoPath)
+	remoteWS := h.remoteWorkspaceForRepoPath(sourcePath)
+	var remoteBackend workspacebackend.Backend
+	if remoteWS != nil {
+		remoteBackend = h.worktreeBackendForPath(sourcePath)
+	}
 	fileTree := ".  (sandbox — empty until agents create files)\n"
 	if snap.ExecutionMode == collaboration.ExecutionModeWorktree {
-		fileTree = buildOutlineFileTree(workspacePath, 3)
+		if remoteBackend != nil {
+			fileTree = buildWorktreeOutlineViaBackend(remoteBackend, snap.ID, 3)
+		} else {
+			fileTree = buildOutlineFileTree(workspacePath, 3)
+		}
 		if fileTree == "" {
 			fileTree = ".\n"
 		}
-	} else if sourcePath := strings.TrimSpace(snap.SourceRepoPath); sourcePath != "" {
+	} else if sourcePath != "" {
 		workspacePath = sourcePath
 		wsName = fmt.Sprintf("Source workspace: %s", name)
 		if stored := snap.SourceWorkspaceContext; len(stored) > 0 {
@@ -37,7 +48,11 @@ func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collabor
 			}
 		}
 		if fileTree == ".  (sandbox — empty until agents create files)\n" {
-			fileTree = buildCollabOutlineFileTree(sourcePath, snap.Description, 3)
+			if remoteBackend != nil {
+				fileTree = buildCollabOutlineViaBackend(remoteBackend, snap.Description, 3)
+			} else {
+				fileTree = buildCollabOutlineFileTree(sourcePath, snap.Description, 3)
+			}
 			if fileTree == "" {
 				fileTree = ".\n"
 			}
@@ -69,6 +84,10 @@ func (h *Hub) collaborationWorkspaceContextSnapshot(snap *collaboration.Collabor
 				collaboration.ReviewAssetsIndexFileName,
 			}
 		}
+	}
+	if remoteWS != nil {
+		h.applyRemoteWorkspaceRoutingFields(out, remoteWS)
+		out["workspace_path"] = remoteWS.Path
 	}
 	return out
 }

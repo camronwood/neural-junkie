@@ -10,6 +10,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -58,6 +59,9 @@ type Agent struct {
 
 	// Collaboration support (set by the hub after creation)
 	Collab CollaborationClient
+
+	// workspaceBackendLookup resolves nj-remote backends by workspace id (hub keychain token).
+	workspaceBackendLookup func(workspaceID string) workspacebackend.Backend
 
 	// collabTaskReplyAt rate-limits responses to collaboration_task prompts.
 	collabTaskReplyMu sync.Mutex

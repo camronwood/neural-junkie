@@ -308,6 +308,7 @@ func activateCLIAgentFromConfig(cfg agent.CLIAgentConfig, defaultWorkDir string)
 	if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
 		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
 			ch.RegisterRuntimeAgent(cliAgent)
+			wireAgentWorkspaceBackend(cliAgent)
 		}
 	}
 

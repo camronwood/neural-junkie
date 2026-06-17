@@ -38,6 +38,7 @@ func initializeModeratorAgent() {
 	if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
 		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
 			ch.RegisterRuntimeAgent(moderator.Agent)
+			wireAgentWorkspaceBackend(moderator.Agent)
 		}
 	}
 
@@ -94,6 +95,7 @@ func initializeAssistantAgent() {
 		if ch, ok := commandHandler.(*hub.CommandHandler); ok {
 			ch.SetAssistantAgent(assistant)
 			ch.RegisterRuntimeAgent(assistant.Agent)
+			wireAgentWorkspaceBackend(assistant.Agent)
 		}
 	}
 

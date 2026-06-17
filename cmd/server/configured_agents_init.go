@@ -109,6 +109,7 @@ func initializeConfiguredAgents() {
 		if commandHandler := chatHub.GetCommandHandler(); commandHandler != nil {
 			if ch, ok := commandHandler.(*hub.CommandHandler); ok {
 				ch.RegisterRuntimeAgent(agentObj)
+				wireAgentWorkspaceBackend(agentObj)
 			}
 		}
 

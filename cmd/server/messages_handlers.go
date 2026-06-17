@@ -59,6 +59,7 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 		}
 		if !allowFull {
 			protocol.RedactImageBinaryMetadata(cp)
+			agent.RedactSidecarSecrets(cp)
 		}
 		out = append(out, cp)
 	}

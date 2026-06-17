@@ -532,7 +532,7 @@ func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Messa
 	}
 
 	var combined strings.Builder
-	toolCtx := withWorkspaceBackendFromMessage(ctx, msg)
+	toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
 	anyFailed := false
 	for _, cmd := range cmds {
 		input, _ := json.Marshal(map[string]string{"command": cmd})

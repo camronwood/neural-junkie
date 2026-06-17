@@ -269,10 +269,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     try {
       const plan = await api.fetchDevcontainerPlanByPath(repo);
       setDevcontainerPlan(plan);
-      if (plan?.sidecar_port && !sidecarUrl.includes(String(plan.sidecar_port))) {
-        setSidecarUrl(`http://127.0.0.1:${plan.sidecar_port}`);
+      const pingUrl =
+        plan?.sidecar_port != null
+          ? `http://127.0.0.1:${plan.sidecar_port}`
+          : sidecarUrl.trim();
+      if (plan?.sidecar_port != null && !sidecarUrl.includes(String(plan.sidecar_port))) {
+        setSidecarUrl(pingUrl);
       }
-      const pingOk = await api.pingSidecar(sidecarUrl.trim(), sidecarToken.trim() || undefined);
+      const pingOk = await api.pingSidecar(pingUrl, sidecarToken.trim() || undefined);
       if (!pingOk) {
         addToast({
           type: 'info',
