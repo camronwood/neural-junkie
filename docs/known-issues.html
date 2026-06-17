@@ -38,7 +38,7 @@
       <p class="feature-deep-lead">
         Open beta means real gaps. This page lists what we know is wrong, flaky, or intentionally scoped — and we <strong>remove items when they are fixed</strong>.
         Remaining entries are intentional limitations. Several UX gaps were closed in the limitations sprint (layout owner picker, workspace gate banners, pause abort, channel export).
-        Last updated <time datetime="2026-06-08">June 8, 2026</time> (beta.33; stable checklist in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>).
+        Last updated <time datetime="2026-06-17">June 17, 2026</time> (v1.2.0-beta.1 — IDE v4; stable checklist in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/STABLE_RELEASE_CHECKLIST.md"><code>STABLE_RELEASE_CHECKLIST.md</code></a>).
         Maintainer copy: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md"><code>docs/KNOWN_ISSUES.md</code></a> (keep in sync).
       </p>
     </header>
@@ -140,6 +140,18 @@
           <span class="issue-badge issue-badge--limitation">Limitation</span>
           <strong>macOS ad-hoc signing</strong>
           <p>GitHub Release macOS builds are ad-hoc signed until Apple Developer credentials are available. First launch may require <strong>Right-click → Open</strong>. Planned fix: <strong>v1.0.1</strong> notarized builds.</p>
+        </li>
+        <!-- ISSUE: ide-v4-remote-lsp -->
+        <li class="issue-item" id="ide-v4-remote-lsp">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>IDE v4.1 — remote LSP deferred</strong>
+          <p>Full Monaco LSP runs on <strong>local</strong> workspaces today. Remote SSH routes FS, git, terminal, and <code>@codebase</code> via <code>nj-remote</code>; gopls on the sidecar host is not fully relayed yet. See <a href="features/ide-v4.html">IDE v4 guide</a>.</p>
+        </li>
+        <!-- ISSUE: ide-v4-remote-collab -->
+        <li class="issue-item" id="ide-v4-remote-collab">
+          <span class="issue-badge issue-badge--limitation">Limitation</span>
+          <strong>Collab worktrees on remote workspaces</strong>
+          <p>Bounded collaboration with per-agent git worktrees is not yet supported when the active workspace is remote SSH.</p>
         </li>
       </ul>
 

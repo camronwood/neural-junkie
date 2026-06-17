@@ -46,6 +46,8 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | `web-ui-thin` | **Limitation** | Browser hub UI at `/` is a **lightweight chat client** — no full workspace, palette, or file-approval UX. Use the **Tauri desktop** for production work. |
 | `git-dev-pack` | **Limitation** | In-app Git operations require the **Software development** pack, `git` on PATH, and a git workspace. |
 | `macos-adhoc-sign` | **Limitation** | GitHub Release macOS builds are **ad-hoc signed** until Apple Developer credentials are available. First launch may require **Right-click → Open**. Planned fix: **v1.0.1** notarized builds. |
+| `ide-v4-remote-lsp` | **Limitation** | **IDE v4.1:** full Monaco LSP on **local** workspaces only. Remote SSH routes FS, git, terminal, and `@codebase` via `nj-remote`; remote LSP relay deferred. See [IDE_V4.md](IDE_V4.md). |
+| `ide-v4-remote-collab` | **Limitation** | Collaboration worktrees are not yet supported on **remote SSH** workspaces. |
 
 ---
 

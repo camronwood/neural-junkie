@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Install-and-go local AI — Neural Junkie</title>
-  <meta name="description" content="Neural Junkie beta.22 bundles Ollama on macOS, Windows, and Linux. Download, open, pull a model once, and run multi-agent chat locally — no separate runtime install." />
+  <meta name="description" content="Neural Junkie local AI: Ollama bundled on macOS; slim Windows/Linux installers with wizard Install Ollama. Pull a model once and run multi-agent chat locally." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -23,7 +23,7 @@
       <nav class="nav-actions" aria-label="Primary">
         <a class="btn btn-ghost" href="../index.html#bundled-ollama">Home section</a>
         <a class="btn btn-ghost" href="index.html">All features</a>
-        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/latest">Download</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
       </nav>
     </div>
   </header>
@@ -34,7 +34,7 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Install-and-go local AI</h1>
-      <p class="feature-deep-lead">Starting with <strong>v1.0.0-beta.22</strong>, macOS, Windows, and Linux installers ship the <strong>Ollama runtime</strong>. Open Neural Junkie, complete the setup wizard, pull a default model once, and your agents run on your machine — no separate Ollama download or terminal setup.</p>
+      <p class="feature-deep-lead"><strong>macOS</strong> installers bundle the <strong>Ollama runtime</strong>. <strong>Windows</strong> and <strong>Linux</strong> use slim builds — the setup wizard <strong>Install Ollama</strong> on first launch (internet required). Open Neural Junkie, pull a default model once, and your agents run on your machine.</p>
     </header>
 
     <figure class="screenshot-frame" style="margin-bottom: 2rem;">
@@ -49,15 +49,15 @@
     <article class="feature-prose">
       <h2>What happens on first launch</h2>
       <ol>
-        <li>Install from <a href="https://github.com/camronwood/neural-junkie/releases/latest">GitHub Releases</a> (.dmg, .msi, AppImage, or .deb).</li>
-        <li>The app auto-starts <code>ollama serve</code> with models stored in app data (not your global Ollama install, if you have one).</li>
+        <li>Install from <a href="../download.html">Downloads</a> (.dmg on macOS, .msi or setup .exe on Windows, .deb on Linux).</li>
+        <li>On <strong>macOS</strong>, the app auto-starts <code>ollama serve</code> with models in app data. On <strong>Windows/Linux</strong>, use the wizard <strong>Install Ollama</strong> first.</li>
         <li>The setup wizard offers <strong>local</strong> or <strong>cloud</strong> — local pulls a suggested default model once (internet required that one time).</li>
         <li>Chat with Moderator, spin up custom experts, or bind Slack — same hub, local inference.</li>
       </ol>
 
       <h2>Why it matters</h2>
       <ul>
-        <li><strong>Fewer steps</strong> — especially on Windows, where a separate Ollama install used to be required.</li>
+        <li><strong>Fewer steps on macOS</strong> — runtime ships in the .dmg; Windows/Linux use one-click wizard install.</li>
         <li><strong>Privacy-friendly default</strong> — run assistants and specialists on hardware you control; add cloud keys only when you want burst capacity.</li>
         <li><strong>Model library still built in</strong> — open the toolbar <strong>Model library</strong> (⇧⌘M) to browse curated Ollama and Hugging Face entries after the first pull. See <a href="model-app-store.html">Model App Store guide</a>.</li>
       </ul>

@@ -48,9 +48,9 @@
       <ul>
         <li><strong>Workspace tabs</strong> — keep multiple repos visible and jump between them without losing the active thread.</li>
         <li><strong>Quick switcher</strong> — filter by workspace name, path, or git branch; use arrow keys and Enter to move fast.</li>
-        <li><strong>File explorer</strong> — browse the active workspace from the hub.</li>
-        <li><strong>Code editor</strong> — open and edit files next to chat so agents and humans share the same tree.</li>
-        <li><strong>Terminal output</strong> — surface shell-oriented results without leaving the app.</li>
+        <li><strong>File explorer</strong> — browse the active workspace from the hub; <strong>Remote SSH</strong> tab connects via <code>nj-remote</code> sidecar (IDE v4).</li>
+        <li><strong>Code editor</strong> — Monaco with full LSP on local workspaces (hover, completion, go-to-definition, rename); open files next to chat.</li>
+        <li><strong>Terminal</strong> — local shell or remote PTY proxied through the hub when on an SSH workspace.</li>
         <li><strong>My Agents</strong> — search, filter, and watch status across registered agents.</li>
         <li><strong>Pending changes</strong> — queue of file-change proposals with diff preview before anything hits disk.</li>
       </ul>
@@ -63,7 +63,7 @@
       <p>The code editor supports image preview, markdown files, and an editable <strong>CSV table view</strong> (Table/Text toggle) for exported spreadsheets. Scan-summary CSVs from lab workflows still open in the dedicated analysis viewer when the Life sciences pack is on.</p>
 
       <h2>First-run setup</h2>
-      <p>A guided wizard walks new installs through AI providers and core toggles. Production installers bundle <strong>Ollama</strong> on macOS, Windows, and Linux — see <a href="bundled-ollama.html">Install-and-go local AI</a>.</p>
+      <p>A guided wizard walks new installs through AI providers and core toggles. <strong>macOS</strong> bundles Ollama; <strong>Windows/Linux</strong> slim installers use wizard <strong>Install Ollama</strong> — see <a href="bundled-ollama.html">Install-and-go local AI</a>. With the Software development pack, see <a href="ide-v4.html">IDE v4</a> for editor depth and remote workspaces.</p>
 
       <aside class="repo-links">
         <h2>Read more in the repository</h2>
@@ -79,6 +79,7 @@
       <h2 id="related-features">More capability guides</h2>
       <div class="feature-nav-grid">
         <a href="bundled-ollama.html">Install-and-go local AI <span>Bundled Ollama</span></a>
+        <a href="ide-v4.html">IDE v4 <span>LSP, remote SSH</span></a>
         <a href="ide-v3.html">IDE v3 <span>Ask/Agent routing</span></a>
         <a href="slash-commands.html">Command palette <span>50+ actions</span></a>
         <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>

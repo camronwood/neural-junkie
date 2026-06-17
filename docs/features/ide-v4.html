@@ -38,20 +38,49 @@
     </header>
 
     <article class="feature-prose">
-      <h2>Full Monaco LSP</h2>
-      <p>Persistent <code>gopls</code>, <code>rust-analyzer</code>, and <code>pyright-langserver</code> processes managed by the hub. The desktop connects over WebSocket for hover (and the foundation for completion, go-to-definition, and rename).</p>
+      <h2>Full Monaco LSP (local workspaces)</h2>
+      <p>Persistent <code>gopls</code>, <code>rust-analyzer</code>, and <code>pyright-langserver</code> processes managed by the hub. The desktop connects over WebSocket for <code>didOpen</code>/<code>didChange</code>/<code>didClose</code>, real-time diagnostics, hover, completion, go-to-definition, find references, and rename. A workspace-wide <strong>Problems</strong> panel aggregates squiggles across open files.</p>
 
-      <h2>Remote SSH</h2>
-      <p>Run <code>nj-remote</code> on your EC2 box or dev machine. Connect from the desktop — file tree, git, LSP, and implementation-session verify steps route through <code>WorkspaceBackend</code>.</p>
+      <h2>Remote SSH workspaces</h2>
+      <p>Run <code>nj-remote</code> on your EC2 box, dev machine, or container. Connect from the desktop <strong>Remote SSH</strong> wizard — file tree, git, terminal, search, symbols, file changes, and <code>@codebase</code> route through <code>WorkspaceBackend</code>. Sidecar tokens persist across hub restarts with health checks on connect.</p>
 
       <h2>Dev containers</h2>
-      <p>Repos with <code>.devcontainer/devcontainer.json</code> get an attach plan from the hub. Run the sidecar inside the container after <code>devcontainer up</code>.</p>
+      <p>Repos with <code>.devcontainer/devcontainer.json</code> get an attach plan from <code>GET /api/workspaces/devcontainer-plan</code>. After <code>devcontainer up</code>, run <code>nj-remote</code> inside the container and connect from the desktop.</p>
+
+      <h2>tree-sitter symbols</h2>
+      <p>When the <code>tree-sitter</code> CLI is on PATH, symbol search upgrades beyond regex — useful for large repos and remote trees.</p>
+
+      <h2>Carried forward from IDE v3</h2>
+      <p>Ask / Agent / Export composer modes, implementation sessions, editor trust (<code>yolo</code> auto-approve), and semantic <code>@codebase</code> search remain the daily workflow. See <a href="ide-v3.html">IDE v3 guide</a>.</p>
+
+      <h2>v4.1 limitations</h2>
+      <ul>
+        <li>Full LSP relay on <strong>remote</strong> workspaces is deferred — local LSP is production-ready today.</li>
+        <li>Dev container desktop wizard tab is API-only; attach plan + manual sidecar for now.</li>
+        <li>Collaboration worktrees on remote workspaces not yet supported.</li>
+      </ul>
 
       <h2>Open source</h2>
       <p>Neural Junkie is open source. Fork it, run it locally, contribute features — build the IDE you actually own.</p>
 
-      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a></p>
+      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a> · <a href="../release-notes.html#v1-2-0-beta-1">Release notes</a></p>
     </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">More capability guides</h2>
+      <div class="feature-nav-grid">
+        <a href="ide-v3.html">IDE v3 <span>Ask/Agent, @codebase</span></a>
+        <a href="file-changes-workspaces.html">File changes <span>Proposals &amp; diffs</span></a>
+        <a href="desktop-workspace.html">Desktop workspace <span>Tabs, palette, panels</span></a>
+        <a href="domain-packs.html">Domain packs <span>Software development pack</span></a>
+      </div>
+    </nav>
   </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
 </body>
 </html>

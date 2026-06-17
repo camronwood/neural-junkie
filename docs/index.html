@@ -395,8 +395,14 @@
     <section class="section-alt" aria-labelledby="capabilities-heading">
       <div class="wrap">
         <h2 id="capabilities-heading">Everything else in the workspace</h2>
-        <p class="section-intro">Beyond <a href="#bundled-ollama">local AI</a>, <a href="#hardware-requirements">hardware planning</a>, <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, experts, commands, and provider wiring that tie it together.</p>
+        <p class="section-intro">Beyond <a href="#ide-v4">IDE v4</a>, <a href="#bundled-ollama">local AI</a>, <a href="#hardware-requirements">hardware planning</a>, <a href="#slack-connect">Slack</a>, <a href="#multi-agent-collaboration">collaboration</a>, and <a href="#domain-packs">domain packs</a> — the desktop shell, experts, commands, and provider wiring that tie it together.</p>
         <div class="grid-3 highlights-grid">
+          <article class="card">
+            <div class="card-icon" aria-hidden="true">⌨️</div>
+            <h3>IDE v4 — editor depth</h3>
+            <p>Full Monaco LSP on local workspaces, remote SSH via <code>nj-remote</code>, dev container attach, and tree-sitter symbols — with IDE v3 Ask/Agent routing underneath.</p>
+            <p class="card-cta"><a class="card-link" href="features/ide-v4.html">Deep dive →</a></p>
+          </article>
           <article class="card">
             <div class="card-icon" aria-hidden="true">🖥️</div>
             <h3>Native desktop workspace</h3>
@@ -418,7 +424,7 @@
           <article class="card">
             <div class="card-icon" aria-hidden="true">✏️</div>
             <h3>Repo-aware file workflow</h3>
-            <p>Agents can <strong>propose edits</strong>; you approve or reject with <strong>diff preview</strong>. Workspaces keep the hub tied to the tree you are actually shipping, with quick switching for multi-repo work.</p>
+            <p>Agents propose edits; you approve or reject with <strong>diff preview</strong>. Local and <strong>remote SSH</strong> workspaces share the same hub-backed tree, git, and file-change flows.</p>
             <p class="card-cta"><a class="card-link" href="features/file-changes-workspaces.html">Deep dive →</a></p>
           </article>
           <article class="card">
@@ -534,7 +540,7 @@
         <h2 id="ship-heading">Ship with confidence</h2>
         <p class="section-intro">Opinionated defaults for teams that want speed <em>and</em> guardrails.</p>
         <ul class="feature-list feature-list--wide">
-          <li>Single-binary <strong>sidecar</strong> packaging — ship a .dmg or AppImage without a fragile pile of services.</li>
+          <li>Single-binary <strong>sidecar</strong> packaging — ship a .dmg, .msi, or .deb without a fragile pile of services. Remote hosts use the <code>nj-remote</code> sidecar.</li>
           <li><strong>MCP export/import</strong> — move agent knowledge across tools in a standard format.</li>
           <li><strong>Auto-updates</strong> via the Tauri updater — stay current without chasing tarballs.</li>
           <li><strong>Session persistence</strong> on the hub — channels and state come back after restarts (with sensible pruning).</li>
@@ -545,6 +551,7 @@
           <span class="doc-strip-label">Learn more in the repo:</span>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">Getting started</a>
           <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+          <a class="btn btn-ghost btn-sm" href="features/ide-v4.html">IDE v4</a>
           <a class="btn btn-ghost btn-sm" href="features/bundled-ollama.html">Install-and-go AI</a>
           <a class="btn btn-ghost btn-sm" href="features/hardware-requirements.html">Hardware requirements</a>
           <a class="btn btn-ghost btn-sm" href="features/slack-connect.html">Slack Connect</a>
