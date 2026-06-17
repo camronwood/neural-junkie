@@ -15,6 +15,10 @@ type Workspace struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
 	Path      string    `json:"path"`
+	Kind      string    `json:"kind,omitempty"` // local | ssh | devcontainer
+	RemoteHost string   `json:"remote_host,omitempty"`
+	RemoteUser string   `json:"remote_user,omitempty"`
+	SidecarURL string   `json:"sidecar_url,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	LastUsed  time.Time `json:"last_used"`
 	IsGitRepo bool      `json:"is_git_repo"`
@@ -215,6 +219,20 @@ func (wm *WorkspaceManager) UpdateWorkspaceLastUsed(id string) error {
 	}
 
 	return nil
+}
+
+// UpdateWorkspace persists workspace metadata changes.
+func (wm *WorkspaceManager) UpdateWorkspace(workspace *Workspace) error {
+	if workspace == nil || workspace.ID == "" {
+		return fmt.Errorf("workspace required")
+	}
+	wm.mutex.Lock()
+	defer wm.mutex.Unlock()
+	if _, exists := wm.workspaces[workspace.ID]; !exists {
+		return fmt.Errorf("workspace not found")
+	}
+	wm.workspaces[workspace.ID] = workspace
+	return wm.saveWorkspacesLocked()
 }
 
 // FindWorkspaceByPath finds a workspace by its path

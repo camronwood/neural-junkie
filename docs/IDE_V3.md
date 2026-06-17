@@ -1,6 +1,6 @@
 # IDE v3 (Cursor-like coding in main chat)
 
-**Status:** General availability in v1.1 — Ask/Agent routing, @codebase, and IDE layout are supported for daily use. v4 (remote SSH, full Monaco LSP) remains deferred.
+**Status:** General availability in v1.1 — Ask/Agent routing, @codebase, and IDE layout are supported for daily use. **IDE v4** (full LSP, remote SSH, dev containers) shipped in v1.2 — see [IDE_V4.md](IDE_V4.md).
 
 IDE v3 routes **software-development** work through the **main channel chat** when using the **IDE layout preset** — no separate editor agent panel. Requires the **Software development** pack (see [IDE_V2.md](IDE_V2.md) for symbols, LSP, inline completion).
 
@@ -56,7 +56,8 @@ IDE-focused shortcuts (full list: [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md)
 - `POST /api/dev/complete` — inline completion (Ollama)
 - `POST /api/repo/search/semantic` — @codebase chunks
 
-## v4 (not in v3)
+## v4 (shipped — see IDE_V4.md)
 
-- Remote SSH / dev containers
-- Full Monaco LSP client
+- Remote SSH / dev containers via `nj-remote` sidecar
+- Full Monaco LSP client (WebSocket + hover)
+- tree-sitter symbol index (optional CLI)

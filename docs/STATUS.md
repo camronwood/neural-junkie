@@ -42,7 +42,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - Per-agent provider switching, global provider switching, optional collaboration smart routing (execution tasks only)
 
 ### Domain Packs (official)
-- **Software development** — IDE v2/v3, Git in app, implementation sessions
+- **Software development** — IDE v2/v3/v4, Git in app, implementation sessions, nj-remote sidecar
 - **Life sciences** — OpenBioLLM, sequence tools, scan summary viewer
 - **CAD** — OpenSCAD workbench, CADExpert, STL preview
 - **Specialist tuning** — LoRA training, personal learning v2
@@ -92,7 +92,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **Session auth** — Optional `NEURAL_JUNKIE_AUTH_REQUIRED=1`; see [SECURITY.md](SECURITY.md)
 - **Domain packs** — Multiple packs can be enabled; first enabled pack owns UI layout
 - **Collaboration variance** — Local models vary in plan quality; see known issues for active scenario gaps
-- **IDE v3** — Cursor-like Ask/Agent routing in IDE layout; see [IDE_V3.md](IDE_V3.md)
+- **IDE v3/v4** — Cursor-like Ask/Agent routing; v4 adds full LSP, remote SSH, dev containers. See [IDE_V3.md](IDE_V3.md), [IDE_V4.md](IDE_V4.md)
 - **macOS releases** — Ad-hoc signed CI builds at v1.0.0 (Right-click → Open if Gatekeeper warns); Developer ID + notarized in v1.0.1 when Apple creds available; local dev builds remain ad-hoc
 
 ## Documentation

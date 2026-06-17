@@ -1,6 +1,7 @@
 package filechange
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 type FileChangeExecutor struct {
 	workspaceRoot string
 	backupDir     string
+	workspaceIO   WorkspaceIO
 }
 
 // NewFileChangeExecutor creates a new file change executor
@@ -54,85 +56,59 @@ func (fce *FileChangeExecutor) ExecuteFileChange(change *FileChange) error {
 
 // executeCreate creates a new file
 func (fce *FileChangeExecutor) executeCreate(change *FileChange) error {
-	// Ensure directory exists
-	dir := filepath.Dir(change.FilePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+	if fce.workspaceIO == nil {
+		dir := filepath.Dir(change.FilePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
 	}
-
-	// Write the file
 	content := SanitizeFileChangeContent(change.NewContent)
-	if err := os.WriteFile(change.FilePath, []byte(content), 0644); err != nil {
+	if err := fce.ioWrite(change.FilePath, []byte(content)); err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-
 	return nil
 }
 
 // executeEdit modifies an existing file
 func (fce *FileChangeExecutor) executeEdit(change *FileChange) error {
-	// Check if file exists
-	if _, err := os.Stat(change.FilePath); os.IsNotExist(err) {
+	if _, err := fce.ioStat(change.FilePath); err != nil {
 		return fmt.Errorf("file does not exist: %s", change.FilePath)
 	}
-
-	// Create backup
 	if err := fce.createBackup(change.FilePath); err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
-
-	// Write the new content
 	content := SanitizeFileChangeContent(change.NewContent)
-	if err := os.WriteFile(change.FilePath, []byte(content), 0644); err != nil {
+	if err := fce.ioWrite(change.FilePath, []byte(content)); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
-
 	return nil
 }
 
 // executeDelete removes a file
 func (fce *FileChangeExecutor) executeDelete(change *FileChange) error {
-	// Check if file exists
-	if _, err := os.Stat(change.FilePath); os.IsNotExist(err) {
+	if _, err := fce.ioStat(change.FilePath); err != nil {
 		return fmt.Errorf("file does not exist: %s", change.FilePath)
 	}
-
-	// Create backup before deletion
 	if err := fce.createBackup(change.FilePath); err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
-
-	// Delete the file
-	if err := os.Remove(change.FilePath); err != nil {
+	if err := fce.ioRemove(change.FilePath); err != nil {
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
-
 	return nil
 }
 
 // executeMove moves/renames a file
 func (fce *FileChangeExecutor) executeMove(change *FileChange) error {
-	// Check if source file exists
-	if _, err := os.Stat(change.OldPath); os.IsNotExist(err) {
+	if _, err := fce.ioStat(change.OldPath); err != nil {
 		return fmt.Errorf("source file does not exist: %s", change.OldPath)
 	}
-
-	// Ensure destination directory exists
-	destDir := filepath.Dir(change.NewPath)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	// Create backup of source file
 	if err := fce.createBackup(change.OldPath); err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
-
-	// Move the file
-	if err := os.Rename(change.OldPath, change.NewPath); err != nil {
+	if err := fce.ioRename(change.OldPath, change.NewPath); err != nil {
 		return fmt.Errorf("failed to move file: %w", err)
 	}
-
 	return nil
 }
 
@@ -174,12 +150,18 @@ func (fce *FileChangeExecutor) validatePath(path string) error {
 
 // createBackup creates a backup of a file before modification
 func (fce *FileChangeExecutor) createBackup(filePath string) error {
-	// Read the current file content
-	content, err := os.ReadFile(filePath)
+	content, err := fce.ioRead(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file for backup: %w", err)
 	}
-
+	if fce.workspaceIO != nil {
+		rel, err := fce.absToRel(filePath)
+		if err != nil {
+			return err
+		}
+		backupRel := filepath.ToSlash(filepath.Join(".neural-junkie", "backups", rel+"_"+filepath.Base(filePath)+"_backup"))
+		return fce.workspaceIO.WriteFile(context.Background(), backupRel, content)
+	}
 	// Create backup filename with timestamp
 	timestamp := time.Now().Format("20060102_150405")
 	backupName := fmt.Sprintf("%s_%s_%s",
@@ -197,6 +179,11 @@ func (fce *FileChangeExecutor) createBackup(filePath string) error {
 	return nil
 }
 
+// SetWorkspaceIO configures remote/local backend IO (nil = local os.*).
+func (fce *FileChangeExecutor) SetWorkspaceIO(io WorkspaceIO) {
+	fce.workspaceIO = io
+}
+
 // SetWorkspaceRoot updates the workspace root and backup directory.
 // This allows the executor to be reconfigured when a workspace is resolved.
 func (fce *FileChangeExecutor) SetWorkspaceRoot(root string) {
@@ -211,7 +198,7 @@ func (fce *FileChangeExecutor) GetWorkspaceRoot() string {
 
 // GetFileContent reads the current content of a file
 func (fce *FileChangeExecutor) GetFileContent(filePath string) (string, error) {
-	content, err := os.ReadFile(filePath)
+	content, err := fce.ioRead(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IDE v4 — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie IDE v4: full Monaco LSP, remote SSH workspaces, dev containers, tree-sitter symbols — open-source agent IDE." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="ide-v3.html">IDE v3</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie/releases/latest">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · IDE v4
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>IDE v4 — full editor depth, remote workspaces</h1>
+      <p class="feature-deep-lead">Open-source agent IDE with <strong>full language-server support</strong>, <strong>remote SSH</strong> via the <code>nj-remote</code> sidecar, <strong>dev container</strong> attach, and optional <strong>tree-sitter</strong> symbol search — on top of IDE v3 Ask/Agent routing and implementation sessions.</p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Full Monaco LSP</h2>
+      <p>Persistent <code>gopls</code>, <code>rust-analyzer</code>, and <code>pyright-langserver</code> processes managed by the hub. The desktop connects over WebSocket for hover (and the foundation for completion, go-to-definition, and rename).</p>
+
+      <h2>Remote SSH</h2>
+      <p>Run <code>nj-remote</code> on your EC2 box or dev machine. Connect from the desktop — file tree, git, LSP, and implementation-session verify steps route through <code>WorkspaceBackend</code>.</p>
+
+      <h2>Dev containers</h2>
+      <p>Repos with <code>.devcontainer/devcontainer.json</code> get an attach plan from the hub. Run the sidecar inside the container after <code>devcontainer up</code>.</p>
+
+      <h2>Open source</h2>
+      <p>Neural Junkie is open source. Fork it, run it locally, contribute features — build the IDE you actually own.</p>
+
+      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a></p>
+    </article>
+  </main>
+</body>
+</html>

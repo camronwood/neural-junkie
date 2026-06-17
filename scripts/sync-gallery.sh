@@ -15,6 +15,11 @@ for f in "${ADS_SRC}"/neural-junkie-*-ad-1080.png "${ADS_SRC}"/neural-junkie-*-a
   cp -f "$f" "${GALLERY}/ads/"
 done
 
+for f in "${ADS_SRC}"/marketing/ide-v4-*.png; do
+  [[ -f "$f" ]] || continue
+  cp -f "$f" "${GALLERY}/ads/"
+done
+
 if [[ -d "${SHOTS_SRC}" ]]; then
   for f in "${SHOTS_SRC}"/*.{png,jpg,jpeg,webp}; do
     [[ -f "$f" ]] || continue

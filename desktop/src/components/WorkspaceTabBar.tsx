@@ -48,8 +48,17 @@ export function WorkspaceTabBar({
                 ? 'bg-slack-accent text-white'
                 : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
             }`}
-            title={workspace.path}
+            title={
+              workspace.kind === 'ssh' || workspace.kind === 'devcontainer'
+                ? `☁ ${workspace.remote_host || workspace.path}`
+                : workspace.path
+            }
           >
+            {(workspace.kind === 'ssh' || workspace.kind === 'devcontainer') && (
+              <span aria-hidden className="opacity-80">
+                ☁
+              </span>
+            )}
             <span>{workspace.name}</span>
             <button
               type="button"

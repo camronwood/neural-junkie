@@ -185,6 +185,113 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return rc
 
 
+def strip_message_metadata(msg: dict) -> bool:
+    """Remove bulky metadata keys from a persisted message. Returns True if changed."""
+    meta = msg.get("metadata")
+    if not isinstance(meta, dict):
+        return False
+    changed = False
+    if meta.pop("collaboration_data", None) is not None:
+        changed = True
+    for key in ("prompt_attachments", "user_images"):
+        if meta.pop(key, None) is not None:
+            changed = True
+    ws = meta.get("workspace_context")
+    if isinstance(ws, dict) and "open_files" in ws:
+        ws.pop("open_files", None)
+        changed = True
+    if not meta:
+        msg.pop("metadata", None)
+    return changed
+
+
+def slim_discussion_messages(disc: dict | None) -> int:
+    if not disc:
+        return 0
+    n = 0
+    for msg in disc.get("messages") or []:
+        if isinstance(msg, dict) and strip_message_metadata(msg):
+            n += 1
+    return n
+
+
+def cancel_empty_draft_runbooks(collaborations: dict) -> list[str]:
+    cancelled: list[str] = []
+    for cid, collab in list(collaborations.items()):
+        if not isinstance(collab, dict):
+            continue
+        if collab.get("source") != "runbook":
+            continue
+        if collab.get("phase") != "draft":
+            continue
+        if collab.get("tasks"):
+            continue
+        collab["phase"] = "cancelled"
+        disc = collab.get("discussion")
+        if isinstance(disc, dict):
+            disc["status"] = "cancelled"
+        cancelled.append(cid)
+    return cancelled
+
+
+def cmd_repair(args: argparse.Namespace) -> int:
+    src = Path(args.session).expanduser()
+    if not src.is_file():
+        print(f"error: session file not found: {src}", file=sys.stderr)
+        return 1
+
+    if not args.no_archive:
+        archive_args = argparse.Namespace(
+            session=str(src),
+            archive_dir=args.archive_dir,
+            label=args.label or "pre-repair",
+            note=args.note or "repair-last-session",
+            force=False,
+            quiet=True,
+        )
+        archived = cmd_archive(archive_args)
+        if archived != 0:
+            return archived
+        print(f"archived: {DEFAULT_ARCHIVE_DIR}")
+
+    data = load_session(src)
+    stripped = 0
+    for ch in (data.get("channels") or {}).values():
+        for msg in ch.get("messages") or []:
+            if isinstance(msg, dict) and strip_message_metadata(msg):
+                stripped += 1
+    for th in (data.get("threads") or {}).values():
+        for msg in th.get("messages") or []:
+            if isinstance(msg, dict) and strip_message_metadata(msg):
+                stripped += 1
+    for collab in (data.get("collaborations") or {}).values():
+        if not isinstance(collab, dict):
+            continue
+        stripped += slim_discussion_messages(collab.get("discussion"))
+        stripped += slim_discussion_messages(collab.get("planning_discussion"))
+
+    cancelled = []
+    if not args.keep_empty_runbooks:
+        cancelled = cancel_empty_draft_runbooks(data.get("collaborations") or {})
+
+    if stripped == 0 and not cancelled:
+        print("OK — nothing to repair.")
+        return 0
+
+    tmp = src.with_suffix(".json.tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    tmp.replace(src)
+
+    print(f"repaired: {src}")
+    print(f"  stripped collaboration_data from {stripped} message(s)")
+    if cancelled:
+        print(f"  cancelled empty draft runbook(s): {', '.join(c[:8] for c in cancelled)}")
+    print(f"  size: {src.stat().st_size / 1024:.1f} KiB")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Archive and inspect Neural Junkie last-session.json snapshots.",
@@ -219,6 +326,18 @@ def main() -> int:
     an = sub.add_parser("analyze", help="Full analysis via debug-collab.py session")
     an.add_argument("extra", nargs=argparse.REMAINDER, help="Passed to debug-collab.py")
     an.set_defaults(func=cmd_analyze)
+
+    r = sub.add_parser("repair", help="Strip stale collaboration_data and cancel empty draft runbooks")
+    r.add_argument("--archive-dir", default=str(DEFAULT_ARCHIVE_DIR))
+    r.add_argument("--label", help="Archive suffix before repair")
+    r.add_argument("--note", help="Archive note")
+    r.add_argument("--no-archive", action="store_true", help="Repair in place without archiving first")
+    r.add_argument(
+        "--keep-empty-runbooks",
+        action="store_true",
+        help="Do not cancel draft runbooks with zero tasks",
+    )
+    r.set_defaults(func=cmd_repair)
 
     argv = sys.argv[1:]
     if "analyze" in argv:

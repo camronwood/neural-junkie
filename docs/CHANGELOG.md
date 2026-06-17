@@ -6,7 +6,11 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-_(Nothing yet.)_
+### Added
+- **IDE v4** — full Monaco LSP on local workspaces (WebSocket document sync, diagnostics, hover, completion, go-to-definition, references, rename); `WorkspaceBackend` for local + remote FS/git/search/symbols/file-changes; `nj-remote` sidecar (FS, exec, PTY); desktop Remote SSH wizard; remote terminal proxy; remote `@codebase`; devcontainer attach plan API; tree-sitter symbols; sidecar token persist + health checks. See [IDE_V4.md](IDE_V4.md) and [REMOTE_WORKSPACES.md](REMOTE_WORKSPACES.md).
+- **IDE v3.5 polish** — Go/Rust/Python LSP-lite squiggles, workspace-wide Problems panel, `yolo` editor trust auto-approve.
+
+_(Prior releases below.)_
 
 ## [1.0.0-beta.35] - 2026-06-10
 

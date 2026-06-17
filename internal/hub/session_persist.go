@@ -150,11 +150,8 @@ func slimCollaborationForPersist(c *collaboration.Collaboration) *collaboration.
 		msgs := out.Discussion.Messages
 		out.Discussion.Messages = append([]*protocol.Message(nil), msgs[len(msgs)-maxPersistDiscussionMessages:]...)
 	}
-	if out.Discussion != nil {
-		for i, dm := range out.Discussion.Messages {
-			out.Discussion.Messages[i] = cloneMessageForSessionPersist(dm)
-		}
-	}
+	slimDiscussionSessionMessagesForPersist(out.Discussion)
+	slimDiscussionSessionMessagesForPersist(out.PlanningDiscussion)
 	if out.SourceWorkspaceContext != nil {
 		wsMD := map[string]interface{}{"workspace_context": out.SourceWorkspaceContext}
 		slimWorkspaceContextMetadata(wsMD)
@@ -165,6 +162,19 @@ func slimCollaborationForPersist(c *collaboration.Collaboration) *collaboration.
 		}
 	}
 	return &out
+}
+
+func slimDiscussionSessionMessagesForPersist(disc *collaboration.DiscussionSession) {
+	if disc == nil {
+		return
+	}
+	if len(disc.Messages) > maxPersistDiscussionMessages {
+		msgs := disc.Messages
+		disc.Messages = append([]*protocol.Message(nil), msgs[len(msgs)-maxPersistDiscussionMessages:]...)
+	}
+	for i, dm := range disc.Messages {
+		disc.Messages[i] = cloneMessageForSessionPersist(dm)
+	}
 }
 
 // prepareSessionSnapshotForPersist trims history and strips bulky metadata before JSON encode.

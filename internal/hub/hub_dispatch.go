@@ -1133,6 +1133,9 @@ func (h *Hub) dispatchCollabTaskMessagesFilter(snap *collaboration.Collaboration
 			taskMsg.Metadata = map[string]interface{}{}
 		}
 		taskMsg.Metadata["execution_timeout_seconds"] = timeoutSec
+		if collaboration.TaskRequiresFileDeliverable(task) {
+			taskMsg.Metadata[protocol.IdeMetaImplementationSession] = true
+		}
 		if rules := h.collabUserRulesMarkdown(snap, inheritFrom); rules != "" {
 			if _, ok := taskMsg.Metadata[agent.MetadataUserRulesMarkdown]; !ok {
 				taskMsg.Metadata[agent.MetadataUserRulesMarkdown] = rules
@@ -1367,6 +1370,7 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 
 	// Bind executor to the resolved workspace root from the message context.
 	h.fileChangeManager.GetExecutor().SetWorkspaceRoot(wsRoot)
+	h.bindFileChangeBackend(wsRoot)
 
 	manifest := agent.DetectStackManifest(wsRoot)
 	proposal.FilePath = agent.RedirectProposalPath(proposal.FilePath, manifest)
@@ -1409,6 +1413,13 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 
 	h.maybeAutoApproveCollabFileChange(msg, change, operation, wsRoot)
 	h.maybeAutoApproveIDEFileChange(msg, change, operation, wsRoot)
+	if refreshed, err := h.fileChangeManager.GetFileChange(change.ID); err == nil &&
+		refreshed.Status != filechange.FileChangeStatusPending {
+		if msg.Metadata == nil {
+			msg.Metadata = map[string]interface{}{}
+		}
+		msg.Metadata[protocol.MetaFileChangeAutoApproved] = true
+	}
 }
 
 // resolveWorkspacePath resolves a potentially relative file path against the provided workspace root.

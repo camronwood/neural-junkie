@@ -68,6 +68,9 @@ func TestMaybeAutoApproveCollabFileChange_ApprovesUnderCollabsDir(t *testing.T) 
 	if err := h.SendMessage(msg); err != nil {
 		t.Fatalf("SendMessage: %v", err)
 	}
+	if msg.FileChangeAutoApproved() != true {
+		t.Fatal("expected file_change_auto_approved metadata on auto-approved proposal message")
+	}
 
 	abs := filepath.Join(repoRoot, filepath.FromSlash(rel))
 	if _, err := os.Stat(abs); err != nil {

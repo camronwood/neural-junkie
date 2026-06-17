@@ -47,11 +47,23 @@ func langForPath(p string) string {
 }
 
 func scanFile(full, rel, lang string) ([]Symbol, error) {
-	f, err := os.Open(full)
+	data, err := os.ReadFile(full)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	return scanContent(rel, lang, string(data))
+}
+
+func scanContent(rel, lang, content string) ([]Symbol, error) {
+	if treeSitterAvailable() {
+		if syms, tsErr := scanFileTreeSitter(context.Background(), rel, content); tsErr == nil && len(syms) > 0 {
+			for i := range syms {
+				syms[i].Language = lang
+			}
+			return syms, nil
+		}
+	}
+	f := strings.NewReader(content)
 	var out []Symbol
 	sc := bufio.NewScanner(f)
 	lineNo := 0

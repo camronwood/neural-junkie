@@ -1702,6 +1702,56 @@ export class ChatAPI {
     }
   }
 
+  async connectRemoteWorkspace(params: {
+    name: string;
+    remoteHost: string;
+    remoteUser: string;
+    remotePath: string;
+    sidecarUrl: string;
+    token: string;
+    kind?: 'ssh' | 'devcontainer';
+  }): Promise<any> {
+    const response = await this.hubFetch('/api/workspaces/connect-remote', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: params.name,
+        remote_host: params.remoteHost,
+        remote_user: params.remoteUser,
+        remote_path: params.remotePath,
+        sidecar_url: params.sidecarUrl,
+        token: params.token,
+        kind: params.kind ?? 'ssh',
+      }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to connect remote workspace: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchDevcontainerPlan(workspaceId: string): Promise<any> {
+    const response = await this.hubFetch(
+      `/api/workspaces/devcontainer-plan?workspace=${encodeURIComponent(workspaceId)}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch devcontainer plan: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async pingSidecar(sidecarUrl: string, token?: string): Promise<boolean> {
+    const url = `${sidecarUrl.replace(/\/$/, '')}/health`;
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    try {
+      const res = await fetch(url, { headers });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   // File system API methods
   async fetchFiles(workspaceId: string, path: string = '/'): Promise<any[]> {
     const response = await this.hubFetch(`/api/files?workspace=${encodeURIComponent(workspaceId)}&path=${encodeURIComponent(path)}`

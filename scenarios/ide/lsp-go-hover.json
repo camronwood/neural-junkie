@@ -1,0 +1,20 @@
+{
+  "name": "lsp-go-hover-smoke",
+  "description": "Hub LSP hover endpoint accepts request for Go workspace (no live gopls required for 503)",
+  "steps": [
+    {
+      "action": "assert_http",
+      "method": "POST",
+      "path": "/api/lsp/hover",
+      "body": {
+        "workspace_id": "{{workspace_id}}",
+        "lang": "go",
+        "uri": "file:///main.go",
+        "line": 0,
+        "character": 0,
+        "text": "package main\n\nfunc main() {}\n"
+      },
+      "expect_status": [200, 503]
+    }
+  ]
+}

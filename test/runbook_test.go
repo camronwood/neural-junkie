@@ -163,3 +163,99 @@ func countCollabTaskMessages(msgs []*protocol.Message) int {
 	}
 	return n
 }
+
+func TestRunbookSendSetsCollaborateRedirect(t *testing.T) {
+	h := hub.NewHub()
+	h.CreateChannel("general", "General", "")
+	registerTwoCollabAgents(t, h)
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		humanTester(),
+		"/runbook @RustExpert ship auth refactor",
+	)
+	if err := h.SendMessage(msg); err != nil {
+		t.Fatalf("SendMessage: %v", err)
+	}
+
+	ch, ok := h.GetCommandHandler().(*hub.CommandHandler)
+	if !ok {
+		t.Fatal("expected *hub.CommandHandler")
+	}
+	collabCh, collabID, ok := ch.TakeCollaborateRedirect()
+	if !ok || collabCh == "" || collabID == "" {
+		t.Fatalf("expected collaborate redirect after /runbook, got channel=%q id=%q ok=%v", collabCh, collabID, ok)
+	}
+	if !strings.HasPrefix(collabCh, "collab-") {
+		t.Fatalf("collab channel = %q", collabCh)
+	}
+	if collabCh != "collab-"+collabID {
+		t.Fatalf("channel %q does not match collab id %q", collabCh, collabID)
+	}
+}
+
+func TestRunbookStartLifecycleDefersThenDispatches(t *testing.T) {
+	h := hub.NewHub()
+	chName := "runbook-lifecycle"
+	h.CreateChannel(chName, "Lifecycle", "")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "RustExpert", Type: protocol.AgentTypeRust, Status: "active"}
+	_ = h.RegisterAgent(a1)
+
+	now := time.Now()
+	res, err := h.CreateRunbookSession(hub.RunbookCreateRequest{
+		Description: "lifecycle",
+		AgentIDs:    []string{"a1"},
+		Channel:     chName,
+		CreatedBy:   "tester",
+		Tasks: []collaboration.CollaborationTask{
+			{ID: "t1", Title: "Work", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	collabID := res.CollaborationID
+	collabCh := res.CollaborationChannel
+
+	cm := h.GetCollaborationManager()
+	if _, err := cm.SubmitRunbook(collabID); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	started, err := h.StartRunbook(collabID)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if started.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("phase = %s", started.Phase)
+	}
+	if started.WorkspaceAcknowledged {
+		t.Fatal("plain sandbox should not be workspace-acknowledged yet")
+	}
+
+	msgs, _ := h.GetMessages(collabCh, 200)
+	if countCollabTaskMessages(msgs) != 0 {
+		t.Fatalf("expected no task dispatch before workspace ack, got %d", countCollabTaskMessages(msgs))
+	}
+	foundStatus := false
+	for _, m := range msgs {
+		if m != nil && m.Type == protocol.MessageTypeCollabStatus &&
+			strings.Contains(m.Content, "Runbook execution started") &&
+			strings.Contains(m.Content, "Waiting for workspace confirmation") {
+			foundStatus = true
+			break
+		}
+	}
+	if !foundStatus {
+		t.Fatal("expected collab_status with runbook start + workspace wait notice")
+	}
+
+	if err := h.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
+		t.Fatalf("ack workspace: %v", err)
+	}
+	msgs, _ = h.GetMessages(collabCh, 200)
+	if countCollabTaskMessages(msgs) != 1 {
+		t.Fatalf("expected 1 collab_task after ack, got %d", countCollabTaskMessages(msgs))
+	}
+}

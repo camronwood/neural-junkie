@@ -59,7 +59,12 @@ func handleGitStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	st, err := git.Status(ctx, ws.Path)
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	st, err := git.StatusViaBackend(ctx, b)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -89,7 +94,12 @@ func handleGitDiff(w http.ResponseWriter, r *http.Request) {
 		strings.EqualFold(r.URL.Query().Get("cached"), "true")
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	diff, err := git.Diff(ctx, ws.Path, path, staged)
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	diff, err := git.DiffViaBackend(ctx, b, path, staged)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -122,7 +132,12 @@ func handleGitCommit(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
-	if err := git.Commit(ctx, ws.Path, req.Message, req.Paths); err != nil {
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err := git.CommitViaBackend(ctx, b, req.Message, req.Paths); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -152,7 +167,12 @@ func handleGitPush(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
-	if err := git.Push(ctx, ws.Path); err != nil {
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err := git.PushViaBackend(ctx, b); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -182,7 +202,12 @@ func handleGitPull(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
-	if err := git.Pull(ctx, ws.Path); err != nil {
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err := git.PullViaBackend(ctx, b); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -242,7 +267,12 @@ func handleGitAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	if err := git.Add(ctx, ws.Path, req.Paths); err != nil {
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err := git.AddViaBackend(ctx, b, req.Paths); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -273,7 +303,12 @@ func handleGitReset(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	if err := git.ResetUnstage(ctx, ws.Path, req.Paths); err != nil {
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if err := git.ResetUnstageViaBackend(ctx, b, req.Paths); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -301,14 +336,18 @@ func handleWorkspaceFileSearch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "workspace parameter required", http.StatusBadRequest)
 		return
 	}
-	ws, ok := workspaceManager.GetWorkspace(workspaceID)
-	if !ok {
+	if _, ok := workspaceManager.GetWorkspace(workspaceID); !ok {
 		http.Error(w, "Workspace not found", http.StatusNotFound)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	paths, err := workspacefiles.Search(ctx, ws.Path, q, limit)
+	b, err := workspaceBackendResolver.ForWorkspace(workspaceID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	paths, err := workspacefiles.SearchBackend(ctx, b, q, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -345,7 +384,17 @@ func handleWorkspaceSymbolSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	defer cancel()
-	syms, err := workspacesymbols.SearchIndexed(ctx, ws.Path, q, kind, limit)
+	b, err := workspaceBackendResolver.ForWorkspace(workspaceID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	var syms []workspacesymbols.Symbol
+	if isRemoteWorkspace(ws) {
+		syms, err = workspacesymbols.SearchIndexedViaBackend(ctx, b, q, kind, limit)
+	} else {
+		syms, err = workspacesymbols.SearchIndexed(ctx, ws.Path, q, kind, limit)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

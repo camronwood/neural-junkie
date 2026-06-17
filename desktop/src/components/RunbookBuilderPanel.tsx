@@ -4,6 +4,7 @@ import { ChatAPI } from '../api/chatAPI';
 import { useChatStore } from '../stores/chatStore';
 import type { Collaboration, CollaborationAgent, CollaborationTask } from '../types/protocol';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
+import { shouldAutoAckWorkspaceOnApprove, isAwaitingWorkspaceConfirmation } from '../utils/collaborationPanelState';
 import { RunbookImportModal } from './RunbookImportModal';
 import { RunbookGraphModal } from './runbook-graph';
 import { RunbookActionConfigEditor } from './runbook/RunbookActionConfigEditor';
@@ -16,6 +17,7 @@ interface RunbookBuilderPanelProps {
   onClose: () => void;
   onSaved: (collab: Collaboration) => void;
   onStarted?: (collab: Collaboration) => void;
+  onWorkspaceGateRequest?: (collab: Collaboration) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -25,6 +27,7 @@ export function RunbookBuilderPanel({
   onClose,
   onSaved,
   onStarted,
+  onWorkspaceGateRequest,
   onDirtyChange,
 }: RunbookBuilderPanelProps) {
   const { serverAddr } = useChatStore((s) => ({ serverAddr: s.serverAddr }), shallow);
@@ -152,10 +155,17 @@ export function RunbookBuilderPanel({
     setBusy(true);
     setError('');
     try {
-      const started = await api.startRunbook(collaboration.id);
+      let started = await api.startRunbook(collaboration.id);
       onSaved(started);
       if (!started.workspace_acknowledged) {
         await ensureCollaborationExecutionWorkspace(started);
+        if (shouldAutoAckWorkspaceOnApprove(started)) {
+          await api.acknowledgeCollaborationWorkspace(started.id);
+          started = await api.getRunbook(started.id);
+          onSaved(started);
+        } else if (isAwaitingWorkspaceConfirmation(started)) {
+          onWorkspaceGateRequest?.(started);
+        }
       }
       onStarted?.(started);
     } catch (e) {

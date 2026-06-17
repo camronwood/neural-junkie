@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
@@ -33,6 +34,56 @@ func TestPrepareSessionSnapshotStripsCollaborationData(t *testing.T) {
 	if msgs[0].Metadata != nil {
 		if _, ok := msgs[0].Metadata["collaboration_data"]; ok {
 			t.Fatal("collaboration_data should be stripped from persisted messages")
+		}
+	}
+}
+
+func TestPrepareSessionSnapshotStripsPlanningDiscussionCollaborationData(t *testing.T) {
+	h := NewHub()
+	ch := "persist-planning-disc"
+	_ = h.CreateChannel(ch, "c", "test")
+
+	planMsg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		ch,
+		protocol.AgentInfo{ID: "a1", Name: "Agent", Type: protocol.AgentTypeBackend},
+		"planning turn",
+	)
+	planMsg.Metadata = map[string]interface{}{
+		"collaboration_data": map[string]interface{}{
+			"id":    "collab-1",
+			"phase": string(collaboration.PhasePlanning),
+		},
+	}
+
+	snap := &SessionSnapshot{
+		SavedAt: time.Now(),
+		Channels: map[string]*ChannelSnapshot{
+			ch: {Name: ch, Messages: []*protocol.Message{}},
+		},
+		Collaborations: map[string]*collaboration.Collaboration{
+			"collab-1": {
+				ID:      "collab-1",
+				Channel: ch,
+				Phase:   collaboration.PhaseExecuting,
+				PlanningDiscussion: &collaboration.DiscussionSession{
+					ID:              "disc-1",
+					CollaborationID: "collab-1",
+					Messages:        []*protocol.Message{planMsg},
+				},
+			},
+		},
+	}
+
+	prepareSessionSnapshotForPersist(snap)
+	c := snap.Collaborations["collab-1"]
+	if c == nil || c.PlanningDiscussion == nil || len(c.PlanningDiscussion.Messages) == 0 {
+		t.Fatal("expected planning discussion messages")
+	}
+	md := c.PlanningDiscussion.Messages[0].Metadata
+	if md != nil {
+		if _, ok := md["collaboration_data"]; ok {
+			t.Fatal("collaboration_data should be stripped from planning_discussion messages")
 		}
 	}
 }

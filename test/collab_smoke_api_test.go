@@ -62,6 +62,57 @@ func TestCollabSmokePhaseTransitions(t *testing.T) {
 	assertCollabPhase(t, base, collabCh, collabID, collaboration.PhaseCancelled)
 }
 
+func TestRunbookSmokeSendRedirectAndStartLifecycle(t *testing.T) {
+	srv, h := newCollabSmokeAPIServer(t)
+	defer srv.Close()
+	base := srv.URL
+
+	sendResp := apiSend(t, base, "general", "/runbook @RustExpert @SecurityExpert nj runbook smoke probe")
+	if sendResp["collaboration_id"] == "" || sendResp["collaboration_channel"] == "" {
+		t.Fatalf("expected collaboration redirect after /runbook, got %#v", sendResp)
+	}
+	collabID := sendResp["collaboration_id"]
+	collabCh := sendResp["collaboration_channel"]
+
+	assertCollabPhase(t, base, collabCh, collabID, collaboration.PhaseDraft)
+
+	cm := h.GetCollaborationManager()
+	now := time.Now()
+	tasks := []collaboration.CollaborationTask{
+		{ID: "t1", Title: "Build", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+		{ID: "t2", Title: "Review", AssignedTo: "a2", AssignedName: "SecurityExpert", Status: collaboration.TaskPending, Dependencies: []string{"t1"}, CreatedAt: now, UpdatedAt: now},
+	}
+	if err := cm.SetTasks(collabID, tasks); err != nil {
+		t.Fatalf("SetTasks: %v", err)
+	}
+	if _, err := cm.SubmitRunbook(collabID); err != nil {
+		t.Fatalf("SubmitRunbook: %v", err)
+	}
+	if _, err := h.StartRunbook(collabID); err != nil {
+		t.Fatalf("StartRunbook: %v", err)
+	}
+	assertCollabPhase(t, base, collabCh, collabID, collaboration.PhaseExecuting)
+
+	snap := getCollabSnapshot(t, base, collabCh, collabID)
+	if snap.WorkspaceAcknowledged {
+		t.Fatal("sandbox runbook should wait for workspace ack")
+	}
+	msgs, _ := h.GetMessages(collabCh, 200)
+	if countCollabTaskMessages(msgs) != 0 {
+		t.Fatalf("expected no collab_task before workspace ack, got %d", countCollabTaskMessages(msgs))
+	}
+
+	apiWorkspaceAck(t, base, collabID)
+	snap = getCollabSnapshot(t, base, collabCh, collabID)
+	if !snap.WorkspaceAcknowledged {
+		t.Fatal("expected workspace_acknowledged after ack API")
+	}
+	msgs, _ = h.GetMessages(collabCh, 200)
+	if countCollabTaskMessages(msgs) != 1 {
+		t.Fatalf("expected first wave task after ack, got %d", countCollabTaskMessages(msgs))
+	}
+}
+
 func newCollabSmokeAPIServer(t *testing.T) (*httptest.Server, *hub.Hub) {
 	t.Helper()
 	h := hub.NewHub()

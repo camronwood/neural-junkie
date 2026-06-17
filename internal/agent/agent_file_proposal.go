@@ -75,9 +75,16 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		}
 		return stripFileChangeBlocksFromResponse(response), false, nil
 	}
+
+	if looseFileChangeParseEnabled(sourceMsg) {
+		if cleaned, ok, err := a.submitAllFileChangesFromResponse(ctx, response, channel, sourceMsg); ok || err != nil {
+			return cleaned, ok, err
+		}
+	}
+
 	match := fileChangeBlockRegex.FindStringSubmatch(response)
 	if len(match) < 2 {
-		if loose, ok := parseLooseFileChange(response); ok && legacyFileChangeParseEnabled() {
+		if loose, ok := parseLooseFileChange(response); ok && looseFileChangeParseEnabled(sourceMsg) {
 			path := loose.Path
 			if sourceMsg != nil && !isValidFileChangeRelPath(path) {
 				if alt := preferImplementationTargetPath(a.resolveWorkspacePath(sourceMsg), sourceMsg.Content, path); alt != "" {
@@ -264,6 +271,68 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 	log.Printf("[%s] directive_path_used(operation=%s,path=%s)", a.Info.Name, directive.Operation, directive.Path)
 
 	cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+	return cleaned, true, nil
+}
+
+func (a *Agent) submitAllFileChangesFromResponse(ctx context.Context, response, channel string, sourceMsg *protocol.Message) (string, bool, error) {
+	var directives []*fileChangeDirective
+	for _, m := range fileChangeBlockRegex.FindAllStringSubmatch(response, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		if d, err := parseFileChangeDirective(m[1]); err == nil && d != nil {
+			directives = append(directives, d)
+		}
+	}
+	directives = append(directives, parseAllLooseFileChanges(response)...)
+
+	seen := make(map[string]bool)
+	proposed := false
+	cleaned := response
+	for _, directive := range directives {
+		if directive == nil {
+			continue
+		}
+		path := normalizeFileChangeRelPath(directive.Path)
+		if path == "" || !isValidFileChangeRelPath(path) {
+			continue
+		}
+		body := strings.TrimSpace(directive.NewContent)
+		if body == "" {
+			continue
+		}
+		key := path + "\x00" + body
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		switch strings.ToLower(strings.TrimSpace(directive.Operation)) {
+		case "", "create":
+			directive.Path = a.ResolveProposalPath(ctx, sourceMsg, path)
+			if err := a.proposeFileChangePreferEditOrCreate(ctx, channel, directive.Path, body, sourceMsg); err != nil {
+				return cleaned, proposed, err
+			}
+		case "edit":
+			directive.Path = a.ResolveProposalPath(ctx, sourceMsg, path)
+			if err := a.validateProposalForSession(ctx, sourceMsg, directive.Path, ProposalOpEdit); err != nil {
+				return cleaned, proposed, err
+			}
+			if err := a.proposeFileEditInChannel(channel, directive.Path, directive.OldContent, body, sourceMsg); err != nil {
+				return cleaned, proposed, err
+			}
+		default:
+			continue
+		}
+		log.Printf("[%s] collab_file_change_proposed(operation=%s,path=%s)", a.Info.Name, directive.Operation, directive.Path)
+		proposed = true
+	}
+
+	if !proposed {
+		return response, false, nil
+	}
+	cleaned = strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
+	cleaned = stripLooseFileChangeBlock(cleaned)
 	return cleaned, true, nil
 }
 

@@ -9,6 +9,9 @@ export function shouldPromptFileChangeApproval(
   if (message.type !== 'file_change') {
     return false;
   }
+  if (message.metadata?.file_change_auto_approved === true) {
+    return false;
+  }
   const channel = message.channel?.trim();
   if (!channel) {
     return false;

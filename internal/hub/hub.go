@@ -37,6 +37,7 @@ type Hub struct {
 
 	// File change manager for handling file change approvals
 	fileChangeManager *filechange.FileChangeManager
+	fileChangeBackendFn func(workspaceRoot string) filechange.WorkspaceIO
 
 	// Workspace manager for handling workspace operations
 	workspaceManager *WorkspaceManager

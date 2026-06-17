@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
@@ -131,6 +132,108 @@ func (h *Hub) StartRunbook(collabID string) (*collaboration.Collaboration, error
 	if _, err := h.collabManager.TransitionToExecuting(collabID); err != nil {
 		return nil, err
 	}
-	_, _ = h.collabManager.EnsureExecutionTasks(collabID)
+	if _, err := h.collabManager.EnsureExecutionTasks(collabID); err != nil {
+		log.Printf("[Runbook] EnsureExecutionTasks for %s: %v", shortCollabID(collabID), err)
+	}
+	return h.finalizeCollaborationExecutionStart(collabID, "✅ **Runbook execution started**")
+}
+
+// finalizeCollaborationExecutionStart auto-acks when allowed, dispatches ready tasks,
+// and posts execution status to the collaboration channel (mirrors /approve-plan).
+func (h *Hub) finalizeCollaborationExecutionStart(collabID, heading string) (*collaboration.Collaboration, error) {
+	if h.collabManager == nil {
+		return nil, fmt.Errorf("collaboration manager unavailable")
+	}
+	collabSnap, err := h.collabManager.GetCollaborationSnapshot(collabID)
+	if err != nil || collabSnap == nil {
+		return nil, fmt.Errorf("could not load collaboration %s after execution start", shortCollabID(collabID))
+	}
+	h.persistCollaborationReviewAssets(collabID)
+
+	var autoAckErr error
+	if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && !collabSnap.WorkspaceAcknowledged {
+		if err := h.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
+			log.Printf("[Collaboration] Auto workspace ack for %s: %v", shortCollabID(collabID), err)
+			autoAckErr = err
+		} else {
+			collabSnap, err = h.collabManager.GetCollaborationSnapshot(collabID)
+			if err != nil || collabSnap == nil {
+				return nil, fmt.Errorf("could not reload collaboration %s after workspace ack", shortCollabID(collabID))
+			}
+		}
+	}
+
+	pathWarnings := collaboration.FormatTaskPathWarnings(
+		collaboration.ValidateCollaborationPaths(collabSnap),
+		collabSnap.SourceRepoPath,
+	)
+
+	var taskSummary strings.Builder
+	taskSummary.WriteString(fmt.Sprintf("%s (Collaboration `%s`)\n\n", heading, collabID[:8]))
+	taskSummary.WriteString("**Assigned Tasks:**\n\n")
+	if len(collabSnap.Tasks) == 0 {
+		taskSummary.WriteString("_No tasks to assign (no participants)._\n\n")
+	}
+	for i, task := range collabSnap.Tasks {
+		assigneeLabel := task.AssignedName
+		if assigneeLabel == "" {
+			assigneeLabel = "unassigned"
+		}
+		taskSummary.WriteString(fmt.Sprintf("⬜ **Task %d:** %s\n   Assigned to: **@%s**\n\n", i+1, task.Description, assigneeLabel))
+	}
+
+	if h.CollaborationCanDispatchTasks(collabSnap) {
+		h.DispatchReadyCollabTasksForSnapshot(collabSnap, false)
+		if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && collabSnap.WorkspaceAcknowledged {
+			taskSummary.WriteString("\n**Tasks dispatched** — workspace was auto-confirmed (bound project repo).\n")
+		} else if collabSnap.WorkspaceAcknowledged {
+			taskSummary.WriteString("\n**Tasks dispatched** to assignees.\n")
+		}
+	} else {
+		if autoAckErr != nil {
+			taskSummary.WriteString(fmt.Sprintf(
+				"\n⚠️ **Auto workspace confirmation failed** — %v. Use **Continue** or `/ack-collab-workspace %s` before tasks can run.\n",
+				autoAckErr, collabID[:8],
+			))
+		}
+		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree {
+			if strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
+				taskSummary.WriteString(fmt.Sprintf("\n**Git worktree:** `%s` (branch `%s`)\n", collabSnap.WorkingDirectory, collabSnap.WorktreeBranch))
+			} else {
+				taskSummary.WriteString("\n**Git worktree:** will be created from your active workspace when you confirm.\n")
+			}
+		}
+		chName := strings.TrimSpace(collabSnap.Channel)
+		if chName == "" {
+			chName = "the collaboration channel"
+		} else {
+			chName = "#" + chName
+		}
+		taskSummary.WriteString(fmt.Sprintf("\n⏸ **Waiting for workspace confirmation** — agents will receive their task prompts after you click **Continue** on %s in the desktop app, or run `/ack-collab-workspace %s` here.\n", chName, collabID[:8]))
+		if collabSnap.ExecutionMode == collaboration.ExecutionModeWorktree && collabSnap.WorktreeBranch != "" && strings.TrimSpace(collabSnap.WorkingDirectory) != "" {
+			taskSummary.WriteString(fmt.Sprintf("_After completion, merge branch `%s` from your main checkout._\n", collabSnap.WorktreeBranch))
+		}
+	}
+	if pathWarnings != "" {
+		taskSummary.WriteString(pathWarnings)
+	}
+
+	ch := strings.TrimSpace(collabSnap.Channel)
+	if ch != "" {
+		statusMsg := protocol.NewMessage(
+			protocol.MessageTypeCollabStatus,
+			ch,
+			protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+			taskSummary.String(),
+		)
+		statusMsg.SetCollaborationID(collabID)
+		statusMsg.SetCollaborationPhase(string(collaboration.PhaseExecuting))
+		if statusMsg.Metadata == nil {
+			statusMsg.Metadata = map[string]interface{}{}
+		}
+		statusMsg.Metadata["collab_internal_event"] = true
+		_ = h.SendMessage(statusMsg)
+	}
+
 	return h.collabManager.GetCollaborationSnapshot(collabID)
 }

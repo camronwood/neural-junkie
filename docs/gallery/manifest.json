@@ -1,7 +1,79 @@
 {
-  "updated": "2026-06-02T16:04:30Z",
-  "count": 36,
+  "updated": "2026-06-17T16:03:22Z",
+  "count": 53,
   "items": [
+    {
+      "id": "ide-v4-carousel-01",
+      "src": "../media/gallery/ads/ide-v4-carousel-01.png",
+      "title": "Ide V4 Carousel 01",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-carousel-01.png"
+    },
+    {
+      "id": "ide-v4-carousel-02",
+      "src": "../media/gallery/ads/ide-v4-carousel-02.png",
+      "title": "Ide V4 Carousel 02",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-carousel-02.png"
+    },
+    {
+      "id": "ide-v4-carousel-03",
+      "src": "../media/gallery/ads/ide-v4-carousel-03.png",
+      "title": "Ide V4 Carousel 03",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-carousel-03.png"
+    },
+    {
+      "id": "ide-v4-carousel-04",
+      "src": "../media/gallery/ads/ide-v4-carousel-04.png",
+      "title": "Ide V4 Carousel 04",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-carousel-04.png"
+    },
+    {
+      "id": "ide-v4-carousel-05",
+      "src": "../media/gallery/ads/ide-v4-carousel-05.png",
+      "title": "Ide V4 Carousel 05",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-carousel-05.png"
+    },
+    {
+      "id": "ide-v4-hero-banner",
+      "src": "../media/gallery/ads/ide-v4-hero-banner.png",
+      "title": "Ide V4 Hero Banner",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-hero-banner.png"
+    },
+    {
+      "id": "ide-v4-social-square",
+      "src": "../media/gallery/ads/ide-v4-social-square.png",
+      "title": "Ide V4 Social Square",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-social-square.png"
+    },
+    {
+      "id": "ide-v4-story-vertical",
+      "src": "../media/gallery/ads/ide-v4-story-vertical.png",
+      "title": "Ide V4 Story Vertical",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-story-vertical.png"
+    },
     {
       "id": "neural-junkie-beta-download-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-beta-download-ad-1080.png",
@@ -110,6 +182,15 @@
       "filename": "neural-junkie-community-ad-1080.png"
     },
     {
+      "id": "neural-junkie-compose-specialist-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-compose-specialist-ad-1080.png",
+      "title": "Compose Specialist",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-compose-specialist-ad-1080.png"
+    },
+    {
       "id": "neural-junkie-context-scope-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-context-scope-ad-1080.png",
       "title": "Context Scope",
@@ -119,6 +200,24 @@
       "filename": "neural-junkie-context-scope-ad-1080.png"
     },
     {
+      "id": "neural-junkie-conversation-memory-1200",
+      "src": "../media/gallery/ads/neural-junkie-conversation-memory-1200.png",
+      "title": "Conversation Memory 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-conversation-memory-1200.png"
+    },
+    {
+      "id": "neural-junkie-conversation-memory-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-conversation-memory-ad-1080.png",
+      "title": "Conversation Memory",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-conversation-memory-ad-1080.png"
+    },
+    {
       "id": "neural-junkie-domain-packs-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-domain-packs-ad-1080.png",
       "title": "Domain Packs",
@@ -126,6 +225,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-domain-packs-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-hardware-stacks-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-hardware-stacks-ad-1080.png",
+      "title": "Hardware Stacks",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-hardware-stacks-ad-1080.png"
     },
     {
       "id": "neural-junkie-local-ai-tokens-ad-1080",
@@ -153,6 +261,33 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-mcp-lora-ad-1200.png"
+    },
+    {
+      "id": "neural-junkie-model-layering-1200",
+      "src": "../media/gallery/ads/neural-junkie-model-layering-1200.png",
+      "title": "Model Layering 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-model-layering-1200.png"
+    },
+    {
+      "id": "neural-junkie-modular-ai-composition-1200",
+      "src": "../media/gallery/ads/neural-junkie-modular-ai-composition-1200.png",
+      "title": "Modular Ai Composition 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-modular-ai-composition-1200.png"
+    },
+    {
+      "id": "neural-junkie-modular-router-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-modular-router-ad-1080.png",
+      "title": "Modular Router",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-modular-router-ad-1080.png"
     },
     {
       "id": "neural-junkie-nondev-collaborate-ad-1080",
@@ -209,6 +344,15 @@
       "filename": "neural-junkie-oss-contributors-ad-1080.png"
     },
     {
+      "id": "neural-junkie-routing-badge-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-routing-badge-ad-1080.png",
+      "title": "Routing Badge",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-routing-badge-ad-1080.png"
+    },
+    {
       "id": "neural-junkie-runbook-actions-ad-1080",
       "src": "../media/gallery/ads/neural-junkie-runbook-actions-ad-1080.png",
       "title": "Runbook Actions",
@@ -236,28 +380,6 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-session-memory-ad-1080.png"
-    },
-    {
-      "id": "neural-junkie-conversation-memory-1200",
-      "src": "../media/gallery/ads/neural-junkie-conversation-memory-1200.png",
-      "title": "Conversation Memory Article",
-      "caption": "LinkedIn article cover — long-term retrieval",
-      "category": "ads",
-      "tags": [
-        "conversation-memory"
-      ],
-      "filename": "neural-junkie-conversation-memory-1200.png"
-    },
-    {
-      "id": "neural-junkie-conversation-memory-ad-1080",
-      "src": "../media/gallery/ads/neural-junkie-conversation-memory-ad-1080.png",
-      "title": "Conversation Memory",
-      "caption": "",
-      "category": "ads",
-      "tags": [
-        "conversation-memory"
-      ],
-      "filename": "neural-junkie-conversation-memory-ad-1080.png"
     },
     {
       "id": "neural-junkie-slack-ad-1080",
@@ -319,6 +441,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-tiff-previewer-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-two-tier-lora-ad-1200",
+      "src": "../media/gallery/ads/neural-junkie-two-tier-lora-ad-1200.png",
+      "title": "Two Tier Lora Ad 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-two-tier-lora-ad-1200.png"
     },
     {
       "id": "Screenshot-2026-05-13-at-12.35.40\u202fPM",

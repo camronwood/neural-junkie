@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/codeindex"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +85,19 @@ func handleFileCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if isRemoteWorkspace(workspace) {
+		if _, err := backendStat(r.Context(), req.WorkspaceID, req.Path); err == nil {
+			http.Error(w, "File already exists", http.StatusConflict)
+			return
+		}
+		if code, msg := backendWriteFile(r.Context(), req.WorkspaceID, req.Path, []byte(req.Content)); code != 0 {
+			http.Error(w, msg, code)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		return
+	}
+
 	fullPath := filepath.Join(workspace.Path, req.Path)
 
 	absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
@@ -133,6 +148,25 @@ func handleFileRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if isRemoteWorkspace(workspace) {
+		b, code, msg := backendForWorkspace(req.WorkspaceID)
+		if b == nil {
+			http.Error(w, msg, code)
+			return
+		}
+		res, err := b.Exec(r.Context(), workspacebackend.ExecRequest{
+			Command: "mv",
+			Args:    []string{strings.TrimPrefix(req.OldPath, "/"), strings.TrimPrefix(req.NewPath, "/")},
+			RelCwd:  ".",
+		})
+		if err != nil || res.ExitCode != 0 {
+			http.Error(w, strings.TrimSpace(res.Stderr+res.Stdout), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		return
+	}
+
 	oldFullPath := filepath.Join(workspace.Path, req.OldPath)
 	newFullPath := filepath.Join(workspace.Path, req.NewPath)
 
@@ -171,6 +205,25 @@ func handleFileDelete(w http.ResponseWriter, r *http.Request) {
 	workspace, exists := workspaceManager.GetWorkspace(workspaceID)
 	if !exists {
 		http.Error(w, "Workspace not found", http.StatusNotFound)
+		return
+	}
+
+	if isRemoteWorkspace(workspace) {
+		b, code, msg := backendForWorkspace(workspaceID)
+		if b == nil {
+			http.Error(w, msg, code)
+			return
+		}
+		res, err := b.Exec(r.Context(), workspacebackend.ExecRequest{
+			Command: "rm",
+			Args:    []string{"-rf", strings.TrimPrefix(path, "/")},
+			RelCwd:  ".",
+		})
+		if err != nil || res.ExitCode != 0 {
+			http.Error(w, strings.TrimSpace(res.Stderr+res.Stdout), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		return
 	}
 

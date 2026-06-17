@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/codeindex"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 // handleRepoSemanticSearch returns file chunks for @codebase (hybrid embed + keyword).
@@ -17,15 +18,21 @@ func handleRepoSemanticSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		RepoPath string `json:"repo_path"`
-		Query    string `json:"query"`
-		Limit    int    `json:"limit"`
+		WorkspaceID string `json:"workspace_id"`
+		RepoPath    string `json:"repo_path"`
+		Query       string `json:"query"`
+		Limit       int    `json:"limit"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 	root := strings.TrimSpace(req.RepoPath)
+	if req.WorkspaceID != "" {
+		if ws, ok := workspaceManager.GetWorkspace(req.WorkspaceID); ok && ws != nil {
+			root = ws.Path
+		}
+	}
 	q := strings.TrimSpace(req.Query)
 	if root == "" || q == "" {
 		http.Error(w, "repo_path and query required", http.StatusBadRequest)
@@ -38,12 +45,27 @@ func handleRepoSemanticSearch(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	meta, _ := codeindex.Status(root)
-	if !meta.Ready && !meta.Building {
-		codeindex.BuildIndexAsync(root)
+	var backend workspacebackend.Backend
+	if req.WorkspaceID != "" {
+		if b, err := workspaceBackendResolver.ForWorkspace(req.WorkspaceID); err == nil {
+			backend = b
+		}
 	}
 
-	results, err := codeindex.Search(ctx, root, q, limit)
+	meta, _ := codeindex.Status(root)
+	if !meta.Ready && !meta.Building {
+		if backend != nil {
+			go func() {
+				c, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer cancel()
+				_ = codeindex.BuildIndexViaBackend(c, root, backend)
+			}()
+		} else {
+			codeindex.BuildIndexAsync(root)
+		}
+	}
+
+	results, err := codeindex.SearchViaBackend(ctx, root, backend, q, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

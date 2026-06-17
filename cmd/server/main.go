@@ -19,7 +19,9 @@ import (
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
+	lspserver "github.com/camronwood/neural-junkie/internal/lsp/server"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/gorilla/websocket"
 )
 
@@ -30,6 +32,8 @@ var (
 	}
 	chatHub             *hub.Hub
 	workspaceManager    *hub.WorkspaceManager
+	workspaceBackendResolver *workspacebackend.Resolver
+	lspManager          *lspserver.Manager
 	appConfig           *config.Config
 	serverStartTime     time.Time
 	ollamaMgr           *ollamaManager.Manager
@@ -182,6 +186,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize workspace manager:", err)
 	}
+	workspaceBackendResolver = workspacebackend.NewResolver(hubWorkspaceSource{m: workspaceManager})
+	lspManager = lspserver.NewManager()
+	registerRemoteWorkspacesOnStartup()
+	chatHub.SetFileChangeBackendFn(backendForWorkspaceRoot)
 
 	// Drop legacy demo channels (project-alpha / project-beta) from restored sessions.
 	if n := chatHub.RemoveLegacySeedChannels(); n > 0 {

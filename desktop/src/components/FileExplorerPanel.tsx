@@ -71,6 +71,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     error,
     loadWorkspaces,
     addWorkspace,
+    connectRemoteWorkspace,
     setActiveWorkspace,
     loadFiles,
     refreshTreeForPath,
@@ -116,7 +117,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
   // State for adding new workspace
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
-  const [workspaceAddMode, setWorkspaceAddMode] = useState<'create' | 'link'>('create');
+  const [workspaceAddMode, setWorkspaceAddMode] = useState<'create' | 'link' | 'remote'>('create');
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const workspaceSwitcherRequestNonce = useFileExplorerStore((s) => s.workspaceSwitcherRequestNonce);
 
@@ -130,6 +131,11 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspacePath, setNewWorkspacePath] = useState('');
   const [newWorkspaceParentPath, setNewWorkspaceParentPath] = useState('');
+  const [remoteHost, setRemoteHost] = useState('');
+  const [remoteUser, setRemoteUser] = useState('');
+  const [remotePath, setRemotePath] = useState('');
+  const [sidecarUrl, setSidecarUrl] = useState('http://127.0.0.1:19876');
+  const [sidecarToken, setSidecarToken] = useState('');
 
   // State for file operations
   const [contextMenu, setContextMenu] = useState<{
@@ -231,14 +237,37 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     setNewWorkspaceName('');
     setNewWorkspacePath('');
     setNewWorkspaceParentPath('');
+    setRemoteHost('');
+    setRemoteUser('');
+    setRemotePath('');
+    setSidecarUrl('http://127.0.0.1:19876');
+    setSidecarToken('');
   };
 
   const handleAddWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
     if (workspaceAddMode === 'link' && !newWorkspacePath.trim()) return;
+    if (workspaceAddMode === 'remote' && (!remoteHost.trim() || !remotePath.trim() || !sidecarUrl.trim())) return;
 
     try {
-      if (workspaceAddMode === 'create') {
+      if (workspaceAddMode === 'remote') {
+        await connectRemoteWorkspace({
+          name: newWorkspaceName.trim(),
+          remoteHost: remoteHost.trim(),
+          remoteUser: remoteUser.trim() || 'ubuntu',
+          remotePath: remotePath.trim(),
+          sidecarUrl: sidecarUrl.trim(),
+          token: sidecarToken.trim(),
+          kind: 'ssh',
+        });
+        addToast({
+          type: 'success',
+          title: 'Remote workspace connected',
+          message: `Connected to ${remoteHost.trim()}`,
+        });
+        resetAddWorkspaceForm();
+        return;
+      } else if (workspaceAddMode === 'create') {
         await addWorkspace(newWorkspaceName.trim(), '', {
           create: true,
           parentPath: newWorkspaceParentPath.trim() || undefined,
@@ -1149,6 +1178,19 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
               >
                 Link existing
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workspaceAddMode === 'remote'}
+                onClick={() => setWorkspaceAddMode('remote')}
+                className={`flex-1 px-3 py-1.5 font-medium ${
+                  workspaceAddMode === 'remote'
+                    ? 'bg-slack-accent text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+              >
+                Remote SSH
+              </button>
             </div>
             <div className="space-y-4">
               <div>
@@ -1190,6 +1232,67 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
                     <code className="font-mono">~/.neural-junkie/workspaces/</code>
                   </p>
                 </div>
+              ) : workspaceAddMode === 'remote' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-1">Host</label>
+                      <input
+                        type="text"
+                        value={remoteHost}
+                        onChange={(e) => setRemoteHost(e.target.value)}
+                        className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                        placeholder="ec2-xxx.compute.amazonaws.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slack-text mb-1">User</label>
+                      <input
+                        type="text"
+                        value={remoteUser}
+                        onChange={(e) => setRemoteUser(e.target.value)}
+                        className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                        placeholder="ec2-user"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-1">Remote path</label>
+                    <input
+                      type="text"
+                      value={remotePath}
+                      onChange={(e) => setRemotePath(e.target.value)}
+                      className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                      placeholder="/home/ec2-user/myproject"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-1">Sidecar URL</label>
+                    <input
+                      type="text"
+                      value={sidecarUrl}
+                      onChange={(e) => setSidecarUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                      placeholder="http://127.0.0.1:19876"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-1">Sidecar token</label>
+                    <input
+                      type="password"
+                      value={sidecarToken}
+                      onChange={(e) => setSidecarToken(e.target.value)}
+                      className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                      placeholder="Bearer token from nj-remote"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slack-textMuted">
+                    Tunnel:{' '}
+                    <code className="font-mono">
+                      ssh -L 19876:127.0.0.1:19876 {remoteUser || 'user'}@{remoteHost || 'host'}
+                    </code>
+                  </p>
+                </>
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-slack-text mb-1">
@@ -1221,11 +1324,17 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
                 onClick={() => void handleAddWorkspace()}
                 disabled={
                   !newWorkspaceName.trim() ||
-                  (workspaceAddMode === 'link' && !newWorkspacePath.trim())
+                  (workspaceAddMode === 'link' && !newWorkspacePath.trim()) ||
+                  (workspaceAddMode === 'remote' &&
+                    (!remoteHost.trim() || !remotePath.trim() || !sidecarUrl.trim()))
                 }
                 className="px-4 py-2 bg-slack-accent hover:bg-slack-accentHover text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {workspaceAddMode === 'create' ? 'Create' : 'Add'}
+                {workspaceAddMode === 'create'
+                  ? 'Create'
+                  : workspaceAddMode === 'remote'
+                    ? 'Connect'
+                    : 'Add'}
               </button>
               <button
                 type="button"

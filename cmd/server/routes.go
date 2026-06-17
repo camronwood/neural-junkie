@@ -102,6 +102,13 @@ func registerRoutes() {
 	http.HandleFunc("/api/lsp/go/diagnostics", corsMiddleware(handleLSPGoDiagnostics))
 	http.HandleFunc("/api/lsp/rust/diagnostics", corsMiddleware(handleLSPRustDiagnostics))
 	http.HandleFunc("/api/lsp/python/diagnostics", corsMiddleware(handleLSPPythonDiagnostics))
+	http.HandleFunc("/api/lsp/ws", corsMiddleware(localOnly(handleLSPWebSocket)))
+	http.HandleFunc("/api/lsp/hover", corsMiddleware(localOnly(handleLSPHover)))
+	http.HandleFunc("/api/lsp/request", corsMiddleware(localOnly(handleLSPRequest)))
+	http.HandleFunc("/api/workspaces/connect-remote", corsMiddleware(localOnly(handleConnectRemoteWorkspace)))
+	http.HandleFunc("/api/workspaces/devcontainer-plan", corsMiddleware(localOnly(handleDevcontainerPlan)))
+	http.HandleFunc("/api/terminal/ws", corsMiddleware(localOnly(handleTerminalWebSocket)))
+	http.HandleFunc("/api/workspaces/remote-exec", corsMiddleware(localOnly(handleRemoteExec)))
 	http.HandleFunc("/api/repo/search/semantic", corsMiddleware(handleRepoSemanticSearch))
 	http.HandleFunc("/api/repo/index/status", corsMiddleware(handleRepoIndexStatus))
 

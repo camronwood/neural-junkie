@@ -45,8 +45,9 @@ func sanitizeWorkspaceDirName(name string) string {
 
 // AddWorkspaceOptions controls create-vs-link behavior for POST /api/workspaces.
 type AddWorkspaceOptions struct {
-	Create     bool
-	ParentPath string // when Create: optional parent directory; empty uses DefaultWorkspacesRoot
+	Create         bool
+	ParentPath     string // when Create: optional parent directory; empty uses DefaultWorkspacesRoot
+	SkipPathCheck  bool   // remote workspaces: path is logical, not validated locally
 }
 
 // AddWorkspace registers a workspace. When opts.Create is true, the directory is created if missing.
@@ -72,12 +73,16 @@ func (wm *WorkspaceManager) AddWorkspace(name, path string, opts AddWorkspaceOpt
 		if path == "" {
 			return nil, fmt.Errorf("path required")
 		}
-		if _, err := os.Stat(path); err != nil {
-			return nil, fmt.Errorf("path does not exist: %w", err)
-		}
-		absPath, err = filepath.Abs(path)
-		if err != nil {
-			return nil, fmt.Errorf("resolve absolute path: %w", err)
+		if !opts.SkipPathCheck {
+			if _, err := os.Stat(path); err != nil {
+				return nil, fmt.Errorf("path does not exist: %w", err)
+			}
+			absPath, err = filepath.Abs(path)
+			if err != nil {
+				return nil, fmt.Errorf("resolve absolute path: %w", err)
+			}
+		} else {
+			absPath = filepath.Clean(path)
 		}
 	}
 

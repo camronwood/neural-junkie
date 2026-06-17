@@ -64,6 +64,19 @@ make test-everything-full         # above + collab-scenarios-all (~1-3h extra)
 # reports: docs/testing/test-everything-*.md (summary) + test-everything-*.log (full output)
 ```
 
+**Release prep (one command):** `test-everything-full` + `test-parity-stable-restart` + `model-benchmark` with a unified report:
+
+```bash
+ollama serve
+make server-regression    # terminal 1
+make agents               # terminal 1b
+make release-prep VERBOSE=1
+# unified: docs/testing/release-prep-*.md + release-prep-*.log
+# child:   test-everything-*.md, parity-stable-restart-*.log, model-benchmark-*.{md,json,tsv}
+```
+
+Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP_BENCHMARK=1`, `SKIP_PARITY=1`, `BENCHMARK_SUITE=standard`, `BENCHMARK_MODELS='qwen3.5:9b,qwen2.5-coder:14b'`, `PULL=1`, `STOP_ON_FAIL=1`.
+
 **Model benchmark:** compare top local coder models against the same scenarios — see [testing/MODEL_BENCHMARK.md](testing/MODEL_BENCHMARK.md):
 
 ```bash

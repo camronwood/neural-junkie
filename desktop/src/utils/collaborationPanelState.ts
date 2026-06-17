@@ -63,6 +63,17 @@ export function taskNeedsFileDeliverable(task: CollaborationTask): boolean {
   );
 }
 
+/** Sandbox + bound project repo: hub may acknowledge workspace immediately after approve/start. */
+export function shouldAutoAckWorkspaceOnApprove(collaboration: Collaboration | null): boolean {
+  if (!collaboration) {
+    return false;
+  }
+  if (collaboration.execution_mode === 'worktree') {
+    return false;
+  }
+  return !!collaboration.source_repo_path?.trim();
+}
+
 /** Executing phase blocked until user confirms workspace (worktree or sandbox with path). */
 export function isAwaitingWorkspaceConfirmation(collaboration: Collaboration | null): boolean {
   if (!collaboration || collaboration.phase !== 'executing') {

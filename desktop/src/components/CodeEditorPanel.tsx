@@ -4,14 +4,13 @@ import { shallow } from 'zustand/shallow';
 import { useEditorStore } from '../stores/editorStore';
 import { useToastStore } from '../stores/toastStore';
 import { useInlinePendingHunks, useMonacoDiagnostics } from '../hooks/useInlinePendingHunks';
+import { useWorkspaceLSPDiagnostics } from '../hooks/useWorkspaceLSPDiagnostics';
+import { useMonacoLSP } from '../lsp/useMonacoLSP';
 import { useInlineCompletion } from '../hooks/useInlineCompletion';
 import { EditorReviewBar } from './EditorReviewBar';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 import { usePacksStore } from '../stores/packsStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import { useDiagnosticsStore } from '../stores/diagnosticsStore';
-import { ChatAPI } from '../api/chatAPI';
-import { getHubBaseURL } from '../config/hubUrl';
 import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
@@ -129,6 +128,22 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   });
 
   useMonacoDiagnostics(editor, monacoRef.current, activeTab?.path, activeTab?.language);
+  useWorkspaceLSPDiagnostics(
+    editor,
+    monacoRef.current,
+    activeTab?.workspaceId,
+    activeTab?.path,
+    activeTab?.language
+  );
+  useMonacoLSP(
+    editor,
+    monacoRef.current,
+    activeTab?.workspaceId,
+    workspaceRoot,
+    activeTab?.path,
+    activeTab?.language,
+    activeTab?.content
+  );
   useInlinePendingHunks(editor, monacoRef.current, activeTabId);
   useInlineCompletion(
     editor,
@@ -150,45 +165,6 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
     editor.setPosition({ lineNumber: revealRequest.line, column: 1 });
     clearRevealRequest();
   }, [editor, revealRequest, activeTab, clearRevealRequest]);
-
-  useEffect(() => {
-    if (!activeTab?.workspaceId || !activeTab.path) return;
-    const lang = activeTab.language;
-    const ext = activeTab.path.split('.').pop()?.toLowerCase();
-    let lspLang: 'go' | 'rust' | 'python' | null = null;
-    if (lang === 'go' || ext === 'go') lspLang = 'go';
-    else if (lang === 'rust' || ext === 'rs') lspLang = 'rust';
-    else if (lang === 'python' || ext === 'py') lspLang = 'python';
-    if (!lspLang) return;
-    let cancelled = false;
-    const api = new ChatAPI(getHubBaseURL());
-    const fetch =
-      lspLang === 'go'
-        ? api.getGoLSPDiagnostics(activeTab.workspaceId)
-        : api.getLSPDiagnostics(lspLang, activeTab.workspaceId);
-    void fetch.then((items) => {
-      if (cancelled) return;
-      for (const d of items) {
-        if (d.path === activeTab.path || d.path.endsWith('/' + activeTab.path)) {
-          useDiagnosticsStore.getState().setForPath(activeTab.path, [
-            ...(useDiagnosticsStore.getState().byPath[activeTab.path] ?? []).filter(
-              (x) => x.message !== d.message
-            ),
-            {
-              path: activeTab.path,
-              line: d.line,
-              column: d.column,
-              message: d.message,
-              severity: d.severity === 'warning' ? 'warning' : 'error',
-            },
-          ]);
-        }
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab?.workspaceId, activeTab?.path, activeTab?.language]);
 
   const isImageTab = activeTab?.viewMode === 'image';
   const isScanSummaryTab = activeTab?.viewMode === 'scan-summary';

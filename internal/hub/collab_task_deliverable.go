@@ -11,10 +11,6 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-func agentReplyProposesFileChange(content string) bool {
-	return strings.Contains(strings.ToLower(content), "[file_change]")
-}
-
 func (h *Hub) collabTaskDeliverableSatisfied(snap *collaboration.Collaboration, task *collaboration.CollaborationTask, msg *protocol.Message) bool {
 	if task == nil || snap == nil {
 		return true
@@ -70,7 +66,7 @@ func (h *Hub) maybeWarnPrematureTaskCompletion(msg *protocol.Message, collabID s
 	if !collaboration.TaskRequiresFileDeliverable(*task) {
 		return false
 	}
-	if agentReplyProposesFileChange(msg.Content) || h.collabTaskDeliverableSatisfied(snap, task, msg) {
+	if h.collabTaskDeliverableSatisfied(snap, task, msg) {
 		return false
 	}
 	ch := msg.Channel

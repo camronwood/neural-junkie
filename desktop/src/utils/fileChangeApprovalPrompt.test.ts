@@ -56,6 +56,19 @@ describe('shouldPromptFileChangeApproval', () => {
       ),
     ).toBe(false);
   });
+
+  it('skips auto-approved collab deliverables', () => {
+    expect(
+      shouldPromptFileChangeApproval(
+        fileChangeMessage({
+          channel: 'collab-abc',
+          metadata: { registered_change_id: 'change-1', file_change_auto_approved: true },
+        }),
+        'collab-abc',
+        {},
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('registeredFileChangeId', () => {

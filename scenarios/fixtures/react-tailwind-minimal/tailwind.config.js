@@ -4,21 +4,16 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
-      // Custom theme colors if needed
       colors: {
-        primary: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
+        background: {
+          light: '#ffffff',
+          dark: '#000000'
         },
-      },
+        text: {
+          light: '#000000',
+          dark: '#ffffff'
+        }
+      }
     },
   },
   plugins: [],

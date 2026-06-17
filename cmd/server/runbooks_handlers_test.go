@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -80,6 +81,109 @@ func TestHandleRunbooksCreateAndSubmit(t *testing.T) {
 	}
 	if snap.Phase != collaboration.PhaseReviewing {
 		t.Fatalf("phase = %s", snap.Phase)
+	}
+}
+
+func TestHandleRunbookStartDefersDispatchUntilWorkspaceAck(t *testing.T) {
+	h := setupRunbookAPITest(t)
+
+	body := map[string]any{
+		"description": "start lifecycle",
+		"agent_ids":   []string{"a1"},
+		"channel":     "general",
+		"created_by":  "api-tester",
+	}
+	raw, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(raw))
+	rec := httptest.NewRecorder()
+	handleRunbooksRoute(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create status %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var created struct {
+		CollaborationID      string `json:"collaboration_id"`
+		CollaborationChannel string `json:"collaboration_channel"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+	tasks := []collaboration.CollaborationTask{
+		{ID: "t1", Title: "One", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
+	}
+	putBody, _ := json.Marshal(map[string]any{"tasks": tasks})
+	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putRec := httptest.NewRecorder()
+	handleRunbooksRoute(putRec, putReq)
+	if putRec.Code != http.StatusOK {
+		t.Fatalf("put status %d: %s", putRec.Code, putRec.Body.String())
+	}
+
+	subReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
+	subRec := httptest.NewRecorder()
+	handleRunbooksRoute(subRec, subReq)
+	if subRec.Code != http.StatusOK {
+		t.Fatalf("submit status %d: %s", subRec.Code, subRec.Body.String())
+	}
+
+	startReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
+	startRec := httptest.NewRecorder()
+	handleRunbooksRoute(startRec, startReq)
+	if startRec.Code != http.StatusOK {
+		t.Fatalf("start status %d: %s", startRec.Code, startRec.Body.String())
+	}
+
+	var started collaboration.Collaboration
+	if err := json.Unmarshal(startRec.Body.Bytes(), &started); err != nil {
+		t.Fatal(err)
+	}
+	if started.Phase != collaboration.PhaseExecuting {
+		t.Fatalf("phase = %s", started.Phase)
+	}
+	if started.WorkingDirectory == "" {
+		t.Fatal("expected working_directory on start response")
+	}
+	if started.WorkspaceAcknowledged {
+		t.Fatal("expected workspace_acknowledged=false before explicit ack")
+	}
+
+	msgs, _ := h.GetMessages(created.CollaborationChannel, 200)
+	taskCount := 0
+	foundStatus := false
+	for _, m := range msgs {
+		if m == nil {
+			continue
+		}
+		if m.Type == protocol.MessageTypeCollabTask {
+			taskCount++
+		}
+		if m.Type == protocol.MessageTypeCollabStatus &&
+			strings.Contains(m.Content, "Runbook execution started") &&
+			strings.Contains(m.Content, "Waiting for workspace confirmation") {
+			foundStatus = true
+		}
+	}
+	if taskCount != 0 {
+		t.Fatalf("expected 0 collab_task before workspace ack, got %d", taskCount)
+	}
+	if !foundStatus {
+		t.Fatal("expected execution status on collab channel after POST /start")
+	}
+
+	if err := h.AcknowledgeCollaborationWorkspace(created.CollaborationID, ""); err != nil {
+		t.Fatalf("AcknowledgeCollaborationWorkspace: %v", err)
+	}
+	msgs, _ = h.GetMessages(created.CollaborationChannel, 200)
+	taskCount = 0
+	for _, m := range msgs {
+		if m != nil && m.Type == protocol.MessageTypeCollabTask {
+			taskCount++
+		}
+	}
+	if taskCount != 1 {
+		t.Fatalf("expected 1 collab_task after workspace ack, got %d", taskCount)
 	}
 }
 

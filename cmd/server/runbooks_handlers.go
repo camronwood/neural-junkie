@@ -188,9 +188,6 @@ func handleRunbookStart(w http.ResponseWriter, r *http.Request, id string) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if chatHub.CollaborationCanDispatchTasks(snap) {
-		chatHub.DispatchReadyCollabTasksForSnapshot(snap, false)
-	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snap)
 }

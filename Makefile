@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract test-everything test-everything-full slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -108,6 +108,7 @@ collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, 
 test-regression-live: ## Print pre-release live regression checklist (does not start hub)
 	@echo "Pre-release live regression (see docs/TESTING.md):"
 	@echo ""
+	@echo "  make release-prep                 # one-shot: test-everything-full + parity + benchmark → release-prep-*.md"
 	@echo "  make test-everything              # CI + live harness; review docs/testing/test-everything-*.md"
 	@echo "  make test-everything-full         # above + all collab scenarios (~1-3h extra)"
 	@echo ""
@@ -278,6 +279,21 @@ test-everything: ## CI smoke + live harness; writes docs/testing/test-everything
 
 test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-all, ~1-3h)
 	@$(MAKE) test-everything FULL=1 $(if $(VERBOSE),VERBOSE=1,) $(if $(CONTINUE),CONTINUE=1,)
+
+release-prep: ## Full release gate: test-everything-full + parity-restart + benchmark → docs/testing/release-prep-*.md
+	@chmod +x scripts/release-prep.py scripts/test-everything.py
+	@python3 scripts/release-prep.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		$(if $(SKIP_LIVE),--skip-live,) \
+		$(if $(NO_FULL),--no-full,) \
+		$(if $(SKIP_PARITY),--skip-parity,) \
+		$(if $(SKIP_BENCHMARK),--skip-benchmark,) \
+		$(if $(SKIP_EVERYTHING),--skip-everything,) \
+		$(if $(BENCHMARK_SUITE),--benchmark-suite $(BENCHMARK_SUITE),) \
+		$(if $(BENCHMARK_MODELS),--benchmark-models "$(BENCHMARK_MODELS)",) \
+		$(if $(PULL),--pull-models,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(STOP_ON_FAIL),--stop-on-fail,)
 
 model-benchmark: ## Benchmark top coder models (SUITE=quick|standard|implement; PULL=1; MODELS=tag1,tag2)
 	@chmod +x scripts/model-benchmark-suite.py
@@ -629,6 +645,11 @@ build-sidecar: ## Build server sidecar for current platform
 	@echo "🔨 Building server sidecar for current platform... $(if $(SERVER_GO_TAGS),[Slack vendor],)"
 	@mkdir -p $(SIDECAR_DIR)
 	@go build $(SERVER_GO_TAGS) -o $(SIDECAR_DIR)/nj-server-$$(rustc -vV | grep host | cut -d' ' -f2) ./cmd/server
+
+build-nj-remote: ## Build nj-remote workspace sidecar (IDE v4 SSH/devcontainer)
+	@echo "🔨 Building nj-remote..."
+	@mkdir -p bin
+	@go build -o bin/nj-remote ./cmd/nj-remote
 
 bundle-mac: build-server-mac-arm fetch-ollama ## Build production desktop app for macOS
 	@echo "📦 Building macOS bundle..."

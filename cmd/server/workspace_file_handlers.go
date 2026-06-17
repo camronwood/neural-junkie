@@ -12,6 +12,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/scansummary"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 func handleFiles(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +32,28 @@ func handleFiles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Workspace not found", http.StatusNotFound)
 		return
 	}
+
+	rel := strings.TrimPrefix(path, "/")
+	if workspace.Kind == workspacebackend.KindSSH || workspace.Kind == workspacebackend.KindDevcontainer {
+		entries, code, msg := backendListDir(r.Context(), workspaceID, rel)
+		if code != 0 {
+			http.Error(w, msg, code)
+			return
+		}
+		var files []map[string]interface{}
+		for _, entry := range entries {
+			files = append(files, map[string]interface{}{
+				"name":     entry.Name,
+				"path":     entry.Path,
+				"is_dir":   entry.IsDir,
+				"size":     entry.Size,
+				"mod_time": entry.ModTime,
+			})
+		}
+		_ = json.NewEncoder(w).Encode(files)
+		return
+	}
+
 	if info, err := os.Stat(workspace.Path); err != nil || !info.IsDir() {
 		http.Error(w, "Workspace path is unavailable", http.StatusNotFound)
 		return
@@ -102,6 +125,33 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		relPath := strings.TrimPrefix(path, "/")
+		if isRemoteWorkspace(workspace) {
+			content, code, msg := backendReadFile(r.Context(), workspaceID, relPath)
+			if code != 0 {
+				http.Error(w, msg, code)
+				return
+			}
+			if scansummary.ValidateWellID(filepath.Base(path)) && scansummary.IsTIFF(content) {
+				http.Error(w, "well TIFF: open via scan summary viewer (Life sciences pack)", http.StatusUnsupportedMediaType)
+				return
+			}
+			if r.URL.Query().Get("binary") == "1" || isWorkspaceImageFile(path) {
+				mimeType := mime.TypeByExtension(filepath.Ext(path))
+				if mimeType == "" {
+					mimeType = "application/octet-stream"
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"mime":           mimeType,
+					"content_base64": base64.StdEncoding.EncodeToString(content),
+				})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"content": string(content)})
+			return
+		}
+
 		fullPath := filepath.Join(workspace.Path, path)
 
 		absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
@@ -158,6 +208,16 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 		workspace, exists := workspaceManager.GetWorkspace(req.WorkspaceID)
 		if !exists {
 			http.Error(w, "Workspace not found", http.StatusNotFound)
+			return
+		}
+
+		if isRemoteWorkspace(workspace) {
+			code, msg := backendWriteFile(r.Context(), req.WorkspaceID, req.Path, []byte(req.Content))
+			if code != 0 {
+				http.Error(w, msg, code)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 			return
 		}
 

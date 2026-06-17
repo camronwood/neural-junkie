@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -148,10 +149,17 @@ func (b *BackendMCP) handleRunGoTests(ctx context.Context, request mcpgo.CallToo
 		return mcp.HandleToolError(fmt.Errorf("invalid Go package path: %s", packagePath), "run_go_tests"), nil
 	}
 
-	cmd := exec.CommandContext(ctx, "go", "test", "-v", "-timeout", "30s", packagePath)
-	cmd.Dir = b.getWorkingDir(packagePath)
-
-	output, err := cmd.CombinedOutput()
+	var output []byte
+	var err error
+	if shared.BackendFromContext(ctx) != nil {
+		out, runErr := shared.RunCommandMaybeRemote(ctx, b.getWorkingDir(packagePath), "go", "test", "-v", "-timeout", "30s", packagePath)
+		output = []byte(out)
+		err = runErr
+	} else {
+		cmd := exec.CommandContext(ctx, "go", "test", "-v", "-timeout", "30s", packagePath)
+		cmd.Dir = b.getWorkingDir(packagePath)
+		output, err = cmd.CombinedOutput()
+	}
 	if err != nil {
 		return mcp.HandleToolError(fmt.Errorf("test execution failed: %w\nOutput: %s", err, string(output)), "run_go_tests"), nil
 	}

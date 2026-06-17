@@ -12,7 +12,8 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 |-------|-------------|
 | **IDE v1** (dev pack only) | Git modal (status, commit, pull, push), quick open (⌘P), editor selection sent to agents with workspace context |
 | **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
-| **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing), review bar. See [IDE_V3.md](IDE_V3.md) |
+| **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing). See [IDE_V3.md](IDE_V3.md) |
+| **IDE v4** (dev pack only) | Full LSP, remote SSH, dev containers. See [IDE_V4.md](IDE_V4.md) |
 | **Qwen 3.5 27B** | `qwen3.5:27b` — shared base for all specialists |
 | **Utility tier** | `qwen3.5:9b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |

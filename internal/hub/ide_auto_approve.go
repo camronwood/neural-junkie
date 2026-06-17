@@ -8,7 +8,10 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const editorTrustAutoApply = "auto_apply_edits"
+const (
+	editorTrustAutoApply = "auto_apply_edits"
+	editorTrustYolo       = "yolo"
+)
 
 func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filechange.FileChange, operation filechange.FileOperation, wsRoot string) {
 	if h == nil || msg == nil || change == nil || h.fileChangeManager == nil {
@@ -25,7 +28,7 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 			}
 		}
 	}
-	if trust != editorTrustAutoApply {
+	if trust != editorTrustAutoApply && trust != editorTrustYolo {
 		return
 	}
 	if msg.IdeEditorMode() == "ask" {

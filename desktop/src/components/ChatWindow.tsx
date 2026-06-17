@@ -614,6 +614,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setWorkspaceGateCollab(channelAwaitingWorkspaceCollab);
   }, [channelAwaitingWorkspaceCollab]);
 
+  const openWorkspaceGateForCollab = useCallback((collab: Collaboration) => {
+    if (!isAwaitingWorkspaceConfirmation(collab)) return;
+    dismissedWorkspaceGateIdRef.current = null;
+    setWorkspaceGateCollab(collab);
+  }, []);
+
   const activeCollabForChannel = useMemo(
     () => Object.values(collaborationsByID).find((c) => c.channel === channel),
     [collaborationsByID, channel],
@@ -834,7 +840,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     try {
       const includeTerminal = targetChannel.startsWith('collab-');
       const snapshots = await api.fetchCollaborations(undefined, includeTerminal);
-      setCollaborationsByID(() => {
+      setCollaborationsByID((prev) => {
         const next: Record<string, Collaboration> = {};
         for (const snapshot of snapshots) {
           if (!snapshot?.id) continue;
@@ -846,6 +852,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           }
           next[snapshot.id] = snapshot;
         }
+        // Keep channel snapshots when hub list is briefly stale (e.g. right after /runbook redirect).
+        for (const existing of Object.values(prev)) {
+          if (!existing?.id || next[existing.id]) continue;
+          if (existing.channel !== targetChannel) continue;
+          if (!isNonTerminalCollaborationPhase(existing.phase)) continue;
+          next[existing.id] = existing;
+        }
         if (includeTerminal) {
           return pruneTerminalCollaborations(next, targetChannel);
         }
@@ -854,8 +867,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       setActiveCollab(current => {
         if (!current || current.channel !== targetChannel) return current;
         const refreshed = snapshots.find(snapshot => snapshot.id === current.id);
-        if (!refreshed) return null;
-        return refreshed;
+        if (refreshed) return refreshed;
+        const cached = collaborationsByIDRef.current[current.id];
+        if (cached && cached.channel === targetChannel) return cached;
+        return null;
       });
     } catch (error) {
       console.error('Failed to load collaborations:', error);
@@ -1263,10 +1278,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         return;
       }
       handledFileChangeApprovalsRef.current.add(message.id);
+      if (message.metadata?.file_change_auto_approved === true) {
+        return;
+      }
       try {
         await fetchPendingChanges(username || 'default');
       } catch (error) {
         console.error('[ChatWindow] fetch pending file changes failed:', error);
+      }
+      const pending = useFileChangeStore.getState().pendingChanges;
+      if (!pending.some((change) => change.id === changeId)) {
+        return;
       }
       setPendingChangePreviewId(changeId);
       setPendingChangesOpen(true);
@@ -1842,10 +1864,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           await loadChannels();
           await handleSwitchChannel(sendResult.collaboration_channel);
           timelineChannel = sendResult.collaboration_channel;
-          const collab = Object.values(collaborationsByIDRef.current).find(
-            (c) => c.channel === sendResult.collaboration_channel
-          );
+          await loadCollaborations(timelineChannel);
+          let collab =
+            (sendResult.collaboration_id
+              ? collaborationsByIDRef.current[sendResult.collaboration_id]
+              : undefined) ??
+            Object.values(collaborationsByIDRef.current).find(
+              (c) => c.channel === sendResult.collaboration_channel
+            );
+          if (!collab && sendResult.collaboration_id) {
+            try {
+              collab = await api.getRunbook(sendResult.collaboration_id);
+            } catch (e) {
+              console.error('[dispatchMessage] failed to load runbook after redirect:', e);
+            }
+          }
+          await loadCollaborations(timelineChannel);
           if (collab) {
+            mergeCollaborationSnapshot(collab);
+            setActiveCollab(collab);
             syncCollabTurnThinking(collab, sendResult.collaboration_channel);
           }
         }
@@ -1905,6 +1942,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       loadAgents,
       handleSwitchChannel,
       loadCollaborations,
+      mergeCollaborationSnapshot,
       executingCollaborationForChannel,
       addToast,
       updateSettings,
@@ -2625,13 +2663,16 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             }}
             onDirtyChange={setRunbookBuilderDirty}
             onSaved={(snap) => {
+              mergeCollaborationSnapshot(snap);
               setActiveCollab(snap);
-              void loadCollaborations(channel);
+              void loadCollaborations(snap.channel || channel);
             }}
             onStarted={(snap) => {
+              mergeCollaborationSnapshot(snap);
               setActiveCollab(snap);
-              void loadCollaborations(channel);
+              void loadCollaborations(snap.channel || channel);
             }}
+            onWorkspaceGateRequest={openWorkspaceGateForCollab}
           />
         ) : panelCollaboration ? (
           <CollaborationPanel

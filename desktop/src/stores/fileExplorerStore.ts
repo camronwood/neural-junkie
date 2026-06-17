@@ -54,6 +54,10 @@ export interface Workspace {
   is_git_repo: boolean;
   git_remote?: string;
   git_branch?: string;
+  kind?: string;
+  remote_host?: string;
+  remote_user?: string;
+  sidecar_url?: string;
 }
 
 export interface FileNode {
@@ -84,6 +88,15 @@ interface FileExplorerState {
   // Actions
   loadWorkspaces: () => Promise<void>;
   addWorkspace: (name: string, path: string, options?: { create?: boolean; parentPath?: string }) => Promise<Workspace>;
+  connectRemoteWorkspace: (params: {
+    name: string;
+    remoteHost: string;
+    remoteUser: string;
+    remotePath: string;
+    sidecarUrl: string;
+    token: string;
+    kind?: 'ssh' | 'devcontainer';
+  }) => Promise<Workspace>;
   removeWorkspace: (workspaceId: string) => Promise<void>;
   setActiveWorkspace: (workspaceId: string) => void;
   
@@ -171,6 +184,27 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
     } catch (error) {
       console.error('Failed to add workspace:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to add workspace' });
+      throw error;
+    }
+  },
+
+  connectRemoteWorkspace: async (params) => {
+    try {
+      const workspace = await api.connectRemoteWorkspace(params);
+      set((state) => {
+        const exists = state.workspaces.some((w) => w.id === workspace.id);
+        const workspaces = exists
+          ? state.workspaces.map((w) => (w.id === workspace.id ? workspace : w))
+          : [...state.workspaces, workspace];
+        writeStoredActiveWorkspaceId(workspace.id);
+        return { workspaces, activeWorkspaceId: workspace.id };
+      });
+      return workspace;
+    } catch (error) {
+      console.error('Failed to connect remote workspace:', error);
+      set({
+        error: error instanceof Error ? error.message : 'Failed to connect remote workspace',
+      });
       throw error;
     }
   },

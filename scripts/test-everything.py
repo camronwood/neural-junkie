@@ -199,6 +199,7 @@ def main() -> int:
     p.add_argument("--skip-live", action="store_true", help="CI/smoke only (no hub required)")
     p.add_argument("--verbose", action="store_true", help="Verbose live scenario output")
     p.add_argument("--log-dir", default=str(DEFAULT_TESTING_DIR))
+    p.add_argument("--stamp", help="Report stamp (default: UTC YYYY-MM-DD-HHMM)")
     p.add_argument(
         "--continue-on-fail",
         action="store_true",
@@ -207,7 +208,7 @@ def main() -> int:
     args = p.parse_args()
 
     testing_dir = Path(args.log_dir)
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+    stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
     report = RunReport(
         stamp=stamp,
         hub_url=args.hub.rstrip("/"),

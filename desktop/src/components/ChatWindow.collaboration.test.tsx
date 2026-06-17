@@ -41,6 +41,7 @@ const { apiHarness, wsHarness, confirmStartMock, confirmReplaceMock, addToastMoc
     fetchWorkspaces: vi.fn().mockResolvedValue([]),
     fetchFileContent: vi.fn().mockResolvedValue(''),
     fetchFiles: vi.fn().mockResolvedValue([]),
+    getRunbook: vi.fn(),
   };
   const wsHarness = {
     lastOpts: null as null | {
@@ -73,6 +74,7 @@ vi.mock('../api/chatAPI', () => ({
     fetchWorkspaces = apiHarness.fetchWorkspaces;
     fetchFileContent = apiHarness.fetchFileContent;
     fetchFiles = apiHarness.fetchFiles;
+    getRunbook = apiHarness.getRunbook;
   },
 }));
 
@@ -255,6 +257,13 @@ vi.mock('./RichTextInput', () => ({
           onClick={() => void props.onSend('/collaborate @A @B do the thing')}
         >
           send-collaborate
+        </button>
+        <button
+          type="button"
+          data-testid="send-runbook"
+          onClick={() => void props.onSend('/runbook @A ship the feature')}
+        >
+          send-runbook
         </button>
       </div>
     );
@@ -590,5 +599,68 @@ describe('ChatWindow collaboration wiring', () => {
       expect(useChatStore.getState().channel).toBe('collab-redirect');
     });
     expect(apiHarness.fetchChannels).toHaveBeenCalled();
+  });
+
+  it('opens runbook builder after /runbook redirect', async () => {
+    const runbookCollab = makeCollaboration({
+      id: 'runbook-id-1111-2222-3333-4444-555555555555',
+      channel: 'collab-runbook-id',
+      source: 'runbook',
+      phase: 'draft',
+    });
+    apiHarness.sendMessage.mockImplementation(async (_channel, content: string) => {
+      if (content.trimStart().startsWith('/runbook')) {
+        return {
+          collaboration_channel: 'collab-runbook-id',
+          collaboration_id: 'runbook-id-1111-2222-3333-4444-555555555555',
+        };
+      }
+      return {};
+    });
+    apiHarness.fetchCollaborations.mockResolvedValue([runbookCollab]);
+
+    render(<ChatWindow />);
+    await flushWsConnect();
+
+    fireEvent.click(screen.getByTestId('send-runbook'));
+
+    await waitFor(() => {
+      expect(useChatStore.getState().channel).toBe('collab-runbook-id');
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Runbook builder')).toBeTruthy();
+    });
+  });
+
+  it('falls back to getRunbook when collaboration is not yet in the store', async () => {
+    const runbookCollab = makeCollaboration({
+      id: 'runbook-id-2222-3333-4444-5555-666666666666',
+      channel: 'collab-runbook-fallback',
+      source: 'runbook',
+      phase: 'draft',
+    });
+    apiHarness.sendMessage.mockImplementation(async (_channel, content: string) => {
+      if (content.trimStart().startsWith('/runbook')) {
+        return {
+          collaboration_channel: 'collab-runbook-fallback',
+          collaboration_id: 'runbook-id-2222-3333-4444-5555-666666666666',
+        };
+      }
+      return {};
+    });
+    apiHarness.fetchCollaborations.mockResolvedValue([]);
+    apiHarness.getRunbook.mockResolvedValue(runbookCollab);
+
+    render(<ChatWindow />);
+    await flushWsConnect();
+
+    fireEvent.click(screen.getByTestId('send-runbook'));
+
+    await waitFor(() => {
+      expect(apiHarness.getRunbook).toHaveBeenCalledWith('runbook-id-2222-3333-4444-5555-666666666666');
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Runbook builder')).toBeTruthy();
+    });
   });
 });

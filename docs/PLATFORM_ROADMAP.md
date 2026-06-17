@@ -51,14 +51,9 @@ Last updated: June 2026
 
 ---
 
-## Explicitly not scheduled
+## IDE v4 (shipped v1.2)
 
-Unless product direction changes, these stay **documented limitations** at v1.0:
-
-- Thin web UI vs desktop parity
-- Slack bridge requiring local hub
-- Collab model variance on small local models
-- IDE v4 (remote SSH, dev containers, full Monaco LSP client)
+Full LSP, remote SSH workspaces, dev containers — [IDE_V4.md](IDE_V4.md).
 
 ---
 

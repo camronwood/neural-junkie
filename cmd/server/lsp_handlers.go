@@ -26,15 +26,21 @@ func handleLSPDiagnostics(w http.ResponseWriter, r *http.Request, lang string) {
 		http.Error(w, "Workspace not found", http.StatusNotFound)
 		return
 	}
+	root := ws.Path
+	if workspaceBackendResolver != nil {
+		if backend, err := workspaceBackendResolver.ForWorkspace(wsID); err == nil {
+			root = backend.Root()
+		}
+	}
 	var items []lsp.Diagnostic
 	var err error
 	switch lang {
 	case "go":
-		items, err = lsp.GoDiagnostics(r.Context(), ws.Path)
+		items, err = lsp.GoDiagnostics(r.Context(), root)
 	case "rust":
-		items, err = lsp.RustDiagnostics(r.Context(), ws.Path)
+		items, err = lsp.RustDiagnostics(r.Context(), root)
 	case "python":
-		items, err = lsp.PythonDiagnostics(r.Context(), ws.Path)
+		items, err = lsp.PythonDiagnostics(r.Context(), root)
 	default:
 		http.Error(w, "unsupported language", http.StatusBadRequest)
 		return

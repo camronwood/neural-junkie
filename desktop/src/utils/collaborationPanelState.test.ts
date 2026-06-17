@@ -5,6 +5,7 @@ import {
   isPlanningAwaitingFirstTurn,
   planningStalledParticipantNames,
   resolvePanelCollaboration,
+  shouldAutoAckWorkspaceOnApprove,
   taskNeedsFileDeliverable,
 } from './collaborationPanelState';
 
@@ -109,6 +110,25 @@ describe('planningStalledParticipantNames', () => {
       })
     );
     expect(names).toEqual(['SoftwareArchitect']);
+  });
+});
+
+describe('shouldAutoAckWorkspaceOnApprove', () => {
+  it('is true for sandbox with bound source repo', () => {
+    expect(
+      shouldAutoAckWorkspaceOnApprove(
+        collab({ execution_mode: 'sandbox', source_repo_path: '/repo' })
+      )
+    ).toBe(true);
+  });
+
+  it('is false for worktree and plain sandbox', () => {
+    expect(
+      shouldAutoAckWorkspaceOnApprove(
+        collab({ execution_mode: 'worktree', source_repo_path: '/repo' })
+      )
+    ).toBe(false);
+    expect(shouldAutoAckWorkspaceOnApprove(collab({ execution_mode: 'sandbox' }))).toBe(false);
   });
 });
 
