@@ -30,6 +30,21 @@ func (h hubWorkspaceSource) GetWorkspace(id string) (workspacebackend.WorkspaceR
 	}, true
 }
 
+func resolveWorktreeBackend(repoPath string) workspacebackend.Backend {
+	if workspaceManager == nil || workspaceBackendResolver == nil {
+		return nil
+	}
+	ws, ok := workspaceManager.FindWorkspaceByPath(repoPath)
+	if !ok || !isRemoteWorkspace(ws) {
+		return nil
+	}
+	b, err := workspaceBackendResolver.ForWorkspace(ws.ID)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
 func backendForWorkspace(workspaceID string) (workspacebackend.Backend, int, string) {
 	if workspaceBackendResolver == nil {
 		return nil, http.StatusServiceUnavailable, "workspace backend not configured"

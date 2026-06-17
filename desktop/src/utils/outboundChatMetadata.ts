@@ -288,6 +288,9 @@ function loadFullWorkspaceContext(): WorkspaceContext {
   const activeTab = editorTabs.find((tab) => tab.id === activeTabId);
 
   return {
+    workspace_id: activeWorkspace?.id ?? '',
+    workspace_kind: activeWorkspace?.kind ?? 'local',
+    sidecar_url: activeWorkspace?.sidecar_url ?? '',
     workspace_name: activeWorkspace?.name ?? '',
     workspace_path: activeWorkspace?.path ?? '',
     file_tree: buildFileTreeString(nodes, 3),

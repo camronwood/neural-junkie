@@ -44,6 +44,9 @@ func main() {
 	mux.HandleFunc("/api/fs/stat", auth(handleStat(absRoot)))
 	mux.HandleFunc("/api/exec", auth(handleExec(absRoot)))
 	mux.HandleFunc("/api/pty/ws", handleSidecarPTY)
+	mux.HandleFunc("/api/lsp/ws", handleSidecarLSPWebSocket(absRoot))
+	mux.HandleFunc("/api/lsp/request", handleSidecarLSPRequest(absRoot))
+	mux.HandleFunc("/api/lsp/hover", handleSidecarLSPHover(absRoot))
 
 	log.Printf("nj-remote listening on %s root=%s", *listenAddr, absRoot)
 	log.Fatal(http.ListenAndServe(*listenAddr, mux))

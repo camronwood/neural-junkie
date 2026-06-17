@@ -74,18 +74,21 @@ make build-nj-remote
 
 Place `.devcontainer/devcontainer.json` in repo root. NJ reads attach plan via:
 
-`GET /api/workspaces/devcontainer-plan?workspace=<id>`
+- `GET /api/workspaces/devcontainer-plan?workspace=<id>` — active or linked workspace (remote-aware)
+- `GET /api/workspaces/devcontainer-plan?path=<local-repo>` — wizard before connect
+
+Desktop **Add workspace → Dev container**: browse local repo, load plan, tunnel sidecar, connect with `kind=devcontainer`.
 
 Returns container name, image, workspace folder, sidecar port. Run `nj-remote` inside the container after `devcontainer up`.
 
-## Known limitations (v4.1)
+## v4.1 (shipped on beta.N after v1.2.0-beta.1)
 
-| Limitation | Notes |
-|------------|-------|
-| **Remote LSP** | Language servers run on the **hub host** with the remote path string — not on the SSH machine. Use local workspaces for full LSP until sidecar LSP proxy ships. |
-| **Dev container UI** | Plan API exists; desktop wizard is SSH-only today. |
-| **MCP on remote** | `RunCommandViaBackend` pattern wired for `run_go_tests`; full MCP pack remote routing is incremental. |
-| **Collab on remote** | Worktrees and collab sandboxes remain local-workspace only. |
+| Feature | Status |
+|---------|--------|
+| **Remote LSP** | Hub proxies `GET /api/lsp/ws` → sidecar → `gopls`/`rust-analyzer`/`pyright` on remote host |
+| **Dev container UI** | Desktop wizard tab + path/workspace plan load |
+| **Remote collab worktrees** | `git worktree` via sidecar exec under `collabs/worktrees/<id>/` |
+| **MCP on remote** | `ContextWithBackend` on agent tool calls; workspace `read_file`/`list_dir`/`run_command` route through sidecar |
 
 ## Editor trust (unchanged from v3)
 

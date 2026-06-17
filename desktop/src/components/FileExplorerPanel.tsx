@@ -117,7 +117,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
 
   // State for adding new workspace
   const [showAddWorkspace, setShowAddWorkspace] = useState(false);
-  const [workspaceAddMode, setWorkspaceAddMode] = useState<'create' | 'link' | 'remote'>('create');
+  const [workspaceAddMode, setWorkspaceAddMode] = useState<'create' | 'link' | 'remote' | 'devcontainer'>('create');
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const workspaceSwitcherRequestNonce = useFileExplorerStore((s) => s.workspaceSwitcherRequestNonce);
 
@@ -136,6 +136,14 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   const [remotePath, setRemotePath] = useState('');
   const [sidecarUrl, setSidecarUrl] = useState('http://127.0.0.1:19876');
   const [sidecarToken, setSidecarToken] = useState('');
+  const [devcontainerRepoPath, setDevcontainerRepoPath] = useState('');
+  const [devcontainerPlan, setDevcontainerPlan] = useState<{
+    container_name?: string;
+    workspace_folder?: string;
+    image?: string;
+    sidecar_port?: number;
+  } | null>(null);
+  const [devcontainerPlanLoading, setDevcontainerPlanLoading] = useState(false);
 
   // State for file operations
   const [contextMenu, setContextMenu] = useState<{
@@ -207,7 +215,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     resizeStartWidth.current = currentWidthRef.current;
   };
 
-  const handleBrowseDirectory = async (target: 'link' | 'parent' = 'link') => {
+  const handleBrowseDirectory = async (target: 'link' | 'parent' | 'devcontainer' = 'link') => {
     try {
       const selected = await open({
         directory: true,
@@ -218,6 +226,13 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       if (selected && typeof selected === 'string') {
         if (target === 'parent') {
           setNewWorkspaceParentPath(selected);
+        } else if (target === 'devcontainer') {
+          setDevcontainerRepoPath(selected);
+          setDevcontainerPlan(null);
+          if (!newWorkspaceName) {
+            const dirName = selected.split('/').pop() || '';
+            setNewWorkspaceName(dirName);
+          }
         } else {
           setNewWorkspacePath(selected);
           if (!newWorkspaceName) {
@@ -242,12 +257,46 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     setRemotePath('');
     setSidecarUrl('http://127.0.0.1:19876');
     setSidecarToken('');
+    setDevcontainerRepoPath('');
+    setDevcontainerPlan(null);
+    setDevcontainerPlanLoading(false);
+  };
+
+  const handleLoadDevcontainerPlan = async () => {
+    const repo = devcontainerRepoPath.trim();
+    if (!repo) return;
+    setDevcontainerPlanLoading(true);
+    try {
+      const plan = await api.fetchDevcontainerPlanByPath(repo);
+      setDevcontainerPlan(plan);
+      if (plan?.sidecar_port && !sidecarUrl.includes(String(plan.sidecar_port))) {
+        setSidecarUrl(`http://127.0.0.1:${plan.sidecar_port}`);
+      }
+      const pingOk = await api.pingSidecar(sidecarUrl.trim(), sidecarToken.trim() || undefined);
+      if (!pingOk) {
+        addToast({
+          type: 'info',
+          title: 'Sidecar not reachable',
+          message: 'Run devcontainer up, start nj-remote in the container, then connect.',
+        });
+      }
+    } catch (error) {
+      setDevcontainerPlan(null);
+      addToast({
+        type: 'error',
+        title: 'Dev container plan failed',
+        message: error instanceof Error ? error.message : 'Could not load devcontainer.json',
+      });
+    } finally {
+      setDevcontainerPlanLoading(false);
+    }
   };
 
   const handleAddWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
     if (workspaceAddMode === 'link' && !newWorkspacePath.trim()) return;
     if (workspaceAddMode === 'remote' && (!remoteHost.trim() || !remotePath.trim() || !sidecarUrl.trim())) return;
+    if (workspaceAddMode === 'devcontainer' && (!devcontainerRepoPath.trim() || !sidecarUrl.trim())) return;
 
     try {
       if (workspaceAddMode === 'remote') {
@@ -264,6 +313,25 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           type: 'success',
           title: 'Remote workspace connected',
           message: `Connected to ${remoteHost.trim()}`,
+        });
+        resetAddWorkspaceForm();
+        return;
+      } else if (workspaceAddMode === 'devcontainer') {
+        await connectRemoteWorkspace({
+          name: newWorkspaceName.trim(),
+          remoteHost: remoteHost.trim() || 'devcontainer',
+          remoteUser: remoteUser.trim() || 'devcontainer',
+          remotePath: devcontainerPlan?.workspace_folder?.trim() || devcontainerRepoPath.trim(),
+          sidecarUrl: sidecarUrl.trim(),
+          token: sidecarToken.trim(),
+          kind: 'devcontainer',
+        });
+        addToast({
+          type: 'success',
+          title: 'Dev container workspace connected',
+          message: devcontainerPlan?.container_name
+            ? `Attached to ${devcontainerPlan.container_name}`
+            : 'Connected via nj-remote sidecar',
         });
         resetAddWorkspaceForm();
         return;
@@ -1191,6 +1259,19 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
               >
                 Remote SSH
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={workspaceAddMode === 'devcontainer'}
+                onClick={() => setWorkspaceAddMode('devcontainer')}
+                className={`flex-1 px-3 py-1.5 font-medium ${
+                  workspaceAddMode === 'devcontainer'
+                    ? 'bg-slack-accent text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+                }`}
+              >
+                Dev container
+              </button>
             </div>
             <div className="space-y-4">
               <div>
@@ -1293,6 +1374,88 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
                     </code>
                   </p>
                 </>
+              ) : workspaceAddMode === 'devcontainer' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-1">Local repo path</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={devcontainerRepoPath}
+                        onChange={(e) => {
+                          setDevcontainerRepoPath(e.target.value);
+                          setDevcontainerPlan(null);
+                        }}
+                        className="flex-1 px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                        placeholder="/Users/you/myproject"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleBrowseDirectory('devcontainer')}
+                        className="px-3 py-2 bg-slack-bgHover hover:bg-slack-accent text-slack-text hover:text-white rounded transition-colors"
+                        title="Browse for repo with .devcontainer"
+                      >
+                        📁
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleLoadDevcontainerPlan()}
+                    disabled={!devcontainerRepoPath.trim() || devcontainerPlanLoading}
+                    className="w-full px-3 py-2 bg-slack-bgHover hover:bg-slack-accent text-slack-text hover:text-white text-xs rounded transition-colors disabled:opacity-50"
+                  >
+                    {devcontainerPlanLoading ? 'Loading plan…' : 'Load devcontainer plan'}
+                  </button>
+                  {devcontainerPlan && (
+                    <div className="text-[11px] text-slack-textMuted space-y-1 border border-slack-border rounded p-2">
+                      {devcontainerPlan.container_name && (
+                        <p>
+                          Container: <code className="font-mono">{devcontainerPlan.container_name}</code>
+                        </p>
+                      )}
+                      {devcontainerPlan.image && (
+                        <p>
+                          Image: <code className="font-mono">{devcontainerPlan.image}</code>
+                        </p>
+                      )}
+                      {devcontainerPlan.workspace_folder && (
+                        <p>
+                          Workspace: <code className="font-mono">{devcontainerPlan.workspace_folder}</code>
+                        </p>
+                      )}
+                      {devcontainerPlan.sidecar_port != null && (
+                        <p>
+                          Sidecar port: <code className="font-mono">{devcontainerPlan.sidecar_port}</code>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-1">Sidecar URL</label>
+                    <input
+                      type="text"
+                      value={sidecarUrl}
+                      onChange={(e) => setSidecarUrl(e.target.value)}
+                      className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                      placeholder="http://127.0.0.1:19876"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slack-text mb-1">Sidecar token</label>
+                    <input
+                      type="password"
+                      value={sidecarToken}
+                      onChange={(e) => setSidecarToken(e.target.value)}
+                      className="w-full px-3 py-2 bg-slack-bg border border-slack-border rounded text-slack-text font-mono text-xs"
+                      placeholder="Bearer token from nj-remote in container"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slack-textMuted">
+                    Run <code className="font-mono">devcontainer up</code>, then{' '}
+                    <code className="font-mono">nj-remote -root $WORKSPACE -addr :19876</code> inside the container.
+                  </p>
+                </>
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-slack-text mb-1">
@@ -1326,13 +1489,15 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
                   !newWorkspaceName.trim() ||
                   (workspaceAddMode === 'link' && !newWorkspacePath.trim()) ||
                   (workspaceAddMode === 'remote' &&
-                    (!remoteHost.trim() || !remotePath.trim() || !sidecarUrl.trim()))
+                    (!remoteHost.trim() || !remotePath.trim() || !sidecarUrl.trim())) ||
+                  (workspaceAddMode === 'devcontainer' &&
+                    (!devcontainerRepoPath.trim() || !sidecarUrl.trim()))
                 }
                 className="px-4 py-2 bg-slack-accent hover:bg-slack-accentHover text-white text-sm rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {workspaceAddMode === 'create'
                   ? 'Create'
-                  : workspaceAddMode === 'remote'
+                  : workspaceAddMode === 'remote' || workspaceAddMode === 'devcontainer'
                     ? 'Connect'
                     : 'Add'}
               </button>

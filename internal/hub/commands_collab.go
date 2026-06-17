@@ -9,7 +9,6 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
-	"github.com/camronwood/neural-junkie/internal/collabworktree"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -104,7 +103,7 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 	if flagParse.Worktree {
 		createOpts.ExecutionMode = collaboration.ExecutionModeWorktree
 		if createOpts.SourceRepoPath != "" {
-			if err := collabworktree.ValidateGitRepo(createOpts.SourceRepoPath); err != nil {
+			if err := ch.hub.validateGitRepoForCollaboration(createOpts.SourceRepoPath); err != nil {
 				if flagParse.AttachWorkspace {
 					return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ --worktree with --workspace: %v", err)), nil
 				}
@@ -298,7 +297,7 @@ func (ch *CommandHandler) handleRunbook(ctx context.Context, msg *protocol.Messa
 	}
 	sourceRepo, _ := ch.hub.resolveCollaborateSourceRepoPath(msg, flagParse)
 	if flagParse.Worktree && sourceRepo != "" {
-		if err := collabworktree.ValidateGitRepo(sourceRepo); err != nil {
+		if err := ch.hub.validateGitRepoForCollaboration(sourceRepo); err != nil {
 			if flagParse.AttachWorkspace {
 				return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ --worktree with --workspace: %v", err)), nil
 			}

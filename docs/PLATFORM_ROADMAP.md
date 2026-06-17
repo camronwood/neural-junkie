@@ -1,6 +1,6 @@
-# Platform roadmap (post-v1.0)
+# Platform roadmap (post-v1.2 stable)
 
-Epic backlog for multi-user and ops-grade deployment. **Does not block v1.0 stable** — see [STABLE_SCOPE.md](STABLE_SCOPE.md).
+Epic backlog for multi-user and ops-grade deployment. **Phase D** — after IDE v4.1 stable cut. See [PHASE_D_BACKLOG.md](PHASE_D_BACKLOG.md) for ticket-style breakdown.
 
 Last updated: June 2026
 

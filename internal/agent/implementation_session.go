@@ -532,10 +532,11 @@ func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Messa
 	}
 
 	var combined strings.Builder
+	toolCtx := withWorkspaceBackendFromMessage(ctx, msg)
 	anyFailed := false
 	for _, cmd := range cmds {
 		input, _ := json.Marshal(map[string]string{"command": cmd})
-		result, err := executeMCPTool(ctx, mcpServer, "run_command", input)
+		result, err := executeMCPTool(toolCtx, mcpServer, "run_command", input)
 		if combined.Len() > 0 {
 			combined.WriteString("\n---\n")
 		}

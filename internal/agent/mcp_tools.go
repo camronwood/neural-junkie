@@ -158,7 +158,11 @@ func (a *Agent) generateWithMCPTools(
 	return toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
 			log.Printf("[%s] MCP tool call: %s", a.Info.Name, req.Name)
-			result, err := executeMCPTool(ctx, mcpServer, req.Name, req.Input)
+			toolCtx := ctx
+			if len(history) > 0 {
+				toolCtx = withWorkspaceBackendFromMessage(ctx, history[len(history)-1])
+			}
+			result, err := executeMCPTool(toolCtx, mcpServer, req.Name, req.Input)
 			if err != nil {
 				return result, err
 			}

@@ -104,7 +104,8 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	if name == "write_openscad" {
 		writtenPath = cadWrittenPathFromToolInput(wsRoot, input)
 	}
-	result, err := executeMCPTool(ctx, mcpServer, name, input)
+	toolCtx := withWorkspaceBackendFromMessage(ctx, msg)
+	result, err := executeMCPTool(toolCtx, mcpServer, name, input)
 	if err == nil && writtenPath != "" {
 		a.trackCADFileWritten(wsRoot, writtenPath)
 	}

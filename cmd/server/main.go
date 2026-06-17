@@ -190,6 +190,7 @@ func main() {
 	lspManager = lspserver.NewManager()
 	registerRemoteWorkspacesOnStartup()
 	chatHub.SetFileChangeBackendFn(backendForWorkspaceRoot)
+	chatHub.SetCollabWorktreeBackendResolver(resolveWorktreeBackend)
 
 	// Drop legacy demo channels (project-alpha / project-beta) from restored sessions.
 	if n := chatHub.RemoveLegacySeedChannels(); n > 0 {

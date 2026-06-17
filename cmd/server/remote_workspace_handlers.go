@@ -60,9 +60,21 @@ func handleConnectRemoteWorkspace(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		workspaceBackendResolver.RegisterRemote(ws.ID, remote)
+		ws.IsGitRepo = remoteGitRepo(ctx, remote)
+		_ = workspaceManager.UpdateWorkspace(ws)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(ws)
+}
+
+func remoteGitRepo(ctx context.Context, b workspacebackend.Backend) bool {
+	res, err := b.Exec(ctx, workspacebackend.ExecRequest{
+		Command: "git",
+		Args:    []string{"rev-parse", "--git-dir"},
+		RelCwd:  ".",
+		Timeout: 15 * time.Second,
+	})
+	return err == nil && res.ExitCode == 0
 }
 
 func handleDevcontainerPlan(w http.ResponseWriter, r *http.Request) {
@@ -71,21 +83,40 @@ func handleDevcontainerPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	wsID := strings.TrimSpace(r.URL.Query().Get("workspace"))
-	if wsID == "" {
-		http.Error(w, "workspace required", http.StatusBadRequest)
+	repoPath := strings.TrimSpace(r.URL.Query().Get("path"))
+	var cfg *devcontainer.Config
+	var err error
+	var root string
+	ctx := r.Context()
+	if wsID != "" {
+		ws, ok := workspaceManager.GetWorkspace(wsID)
+		if !ok {
+			http.Error(w, "workspace not found", http.StatusNotFound)
+			return
+		}
+		root = ws.Path
+		if isRemoteWorkspace(ws) {
+			b, berr := workspaceBackendResolver.ForWorkspace(ws.ID)
+			if berr != nil {
+				http.Error(w, berr.Error(), http.StatusBadGateway)
+				return
+			}
+			cfg, err = devcontainer.LoadViaBackend(ctx, b)
+		} else {
+			cfg, err = devcontainer.Load(ws.Path)
+		}
+	} else if repoPath != "" {
+		root = repoPath
+		cfg, err = devcontainer.Load(repoPath)
+	} else {
+		http.Error(w, "workspace or path required", http.StatusBadRequest)
 		return
 	}
-	ws, ok := workspaceManager.GetWorkspace(wsID)
-	if !ok {
-		http.Error(w, "workspace not found", http.StatusNotFound)
-		return
-	}
-	cfg, err := devcontainer.Load(ws.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	plan := devcontainer.PlanFromConfig(ws.Path, cfg)
+	plan := devcontainer.PlanFromConfig(root, cfg)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(plan)
 }

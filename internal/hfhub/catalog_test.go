@@ -1,10 +1,40 @@
 package hfhub
 
 import (
+	"net"
 	"net/http"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
+
+func catalogNetworkChecksEnabled() bool {
+	if testing.Short() {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("HF_CATALOG_NETWORK"))) {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+func isTransientNetworkErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "tls handshake") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "i/o timeout")
+}
 
 func TestLibraryParses(t *testing.T) {
 	models, err := Library()
@@ -62,8 +92,8 @@ func TestResolveDownloadRepoID(t *testing.T) {
 }
 
 func TestCatalogLocalDownloadURLsReachable(t *testing.T) {
-	if testing.Short() {
-		t.Skip("network")
+	if !catalogNetworkChecksEnabled() {
+		t.Skip("HF catalog network checks disabled (short mode or HF_CATALOG_NETWORK=0)")
 	}
 	client := &http.Client{Timeout: 30 * time.Second}
 	models, err := Library()
@@ -83,6 +113,9 @@ func TestCatalogLocalDownloadURLsReachable(t *testing.T) {
 			}
 			resp, err := client.Do(req)
 			if err != nil {
+				if isTransientNetworkErr(err) {
+					t.Skipf("skip transient network error for %s: %v", entry.RepoID, err)
+				}
 				t.Fatalf("%s: %v", entry.RepoID, err)
 			}
 			resp.Body.Close()

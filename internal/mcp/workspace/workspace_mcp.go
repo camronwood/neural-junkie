@@ -13,7 +13,9 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/codeindex"
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/camronwood/neural-junkie/internal/workspacefiles"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -130,15 +132,25 @@ func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolReques
 	if rel == "" {
 		return mcp.HandleToolError(fmt.Errorf("path is required"), "read_file"), nil
 	}
-	full, err := w.resolveRel(root, rel)
-	if err != nil {
-		return mcp.HandleToolError(err, "read_file"), nil
+	var content string
+	if b := shared.BackendFromContext(ctx); b != nil {
+		relPath := strings.TrimPrefix(rel, "/")
+		data, err := b.ReadFile(ctx, relPath)
+		if err != nil {
+			return mcp.HandleToolError(err, "read_file"), nil
+		}
+		content = string(data)
+	} else {
+		full, err := w.resolveRel(root, rel)
+		if err != nil {
+			return mcp.HandleToolError(err, "read_file"), nil
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			return mcp.HandleToolError(err, "read_file"), nil
+		}
+		content = string(data)
 	}
-	b, err := os.ReadFile(full)
-	if err != nil {
-		return mcp.HandleToolError(err, "read_file"), nil
-	}
-	content := string(b)
 	if len(content) > maxReadBytes {
 		content = content[:maxReadBytes] + "\n...(truncated)"
 	}
@@ -273,6 +285,24 @@ func (w *tools) handleListDir(ctx context.Context, request mcpgo.CallToolRequest
 		return mcp.HandleToolError(err, "list_dir"), nil
 	}
 	rel := request.GetString("path", ".")
+	if b := shared.BackendFromContext(ctx); b != nil {
+		entries, err := b.ReadDir(ctx, strings.TrimPrefix(rel, "/"))
+		if err != nil {
+			return mcp.HandleToolError(err, "list_dir"), nil
+		}
+		var lines []string
+		for _, e := range entries {
+			kind := "file"
+			if e.IsDir {
+				kind = "dir"
+			}
+			lines = append(lines, fmt.Sprintf("%s (%s)", e.Name, kind))
+		}
+		if len(lines) == 0 {
+			return mcp.HandleToolSuccess("(empty directory)"), nil
+		}
+		return mcp.HandleToolSuccess(strings.Join(lines, "\n")), nil
+	}
 	dir, err := w.resolveRel(root, rel)
 	if err != nil {
 		return mcp.HandleToolError(err, "list_dir"), nil
@@ -338,6 +368,35 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 	}
 	if !CommandAllowed(cmdStr) {
 		return mcp.HandleToolError(fmt.Errorf("command not allowlisted: %s", cmdStr), "run_command"), nil
+	}
+	relCwd := strings.TrimSpace(request.GetString("cwd", ""))
+	if b := shared.BackendFromContext(ctx); b != nil {
+		if relCwd == "" {
+			relCwd = "."
+		}
+		runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		defer cancel()
+		res, err := b.Exec(runCtx, workspacebackend.ExecRequest{
+			Command: "sh",
+			Args:    []string{"-c", cmdStr},
+			RelCwd:  strings.TrimPrefix(relCwd, "/"),
+			Timeout: 60 * time.Second,
+		})
+		text := res.Stdout
+		if res.Stderr != "" {
+			if text != "" {
+				text += "\n"
+			}
+			text += res.Stderr
+		}
+		if len(text) > maxReadBytes {
+			text = text[:maxReadBytes] + "\n...(truncated)"
+		}
+		exitCode := res.ExitCode
+		if err != nil && exitCode == 0 {
+			exitCode = 1
+		}
+		return mcp.HandleToolSuccess(fmt.Sprintf("exit_code=%d\n%s", exitCode, text)), nil
 	}
 	cwd := root
 	if sub := strings.TrimSpace(request.GetString("cwd", "")); sub != "" && sub != "." {

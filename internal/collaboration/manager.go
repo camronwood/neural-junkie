@@ -13,6 +13,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collabworktree"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/google/uuid"
 )
 
@@ -32,6 +33,7 @@ type CollaborationManager struct {
 	hub              HubInterface
 	collaborations   map[string]*Collaboration // id -> collaboration
 	assetsRootFn     func() string             // parent dir for per-collab sandboxes; optional
+	worktreeBackendFn func(repoPath string) workspacebackend.Backend
 	onEnterReviewing func(collabID string)     // optional; hub dispatches pre-approval recap
 	// reconcileMissingLogged suppresses repeated "no live hub agent" warnings per collab+name.
 	reconcileMissingLogged map[string]struct{}
@@ -53,6 +55,23 @@ func NewCollaborationManager(hub HubInterface) *CollaborationManager {
 		collaborations:         make(map[string]*Collaboration),
 		reconcileMissingLogged: make(map[string]struct{}),
 	}
+}
+
+// SetWorktreeBackendResolver returns a workspace backend for remote git worktree operations.
+func (cm *CollaborationManager) SetWorktreeBackendResolver(fn func(repoPath string) workspacebackend.Backend) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.worktreeBackendFn = fn
+}
+
+func (cm *CollaborationManager) worktreeBackendFor(repo string) workspacebackend.Backend {
+	cm.mu.RLock()
+	fn := cm.worktreeBackendFn
+	cm.mu.RUnlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(repo)
 }
 
 // SetAssetsRootResolver supplies the parent directory for collaboration execution

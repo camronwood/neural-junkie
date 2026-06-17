@@ -56,9 +56,9 @@ Verify on the tag you cut — beta.33 publish failed before the upload-only fix.
 
 ---
 
-## Gate 4 — macOS notarization (deferred for v1.0.0)
+## Gate 4 — macOS notarization (deferred for v1.2.0 stable)
 
-**Not required to cut v1.0.0.** Required for **v1.0.1** notarization patch.
+**Not required to cut v1.2.0 stable.** Target **v1.2.1** when Apple Developer credentials are available.
 
 When Apple Developer account is available:
 
@@ -117,10 +117,14 @@ When ready checklist passes:
 
 ```bash
 ./scripts/cut-stable-release.sh              # dry-run
-./scripts/cut-stable-release.sh --execute    # tag v1.0.0, push, then refresh site after CI
-./scripts/update-website-release.sh v1.0.0 --bump-site v1.0.0-beta.33
-./scripts/verify-updater-manifest.sh v1.0.0 stable
+./scripts/cut-stable-release.sh --execute    # tag v1.2.0 (or v1.3.0), push, then refresh site after CI
+./scripts/update-website-release.sh v1.2.0 --bump-site v1.2.0-beta.N
+./scripts/verify-updater-manifest.sh v1.2.0 stable
 ```
+
+**Website bump:** `update-website-release.sh --bump-site` only rewrites `index.html`, `features/index.html`, `features/hardware-requirements.html`, and root `README.md`. It does **not** rewrite historical entries in `release-notes.html` (append-only).
+
+**Linux:** CI publishes `.deb` for stable; AppImage is not on the download page.
 
 **Beta users:** stay on beta channel until they install a stable build manually. See [RELEASE_UPDATES.md](RELEASE_UPDATES.md).
 

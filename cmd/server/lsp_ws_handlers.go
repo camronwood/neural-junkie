@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/lsp/server"
@@ -27,6 +28,11 @@ func handleLSPWebSocket(w http.ResponseWriter, r *http.Request) {
 	backend, err := workspaceBackendResolver.ForWorkspace(wsID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	ws, ok := workspaceManager.GetWorkspace(wsID)
+	if ok && isRemoteWorkspace(ws) {
+		proxySidecarWebSocket(w, r, ws, "/api/lsp/ws?lang="+url.QueryEscape(lang))
 		return
 	}
 	sess, err := lspManager.GetOrStart(r.Context(), wsID, lang, backend.Root())
@@ -109,6 +115,11 @@ func handleLSPRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if ws, ok := workspaceManager.GetWorkspace(body.WorkspaceID); ok && isRemoteWorkspace(ws) {
+		rewind, _ := json.Marshal(body)
+		proxySidecarHTTPBytes(w, r, ws, "/api/lsp/request", rewind)
+		return
+	}
 	backend, err := workspaceBackendResolver.ForWorkspace(body.WorkspaceID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -153,6 +164,11 @@ func handleLSPHover(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if ws, ok := workspaceManager.GetWorkspace(body.WorkspaceID); ok && isRemoteWorkspace(ws) {
+		rewind, _ := json.Marshal(body)
+		proxySidecarHTTPBytes(w, r, ws, "/api/lsp/hover", rewind)
 		return
 	}
 	backend, err := workspaceBackendResolver.ForWorkspace(body.WorkspaceID)

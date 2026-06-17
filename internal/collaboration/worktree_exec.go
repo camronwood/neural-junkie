@@ -1,6 +1,7 @@
 package collaboration
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collabworktree"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 // EnsureWorktree creates a git worktree when execution mode is worktree and
@@ -42,6 +44,23 @@ func (cm *CollaborationManager) EnsureWorktree(collabID, sourceRepoPath string) 
 	}
 	if repo == "" {
 		return nil, fmt.Errorf("source repository path is required for worktree execution")
+	}
+	if b := cm.worktreeBackendFor(repo); b != nil && b.Kind() != workspacebackend.KindLocal {
+		if err := collabworktree.ValidateGitRepoViaBackend(context.Background(), b); err != nil {
+			return nil, err
+		}
+		c.SourceRepoPath = b.Root()
+		res, err := collabworktree.CreateViaBackend(context.Background(), b, collabworktree.CreateOptions{
+			CollabID: c.ID,
+			Branch:   c.WorktreeBranch,
+		})
+		if err != nil {
+			return nil, err
+		}
+		c.WorkingDirectory = res.WorktreePath
+		c.WorktreeBranch = res.Branch
+		c.UpdatedAt = time.Now()
+		return c, nil
 	}
 	if err := collabworktree.ValidateGitRepo(repo); err != nil {
 		return nil, err
@@ -84,6 +103,17 @@ func (cm *CollaborationManager) cleanupWorktreeLocked(c *Collaboration) {
 	}
 	worktree := strings.TrimSpace(c.WorkingDirectory)
 	if worktree == "" {
+		return
+	}
+	if b := cm.worktreeBackendFor(c.SourceRepoPath); b != nil && b.Kind() != workspacebackend.KindLocal {
+		if err := collabworktree.RemoveViaBackend(context.Background(), b, collabworktree.RemoveOptions{
+			WorktreePath:   worktree,
+			SourceRepoPath: c.SourceRepoPath,
+			Branch:         c.WorktreeBranch,
+			DeleteBranch:   false,
+		}); err != nil {
+			log.Printf("[CollaborationManager] worktree cleanup for %s: %v", c.ID[:8], err)
+		}
 		return
 	}
 	if err := collabworktree.Remove(collabworktree.RemoveOptions{
@@ -133,6 +163,21 @@ func (cm *CollaborationManager) createSandboxWorkingDir(c *Collaboration, baseDi
 func (cm *CollaborationManager) createWorktreeIfReady(c *Collaboration, baseDir string) error {
 	if strings.TrimSpace(c.SourceRepoPath) == "" {
 		// Deferred until workspace ack supplies repo path.
+		return nil
+	}
+	if b := cm.worktreeBackendFor(c.SourceRepoPath); b != nil && b.Kind() != workspacebackend.KindLocal {
+		if err := collabworktree.ValidateGitRepoViaBackend(context.Background(), b); err != nil {
+			return err
+		}
+		res, err := collabworktree.CreateViaBackend(context.Background(), b, collabworktree.CreateOptions{
+			CollabID: c.ID,
+			Branch:   c.WorktreeBranch,
+		})
+		if err != nil {
+			return err
+		}
+		c.WorkingDirectory = res.WorktreePath
+		c.WorktreeBranch = res.Branch
 		return nil
 	}
 	if err := collabworktree.ValidateGitRepo(c.SourceRepoPath); err != nil {

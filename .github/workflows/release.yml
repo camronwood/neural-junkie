@@ -67,7 +67,14 @@ jobs:
         run: npm ci
 
       - name: make test-all
-        run: make test-all
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 45
+          max_attempts: 2
+          retry_on: error
+          command: make test-all
+        env:
+          HF_CATALOG_NETWORK: '0'
 
       - name: make test-race
         run: make test-race

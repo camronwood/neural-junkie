@@ -12,6 +12,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 // Hub manages the chat room, message routing, and agent connections
@@ -41,6 +42,8 @@ type Hub struct {
 
 	// Workspace manager for handling workspace operations
 	workspaceManager *WorkspaceManager
+
+	worktreeBackendFn func(repoPath string) workspacebackend.Backend
 
 	// Tool approval manager for CLI agent tool call approvals
 	toolApprovalManager *ToolApprovalManager
@@ -318,6 +321,7 @@ func (h *Hub) annotateInboundUserMessage(msg *protocol.Message, sessionUsername 
 		msg.Metadata[agent.MetadataHubSessionUsername] = sessionUsername
 	}
 	agent.AttachUserRulesMetadataIfMissing(msg)
+	h.enrichRemoteWorkspaceMetadata(msg)
 }
 
 // syncAgentInfoCopiesInChannelsLocked updates channel member snapshots when AgentInfo mutates.

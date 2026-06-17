@@ -1740,6 +1740,17 @@ export class ChatAPI {
     return response.json();
   }
 
+  async fetchDevcontainerPlanByPath(repoPath: string): Promise<any> {
+    const response = await this.hubFetch(
+      `/api/workspaces/devcontainer-plan?path=${encodeURIComponent(repoPath)}`
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to fetch devcontainer plan: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   async pingSidecar(sidecarUrl: string, token?: string): Promise<boolean> {
     const url = `${sidecarUrl.replace(/\/$/, '')}/health`;
     const headers: Record<string, string> = {};

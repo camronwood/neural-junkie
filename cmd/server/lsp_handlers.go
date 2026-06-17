@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/lsp"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
 func handleLSPDiagnostics(w http.ResponseWriter, r *http.Request, lang string) {
@@ -27,23 +28,29 @@ func handleLSPDiagnostics(w http.ResponseWriter, r *http.Request, lang string) {
 		return
 	}
 	root := ws.Path
-	if workspaceBackendResolver != nil {
-		if backend, err := workspaceBackendResolver.ForWorkspace(wsID); err == nil {
-			root = backend.Root()
-		}
-	}
 	var items []lsp.Diagnostic
 	var err error
-	switch lang {
-	case "go":
-		items, err = lsp.GoDiagnostics(r.Context(), root)
-	case "rust":
-		items, err = lsp.RustDiagnostics(r.Context(), root)
-	case "python":
-		items, err = lsp.PythonDiagnostics(r.Context(), root)
-	default:
-		http.Error(w, "unsupported language", http.StatusBadRequest)
-		return
+	var backend workspacebackend.Backend
+	if workspaceBackendResolver != nil {
+		if b, berr := workspaceBackendResolver.ForWorkspace(wsID); berr == nil {
+			backend = b
+			root = b.Root()
+		}
+	}
+	if backend != nil && backend.Kind() != workspacebackend.KindLocal {
+		items, err = lsp.DiagnosticsViaBackend(r.Context(), backend, lang)
+	} else {
+		switch lang {
+		case "go":
+			items, err = lsp.GoDiagnostics(r.Context(), root)
+		case "rust":
+			items, err = lsp.RustDiagnostics(r.Context(), root)
+		case "python":
+			items, err = lsp.PythonDiagnostics(r.Context(), root)
+		default:
+			http.Error(w, "unsupported language", http.StatusBadRequest)
+			return
+		}
 	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

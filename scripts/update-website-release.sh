@@ -194,21 +194,27 @@ echo "Wrote docs/download.html for ${TAG}"
 echo "  macOS arm:  ${MAC_ARM:-pending}"
 echo "  macOS x64:  ${MAC_INTEL:-pending}"
 echo "  Windows:    ${WIN_MSI:-${WIN_EXE:-pending}}"
-echo "  Linux:      ${LINUX_APPIMAGE:-${LINUX_DEB:-pending}}"
+echo "  Linux:      ${LINUX_DEB:-pending}"
 
 if [[ -n "${BUMP_FROM}" ]]; then
-  OLD="${BUMP_FROM#v}"
-  while IFS= read -r file; do
-    [[ -z "${file}" ]] && continue
-    [[ "${file}" == *download.html ]] && continue
+  BUMP_OLD="${BUMP_FROM#v}"
+  BUMP_NEW="${TAG#v}"
+  bump_file() {
+    local file="$1"
+    [[ -f "${file}" ]] || return 0
     sed -i.bak \
       -e "s/${BUMP_FROM}/${TAG}/g" \
+      -e "s/${BUMP_OLD}/${BUMP_NEW}/g" \
       "${file}"
     rm -f "${file}.bak"
     echo "Bumped version in ${file#${ROOT}/}"
-  done < <(rg -l "${BUMP_FROM}" "${ROOT}/docs" --glob '*.html' 2>/dev/null || true)
-  if [[ -f "${ROOT}/README.md" ]]; then
-    sed -i.bak "s/${BUMP_FROM}/${TAG}/g" "${ROOT}/README.md" && rm -f "${ROOT}/README.md.bak"
-    echo "Bumped version in README.md"
-  fi
+  }
+  for file in \
+    "${ROOT}/docs/index.html" \
+    "${ROOT}/docs/features/index.html" \
+    "${ROOT}/docs/features/hardware-requirements.html" \
+    "${ROOT}/README.md"; do
+    bump_file "${file}"
+  done
+  echo "Note: release-notes.html is append-only — add a new section manually for ${TAG}"
 fi
