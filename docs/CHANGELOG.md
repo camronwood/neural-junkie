@@ -6,11 +6,24 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-### Added
-- **IDE v4** — full Monaco LSP on local workspaces (WebSocket document sync, diagnostics, hover, completion, go-to-definition, references, rename); `WorkspaceBackend` for local + remote FS/git/search/symbols/file-changes; `nj-remote` sidecar (FS, exec, PTY); desktop Remote SSH wizard; remote terminal proxy; remote `@codebase`; devcontainer attach plan API; tree-sitter symbols; sidecar token persist + health checks. See [IDE_V4.md](IDE_V4.md) and [REMOTE_WORKSPACES.md](REMOTE_WORKSPACES.md).
-- **IDE v3.5 polish** — Go/Rust/Python LSP-lite squiggles, workspace-wide Problems panel, `yolo` editor trust auto-approve.
+_(Nothing yet.)_
 
-_(Prior releases below.)_
+## [1.2.0-beta.1] - 2026-06-17
+
+**IDE v4** — full Monaco LSP, remote SSH workspaces, and `nj-remote` sidecar. See [IDE_V4.md](IDE_V4.md) and [REMOTE_WORKSPACES.md](REMOTE_WORKSPACES.md).
+
+### Added
+- **Full Monaco LSP (local)** — persistent `gopls` / `rust-analyzer` / `pyright-langserver`; WebSocket document sync; diagnostics, hover, completion, go-to-definition, references, rename.
+- **WorkspaceBackend** — pluggable local + remote FS, git, search, symbols, file changes, and `@codebase`.
+- **`nj-remote` sidecar** — HTTP FS, exec, PTY WebSocket (`cmd/nj-remote`).
+- **Remote SSH workspaces** — desktop wizard, token persist, sidecar health checks.
+- **Remote terminal** — hub PTY proxy; remote exec routing.
+- **Dev containers** — attach plan API for `.devcontainer/devcontainer.json`.
+- **tree-sitter symbols** — optional symbol index when CLI is on PATH.
+- **IDE v3.5 polish** — LSP-lite squiggles, Problems panel, `yolo` editor trust auto-approve.
+
+### Known limitations (v4.1)
+- Remote LSP relay deferred; dev container desktop wizard tab deferred; collab worktrees on remote workspaces not yet supported.
 
 ## [1.0.0-beta.35] - 2026-06-10
 

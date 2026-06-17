@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Neural Junkie — Multi-agent AI workspace</title>
-  <meta name="description" content="Neural Junkie — install-and-go local AI with bundled Ollama. Multi-agent chat, custom experts, Slack Connect, bounded collaboration, domain packs, and personal learning — open source desktop app for teams and individuals." />
+  <meta name="description" content="Neural Junkie — open-source multi-agent AI workspace with IDE v4 (full LSP, remote SSH), bundled Ollama, Slack Connect, collaboration, and domain packs." />
   <meta property="og:title" content="Neural Junkie — Multi-agent AI workspace" />
-  <meta property="og:description" content="Download once, run locally. Orchestrate specialists and custom experts from a Slack-style desktop app — Slack mirroring, collaboration with approval gates, domain packs, and smarter chat. Open source beta." />
+  <meta property="og:description" content="IDE v4 ships full Monaco LSP and remote SSH workspaces. Multi-agent chat, Slack mirroring, bounded collaboration, and local-first Ollama — open source desktop app." />
   <meta property="og:type" content="website" />
   <meta property="og:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
   <meta name="twitter:image" content="https://camronwood.github.io/neural-junkie/assets/icon/og-image.png" />
@@ -22,8 +22,8 @@
 
   <div class="dev-banner" role="status">
     <div class="wrap dev-banner-inner">
-      <strong>v1.0.0-beta.35 — Working beta auto-update</strong>
-      <span><a href="download.html">Download</a> — Git-backed updater manifests plus dual endpoint fallback restore in-app updates; includes public Connect Slack (Cloudflare OAuth relay). macOS bundles Ollama; Linux/Windows slim installers with wizard <strong>Install Ollama</strong>. Or <span class="dev-banner-highlight">build from source</span>. <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> welcome.</span>
+      <strong>v1.2.0-beta.1 — IDE v4 is here</strong>
+      <span><a href="download.html">Download</a> — full Monaco LSP, remote SSH via <code>nj-remote</code>, dev container attach, and tree-sitter symbols. Multi-agent chat, Slack Connect, and bounded collaboration unchanged. macOS bundles Ollama; Linux/Windows slim installers with wizard <strong>Install Ollama</strong>. <a href="features/ide-v4.html">IDE v4 guide</a> · <a href="https://github.com/camronwood/neural-junkie/issues">Issues</a> welcome.</span>
     </div>
   </div>
 
@@ -50,10 +50,10 @@
   <main id="main">
     <section class="hero">
       <div class="wrap">
-        <p class="hero-badge">Open source · Local-first · v1.0.0-beta.35</p>
+        <p class="hero-badge">Open source · Local-first · v1.2.0-beta.1</p>
         <h1>Stop talking to one LLM.<br />Run a digital hive-mind.</h1>
         <p class="hero-lead">
-          <strong>Neural Junkie</strong> is a native desktop workspace for <strong>multi-agent AI</strong> — custom experts for any domain, team chat habits, Slack mirroring, and structured collaboration with human approval. <strong>beta.33</strong> adds Ask / Agent / Export composer modes, durable conversation memory, and customer pack sideloading — plus slim Linux/Windows installers with wizard <strong>Install Ollama</strong>; macOS bundles Ollama with in-app auto-updates.
+          <strong>Neural Junkie</strong> is an open-source desktop workspace for <strong>multi-agent AI</strong> — and now a serious editor. <strong>IDE v4</strong> adds full language-server support (hover, completion, go-to-definition, rename), <strong>remote SSH workspaces</strong> via the <code>nj-remote</code> sidecar, and dev container attach — on top of custom experts, Slack mirroring, and structured collaboration with human approval.
         </p>
         <div class="hero-cta">
           <a class="btn btn-primary" href="download.html">Download for macOS / Windows / Linux</a>
@@ -80,8 +80,9 @@
 
     <div class="flagship-jump-wrap" id="flagship-features">
       <div class="wrap">
-        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-06-10">v1.0.0-beta.35</time></p>
+        <p class="flagship-jump-label">Flagship capabilities · <time datetime="2026-06-17">v1.2.0-beta.1</time></p>
         <nav class="flagship-jump" aria-label="Jump to flagship features">
+          <a href="#ide-v4">⌨️ IDE v4</a>
           <a href="#bundled-ollama">⚡ Install-and-go AI</a>
           <a href="#hardware-requirements">💾 Hardware</a>
           <a href="#slack-connect">⎘ Slack Connect</a>
@@ -90,6 +91,47 @@
         </nav>
       </div>
     </div>
+
+    <section class="feature-spotlight" id="ide-v4" aria-labelledby="ide-v4-heading">
+      <div class="wrap feature-spotlight-inner">
+        <div class="feature-spotlight-copy">
+          <p class="feature-spotlight-kicker">IDE v4 · Software development pack</p>
+          <h2 id="ide-v4-heading">Build the IDE you actually own</h2>
+          <p class="feature-spotlight-lead">
+            Open-source agent IDE with <strong>full Monaco LSP</strong> on local workspaces — real diagnostics, hover, completion, go-to-definition, references, and rename via persistent <code>gopls</code>, <code>rust-analyzer</code>, and <code>pyright-langserver</code>. Connect <strong>remote SSH workspaces</strong> with the <code>nj-remote</code> sidecar: file tree, git, terminal, and <code>@codebase</code> route through one backend. Dev container attach plans and optional tree-sitter symbol search round out v4.
+          </p>
+          <ul class="feature-list feature-list--tight">
+            <li><strong>Full LSP</strong> — WebSocket document sync; workspace-wide Problems panel.</li>
+            <li><strong>Remote SSH</strong> — EC2, dev box, or container; token persist + health checks.</li>
+            <li><strong>Ask / Agent / Export</strong> — IDE v3 composer modes and implementation sessions carry forward.</li>
+            <li><strong>Open source</strong> — fork it, run locally, contribute — no vendor lock-in on the editor.</li>
+          </ul>
+          <div class="feature-spotlight-actions">
+            <a class="btn btn-primary" href="features/ide-v4.html">IDE v4 deep dive →</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a>
+            <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">Remote workspaces</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-2-0-beta-1">v1.2.0-beta.1 notes</a>
+          </div>
+        </div>
+        <figure class="feature-spotlight-visual">
+          <div class="spotlight-art spotlight-art--collab" role="img" aria-label="IDE v4: Monaco editor with LSP diagnostics and remote workspace badge">
+            <div class="spotlight-art__flow">
+              <div class="spotlight-art__phase spotlight-art__phase--active"><span class="spotlight-art__phase-num">LSP</span><span class="spotlight-art__phase-label">Local</span></div>
+              <div class="spotlight-art__connector" aria-hidden="true"></div>
+              <div class="spotlight-art__phase"><span class="spotlight-art__phase-num">SSH</span><span class="spotlight-art__phase-label">Remote</span></div>
+              <div class="spotlight-art__connector" aria-hidden="true"></div>
+              <div class="spotlight-art__phase"><span class="spotlight-art__phase-num">AI</span><span class="spotlight-art__phase-label">Agents</span></div>
+            </div>
+            <div class="spotlight-art__agents" aria-hidden="true">
+              <span class="spotlight-art__agent spotlight-art__agent--you"></span>
+              <span class="spotlight-art__agent"></span>
+              <span class="spotlight-art__agent"></span>
+            </div>
+          </div>
+          <figcaption>Editor depth + multi-agent workspace — one app, local or remote trees.</figcaption>
+        </figure>
+      </div>
+    </section>
 
     <section class="feature-spotlight" id="slack-connect" aria-labelledby="slack-connect-heading">
       <div class="wrap feature-spotlight-inner">
@@ -152,7 +194,7 @@
             <li><strong>Phases you control</strong> — planning → review → approve → execute with visible status.</li>
             <li><strong>Runbooks &amp; HTTP actions</strong> — wire automations when plans need more than chat.</li>
             <li><strong>Personal learning</strong> — collaboration-scoped memory when Specialist tuning is on.</li>
-            <li><strong>beta.33</strong> — Ask / Agent / Export composer, durable memory, customer pack sideload. Linux <code>.deb</code> + slim installers; wizard <strong>Install Ollama</strong> on Linux/Windows. <a href="known-issues.html">Known issues</a>.</li>
+            <li><strong>v1.2</strong> — IDE v4 full LSP and remote SSH; Ask / Agent composer, durable memory, customer pack sideload. <a href="known-issues.html">Known issues</a>.</li>
           </ul>
           <div class="feature-spotlight-actions">
             <a class="btn btn-primary" href="features/multi-agent-collaboration.html">Collaboration deep dive →</a>
@@ -273,7 +315,8 @@
           <div class="packs-grid packs-grid--quad" role="list">
             <article class="pack-card pack-card--dev" role="listitem">
               <h3 class="pack-card-title">Software development</h3>
-              <p class="pack-card-blurb">Engineering specialists, Git in the app, IDE v3 (Ask/Agent, <code>@codebase</code>), implementation sessions.</p>
+              <p class="pack-card-blurb">Engineering specialists, Git in the app, <strong>IDE v4</strong> (full LSP, remote SSH, <code>@codebase</code>), implementation sessions.</p>
+              <a class="btn btn-ghost btn-sm" href="features/ide-v4.html">IDE v4 guide</a>
               <a class="btn btn-ghost btn-sm" href="features/ide-v3.html">IDE v3 guide</a>
               <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/SOFTWARE_DEVELOPMENT_PACK.md">Dev pack doc</a>
             </article>
@@ -525,11 +568,11 @@
         <p class="section-intro">Tagged desktop builds and major hub milestones. Install artifacts and checksums are attached to each <a href="https://github.com/camronwood/neural-junkie/releases">GitHub release</a>.</p>
         <div class="release-landing-preview">
           <p class="release-landing-label">Latest download</p>
-          <p class="release-landing-version"><strong>v1.0.0-beta.35</strong> <time datetime="2026-06-10">June 10, 2026</time></p>
-          <p class="release-landing-summary">Working beta in-app auto-update via git-backed manifests and dual endpoint fallback. Includes public Connect Slack (Cloudflare OAuth relay) and release CI fixes from beta.34.</p>
+          <p class="release-landing-version"><strong>v1.2.0-beta.1</strong> <time datetime="2026-06-17">June 17, 2026</time></p>
+          <p class="release-landing-summary">IDE v4 — full Monaco LSP, remote SSH via <code>nj-remote</code>, dev container attach, and tree-sitter symbols. Open-source agent IDE on top of multi-agent chat, Slack Connect, and bounded collaboration.</p>
           <p class="release-landing-actions">
-            <a class="btn btn-primary" href="download.html">Download v1.0.0-beta.35</a>
-            <a class="btn btn-ghost" href="release-notes.html#v1-0-0-beta-35">Release notes</a>
+            <a class="btn btn-primary" href="download.html">Download v1.2.0-beta.1</a>
+            <a class="btn btn-ghost" href="release-notes.html#v1-2-0-beta-1">Release notes</a>
             <a class="btn btn-ghost" href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md">CHANGELOG.md</a>
           </p>
         </div>
@@ -551,7 +594,7 @@
     <div class="wrap">
       <p>
         <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
-        — open source (MIT per README) · v1.0.0-beta.35 open beta
+        — open source (MIT per README) · v1.2.0-beta.1 open beta
       </p>
     </div>
   </footer>

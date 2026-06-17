@@ -37,11 +37,13 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.35">v1.0.0-beta.35</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.1">v1.2.0-beta.1</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-2-0-beta-1">1.2.0-beta.1</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-35">1.0.0-beta.35</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-34">1.0.0-beta.34</a>
@@ -143,6 +145,29 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1-2-0-beta-1" class="release-version-heading">1.2.0-beta.1 <span class="release-date">— 2026-06-17</span></h2>
+
+      <p><strong>IDE v4 — full editor depth, remote workspaces.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.1">GitHub Releases</a>. Open-source agent IDE with full Monaco LSP on local workspaces, remote SSH via the <code>nj-remote</code> sidecar, dev container attach plans, and tree-sitter symbol search — on top of IDE v3 Ask/Agent routing and implementation sessions. See <a href="features/ide-v4.html">IDE v4 guide</a>, <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IDE_V4.md">IDE_V4.md</a>, and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Full Monaco LSP (local)</strong> — persistent <code>gopls</code>, <code>rust-analyzer</code>, <code>pyright-langserver</code>; WebSocket <code>didOpen</code>/<code>didChange</code>/<code>didClose</code>; diagnostics, hover, completion, go-to-definition, references, rename.</li>
+        <li><strong>WorkspaceBackend</strong> — pluggable local + remote FS, git, search, symbols, file changes, and <code>@codebase</code> via <code>internal/workspacebackend/</code>.</li>
+        <li><strong><code>nj-remote</code> sidecar</strong> — HTTP FS, one-shot exec, PTY WebSocket for SSH hosts and containers (<code>cmd/nj-remote</code>).</li>
+        <li><strong>Remote SSH workspaces</strong> — desktop Remote SSH wizard, token persist, sidecar health checks on connect and hub startup.</li>
+        <li><strong>Remote terminal</strong> — hub proxies PTY to sidecar; desktop routes terminal tabs and remote exec.</li>
+        <li><strong>Dev containers</strong> — <code>GET /api/workspaces/devcontainer-plan</code> parses <code>.devcontainer/devcontainer.json</code>.</li>
+        <li><strong>tree-sitter symbols</strong> — optional symbol index when <code>tree-sitter</code> CLI is on PATH.</li>
+        <li><strong>IDE v3.5 polish</strong> — LSP-lite squiggles fallback, workspace-wide Problems panel, <code>yolo</code> editor trust auto-approve.</li>
+      </ul>
+
+      <h3>Known limitations (v4.1)</h3>
+      <ul>
+        <li><strong>Remote LSP</strong> — gopls runs on sidecar host paths; full remote LSP relay deferred.</li>
+        <li><strong>Dev container wizard</strong> — attach plan API only; desktop wizard tab deferred.</li>
+        <li><strong>Collab worktrees on remote</strong> — not yet supported for remote workspaces.</li>
       </ul>
 
       <h2 id="v1-0-0-beta-35" class="release-version-heading">1.0.0-beta.35 <span class="release-date">— 2026-06-10</span></h2>

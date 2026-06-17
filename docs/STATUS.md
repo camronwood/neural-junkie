@@ -4,7 +4,7 @@
 
 ## Current State: Open Beta → Stable (v1.0)
 
-Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.0.0-beta.33](https://github.com/camronwood/neural-junkie/releases/tag/v1.0.0-beta.33). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
+Neural Junkie is a working multi-agent workspace — local-first desktop app, Slack integration, domain packs, and bounded collaboration. **Latest tagged build:** [v1.2.0-beta.1](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.1) (IDE v4). **Stable cut:** follow [STABLE_RELEASE_CHECKLIST.md](STABLE_RELEASE_CHECKLIST.md) and [STABLE_SCOPE.md](STABLE_SCOPE.md).
 
 **Marketing site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 

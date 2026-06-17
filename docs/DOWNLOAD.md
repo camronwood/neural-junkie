@@ -1,4 +1,4 @@
-# Download and first run (v1.0.0-beta.33)
+# Download and first run (v1.2.0-beta.1)
 
 Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases) — no Go, Node, or Rust required for the desktop app.
 
