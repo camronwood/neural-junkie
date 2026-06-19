@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Your Agents Forget. Neural Junkie Remembers — Without Sending the Whole Transcript. — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie agents used to forget anything outside the last few messages. Conversation memory indexes your full channel history and collab artifacts locally, then pulls back only what&#x27;s relevant to your latest question — no cloud vector DB, no stuffing the whole transcript into context." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Your Agents Forget. Neural Junkie Remembers — Without Sending the Whole Transcript.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Your Agents Forget. Neural Junkie Remembers — Without Sending the Whole Transcript.</h1>
+      <p class="article-lead">Neural Junkie agents used to forget anything outside the last few messages. Conversation memory indexes your full channel history and collab artifacts locally, then pulls back only what&#x27;s relevant to your latest question — no cloud vector DB, no stuffing the whole transcript into context.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">ollama</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-conversation-memory-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>You ask a follow-up in a long DM or collab channel: <em>"What did we decide about the auth middleware?"</em></p>
+<p>The agent answers like the earlier thread never happened.</p>
+<p>That isn't a model quality problem. It's a <strong>context window budget</strong> problem — and every multi-agent desktop hub hits it.</p>
+<p><strong>Neural Junkie</strong> is my personal open-source hub for running AI specialists on your hardware. Agents only received the last few channel messages plus a short rolling summary. Everything else lived in SQLite but never came back at query time.</p>
+<p>Conversation memory fixes that — without sending the whole transcript to the LLM.</p>
+<h2>Three layers of memory</h2>
+<p>Every turn still uses <strong>working memory</strong>:</p>
+<ol>
+<li><strong>Tail history</strong> — the last 2–10 messages for conversational continuity</li>
+<li><strong>Session summary</strong> — a ~2KB rolling compression of recent turns (on DMs and public channels)</li>
+</ol>
+<p>The new layer is <strong>long-term memory</strong>:</p>
+<ol start="3">
+<li><strong>Conversation memory</strong> — embed the user's latest question, search indexed past messages and collab markdown, inject the top matches as <code>=== RELEVANT PAST CONTEXT ===</code></li>
+</ol>
+<p>You don't widen the window. You <strong>retrieve on demand</strong>.</p>
+<h2>What gets indexed</h2>
+<p>On write, the hub chunks and embeds:</p>
+<ul>
+<li><strong>Persisted chat messages</strong> — the same content that would appear in LLM history (noise filtered out)</li>
+<li><strong>Collab artifacts</strong> — <code>plan.md</code>, <code>planning-summary.md</code>, <code>session-summary.md</code>, <code>findings.md</code>, and other <code>collabs/&lt;id&gt;/*.md</code> deliverables</li>
+</ul>
+<p>Collab channels are the biggest win: they never had session summaries. A three-hour <code>/collaborate</code> run could lose institutional decisions by message 50. Now those decisions stay searchable.</p>
+<h2>Local-first — no vector DB service</h2>
+<p>I didn't add Chroma or Qdrant. The stack reuses what Neural Junkie already runs:</p>
+<ul>
+<li><strong>Ollama</strong> <code>nomic-embed-text</code> for vectors</li>
+<li><strong><code>memory.db</code></strong> — SQLite chunk store beside <code>messages.db</code></li>
+<li><strong>Brute-force cosine + keyword prefilter</strong> — fine for desktop-scale history</li>
+</ul>
+<p>Default <strong>on</strong> when embed is available. Toggle in <strong>Settings → AI &amp; providers → Conversation memory</strong>.</p>
+<p>Clear channel history clears the memory index for that channel too.</p>
+<h2>How retrieval stays safe</h2>
+<p>Retrieval is <strong>scoped</strong>:</p>
+<ul>
+<li>Message chunks: same channel only</li>
+<li>Collab artifacts: same collaboration id</li>
+<li>Chunks already in tail history: excluded (no duplication)</li>
+</ul>
+<p>Budget cap ~1.5KB injected — enough for a few relevant excerpts, not a transcript dump.</p>
+<p>Debug endpoints: <code>GET /api/memory/stats</code> and <code>GET /api/memory/query</code> for Pack dev and troubleshooting.</p>
+<h2>Try it</h2>
+<pre><code class="language-bash">make pull-models   # includes nomic-embed-text
+make start-all
+</code></pre>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p>Enable <strong>Retrieve relevant past messages</strong> under Settings if you turned it off.</p>
+<p>Long thread smoke test:</p>
+<pre><code class="language-bash">./scripts/test-conversation-memory.sh
+</code></pre>
+<p>If you run long collabs or DMs and hit a retrieval edge case — wrong channel scope, missing collab artifact — GitHub issues welcome.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/CONVERSATION-MEMORY-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="conversation-memory.html">Your Agents Forget. Neural Junkie Remembers — Without Sending the Whole Transcript.</a></p>
+    </div>
+  </footer>
+</body>
+</html>

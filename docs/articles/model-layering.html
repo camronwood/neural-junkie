@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>We Don&#x27;t Use One Model. We Layer Them. — Neural Junkie</title>
+  <meta name="description" content="One 14B model can&#x27;t be your security reviewer, biology expert, session summarizer, and cheap typo-fixer. Neural Junkie layers models at four levels — context, weights, routing, and orchestration — so local multi-agent work stays fast, grounded, and under your control." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · We Don&#x27;t Use One Model. We Layer Them.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>We Don&#x27;t Use One Model. We Layer Them.</h1>
+      <p class="article-lead">One 14B model can&#x27;t be your security reviewer, biology expert, session summarizer, and cheap typo-fixer. Neural Junkie layers models at four levels — context, weights, routing, and orchestration — so local multi-agent work stays fast, grounded, and under your control.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">lora</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-model-layering-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Most multi-agent demos look impressive until you ask a simple question: <strong>which model is actually running, and why?</strong></p>
+<p>If the answer is "the same one for everything," you pay for it — in RAM, latency, hallucinated tool calls on "thanks," and security reviews that read like generic chat.</p>
+<p><strong>Neural Junkie</strong> is a personal open-source desktop hub where you run AI specialists on your hardware — security reviewers, architects, repo experts, biology specialists — under your control. The product bet isn't one perfect model. It's <strong>layering different models at the right level</strong> so each turn gets the right brain, the right context, and the right cost.</p>
+<p>Here's how we stack them.</p>
+<h2>The four layers (at a glance)</h2>
+<p>Every user turn flows through a stack before you see a reply:</p>
+<ol>
+<li><strong>Context</strong> — decide how much model you need (mode, intent, memory, budget)</li>
+<li><strong>Weights</strong> — decide which model tag (14B coder, 7B utility, LoRA tags, domain models)</li>
+<li><strong>Routing</strong> — decide which provider per job (collab tasks, implementation, delegation)</li>
+<li><strong>Orchestration</strong> — multi-model flows that still feel like one product</li>
+</ol>
+<p>Same hub. Same UI. Different model decisions at each stage.</p>
+<h2>Layer 1: Context — decide <em>how much</em> model you need</h2>
+<p>Before any LLM call, every user turn passes through a <strong>Conversation Context Stack</strong>:</p>
+<ol>
+<li><strong>Mode</strong> — chat, code, or collaboration (from the composer or auto-detected signals)</li>
+<li><strong>Intent</strong> — closure, casual, substantive, or task</li>
+<li><strong>Memory</strong> — rolling session summary + capped history</li>
+<li><strong>Grounding</strong> — workspace scan only when you're actually coding</li>
+<li><strong>Persona</strong> — DM vs channel vs collab framing</li>
+<li><strong>Budget</strong> — byte caps so prompts don't blow context windows</li>
+</ol>
+<p>This layer often <strong>avoids a model call entirely</strong>.</p>
+<p>"Thanks!" → canned closure reply. No 14B inference. No tool dump. No workspace scan.</p>
+<p>A casual DM → minimal prompt with 2 history rows and a lightweight utility summary — not the full MCP + file-change block you'd send for a refactor task.</p>
+<p><strong>The insight:</strong> routing <em>context</em> is cheaper and more reliable than asking a big model to "behave appropriately" every turn.</p>
+<h2>Layer 2: Weights — decide <em>which</em> model tag</h2>
+<p>Once we know the turn deserves a real inference, we pick the <strong>weight layer</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Default model</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Software specialists</strong></td>
+<td><code>qwen2.5-coder:14b</code></td>
+<td>Strong code, tools, implementation loops</td>
+</tr>
+<tr>
+<td><strong>Utility / background</strong></td>
+<td><code>qwen2.5:7b</code></td>
+<td>Session summaries, moderator, assistant</td>
+</tr>
+<tr>
+<td><strong>Domain chat (biology)</strong></td>
+<td><code>koesn/llama3-openbiollm-8b</code></td>
+<td>Med/science-tuned weights</td>
+</tr>
+<tr>
+<td><strong>LoRA specialists</strong></td>
+<td><code>nj-security:14b</code>, <code>nj-biology:8b</code>, …</td>
+<td>Composed tags — tens of MB, not tens of GB</td>
+</tr>
+</tbody>
+</table>
+<h3>Two-tier LoRA strategy</h3>
+<p>We wanted one Qwen base + tiny LoRA adapters for every role. Ollama's safetensors <code>ADAPTER</code> path supports <strong>Llama, Mistral, and Gemma — not Qwen</strong>.</p>
+<p>So we split:</p>
+<ul>
+<li><strong>Inference tier:</strong> Qwen stays the default for day-to-day specialist chat and tools</li>
+<li><strong>LoRA tier:</strong> train and compose on Llama/Mistral bases, assign composed tags when you want domain-tuned weights</li>
+</ul>
+<p>Prompt personas and the context stack stay the same. LoRA adjusts the layer underneath.</p>
+<h3>MCP vs LoRA (knowledge vs behavior)</h3>
+<p>Two more mechanisms at different layers:</p>
+<ul>
+<li><strong>MCP export</strong> — portable <em>knowledge</em> (indexed repo context, prompts, architecture notes)</li>
+<li><strong>LoRA</strong> — portable <em>behavior</em> (weight adapters that lean inference toward your domain)</li>
+</ul>
+<p>Same repo expert can <strong>export context for teammates</strong> and <strong>train a local adapter from session history</strong>. Complementary, not interchangeable.</p>
+<h2>Layer 3: Routing — decide <em>which provider per job</em></h2>
+<p>Per-agent defaults aren't enough. Some <em>jobs</em> need different models than the agent's default chat tag.</p>
+<h3>Collaboration smart routing</h3>
+<p>When agents execute tasks after you approve a plan, the hub can route per task:</p>
+<ul>
+<li><strong>Security keywords</strong> → local <code>nj-security:14b</code> if installed, else premium cloud provider</li>
+<li><strong>Short wording/typo tasks</strong> → cheapest local tier</li>
+<li><strong>User images + vision</strong> → lowest-cost provider that supports vision</li>
+</ul>
+<p>Normal chat and per-agent defaults are unchanged. Routing kicks in for <strong>collaboration execution tasks</strong> — the work that would otherwise burn your best model on "fix this typo."</p>
+<h3>Implementation sessions (local-first)</h3>
+<p>Implementation mode prefers <strong>local Ollama first</strong> for tool loops, with a smaller tool model (<code>qwen2.5-coder:7b</code>) when configured. Cloud providers are fallbacks — not the default path for every file edit.</p>
+<h3>Agent delegation (consult, don't hand off)</h3>
+<p>When delegation is enabled, a responding agent can <strong>silently consult</strong> other specialists:</p>
+<ol>
+<li>Hub scores relevance across registered experts</li>
+<li>Up to 2 consultants run in-process (no public handoff)</li>
+<li>Results inject as <code>=== DELEGATE_RESULTS ===</code></li>
+<li>The <strong>responding agent's model</strong> synthesizes one reply</li>
+</ol>
+<p>Delegation is <strong>skipped for closure and casual intents</strong> — greetings shouldn't trigger a biology consult.</p>
+<p>For biology specifically, we split further:</p>
+<ul>
+<li><strong>Domain reasoning</strong> → OpenBio chat model</li>
+<li><strong>Domain tools</strong> (MCP sequence/fold tools) → specialist runtime + <strong><code>qwen2.5:7b</code> tool loop</strong> when the chat model lacks native tool support</li>
+</ul>
+<p>One user-facing answer. Multiple models under the hood. By design.</p>
+<h2>Example: OpenBio + Qwen = one smart biology specialist</h2>
+<p>The life-sciences pack is the clearest example of <strong>layering models on purpose</strong> instead of picking one "bio model" and hoping it does everything.</p>
+<h3>The constraint</h3>
+<p><strong>OpenBioLLM</strong> (<code>koesn/llama3-openbiollm-8b:latest</code>) is strong at biomedical reasoning — pathways, assay context, sequence interpretation in plain language. But in Ollama it <strong>does not expose native tool calling</strong>.</p>
+<p>BiologyExpert still needs real tools:</p>
+<ul>
+<li><code>analyze_sequence</code> — validate DNA/RNA/protein, length, reverse complement</li>
+<li><code>fold_protein</code> — ESMFold via Hugging Face → PDB on disk</li>
+<li><code>summarize_scan_summary</code> / <code>summarize_scan_analysis</code> — plate QC from Phoenix-style exports</li>
+<li><code>run_12plex_qc</code> — SOP pass/fail per analyte</li>
+</ul>
+<p>You can't drop OpenBio and call it done. You also can't swap in Qwen 14B for everything — you lose domain-tuned weights and burn RAM on chat that doesn't need it.</p>
+<h3>The split: domain brain + tool hands</h3>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>Model</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chat / reasoning</strong></td>
+<td>OpenBio 8B</td>
+<td>Med/science-tuned weights; natural explanations</td>
+</tr>
+<tr>
+<td><strong>MCP tool loop</strong></td>
+<td><code>qwen2.5:7b</code></td>
+<td>Native Ollama tool calling; small footprint (~4.5 GB)</td>
+</tr>
+<tr>
+<td><strong>Empty-reply safety net</strong></td>
+<td><code>qwen2.5:7b</code></td>
+<td>Fallback if OpenBio returns an empty stream</td>
+</tr>
+</tbody>
+</table>
+<p>Same Ollama endpoint. Same BiologyExpert persona. <strong>Different model per layer of the turn.</strong></p>
+<p>From the user's side: one DM with BiologyExpert. Under the hood: <strong>OpenBio for fluency, Qwen for execution.</strong></p>
+<h3>Walkthrough: two messages, two models</h3>
+<p><strong>Message 1 — pure reasoning (OpenBio)</strong></p>
+<blockquote>
+<p>"What's the difference between a scan summary and a scan analysis export in our Phoenix workflow?"</p>
+</blockquote>
+<p>No MCP tools required. The hub streams through <strong>OpenBio</strong>. You get domain-aware language without spinning up a 14B coder or a tool loop.</p>
+<p><strong>Message 2 — tools required (Qwen orchestrates)</strong></p>
+<blockquote>
+<p>"Here's a peptide: MKTAYIAKQRQISFVKSHFSRQ. Analyze it and fold the structure."</p>
+</blockquote>
+<p>BiologyExpert has MCP tools registered. The hub sees the chat model lacks native tool support and <strong>routes the tool loop through <code>qwen2.5:7b</code></strong> on the same Ollama host:</p>
+<ol>
+<li>Qwen calls <code>analyze_sequence</code> → length, composition, validation</li>
+<li>Qwen calls <code>fold_protein</code> (HF token from Settings) → PDB under <code>~/.neural-junkie/bio/</code></li>
+<li>Qwen synthesizes one reply with paths and interpretation</li>
+</ol>
+<p>OpenBio didn't need to pretend it could call tools. Qwen didn't need to pretend it was fine-tuned on MedMCQA. <strong>Each model does what it's good at.</strong></p>
+<h3>Delegation: any agent can borrow the stack</h3>
+<p>With <strong>agent delegation</strong> enabled, you don't have to DM BiologyExpert directly.</p>
+<p>Ask <strong>BackendEngineer</strong> in a mixed channel:</p>
+<blockquote>
+<p>"We're adding a new analyte to the 12-plex — any QC gotchas from a biology perspective?"</p>
+</blockquote>
+<p>The hub scores consultants, picks BiologyExpert, and classifies intent:</p>
+<table>
+<thead>
+<tr>
+<th>Intent</th>
+<th>What runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>domain_reasoning</code></td>
+<td><strong>OpenBio</strong> via model consult — concise internal answer</td>
+</tr>
+<tr>
+<td><code>domain_tools</code></td>
+<td>BiologyExpert runtime + <strong>Qwen tool loop</strong> if the question needs <code>run_12plex_qc</code> or scan summaries</td>
+</tr>
+</tbody>
+</table>
+<p>Results inject as <code>=== DELEGATE_RESULTS ===</code>. BackendEngineer's model <strong>merges them into one reply</strong>. You still talk to one agent; the biology stack runs silently underneath.</p>
+<p>Config (optional overrides in <code>~/.neural-junkie/config.json</code>):</p>
+<pre><code class="language-json">&quot;delegation&quot;: {
+  &quot;enabled&quot;: true,
+  &quot;biology_chat_model&quot;: &quot;koesn/llama3-openbiollm-8b:latest&quot;,
+  &quot;biology_tool_model&quot;: &quot;qwen2.5:7b&quot;
+}
+</code></pre>
+<h3>Optional third layer: LoRA weights</h3>
+<p>Want local biology behavior baked into weights, not just prompts?</p>
+<ul>
+<li><strong><code>nj-biology:8b</code></strong> — LoRA compose on <code>llama3:8b</code> + MedMCQA adapter (Specialist tuning pack)</li>
+<li><strong><code>nj-bio:8b</code></strong> — full OpenBio GGUF import with Llama 3 chat template</li>
+</ul>
+<p>Same hub routing: if the assigned tag lacks native tools, <strong>Qwen still runs the tool loop.</strong> LoRA adjusts the chat layer; it doesn't replace the orchestration.</p>
+<h3>Why this pattern generalizes</h3>
+<p>Biology is the template for how we think about layering elsewhere:</p>
+<ul>
+<li><strong>Don't force one model to be expert + tool-runner + summarizer.</strong></li>
+<li><strong>Use domain weights where they matter</strong> (OpenBio for reasoning).</li>
+<li><strong>Use a small, tool-capable model where reliability matters</strong> (Qwen 7b for MCP).</li>
+<li><strong>Let the hub pick per turn</strong> — not the user memorizing which tag to <code>@mention</code>.</li>
+</ul>
+<p>That's what "smart bio model" means in Neural Junkie: not a single merged checkpoint, but a <strong>composed specialist</strong> — the right models, wired together, one coherent answer.</p>
+<p>Pull both models:</p>
+<pre><code class="language-bash">ollama pull koesn/llama3-openbiollm-8b:latest
+ollama pull qwen2.5:7b
+</code></pre>
+<p>Enable <strong>Life sciences</strong> in Settings → Domain packs, DM BiologyExpert, and try the two-message walkthrough above.</p>
+<h2>Layer 4: Orchestration — multi-model flows that still feel like one product</h2>
+<p>The hardest layer isn't picking a tag. It's making <strong>multi-model orchestration</strong> feel coherent:</p>
+<p><strong>Session summaries</strong> run asynchronously on <code>qwen2.5:7b</code> every few user turns — keeping long DM threads coherent without re-sending full transcripts to the 14B specialist every time.</p>
+<p><strong>Collaboration</strong> uses bounded phases, task DAGs, workspace gates, and file approvals. Models improvise; the <strong>hub enforces gates</strong>. Chat markdown doesn't write to disk — structured file proposals do, after your approval.</p>
+<p><strong>Cross-provider BYOM</strong> lets you mix Ollama, Anthropic, OpenAI-compatible, and CLI-backed providers. Smart routing picks among <em>your configured</em> providers — not a hardcoded cloud default.</p>
+<p>The product promise: <strong>you talk to one specialist; the system layers models so that specialist has the right context, the right weights, and the right consults — without you managing the stack manually.</strong></p>
+<h2>What we learned building this</h2>
+<p><strong>1. One model is a demo. Layering is a product.</strong></p>
+<p>Specialists need different weights. Background tasks need smaller models. Tool loops sometimes need a different tag than chat. Collab tasks need per-task routing. Pretending one 14B does all of it wastes RAM and produces worse UX.</p>
+<p><strong>2. Context routing beats prompt engineering for the easy cases.</strong></p>
+<p>Don't send MCP tools and workspace scans on "hey." Classify intent first. Save the big model for substantive work.</p>
+<p><strong>3. Orthogonal layers compose.</strong></p>
+<p>LoRA doesn't replace MCP export. Smart routing doesn't replace per-agent defaults. Delegation doesn't replace collaboration orchestration. Each layer solves one constraint.</p>
+<p><strong>4. Local-first, cloud when it earns its keep.</strong></p>
+<p>We default to Ollama for specialists and tool loops. Cloud providers are configured fallbacks and premium paths for high-stakes tasks — not the only way to run the hub.</p>
+<p><strong>5. Test the orchestrator in code; test the conversation in scenarios.</strong></p>
+<p>Models change weekly. Deterministic tests cover phase transitions, DAG readiness, and routing heuristics. Live JSON scenarios cover "did the security task actually prefer the LoRA tag?" without guessing from the UI.</p>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<pre><code class="language-bash">make pull-models   # qwen2.5-coder:14b + qwen2.5:7b + LoRA bases
+make start-all
+</code></pre>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p><strong>Docs:</strong><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">Context model</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_ADAPTERS.md">LoRA adapters</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">Biology pack</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DELEGATION.md">Delegation</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md">Collaboration</a></p>
+<p>If you run a multi-model setup and hit a routing edge case — wrong model on a collab task, delegation firing on small talk, LoRA compose failing — GitHub issues welcome. That feedback becomes the next scenario in the harness.</p>
+<p><strong>Next:</strong> <a href="MODULAR-AI-COMPOSITION-LINKEDIN.md">Modular AI composition</a> — unified router, pack compose templates, routing badges, and per-tier stacks.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODEL-LAYERING-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="model-layering.html">We Don&#x27;t Use One Model. We Layer Them.</a></p>
+    </div>
+  </footer>
+</body>
+</html>

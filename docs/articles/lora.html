@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>One Base Model. Many Specialists. LoRA Inside Neural Junkie. — Neural Junkie</title>
+  <meta name="description" content="Running five local specialists shouldn’t mean five full 14B downloads. Neural Junkie composes Ollama tags from one base + small LoRA adapters — import from Hugging Face, install pack presets, or train from your own chat and collab history." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · One Base Model. Many Specialists. LoRA Inside Neural Junkie.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>One Base Model. Many Specialists. LoRA Inside Neural Junkie.</h1>
+      <p class="article-lead">Running five local specialists shouldn’t mean five full 14B downloads. Neural Junkie composes Ollama tags from one base + small LoRA adapters — import from Hugging Face, install pack presets, or train from your own chat and collab history.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">lora</span><span class="article-tag">localai</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">finetuning</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-lora-ad-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Neural Junkie is a desktop hub where you run multiple AI specialists — security reviewer, architect, biology expert, repo agent — on your hardware, under your control.</p>
+<p>If every specialist needs its own full model, local multi-agent work gets expensive fast. A 14B coder here, an 8B biology model there, another 14B for security — disk, RAM, and pull time add up. Prompt personas help agents sound different, but they don’t change what the weights actually know.</p>
+<p>LoRA (Low-Rank Adaptation) is what we added: small adapter files on a shared base model, composed into distinct Ollama tags at inference time. Same hub, same UI, same orchestration — different specialist behavior underneath, without five full model pulls.</p>
+<h2>Why LoRA, not just prompts</h2>
+<p>System prompts, lanes, and tooling are necessary — but not enough when you want domain-tuned behavior (security review that reads like security review), repo-specific fluency (patterns from your codebase, not only RAG snippets), and efficient local inference (LoRA adapters on Llama/Mistral bases while specialists default to Qwen for chat).</p>
+<p>Adapters are typically tens of megabytes, not tens of gigabytes. Pull the base once, attach per specialist, and Ollama composes tags like nj-security:14b or nj-repo-myapp:14b. Prompt personas and the context stack stay unchanged; LoRA adjusts the model layer underneath. Routing, collaboration, MCP tools, and file approvals work the same.</p>
+<h2>Compose, don’t duplicate</h2>
+<p>Three pieces: a <strong>base model</strong> (full weights in Ollama), an <strong>adapter</strong> (small Hugging Face LoRA delta), and a <strong>composed tag</strong> (what agents call at inference — e.g. nj-security:14b). Base + adapter → ollama create → assign to specialist. The hub handles download, compose, and assignment — no hand-edited Modelfiles per role.</p>
+<p>Tag conventions: nj-{type}:14b for specialists, nj-repo-{slug}:14b for repo experts, nj-biology:8b on llama3:8b for the life-sciences pack.</p>
+<h2>Three ways to get a composed tag</h2>
+<p><strong>Import from Hugging Face.</strong> Model library → Hugging Face → LoRA adapter → Download → Compose &amp; import. Assign via agent info or <code>/switch-provider</code> (Settings → Advanced for bulk edits).</p>
+<p><strong>Domain pack presets (optional bootstrap).</strong> The <strong>Specialist tuning</strong> pack ships curated community adapters (security, code-review, backend, biology) — install via Pack store → <strong>Install LoRAs</strong> or <code>POST /api/packs/specialist-tuning/install-loras</code>. Assign tags manually in Settings; domain packs no longer auto-bind LoRAs.</p>
+<p><strong>Train from your history (hero path).</strong> Create a repo expert, accumulate Q&amp;A, open agent info → <strong>Train LoRA</strong> (or Model library → Train LoRA). Sources: channel/DM transcripts, collaboration task outputs, or repo-agent history. Set base tag, output tag (e.g. nj-repo-myapp:14b), rank/epochs, Start. Hub exports JSONL, runs Unsloth (<code>make deps-lora</code>, optional CUDA), composes into Ollama on success. Minimum 10 rows; one job at a time.</p>
+<h2>What you can do with it</h2>
+<p><strong>Security on a LoRA base.</strong> Install the Specialist tuning bootstrap LoRA — assign nj-security:14b to SecurityReviewer (composed on llama3.2:3b). See <a href="TWO-TIER-LORA-LINKEDIN.md">TWO-TIER-LORA-LINKEDIN.md</a> for why inference and LoRA use different bases.</p>
+<p><strong>Biology without a second full 8B.</strong> nj-biology:8b from llama3:8b + MedMCQA adapter — from Specialist tuning pack, not life-sciences.</p>
+<p><strong>Repo expert from your sessions.</strong> /create-repo-agent on your repo, accumulate Q&amp;A, <strong>Train LoRA</strong> from agent info → nj-repo-myapp:14b, assign back. Chat and collab become training signal.</p>
+<p><strong>Collab routing.</strong> With smart routing on, security tasks can prefer nj-security:14b locally when installed. Override per task with task_ollama_model when needed.</p>
+<p><strong>Train elsewhere, import here.</strong> Publish to Hugging Face, download in Model library, compose, assign — no lock-in to our trainer.</p>
+<h2>How it fits the product</h2>
+<p>LoRA is orthogonal to what you already use: context stack, collaboration phases, workspace gates, repo agents, and cloud BYOM providers. Fine-tuning is a model-layer concern; the hub still enforces gates and approvals regardless of tag.</p>
+<h2>Limitations worth knowing</h2>
+<p>Safetensors adapters only (not GGUF LoRA blobs). Each compose is a distinct Ollama tag — no hot-swap per request. Training is optional, separate, and not bundled with the hub. No auto-upload to Hugging Face. Tool calling follows the base model. Hosted HF inference stays full-model; PEFT compose is local Ollama. Quality still depends on training data and base choice.</p>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p>ollama pull qwen2.5-coder:14b — then import from Model library, install pack LoRAs, or Train LoRA from channel / collab / repo.</p>
+<p>Docs: https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_ADAPTERS.md and https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_TRAINING.md</p>
+<p>Issues welcome if you train from collab output or hit compose edge cases — that feedback shapes the next pack preset.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/LORA-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="lora.html">One Base Model. Many Specialists. LoRA Inside Neural Junkie.</a></p>
+    </div>
+  </footer>
+</body>
+</html>

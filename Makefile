@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -45,6 +45,10 @@ gallery-sync: ## Copy ads/screenshots to docs/media/gallery and rebuild manifest
 	@chmod +x ./scripts/sync-gallery.sh
 	@./scripts/sync-gallery.sh
 
+articles-sync: ## Regenerate docs/articles from docs/marketing LinkedIn sources
+	@chmod +x ./scripts/sync-articles.sh
+	@./scripts/sync-articles.sh
+
 build: ## Build all binaries
 	@echo "🔨 Building server... $(if $(SERVER_GO_TAGS),[Slack vendor embedded],)"
 	@go build $(SERVER_GO_TAGS) -o bin/server ./cmd/server
@@ -71,8 +75,8 @@ server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hu
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-regression: setup-env ## Hub for live scenario regression (RATE_LIMIT=0 + DEBUG=1); logs to /tmp/nj-hub.log
-	@echo "🔧 Regression hub → /tmp/nj-hub.log  (NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
-	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
+	@echo "🔧 Regression hub → /tmp/nj-hub.log  (NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 NEURAL_JUNKIE_DEBUG=1 NEURAL_JUNKIE_SLACK_DISABLED=1 go run $(SERVER_GO_TAGS) ./cmd/server 2>&1 | tee /tmp/nj-hub.log'
 
 server-log: ## Tail collab-related lines from /tmp/nj-hub.log (run server-debug first)
 	@python3 scripts/debug-collab.py watch --log /tmp/nj-hub.log
@@ -112,7 +116,7 @@ test-regression-live: ## Print pre-release live regression checklist (does not s
 	@echo "  make test-everything              # CI + live harness; review docs/testing/test-everything-*.md"
 	@echo "  make test-everything-full         # above + all collab scenarios (~1-3h extra)"
 	@echo ""
-	@echo "  0. ollama serve  &&  ollama pull qwen3.5:9b"
+	@echo "  0. ollama serve  &&  make pull-benchmark-models   # quick suite, ≤24B models"
 	@echo "  0b. make server-regression && make collab-preflight"
 	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
 	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
@@ -291,19 +295,28 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + benc
 		$(if $(SKIP_EVERYTHING),--skip-everything,) \
 		$(if $(BENCHMARK_SUITE),--benchmark-suite $(BENCHMARK_SUITE),) \
 		$(if $(BENCHMARK_MODELS),--benchmark-models "$(BENCHMARK_MODELS)",) \
-		$(if $(PULL),--pull-models,) \
+		$(if $(NO_PULL),--no-pull-models,) \
+		$(if $(BENCHMARK_ALLOW_LARGE),--benchmark-allow-large,) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(STOP_ON_FAIL),--stop-on-fail,)
 
-model-benchmark: ## Benchmark top coder models (SUITE=quick|standard|implement; PULL=1; MODELS=tag1,tag2)
+model-benchmark: ## Benchmark ≤24B coder models (SUITE=quick; pulls by default; NO_PULL=1 to skip; BENCHMARK_ALLOW_LARGE=1 to bypass cap)
 	@chmod +x scripts/model-benchmark-suite.py
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/model-benchmark-suite.py \
 		--suite $(or $(SUITE),quick) \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
-		$(if $(PULL),--pull,) \
+		$(if $(NO_PULL),,--pull) \
 		$(if $(SKIP_MISSING),--skip-missing,) \
 		$(if $(MODELS),--models "$(MODELS)",) \
+		$(if $(BENCHMARK_ALLOW_LARGE),--allow-large-models,) \
 		$(if $(VERBOSE),--verbose,)
+
+pull-benchmark-models: ## Pull Ollama models for benchmark suite (SUITE=quick; PULL_ALL=1 to bypass cap)
+	@chmod +x scripts/pull-benchmark-models.py
+	@python3 scripts/pull-benchmark-models.py \
+		--suite $(or $(SUITE),quick) \
+		$(if $(PULL_ALL),--allow-large-models,) \
+		$(if $(MODELS),--models "$(MODELS)",)
 
 model-benchmark-list: ## List benchmark suites and default model roster
 	@python3 scripts/model-benchmark-suite.py --list-suites

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Modular AI, Local Hardware: How Neural Junkie Routes Instead of Guessing — Neural Junkie</title>
+  <meta name="description" content="Stop running one model for everything. Neural Junkie composes specialists at the orchestration layer — a small classifier picks domain and cost tier, packs declare chat/tool/LoRA stacks, and every reply shows which model actually ran." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Modular AI, Local Hardware: How Neural Junkie Routes Instead of Guessing
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Modular AI, Local Hardware: How Neural Junkie Routes Instead of Guessing</h1>
+      <p class="article-lead">Stop running one model for everything. Neural Junkie composes specialists at the orchestration layer — a small classifier picks domain and cost tier, packs declare chat/tool/LoRA stacks, and every reply shows which model actually ran.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">modularai</span><span class="article-tag">lora</span><span class="article-tag">developertools</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-modular-ai-composition-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>The industry is converging on <strong>modular AI</strong>: router + small specialists, LoRA adapters, mixture-of-experts inside foundation models. The goal is the same — don't run a 70B jack-of-all-trades for every token.</p>
+<p><strong>Neural Junkie</strong> takes that idea one layer up: <strong>orchestration-layer composition</strong>. You still talk to one specialist. The hub decides which model runs, which tools fire, and which LoRA tag applies — then shows you the answer on the message itself.</p>
+<p>This builds on our earlier <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODEL-LAYERING-LINKEDIN.md">model layering article</a>. That piece covered context, weights, routing, and orchestration. This one ships the next layer: <strong>unified routing</strong>, <strong>pack-declared compose stacks</strong>, and <strong>observability you can trust</strong>.</p>
+<h2>The problem with one model</h2>
+<p>One 14B (or 27B) model cannot be your security reviewer, biology expert, session summarizer, typo-fixer, and tool-runner — not on a 16 GB laptop, and not without quality tradeoffs.</p>
+<p>Keyword heuristics help (<code>looksSecurity</code>, <code>looksCheap</code>) but they drift, miss edge cases, and never tell the user what actually ran. Modular AI only feels real when routing is <strong>legible</strong>.</p>
+<h2>Pillar 1: A small classifier router (not a 70B gatekeeper)</h2>
+<p>Neural Junkie now classifies each collab task and delegation consult through a <strong>unified router</strong> (<code>internal/routing</code>):</p>
+<ul>
+<li><strong>LLM default:</strong> <code>qwen3.5:9b</code> returns structured JSON — <code>domain</code>, <code>tool_need</code>, <code>cost_tier</code>, <code>confidence</code>, <code>reason</code></li>
+<li><strong>Rules fallback:</strong> consolidated keyword lists when the LLM fails, times out, or confidence drops below 0.6</li>
+<li><strong>Table-tested:</strong> 80+ deterministic cases mirror the chat quality router harness</li>
+</ul>
+<p>A security collab task routes to <code>nj-security:14b</code> when installed. A typo-fix routes to the cheap local tier. Biology tool questions trigger <code>tool_need</code> without you @mentioning BiologyExpert.</p>
+<p>Debug when <code>NEURAL_JUNKIE_DEBUG=1</code>:</p>
+<pre><code class="language-bash">curl 'http://localhost:18765/api/debug/routing-classify?q=review+JWT+auth+flow&amp;agent_type=security'
+</code></pre>
+<h2>Pillar 2: Composed specialists in every pack</h2>
+<p>BiologyExpert was always split-brain: <strong>OpenBio for reasoning</strong>, <strong>Qwen 9B for MCP tools</strong>. That pattern is now a first-class <strong>pack compose template</strong>:</p>
+<pre><code class="language-yaml">compose:
+  chat_model: koesn/llama3-openbiollm-8b:latest
+  tool_model: qwen3.5:9b
+  lora_tag: nj-biology:8b
+  consult_triggers: [biology, protein, sequence]
+</code></pre>
+<p>Life sciences and software development packs ship compose blocks today. Security gets <code>nj-security:14b</code> + tool model. The hub resolves chat/tool/LoRA through one code path for DM, collab, and implementation sessions — no more biology-only <code>if</code> branches.</p>
+<h2>Pillar 3: See which model ran</h2>
+<p>Every agent response can carry routing metadata:</p>
+<ul>
+<li><code>routing_model</code> — chat model tag</li>
+<li><code>routing_tool_model</code> — tool loop when fallback fired</li>
+<li><code>routing_reason</code> — e.g. <code>security_lora_local</code>, <code>cheap_local</code></li>
+<li><code>routing_source</code> — <code>llm</code> or <code>rules</code></li>
+</ul>
+<p>The desktop shows a compact badge on each reply (<code>nj-security:14b · llm</code>). Tooltip shows the full chain. Toggle in <strong>Settings → Layout → Routing badges on messages</strong>.</p>
+<p>Modular AI without observability is just vibes. This makes it auditable.</p>
+<h2>Pillar 4: Recommended stacks per RAM tier</h2>
+<p>Two-tier strategy stays: <strong>Qwen for inference</strong>, <strong>Llama/Mistral bases for LoRA compose</strong>. But the docs and API now spell out full stacks:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Inference</th>
+<th>LoRA (optional)</th>
+<th>Disk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>minimal</td>
+<td><code>qwen3.5:9b</code> + cloud</td>
+<td>none</td>
+<td>~10 GB</td>
+</tr>
+<tr>
+<td>light</td>
+<td><code>qwen3.5:9b</code></td>
+<td>1 base + 1 tag</td>
+<td>~15 GB</td>
+</tr>
+<tr>
+<td>recommended</td>
+<td><code>qwen3.5:27b</code> + <code>qwen3.5:9b</code></td>
+<td>3 bases + 4 bootstrap tags</td>
+<td>~35 GB</td>
+</tr>
+<tr>
+<td>heavy</td>
+<td>above + OpenBio</td>
+<td>full specialist-tuning</td>
+<td>~50+ GB</td>
+</tr>
+</tbody>
+</table>
+<p><code>GET /api/system/hardware</code> returns <code>recommended_stacks[]</code> — same data the wizard and Pack Store can render.</p>
+<h2>Walkthrough: verify it yourself</h2>
+<p><strong>1. Security collab task</strong></p>
+<p>Run <code>/collaborate</code> with a security review task. After approval, the task message and agent reply should show <code>nj-security:14b</code> when the tag is installed.</p>
+<p><strong>2. Biology DM</strong></p>
+<p>DM BiologyExpert: "What's the difference between scan summary and scan analysis?" → OpenBio chat, no tool loop.</p>
+<p>Then: "Analyze this peptide: MKTAYIAKQRQISFVKSHFSRQ" → Qwen tool loop, PDB path in reply. Badge shows both models.</p>
+<p><strong>3. Typo task</strong></p>
+<p>Ask BackendEngineer to "fix typo in README" in collab execution. Router picks <code>cost_tier: cheap</code> → local utility tier.</p>
+<h2>What we learned</h2>
+<p><strong>1. Orchestration-layer MoE beats model-layer MoE for local-first products.</strong></p>
+<p>You don't need to train a gating network inside a foundation model. Route at the hub with specialists you control.</p>
+<p><strong>2. Observability is a feature, not debug logging.</strong></p>
+<p><code>[collab-routing]</code> logs are not enough. Users need badges.</p>
+<p><strong>3. Packs should declare composition, not hardcode biology.</strong></p>
+<p><code>compose:</code> in <code>pack.yaml</code> is the contract. LoRA adapters and chat/tool splits are pack concerns.</p>
+<p><strong>4. Test the router in code.</strong></p>
+<p>Models change weekly. Deterministic routing tests + live collab scenarios catch regressions without guessing from the UI.</p>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<pre><code class="language-bash">make pull-models
+make start-all
+</code></pre>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p><strong>Docs:</strong><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">Context model</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HARDWARE.md">Hardware tiers + stacks</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_ADAPTERS.md">LoRA adapters</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DELEGATION.md">Delegation</a></p>
+<p>If routing sends a security task to the wrong tier — or a badge shows the wrong model — GitHub issues welcome. That feedback becomes the next scenario in the harness.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODULAR-AI-COMPOSITION-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="modular-ai-composition.html">Modular AI, Local Hardware: How Neural Junkie Routes Instead of Guessing</a></p>
+    </div>
+  </footer>
+</body>
+</html>

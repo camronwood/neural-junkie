@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>What Your Machine Actually Needs to Run a Local AI Engineering Team — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie ships as a ~15 MB desktop app — but your first local model pull can be 14 GB+. Here is how RAM tiers map to model tags, why multi-agent ≠ multi-model, and what we do not hide in open beta." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · What Your Machine Actually Needs to Run a Local AI Engineering Team
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>What Your Machine Actually Needs to Run a Local AI Engineering Team</h1>
+      <p class="article-lead">Neural Junkie ships as a ~15 MB desktop app — but your first local model pull can be 14 GB+. Here is how RAM tiers map to model tags, why multi-agent ≠ multi-model, and what we do not hide in open beta.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">developertools</span><span class="article-tag">ollama</span><span class="article-tag">opensource</span><span class="article-tag">edgeai</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-hardware-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Your code lives on your machine. Your models can too — but only if your machine can carry them.</p>
+<p>Neural Junkie is a native desktop workspace where a team of AI specialists — backend engineer, security reviewer, repo expert — collaborates on your codebase, with you approving every file change. Since beta.22, macOS, Windows, and Linux installers ship the Ollama runtime. Open the app, complete the setup wizard, pull a model once, and you are running local inference.</p>
+<p>The app itself is small. The hardware question is really about which models you run, how many agents you drive at once, and whether you stay local, hybrid, or cloud-first.</p>
+<h2>The app vs the models</h2>
+<p>Download the beta and you get a Tauri desktop shell plus a Go hub sidecar — on the order of tens of megabytes, not gigabytes. Installers also bundle the Ollama runtime (~1–2 GB per platform). That is still not the expensive part.</p>
+<p>The first-run pull for software development defaults to two tags:</p>
+<ul>
+<li>qwen2.5-coder:14b (~9 GB) for coding specialists</li>
+<li>qwen2.5:7b (~4.5 GB) for Moderator and Assistant</li>
+</ul>
+<p>Add installer + runtime and you are looking at roughly 15–20 GB on disk before you chat. Internet required once for the pull; after that, inference stays on your hardware.</p>
+<p>We bundle the runtime, not every model. That is intentional — model choice should match your RAM and your workflow, not bloat every download.</p>
+<h2>RAM tiers we ship in the product</h2>
+<p>Starting in this release, the setup wizard and Settings screen read your installed RAM and recommend model tags. The same logic lives in docs/HARDWARE.md and the hub API (GET /api/system/hardware).</p>
+<table>
+<thead>
+<tr>
+<th>Your RAM</th>
+<th>Tier</th>
+<th>Developer primary</th>
+<th>Good for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Under 8 GB</td>
+<td>minimal</td>
+<td>llama3.2:3b or qwen2.5-coder:7b</td>
+<td>Light chat; hard collab/repo work may need cloud</td>
+</tr>
+<tr>
+<td>8–15 GB</td>
+<td>light</td>
+<td>qwen2.5-coder:7b</td>
+<td>Safe local dev; skip the 14B default</td>
+</tr>
+<tr>
+<td>16–31 GB</td>
+<td>recommended</td>
+<td>qwen2.5-coder:14b</td>
+<td>Full software pack, repo agents, collaboration</td>
+</tr>
+<tr>
+<td>32 GB+</td>
+<td>heavy</td>
+<td>14B + optional LoRA bases / larger experiments</td>
+<td>Multi-model library; CUDA LoRA training viable</td>
+</tr>
+</tbody>
+</table>
+<p>Suggested RAM for a model tag uses a simple rule: take the catalog disk size, multiply by 1.25, add 4 GB headroom for OS, hub, and Ollama. Example: ~9 GB on disk → about 16 GB suggested RAM.</p>
+<p>If your wizard shows “We recommend qwen2.5-coder:7b instead of 14b,” that is the light tier doing its job. You can still choose 14B anyway — we would rather you know the tradeoff than hit swap and blame the hive-mind.</p>
+<h2>Multi-agent ≠ multi-model</h2>
+<p>Neural Junkie runs Backend, Frontend, Security, Architecture, Code Review, and repo experts as separate agents in chat. That does not mean six separate 14B downloads loaded at once.</p>
+<p>Specialists share one Ollama backend. You pay sequential inference latency when several agents reply in a thread or collaboration — not six times the VRAM. You do pay hub memory for history, repo indexes, and session state. Large monorepo indexes are capped (2000 source file bodies) so the hub does not grow without bound.</p>
+<p>If you need many domain-tuned behaviors without many full pulls, LoRA adapters on shared Llama/Mistral bases are the disk-efficient path — tens of megabytes per role, composed into tags like nj-security:14b. That is a separate story (see our LoRA article), but it matters for hardware planning on 32 GB+ machines.</p>
+<h2>Optional workloads cost extra</h2>
+<p>LoRA training from chat or collab history needs the Specialist tuning pack, a Python venv (make deps-lora), and CUDA strongly recommended — CPU training is experimental and slow.</p>
+<p>Collaboration quality varies on local 7B/14B models. The hub enforces phase caps and fallbacks, but cannot guarantee plan shape the way a cloud frontier model might.</p>
+<p>MCP tool calling is strongest on Ollama (selected flows) and Claude; LM Studio and generic OpenAI-compat endpoints are more limited.</p>
+<p>Slack bridge runs in-process on your local hub — no public URL, but the hub must stay running.</p>
+<p>macOS builds are ad-hoc signed, not notarized. Right-click → Open the first time if Gatekeeper warns.</p>
+<p>We keep a public list: known-issues.html. Items come off when we fix them.</p>
+<h2>Hybrid is the practical default</h2>
+<p>Local for iteration — repo Q&amp;A, broad specialist chat, no per-token bill. Cloud for final passes — hard security review, long context, when 14B is not enough. Optional smart routing sends collaboration execution tasks across configured providers using simple heuristics; normal chat keeps each agent’s provider.</p>
+<p>Neural Junkie is built for that split from day one.</p>
+<h2>What we built into the app</h2>
+<ul>
+<li>docs/HARDWARE.md — authoritative tier table and limits</li>
+<li>Setup wizard — “Your machine has X GB RAM; we recommend …” on Ollama setup</li>
+<li>Settings → AI Providers — estimated disk and suggested RAM for the selected model tag</li>
+<li>GET /api/system/hardware and GET /api/ollama/library/lookup — same numbers for scripts and future UI</li>
+</ul>
+<p>Honest limits beat marketing superlatives. Local multi-agent AI is real; it is also bounded by physics and by what open models reliably do in planning loops.</p>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p>Docs: https://github.com/camronwood/neural-junkie/blob/main/docs/HARDWARE.md</p>
+<p>After install, ask @Moderator What can Neural Junkie do? — then check Settings → AI Providers for the RAM line on your default model.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/HARDWARE-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="hardware.html">What Your Machine Actually Needs to Run a Local AI Engineering Team</a></p>
+    </div>
+  </footer>
+</body>
+</html>

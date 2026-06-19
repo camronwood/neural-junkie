@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Why We Split Inference and LoRA Into Two Tiers — Neural Junkie</title>
+  <meta name="description" content="We wanted one Qwen base + tiny LoRA adapters for every specialist. Ollama said no — safetensors LoRA only works on Llama/Mistral/Gemma. Here&#x27;s how Neural Junkie split inference (Qwen) from train/compose (Llama) without breaking the hub." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Why We Split Inference and LoRA Into Two Tiers
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Why We Split Inference and LoRA Into Two Tiers</h1>
+      <p class="article-lead">We wanted one Qwen base + tiny LoRA adapters for every specialist. Ollama said no — safetensors LoRA only works on Llama/Mistral/Gemma. Here&#x27;s how Neural Junkie split inference (Qwen) from train/compose (Llama) without breaking the hub.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">lora</span><span class="article-tag">localai</span><span class="article-tag">ollama</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-two-tier-lora-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Neural Junkie runs multiple AI specialists locally — security reviewer, backend engineer, repo expert — on your hardware. LoRA adapters promised the dream: one shared base model, tens-of-megabytes deltas per role, composed Ollama tags like <code>nj-security:14b</code>.</p>
+<p>We shipped bootstrap presets on Hugging Face. We documented <code>qwen2.5-coder:14b</code> as the base. Then <code>ollama create</code> failed with <strong>unsupported architecture</strong>.</p>
+<h2>The problem</h2>
+<p>The Specialist tuning pack shipped community LoRAs trained on <strong>Qwen 2.5 Coder 14B</strong> — SecureCode for security, code-feedback for review, text-to-SQL for backend. Our docs said: pull Qwen, download the adapter, compose, assign.</p>
+<p>Ollama's safetensors <code>ADAPTER</code> path supports <strong>Llama, Mistral, and Gemma</strong> architectures. <strong>Not Qwen.</strong> Same adapter files that work in Hugging Face PEFT fail at compose time in Ollama.</p>
+<p>Symptoms we saw in the wild:</p>
+<ul>
+<li>Pack LoRA install retries on every startup (<code>unsupported architecture</code>)</li>
+<li>Training UI suggesting Qwen as a base — fine for chat, useless for compose-after-train</li>
+<li>Users conflating "best coding model" (Qwen) with "LoRA-compatible base" (Llama/Mistral)</li>
+</ul>
+<p>We were optimizing for inference quality and LoRA composability with a single model tag. Those are different constraints.</p>
+<h2>The insight</h2>
+<p><strong>Inference tier:</strong> <code>qwen2.5-coder:14b</code> stays the default for software specialists — strong code, tools, implementation loops. Unchanged.</p>
+<p><strong>LoRA tier:</strong> train and compose on bases Ollama actually supports — <code>llama3.1:8b</code> for code training (default), <code>llama3.2:3b</code> + SecureCode for security bootstrap, <code>mistral:7b</code> for SQL bootstrap, <code>llama3:8b</code> for biology and code-review presets.</p>
+<p>Composed tags keep familiar names (<code>nj-security:14b</code>, <code>nj-backend:14b</code>). The <code>:14b</code> suffix is a <strong>role label</strong>, not the LoRA base size. Assign a composed tag when you want domain-tuned weights; otherwise agents keep Qwen.</p>
+<h2>What we changed</h2>
+<ol>
+<li><strong>Replaced Qwen bootstrap adapters</strong> in the Specialist tuning pack with verified Llama/Mistral community presets.</li>
+<li><strong>Aligned compose defaults</strong> — <code>DefaultLoRABaseTag</code> is now <code>llama3.1:8b</code>, not Qwen.</li>
+<li><strong>Guarded training</strong> — the hub rejects Qwen bases for LoRA jobs with a clear error and suggested alternatives.</li>
+<li><strong>Deprecated Qwen adapter catalog entries</strong> — Model library marks them unsupported; compose is blocked in the UI.</li>
+<li><strong>Extended <code>make pull-models</code></strong> — pulls LoRA bases (<code>llama3.1:8b</code>, <code>llama3.2:3b</code>, <code>mistral:7b</code>) alongside inference Qwen.</li>
+<li><strong>Added <code>scripts/verify-bootstrap-loras.sh</code></strong> — reproducible compose verification for pack presets.</li>
+</ol>
+<p>Routing, collaboration, MCP tools, and file approvals are unchanged. LoRA is still orthogonal to prompts and the context stack.</p>
+<h2>How to use it</h2>
+<pre><code class="language-bash">make pull-models          # Qwen inference + Llama/Mistral LoRA bases
+make deps-lora            # once, before training
+</code></pre>
+<p>Enable <strong>Specialist tuning</strong> → <strong>Install LoRAs</strong> (or <code>POST /api/packs/specialist-tuning/install-loras</code>). Assign composed tags via agent info or <code>/switch-provider</code>. Train repo experts on <strong><code>llama3.1:8b</code></strong>, not Qwen.</p>
+<h2>What we did not do (yet)</h2>
+<ul>
+<li><strong>GGUF LoRA conversion</strong> for Qwen (<code>llama.cpp</code>) — possible future path if you need Qwen train→compose end-to-end.</li>
+<li><strong>Rename composed tags</strong> to <code>:8b</code> — would break existing configs; role labels stay as-is.</li>
+</ul>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_ADAPTERS.md">LORA_ADAPTERS.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_TRAINING.md">LORA_TRAINING.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SPECIALIST_TUNING_PACK.md">SPECIALIST_TUNING_PACK.md</a></p>
+<p>Issues welcome if you hit compose edge cases on a new adapter — that feedback shapes the next bootstrap preset.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/TWO-TIER-LORA-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="two-tier-lora.html">Why We Split Inference and LoRA Into Two Tiers</a></p>
+    </div>
+  </footer>
+</body>
+</html>

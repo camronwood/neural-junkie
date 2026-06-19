@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Articles — Neural Junkie</title>
+  <meta name="description" content="Long-form articles on local multi-agent AI, LoRA, hardware, collaboration, and testing — from the Neural Junkie project." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="../features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap articles-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · Articles
+    </nav>
+    <header class="articles-hero">
+      <h1>Articles</h1>
+      <p class="articles-hero-lead">
+        Long-form writing on building Neural Junkie — hardware limits, model layering, LoRA composition, conversation memory, multi-agent collaboration, and how we test it. Originally drafted for LinkedIn; published here for the open-source community.
+      </p>
+    </header>
+
+    <div class="articles-toolbar">
+      <div class="articles-filter" role="group" aria-label="Filter articles">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="architecture" aria-pressed="false">Architecture</button>
+        <button type="button" data-filter="lora" aria-pressed="false">LoRA</button>
+        <button type="button" data-filter="hardware" aria-pressed="false">Hardware</button>
+        <button type="button" data-filter="chat" aria-pressed="false">Chat</button>
+        <button type="button" data-filter="collaboration" aria-pressed="false">Collaboration</button>
+        <button type="button" data-filter="testing" aria-pressed="false">Testing</button>
+      </div>
+      <span class="articles-meta" id="articles-count">Loading…</span>
+    </div>
+
+    <div class="articles-grid" id="articles-grid" aria-live="polite"></div>
+
+    <aside class="articles-how" aria-label="How to add articles">
+      <strong>Add or update articles</strong> — edit sources under
+      <code>docs/marketing/*-LINKEDIN.md</code>, then run
+      <code>./scripts/sync-articles.sh</code> and commit the updated
+      <code>docs/articles/</code> output.
+    </aside>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <span id="articles-updated"></span></p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const grid = document.getElementById("articles-grid");
+      const countEl = document.getElementById("articles-count");
+      const updatedEl = document.getElementById("articles-updated");
+      const filterBtns = document.querySelectorAll(".articles-filter button");
+      let items = [];
+      let activeFilter = "all";
+
+      function matchesFilter(item) {
+        if (activeFilter === "all") return true;
+        if (item.topic === activeFilter) return true;
+        return (item.tags || []).includes(activeFilter);
+      }
+
+      function escapeHtml(text) {
+        return String(text || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function render() {
+        const visible = items.filter(matchesFilter);
+        countEl.textContent = visible.length + " article" + (visible.length === 1 ? "" : "s");
+        grid.innerHTML = "";
+        if (!visible.length) {
+          grid.innerHTML = '<p class="articles-empty">No articles in this category yet.</p>';
+          return;
+        }
+        visible.forEach((item) => {
+          const a = document.createElement("a");
+          a.className = "articles-card";
+          a.href = item.href;
+          const tags = (item.tags || []).slice(0, 4)
+            .map((t) => '<span class="article-tag">' + escapeHtml(t) + "</span>")
+            .join("");
+          const media = item.coverWeb
+            ? '<div class="articles-card-media"><img src="' + escapeHtml(item.coverWeb) + '" alt="" loading="lazy" decoding="async" /></div>'
+            : "";
+          a.innerHTML =
+            media +
+            '<div class="articles-card-body">' +
+            "<strong>" + escapeHtml(item.title) + "</strong>" +
+            (item.teaser ? '<p class="articles-card-teaser">' + escapeHtml(item.teaser) + "</p>" : "") +
+            (tags ? '<div class="articles-card-tags">' + tags + "</div>" : "") +
+            "</div>";
+          grid.appendChild(a);
+        });
+      }
+
+      filterBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          activeFilter = btn.getAttribute("data-filter");
+          filterBtns.forEach((b) => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+          render();
+        });
+      });
+
+      fetch("manifest.json")
+        .then((r) => {
+          if (!r.ok) throw new Error(r.statusText);
+          return r.json();
+        })
+        .then((data) => {
+          items = data.items || [];
+          if (data.updated && updatedEl) {
+            updatedEl.textContent = "updated " + data.updated.slice(0, 10);
+          }
+          render();
+        })
+        .catch((err) => {
+          grid.innerHTML =
+            '<p class="articles-empty">Could not load manifest.json. Run <code>./scripts/sync-articles.sh</code>.</p>';
+          countEl.textContent = "Error";
+          console.error(err);
+        });
+    })();
+  </script>
+</body>
+</html>

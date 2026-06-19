@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>You Can’t Unit Test a Conversation. So I Built This Instead. — Neural Junkie</title>
+  <meta name="description" content="Prompts and models change weekly. Click-testing a multi-agent hub doesn’t scale. Here’s the three-layer harness I built for Neural Junkie — deterministic Go tests for the orchestrator, CI smoke for the pipeline, and JSON scenarios with real Ollama agents for conversation quality." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · You Can’t Unit Test a Conversation. So I Built This Instead.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>You Can’t Unit Test a Conversation. So I Built This Instead.</h1>
+      <p class="article-lead">Prompts and models change weekly. Click-testing a multi-agent hub doesn’t scale. Here’s the three-layer harness I built for Neural Junkie — deterministic Go tests for the orchestrator, CI smoke for the pipeline, and JSON scenarios with real Ollama agents for conversation quality.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">softwareengineering</span><span class="article-tag">testing</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">multiagent</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-test-harness-ad-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>(paste below the line)</p>
+<hr />
+<h1>You Can’t Unit Test a Conversation. So I Built This Instead.</h1>
+<p>Neural Junkie is a desktop hub where specialists you control can chat, review code, and run structured multi-agent collaborations. Getting the <strong>orchestrator</strong> right — phases, turn-taking, task graphs, workspace gates — is hard enough. Getting <strong>conversation quality</strong> right on top of that is a different problem entirely.</p>
+<p>A greeting shouldn’t dump MCP tool blocks. A “thanks, that’s all” should close cleanly instead of re-explaining. A <code>/collaborate</code> planning thread should reach review with structured tasks, not infinite grounding spam. And when execution finishes, the file on disk should reference <code>core/sample/main.go</code>, not a hallucinated <code>index.js</code>.</p>
+<p>You can’t capture that with a single <code>go test</code> that mocks the LLM. You also can’t rely on manually clicking through the desktop app every time you tweak a prompt. So I built a <strong>three-layer test harness</strong> — and split <strong>chat</strong> from <strong>collaboration</strong> because they fail in different ways.</p>
+<hr />
+<h2>The problem: two different things to test</h2>
+<p>When people say “test the agents,” they usually mean one of two things:</p>
+<ol>
+<li>
+<p><strong>Does the hub enforce the rules?</strong><br />
+   Phase transitions, discussion budgets, DAG readiness, “only one executing collab per channel,” artifact versioning, workspace ack before dispatch. This should be <strong>deterministic</strong>. The LLM is irrelevant.</p>
+</li>
+<li>
+<p><strong>Do real models behave well in conversation?</strong><br />
+   Tone, closure, tool spam, plan shape, silent agents, grounded file content. This is <strong>inherently flaky</strong> — models change, prompts drift, Ollama load varies. You still need regression signal; you just can’t pretend it’s a unit test.</p>
+</li>
+</ol>
+<p>Mixing those concerns into one test suite gives you either false confidence or endless CI pain. The harness keeps them separate on purpose.</p>
+<hr />
+<h2>Layer 1 — Deterministic Go tests (fast, CI always)</h2>
+<p><strong>What it covers:</strong> orchestrator logic and the Conversation Context Stack router — not model output.</p>
+<p><strong>Collaboration:</strong> lifecycle transitions, turn-taking, consensus, task assignment, plan parsing, dependency cycles, artifact edits. See <code>test/collaboration_test.go</code>.</p>
+<p><strong>Chat quality router:</strong> table-driven cases in <code>internal/agent/chat_quality_router_test.go</code> — intent (<code>closure</code> / <code>casual</code> / <code>substantive</code> / <code>task</code>), conversation mode (<code>chat</code> / <code>code</code> / <code>collab</code>), tooling gates, history caps, persona tier. This is the <strong>Layer A</strong> foundation described in <a href="../CONTEXT_MODEL.md">CONTEXT_MODEL.md</a>.</p>
+<pre><code class="language-bash">make test-go    # entire module; chat router + collab tests included
+</code></pre>
+<p>These run on every change. They tell you the <strong>machinery</strong> still works. They do not tell you whether <code>@Assistant</code> will stay under 1200 characters on “hello.”</p>
+<hr />
+<h2>Layer 2 — Collab smoke (CI-friendly pipeline proof)</h2>
+<p><strong>What it covers:</strong> the same HTTP surface the desktop uses — <code>POST /api/send</code>, <code>GET /api/collaborations</code>, <code>POST /api/collaboration-workspace-ack</code> — through <strong>planning → review → executing → cancel</strong>, with one synthetic discussion turn standing in for agent chatter.</p>
+<pre><code class="language-bash">make collab-smoke
+</code></pre>
+<p>Implemented in <code>test/collab_smoke_api_test.go</code>. No Ollama, no live agents, no flakiness. It catches wiring regressions: “approve plan” no longer transitions phase, workspace ack endpoint broke, collaboration redirect missing from send response.</p>
+<p>This is the thin path that proves <strong>the pipeline still connects</strong> after hub changes. It’s not conversation quality; it’s <strong>integration smoke</strong>.</p>
+<hr />
+<h2>Layer 3 — Live JSON scenarios (real agents, local dev loop)</h2>
+<p><strong>What it covers:</strong> multi-turn conversation and multi-agent collaboration with <strong>real in-process agents</strong> (typically local Ollama models) against a <strong>live hub</strong>.</p>
+<p>Two runners, two scenario directories, same design language:</p>
+<table>
+<thead>
+<tr>
+<th>Harness</th>
+<th>Scenarios</th>
+<th>Runner</th>
+<th>Make target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chat</strong></td>
+<td><code>scenarios/chat/*.json</code></td>
+<td><code>scripts/chat-scenarios.py</code></td>
+<td><code>make chat-scenario SCENARIO=…</code></td>
+</tr>
+<tr>
+<td><strong>Collaboration</strong></td>
+<td><code>scenarios/collab/*.json</code></td>
+<td><code>scripts/collab-scenarios.py</code></td>
+<td><code>make collab-scenario SCENARIO=…</code></td>
+</tr>
+<tr>
+<td><strong>Learning / LoRA</strong></td>
+<td><code>scenarios/learning/*.json</code></td>
+<td><code>scripts/learning-scenarios.py</code></td>
+<td><code>make learning-scenario SCENARIO=…</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Prerequisites:</strong> hub running (<code>make server</code> or <code>make gui</code>), agents online, models configured. For sweeps, start the hub with <code>NEURAL_JUNKIE_RATE_LIMIT=0</code> so scenario polling doesn’t hit HTTP 429.</p>
+<p>These stay <strong>local-only</strong>. They need time, GPU, and model availability. CI keeps Layers 1 and 2 green; Layer 3 is where I iterate on prompts and agent behavior.</p>
+<hr />
+<h2>Chat scenarios: conversation quality without collab noise</h2>
+<p>Chat scenarios test <strong>1:1 and channel chat</strong> — greetings, closure, opinion questions, mode flips from casual to code review, DMs via the real channel API.</p>
+<p>Example: <code>greeting-chat-mode</code> sends “hello” in chat mode and asserts the reply has no MCP blocks, no <code>FILE_CHANGE</code>, no kubectl, and stays under a character cap:</p>
+<pre><code class="language-bash">make chat-scenario SCENARIO=greeting-chat-mode
+</code></pre>
+<p>Other scenarios cover:</p>
+<ul>
+<li><strong><code>thanks-closure</code></strong> — substantive answer, then “ok thanks” → canned closure  </li>
+<li><strong><code>already-said-closure</code></strong> — “I know you said that already” → won’t-repeat closure  </li>
+<li><strong><code>casual-opinion-chat</code></strong> — chat mode opinion without grounding spam  </li>
+<li><strong><code>task-flip-review</code></strong> — hello, then a code review request; asserts debug intent is <code>task</code>  </li>
+<li><strong><code>dm-greeting</code></strong> — same structural checks through a real DM channel</li>
+</ul>
+<p>Steps are declarative: <code>send</code>, <code>wait_reply</code>, <code>assert_messages</code>, <code>assert_reply_count</code>, <code>assert_debug_context</code>. When a step fails, the runner prints pass/fail per step and dumps the last ~12 transcript lines. No guessing why <code>@Assistant</code> went silent.</p>
+<p>Full reference: <a href="../CHAT_SCENARIOS.md">CHAT_SCENARIOS.md</a>.</p>
+<hr />
+<h2>Collab scenarios: phases, plans, files on disk</h2>
+<p>Collaboration scenarios drive <code>/collaborate</code> end-to-end — or slice off just the planning phase for fast iteration.</p>
+<p><strong>Fast planning loop</strong> (<code>planning-two-agent</code>):</p>
+<pre><code class="language-bash">make collab-scenario SCENARIO=planning-two-agent
+</code></pre>
+<p>The scenario waits for <code>planning</code>, checks each agent spoke (<code>wait_discussion</code> with <code>min_per_agent</code>), waits for <code>reviewing</code>, asserts no <code>Grounding: I loaded</code> spam, and validates the parsed plan has at least two tasks with sane titles.</p>
+<p><strong>Full execution loop</strong> (<code>execute-deliverable</code>):</p>
+<pre><code class="language-bash">make collab-scenario SCENARIO=execute-deliverable PROFILE=fast
+</code></pre>
+<p>This runs against a <strong>fixture repo</strong> (<code>scenarios/fixtures/minimal-repo</code>). It approves the plan, acks the workspace, waits for task completion, hub-approves file changes, and asserts <code>findings.md</code> exists with content grounded in <code>core/sample/main.go</code> — while explicitly <strong>rejecting</strong> hallucinated paths like <code>index.js</code>.</p>
+<p>Collab steps include everything chat has, plus collaboration-specific actions:</p>
+<ul>
+<li><code>wait_phase</code>, <code>wait_discussion</code>, <code>wait_planning_recap</code>  </li>
+<li><code>assert_plan</code> (min tasks, title patterns)  </li>
+<li><code>approve_plan</code>, <code>workspace_ack</code>  </li>
+<li><code>wait_tasks</code>, <code>approve_file_changes</code>, <code>assert_files</code></li>
+</ul>
+<p><strong>Profiles</strong> swap agent rosters without rewriting scenarios: <code>PROFILE=fast</code> uses lighter 7b agents; <code>PROFILE=realistic</code> uses heavier architect/backend pairs. <strong><code>make collab-scenario-matrix</code></strong> sweeps profiles and round budgets before/after prompt changes.</p>
+<p>Other notable scenarios:</p>
+<ul>
+<li><strong><code>multi-collab-isolation</code></strong> — planning works while another collab executes elsewhere  </li>
+<li><strong><code>resource-api-schema-planning</code></strong> — production-shaped goal with explicit agent lanes  </li>
+<li><strong><code>delivery-sandbox-auto-ack</code></strong> — sandbox workspace auto-ack on approve  </li>
+</ul>
+<p>Full reference: <a href="../COLLABORATION.md">COLLABORATION.md</a> § Live scenario harness.</p>
+<hr />
+<h2>What makes the harness useful when something breaks</h2>
+<p>The runners are built for <strong>diagnosis</strong>, not just pass/fail.</p>
+<p><strong>Chat failures</strong> dump recent transcript lines. Common causes: agent offline, slow model timeout, rate limit (restart hub with <code>NEURAL_JUNKIE_RATE_LIMIT=0</code>), missing <code>NEURAL_JUNKIE_DEBUG=1</code> for debug-context assertions.</p>
+<p><strong>Collab failures</strong> add a <strong>discussion diagnosis</strong> block: per-agent message counts, who stayed silent, handoff counts. That’s how I fix “Gemini never talked” or “plan never reached reviewing” without spelunking logs for an hour.</p>
+<p><strong><code>wait_discussion</code></strong> is the collab-specific insight. Orchestrator tests prove turn-taking rules exist; live scenarios prove agents actually <strong>use</strong> their turns.</p>
+<p><strong><code>KEEP=1</code></strong> leaves the collab or channel history intact for manual inspection:</p>
+<pre><code class="language-bash">make collab-scenario SCENARIO=planning-two-agent KEEP=1 VERBOSE=1
+make debug-collab COLAB=&lt;id8&gt; LIVE=1
+</code></pre>
+<p>When a scenario fails, it becomes the next scenario I add or tighten. That’s the dev loop.</p>
+<hr />
+<h2>Principles I keep coming back to</h2>
+<ol>
+<li>
+<p><strong>Test the orchestrator in code; test the conversation in scenarios.</strong> Don’t assert LLM prose in Go table tests. Don’t skip lifecycle tests because “the agents seemed fine yesterday.”</p>
+</li>
+<li>
+<p><strong>Separate chat from collab.</strong> Chat mode closure and collab planning recap are different failure modes. One runner per domain keeps scenarios readable.</p>
+</li>
+<li>
+<p><strong>Assert structure, not poetry.</strong> <code>min_tasks: 2</code>, <code>none_match: ["MCP"]</code>, <code>any_match: ["main\\.go"]</code> — pattern checks that survive model upgrades better than exact string equality.</p>
+</li>
+<li>
+<p><strong>Ground scenarios in fixture repos.</strong> Execution tests that only check chat markdown lie. Files on disk with real path constraints catch hallucinated project structure.</p>
+</li>
+<li>
+<p><strong>CI for speed; live scenarios for truth.</strong> Layers 1–2 gate merges. Layer 3 gates releases and prompt refactors.</p>
+</li>
+<li>
+<p><strong>Failures become scenarios.</strong> Every production “collab hung in review” or “agent dumped tools on hello” gets encoded as JSON so it doesn’t come back.</p>
+</li>
+</ol>
+<hr />
+<h2>If you’re building something similar</h2>
+<p>You don’t need Neural Junkie to steal the pattern:</p>
+<ul>
+<li><strong>Layer 1:</strong> pure logic your product owns (state machine, router, caps) — table tests, no model.  </li>
+<li><strong>Layer 2:</strong> HTTP/API smoke through the same paths your UI uses — synthetic events where agents would talk.  </li>
+<li><strong>Layer 3:</strong> declarative JSON scenarios against a live stack — <code>send</code> / <code>wait</code> / <code>assert</code> steps, transcript dumps on failure, optional matrix sweeps.</li>
+</ul>
+<p>The JSON scenario format is intentionally boring. Boring is good. When a prompt change breaks planning quality, you want a one-line <code>make collab-scenario</code> failure, not a vague “felt worse in manual testing.”</p>
+<hr />
+<h2>Try it</h2>
+<p>Neural Junkie is a personal open-source project (macOS, Windows, Linux).</p>
+<p><strong>Download:</strong> https://github.com/camronwood/neural-junkie/releases/latest  </p>
+<p><strong>Run the harness:</strong></p>
+<pre><code class="language-bash">make server                                    # or make gui
+make test-go                                   # Layer 1
+make collab-smoke                              # Layer 2
+make chat-scenario SCENARIO=greeting-chat-mode # Layer 3 — chat
+make collab-scenario SCENARIO=planning-two-agent # Layer 3 — collab
+</code></pre>
+<p><strong>Docs:</strong> <a href="../CHAT_SCENARIOS.md">CHAT_SCENARIOS.md</a> · <a href="../COLLABORATION.md">COLLABORATION.md</a> · <a href="../CONTEXT_MODEL.md">CONTEXT_MODEL.md</a></p>
+<p>If you add a scenario or hit a failure mode the harness doesn’t cover yet, GitHub issues welcome — that’s how the JSON files grow.</p>
+<hr />
+<p><em>Camron Wood — Neural Junkie (personal project)</em></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/CONVERSATIONAL-TEST-HARNESS.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="conversational-test-harness.html">You Can’t Unit Test a Conversation. So I Built This Instead.</a></p>
+    </div>
+  </footer>
+</body>
+</html>

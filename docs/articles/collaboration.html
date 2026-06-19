@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-Agent Collaboration Is Easy to Demo. Hard to Ship. — Neural Junkie</title>
+  <meta name="description" content="`/collaborate` looks like one command. Under the hood it’s phases, task dependencies, workspace gates, and file approvals — while real models improvise. Here’s why that’s hard, and the three-layer test harness I’m building so it doesn’t stay a demo." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Multi-Agent Collaboration Is Easy to Demo. Hard to Ship.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Multi-Agent Collaboration Is Easy to Demo. Hard to Ship.</h1>
+      <p class="article-lead">`/collaborate` looks like one command. Under the hood it’s phases, task dependencies, workspace gates, and file approvals — while real models improvise. Here’s why that’s hard, and the three-layer test harness I’m building so it doesn’t stay a demo.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">softwareengineering</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">multiagent</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../assets/neural-junkie-collaboration-ad-1080.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>(paste below the line)</p>
+<hr />
+<h1>Multi-Agent Collaboration Is Easy to Demo. Hard to Ship.</h1>
+<p>If you’ve tried “AI agents working together,” you’ve probably seen the same movie: great planning thread, confident tasks, and then… nothing reliable on disk. Or agents talk past each other until someone stops the run.</p>
+<p>I’ve been building <strong>Neural Junkie</strong> as a personal open-source project — a desktop hub for specialists you control. Collaboration (<code>/collaborate</code>) is one of the features I’m most invested in, and one of the hardest to get right. This isn’t a product pitch; it’s what I’ve learned shipping <strong>bounded multi-agent work</strong> on a real codebase.</p>
+<hr />
+<h2>A second opinion is not a collaboration</h2>
+<p>A single <code>@mention</code> is fine for review: one agent, one answer.</p>
+<p>Collaboration is for when you need several specialists on <strong>one objective</strong> — with structure:</p>
+<ul>
+<li><strong>Bounded</strong> agent-to-agent discussion (no infinite loops)</li>
+<li>A <strong>shared plan</strong> everyone can build on</li>
+<li><strong>Your approval</strong> before execution starts</li>
+<li><strong>Tasks with owners and dependencies</strong>, not a pile of parallel chats</li>
+<li><strong>Visible progress</strong> — phases, tasks, recaps — in the UI</li>
+</ul>
+<p>That list is easy to put on a slide. In production, one missed step shows up as “collab hung” or “they talked but nothing landed in the repo.”</p>
+<hr />
+<h2>What users see vs what the system must guarantee</h2>
+<p>You type something like:</p>
+<p><code>/collaborate @SoftwareArchitect @SecurityReviewer design a secure auth refactor</code></p>
+<p>You get a dedicated channel, a collaboration panel, and eventually <strong>Approve &amp; start</strong>.</p>
+<p>Behind that button is a pipeline:</p>
+<pre><code>You + desktop app
+    → Hub (phases, discussion budgets, task graph)
+        → Agents (planning, then task prompts)
+            → File proposals → Your approval → Disk (sandbox or git worktree)
+</code></pre>
+<p>Four worlds have to agree: <strong>UI</strong>, <strong>hub state</strong>, <strong>agent behavior</strong>, and <strong>where files actually go</strong>. LLMs don’t read architecture docs; they improvise. So the hub encodes <strong>gates</strong> — hard rules it enforces regardless of what the model says.</p>
+<hr />
+<h2>Where the complexity actually lives</h2>
+<h3>1. Phases are a contract, not labels</h3>
+<p>A collaboration moves through <strong>planning → review → approved → executing → done</strong> (or cancelled). Each step has meaning:</p>
+<ul>
+<li><strong>Planning</strong> — round-robin discussion with caps on rounds, messages, and time. Agents propose tasks; the shared plan artifact updates.</li>
+<li><strong>Review</strong> — you see the plan. Approval stays <strong>blocked</strong> until a planning recap is posted (or the hub times out and posts a fallback). No “approve blind.”</li>
+<li><strong>Approved</strong> — short transition; workspace or git worktree may be prepared.</li>
+<li><strong>Executing</strong> — tasks run in dependency order. This is <strong>not</strong> the same moment as “I clicked approve.”</li>
+<li><strong>Done</strong> — all tasks complete (or you force-close), plus a final session summary.</li>
+</ul>
+<p>The gap between <strong>“plan approved”</strong> and <strong>“agents are executing safely”</strong> trips a lot of tools. I separate them on purpose.</p>
+<h3>2. Two ways in, one execution engine</h3>
+<p>You can start from:</p>
+<ul>
+<li><strong><code>/collaborate</code></strong> — agents plan during bounded discussion, or  </li>
+<li><strong>Runbook</strong> — you define the task graph in a builder (or import markdown).</li>
+</ul>
+<p>Different front door; <strong>same orchestrator</strong> after you approve: dependency-aware waves, workspace confirmation, file-change approvals, sandbox vs isolated git worktree.</p>
+<h3>3. Tasks are a graph, not a checklist</h3>
+<p>Tasks can depend on each other. The hub only dispatches <strong>ready</strong> work (upstream finished). When a task completes, the next <strong>wave</strong> unlocks. Upstream output is fed into downstream prompts.</p>
+<p>The orchestrator also handles messy real-world plans:</p>
+<ul>
+<li>No tasks parsed? → one default task per participant so work still fans out.  </li>
+<li>No assignee on a line? → round-robin so someone actually gets the prompt.  </li>
+<li>Invalid dependency cycle? → rejected before save.  </li>
+<li>Blocked upstream? → policy: stop the branch, skip it, or fail the run.</li>
+</ul>
+<h3>4. “Executing” still doesn’t mean “files appeared”</h3>
+<p>This one surprises people.</p>
+<p>Chat markdown does <strong>not</strong> write to disk. Agents must emit structured <strong>file-change proposals</strong>; you approve them in the desktop <strong>Pending changes</strong> flow.</p>
+<p>And task prompts are <strong>held back</strong> until you confirm the execution workspace (sandbox folder or git worktree on a branch like <code>nj/collab-…</code>). Your main checkout stays untouched in worktree mode.</p>
+<p>So the happy path is: <strong>approve plan → confirm workspace → tasks dispatch → proposals → your approval → files exist</strong>.</p>
+<p>Workspace context is another subtlety: planning might reference your project channel while execution lives in <code>collab-&lt;id&gt;</code>. The hub carries workspace metadata across so proposals still resolve to the right tree.</p>
+<h3>5. Agents talking to agents — safely</h3>
+<p>Normally the hub prevents agents from replying to each other (anti-loop). In collaboration mode it <strong>allows</strong> it only for participants, on their turn or when @mentioned — still within discussion budgets.</p>
+<p>During execution, discussion turns off; work is <strong>task-driven</strong>. Assignees get explicit task messages so the right specialist responds even when “whose turn” wouldn’t pick them.</p>
+<h3>6. Bounds are a product feature</h3>
+<table>
+<thead>
+<tr>
+<th>Safeguard</th>
+<th>Typical default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Discussion rounds</td>
+<td>3 (hard cap 10)</td>
+</tr>
+<tr>
+<td>Messages per collaboration</td>
+<td>20 (cap 50)</td>
+</tr>
+<tr>
+<td>Wall-clock timeout</td>
+<td>5 minutes (cap 30)</td>
+</tr>
+<tr>
+<td>Concurrent collaborations</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Tasks per collaboration</td>
+<td>10</td>
+</tr>
+</tbody>
+</table>
+<p>When a limit hits, the system <strong>keeps what was produced</strong> and moves forward — another behavior that has to be tested, not assumed.</p>
+<h3>7. Roles need lanes, not overlap</h3>
+<p>Multi-agent planning fails when everyone owns everything. Each participant gets <strong>your lane</strong> and <strong>peer lanes</strong> in prompts — e.g. architect owns schema shape, platform owns CI, assistant synthesizes and sequences. Same collab, less duplicate work and fewer kubectl-in-planning surprises.</p>
+<hr />
+<h2>Why I’m building a three-layer test harness</h2>
+<p>Prompts and models change weekly. I can’t only click through the UI and hope.</p>
+<p><strong>Layer 1 — Deterministic tests (Go)</strong><br />
+Lifecycle transitions, turn-taking, DAG readiness, plan parsing, “only one executing collab per channel,” artifact versioning. Fast feedback on the <strong>orchestrator</strong>, not the LLM.</p>
+<p><strong>Layer 2 — Smoke (CI-friendly)</strong><br />
+A thin path that proves <strong>planning → review → execute</strong> wiring still works after hub changes — in-process by default, optional live hub.</p>
+<p><strong>Layer 3 — Live JSON scenarios (what I’m expanding)</strong><br />
+Real agents (e.g. local Ollama), real hub, declarative scenarios: start <code>/collaborate</code>, wait for phases, assert message patterns and plan shape, approve plan, ack workspace, approve file changes, assert files on disk reference <strong>actual repo paths</strong> — not hallucinated <code>index.js</code> in a Go sample project.</p>
+<p>Examples I run repeatedly:</p>
+<ul>
+<li><strong>Two-agent planning</strong> — reach review with structured tasks and a recap, without grounding spam.  </li>
+<li><strong>Isolation</strong> — planning still works while another collaboration is executing elsewhere.  </li>
+<li><strong>Execute deliverable</strong> — end-to-end through approval, workspace gate, and a grounded <code>findings.md</code>.  </li>
+<li><strong>Multi-role schema planning</strong> — production-shaped goals with explicit lanes.</li>
+</ul>
+<p>When a scenario fails, the runner prints <strong>which step failed</strong> and a <strong>discussion diagnosis</strong> (who spoke, who stayed silent). That’s how I fix “Gemini never talked” or “plan never reached reviewing” without guessing.</p>
+<p>Live scenarios stay <strong>local</strong> — they need models, time, and cost. CI keeps the deterministic layers green.</p>
+<hr />
+<h2>Principles I keep coming back to</h2>
+<ol>
+<li><strong>Gates over hope</strong> — Don’t dispatch execution until the workspace is acknowledged; don’t approve until the recap exists.  </li>
+<li><strong>One executing run per channel</strong> — parallel work happens across channels, not as a free-for-all in one room.  </li>
+<li><strong>Machine-readable completion</strong> — <code>TASK_STATUS: completed</code> beats keyword guessing.  </li>
+<li><strong>Success = files you approved</strong> — not “sounded good in chat.”  </li>
+<li><strong>Test the orchestrator in code; test the conversation in scenarios</strong> — don’t mix deterministic logic into flaky LLM assertions more than necessary.</li>
+</ol>
+<hr />
+<h2>If you’ve been burned by multi-agent demos</h2>
+<p>I’m in the <strong>make collab hold up on a real repo</strong> phase — not the “watch them chat” phase.</p>
+<p>Neural Junkie is a personal, open-source project (macOS, Windows, Linux). If collaboration failed you before on an older beta, the recent work on binding, task extraction, workspace gates, and scenario tests is what I’m iterating on.</p>
+<p><strong>Try it:</strong> https://github.com/camronwood/neural-junkie/releases/latest<br />
+<strong>Collaboration docs:</strong> https://github.com/camronwood/neural-junkie/blob/main/docs/COLLABORATION.md</p>
+<p>If you run a collab and something still breaks, tell me the phase it stuck in (planning, review, workspace gate, execution, files) — GitHub issues welcome. That’s the feedback that turns into the next scenario in the harness.</p>
+<hr />
+<p><em>Camron Wood — Neural Junkie (personal project)</em></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/COLLABORATION-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="collaboration.html">Multi-Agent Collaboration Is Easy to Demo. Hard to Ship.</a></p>
+    </div>
+  </footer>
+</body>
+</html>

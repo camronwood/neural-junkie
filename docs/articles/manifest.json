@@ -1,0 +1,181 @@
+{
+  "updated": "2026-06-19T19:35:12Z",
+  "count": 9,
+  "items": [
+    {
+      "slug": "hardware",
+      "title": "What Your Machine Actually Needs to Run a Local AI Engineering Team",
+      "teaser": "Neural Junkie ships as a ~15 MB desktop app \u2014 but your first local model pull can be 14 GB+. Here is how RAM tiers map to model tags, why multi-agent \u2260 multi-model, and what we do not hide in open beta.",
+      "cover": "assets/neural-junkie-hardware-1200.png",
+      "coverWeb": "../assets/neural-junkie-hardware-1200.png",
+      "topic": "hardware",
+      "tags": [
+        "ai",
+        "localai",
+        "developertools",
+        "ollama",
+        "opensource",
+        "edgeai"
+      ],
+      "sourceFile": "HARDWARE-LINKEDIN.md",
+      "sourcePath": "docs/marketing/HARDWARE-LINKEDIN.md",
+      "href": "hardware.html"
+    },
+    {
+      "slug": "model-layering",
+      "title": "We Don't Use One Model. We Layer Them.",
+      "teaser": "One 14B model can't be your security reviewer, biology expert, session summarizer, and cheap typo-fixer. Neural Junkie layers models at four levels \u2014 context, weights, routing, and orchestration \u2014 so local multi-agent work stays fast, grounded, and under your control.",
+      "cover": "assets/neural-junkie-model-layering-1200.png",
+      "coverWeb": "../assets/neural-junkie-model-layering-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "lora",
+        "developertools",
+        "opensource",
+        "ollama"
+      ],
+      "sourceFile": "MODEL-LAYERING-LINKEDIN.md",
+      "sourcePath": "docs/marketing/MODEL-LAYERING-LINKEDIN.md",
+      "href": "model-layering.html"
+    },
+    {
+      "slug": "modular-ai-composition",
+      "title": "Modular AI, Local Hardware: How Neural Junkie Routes Instead of Guessing",
+      "teaser": "Stop running one model for everything. Neural Junkie composes specialists at the orchestration layer \u2014 a small classifier picks domain and cost tier, packs declare chat/tool/LoRA stacks, and every reply shows which model actually ran.",
+      "cover": "assets/neural-junkie-modular-ai-composition-1200.png",
+      "coverWeb": "../assets/neural-junkie-modular-ai-composition-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "modularai",
+        "lora",
+        "developertools",
+        "opensource",
+        "ollama"
+      ],
+      "sourceFile": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
+      "sourcePath": "docs/marketing/MODULAR-AI-COMPOSITION-LINKEDIN.md",
+      "href": "modular-ai-composition.html"
+    },
+    {
+      "slug": "conversation-memory",
+      "title": "Your Agents Forget. Neural Junkie Remembers \u2014 Without Sending the Whole Transcript.",
+      "teaser": "Neural Junkie agents used to forget anything outside the last few messages. Conversation memory indexes your full channel history and collab artifacts locally, then pulls back only what's relevant to your latest question \u2014 no cloud vector DB, no stuffing the whole transcript into context.",
+      "cover": "assets/neural-junkie-conversation-memory-1200.png",
+      "coverWeb": "../assets/neural-junkie-conversation-memory-1200.png",
+      "topic": "chat",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "developertools",
+        "opensource",
+        "ollama",
+        "rag"
+      ],
+      "sourceFile": "CONVERSATION-MEMORY-LINKEDIN.md",
+      "sourcePath": "docs/marketing/CONVERSATION-MEMORY-LINKEDIN.md",
+      "href": "conversation-memory.html"
+    },
+    {
+      "slug": "lora",
+      "title": "One Base Model. Many Specialists. LoRA Inside Neural Junkie.",
+      "teaser": "Running five local specialists shouldn\u2019t mean five full 14B downloads. Neural Junkie composes Ollama tags from one base + small LoRA adapters \u2014 import from Hugging Face, install pack presets, or train from your own chat and collab history.",
+      "cover": "assets/neural-junkie-lora-ad-1200.png",
+      "coverWeb": "../assets/neural-junkie-lora-ad-1200.png",
+      "topic": "lora",
+      "tags": [
+        "ai",
+        "lora",
+        "localai",
+        "developertools",
+        "opensource",
+        "finetuning"
+      ],
+      "sourceFile": "LORA-LINKEDIN.md",
+      "sourcePath": "docs/marketing/LORA-LINKEDIN.md",
+      "href": "lora.html"
+    },
+    {
+      "slug": "two-tier-lora",
+      "title": "Why We Split Inference and LoRA Into Two Tiers",
+      "teaser": "We wanted one Qwen base + tiny LoRA adapters for every specialist. Ollama said no \u2014 safetensors LoRA only works on Llama/Mistral/Gemma. Here's how Neural Junkie split inference (Qwen) from train/compose (Llama) without breaking the hub.",
+      "cover": "assets/neural-junkie-two-tier-lora-1200.png",
+      "coverWeb": "../assets/neural-junkie-two-tier-lora-1200.png",
+      "topic": "lora",
+      "tags": [
+        "ai",
+        "lora",
+        "localai",
+        "ollama",
+        "developertools",
+        "opensource"
+      ],
+      "sourceFile": "TWO-TIER-LORA-LINKEDIN.md",
+      "sourcePath": "docs/marketing/TWO-TIER-LORA-LINKEDIN.md",
+      "href": "two-tier-lora.html"
+    },
+    {
+      "slug": "mcp-lora",
+      "title": "Two Layers, One Specialist: MCP Exports and LoRA in Neural Junkie",
+      "teaser": "Repo experts accumulate real value \u2014 indexed code, session Q&A, architecture notes. We export that as portable MCP packages *and* optionally fine-tune LoRA adapters from the same sessions. Same ambition, different layer: context you can share vs weights that lean local inference toward your domain.",
+      "cover": "assets/neural-junkie-mcp-lora-ad-1200.png",
+      "coverWeb": "../assets/neural-junkie-mcp-lora-ad-1200.png",
+      "topic": "lora",
+      "tags": [
+        "ai",
+        "lora",
+        "mcp",
+        "localai",
+        "developertools",
+        "opensource",
+        "finetuning"
+      ],
+      "sourceFile": "MCP-LORA-LINKEDIN.md",
+      "sourcePath": "docs/marketing/MCP-LORA-LINKEDIN.md",
+      "href": "mcp-lora.html"
+    },
+    {
+      "slug": "collaboration",
+      "title": "Multi-Agent Collaboration Is Easy to Demo. Hard to Ship.",
+      "teaser": "`/collaborate` looks like one command. Under the hood it\u2019s phases, task dependencies, workspace gates, and file approvals \u2014 while real models improvise. Here\u2019s why that\u2019s hard, and the three-layer test harness I\u2019m building so it doesn\u2019t stay a demo.",
+      "cover": "assets/neural-junkie-collaboration-ad-1080.png",
+      "coverWeb": "../assets/neural-junkie-collaboration-ad-1080.png",
+      "topic": "collaboration",
+      "tags": [
+        "ai",
+        "softwareengineering",
+        "developertools",
+        "opensource",
+        "multiagent"
+      ],
+      "sourceFile": "COLLABORATION-LINKEDIN.md",
+      "sourcePath": "docs/marketing/COLLABORATION-LINKEDIN.md",
+      "href": "collaboration.html"
+    },
+    {
+      "slug": "conversational-test-harness",
+      "title": "You Can\u2019t Unit Test a Conversation. So I Built This Instead.",
+      "teaser": "Prompts and models change weekly. Click-testing a multi-agent hub doesn\u2019t scale. Here\u2019s the three-layer harness I built for Neural Junkie \u2014 deterministic Go tests for the orchestrator, CI smoke for the pipeline, and JSON scenarios with real Ollama agents for conversation quality.",
+      "cover": "assets/neural-junkie-test-harness-ad-1200.png",
+      "coverWeb": "../assets/neural-junkie-test-harness-ad-1200.png",
+      "topic": "testing",
+      "tags": [
+        "ai",
+        "softwareengineering",
+        "testing",
+        "developertools",
+        "opensource",
+        "multiagent"
+      ],
+      "sourceFile": "CONVERSATIONAL-TEST-HARNESS.md",
+      "sourcePath": "docs/marketing/CONVERSATIONAL-TEST-HARNESS.md",
+      "href": "conversational-test-harness.html"
+    }
+  ]
+}
