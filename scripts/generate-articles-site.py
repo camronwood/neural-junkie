@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -13,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MARKETING = ROOT / "docs" / "marketing"
 OUT_DIR = ROOT / "docs" / "articles"
+COVERS_DIR = ROOT / "docs" / "media" / "articles" / "covers"
 MANIFEST = OUT_DIR / "manifest.json"
 
 # Explicit order + optional overrides (cover when not in source metadata).
@@ -160,12 +162,18 @@ def md_to_html(body: str) -> str:
     )
 
 
-def cover_web_path(cover: str) -> str:
+def publish_cover(cover: str) -> tuple[str, str]:
+    """Copy cover art into docs/media so GitHub Pages can serve it."""
     if not cover:
-        return ""
-    if cover.startswith("assets/"):
-        return "../" + cover
-    return cover
+        return "", ""
+    src = ROOT / cover
+    if not src.is_file():
+        print(f"warn: cover missing: {cover}", file=sys.stderr)
+        return "", ""
+    COVERS_DIR.mkdir(parents=True, exist_ok=True)
+    dest = COVERS_DIR / src.name
+    shutil.copy2(src, dest)
+    return cover, f"../media/articles/covers/{src.name}"
 
 
 def article_html_page(meta: dict, body_html: str) -> str:
@@ -256,17 +264,15 @@ def load_article(slug: str) -> dict | None:
 
     text = path.read_text(encoding="utf-8")
     body_md = extract_body(text)
-    cover = parse_cover(text, slug)
-    cover_path = ROOT / cover if cover else None
-    if cover and not cover_path.is_file():
-        print(f"warn: cover missing for {slug}: {cover}", file=sys.stderr)
+    cover_src = parse_cover(text, slug)
+    cover, cover_web = publish_cover(cover_src)
 
     return {
         "slug": slug,
         "title": parse_title(text),
         "teaser": parse_teaser(text),
-        "cover": cover if cover_path and cover_path.is_file() else "",
-        "coverWeb": cover_web_path(cover) if cover_path and cover_path.is_file() else "",
+        "cover": cover,
+        "coverWeb": cover_web,
         "topic": TOPIC_BY_SLUG.get(slug, "general"),
         "tags": parse_tags(text),
         "sourceFile": source_name,

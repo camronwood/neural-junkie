@@ -8,4 +8,5 @@ if [[ ! -x "$PY" ]]; then
   python3 -m venv "${ROOT}/.venv-icon"
   "${ROOT}/.venv-icon/bin/pip" install -q markdown
 fi
-exec "$PY" "${ROOT}/scripts/generate-articles-site.py"
+"$PY" "${ROOT}/scripts/generate-articles-site.py"
+echo "Articles ready — covers in docs/media/articles/covers/, pages in docs/articles/"
