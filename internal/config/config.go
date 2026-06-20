@@ -173,7 +173,7 @@ func DefaultConfig() *Config {
 		},
 		Implementation: ImplementationConfig{
 			RoutingEnabled:  true,
-			LocalToolModel:  "qwen3.5:9b",
+			LocalToolModel:  "qwen2.5-coder:14b",
 		},
 		Delegation: DefaultDelegationConfig(),
 		Routing:    DefaultRoutingConfig(),

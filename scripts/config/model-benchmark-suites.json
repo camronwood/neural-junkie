@@ -1,4 +1,21 @@
 {
+  "release": {
+    "description": "Release gate — benchmark winners only (~10–20 min).",
+    "max_params_b": 24,
+    "models": [
+      "qwen2.5-coder:14b",
+      "gemma3:12b"
+    ],
+    "implement": [
+      "go-handler",
+      "theme-toggle",
+      "ask-mode-no-write"
+    ],
+    "chat": [
+      "dm-backend-workspace",
+      "dm-backend-echo-followup"
+    ]
+  },
   "quick": {
     "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on ≤24B class).",
     "max_params_b": 24,

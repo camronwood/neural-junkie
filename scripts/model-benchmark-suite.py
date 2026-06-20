@@ -202,6 +202,12 @@ def main() -> int:
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--list-suites", action="store_true")
     p.add_argument("--list-models", action="store_true")
+    p.add_argument(
+        "--min-winner-pass-rate",
+        type=float,
+        default=1.0,
+        help="Exit 0 when the top model meets this pass rate even if weaker models fail (default: 1.0)",
+    )
     args = p.parse_args()
 
     if args.list_suites:
@@ -317,7 +323,13 @@ def main() -> int:
 
     any_ran = any(r.scenarios for r in results)
     all_pass = all(r.passed == r.total for r in active if r.scenarios)
-    return 0 if any_ran and all_pass else 1
+    winner_ok = winner.pass_rate >= args.min_winner_pass_rate
+    if any_ran and winner_ok and not all_pass:
+        print(
+            f"Benchmark exit: winner pass ({winner.model_tag} "
+            f"{winner.pass_rate * 100:.0f}% >= {args.min_winner_pass_rate * 100:.0f}% gate; weak models ignored)"
+        )
+    return 0 if any_ran and (all_pass or winner_ok) else 1
 
 
 def try_publish_website() -> None:

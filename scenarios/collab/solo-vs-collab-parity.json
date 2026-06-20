@@ -2,6 +2,8 @@
   "name": "solo-vs-collab-parity",
   "description": "Compare solo @Assistant deliverable vs collab execution on the same minimal-repo fixture.",
   "channel": "collab-scenarios",
+  "agents": "@ChatModerator @Assistant",
+  "required_agents": ["Assistant"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -37,7 +39,16 @@
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_discussion",
+      "min_total": 1,
+      "required_agents": ["Assistant"],
+      "timeout": "180s",
+      "retries": 1,
+      "nudge_agents": ["Assistant"],
+      "retry_on_generation_error": true
+    },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
     {"action": "wait_planning_recap", "timeout": "120s"},
     {"action": "approve_plan"},

@@ -9,7 +9,10 @@ import subprocess
 import time
 from pathlib import Path
 
-from lib.gemini_rate_limit import throttle_gemini_api_call
+try:
+    from lib.gemini_rate_limit import throttle_gemini_api_call
+except ImportError:
+    from gemini_rate_limit import throttle_gemini_api_call  # type: ignore[no-redef]
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_HEADLESS_HOME = ROOT / "scripts" / "gemini-headless-home"

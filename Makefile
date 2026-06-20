@@ -159,6 +159,11 @@ collab-sweep-serial: ## Run collab scenarios one-by-one; stop on FAIL (RESUME=1 
 	@RETRIES=$(or $(RETRIES),1) RESUME=$(RESUME) ONLY="$(ONLY)" VERBOSE=$(VERBOSE) \
 		./scripts/collab-sweep-serial.sh
 
+collab-failure-repro: ## Serial repro for known collab failure scenarios (RESTART_HUB=1 VERBOSE=1)
+	@chmod +x scripts/collab-failure-repro.sh
+	@RESTART_HUB=$(or $(RESTART_HUB),0) VERBOSE=$(VERBOSE) STOP_ON_FAIL=$(or $(STOP_ON_FAIL),1) \
+		./scripts/collab-failure-repro.sh $(ONLY)
+
 collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-agent template)
 	@chmod +x scripts/collab-scenario-matrix.sh
 	@./scripts/collab-scenario-matrix.sh
@@ -217,8 +222,8 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && python3 -m unittest scenario_assert_test.py scenario_contract_test.py
-	@python3 scripts/lib/scenario_contract.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py
+	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
 	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make chat-scenario SCENARIO=greeting-chat-mode [VERBOSE=1] [KEEP=1]"; exit 1; fi
@@ -572,7 +577,9 @@ ensure-lora-deps: ## Ensure LoRA training venv exists (install once)
 
 pull-models: ## Pull required Ollama models (code tier + utility tier + LoRA bases)
 	@echo "📥 Pulling Ollama models..."
-	@echo "  Code tier: qwen3.5:27b (~17GB)..."
+	@echo "  Code tier: qwen2.5-coder:14b (~9GB)..."
+	@ollama pull qwen2.5-coder:14b
+	@echo "  Code tier (large): qwen3.5:27b (~17GB)..."
 	@ollama pull qwen3.5:27b
 	@echo "  Utility tier: qwen3.5:9b (~6.6GB)..."
 	@ollama pull qwen3.5:9b

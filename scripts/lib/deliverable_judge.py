@@ -13,12 +13,15 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from lib.gemini_rate_limit import throttle_gemini_api_call
+try:
+    from lib.gemini_rate_limit import throttle_gemini_api_call
+except ImportError:
+    from gemini_rate_limit import throttle_gemini_api_call  # type: ignore[no-redef]
 
 DEFAULT_JUDGE_PROVIDER = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
 DEFAULT_JUDGE_AGENT = os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT", "").strip()
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
-DEFAULT_OLLAMA_MODEL = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen3.5:9b")
+DEFAULT_OLLAMA_MODEL = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen2.5-coder:14b")
 JUDGE_MAX_CHARS = int(os.environ.get("NJ_DELIVERABLE_JUDGE_MAX_CHARS", "12000"))
 JUDGE_TIMEOUT_S = float(os.environ.get("NJ_DELIVERABLE_JUDGE_TIMEOUT", "180"))
 JUDGE_DM_USER = os.environ.get("NJ_DELIVERABLE_JUDGE_DM_USER", "DeliverableJudge").strip()
@@ -128,7 +131,8 @@ def build_judge_prompt(
         f'The deliverable file is "{rel_path}" with this content:\n---\n'
         f"{body}\n"
         f"---{extra}\n\n"
-        "Reject stubs, placeholders, unrelated boilerplate, or wrong-stack artifacts.\n\n"
+        "Reject stubs, placeholders, unrelated boilerplate, or wrong-stack artifacts.\n"
+        "Judge the deliverable file on substance and correctness, not whether it repeats the user's error log.\n\n"
         "Reply with exactly two lines:\n"
         "Line 1: PASS or FAIL\n"
         "Line 2: one short reason"

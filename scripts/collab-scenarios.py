@@ -258,6 +258,20 @@ def _nudge_discussion_agents(ctx: ScenarioContext, names: list) -> None:
         ctx.log(f"  nudge: {msg}")
 
 
+def _generation_error_agents(msgs: list[dict]) -> list[str]:
+    names: list[str] = []
+    for m in msgs:
+        if (m.get("type") or "") != "collaboration_discussion":
+            continue
+        meta = m.get("metadata") or {}
+        if not (meta.get("generation_error") or meta.get("error_code")):
+            continue
+        who = (m.get("from") or {}).get("name", "").strip()
+        if who and who not in names:
+            names.append(who)
+    return names
+
+
 def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     timeout = hub.parse_timeout(step.get("timeout", 90))
     min_total = int(step.get("min_total", 1))
@@ -266,13 +280,26 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     required = step.get("required_agents") or ctx.scenario.get("required_agents") or []
     retries = max(0, int(step.get("retries", 0)))
     nudge_agents = step.get("nudge_agents") or []
+    retry_on_gen_error = bool(step.get("retry_on_generation_error", True))
 
     for attempt in range(retries + 1):
         deadline = time.time() + timeout
+        gen_error_nudged: set[str] = set()
         while time.time() < deadline:
-            msgs = hub.agent_messages(hub.list_messages(ctx.base, ctx.collab_channel, 200))
+            raw_msgs = hub.list_messages(ctx.base, ctx.collab_channel, 200)
+            msgs = hub.agent_messages(raw_msgs)
             counts = hub.count_by_agent(msgs)
             total = len(msgs)
+            if retry_on_gen_error:
+                err_agents = _generation_error_agents(raw_msgs)
+                fresh = [a for a in err_agents if a not in gen_error_nudged]
+                if fresh:
+                    gen_error_nudged.update(fresh)
+                    ctx.log(f"  wait_discussion: generation_error from {fresh}; nudging")
+                    _nudge_discussion_agents(ctx, fresh)
+                    deadline = min(deadline + 60.0, time.time() + timeout * 1.5)
+                    time.sleep(3)
+                    continue
             if _discussion_requirements_met(
                 counts, total, min_total=min_total, min_per=min_per, required_agents=required
             ):
@@ -392,12 +419,27 @@ def step_assert_messages(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
             return False, f"file_change after cancel from {who}"
 
     if step.get("deny_generation_errors"):
+        allow_recovered = bool(step.get("allow_recovered_generation_errors"))
+        errored: set[str] = set()
+        recovered: set[str] = set()
         for m in pool:
             meta = m.get("metadata") or {}
+            who = (m.get("from") or {}).get("name", "?")
             if meta.get("generation_error") or meta.get("error_code"):
-                who = (m.get("from") or {}).get("name", "?")
-                code = meta.get("error_code") or "generation_error"
-                return False, f"generation error from {who}: {code}"
+                errored.add(who)
+            elif who != "?":
+                recovered.add(who)
+        if allow_recovered:
+            errored = {a for a in errored if a not in recovered}
+        for m in pool:
+            meta = m.get("metadata") or {}
+            if not (meta.get("generation_error") or meta.get("error_code")):
+                continue
+            who = (m.get("from") or {}).get("name", "?")
+            if allow_recovered and who in recovered:
+                continue
+            code = meta.get("error_code") or "generation_error"
+            return False, f"generation error from {who}: {code}"
 
     return True, "message assertions ok"
 
@@ -919,6 +961,20 @@ def run_scenario(
                 print("  Start hub with CLI agents or set NJ_COLLAB_SCENARIO_AGENTS", file=sys.stderr)
                 return False
 
+        collab_agents = hub.collaborate_agent_names(scenario, agents)
+        if collab_agents:
+            ok_collab, missing_collab = hub.verify_agents_online(base, collab_agents)
+            if not ok_collab:
+                if scenario.get("optional"):
+                    print(f"  SKIP (optional): collaborate agents offline: {', '.join(missing_collab)}")
+                    return True
+                print(
+                    f"  FAIL: collaborate agents offline: {', '.join(missing_collab)}",
+                    file=sys.stderr,
+                )
+                print(f"  collaborate roster: {', '.join(collab_agents)}", file=sys.stderr)
+                return False
+
         if not hub.free_scenario_capacity(base, channel):
             print("  FAIL: collab capacity full", file=sys.stderr)
             return False
@@ -954,6 +1010,9 @@ def run_scenario(
         cleanup = scenario.get("cleanup", "cancel")
         if cleanup == "cancel":
             cleanup_scenario_collabs(base, ctx, keep=keep)
+        elif ctx.collab_id and ctx.collab_channel:
+            # Scenarios with cleanup "none" still free channel capacity for later runs.
+            hub.free_scenario_capacity(base, ctx.channel)
 
 
 def main() -> int:

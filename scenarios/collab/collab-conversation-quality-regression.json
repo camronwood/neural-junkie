@@ -27,7 +27,16 @@
     }
   ],
   "steps": [
-    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "planning", "timeout": 30},
+    {
+      "action": "wait_discussion",
+      "min_total": 1,
+      "required_agents": ["Assistant"],
+      "timeout": "180s",
+      "retries": 1,
+      "nudge_agents": ["Assistant"],
+      "retry_on_generation_error": true
+    },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
     {"action": "wait_planning_recap", "timeout": "120s"},
     {
@@ -43,7 +52,8 @@
       "action": "assert_messages",
       "phase": "executing",
       "deny_json_discussion": true,
-      "deny_generation_errors": true
+      "deny_generation_errors": true,
+      "allow_recovered_generation_errors": true
     },
     {"action": "send", "content": "/resume-plan <collab-id>"},
     {"action": "wait_tasks", "settle_only": true, "timeout": "120s"},

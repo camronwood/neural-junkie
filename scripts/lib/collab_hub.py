@@ -585,6 +585,32 @@ def resolve_agents(profile: str | None, override: str | None) -> str:
     return AGENT_PROFILES.get(key, AGENT_PROFILES["fast"])
 
 
+def parse_agent_mentions(text: str) -> list[str]:
+    """Extract @AgentName tokens from collaborate command or goal text."""
+    if not text:
+        return []
+    names: list[str] = []
+    seen: set[str] = set()
+    for match in re.finditer(r"@([A-Za-z][A-Za-z0-9_-]*)", text):
+        name = match.group(1).strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
+def collaborate_agent_names(scenario: dict, agents: str) -> list[str]:
+    """Agent roster from explicit scenario agents string and required_agents."""
+    names = parse_agent_mentions(agents)
+    required = scenario.get("required_agents") or []
+    if isinstance(required, list):
+        for raw in required:
+            name = str(raw).strip().lstrip("@")
+            if name and name not in names:
+                names.append(name)
+    return names
+
+
 def parse_timeout(value: float | int | str, default: float = 90) -> float:
     if isinstance(value, (int, float)):
         return float(value)
