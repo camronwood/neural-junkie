@@ -56,8 +56,69 @@
   --text-secondary: var(--nj-text-muted);
 }
 
-html {
+/* Roving — warm cream, peach & lavender (light) */
+[data-theme='roving'] {
+  --nj-bg: #f9f7f2;
+  --nj-bg-hover: #f0ebe3;
+  --nj-text: #3b2f3d;
+  --nj-text-muted: #6e6270;
+  --nj-accent: #9b7fa8;
+  --nj-accent-hover: #856b91;
+  --nj-success: #4a8f6e;
+  --nj-border: #e5ddd4;
+  --nj-surface-elevated: #ffffff;
+  --nj-header-accent: #c9a090;
+  --nj-scrollbar-thumb-hover: #c4b8ae;
+  --nj-slider-track: #ebe4db;
+  --nj-prose-text: #3b2f3d;
+  --nj-prose-heading: #2a212c;
+  --nj-prose-muted: #6e6270;
+  --nj-prose-link: #856b91;
+  --nj-prose-link-hover: #9b7fa8;
+  --nj-prose-code-bg: #f5d5c3;
+  --nj-prose-pre-bg: #f0ebe3;
+  --nj-prose-border: #e5ddd4;
+  --nj-prose-img-border: #d8c9de;
+  --text-primary: var(--nj-text);
+  --text-secondary: var(--nj-text-muted);
+}
+
+/* Brand — neuraljunkie.com coral on charcoal (dark) */
+[data-theme='brand'] {
+  --nj-bg: #1a161a;
+  --nj-bg-hover: #252028;
+  --nj-text: #ffffff;
+  --nj-text-muted: #a098a0;
+  --nj-accent: #f44a69;
+  --nj-accent-hover: #e03355;
+  --nj-success: #34d399;
+  --nj-border: #2d262d;
+  --nj-surface-elevated: #120d11;
+  --nj-header-accent: #ff5a79;
+  --nj-scrollbar-thumb-hover: #4a424a;
+  --nj-slider-track: #252028;
+  --nj-prose-text: #ffffff;
+  --nj-prose-heading: #ffffff;
+  --nj-prose-muted: #a098a0;
+  --nj-prose-link: #ff5a79;
+  --nj-prose-link-hover: #f44a69;
+  --nj-prose-code-bg: #252028;
+  --nj-prose-pre-bg: #120d11;
+  --nj-prose-border: #2d262d;
+  --nj-prose-img-border: #2d262d;
+  --text-primary: var(--nj-text);
+  --text-secondary: var(--nj-text-muted);
+}
+
+html,
+[data-theme='slack'],
+[data-theme='flat'],
+[data-theme='brand'] {
   color-scheme: dark;
+}
+
+[data-theme='roving'] {
+  color-scheme: light;
 }
 
 /* IDE v2 inline diff hunks (Monaco decorations) */

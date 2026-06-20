@@ -28,6 +28,56 @@ function mermaidInitForTheme(theme: ColorTheme): void {
     });
     return;
   }
+  if (theme === 'roving') {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      securityLevel: 'strict',
+      fontFamily: 'ui-monospace, monospace',
+      themeVariables: {
+        darkMode: false,
+        background: '#f9f7f2',
+        primaryColor: '#f0ebe3',
+        primaryTextColor: '#3b2f3d',
+        primaryBorderColor: '#e5ddd4',
+        lineColor: '#9b7fa8',
+        secondaryColor: '#f5d5c3',
+        tertiaryColor: '#ffffff',
+        nodeTextColor: '#3b2f3d',
+        mainBkg: '#ffffff',
+        nodeBorder: '#9b7fa8',
+        clusterBkg: '#f0ebe3',
+        titleColor: '#856b91',
+        edgeLabelBackground: '#f9f7f2',
+      },
+    });
+    return;
+  }
+  if (theme === 'brand') {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      securityLevel: 'strict',
+      fontFamily: 'ui-monospace, monospace',
+      themeVariables: {
+        darkMode: true,
+        background: '#1a161a',
+        primaryColor: '#252028',
+        primaryTextColor: '#ffffff',
+        primaryBorderColor: '#2d262d',
+        lineColor: '#f44a69',
+        secondaryColor: '#120d11',
+        tertiaryColor: '#252028',
+        nodeTextColor: '#ffffff',
+        mainBkg: '#252028',
+        nodeBorder: '#f44a69',
+        clusterBkg: '#120d11',
+        titleColor: '#ff5a79',
+        edgeLabelBackground: '#1a161a',
+      },
+    });
+    return;
+  }
   mermaid.initialize({
     startOnLoad: false,
     theme: 'dark',

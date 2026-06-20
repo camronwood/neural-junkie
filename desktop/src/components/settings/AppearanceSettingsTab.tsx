@@ -44,6 +44,20 @@ export function AppearanceSettingsTab({ isActive }: SettingsTabProps) {
               previewBg: '#0d0d1a',
               previewAccent: '#a78bfa',
             },
+            {
+              id: 'roving' as const,
+              label: 'Roving',
+              description: 'Warm cream, peach & lavender light UI',
+              previewBg: '#f9f7f2',
+              previewAccent: '#d8c9de',
+            },
+            {
+              id: 'brand' as const,
+              label: 'Brand',
+              description: 'Website coral on charcoal dark UI',
+              previewBg: '#1a161a',
+              previewAccent: '#f44a69',
+            },
           ] as const
         ).map((option) => (
           <label
