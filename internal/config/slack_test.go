@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestSlackConfigEffectiveDisplayName(t *testing.T) {
 	empty := SlackConfig{}
@@ -26,7 +29,23 @@ func TestSlackConfigEffectiveDefaultPolicy(t *testing.T) {
 	}
 }
 
+func TestSlackDisabledByEnv(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_SLACK_DISABLED", "1")
+	t.Setenv("NEURAL_JUNKIE_SLACK_ENABLED", "")
+	if !SlackDisabledByEnv() {
+		t.Fatal("expected disabled")
+	}
+	t.Setenv("NEURAL_JUNKIE_SLACK_DISABLED", "")
+	t.Setenv("NEURAL_JUNKIE_SLACK_ENABLED", "0")
+	if !SlackDisabledByEnv() {
+		t.Fatal("expected disabled via ENABLED=0")
+	}
+}
+
 func TestSlackConfigSlackReady(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_SLACK_DISABLED", "")
+	t.Setenv("NEURAL_JUNKIE_SLACK_ENABLED", "")
+
 	ready := SlackConfig{Enabled: true, AppToken: "xapp", BotToken: "xoxb"}
 	if !ready.SlackReady() {
 		t.Fatal("expected ready")
@@ -39,4 +58,26 @@ func TestSlackConfigSlackReady(t *testing.T) {
 	if disabled.SlackReady() {
 		t.Fatal("disabled")
 	}
+
+	t.Setenv("NEURAL_JUNKIE_SLACK_DISABLED", "1")
+	if ready.SlackReady() {
+		t.Fatal("expected env disable to block ready config")
+	}
+	t.Setenv("NEURAL_JUNKIE_SLACK_DISABLED", "")
+}
+
+func TestMergeEnvVarsDisablesSlack(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_SLACK_DISABLED", "1")
+	cfg := DefaultConfig()
+	cfg.Slack.Enabled = true
+	cfg.Slack.AppToken = "xapp-test"
+	cfg.Slack.BotToken = "xoxb-test"
+	cfg.mergeEnvVars()
+	if cfg.Slack.Enabled {
+		t.Fatal("mergeEnvVars should force Slack.Enabled false when disabled")
+	}
+	if cfg.Slack.SlackReady() {
+		t.Fatal("SlackReady should be false when disabled")
+	}
+	os.Unsetenv("NEURAL_JUNKIE_SLACK_DISABLED")
 }

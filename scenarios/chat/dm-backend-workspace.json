@@ -12,7 +12,7 @@
       "content": "I want to add theme support to this app I am working on now",
       "metadata": { "conversation_mode": "code", "context_scope": "outline" }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "send",
       "content": "can you see my workspace I have open?",

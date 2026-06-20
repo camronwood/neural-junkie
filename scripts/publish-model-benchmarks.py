@@ -12,7 +12,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TESTING_DIR = ROOT / "docs" / "testing"
 DATA_PATH = ROOT / "docs" / "data" / "model-benchmarks.json"
+PROFILES_PATH = ROOT / "docs" / "data" / "model-capability-profiles.json"
+EMBED_PROFILES_PATH = ROOT / "internal" / "routing" / "capabilities" / "data" / "capability_profiles.json"
 RUN_RE = re.compile(r"^model-benchmark-(.+)-(\d{4}-\d{2}-\d{2}-\d{4})\.json$")
+
+import sys
+
+sys.path.insert(0, str(ROOT / "scripts"))
+from lib.model_benchmark import (  # noqa: E402
+    derive_capability_profiles,
+    load_models,
+    write_capability_profiles,
+)
 
 DEFAULT_CATALOG: dict = {
     "about": (
@@ -23,7 +34,7 @@ DEFAULT_CATALOG: dict = {
     "methodology_url": "https://github.com/camronwood/neural-junkie/blob/main/docs/testing/MODEL_BENCHMARK.md",
     "suites": {
         "quick": {
-            "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on 14B class).",
+            "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on ≤24B class).",
             "implement_scenarios": [
                 "go-handler",
                 "theme-toggle",
@@ -111,6 +122,21 @@ def publish(*, testing_dir: Path, data_path: Path, only: str | None = None) -> i
     data_path.parent.mkdir(parents=True, exist_ok=True)
     data_path.write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
     print(f"Published {added} new run(s) → {data_path} ({len(catalog['runs'])} total)")
+
+    try:
+        profiles = derive_capability_profiles(catalog, load_models())
+        write_capability_profiles(
+            profiles,
+            docs_path=PROFILES_PATH,
+            embed_path=EMBED_PROFILES_PATH,
+        )
+        print(
+            f"  capability profiles → {PROFILES_PATH.name} "
+            f"(source {profiles.get('source_run_id')})"
+        )
+    except ValueError as exc:
+        print(f"  capability profiles skipped: {exc}")
+
     return added
 
 

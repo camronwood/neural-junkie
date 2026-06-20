@@ -3,8 +3,12 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -65,5 +69,34 @@ func TestMcpServerFromInterface(t *testing.T) {
 	stub := &stubMCP{srv: srv}
 	if mcpServerFromInterface(stub) != srv {
 		t.Fatal("expected same server instance")
+	}
+}
+
+func TestFormatCallToolResult_compressesLargeGrep(t *testing.T) {
+	enabled := true
+	ai.SetHubRuntimeOptions(
+		config.PerformanceConfig{
+			ContextCompressEnabled:      &enabled,
+			ContextCompressMaxToolBytes: 2000,
+		},
+		config.OllamaConfig{},
+	)
+	contextcompress.SetDefaultStore(contextcompress.NewStore(50, 60, ""))
+	t.Cleanup(func() { contextcompress.SetDefaultStore(nil) })
+
+	var lines []string
+	for i := 0; i < 400; i++ {
+		lines = append(lines, "file.go:1:match")
+	}
+	raw := strings.Join(lines, "\n")
+	ctx := contextcompress.WithCompressContext(context.Background(), "test-ch", "call-1")
+	out := formatCallToolResult(ctx, "grep", &mcpgo.CallToolResult{
+		Content: []mcpgo.Content{mcpgo.TextContent{Type: "text", Text: raw}},
+	})
+	if len(out) >= len(raw) {
+		t.Fatalf("expected compression, got len %d", len(out))
+	}
+	if !strings.Contains(out, "ctx-") {
+		t.Fatal("expected ref marker")
 	}
 }

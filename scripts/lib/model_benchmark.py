@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import time
@@ -77,6 +78,66 @@ def load_models(config_path: Path | None = None) -> list[dict[str, Any]]:
     if not isinstance(models, list):
         raise ValueError("models config must contain a models array")
     return [m for m in models if isinstance(m, dict) and (m.get("tag") or "").strip()]
+
+
+def model_params_b(model: dict[str, Any]) -> float | None:
+    raw = model.get("params_b")
+    if raw is not None:
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+    tag = str(model.get("tag") or "")
+    match = re.search(r":(\d+(?:\.\d+)?)b\b", tag, re.I)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+def filter_models_by_max_params(
+    models: list[dict[str, Any]],
+    max_params_b: float,
+    *,
+    allow_unknown: bool = False,
+) -> list[dict[str, Any]]:
+    """Drop models above max_params_b (and unknown sizes unless allow_unknown)."""
+    kept: list[dict[str, Any]] = []
+    for model in models:
+        params = model_params_b(model)
+        if params is None:
+            if allow_unknown:
+                kept.append(model)
+            continue
+        if params <= max_params_b:
+            kept.append(model)
+    return kept
+
+
+def resolve_suite_max_params_b(suite: dict[str, Any], config_path: Path | None = None) -> float:
+    raw = suite.get("max_params_b")
+    if raw is not None:
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            pass
+    data = load_json_config(config_path or MODELS_CONFIG)
+    default = data.get("max_params_b_default")
+    if default is not None:
+        try:
+            return float(default)
+        except (TypeError, ValueError):
+            pass
+    return 24.0
+
+
+def resolve_suite_model_tags(suite: dict[str, Any]) -> list[str]:
+    raw = suite.get("models") or []
+    if not isinstance(raw, list):
+        return []
+    return [str(x).strip() for x in raw if str(x).strip()]
 
 
 def load_suite(name: str, config_path: Path | None = None) -> dict[str, Any]:
@@ -371,3 +432,161 @@ def write_reports(
             )
     tsv_path.write_text("\n".join(tsv_lines) + "\n", encoding="utf-8")
     return md_path, json_path, tsv_path
+
+
+def _roster_by_tag(roster: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for model in roster:
+        tag = str(model.get("tag") or "").strip()
+        if tag:
+            out[tag] = model
+    return out
+
+
+def _model_rank_key(result: dict[str, Any], *, kind: str | None = None) -> tuple[float, int, float]:
+    scenarios = result.get("scenarios") or []
+    if kind:
+        scenarios = [s for s in scenarios if isinstance(s, dict) and s.get("kind") == kind]
+    total = len(scenarios)
+    passed = sum(1 for s in scenarios if isinstance(s, dict) and s.get("passed"))
+    rate = passed / total if total else 0.0
+    duration = float(result.get("total_duration_s") or 0.0)
+    return (rate, passed, -duration)
+
+
+def _scenario_map(result: dict[str, Any]) -> dict[str, bool]:
+    out: dict[str, bool] = {}
+    for s in result.get("scenarios") or []:
+        if not isinstance(s, dict):
+            continue
+        kind = str(s.get("kind") or "").strip()
+        name = str(s.get("name") or "").strip()
+        if kind and name:
+            out[f"{kind}/{name}"] = bool(s.get("passed"))
+    return out
+
+
+def _pass_rates(result: dict[str, Any]) -> tuple[float, float, float]:
+    scenarios = [s for s in (result.get("scenarios") or []) if isinstance(s, dict)]
+    impl = [s for s in scenarios if s.get("kind") == "implement"]
+    chat = [s for s in scenarios if s.get("kind") == "chat"]
+    impl_rate = sum(1 for s in impl if s.get("passed")) / len(impl) if impl else 0.0
+    chat_rate = sum(1 for s in chat if s.get("passed")) / len(chat) if chat else 0.0
+    overall = sum(1 for s in scenarios if s.get("passed")) / len(scenarios) if scenarios else 0.0
+    return impl_rate, chat_rate, overall
+
+
+def latest_quick_run(catalog: dict[str, Any]) -> dict[str, Any] | None:
+    runs = [r for r in (catalog.get("runs") or []) if isinstance(r, dict)]
+    quick = [r for r in runs if str(r.get("suite") or "").strip() == "quick"]
+    if not quick:
+        return None
+    quick.sort(key=lambda r: r.get("generated_at") or "", reverse=True)
+    return quick[0]
+
+
+def derive_capability_profiles(
+    catalog: dict[str, Any],
+    roster: list[dict[str, Any]] | None = None,
+    *,
+    suite: str = "quick",
+) -> dict[str, Any]:
+    """Build ranked model lists per task class from the latest benchmark run."""
+    roster = roster if roster is not None else load_models()
+    roster_tags = {str(m.get("tag") or "").strip() for m in roster if str(m.get("tag") or "").strip()}
+    roster_map = _roster_by_tag(roster)
+
+    run = latest_quick_run(catalog) if suite == "quick" else None
+    if run is None:
+        runs = [r for r in (catalog.get("runs") or []) if isinstance(r, dict) and r.get("suite") == suite]
+        runs.sort(key=lambda r: r.get("generated_at") or "", reverse=True)
+        run = runs[0] if runs else None
+    if run is None:
+        raise ValueError(f"no benchmark run found for suite {suite!r}")
+
+    active = [
+        r
+        for r in (run.get("results") or [])
+        if isinstance(r, dict)
+        and not r.get("skipped")
+        and str(r.get("model_tag") or "").strip() in roster_tags
+    ]
+
+    def rank_tags(*, kind: str | None = None, params_max: float | None = None, params_min: float | None = None) -> list[str]:
+        candidates = active
+        if params_max is not None or params_min is not None:
+            filtered: list[dict[str, Any]] = []
+            for r in candidates:
+                tag = str(r.get("model_tag") or "").strip()
+                params = model_params_b(roster_map.get(tag, {"tag": tag}))
+                if params is None:
+                    continue
+                if params_max is not None and params > params_max:
+                    continue
+                if params_min is not None and params <= params_min:
+                    continue
+                filtered.append(r)
+            candidates = filtered
+        ranked = sorted(candidates, key=lambda r: _model_rank_key(r, kind=kind), reverse=True)
+        return [str(r.get("model_tag") or "").strip() for r in ranked if str(r.get("model_tag") or "").strip()]
+
+    def ask_mode_rank() -> list[str]:
+        passed = [
+            r
+            for r in active
+            if _scenario_map(r).get("implement/ask-mode-no-write") is True
+        ]
+        rest = [r for r in active if r not in passed]
+        ordered = sorted(passed, key=lambda r: _model_rank_key(r, kind="implement"), reverse=True)
+        ordered += sorted(rest, key=lambda r: _model_rank_key(r, kind="implement"), reverse=True)
+        seen: set[str] = set()
+        out: list[str] = []
+        for r in ordered:
+            tag = str(r.get("model_tag") or "").strip()
+            if tag and tag not in seen:
+                seen.add(tag)
+                out.append(tag)
+        return out
+
+    model_scores: dict[str, Any] = {}
+    for r in active:
+        tag = str(r.get("model_tag") or "").strip()
+        if not tag:
+            continue
+        impl_rate, chat_rate, overall = _pass_rates(r)
+        params = model_params_b(roster_map.get(tag, {"tag": tag}))
+        model_scores[tag] = {
+            "implement_pass_rate": round(impl_rate, 4),
+            "chat_pass_rate": round(chat_rate, 4),
+            "overall_pass_rate": round(overall, 4),
+            "params_b": params,
+            "scenarios": _scenario_map(r),
+        }
+
+    return {
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "source_run_id": str(run.get("id") or ""),
+        "source_suite": str(run.get("suite") or suite),
+        "task_classes": {
+            "implement": rank_tags(kind="implement"),
+            "chat": rank_tags(kind="chat"),
+            "collab_light": rank_tags(params_max=9.0),
+            "utility": rank_tags(params_max=9.0),
+            "ask_mode": ask_mode_rank(),
+            "implement_heavy": rank_tags(kind="implement", params_min=14.0),
+        },
+        "model_scores": model_scores,
+    }
+
+
+def write_capability_profiles(
+    profiles: dict[str, Any],
+    *,
+    docs_path: Path,
+    embed_path: Path,
+) -> None:
+    payload = json.dumps(profiles, indent=2) + "\n"
+    docs_path.parent.mkdir(parents=True, exist_ok=True)
+    docs_path.write_text(payload, encoding="utf-8")
+    embed_path.parent.mkdir(parents=True, exist_ok=True)
+    embed_path.write_text(payload, encoding="utf-8")

@@ -1,10 +1,12 @@
 {
-  "description": "Default local coder models for NJ live benchmarks (~5–15 GB class), including Qwen, Mistral, DeepSeek, and Google Gemma.",
+  "description": "Local coder models for NJ live benchmarks. Release gates use max_params_b=24 (nothing larger than 24B).",
+  "max_params_b_default": 24,
   "models": [
     {
       "id": "qwen2.5-coder-14b",
       "tag": "qwen2.5-coder:14b",
       "title": "Qwen 2.5 Coder 14B",
+      "params_b": 14,
       "size_hint_gb": 9,
       "notes": "NJ historical specialist default; strong tool loops"
     },
@@ -12,20 +14,23 @@
       "id": "codestral-22b",
       "tag": "codestral:22b",
       "title": "Codestral 22B",
+      "params_b": 22,
       "size_hint_gb": 13,
-      "notes": "Mistral code model; NJ treats codestral as dedicated coder"
+      "notes": "Mistral code model; included in default ≤24B benchmarks"
     },
     {
       "id": "devstral-24b",
       "tag": "devstral:24b",
       "title": "Devstral 24B",
+      "params_b": 24,
       "size_hint_gb": 14,
-      "notes": "Mistral agentic coding model; needs ~32 GB RAM for comfort"
+      "notes": "Mistral dev/agent model; included in default ≤24B benchmarks"
     },
     {
       "id": "qwen3.5-9b",
       "tag": "qwen3.5:9b",
       "title": "Qwen 3.5 9B",
+      "params_b": 9,
       "size_hint_gb": 6.6,
       "notes": "Fast modern baseline; also used as NJ utility/tool tier"
     },
@@ -33,6 +38,7 @@
       "id": "deepseek-coder-6.7b",
       "tag": "deepseek-coder:6.7b",
       "title": "DeepSeek Coder 6.7B",
+      "params_b": 6.7,
       "size_hint_gb": 3.8,
       "notes": "Lightweight coder reference"
     },
@@ -40,6 +46,7 @@
       "id": "codegemma-7b",
       "tag": "codegemma:7b",
       "title": "CodeGemma 7B",
+      "params_b": 7,
       "size_hint_gb": 5,
       "notes": "Google code-focused instruct model; fill-in-middle and codegen"
     },
@@ -47,6 +54,7 @@
       "id": "gemma3-12b",
       "tag": "gemma3:12b",
       "title": "Gemma 3 12B",
+      "params_b": 12,
       "size_hint_gb": 8.1,
       "notes": "Google Gemma 3 mid-tier; strong reasoning and MBPP/HumanEval class"
     }

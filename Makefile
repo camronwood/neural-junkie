@@ -107,17 +107,17 @@ slack-smoke: ## Slack integration + hub /api/slack handler smoke (CI-safe; LIVE=
 	fi
 
 collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, agents, scenario list)
-	@python3 scripts/collab-preflight.py $(if $(REQUIRE_GEMINI),--require-gemini,)
+	@bash -c 'source load-env.sh && python3 scripts/collab-preflight.py $(if $(REQUIRE_GEMINI),--require-gemini,)'
 
 test-regression-live: ## Print pre-release live regression checklist (does not start hub)
 	@echo "Pre-release live regression (see docs/TESTING.md):"
 	@echo ""
-	@echo "  make release-prep                 # one-shot: test-everything-full + parity + benchmark → release-prep-*.md"
+	@echo "  make release-prep                 # one-shot: env+Gemini judge + test-everything-full + parity + benchmark"
 	@echo "  make test-everything              # CI + live harness; review docs/testing/test-everything-*.md"
 	@echo "  make test-everything-full         # above + all collab scenarios (~1-3h extra)"
 	@echo ""
 	@echo "  0. ollama serve  &&  make pull-benchmark-models   # quick suite, ≤24B models"
-	@echo "  0b. make server-regression && make collab-preflight"
+	@echo "  0b. make release-prep             # auto-loads .gemini-api-key, verifies hub judge, runs full gate"
 	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
 	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
 	@echo "  3. make test-regression-bundle   # implement + chat + conversation (~30-60m)"
@@ -286,7 +286,7 @@ test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-
 
 release-prep: ## Full release gate: test-everything-full + parity-restart + benchmark → docs/testing/release-prep-*.md
 	@chmod +x scripts/release-prep.py scripts/test-everything.py
-	@python3 scripts/release-prep.py \
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/release-prep.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
 		$(if $(SKIP_LIVE),--skip-live,) \
 		$(if $(NO_FULL),--no-full,) \
@@ -297,8 +297,9 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + benc
 		$(if $(BENCHMARK_MODELS),--benchmark-models "$(BENCHMARK_MODELS)",) \
 		$(if $(NO_PULL),--no-pull-models,) \
 		$(if $(BENCHMARK_ALLOW_LARGE),--benchmark-allow-large,) \
+		$(if $(NO_RESTART_HUB),--no-restart-hub,) \
 		$(if $(VERBOSE),--verbose,) \
-		$(if $(STOP_ON_FAIL),--stop-on-fail,)
+		$(if $(STOP_ON_FAIL),--stop-on-fail,)'
 
 model-benchmark: ## Benchmark ≤24B coder models (SUITE=quick; pulls by default; NO_PULL=1 to skip; BENCHMARK_ALLOW_LARGE=1 to bypass cap)
 	@chmod +x scripts/model-benchmark-suite.py

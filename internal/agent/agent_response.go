@@ -36,7 +36,8 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
-	a.prepareCLIInvocation(msg)
+	restoreCLI := a.prepareCLIInvocation(msg)
+	defer restoreCLI()
 
 	// Track files already included in the prompt so the workspace scanner
 	// doesn't duplicate them.
@@ -183,7 +184,8 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
-	a.prepareCLIInvocation(msg)
+	restoreCLI := a.prepareCLIInvocation(msg)
+	defer restoreCLI()
 
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)

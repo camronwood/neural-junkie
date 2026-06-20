@@ -43,6 +43,17 @@ func TestClassifyUserFacingErrorCLIExecutable(t *testing.T) {
 	}
 }
 
+func TestClassifyUserFacingErrorGeminiIneligibleTier(t *testing.T) {
+	err := fmt.Errorf("IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals")
+	msg, code, retryable := classifyUserFacingError(err)
+	if code != "provider_unavailable" || retryable {
+		t.Fatalf("code=%s retryable=%v", code, retryable)
+	}
+	if !containsAll(msg, "GEMINI_API_KEY", "2026-06-18") {
+		t.Fatalf("message=%q", msg)
+	}
+}
+
 func containsAll(s string, parts ...string) bool {
 	for _, p := range parts {
 		if !strings.Contains(s, p) {

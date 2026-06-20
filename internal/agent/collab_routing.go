@@ -47,11 +47,21 @@ func (a *Agent) EffectiveAIProvider(ctx context.Context, msg *protocol.Message) 
 		return nil
 	}
 	base := a.GetAIProvider()
-	if globalCollabRouting == nil {
-		return base
+	var eff ai.AIProvider
+	if globalCollabRouting != nil {
+		eff = globalCollabRouting.EffectiveAI(ctx, base, a.Info, a.getCollaborationContext(msg), msg)
+	} else {
+		eff = base
 	}
-	eff := globalCollabRouting.EffectiveAI(ctx, base, a.Info, a.getCollaborationContext(msg), msg)
-	if msg != nil && msg.Type == protocol.MessageTypeCollabTask {
+	if eff == nil {
+		eff = base
+	}
+	if globalChatRouting != nil && msg != nil && msg.Type != protocol.MessageTypeCollabTask {
+		if chatEff := globalChatRouting.EffectiveAI(ctx, eff, a.Info, msg); chatEff != nil {
+			eff = chatEff
+		}
+	}
+	if msg != nil && msg.Type == protocol.MessageTypeCollabTask && globalCollabRouting != nil {
 		overrides := TaskRoutingOverrides{}
 		if msg.Metadata != nil {
 			if pid, ok := msg.Metadata["task_provider_id"].(string); ok {

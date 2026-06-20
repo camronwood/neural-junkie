@@ -14,7 +14,19 @@
         "contains_all": ["darkMode"],
         "none_match": ["\\.vue", "App\\.vue"]
       },
-      "llm_judge": true
+      "llm_judge": {
+        "criteria": "This file is only the Tailwind config. PASS if class-based dark mode is enabled (darkMode). UI toggle logic is validated in App.tsx."
+      }
+    },
+    {
+      "path": "src/App.tsx",
+      "for_question": {
+        "any_match": ["toggleTheme|setTheme|useState|onClick|Toggle Theme|dark|light"],
+        "none_match": ["\\.vue", "ThemeToggle\\.vue"]
+      },
+      "llm_judge": {
+        "criteria": "PASS if the sidebar includes a theme toggle control with state/logic for light and dark modes."
+      }
     }
   ],
   "steps": [
@@ -46,6 +58,11 @@
       "action": "assert_file_exists",
       "path": "tailwind.config.js",
       "contains": "darkMode"
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/App.tsx",
+      "any_match": ["toggleTheme", "setTheme", "useState", "onClick"]
     }
   ],
   "cleanup": "clear"

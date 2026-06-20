@@ -211,14 +211,7 @@ func (c *CLIAgentProvider) GenerateResponse(ctx context.Context, prompt string, 
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 	if c.ProviderName == "gemini-cli" {
-		// Allow runtime profile switching without rebuilding the agent instance.
-		model := c.EffectiveCLIModel()
-		if model == "" {
-			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
-		}
-		if model != "" {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("GEMINI_MODEL=%s", model))
-		}
+		cmd.Env = appendGeminiCLIEnv(cmd.Env, c)
 	}
 	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))
@@ -360,14 +353,7 @@ func (c *CLIAgentProvider) GenerateResponseStream(ctx context.Context, prompt st
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 	}
 	if c.ProviderName == "gemini-cli" {
-		// Allow runtime profile switching without rebuilding the agent instance.
-		model := c.EffectiveCLIModel()
-		if model == "" {
-			model = strings.TrimSpace(os.Getenv("GEMINI_MODEL"))
-		}
-		if model != "" {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("GEMINI_MODEL=%s", model))
-		}
+		cmd.Env = appendGeminiCLIEnv(cmd.Env, c)
 	}
 	if channel, ok := ctx.Value(toolApprovalChannelKey).(string); ok && channel != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("NEURAL_JUNKIE_CHANNEL=%s", channel))

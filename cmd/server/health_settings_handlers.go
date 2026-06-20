@@ -8,6 +8,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -34,7 +35,8 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(appConfig.Redacted())
+		payload := settingsResponse()
+		json.NewEncoder(w).Encode(payload)
 
 	case http.MethodPut:
 		var incoming config.Config
@@ -62,6 +64,8 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.HF = incoming.HF
 		appConfig.Updates = incoming.Updates
 		appConfig.Collaboration = incoming.Collaboration
+		appConfig.Implementation = incoming.Implementation
+		appConfig.Routing = incoming.Routing.Normalized()
 		appConfig.Delegation = incoming.Delegation.Normalized()
 		appConfig.Features = incoming.Features
 		appConfig.Performance = incoming.Performance
@@ -92,6 +96,19 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func settingsResponse() map[string]interface{} {
+	redacted := appConfig.Redacted()
+	out := map[string]interface{}{}
+	data, err := json.Marshal(redacted)
+	if err == nil {
+		_ = json.Unmarshal(data, &out)
+	}
+	if p := capabilities.Global(); p != nil {
+		out["capability_profiles"] = p.Status()
+	}
+	return out
 }
 
 func handleConfiguredAgents(w http.ResponseWriter, r *http.Request) {

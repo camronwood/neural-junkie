@@ -227,6 +227,9 @@ export function trimWorkspaceContext(
 ): WorkspaceContext | null {
   if (scope === 'none') return null;
   const base: WorkspaceContext = {
+    workspace_id: full.workspace_id,
+    workspace_kind: full.workspace_kind,
+    sidecar_url: full.sidecar_url,
     workspace_name: full.workspace_name,
     workspace_path: full.workspace_path,
     file_tree: '',

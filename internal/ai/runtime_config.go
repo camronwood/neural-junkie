@@ -39,3 +39,13 @@ func ollamaRuntimeConfig() config.OllamaConfig {
 func MaxHistoryMessages() int {
 	return performanceConfig().MaxHistoryMessagesOrDefault()
 }
+
+// PerformanceConfig returns the wired hub performance settings snapshot.
+func PerformanceConfig() config.PerformanceConfig {
+	return performanceConfig()
+}
+
+// OutputShapingEnabled reports whether post-tool verbosity steering is on.
+func OutputShapingEnabled() bool {
+	return performanceConfig().OutputShapingEnabled
+}

@@ -1,6 +1,16 @@
 {
   "quick": {
-    "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on 14B class).",
+    "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on ≤24B class).",
+    "max_params_b": 24,
+    "models": [
+      "deepseek-coder:6.7b",
+      "codegemma:7b",
+      "qwen3.5:9b",
+      "gemma3:12b",
+      "qwen2.5-coder:14b",
+      "codestral:22b",
+      "devstral:24b"
+    ],
     "implement": [
       "go-handler",
       "theme-toggle",
@@ -13,16 +23,19 @@
   },
   "implement": {
     "description": "Full implement scenario suite (all scenarios/implement/*.json).",
+    "max_params_b": 24,
     "implement": "all",
     "chat": []
   },
   "chat-regression": {
     "description": "All chat scenarios tagged regression.",
+    "max_params_b": 24,
     "implement": [],
     "chat_tag": "regression"
   },
   "standard": {
     "description": "Balanced gate — quick implement + regression chat tag filter.",
+    "max_params_b": 24,
     "implement": [
       "go-handler",
       "theme-toggle",

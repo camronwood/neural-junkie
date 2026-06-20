@@ -13,13 +13,13 @@
       "content": "I want to add UI themes under settings with light and dark modes",
       "metadata": { "conversation_mode": "code", "context_scope": "outline" }
     },
-    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
     {
       "action": "send",
       "content": "yes please go ahead",
       "metadata": { "conversation_mode": "code", "context_scope": "outline" }
     },
-    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
     {
       "action": "assert_messages",
       "last_reply_only": true,

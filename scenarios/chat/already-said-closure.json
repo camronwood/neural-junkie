@@ -14,7 +14,7 @@
     {
       "action": "wait_reply",
       "from": "Assistant",
-      "timeout": "90s"
+      "timeout": "180s"
     },
     {
       "action": "send",

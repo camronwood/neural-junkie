@@ -129,7 +129,9 @@ Before the LLM call, `applyContextBudget()` enforces a ~32KB prompt target (tuna
 4. Workspace outline (cap 4KB)
 5. Open file bodies / scan (remainder, cap 12KB)
 
-Truncate tail sections first. Implementation: `internal/agent/context_budget.go`.
+Truncate tail sections first. When context compression is enabled, oversized sections are stored in the hub cache with a ref marker instead of silent truncation — see [CONTEXT_COMPRESSION.md](CONTEXT_COMPRESSION.md).
+
+Implementation: `internal/agent/context_budget.go`.
 
 ## Desktop ↔ server metadata contract
 

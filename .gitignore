@@ -87,3 +87,5 @@ scenarios/fixtures/minimal-repo/collabs/
 
 # Generated at repo root by release scripts (committed copies live in updater/beta/)
 /update-*.json
+
+.gemini-api-key

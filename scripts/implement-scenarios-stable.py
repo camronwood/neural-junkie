@@ -19,6 +19,8 @@ FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
+from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.release_prep_env import release_prep_env  # noqa: E402
 
 
 def parse_results(output: str) -> tuple[list[str], list[str]]:
@@ -36,8 +38,7 @@ def parse_results(output: str) -> tuple[list[str], list[str]]:
 
 
 def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str]]:
-    env = dict(**__import__("os").environ)
-    env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
+    env = release_prep_env(ROOT)
     proc = subprocess.run(
         [sys.executable, str(script), "--all", "--hub", hub_url],
         cwd=ROOT,
@@ -86,6 +87,8 @@ def main() -> int:
     )
     lines.append("")
 
+    preflight_regression_run(ROOT, args.hub, label="parity-stable preflight")
+
     all_ok = True
     for run in range(1, args.runs + 1):
         lines.append(f"## run {run}/{args.runs}")
@@ -98,7 +101,7 @@ def main() -> int:
         if run > 1:
             if args.restart_between:
                 lines.append("restarting regression hub...")
-                if not restart_regression_hub(ROOT, args.hub):
+                if not restart_regression_hub(ROOT, args.hub, env=release_prep_env(ROOT)):
                     lines.append("hub restart failed")
                     all_ok = False
                     lines.append(f"RESULT run {run}: FAIL (hub restart)")

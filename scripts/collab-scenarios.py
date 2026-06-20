@@ -25,6 +25,7 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
     check_text_patterns,
@@ -974,6 +975,7 @@ def main() -> int:
 
     base = args.hub.rstrip("/")
     if args.all:
+        preflight_regression_run(ROOT, base, label="collab-scenarios preflight")
         names = list_scenarios()
         if not names:
             print("No scenarios found", file=sys.stderr)

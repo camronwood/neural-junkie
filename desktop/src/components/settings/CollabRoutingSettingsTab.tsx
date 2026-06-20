@@ -4,6 +4,12 @@ import type { SettingsTabProps } from './settingsShared';
 
 export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const [collabSmartRouting, setCollabSmartRouting] = useState(false);
+  const [modelCapabilityRouting, setModelCapabilityRouting] = useState(true);
+  const [capabilityProfileMeta, setCapabilityProfileMeta] = useState<{
+    updated_at?: string;
+    source_run_id?: string;
+    source_suite?: string;
+  } | null>(null);
   const [collabPlanningProviderId, setCollabPlanningProviderId] = useState('');
   const [configuredProviders, setConfiguredProviders] = useState<Array<{ id: string; name: string }>>([]);
   const [implRoutingEnabled, setImplRoutingEnabled] = useState(true);
@@ -32,6 +38,16 @@ export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps
         const cfg = await r.json();
         if (!cancelled) {
           setCollabSmartRouting(!!cfg.collaboration?.smart_routing_enabled);
+          setModelCapabilityRouting(cfg.routing?.model_capability_routing_enabled !== false);
+          if (cfg.capability_profiles && typeof cfg.capability_profiles === 'object') {
+            setCapabilityProfileMeta(cfg.capability_profiles as {
+              updated_at?: string;
+              source_run_id?: string;
+              source_suite?: string;
+            });
+          } else {
+            setCapabilityProfileMeta(null);
+          }
           setCollabPlanningProviderId(
             typeof cfg.collaboration?.planning_provider_id === 'string'
               ? cfg.collaboration.planning_provider_id
@@ -163,6 +179,38 @@ const handleDelegationToggle = async (enabled: boolean) => {
           throw new Error(await put.text());
         }
         setCollabPlanningProviderId(providerId.trim());
+      } catch (e) {
+        setCollabRoutingErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        setCollabRoutingSaving(false);
+      }
+    };
+
+    const handleModelCapabilityRoutingToggle = async (enabled: boolean) => {
+      setCollabRoutingSaving(true);
+      setCollabRoutingErr(null);
+      try {
+        const r = await fetch(`${hubHttp}/api/settings`);
+        if (!r.ok) {
+          throw new Error(await r.text());
+        }
+        const cfg = await r.json();
+        const next = {
+          ...cfg,
+          routing: {
+            ...(cfg.routing ?? {}),
+            model_capability_routing_enabled: enabled,
+          },
+        };
+        const put = await fetch(`${hubHttp}/api/settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(next),
+        });
+        if (!put.ok) {
+          throw new Error(await put.text());
+        }
+        setModelCapabilityRouting(enabled);
       } catch (e) {
         setCollabRoutingErr(e instanceof Error ? e.message : String(e));
       } finally {
@@ -412,6 +460,30 @@ const handleDelegationToggle = async (enabled: boolean) => {
           </option>
         ))}
       </select>
+    </div>
+<div className="border border-slack-border rounded-lg p-6">
+      <h3 className="text-lg font-semibold text-slack-text mb-2">Benchmark model routing</h3>
+      <p className="text-sm text-slack-textMuted mb-4">
+        When enabled, the hub picks local Ollama models from benchmark-derived capability profiles for
+        collaboration tasks, implementation sessions, and normal chat/DMs. Profiles refresh after{' '}
+        <code className="font-mono text-xs bg-slack-bgHover px-1 rounded">make model-benchmark</code>.
+      </p>
+      {capabilityProfileMeta?.source_run_id && (
+        <p className="text-xs text-slack-textMuted mb-3 font-mono">
+          Profiles: {capabilityProfileMeta.source_run_id}
+          {capabilityProfileMeta.updated_at ? ` · updated ${capabilityProfileMeta.updated_at}` : ''}
+        </p>
+      )}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={modelCapabilityRouting}
+          disabled={collabRoutingSaving}
+          onChange={(e) => void handleModelCapabilityRoutingToggle(e.target.checked)}
+          className="rounded border-slack-border"
+        />
+        <span className="text-slack-text">Enable benchmark model routing</span>
+      </label>
     </div>
 <div className="border border-slack-border rounded-lg p-6">
       <h3 className="text-lg font-semibold text-slack-text mb-2">Collaboration smart routing</h3>

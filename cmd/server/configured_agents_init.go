@@ -9,6 +9,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/mcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -18,7 +19,24 @@ func syncMCPFromConfig() {
 	if appConfig != nil {
 		mcp.SetAppConfig(appConfig)
 		ai.SetHubRuntimeOptions(appConfig.Performance, appConfig.Ollama)
+		initContextCompressStore()
 	}
+}
+
+func initContextCompressStore() {
+	if appConfig == nil {
+		return
+	}
+	p := appConfig.Performance
+	maxEntries := p.ContextCacheMaxEntries
+	if maxEntries <= 0 {
+		maxEntries = 500
+	}
+	ttl := p.ContextCacheTTLMinutes
+	if ttl <= 0 {
+		ttl = 60
+	}
+	contextcompress.SetDefaultStore(contextcompress.NewStore(maxEntries, ttl, contextcompress.DefaultCacheDir()))
 }
 
 // reconcileConfiguredSpecialists stops hub specialists whose type is disabled in config

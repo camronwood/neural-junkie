@@ -20,7 +20,7 @@ ollama pull qwen3.5:9b
 
 ## Quick smoke benchmark (default)
 
-Runs **3 implement + 2 chat** scenarios against the **default roster** (~15–45 min per model on 14B-class hardware):
+Runs **3 implement + 2 chat** scenarios against the **quick roster** (7 models, ≤24B; ~15–45 min per model):
 
 ```bash
 make model-benchmark
@@ -75,6 +75,10 @@ After each run, results are merged into **`docs/data/model-benchmarks.json`** fo
 ```bash
 make publish-model-benchmarks
 ```
+
+Publishing also regenerates **`docs/data/model-capability-profiles.json`** — ranked Ollama model lists per task class (`implement`, `chat`, `collab_light`, `utility`, `ask_mode`, `implement_heavy`). The hub loads these at startup for **benchmark model routing** (Settings → Collab routing → *Benchmark model routing*).
+
+Override profile path: `NEURAL_JUNKIE_CAPABILITY_PROFILES=/path/to/profiles.json`
 
 **Website:** [Model benchmarks](https://camronwood.github.io/neural-junkie/benchmarks/) (`docs/benchmarks/index.html` on GitHub Pages).
 

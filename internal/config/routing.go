@@ -8,15 +8,18 @@ type RoutingConfig struct {
 	ClassifierModel string  `json:"classifier_model,omitempty"`
 	RulesFallback   bool    `json:"rules_fallback"`
 	MinConfidence   float64 `json:"min_confidence"`
+	// ModelCapabilityRoutingEnabled selects Ollama models from benchmark-derived profiles.
+	ModelCapabilityRoutingEnabled bool `json:"model_capability_routing_enabled"`
 }
 
 // DefaultRoutingConfig returns LLM-first routing defaults.
 func DefaultRoutingConfig() RoutingConfig {
 	return RoutingConfig{
-		Classifier:      "llm",
-		ClassifierModel: UtilityOllamaModel,
-		RulesFallback:   true,
-		MinConfidence:   0.6,
+		Classifier:                    "llm",
+		ClassifierModel:               UtilityOllamaModel,
+		RulesFallback:                 true,
+		MinConfidence:                 0.6,
+		ModelCapabilityRoutingEnabled: true,
 	}
 }
 

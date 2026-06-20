@@ -65,5 +65,11 @@ func classifyUserFacingError(err error) (message, code string, retryable bool) {
 	if strings.Contains(lower, "connection refused") && strings.Contains(lower, "11434") {
 		return "Ollama is not running on this machine (localhost:11434). Start it with `ollama serve`, then send your message again.", "provider_unavailable", true
 	}
+	if strings.Contains(lower, "ineligibletier") || strings.Contains(lower, "no longer supported for gemini code assist for individuals") {
+		return "Gemini CLI OAuth (Code Assist for individuals) stopped on 2026-06-18. Set GEMINI_API_KEY in env.local from Google AI Studio, restart the hub, and run: python3 scripts/check-gemini-judge.py", "provider_unavailable", false
+	}
+	if strings.Contains(lower, "gemini_api_key") || (strings.Contains(lower, "authentication") && strings.Contains(lower, "gemini")) {
+		return "Gemini CLI is not authenticated. Add GEMINI_API_KEY to env.local (Google AI Studio), restart the hub, then run: python3 scripts/check-gemini-judge.py", "provider_unavailable", false
+	}
 	return "Sorry, I encountered an error while generating a response. Please try again.", "provider_error", true
 }

@@ -226,6 +226,60 @@ export function formatRoutingTooltip(meta: RoutingMeta): string {
   return lines.join('\n');
 }
 
+export const COMPRESS_BYTES_IN_METADATA_KEY = 'context_compress_bytes_in';
+export const COMPRESS_BYTES_OUT_METADATA_KEY = 'context_compress_bytes_out';
+export const COMPRESS_STRATEGY_METADATA_KEY = 'context_compress_strategy';
+export const COMPRESS_REFS_METADATA_KEY = 'context_compress_refs';
+
+export type CompressMeta = {
+  bytes_in?: number;
+  bytes_out?: number;
+  strategy?: string;
+  refs?: string;
+};
+
+export function getCompressMeta(metadata?: Record<string, unknown>): CompressMeta | null {
+  if (!metadata) return null;
+  const strategy = metadata[COMPRESS_STRATEGY_METADATA_KEY];
+  const bytesIn = metadata[COMPRESS_BYTES_IN_METADATA_KEY];
+  const bytesOut = metadata[COMPRESS_BYTES_OUT_METADATA_KEY];
+  if (typeof strategy !== 'string' && bytesIn == null && bytesOut == null) return null;
+  const out: CompressMeta = {};
+  if (typeof bytesIn === 'number') out.bytes_in = bytesIn;
+  if (typeof bytesOut === 'number') out.bytes_out = bytesOut;
+  if (typeof strategy === 'string') out.strategy = strategy;
+  if (typeof metadata[COMPRESS_REFS_METADATA_KEY] === 'string') {
+    out.refs = metadata[COMPRESS_REFS_METADATA_KEY] as string;
+  }
+  return out;
+}
+
+function formatBytes(n: number): string {
+  if (n >= 1024) return `${(n / 1024).toFixed(1)}KB`;
+  return `${n}B`;
+}
+
+export function formatCompressBadgeLabel(meta: CompressMeta): string {
+  const strategy = meta.strategy?.trim();
+  if (!strategy || strategy === 'none') return '';
+  const inB = meta.bytes_in ?? 0;
+  const outB = meta.bytes_out ?? 0;
+  if (inB > 0 && outB > 0 && inB > outB) {
+    return `${strategy} · ${formatBytes(inB)}→${formatBytes(outB)}`;
+  }
+  return strategy;
+}
+
+export function formatCompressTooltip(meta: CompressMeta): string {
+  const lines: string[] = [];
+  if (meta.strategy) lines.push(`Strategy: ${meta.strategy}`);
+  if (meta.bytes_in != null) lines.push(`Bytes in: ${meta.bytes_in}`);
+  if (meta.bytes_out != null) lines.push(`Bytes out: ${meta.bytes_out}`);
+  if (meta.refs) lines.push(`Refs: ${meta.refs}`);
+  lines.push('Use nj_retrieve_context to expand compressed tool output.');
+  return lines.join('\n');
+}
+
 export function isToolStepStreamDelta(metadata?: Record<string, unknown>): boolean {
   return typeof metadata?.tool_step === 'string';
 }

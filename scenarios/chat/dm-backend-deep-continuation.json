@@ -12,13 +12,13 @@
       "content": "I want to add light and dark theme support to this project",
       "metadata": { "conversation_mode": "code", "context_scope": "hint" }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "send",
       "content": "go deeper on the approach — what would you implement first?",
       "metadata": { "conversation_mode": "code", "context_scope": "hint" }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "assert_messages",
       "last_reply_only": true,

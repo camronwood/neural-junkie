@@ -42,14 +42,16 @@ func (a *Agent) resolveCLIWorkDir(msg *protocol.Message) string {
 	return wd
 }
 
-// prepareCLIInvocation applies per-message workdir and approval mode before a CLI subprocess runs.
-func (a *Agent) prepareCLIInvocation(msg *protocol.Message) {
+// prepareCLIInvocation applies per-message workdir, approval mode, and optional judge model
+// overrides before a CLI subprocess runs. Call the returned function after the invocation
+// completes to restore any temporary model override.
+func (a *Agent) prepareCLIInvocation(msg *protocol.Message) func() {
 	if !a.isCLIAgent() {
-		return
+		return func() {}
 	}
 	p, ok := a.GetAIProvider().(*ai.CLIAgentProvider)
 	if !ok {
-		return
+		return func() {}
 	}
 	if wd := a.resolveCLIWorkDir(msg); wd != "" {
 		p.WorkDir = wd
@@ -67,6 +69,32 @@ func (a *Agent) prepareCLIInvocation(msg *protocol.Message) {
 	if mode != "" {
 		p.ApprovalMode = mode
 	}
+
+	var restoreModel func()
+	if isDeliverableJudgeMessage(msg) && p.ProviderName == "gemini-cli" {
+		judgeModel := resolveDeliverableJudgeGeminiModel()
+		if judgeModel != "" {
+			prevModel := strings.TrimSpace(p.Env["GEMINI_MODEL"])
+			if prevModel == "" {
+				prevModel = p.EffectiveCLIModel()
+			}
+			p.Env["GEMINI_MODEL"] = judgeModel
+			ai.SetCLIProviderModelOverride("gemini-cli", judgeModel)
+			restoreModel = func() {
+				if prevModel != "" {
+					p.Env["GEMINI_MODEL"] = prevModel
+					ai.SetCLIProviderModelOverride("gemini-cli", prevModel)
+				} else {
+					delete(p.Env, "GEMINI_MODEL")
+					ai.SetCLIProviderModelOverride("gemini-cli", "")
+				}
+			}
+		}
+	}
+	if restoreModel == nil {
+		return func() {}
+	}
+	return restoreModel
 }
 
 func extensionForImageMIME(mime string) string {

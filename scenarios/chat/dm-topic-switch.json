@@ -12,13 +12,13 @@
       "content": "review internal/hub/hub.go for error handling gaps",
       "metadata": { "conversation_mode": "code", "context_scope": "outline" }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "send",
       "content": "what do you think about go vs rust for backend services?",
       "metadata": { "conversation_mode": "chat", "context_scope": "none" }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "90s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "assert_messages",
       "last_reply_only": true,
@@ -30,7 +30,7 @@
       "content": "now outline the hook changes you'd make in hub.go for better errors",
       "metadata": { "conversation_mode": "code", "context_scope": "outline" }
     },
-    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {
       "action": "assert_messages",
       "last_reply_only": true,

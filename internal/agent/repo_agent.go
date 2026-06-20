@@ -89,6 +89,7 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 	} else {
 		repoAgent.repoMCP = repoMCP
 		baseAgent.MCPServer = repoMCP
+		attachContextCompressTools(repoMCP)
 	}
 
 	// Route channel messages through repo-specific Q&A (buildRepoPrompt + index),

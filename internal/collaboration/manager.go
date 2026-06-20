@@ -68,6 +68,15 @@ func (cm *CollaborationManager) worktreeBackendFor(repo string) workspacebackend
 	cm.mu.RLock()
 	fn := cm.worktreeBackendFn
 	cm.mu.RUnlock()
+	return cm.worktreeBackendFromFn(fn, repo)
+}
+
+// worktreeBackendForLocked is like worktreeBackendFor but must be called while cm.mu is held.
+func (cm *CollaborationManager) worktreeBackendForLocked(repo string) workspacebackend.Backend {
+	return cm.worktreeBackendFromFn(cm.worktreeBackendFn, repo)
+}
+
+func (cm *CollaborationManager) worktreeBackendFromFn(fn func(repoPath string) workspacebackend.Backend, repo string) workspacebackend.Backend {
 	if fn == nil {
 		return nil
 	}

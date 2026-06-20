@@ -37,7 +37,7 @@ make test-parity-stable        # optional — 3× sweeps at 7/7 under server-reg
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
 
-**Deliverable contract (`expect_deliverables`):** File-producing implement and collab scenarios declare expected paths plus question-aligned quality bars (`for_question.any_match` / `none_match` / `contains_all`). Live runs with `llm_judge: true` also ask an **independent cloud CLI agent** (default **Gemini** via hub DM — not the same Ollama model that produced the file). Override with `NJ_DELIVERABLE_JUDGE_PROVIDER=cursor` and `NJ_DELIVERABLE_JUDGE_AGENT=Cursor`, or `NJ_DELIVERABLE_JUDGE_MODE=cli` for direct `gemini`/`agent` subprocess. CI smoke enforces the JSON contract via `make test-scenario-assert`; `NJ_DELIVERABLE_JUDGE_SKIP=1` skips cloud judge during live runs.
+**Deliverable contract (`expect_deliverables`):** File-producing implement and collab scenarios declare expected paths plus question-aligned quality bars (`for_question.any_match` / `none_match` / `contains_all`). Live runs with `llm_judge: true` use an **independent judge** — **cloud-first** (hub `@Gemini` by default), with **Ollama fallback** (`qwen2.5-coder:14b`) when quota or API errors occur (`NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA=1`). Set `NJ_DELIVERABLE_JUDGE_PROVIDER=ollama` for local-only judging. CI smoke enforces the JSON contract via `make test-scenario-assert`; `NJ_DELIVERABLE_JUDGE_SKIP=1` skips LLM judge during live runs.
 
 **Stability gate (beta.24+):** archives logs to `docs/testing/parity-stable-*.log`:
 
@@ -68,14 +68,24 @@ make test-everything-full         # above + collab-scenarios-all (~1-3h extra)
 
 ```bash
 ollama serve
-make server-regression    # terminal 1
-make agents               # terminal 1b
+make server-regression    # terminal 1 (optional — release-prep can start/restart hub)
 make release-prep VERBOSE=1
 # unified: docs/testing/release-prep-*.md + release-prep-*.log
 # child:   test-everything-*.md, parity-stable-restart-*.log, model-benchmark-*.{md,json,tsv}
 ```
 
-Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP_BENCHMARK=1`, `SKIP_PARITY=1`, `BENCHMARK_SUITE=standard`, `BENCHMARK_MODELS='qwen3.5:9b,qwen2.5-coder:14b'`, `PULL=1`, `STOP_ON_FAIL=1`.
+`make release-prep` automatically:
+
+- Sources `load-env.sh` (env.local + `.gemini-api-key` when present)
+- Cloud-first deliverable judge (hub Gemini) with Ollama fallback and RPM pacing
+- Verifies hub health + judge smoke (restarts regression hub once if needed)
+- Runs `collab-preflight --require-gemini` before the long phases
+
+Prerequisites: `ollama serve` + `ollama pull qwen2.5-coder:14b` (fallback judge). Optional: `.gemini-api-key` for cloud judge when quota allows.
+
+**Deliverable judge:** tries hub Gemini first; on quota/API errors falls back to local Ollama so sweeps keep running.
+
+Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP_BENCHMARK=1`, `SKIP_PARITY=1`, `NO_RESTART_HUB=1`, `BENCHMARK_SUITE=standard`, `BENCHMARK_MODELS='qwen3.5:9b,qwen2.5-coder:14b'`, `PULL=1`, `STOP_ON_FAIL=1`.
 
 **Model benchmark:** compare top local coder models against the same scenarios — see [testing/MODEL_BENCHMARK.md](testing/MODEL_BENCHMARK.md):
 

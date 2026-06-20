@@ -107,6 +107,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	// Log that we're processing this message
 	a.resetRoutingSnapshot()
+	a.resetCompressSnapshot()
 
 	log.Printf("[%s] ⬇️ RECEIVED msg ID %s from %s (mentions: %v)", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Mentions)
 	log.Printf("[%s] ✅ MARKED msg %s as responded", a.Info.Name, msg.ID[:8])
@@ -139,7 +140,15 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		eff = a.GetAIProvider()
 	}
 	if msg.Type != protocol.MessageTypeCollabTask && !shouldRunImplementationSession(a, msg) {
-		a.RecordRoutingFromProvider(eff, "default_agent_provider", "rules")
+		reason := "default_agent_provider"
+		source := "rules"
+		if base := a.GetAIProvider(); base != nil && eff != nil {
+			if bm, em := strings.TrimSpace(base.GetModel()), strings.TrimSpace(eff.GetModel()); em != "" && bm != em {
+				reason = "capability_routing"
+				source = "capabilities"
+			}
+		}
+		a.RecordRoutingFromProvider(eff, reason, source)
 	}
 
 	var implSessionProposed bool
@@ -324,6 +333,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	ApplyCollaborationTaskMetadataOnReply(responseMsg, msg, response)
 	a.ApplyRoutingMetadataToResponse(responseMsg)
+	a.ApplyCompressMetadataToResponse(responseMsg)
 
 	// Detect commands in the response and add them to metadata
 	commandDetector := protocol.NewCommandDetector(nil)

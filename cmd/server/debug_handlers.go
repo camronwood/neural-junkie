@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -136,6 +137,51 @@ func handleDebugRoutingClassify(w http.ResponseWriter, r *http.Request) {
 	dec := classifyTask(r.Context(), appConfig, q, agentType, "", false, loraTags)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(dec)
+}
+
+func handleDebugContextCompress(w http.ResponseWriter, r *http.Request) {
+	if os.Getenv("NEURAL_JUNKIE_DEBUG") != "1" {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	tool := strings.TrimSpace(r.URL.Query().Get("tool"))
+	if tool == "" {
+		tool = "grep"
+	}
+	text := r.URL.Query().Get("text")
+	if text == "" {
+		http.Error(w, "text query parameter required", http.StatusBadRequest)
+		return
+	}
+	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
+	if channel == "" {
+		channel = "debug"
+	}
+	result := contextcompress.CompressToolResult(
+		contextcompress.DefaultStore(),
+		tool,
+		channel,
+		"debug-call",
+		text,
+		contextcompress.RuntimeOptions(),
+	)
+	preview := result.Text
+	if len(preview) > 500 {
+		preview = preview[:500] + "…"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"tool":             tool,
+		"original_bytes":   result.OriginalBytes,
+		"compressed_bytes": result.CompressedBytes,
+		"strategy":         result.Strategy,
+		"ref":              result.Ref,
+		"preview":          preview,
+	})
 }
 
 func classifyTurnIntentForDebug(msg *protocol.Message, chType protocol.ChannelType) agent.TurnIntent {

@@ -215,6 +215,7 @@ func registerRoutes() {
 		http.HandleFunc("/api/debug/channel-context", corsMiddleware(handleDebugChannelContext))
 		http.HandleFunc("/api/debug/delegation-resolve", corsMiddleware(handleDebugDelegationResolve))
 		http.HandleFunc("/api/debug/routing-classify", corsMiddleware(handleDebugRoutingClassify))
+		http.HandleFunc("/api/debug/context-compress", corsMiddleware(handleDebugContextCompress))
 		pprofAddr := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_PPROF_ADDR"))
 		if pprofAddr == "" {
 			pprofAddr = "127.0.0.1:6060"
@@ -227,6 +228,7 @@ func registerRoutes() {
 		}()
 		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: hub memory JSON at GET /api/debug/hub-memory")
 		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: channel context at GET /api/debug/channel-context?channel=...")
+		log.Printf("🔧 NEURAL_JUNKIE_DEBUG: context compress at GET /api/debug/context-compress?tool=grep&text=...")
 	}
 
 	// Home page handler (must be last to avoid catching API routes)

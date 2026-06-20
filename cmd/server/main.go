@@ -21,6 +21,7 @@ import (
 	slackint "github.com/camronwood/neural-junkie/internal/integrations/slack"
 	lspserver "github.com/camronwood/neural-junkie/internal/lsp/server"
 	ollamaManager "github.com/camronwood/neural-junkie/internal/ollama"
+	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/gorilla/websocket"
 )
@@ -139,6 +140,10 @@ func main() {
 	initChannelSummaryGenerator(appConfig, chatHub)
 	agent.SetGlobalCollabRouting(collabRoutingRuntime{})
 	agent.SetGlobalImplementationRouting(implementationRoutingRuntime{})
+	agent.SetGlobalChatRouting(chatRoutingRuntime{})
+	if _, err := capabilities.Load(); err != nil {
+		log.Printf("⚠️  Capability profiles unavailable: %v", err)
+	}
 	if err := initHFManager(); err != nil {
 		log.Printf("⚠️  HF download manager init failed: %v", err)
 	}

@@ -18,6 +18,8 @@ DEFAULT_TESTING_DIR = ROOT / "docs" / "testing"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.hub_regression import wait_for_hub  # noqa: E402
+from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
 
 
 @dataclass
@@ -60,7 +62,7 @@ def run_cmd(
     cwd: Path = ROOT,
     env: dict | None = None,
 ) -> StageResult:
-    merged = os.environ.copy()
+    merged = release_prep_env(ROOT)
     if env:
         merged.update(env)
     t0 = time.monotonic()
@@ -207,6 +209,8 @@ def main() -> int:
     )
     args = p.parse_args()
 
+    apply_release_prep_env(ROOT)
+
     testing_dir = Path(args.log_dir)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
     report = RunReport(
@@ -215,10 +219,8 @@ def main() -> int:
         full=args.full,
         skip_live=args.skip_live,
     )
-    live_env = {
-        "NEURAL_JUNKIE_RATE_LIMIT": "0",
-        "NEURAL_JUNKIE_HUB_URL": report.hub_url,
-    }
+    live_env = release_prep_env(ROOT)
+    live_env["NEURAL_JUNKIE_HUB_URL"] = report.hub_url
 
     print(f"test-everything → {testing_dir}/test-everything-{stamp}.{{md,log}}")
 
@@ -251,6 +253,8 @@ def main() -> int:
         write_reports(report, testing_dir)
         _print_final(report)
         return 1
+
+    preflight_regression_run(ROOT, report.hub_url, label="test-everything preflight")
 
     for name, cmd in live_stage_cmds(report.hub_url, args.full, args.verbose):
         env = live_env if name != "collab-scenario-regression" else {**live_env}

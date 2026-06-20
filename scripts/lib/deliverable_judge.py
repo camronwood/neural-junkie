@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -12,6 +13,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from lib.gemini_rate_limit import throttle_gemini_api_call
+
 DEFAULT_JUDGE_PROVIDER = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
 DEFAULT_JUDGE_AGENT = os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT", "").strip()
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
@@ -19,6 +22,12 @@ DEFAULT_OLLAMA_MODEL = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen3.5:9b"
 JUDGE_MAX_CHARS = int(os.environ.get("NJ_DELIVERABLE_JUDGE_MAX_CHARS", "12000"))
 JUDGE_TIMEOUT_S = float(os.environ.get("NJ_DELIVERABLE_JUDGE_TIMEOUT", "180"))
 JUDGE_DM_USER = os.environ.get("NJ_DELIVERABLE_JUDGE_DM_USER", "DeliverableJudge").strip()
+
+_QUOTA_RE = re.compile(
+    r"quota|429|resource_exhausted|rate.?limit|exceeded your current quota|generativelanguage\.googleapis\.com",
+    re.I,
+)
+_RETRY_DELAY_RE = re.compile(r"retry in ([\d.]+)s", re.I)
 
 _PROVIDER_DEFAULT_AGENT = {
     "gemini": "Gemini",
@@ -29,6 +38,67 @@ _PROVIDER_DEFAULT_AGENT = {
 
 def judge_skip_enabled() -> bool:
     return os.environ.get("NJ_DELIVERABLE_JUDGE_SKIP", "").strip().lower() in ("1", "true", "yes")
+
+
+def ollama_fallback_enabled() -> bool:
+    return os.environ.get("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA", "1").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
+def is_gemini_quota_error(text: str) -> bool:
+    return bool(text and _QUOTA_RE.search(text))
+
+
+def parse_retry_delay_s(text: str) -> float | None:
+    if not text:
+        return None
+    m = _RETRY_DELAY_RE.search(text)
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def throttle_gemini_judge() -> None:
+    """Pace Gemini judge calls to reduce free-tier RPM bursts."""
+    throttle_gemini_api_call()
+
+
+def _default_judge_provider() -> str:
+    p = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    return p if p in ("gemini", "cursor", "ollama") else "gemini"
+
+
+def _should_fallback_to_ollama(provider: str, detail: str) -> bool:
+    if provider == "ollama" or not ollama_fallback_enabled():
+        return False
+    if provider not in ("gemini", "cursor"):
+        return False
+    if is_gemini_quota_error(detail):
+        return True
+    lower = detail.lower()
+    if "timeout" in lower:
+        return True
+    if "offline" in lower or "not on path" in lower:
+        return True
+    if "unparseable judge response" in lower or "sorry, i encountered an error" in lower:
+        return True
+    if provider == "gemini" and "gemini exit" in lower:
+        return True
+    if "judge send failed" in lower or "judge agent offline" in lower:
+        return True
+    return False
+
+
+def _judge_via_ollama(prompt: str, *, note: str) -> tuple[bool, str]:
+    ok, detail = ollama_judge_deliverable(prompt=prompt)
+    prefix = note.strip() or "fallback"
+    return ok, f"{prefix} ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
 
 
 def resolve_judge_agent(provider: str, spec_agent: str = "") -> str:
@@ -90,7 +160,7 @@ def _judge_spec_provider(spec: dict[str, Any] | bool | None) -> str:
             return DEFAULT_JUDGE_PROVIDER if DEFAULT_JUDGE_PROVIDER in ("gemini", "cursor") else "gemini"
         if mode == "ollama":
             return "ollama"
-    return DEFAULT_JUDGE_PROVIDER if DEFAULT_JUDGE_PROVIDER in ("gemini", "cursor", "ollama") else "gemini"
+    return _default_judge_provider()
 
 
 def _judge_spec_agent(spec: dict[str, Any] | bool | None, provider: str) -> str:
@@ -105,6 +175,14 @@ def _judge_spec_criteria(spec: dict[str, Any] | bool | None) -> str:
     if isinstance(spec, dict):
         return (spec.get("criteria") or "").strip()
     return ""
+
+
+def _gemini_cli_env() -> dict[str, str] | None:
+    try:
+        from lib.gemini_judge_auth import gemini_cli_env
+    except ImportError:
+        from gemini_judge_auth import gemini_cli_env  # type: ignore[no-redef]
+    return gemini_cli_env()
 
 
 def ollama_judge_deliverable(
@@ -149,13 +227,18 @@ def cli_judge_deliverable(
         if not binary:
             return False, "gemini CLI not on PATH"
         cmd = [binary, "--output-format", "text", "-p", prompt]
+        run_env = _gemini_cli_env()
     elif provider == "cursor":
         binary = shutil.which("agent")
         if not binary:
             return False, "cursor agent CLI not on PATH"
         cmd = [binary, "-p", "--output-format", "text", prompt]
+        run_env = None
     else:
         return False, f"unsupported CLI judge provider {provider!r}"
+
+    if provider == "gemini":
+        throttle_gemini_judge()
 
     try:
         proc = subprocess.run(
@@ -165,6 +248,7 @@ def cli_judge_deliverable(
             text=True,
             timeout=timeout_s,
             check=False,
+            env=run_env,
         )
     except subprocess.TimeoutExpired:
         return False, f"{provider} CLI judge timeout ({timeout_s}s)"
@@ -173,7 +257,23 @@ def cli_judge_deliverable(
 
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "").strip()
-        return False, f"{provider} CLI exit {proc.returncode}: {err[:300]}"
+        detail = f"{provider} CLI exit {proc.returncode}: {err[:300]}"
+        if provider == "gemini" and is_gemini_quota_error(err):
+            delay = parse_retry_delay_s(err)
+            if delay is not None and delay < 120:
+                time.sleep(delay + 0.5)
+                proc = subprocess.run(
+                    cmd,
+                    cwd=work_dir or None,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_s,
+                    check=False,
+                    env=run_env,
+                )
+                if proc.returncode == 0:
+                    return parse_judge_response(proc.stdout or "")
+        return False, detail
     return parse_judge_response(proc.stdout or "")
 
 
@@ -188,6 +288,9 @@ def hub_judge_deliverable(
         from lib import collab_hub as hub
     except ImportError:  # unittest cwd scripts/lib
         import collab_hub as hub  # type: ignore[no-redef]
+
+    if agent_name.strip().lower() == "gemini":
+        throttle_gemini_judge()
 
     base = hub_base.rstrip("/")
     ok, missing = hub.verify_agents_online(base, [agent_name])
@@ -241,7 +344,7 @@ def judge_deliverable(
     hub_base: str = "",
     work_dir: str = "",
 ) -> tuple[bool, str]:
-    """Route deliverable judging to an independent cloud agent (default: hub Gemini)."""
+    """Route deliverable judging: cloud-first (hub Gemini), Ollama fallback when enabled."""
     if judge_skip_enabled():
         return True, "skipped (NJ_DELIVERABLE_JUDGE_SKIP)"
 
@@ -265,10 +368,16 @@ def judge_deliverable(
 
     if mode == "cli" or not hub_base.strip():
         ok, detail = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
-        if ok or hub_base.strip():
+        if ok:
             prefix = f"{provider}-cli"
             return ok, f"{prefix}: {detail}"
-        # fall through to hub when CLI fails and hub is available
+        if _should_fallback_to_ollama(provider, detail):
+            return _judge_via_ollama(prompt, note="cloud judge error")
+        if hub_base.strip():
+            # fall through to hub when CLI fails and hub is available
+            pass
+        else:
+            return ok, f"{provider}-cli: {detail}"
 
     if hub_base.strip():
         ok, detail = hub_judge_deliverable(
@@ -276,7 +385,14 @@ def judge_deliverable(
             agent_name=agent,
             prompt=prompt,
         )
-        return ok, f"{agent}@{hub_base}: {detail}"
+        full_detail = f"{agent}@{hub_base}: {detail}"
+        if ok:
+            return ok, full_detail
+        if _should_fallback_to_ollama(provider, detail):
+            return _judge_via_ollama(prompt, note="cloud judge error")
+        return False, full_detail
 
     ok, detail = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
+    if not ok and _should_fallback_to_ollama(provider, detail):
+        return _judge_via_ollama(prompt, note="cloud judge error")
     return ok, f"{provider}-cli: {detail}"

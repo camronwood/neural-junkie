@@ -15,8 +15,15 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR / "lib"))
 
+from lib.fixture_cleanup import (  # noqa: E402
+    cleanup_fixture_collabs,
+    cleanup_scenario_channels,
+    SCENARIO_CHANNELS,
+)
+
 DEFAULT_HOME = Path.home() / ".neural-junkie"
 DEFAULT_HUB = "http://127.0.0.1:18765"
+ROOT = SCRIPT_DIR.parent
 
 TEST_PATH_MARKERS = (
     "/tmp/",
@@ -37,12 +44,7 @@ TEST_AGENT_NAMES = {
     "dmrepoagent",
 }
 
-SCENARIO_CHANNELS = (
-    "chat-scenarios",
-    "collab-scenarios",
-    "learning-scenarios",
-    "implement-scenarios",
-)
+SCENARIO_CHANNELS = SCENARIO_CHANNELS  # re-export for backwards compatibility
 
 
 def is_test_path(path: str) -> bool:
@@ -97,33 +99,16 @@ def cleanup_repo_caches(home: Path, *, dry_run: bool) -> list[str]:
     return removed
 
 
-def cleanup_scenario_channels(hub_url: str, *, dry_run: bool) -> list[str]:
-    try:
-        import collab_hub as hub_api  # type: ignore
-    except ImportError:
-        print("  skip hub channel cleanup (collab_hub import failed)", file=sys.stderr)
-        return []
-
-    cleared: list[str] = []
-    for channel in SCENARIO_CHANNELS:
-        if dry_run:
-            print(f"  would clear channel history: {channel}")
-            cleared.append(channel)
-            continue
-        ok = hub_api.clear_channel_history(hub_url, channel)
-        if ok:
-            print(f"  cleared channel history: {channel}")
-            cleared.append(channel)
-        else:
-            print(f"  ⚠ clear-history failed: {channel}", file=sys.stderr)
-    return cleared
-
-
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--home", type=Path, default=DEFAULT_HOME, help="Neural Junkie data dir")
     p.add_argument("--dry-run", action="store_true", help="Preview without deleting")
     p.add_argument("--hub", default="", help=f"Hub URL to clear scenario channels (default: skip)")
+    p.add_argument(
+        "--fixture-collabs",
+        action="store_true",
+        help="Remove gitignored collab dirs under scenarios/fixtures/*/collabs",
+    )
     args = p.parse_args()
 
     home: Path = args.home.expanduser()
@@ -135,9 +120,20 @@ def main() -> int:
     repo_removed = cleanup_repo_caches(home, dry_run=args.dry_run)
     print(f"Repo caches: {len(repo_removed)} {'would be ' if args.dry_run else ''}removed")
 
+    if args.fixture_collabs:
+        print(f"Fixture collab cleanup → {ROOT / 'scenarios' / 'fixtures'}")
+        collab_removed = cleanup_fixture_collabs(ROOT, dry_run=args.dry_run)
+        for label in collab_removed:
+            prefix = "would remove" if args.dry_run else "removed"
+            print(f"  {prefix} fixture collab: {label}")
+        print(f"Fixture collabs: {len(collab_removed)} {'would be ' if args.dry_run else ''}removed")
+
     if args.hub:
         print(f"Hub channel cleanup → {args.hub}")
         cleared = cleanup_scenario_channels(args.hub, dry_run=args.dry_run)
+        for channel in cleared:
+            prefix = "would clear" if args.dry_run else "cleared"
+            print(f"  {prefix} channel history: {channel}")
         print(f"Scenario channels: {len(cleared)} {'would be ' if args.dry_run else ''}cleared")
 
     if args.dry_run:

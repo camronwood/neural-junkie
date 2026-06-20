@@ -36,6 +36,10 @@ func slackEnsureAgent(ctx context.Context, agentID, channelName string) error {
 }
 
 func startSlackBridge(ctx context.Context) {
+	if config.SlackDisabledByEnv() {
+		log.Println("[slack] bridge disabled for this hub (NEURAL_JUNKIE_SLACK_DISABLED=1)")
+		return
+	}
 	if appConfig == nil || !appConfig.Slack.SlackReady() {
 		return
 	}

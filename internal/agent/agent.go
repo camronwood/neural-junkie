@@ -78,6 +78,9 @@ type Agent struct {
 	// routingSnap records provider/model used for the current turn (observability metadata).
 	routingSnap routingSnapshotHolder
 
+	// compressSnap records context compression stats for the current turn.
+	compressSnap compressSnapshotHolder
+
 	// cadWrittenPaths tracks workspace-relative .scad paths written during the current turn.
 	cadWrittenMu    sync.Mutex
 	cadWrittenPaths []string

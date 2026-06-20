@@ -109,6 +109,8 @@ export interface LayoutSettings {
   memoryMonitorEnabled?: boolean;
   /** Show routing model badge on agent response messages. */
   showRoutingOnMessages?: boolean;
+  /** Show context compression badge on agent response messages. */
+  showCompressOnMessages?: boolean;
 }
 
 interface SettingsState {
@@ -210,6 +212,7 @@ const defaultLayoutSettings: LayoutSettings = {
   toolbarChipsPlacement: 'top',
   memoryMonitorEnabled: true,
   showRoutingOnMessages: true,
+  showCompressOnMessages: false,
 };
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({

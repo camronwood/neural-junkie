@@ -6,6 +6,9 @@ import {
   getRoutingMeta,
   formatRoutingBadgeLabel,
   formatRoutingTooltip,
+  getCompressMeta,
+  formatCompressBadgeLabel,
+  formatCompressTooltip,
   getToolSteps,
   isSystemMessage,
   isCollaborationMessage,
@@ -224,11 +227,19 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const showRoutingOnMessages = useSettingsStore(
     (s) => s.layoutSettings.showRoutingOnMessages !== false,
   );
+  const showCompressOnMessages = useSettingsStore(
+    (s) => s.layoutSettings.showCompressOnMessages === true,
+  );
   const routingMeta = getRoutingMeta(message.metadata as Record<string, unknown> | undefined);
   const routingBadgeLabel =
     showRoutingOnMessages && routingMeta ? formatRoutingBadgeLabel(routingMeta) : '';
   const routingTooltip =
     showRoutingOnMessages && routingMeta ? formatRoutingTooltip(routingMeta) : '';
+  const compressMeta = getCompressMeta(message.metadata as Record<string, unknown> | undefined);
+  const compressBadgeLabel =
+    showCompressOnMessages && compressMeta ? formatCompressBadgeLabel(compressMeta) : '';
+  const compressTooltip =
+    showCompressOnMessages && compressMeta ? formatCompressTooltip(compressMeta) : '';
 
   // Parse command output from metadata if present
   let commandOutput: CommandOutputType | null = null;
@@ -377,6 +388,14 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             title={routingTooltip || routingBadgeLabel}
           >
             {routingBadgeLabel}
+          </span>
+        )}
+        {compressBadgeLabel && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 font-mono"
+            title={compressTooltip || compressBadgeLabel}
+          >
+            {compressBadgeLabel}
           </span>
         )}
         {sharedContextBadge && (

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/mcp/architecture"
 	"github.com/camronwood/neural-junkie/internal/mcp/backend"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
@@ -27,6 +28,13 @@ func attachWorkspaceTools(agent *Agent, srv MCPServerInterface) {
 	})
 }
 
+func attachContextCompressTools(srv MCPServerInterface) {
+	if srv == nil {
+		return
+	}
+	contextcompress.AttachRetrieveTool(srv.GetMCPServer(), contextcompress.DefaultStore())
+}
+
 func startAgentMCP(agent *Agent, label string, srv MCPServerInterface) {
 	startAgentMCPWithOptions(agent, label, srv, true)
 }
@@ -46,6 +54,7 @@ func startAgentMCPWithOptions(agent *Agent, label string, srv MCPServerInterface
 	if attachWorkspace {
 		attachWorkspaceTools(agent, srv)
 	}
+	attachContextCompressTools(srv)
 	if err := srv.Start(); err != nil {
 		log.Printf("Failed to start %s MCP server: %v", label, err)
 	} else {

@@ -214,7 +214,7 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 			"Testing", "Documentation",
 			"File Operations", "Shell Commands",
 		},
-		EnvVars:      nil,
+		EnvVars:      []string{"GEMINI_API_KEY"},
 		WorkDirEnv:   "GEMINI_WORK_DIR",
 		ApprovalMode: "interactive",
 		InstallHint:  "Install with: npm install -g @google/gemini-cli",
@@ -224,7 +224,8 @@ var cliAgentRegistry = map[string]CLIAgentConfig{
 			Prereqs: []string{"node", "npm"},
 		},
 		Auth: &CLIAuthSpec{
-			Method:       "cli_login",
+			Method:       "api_key",
+			EnvVars:      []string{"GEMINI_API_KEY"},
 			LoginCommand: []string{"gemini", "auth", "login"},
 			ProbeCommand: []string{"gemini", "auth", "status"},
 			CredentialPaths: []string{

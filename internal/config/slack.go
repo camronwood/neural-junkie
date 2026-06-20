@@ -1,5 +1,10 @@
 package config
 
+import (
+	"os"
+	"strings"
+)
+
 // SlackPolicy controls when the assigned agent is triggered for Slack messages.
 type SlackPolicy string
 
@@ -38,7 +43,22 @@ func (s *SlackConfig) EffectiveDefaultPolicy() SlackPolicy {
 	return s.DefaultPolicy
 }
 
+// SlackDisabledByEnv reports whether live Slack (Socket Mode) must stay off.
+// Used by regression hubs so saved tokens in config.json do not bridge to real Slack.
+func SlackDisabledByEnv() bool {
+	if v := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_DISABLED")); v == "1" || strings.EqualFold(v, "true") {
+		return true
+	}
+	if v := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SLACK_ENABLED")); v == "0" || strings.EqualFold(v, "false") {
+		return true
+	}
+	return false
+}
+
 // SlackReady reports whether Socket Mode can start.
 func (s *SlackConfig) SlackReady() bool {
+	if SlackDisabledByEnv() {
+		return false
+	}
 	return s != nil && s.Enabled && s.AppToken != "" && s.BotToken != ""
 }

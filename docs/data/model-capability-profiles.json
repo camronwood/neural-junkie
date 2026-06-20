@@ -1,0 +1,123 @@
+{
+  "updated_at": "2026-06-20T17:48:54.760843+00:00",
+  "source_run_id": "quick-2026-06-20-1748",
+  "source_suite": "quick",
+  "task_classes": {
+    "implement": [
+      "qwen2.5-coder:14b",
+      "gemma3:12b",
+      "qwen3.5:9b",
+      "devstral:24b",
+      "deepseek-coder:6.7b",
+      "codegemma:7b",
+      "codestral:22b"
+    ],
+    "chat": [
+      "qwen2.5-coder:14b",
+      "gemma3:12b",
+      "deepseek-coder:6.7b",
+      "codegemma:7b",
+      "qwen3.5:9b",
+      "codestral:22b",
+      "devstral:24b"
+    ],
+    "collab_light": [
+      "qwen3.5:9b",
+      "deepseek-coder:6.7b",
+      "codegemma:7b"
+    ],
+    "utility": [
+      "qwen3.5:9b",
+      "deepseek-coder:6.7b",
+      "codegemma:7b"
+    ],
+    "ask_mode": [
+      "qwen2.5-coder:14b",
+      "gemma3:12b",
+      "qwen3.5:9b",
+      "devstral:24b",
+      "deepseek-coder:6.7b",
+      "codegemma:7b",
+      "codestral:22b"
+    ],
+    "implement_heavy": [
+      "devstral:24b",
+      "codestral:22b"
+    ]
+  },
+  "model_scores": {
+    "deepseek-coder:6.7b": {
+      "implement_pass_rate": 0.0,
+      "chat_pass_rate": 0.0,
+      "overall_pass_rate": 0.0,
+      "params_b": 6.7,
+      "scenarios": {
+        "implement/go-handler": false
+      }
+    },
+    "codegemma:7b": {
+      "implement_pass_rate": 0.0,
+      "chat_pass_rate": 0.0,
+      "overall_pass_rate": 0.0,
+      "params_b": 7.0,
+      "scenarios": {
+        "implement/go-handler": false
+      }
+    },
+    "qwen3.5:9b": {
+      "implement_pass_rate": 0.5,
+      "chat_pass_rate": 0.0,
+      "overall_pass_rate": 0.5,
+      "params_b": 9.0,
+      "scenarios": {
+        "implement/go-handler": true,
+        "implement/theme-toggle": false
+      }
+    },
+    "gemma3:12b": {
+      "implement_pass_rate": 1.0,
+      "chat_pass_rate": 1.0,
+      "overall_pass_rate": 1.0,
+      "params_b": 12.0,
+      "scenarios": {
+        "implement/go-handler": true,
+        "implement/theme-toggle": true,
+        "implement/ask-mode-no-write": true,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": true
+      }
+    },
+    "qwen2.5-coder:14b": {
+      "implement_pass_rate": 1.0,
+      "chat_pass_rate": 1.0,
+      "overall_pass_rate": 1.0,
+      "params_b": 14.0,
+      "scenarios": {
+        "implement/go-handler": true,
+        "implement/theme-toggle": true,
+        "implement/ask-mode-no-write": true,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": true
+      }
+    },
+    "codestral:22b": {
+      "implement_pass_rate": 0.0,
+      "chat_pass_rate": 0.0,
+      "overall_pass_rate": 0.0,
+      "params_b": 22.0,
+      "scenarios": {
+        "implement/go-handler": false
+      }
+    },
+    "devstral:24b": {
+      "implement_pass_rate": 0.5,
+      "chat_pass_rate": 0.0,
+      "overall_pass_rate": 0.5,
+      "params_b": 24.0,
+      "scenarios": {
+        "implement/go-handler": true,
+        "implement/theme-toggle": false
+      }
+    }
+  }
+}

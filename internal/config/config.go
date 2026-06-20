@@ -728,6 +728,26 @@ func (c *Config) mergeEnvVars() {
 		}
 	}
 
+	if v := GeminiAPIKeyFromEnvOrFile(); v != "" {
+		found := false
+		for i := range c.AI.Providers {
+			if c.AI.Providers[i].Type == "gemini-cli" || c.AI.Providers[i].ID == "gemini-cli" {
+				c.AI.Providers[i].APIKey = v
+				found = true
+				break
+			}
+		}
+		if !found {
+			c.AI.Providers = append(c.AI.Providers, ProviderConfig{
+				ID:     "gemini-cli",
+				Type:   "gemini-cli",
+				Name:   "Gemini (API key)",
+				APIKey: v,
+				Model:  "gemini-2.5-flash",
+			})
+		}
+	}
+
 	if v := os.Getenv("OLLAMA_ENDPOINT"); v != "" {
 		for i := range c.AI.Providers {
 			if c.AI.Providers[i].Type == "ollama" {
@@ -763,6 +783,9 @@ func (c *Config) mergeEnvVars() {
 	}
 	if v := os.Getenv("NEURAL_JUNKIE_SLACK_DISPLAY_NAME"); v != "" {
 		c.Slack.DisplayName = v
+	}
+	if SlackDisabledByEnv() {
+		c.Slack.Enabled = false
 	}
 
 	if v := os.Getenv("NEURAL_JUNKIE_WEB_SEARCH_ENABLED"); v == "1" || strings.EqualFold(v, "true") {

@@ -10,6 +10,7 @@ import (
 	collabrouting "github.com/camronwood/neural-junkie/internal/collaboration/routing"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/routing"
+	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 )
 
 type collabRoutingRuntime struct{}
@@ -97,9 +98,15 @@ func buildCollabPlanInput(ctx context.Context, assignee protocol.AgentInfo, task
 	}
 	if appConfig != nil {
 		in.SmartRoutingEnabled = appConfig.Collaboration.SmartRoutingEnabled
+		in.ModelCapabilityRoutingEnabled = appConfig.Routing.ModelCapabilityRoutingEnabled && capabilityProfilesLoaded()
 		in.Providers = appConfig.ListProvidersSnapshot()
 	}
 	return in
+}
+
+func capabilityProfilesLoaded() bool {
+	p := capabilities.Global()
+	return p != nil && len(p.Tags(capabilities.TaskImplement)) > 0
 }
 
 func applyCollabModelOverrides(ctx context.Context, p ai.AIProvider, info protocol.AgentInfo, msg *protocol.Message, providerReason string) ai.AIProvider {

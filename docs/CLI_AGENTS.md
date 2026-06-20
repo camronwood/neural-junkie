@@ -175,7 +175,24 @@ Verify it's available:
 which gemini
 ```
 
-#### 2. Configure Environment (Optional)
+#### 2. Authenticate (API key — required since 2026-06-18)
+
+Google ended **Gemini Code Assist OAuth for individuals** on 2026-06-18. Personal Google sign-in no longer works for `gemini-cli`. Use a **Gemini API key** from [Google AI Studio](https://aistudio.google.com/app/apikey):
+
+```bash
+# env.local
+GEMINI_API_KEY=your_key_here
+```
+
+Restart the hub after adding the key. Verify auth:
+
+```bash
+python3 scripts/check-gemini-judge.py
+```
+
+The hub passes `GEMINI_CLI_HOME=scripts/gemini-headless-home` when an API key is set and your `~/.gemini/settings.json` still selects `oauth-personal`, so stale OAuth credentials do not block headless judging. For interactive `@Gemini` use, you can instead set `"selectedType": "gemini-api-key"` in `~/.gemini/settings.json` to keep your existing hooks.
+
+#### 3. Configure Environment (Optional)
 
 Add to your `env.local`:
 
@@ -185,7 +202,7 @@ Add to your `env.local`:
 GEMINI_WORK_DIR=/path/to/your/project
 ```
 
-#### 3. Start the Server
+#### 4. Start the Server
 
 ```bash
 make server

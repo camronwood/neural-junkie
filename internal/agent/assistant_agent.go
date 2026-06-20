@@ -97,6 +97,7 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 	} else {
 		assistantMCP.AttachWorkspaceTools(func() string { return baseAgent.WorkspacePath })
 		assistantMCP.AttachWebTools()
+		attachContextCompressTools(assistantMCP)
 		baseAgent.MCPServer = assistantMCP
 		log.Printf("Assistant workspace MCP tools registered for agent: %s", name)
 	}

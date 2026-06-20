@@ -14,6 +14,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.hub_regression import wait_for_hub  # noqa: E402
+from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 
 CHAT_SCENARIOS = [
     # Workspace visibility (all specialist DMs + public)
@@ -69,6 +70,7 @@ def main() -> int:
         print("FAIL: hub not reachable (start with: make server-regression)", file=sys.stderr)
         return 1
     print("OK: hub ready")
+    preflight_regression_run(ROOT, hub_url, label="conversation-scenarios preflight")
 
     env_prefix: list[str] = []
     verbose = ["--verbose"] if args.verbose else []

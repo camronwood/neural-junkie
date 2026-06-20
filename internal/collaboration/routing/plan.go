@@ -5,25 +5,27 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 	unified "github.com/camronwood/neural-junkie/internal/routing"
 )
 
 // PlanInput is the static context for predicting collaboration task routing.
 type PlanInput struct {
-	TaskText                string
-	AgentName               string
-	AgentType               string
-	AgentModel              string
-	DefaultProviderID       string
-	TaskProviderOverride    string
-	TaskOllamaModelOverride  string
-	SmartRoutingEnabled     bool
-	HasLoRACapability       bool
-	HasUserImages           bool
-	SupportsVision          bool
-	Providers               []config.ProviderConfig
-	InstalledLoRATags       map[string]struct{}
-	InstalledOllamaTags     map[string]struct{}
+	TaskText                      string
+	AgentName                     string
+	AgentType                     string
+	AgentModel                    string
+	DefaultProviderID             string
+	TaskProviderOverride          string
+	TaskOllamaModelOverride       string
+	SmartRoutingEnabled           bool
+	ModelCapabilityRoutingEnabled bool
+	HasLoRACapability             bool
+	HasUserImages                 bool
+	SupportsVision                bool
+	Providers                     []config.ProviderConfig
+	InstalledLoRATags             map[string]struct{}
+	InstalledOllamaTags           map[string]struct{}
 }
 
 // PlanResult predicts provider and model selection for one collaboration task.
@@ -99,6 +101,16 @@ func PlanTask(in PlanInput) PlanResult {
 	}
 
 	if !keepAgentModelForCollabTask(in.TaskText) && LooksLightweightCollabTask(in.TaskText) {
+		if in.ModelCapabilityRoutingEnabled {
+			if sel := pickCapabilityModel(in, capabilities.TaskCollabLight); sel.tag != "" {
+				return PlanResult{
+					ProviderID:     providerID,
+					ProviderReason: providerReason,
+					OllamaModel:    sel.tag,
+					ModelReason:    sel.reason,
+				}
+			}
+		}
 		tag, reason := SelectLightOllamaTag(in.InstalledOllamaTags)
 		if tag != "" {
 			return PlanResult{
@@ -110,16 +122,58 @@ func PlanTask(in PlanInput) PlanResult {
 		}
 	}
 
-	modelReason := "agent_default_model"
-	if keepAgentModelForCollabTask(in.TaskText) && LooksLightweightCollabTask(in.TaskText) {
-		modelReason = "deliverable_task_keep_agent_model"
+	agentModel := strings.TrimSpace(in.AgentModel)
+	if keepAgentModelForCollabTask(in.TaskText) {
+		if in.ModelCapabilityRoutingEnabled {
+			class := capabilities.TaskImplement
+			if sel := pickCapabilityModel(in, class); sel.tag != "" &&
+				capabilities.ShouldUpgrade(capabilityProfiles(), class, agentModel, sel.tag) {
+				return PlanResult{
+					ProviderID:     providerID,
+					ProviderReason: providerReason,
+					OllamaModel:    sel.tag,
+					ModelReason:    sel.reason,
+				}
+			}
+		}
+		if LooksLightweightCollabTask(in.TaskText) {
+			return PlanResult{
+				ProviderID:     providerID,
+				ProviderReason: providerReason,
+				OllamaModel:    agentModel,
+				ModelReason:    "deliverable_task_keep_agent_model",
+			}
+		}
 	}
+
+	modelReason := "agent_default_model"
 	return PlanResult{
 		ProviderID:     providerID,
 		ProviderReason: providerReason,
-		OllamaModel:    strings.TrimSpace(in.AgentModel),
+		OllamaModel:    agentModel,
 		ModelReason:    modelReason,
 	}
+}
+
+type capabilityPick struct {
+	tag    string
+	reason string
+}
+
+func capabilityProfiles() *capabilities.Profiles {
+	return capabilities.Global()
+}
+
+func pickCapabilityModel(in PlanInput, class capabilities.TaskClass) capabilityPick {
+	p := capabilityProfiles()
+	if p == nil {
+		return capabilityPick{}
+	}
+	sel := capabilities.SelectOllamaTag(p, class, in.InstalledOllamaTags, in.AgentModel)
+	if sel.Tag == "" {
+		return capabilityPick{}
+	}
+	return capabilityPick{tag: sel.Tag, reason: sel.Reason}
 }
 
 func isArchitectureDocDeliverable(taskText string) bool {

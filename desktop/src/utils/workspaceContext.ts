@@ -1,6 +1,9 @@
 import { FileNode } from '../stores/fileExplorerStore';
 
 export interface WorkspaceContext {
+  workspace_id?: string;
+  workspace_kind?: string;
+  sidecar_url?: string;
   workspace_name: string;
   workspace_path: string;
   file_tree: string;

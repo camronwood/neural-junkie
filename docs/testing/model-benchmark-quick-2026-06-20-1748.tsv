@@ -1,0 +1,18 @@
+model_tag	scenario_kind	scenario	passed	duration_s	detail
+deepseek-coder:6.7b	implement	go-handler	0	31.4	=== FAIL: go-handler ===
+codegemma:7b	implement	go-handler	0	33.4	=== FAIL: go-handler ===
+qwen3.5:9b	implement	go-handler	1	35.4	=== PASS: go-handler ===
+qwen3.5:9b	implement	theme-toggle	0	35.2	=== FAIL: theme-toggle ===
+gemma3:12b	implement	go-handler	1	35.4	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	37.4	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	29.2	=== PASS: ask-mode-no-write ===
+gemma3:12b	chat	dm-backend-workspace	1	45.4	=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	1	68.5	=== PASS: dm-backend-echo-followup ===
+qwen2.5-coder:14b	implement	go-handler	1	35.4	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	37.4	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	35.2	=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	34.3	=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	44.4	=== PASS: dm-backend-echo-followup ===
+codestral:22b	implement	go-handler	0	39.4	=== FAIL: go-handler ===
+devstral:24b	implement	go-handler	1	39.4	=== PASS: go-handler ===
+devstral:24b	implement	theme-toggle	0	31.2	=== FAIL: theme-toggle ===

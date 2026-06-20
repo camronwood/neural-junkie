@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -116,16 +117,49 @@ class DeliverableAssertTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("stub", reason.lower())
 
-    def test_hub_judge_routes_through_gemini(self) -> None:
-        with mock.patch("deliverable_judge.hub_judge_deliverable", return_value=(True, "independent pass")):
-            ok, detail = judge_deliverable(
-                question="write findings",
-                rel_path="findings.md",
-                file_body="# Findings\nmain.go",
-                hub_base="http://127.0.0.1:18765",
-            )
+    def test_cloud_judge_falls_back_to_ollama(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NJ_DELIVERABLE_JUDGE_PROVIDER": "gemini",
+                "NJ_DELIVERABLE_JUDGE_MODE": "hub",
+                "NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA": "1",
+            },
+        ):
+            with mock.patch(
+                "deliverable_judge.hub_judge_deliverable",
+                return_value=(False, "Sorry, I encountered an error while generating a response."),
+            ):
+                with mock.patch(
+                    "deliverable_judge.ollama_judge_deliverable",
+                    return_value=(True, "substantive pass"),
+                ):
+                    ok, detail = judge_deliverable(
+                        question="write findings",
+                        rel_path="findings.md",
+                        file_body="# Findings\nmain.go",
+                        hub_base="http://127.0.0.1:18765",
+                    )
         self.assertTrue(ok)
-        self.assertIn("Gemini", detail)
+        self.assertIn("ollama/", detail)
+
+    def test_ollama_judge_routes_locally(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"NJ_DELIVERABLE_JUDGE_PROVIDER": "ollama", "NJ_DELIVERABLE_JUDGE_MODE": "ollama"},
+        ):
+            with mock.patch(
+                "deliverable_judge.ollama_judge_deliverable",
+                return_value=(True, "independent pass"),
+            ):
+                ok, detail = judge_deliverable(
+                    question="write findings",
+                    rel_path="findings.md",
+                    file_body="# Findings\nmain.go",
+                    hub_base="http://127.0.0.1:18765",
+                )
+        self.assertTrue(ok)
+        self.assertIn("ollama/", detail)
 
     def test_contains_all(self) -> None:
         ok, _ = check_contains_all("hello world", ["hello", "world"])

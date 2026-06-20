@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.release_prep_env import apply_release_prep_env  # noqa: E402
 
 DEFAULT_ROSTER = [
     "Assistant",
@@ -136,8 +138,6 @@ def check_ollama(expected_models: list[str]) -> bool:
 
 
 def _deliverable_judge_agent() -> str | None:
-    if os.environ.get("NJ_DELIVERABLE_JUDGE_SKIP", "").strip().lower() in ("1", "true", "yes"):
-        return None
     provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
     if provider == "ollama":
         return None
@@ -147,15 +147,35 @@ def _deliverable_judge_agent() -> str | None:
     return agent
 
 
-def check_deliverable_judge(base: str) -> bool:
-    agent = _deliverable_judge_agent()
-    if not agent:
+def check_deliverable_judge(base: str, *, skip_smoke: bool = False) -> bool:
+    if os.environ.get("NJ_DELIVERABLE_JUDGE_SKIP", "").strip().lower() in ("1", "true", "yes"):
+        _ok("deliverable judge skipped (NJ_DELIVERABLE_JUDGE_SKIP)")
         return True
-    ok, missing = hub.verify_agents_online(base, [agent])
+
+    if skip_smoke:
+        _ok("deliverable judge smoke skipped (already verified)")
+        return True
+
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    if provider != "ollama":
+        agent = _deliverable_judge_agent()
+        if agent:
+            ok, missing = hub.verify_agents_online(base, [agent])
+            if not ok:
+                _fail(f"deliverable judge agent offline: {', '.join(missing)} (start hub with {agent} CLI on PATH)")
+                return False
+            _ok(f"deliverable judge agent online: {agent}")
+
+    from lib.deliverable_judge_smoke import check_deliverable_judge_smoke  # noqa: E402
+
+    ok, detail = check_deliverable_judge_smoke(base, timeout_s=90.0)
     if not ok:
-        _fail(f"deliverable judge agent offline: {', '.join(missing)} (start hub with {agent} CLI on PATH)")
+        _fail(f"deliverable judge: {detail}")
         return False
-    _ok(f"deliverable judge agent online: {agent}")
+    if "ollama fallback" in detail.lower():
+        _warn(detail)
+    else:
+        _ok(detail)
     return True
 
 
@@ -206,15 +226,26 @@ def main() -> int:
         action="store_true",
         help="Require Gemini agent (resource-api-schema-planning)",
     )
+    p.add_argument(
+        "--skip-judge-smoke",
+        action="store_true",
+        help="Skip Gemini CLI judge smoke (hub judge already verified in release-prep)",
+    )
     args = p.parse_args()
+    apply_release_prep_env(ROOT)
     base = args.hub.rstrip("/")
 
     print(f"Collab preflight → {base}")
+    if not check_hub(base):
+        print("Preflight failed.", file=sys.stderr)
+        return 1
+
+    preflight_regression_run(ROOT, base, label="collab-preflight cleanup")
+
     checks = [
-        check_hub(base),
         check_ollama(load_expected_ollama_models()),
         check_agents(base, require_gemini=args.require_gemini),
-        check_deliverable_judge(base),
+        check_deliverable_judge(base, skip_smoke=args.skip_judge_smoke),
         check_scenario_list(),
     ]
     check_regression_log_hint()

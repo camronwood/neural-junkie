@@ -17,6 +17,16 @@ type PerformanceConfig struct {
 	ImplSessionBudgetKB int `json:"impl_session_budget_kb,omitempty"`
 	// MaxHistoryMessages is the tail channel history sent to the LLM. 0 uses default 10.
 	MaxHistoryMessages int `json:"max_history_messages,omitempty"`
+	// ContextCompressEnabled enables reversible tool/section compression (default true when unset).
+	ContextCompressEnabled *bool `json:"context_compress_enabled,omitempty"`
+	// ContextCompressMaxToolBytes caps compressed tool output size (default 12000).
+	ContextCompressMaxToolBytes int `json:"context_compress_max_tool_bytes,omitempty"`
+	// ContextCacheMaxEntries is the LRU size for compression originals (default 500).
+	ContextCacheMaxEntries int `json:"context_cache_max_entries,omitempty"`
+	// ContextCacheTTLMinutes is cache TTL for compression originals (default 60).
+	ContextCacheTTLMinutes int `json:"context_cache_ttl_minutes,omitempty"`
+	// OutputShapingEnabled trims verbose model output after read-only tool steps (default false).
+	OutputShapingEnabled bool `json:"output_shaping_enabled,omitempty"`
 }
 
 func (p PerformanceConfig) contextBudgetKBOr(defaultKB int) int {

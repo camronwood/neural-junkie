@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 	unified "github.com/camronwood/neural-junkie/internal/routing"
 )
 
@@ -12,28 +13,21 @@ const DefaultLocalToolModel = "qwen3.5:9b"
 
 // Input is the routing decision context for an implementation session.
 type Input struct {
-	RoutingEnabled      bool
-	LocalProviderID     string
-	LocalToolModel      string
-	FallbackProviderIDs []string
-	Providers           []config.ProviderConfig
-	DefaultProviderID   string
-	TaskText            string
-	AgentType           string
+	RoutingEnabled                bool
+	ModelCapabilityRoutingEnabled bool
+	LocalProviderID               string
+	LocalToolModel                string
+	FallbackProviderIDs           []string
+	Providers                     []config.ProviderConfig
+	DefaultProviderID             string
+	TaskText                      string
+	AgentType                     string
+	InstalledOllamaTags           map[string]struct{}
 }
 
 // SelectProviderID returns provider id, tool-loop model tag, and reason code.
 func SelectProviderID(in Input) (id string, toolModel string, reason string) {
-	toolModel = strings.TrimSpace(in.LocalToolModel)
-	if toolModel == "" {
-		toolModel = DefaultLocalToolModel
-	}
-	if text := strings.TrimSpace(in.TaskText); text != "" {
-		dec := unified.ClassifyRules(unified.Input{Text: text, AgentType: in.AgentType})
-		if dec.CostTier == unified.CostCheap {
-			toolModel = DefaultLocalToolModel
-		}
-	}
+	toolModel = resolveToolModel(in)
 	if !in.RoutingEnabled || len(in.Providers) == 0 {
 		if in.DefaultProviderID != "" {
 			return in.DefaultProviderID, toolModel, "routing_disabled_default"
@@ -60,6 +54,55 @@ func SelectProviderID(in Input) (id string, toolModel string, reason string) {
 		return in.DefaultProviderID, toolModel, "default_agent_provider"
 	}
 	return "", toolModel, "no_eligible_provider"
+}
+
+// SelectMainModel returns the Ollama chat model for an implementation session.
+func SelectMainModel(in Input) (model string, reason string) {
+	return resolveMainModel(in)
+}
+
+func resolveToolModel(in Input) string {
+	fallback := strings.TrimSpace(in.LocalToolModel)
+	if fallback == "" {
+		fallback = DefaultLocalToolModel
+	}
+	if in.ModelCapabilityRoutingEnabled {
+		if p := capabilities.Global(); p != nil {
+			_, toolClass := capabilities.ClassifyImpl(capabilities.ImplInput{
+				TaskText:  in.TaskText,
+				AgentType: in.AgentType,
+			})
+			if sel := capabilities.SelectOllamaTag(p, toolClass, in.InstalledOllamaTags, fallback); sel.Tag != "" {
+				return sel.Tag
+			}
+		}
+	}
+	if text := strings.TrimSpace(in.TaskText); text != "" {
+		dec := unified.ClassifyRules(unified.Input{Text: text, AgentType: in.AgentType})
+		if dec.CostTier == unified.CostCheap {
+			return DefaultLocalToolModel
+		}
+	}
+	return fallback
+}
+
+func resolveMainModel(in Input) (string, string) {
+	fallback := strings.TrimSpace(in.LocalToolModel)
+	if fallback == "" {
+		fallback = DefaultLocalToolModel
+	}
+	if in.ModelCapabilityRoutingEnabled {
+		if p := capabilities.Global(); p != nil {
+			mainClass, _ := capabilities.ClassifyImpl(capabilities.ImplInput{
+				TaskText:  in.TaskText,
+				AgentType: in.AgentType,
+			})
+			if sel := capabilities.SelectOllamaTag(p, mainClass, in.InstalledOllamaTags, fallback); sel.Tag != "" {
+				return sel.Tag, sel.Reason
+			}
+		}
+	}
+	return fallback, "default_agent_provider"
 }
 
 func providerExists(providers []config.ProviderConfig, id string) bool {

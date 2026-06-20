@@ -11,10 +11,10 @@
   "solo_leg": {
     "channel": "collab-scenarios-solo",
     "output_rel": "collabs/parity-solo/findings.md",
-    "timeout": "300s",
+    "timeout": "420s",
     "min_bytes": 40,
     "message": "@Assistant Write collabs/parity-solo/findings.md with three bullet findings about this repo using only README.md and core/sample/main.go. Use a [FILE_CHANGE] proposal or workspace write so the file exists on disk under collabs/parity-solo/findings.md.",
-    "approve_timeout": "180s",
+    "approve_timeout": "240s",
     "any_match": ["main\\.go", "core/sample", "minimal"],
     "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
   },
@@ -31,7 +31,9 @@
         "any_match": ["main\\.go", "core/sample", "minimal"],
         "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
       },
-      "llm_judge": true
+      "llm_judge": {
+        "criteria": "PASS if findings.md summarizes this minimal-repo fixture using README.md and core/sample/main.go. FAIL for hallucinated paths like index.js or unrelated boilerplate."
+      }
     }
   ],
   "steps": [

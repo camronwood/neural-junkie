@@ -45,7 +45,7 @@ func (cm *CollaborationManager) EnsureWorktree(collabID, sourceRepoPath string) 
 	if repo == "" {
 		return nil, fmt.Errorf("source repository path is required for worktree execution")
 	}
-	if b := cm.worktreeBackendFor(repo); b != nil && b.Kind() != workspacebackend.KindLocal {
+	if b := cm.worktreeBackendForLocked(repo); b != nil && b.Kind() != workspacebackend.KindLocal {
 		if err := collabworktree.ValidateGitRepoViaBackend(context.Background(), b); err != nil {
 			return nil, err
 		}
@@ -105,7 +105,7 @@ func (cm *CollaborationManager) cleanupWorktreeLocked(c *Collaboration) {
 	if worktree == "" {
 		return
 	}
-	if b := cm.worktreeBackendFor(c.SourceRepoPath); b != nil && b.Kind() != workspacebackend.KindLocal {
+	if b := cm.worktreeBackendForLocked(c.SourceRepoPath); b != nil && b.Kind() != workspacebackend.KindLocal {
 		if err := collabworktree.RemoveViaBackend(context.Background(), b, collabworktree.RemoveOptions{
 			WorktreePath:   worktree,
 			SourceRepoPath: c.SourceRepoPath,
@@ -165,7 +165,7 @@ func (cm *CollaborationManager) createWorktreeIfReady(c *Collaboration, baseDir 
 		// Deferred until workspace ack supplies repo path.
 		return nil
 	}
-	if b := cm.worktreeBackendFor(c.SourceRepoPath); b != nil && b.Kind() != workspacebackend.KindLocal {
+	if b := cm.worktreeBackendForLocked(c.SourceRepoPath); b != nil && b.Kind() != workspacebackend.KindLocal {
 		if err := collabworktree.ValidateGitRepoViaBackend(context.Background(), b); err != nil {
 			return err
 		}

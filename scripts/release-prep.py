@@ -18,6 +18,11 @@ ROOT = SCRIPTS_DIR.parent
 DEFAULT_TESTING_DIR = ROOT / "docs" / "testing"
 PY = sys.executable
 
+sys.path.insert(0, str(SCRIPTS_DIR))
+from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
+from lib.release_prep_hub import ensure_hub_for_release_prep  # noqa: E402
+
 REVIEW_RE = re.compile(r"^Review:\s+(.+)$", re.MULTILINE)
 LOG_RE = re.compile(r"^Full log:\s+(.+)$", re.MULTILINE)
 PARITY_LOG_RE = re.compile(r"^Log archived:\s+(.+)$", re.MULTILINE)
@@ -62,8 +67,7 @@ class ReleasePrepReport:
 
 
 def run_phase(name: str, cmd: list[str], *, env: dict | None = None) -> PhaseResult:
-    merged = os.environ.copy()
-    merged.update({"NEURAL_JUNKIE_RATE_LIMIT": "0"})
+    merged = release_prep_env(ROOT)
     if env:
         merged.update(env)
     t0 = time.monotonic()
@@ -178,7 +182,21 @@ def main() -> int:
     p.add_argument("--no-full", action="store_true", help="test-everything without collab-scenarios-all")
     p.add_argument("--benchmark-suite", default="quick", help="model-benchmark suite (default: quick)")
     p.add_argument("--benchmark-models", help="Comma-separated Ollama tags for benchmark")
-    p.add_argument("--pull-models", action="store_true", help="Pull missing benchmark models")
+    p.add_argument(
+        "--no-pull-models",
+        action="store_true",
+        help="Do not pull missing benchmark models via hub (default: pull before each model)",
+    )
+    p.add_argument(
+        "--benchmark-allow-large",
+        action="store_true",
+        help="Allow benchmark models above the max-params-b cap (default 24B)",
+    )
+    p.add_argument(
+        "--no-restart-hub",
+        action="store_true",
+        help="Do not start/restart regression hub when Gemini judge is unhealthy",
+    )
     p.add_argument("--verbose", action="store_true")
     p.add_argument(
         "--stop-on-fail",
@@ -187,6 +205,7 @@ def main() -> int:
     )
     args = p.parse_args()
 
+    apply_release_prep_env(ROOT)
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
     hub_url = args.hub.rstrip("/")
     testing_dir = Path(args.log_dir)
@@ -199,6 +218,33 @@ def main() -> int:
     )
 
     print(f"release-prep → {testing_dir}/release-prep-{stamp}.{{md,log}}")
+
+    if not args.skip_live:
+        print("\n>>> [release-prep setup] env + hub + Gemini judge")
+        if not ensure_hub_for_release_prep(
+            hub_url,
+            root=ROOT,
+            allow_restart=not args.no_restart_hub,
+            verbose=args.verbose,
+        ):
+            write_reports(report, testing_dir)
+            print("Release prep aborted: hub/Gemini judge not ready.", file=sys.stderr)
+            return 1
+        preflight_regression_run(ROOT, hub_url, label="release-prep preflight")
+        preflight_cmd = [
+            PY,
+            str(SCRIPTS_DIR / "collab-preflight.py"),
+            "--hub",
+            hub_url,
+            "--require-gemini",
+            "--skip-judge-smoke",
+        ]
+        preflight_phase = run_phase("release-prep-preflight", preflight_cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url})
+        if preflight_phase.status == "FAIL":
+            report.phases.append(preflight_phase)
+            write_reports(report, testing_dir)
+            _print_final(report)
+            return 1
 
     if not args.skip_everything:
         te_cmd = [
@@ -273,10 +319,12 @@ def main() -> int:
             args.benchmark_suite,
             "--out-dir",
             str(testing_dir),
-            "--skip-missing",
+            "--pull",
         ]
-        if args.pull_models:
-            bench_cmd.append("--pull")
+        if args.no_pull_models:
+            bench_cmd.remove("--pull")
+        if args.benchmark_allow_large:
+            bench_cmd.append("--allow-large-models")
         if args.benchmark_models:
             bench_cmd.extend(["--models", args.benchmark_models])
         if args.verbose:

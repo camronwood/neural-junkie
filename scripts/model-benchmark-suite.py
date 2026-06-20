@@ -21,12 +21,16 @@ from lib.model_benchmark import (  # noqa: E402
     ModelBenchmarkResult,
     ScenarioResult,
     SUITES_CONFIG,
+    filter_models_by_max_params,
     format_duration,
     load_models,
     load_suite,
     model_is_installed,
+    model_params_b,
     ollama_installed_tags,
     pull_ollama_model,
+    resolve_suite_max_params_b,
+    resolve_suite_model_tags,
     resolve_suite_scenarios,
     run_script_scenario,
     switch_all_ollama,
@@ -36,7 +40,13 @@ from lib.model_benchmark import (  # noqa: E402
 DEFAULT_OUT = ROOT / "docs" / "testing"
 
 
-def parse_models_arg(raw: str, config_path: Path | None) -> list[dict]:
+def parse_models_arg(
+    raw: str,
+    config_path: Path | None,
+    *,
+    max_params_b: float | None = None,
+    allow_large: bool = False,
+) -> list[dict]:
     catalog = {m["tag"]: m for m in load_models(config_path)}
     tags = [t.strip() for t in raw.split(",") if t.strip()]
     out: list[dict] = []
@@ -45,7 +55,44 @@ def parse_models_arg(raw: str, config_path: Path | None) -> list[dict]:
             out.append(catalog[tag])
         else:
             out.append({"id": tag.replace(":", "-"), "tag": tag, "title": tag, "size_hint_gb": None, "notes": "cli override"})
+    if max_params_b is not None and not allow_large:
+        out = filter_models_by_max_params(out, max_params_b, allow_unknown=True)
     return out
+
+
+def resolve_benchmark_models(
+    suite: dict[str, Any],
+    *,
+    models_arg: str | None,
+    models_config: Path,
+    suites_config: Path,
+    max_params_b: float | None,
+    allow_large: bool,
+) -> list[dict]:
+    cap = max_params_b if max_params_b is not None else resolve_suite_max_params_b(suite, models_config)
+
+    if models_arg:
+        models = parse_models_arg(
+            models_arg,
+            models_config,
+            max_params_b=cap,
+            allow_large=allow_large,
+        )
+    elif resolve_suite_model_tags(suite):
+        models = parse_models_arg(
+            ",".join(resolve_suite_model_tags(suite)),
+            models_config,
+            max_params_b=cap,
+            allow_large=allow_large,
+        )
+    else:
+        models = load_models(models_config)
+        if not allow_large:
+            models = filter_models_by_max_params(models, cap)
+
+    if not models:
+        raise ValueError(f"no models at or below {cap}B params (use --allow-large-models to bypass cap)")
+    return models
 
 
 def benchmark_model(
@@ -140,6 +187,17 @@ def main() -> int:
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT)
     p.add_argument("--pull", action="store_true", help="Pull missing models via hub before each run")
     p.add_argument("--skip-missing", action="store_true", help="Skip models that are not installed")
+    p.add_argument(
+        "--max-params-b",
+        type=float,
+        default=None,
+        help="Cap benchmark roster to this size in billions of params (default: suite max_params_b or 24)",
+    )
+    p.add_argument(
+        "--allow-large-models",
+        action="store_true",
+        help="Allow models above max-params-b cap (default cap is 24B)",
+    )
     p.add_argument("--cooldown", type=float, default=5.0, help="Seconds after switch-all before scenarios")
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--list-suites", action="store_true")
@@ -158,10 +216,18 @@ def main() -> int:
         return 0
 
     if args.list_models:
-        for m in load_models(args.models_config):
+        cap = args.max_params_b if args.max_params_b is not None else resolve_suite_max_params_b({}, args.models_config)
+        roster = load_models(args.models_config)
+        if not args.allow_large_models:
+            roster = filter_models_by_max_params(roster, cap)
+        for m in roster:
             gb = m.get("size_hint_gb")
             size = f"~{gb} GB" if gb else "?"
-            print(f"{m.get('tag')}\t{m.get('title')}\t{size}\t{m.get('notes', '')}")
+            params = model_params_b(m)
+            pb = f"{params}B" if params is not None else "?"
+            print(f"{m.get('tag')}\t{m.get('title')}\t{pb}\t{size}\t{m.get('notes', '')}")
+        if not args.allow_large_models:
+            print(f"\n(roster capped at {cap}B — use --allow-large-models for full catalog)")
         return 0
 
     hub_url = args.hub.rstrip("/")
@@ -175,11 +241,24 @@ def main() -> int:
         print(f"suite {args.suite!r} has no scenarios", file=sys.stderr)
         return 1
 
-    models = parse_models_arg(args.models, args.models_config) if args.models else load_models(args.models_config)
+    try:
+        models = resolve_benchmark_models(
+            suite,
+            models_arg=args.models,
+            models_config=args.models_config,
+            suites_config=args.suites_config,
+            max_params_b=args.max_params_b,
+            allow_large=args.allow_large_models,
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     suite_desc = str(suite.get("description") or args.suite)
+    cap = args.max_params_b if args.max_params_b is not None else resolve_suite_max_params_b(suite, args.models_config)
 
     print(f"Model benchmark suite={args.suite}")
     print(f"  {suite_desc}")
+    print(f"  max_params_b: {cap}" + (" (large models allowed)" if args.allow_large_models else ""))
     print(f"  models: {', '.join(m['tag'] for m in models)}")
     print(f"  implement ({len(implement)}): {', '.join(implement) or '(none)'}")
     print(f"  chat ({len(chat)}): {', '.join(chat) or '(none)'}")
@@ -211,7 +290,20 @@ def main() -> int:
 
     active = [r for r in results if not r.skipped and r.scenarios]
     if not active:
-        print("\nNo models benchmarked.", file=sys.stderr)
+        msg = "\nNo models benchmarked."
+        if args.pull:
+            msg += " Pull attempts did not produce any runnable models."
+            print(msg, file=sys.stderr)
+            if md_path:
+                print(f"Markdown: {md_path}")
+            return 1
+        if args.skip_missing:
+            msg += " (all skipped — use --pull or make pull-benchmark-models)"
+            print(msg, file=sys.stderr)
+            if md_path:
+                print(f"Markdown: {md_path}")
+            return 0
+        print(msg, file=sys.stderr)
         return 1
 
     winner = max(active, key=lambda r: (r.pass_rate, r.passed, -r.total_duration_s))

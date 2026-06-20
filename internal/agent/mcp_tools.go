@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/google/uuid"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -69,10 +71,10 @@ func executeMCPTool(ctx context.Context, mcpServer *server.MCPServer, name strin
 	if err != nil {
 		return "", err
 	}
-	return formatCallToolResult(result), nil
+	return formatCallToolResult(ctx, name, result), nil
 }
 
-func formatCallToolResult(result *mcpgo.CallToolResult) string {
+func formatCallToolResult(ctx context.Context, toolName string, result *mcpgo.CallToolResult) string {
 	if result == nil {
 		return ""
 	}
@@ -86,10 +88,54 @@ func formatCallToolResult(result *mcpgo.CallToolResult) string {
 	if result.IsError {
 		return "ERROR: " + text
 	}
-	if len(text) > maxToolResultChars {
-		return text[:maxToolResultChars] + "\n...(truncated)"
+
+	opts := contextcompress.RuntimeOptions()
+	maxBytes := opts.MaxToolBytes
+	if maxBytes <= 0 {
+		maxBytes = maxToolResultChars
 	}
-	return text
+	if !opts.Enabled && len(text) > maxBytes {
+		return text[:maxBytes] + "\n...(truncated)"
+	}
+
+	channelID, callID := contextcompress.CompressContextFrom(ctx)
+	if callID == "" {
+		callID = uuid.NewString()
+	}
+	compressed := contextcompress.CompressToolResult(
+		contextcompress.DefaultStore(),
+		toolName,
+		channelID,
+		callID,
+		text,
+		opts,
+	)
+	if agent := agentFromContext(ctx); agent != nil {
+		agent.RecordCompressResult(
+			compressed.OriginalBytes,
+			compressed.CompressedBytes,
+			compressed.Strategy,
+			compressed.Ref,
+		)
+	}
+	return compressed.Text
+}
+
+type agentCompressKey struct{}
+
+func contextWithCompressAgent(ctx context.Context, a *Agent) context.Context {
+	if ctx == nil || a == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, agentCompressKey{}, a)
+}
+
+func agentFromContext(ctx context.Context) *Agent {
+	if ctx == nil {
+		return nil
+	}
+	a, _ := ctx.Value(agentCompressKey{}).(*Agent)
+	return a
 }
 
 // appendMCPToolsPrompt adds dynamic tool descriptions to the system prompt.
@@ -129,6 +175,15 @@ func appendMCPToolsPrompt(system *strings.Builder, mcpServer *server.MCPServer, 
 		system.WriteString("\nUse these tools to provide data-driven answers. When diagnosing issues,\n")
 		system.WriteString("USE THE TOOLS to get actual data rather than guessing.\n\n")
 	}
+	if contextcompress.RuntimeOptions().Enabled {
+		system.WriteString("Large tool outputs may be compressed with a ref marker; use nj_retrieve_context to expand when needed.\n\n")
+	}
+}
+
+var readOnlyToolNames = map[string]bool{
+	"read_file": true, "grep": true, "glob_file_search": true,
+	"list_dir": true, "semantic_search": true, "get_file_content": true,
+	"search_codebase": true, "search_by_path": true, "list_key_files": true,
 }
 
 // generateWithMCPTools runs the AI provider tool loop when supported.
@@ -155,17 +210,38 @@ func (a *Agent) generateWithMCPTools(
 		return eff.GenerateResponse(ctx, prompt, histMsgs)
 	}
 
-	return toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools,
+	channelID := ""
+	if len(history) > 0 && history[len(history)-1] != nil {
+		channelID = history[len(history)-1].Channel
+	}
+	toolCtx := contextcompress.WithRetrieveBudget(
+		contextcompress.WithCompressContext(
+			contextWithCompressAgent(withWebSearchGuard(ctx), a),
+			channelID,
+			"",
+		),
+	)
+
+	return toolProvider.GenerateResponseWithTools(toolCtx, prompt, histMsgs, tools,
 		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
 			log.Printf("[%s] MCP tool call: %s", a.Info.Name, req.Name)
-			toolCtx := ctx
+			callCtx := ctx
 			if len(history) > 0 {
-				toolCtx = a.contextWithWorkspaceBackend(ctx, history[len(history)-1])
+				callCtx = a.contextWithWorkspaceBackend(ctx, history[len(history)-1])
 			}
-			result, err := executeMCPTool(toolCtx, mcpServer, req.Name, req.Input)
+			callCtx = contextcompress.WithCompressContext(
+				contextWithCompressAgent(callCtx, a),
+				channelID,
+				uuid.NewString(),
+			)
+			result, err := executeMCPTool(callCtx, mcpServer, req.Name, req.Input)
 			if err != nil {
 				return result, err
 			}
-			return guardWebSearchToolResult(ctx, req.Name, result), nil
+			result = guardWebSearchToolResult(ctx, req.Name, result)
+			if ai.OutputShapingEnabled() && readOnlyToolNames[req.Name] {
+				result += "\n\n[Hint: be concise on your next reply; do not restate this tool output verbatim.]"
+			}
+			return result, nil
 		})
 }
