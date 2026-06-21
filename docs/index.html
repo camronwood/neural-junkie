@@ -309,11 +309,11 @@
       <div class="wrap feature-spotlight-inner">
         <div class="feature-spotlight-copy">
           <p class="feature-spotlight-kicker">Domain packs</p>
-          <h2 id="domain-packs-heading">Install packs for the work you do — engineering, research, design, or tuning</h2>
+          <h2 id="domain-packs-heading">Install packs for the work you do — engineering, research, design, cloud, or tuning</h2>
           <p class="feature-spotlight-lead">
-            Open <strong>Settings → Domain packs → Pack store</strong> to install official packs from GitHub (embedded fallback when offline). Enable <strong>multiple packs</strong>; the <strong>first pack you turn on</strong> sets IDE vs team layout. Chat, Slack, and custom experts stay available either way.
+            Open <strong>Domain packs</strong> from the toolbar chip (<strong>⌘⇧K</strong>) → <strong>Store</strong> to install official packs from GitHub. The hub merges an embedded catalog snapshot so new packs appear without a restart. Enable <strong>multiple packs</strong>; pick which enabled pack controls IDE vs team layout. Chat, Slack, and custom experts stay available either way.
           </p>
-          <div class="packs-grid packs-grid--quad" role="list">
+          <div class="packs-grid packs-grid--seven" role="list">
             <article class="pack-card pack-card--dev" role="listitem">
               <h3 class="pack-card-title">Software development</h3>
               <p class="pack-card-blurb">Engineering specialists, Git in the app, <strong>IDE v4</strong> (full LSP, remote SSH, <code>@codebase</code>), implementation sessions.</p>
@@ -336,6 +336,21 @@
               <p class="pack-card-blurb">LoRA training from chat and collabs, personal learning opt-in, adapter compose in Ollama.</p>
               <a class="btn btn-ghost btn-sm" href="features/personal-learning.html">Personal learning</a>
             </article>
+            <article class="pack-card pack-card--aws" role="listitem">
+              <h3 class="pack-card-title">AWS</h3>
+              <p class="pack-card-blurb">AWSExpert with read-only AWS CLI MCP tools, SSO profile picker, and account-scoped infra queries.</p>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/AWS_PACK.md">AWS pack guide</a>
+            </article>
+            <article class="pack-card pack-card--incident" role="listitem">
+              <h3 class="pack-card-title">Incident management</h3>
+              <p class="pack-card-blurb">IncidentManager for Jira triage, reproduction steps, and handoff to engineering specialists.</p>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/INCIDENT_PACK.md">Incident pack guide</a>
+            </article>
+            <article class="pack-card pack-card--browser" role="listitem">
+              <h3 class="pack-card-title">Web browser</h3>
+              <p class="pack-card-blurb">WebBrowserExpert, HTML preview workbench for <code>.html</code> files and local dev servers, plus <code>fetch_url</code>.</p>
+              <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/WEB_BROWSER_PACK.md">Web browser guide</a>
+            </article>
           </div>
           <p class="packs-exclusive"><strong>Custom packs:</strong> Pack Dev Studio + sideload zip for customer bundles. See <a href="features/domain-packs.html">Domain packs guide</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS.md">PACKS.md</a>.</p>
           <div class="feature-spotlight-actions">
@@ -344,20 +359,20 @@
           </div>
         </div>
         <figure class="feature-spotlight-visual">
-          <div class="spotlight-art spotlight-art--packs" role="img" aria-label="Domain pack store: Software development and Life sciences packs installable from GitHub">
+          <div class="spotlight-art spotlight-art--packs" role="img" aria-label="Domain pack store: seven official packs installable from GitHub">
             <div class="spotlight-art__packs">
               <div class="spotlight-art__pack spotlight-art__pack--on">
                 <span class="spotlight-art__pack-label">Software dev</span>
                 <span class="spotlight-art__pack-line"></span>
                 <span class="spotlight-art__pack-line spotlight-art__pack-line--short"></span>
-                <span class="spotlight-art__pack-tag">IDE · Git · ⌘K</span>
+                <span class="spotlight-art__pack-tag">IDE · Git · LSP</span>
               </div>
-              <span class="spotlight-art__pack-or" aria-hidden="true">or</span>
+              <span class="spotlight-art__pack-or" aria-hidden="true">+</span>
               <div class="spotlight-art__pack">
-                <span class="spotlight-art__pack-label">Life sciences</span>
+                <span class="spotlight-art__pack-label">AWS · Jira · Web</span>
                 <span class="spotlight-art__pack-line"></span>
                 <span class="spotlight-art__pack-line spotlight-art__pack-line--short"></span>
-                <span class="spotlight-art__pack-tag">Bio · Scan QC</span>
+                <span class="spotlight-art__pack-tag">⌘⇧K store</span>
               </div>
             </div>
           </div>
