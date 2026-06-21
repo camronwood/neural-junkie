@@ -41,6 +41,8 @@ interface PacksState {
   devUnlinkPack: (packId: string) => Promise<PacksAPIResponse>;
   fetchCustomerPackContext: () => Promise<CustomerPackContextResponse>;
   hasCapability: (cap: PackCapability | string) => boolean;
+  /** True when software-development is installed and enabled (pack row, not capability union). */
+  softwareDevelopmentPackActive: () => boolean;
   /** @deprecated use hasCapability(PACK_CAP.SCAN_SUMMARY_VIEWER) */
   lifeSciencesEnabled: () => boolean;
   /** @deprecated use hasCapability(PACK_CAP.IDE_V2) */
@@ -216,10 +218,16 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     return get().capabilities.includes(c);
   },
 
+  softwareDevelopmentPackActive: () => {
+    const pack = get().packs.find((p) => p.id === PACK_SOFTWARE_DEVELOPMENT);
+    return pack?.installed === true && pack?.enabled === true;
+  },
+
   lifeSciencesEnabled: () => {
     const pack = get().packs.find((p) => p.id === PACK_LIFE_SCIENCES);
     return pack?.installed === true && pack?.enabled === true;
   },
 
-  softwareDevelopmentEnabled: () => get().hasCapability('ide-v2'),
+  softwareDevelopmentEnabled: () =>
+    get().hasCapability('ide-v2') || get().softwareDevelopmentPackActive(),
 }));

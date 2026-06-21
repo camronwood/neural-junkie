@@ -233,9 +233,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [phoenixModalOpen, setPhoenixModalOpen] = useState(false);
   const layoutProfile = usePacksStore((s) => s.layoutProfile);
   const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
+  const softwareDevPackActive = usePacksStore((s) => s.softwareDevelopmentPackActive());
   const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
-  const devPackEnabled = hasIdeV2;
+  const devPackEnabled = hasIdeV2 || softwareDevPackActive;
+  const ideLayoutAvailable = devPackEnabled;
   const phoenixPackInstalled = usePacksStore((s) => s.hasCapability(PACK_CAP.PHOENIX_IMPORT));
   const enabledPackCount = usePacksStore((s) => s.packs.filter((p) => p.enabled).length);
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
@@ -2374,6 +2376,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       onOpenMyAgents: () => setMyAgentsPanelOpen(true),
       totalAgentsCount,
       devPackEnabled,
+      ideLayoutAvailable,
       onOpenProblems: () => setProblemsOpen(true),
       gitModalOpen,
       onToggleGitModal: () => setGitModalOpen((open) => !open),
@@ -2402,6 +2405,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       handleNewRunbook,
       totalAgentsCount,
       devPackEnabled,
+      ideLayoutAvailable,
       phoenixPackInstalled,
       gitModalOpen,
       ideLayout,
@@ -2466,41 +2470,45 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </div>
         </div>
         
-        <div className="flex items-center gap-1.5 shrink min-w-0 max-w-[min(100%,72rem)] overflow-x-auto overflow-y-visible" aria-label="Sidebar toggles">
-          <button
-            type="button"
-            onClick={toggleChannelSidebar}
-            className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
-              channelSidebarOpen
-                ? 'bg-slack-accent text-white'
-                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
-            }`}
-            title="Toggle channels sidebar (⌘B)"
-            aria-label="Toggle channels sidebar"
-            aria-pressed={channelSidebarOpen}
-          >
-            <LeftSidebarIcon className="w-3.5 h-3.5" />
-          </button>
-          {useSidebarChips && (
+        <div className="flex items-center gap-1.5 shrink min-w-0 max-w-[min(100%,72rem)] justify-end" aria-label="Sidebar toggles">
+          <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
-              onClick={toggleToolbarSidebar}
+              onClick={toggleChannelSidebar}
               className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
-                toolbarSidebarOpen
+                channelSidebarOpen
                   ? 'bg-slack-accent text-white'
                   : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
               }`}
-              title={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
-              aria-label={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
-              aria-pressed={toolbarSidebarOpen}
+              title="Toggle channels sidebar (⌘B)"
+              aria-label="Toggle channels sidebar"
+              aria-pressed={channelSidebarOpen}
             >
-              <RightSidebarIcon className="w-3.5 h-3.5" />
+              <LeftSidebarIcon className="w-3.5 h-3.5" />
             </button>
-          )}
+            {useSidebarChips && (
+              <button
+                type="button"
+                onClick={toggleToolbarSidebar}
+                className={`w-7 h-7 rounded transition-colors flex items-center justify-center shrink-0 ${
+                  toolbarSidebarOpen
+                    ? 'bg-slack-accent text-white'
+                    : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text hover:bg-slack-border'
+                }`}
+                title={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
+                aria-label={toolbarSidebarOpen ? 'Close toolbar panel' : 'Open toolbar panel'}
+                aria-pressed={toolbarSidebarOpen}
+              >
+                <RightSidebarIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           {showTopToolbarChips && (
             <>
-              <div className="w-px h-5 bg-slack-border mx-0.5 shrink-0" />
-              <ChatToolbarActions layout="horizontal" {...toolbarActionsProps} />
+              <div className="w-px h-5 bg-slack-border shrink-0" />
+              <div className="flex min-w-0 overflow-x-auto overflow-y-visible">
+                <ChatToolbarActions layout="horizontal" {...toolbarActionsProps} />
+              </div>
             </>
           )}
         </div>

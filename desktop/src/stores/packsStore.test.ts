@@ -15,6 +15,27 @@ describe('packsStore', () => {
     expect(usePacksStore.getState().hasCapability('ide-v2')).toBe(false);
   });
 
+  it('softwareDevelopmentEnabled falls back to pack row when capability missing', () => {
+    usePacksStore.setState({
+      capabilities: [],
+      packs: [
+        {
+          id: 'software-development',
+          title: 'Software development',
+          description: '',
+          installed: true,
+          enabled: true,
+        },
+      ],
+      catalog: [],
+      layoutOwner: 'software-development',
+      layoutProfile: 'ide',
+    });
+    expect(usePacksStore.getState().softwareDevelopmentPackActive()).toBe(true);
+    expect(usePacksStore.getState().softwareDevelopmentEnabled()).toBe(true);
+    expect(usePacksStore.getState().hasCapability('ide-v2')).toBe(false);
+  });
+
   it('layoutProfile reflects store state', () => {
     usePacksStore.setState({ layoutProfile: 'ide' });
     expect(usePacksStore.getState().layoutProfile).toBe('ide');
