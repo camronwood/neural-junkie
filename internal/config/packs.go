@@ -1033,15 +1033,16 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 	var out []PackCatalogStatus
 	for _, e := range cat.Packs {
 		row := PackCatalogStatus{
-			ID:          e.ID,
-			Version:     e.Version,
-			Title:       e.Title,
-			Description: e.Description,
-			IconKey:     e.IconKey,
-			Publisher:   e.Publisher,
-			Builtin:     e.Builtin,
-			Installed:   c.IsPackInstalled(e.ID),
-			Enabled:     c.IsPackEnabled(e.ID),
+			ID:            e.ID,
+			Version:       e.Version,
+			Title:         e.Title,
+			Description:   e.Description,
+			IconKey:       e.IconKey,
+			Publisher:     e.Publisher,
+			Builtin:       e.Builtin,
+			RequiresPacks: append([]string(nil), e.RequiresPacks...),
+			Installed:     c.IsPackInstalled(e.ID),
+			Enabled:       c.IsPackEnabled(e.ID),
 		}
 		if m, err := c.packManifestForCatalog(e.ID); err == nil && m != nil {
 			row.LoRAAdapterCount = len(m.LoRAAdapters)

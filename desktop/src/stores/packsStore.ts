@@ -88,7 +88,12 @@ export const usePacksStore = create<PacksState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const api = new ChatAPI(getHubBaseURL());
-      const catalog = await api.fetchPackCatalog();
+      let catalog: PackCatalogEntry[];
+      try {
+        catalog = await api.refreshPackCatalog();
+      } catch {
+        catalog = await api.fetchPackCatalog();
+      }
       set({ catalog, loading: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load pack catalog';

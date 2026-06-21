@@ -66,14 +66,15 @@ type ExpertPreset struct {
 
 // CatalogEntry is a row in packs/catalog.json for the Pack Store.
 type CatalogEntry struct {
-	ID          string `json:"id"`
-	Version     string `json:"version"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	IconKey     string `json:"icon_key,omitempty"`
-	Publisher   string `json:"publisher,omitempty"`
-	Builtin     bool   `json:"builtin,omitempty"`
-	DownloadURL string `json:"download_url,omitempty"`
+	ID            string   `json:"id"`
+	Version       string   `json:"version"`
+	Title         string   `json:"title"`
+	Description   string   `json:"description"`
+	IconKey       string   `json:"icon_key,omitempty"`
+	Publisher     string   `json:"publisher,omitempty"`
+	Builtin       bool     `json:"builtin,omitempty"`
+	RequiresPacks []string `json:"requires_packs,omitempty"`
+	DownloadURL   string   `json:"download_url,omitempty"`
 }
 
 // Catalog is the remote/store listing file.

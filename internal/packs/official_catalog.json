@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "catalog_url": "https://raw.githubusercontent.com/camronwood/neural-junkie/main/packs/catalog.json",
   "packs": [
     {
       "id": "software-development",

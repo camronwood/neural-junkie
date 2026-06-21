@@ -2547,6 +2547,15 @@ export class ChatAPI {
     return (data.packs as PackCatalogEntry[]) ?? [];
   }
 
+  async refreshPackCatalog(): Promise<PackCatalogEntry[]> {
+    const response = await this.hubFetch(`/api/packs/catalog/refresh`, { method: 'POST' });
+    if (!response.ok) {
+      throw new Error(`Failed to refresh pack catalog: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return (data.packs as PackCatalogEntry[]) ?? [];
+  }
+
   async installPack(packId: string): Promise<PacksAPIResponse> {
     const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install`, {
       method: 'POST',

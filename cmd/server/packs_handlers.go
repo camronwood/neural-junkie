@@ -25,6 +25,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handlePacksCatalog(w, r)
 		return
 	}
+	if path == "catalog/refresh" {
+		handlePacksCatalogRefresh(w, r)
+		return
+	}
 	if path == "install-zip" {
 		handlePackInstallZip(w, r)
 		return
@@ -88,6 +92,25 @@ func handlePacksCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
+		"packs":       rows,
+		"catalog_url": packs.CatalogURL(),
+	})
+}
+
+func handlePacksCatalogRefresh(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	packs.InvalidateCatalogCache()
+	rows, err := appConfig.ListPackCatalogStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status":      "ok",
 		"packs":       rows,
 		"catalog_url": packs.CatalogURL(),
 	})

@@ -36,7 +36,7 @@ func FetchCatalog() (*Catalog, error) {
 	if catalogCache != nil && time.Since(catalogCacheAt) < catalogCacheTTL {
 		c := cloneCatalog(catalogCache)
 		catalogCacheMu.RUnlock()
-		return c, nil
+		return finalizeCatalog(c)
 	}
 	catalogCacheMu.RUnlock()
 
@@ -44,7 +44,10 @@ func FetchCatalog() (*Catalog, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pack catalog: %w", err)
 	}
-	cat = orderCatalogPacks(cat)
+	cat, err = finalizeCatalog(cat)
+	if err != nil {
+		return nil, err
+	}
 
 	catalogCacheMu.Lock()
 	catalogCache = cat
@@ -52,6 +55,14 @@ func FetchCatalog() (*Catalog, error) {
 	catalogCacheMu.Unlock()
 
 	return cloneCatalog(cat), nil
+}
+
+func finalizeCatalog(cat *Catalog) (*Catalog, error) {
+	merged, err := mergeBuiltinOfficialPacks(cat)
+	if err != nil {
+		return orderCatalogPacks(cat), nil
+	}
+	return merged, nil
 }
 
 // InvalidateCatalogCache clears the in-memory catalog cache (tests).

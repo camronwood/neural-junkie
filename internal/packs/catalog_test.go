@@ -33,6 +33,23 @@ func TestFetchCatalogRequiresRemote(t *testing.T) {
 	}
 }
 
+func TestMergeBuiltinOfficialPacks(t *testing.T) {
+	cat := &Catalog{
+		Version: 1,
+		Packs: []CatalogEntry{
+			{ID: "software-development", Title: "Dev", Version: "1.0.0"},
+			{ID: "aws", Title: "AWS", Version: "1.0.0"},
+		},
+	}
+	merged, err := mergeBuiltinOfficialPacks(cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if merged.CatalogEntryByID("web-browser") == nil {
+		t.Fatal("expected embedded web-browser pack to be merged into stale catalog")
+	}
+}
+
 func TestOrderCatalogPacks(t *testing.T) {
 	cat := orderCatalogPacks(&Catalog{
 		Version: 1,
