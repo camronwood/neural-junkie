@@ -67,7 +67,7 @@
               <th>Scenario</th>
               <th>What it tests</th>
               <th>Agent</th>
-              <th>Judge</th>
+              <th>LLM judge</th>
             </tr>
           </thead>
           <tbody id="scenario-suite-body"></tbody>
@@ -77,6 +77,7 @@
 
     <section aria-labelledby="leaderboard-heading">
       <h2 id="leaderboard-heading">Leaderboard</h2>
+      <p class="benchmarks-section-lead" id="leaderboard-judge-note" hidden></p>
       <div class="benchmarks-table-wrap">
         <table class="benchmarks-table" id="leaderboard-table">
           <thead>
@@ -87,7 +88,7 @@
               <th>Rate</th>
               <th>Implement</th>
               <th>Chat</th>
-              <th>Judge</th>
+              <th title="Independent LLM review of implement deliverables (separate from structural Pass)">LLM judge</th>
               <th>Total time</th>
             </tr>
           </thead>
@@ -98,6 +99,7 @@
 
     <section aria-labelledby="matrix-heading">
       <h2 id="matrix-heading">Per-scenario matrix</h2>
+      <p class="benchmarks-section-lead">Structural pass/fail and timing per model. When a scenario uses an LLM deliverable judge, the second line shows that verdict.</p>
       <div class="benchmarks-table-wrap">
         <table class="benchmarks-table" id="matrix-table">
           <thead id="matrix-head"></thead>
@@ -128,7 +130,8 @@
       <strong>How we benchmark</strong>
       <p style="margin: 0.5rem 0 0;">
         Each run uses <code>make model-benchmark</code> against a live hub: switch all agents to one Ollama tag,
-        then execute the same implement + chat scenarios. Results are published with
+        then execute the same implement + chat scenarios. Some implement scenarios also get an independent
+        LLM deliverable judge (Pass/Fail on quality, not just whether files changed). Results are published with
         <code>make publish-model-benchmarks</code>.
         <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/testing/MODEL_BENCHMARK.md">Full methodology</a>
         · <a href="https://github.com/camronwood/neural-junkie/tree/main/docs/testing">Raw logs</a>
@@ -147,6 +150,12 @@
 
   <script>
     const DATA_URL = '../data/model-benchmarks.json';
+    const JUDGE_MISSING_HELP =
+      "This run did not record LLM deliverable judge verdicts. Re-run make model-benchmark, then make publish-model-benchmarks, to show Pass/Fail here.";
+
+    function judgeMissingLabel(count) {
+      return count === 1 ? "1 verdict missing" : `${count} verdicts missing`;
+    }
 
     function fmtDuration(seconds) {
       if (!seconds || seconds < 0) return '—';
@@ -268,7 +277,7 @@
         const reason = hit.judge_reason ? ` title="${escapeAttr(hit.judge_reason)}"` : "";
         return `<span class="judge-fail"${reason}>Fail</span>`;
       }
-      return '<span class="judge-pending" title="Scenario uses LLM judge — re-run benchmark to capture verdict">Expected</span>';
+      return `<span class="judge-pending" title="${escapeAttr(JUDGE_MISSING_HELP)}">No verdict</span>`;
     }
 
     function escapeAttr(text) {
@@ -356,6 +365,16 @@
     }
 
     function renderLeaderboard(run) {
+      const judgeNote = document.getElementById("leaderboard-judge-note");
+      const judged = judgeScenarios(run);
+      if (judged.length) {
+        judgeNote.hidden = false;
+        judgeNote.textContent =
+          "Pass counts structural scenario checks. LLM judge counts independent deliverable review on " +
+          `${judged.length} implement scenario(s). "Verdict missing" means that run did not publish judge Pass/Fail data.`;
+      } else {
+        judgeNote.hidden = true;
+      }
       const tbody = document.getElementById('leaderboard-body');
       tbody.innerHTML = '';
       const active = activeResults(run).sort((a, b) => {
@@ -375,12 +394,13 @@
         let judgeCell = "—";
         if (judge.total) {
           if (judge.recorded) {
-            judgeCell = `${judge.passed}/${judge.total}`;
-            if (judge.reasons.length) {
-              judgeCell = `<span title="${escapeAttr(judge.reasons.join(" · "))}">${judge.passed}/${judge.total}</span>`;
-            }
+            const summary = `${judge.passed}/${judge.total} judge pass`;
+            const tip = judge.reasons.length
+              ? `${judge.passed} of ${judge.total} LLM judge pass · ${judge.reasons.join(" · ")}`
+              : `${judge.passed} of ${judge.total} LLM deliverable judge pass`;
+            judgeCell = `<span title="${escapeAttr(tip)}">${summary}</span>`;
           } else {
-            judgeCell = `<span class="judge-pending" title="Judge expected on ${judge.total} scenario(s) — re-run to capture verdicts">${judge.total} expected</span>`;
+            judgeCell = `<span class="judge-pending" title="${escapeAttr(JUDGE_MISSING_HELP)}">${judgeMissingLabel(judge.total)}</span>`;
           }
         }
         const tr = document.createElement('tr');
