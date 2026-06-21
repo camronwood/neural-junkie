@@ -17,7 +17,15 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Deliverables on real paths | Plan parser, execution sandbox | Collab regression scenarios, Phoenix with real repo |
 | Slack = same agent surface | Slack bridge → bound channel | `make slack-smoke`; optional `LIVE=1` |
 | Cursor CLI on PATH | [CLI_AGENTS.md](CLI_AGENTS.md) | Optional manual `@Cursor` chat/collab (not CI) |
-| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (≥4/5 PASS) |
+| Go test failure repair | Verify loop + `go test ./...` | `go-test-failure-repair` |
+| TS compile error fix | Node verify / tsc | `typescript-compile-error-fix` |
+| Rules-constrained implement | `.neural-junkie/rules.md` | `rules-constrained-implement` |
+| Selection-scoped edit | `workspace_context.open_files` + selection | `selection-scoped-edit` |
+| `@file:` explicit path | `prompt_attachments` | `at-file-explicit-path` |
+| Verify/repair loop | `implementation_session_outcome` metadata | `verify-failure-one-repair` |
+| Destructive command denial | `assert_suggested_commands` + no writes | `deny-destructive-command` |
+| Plan mode no-write | Plan composer + read-only gates | `plan-mode-no-write` |
+| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (16/16 PASS) |
 | Conversation routing + collab wiring | Agent intent/closure, hub DM/collab, desktop chat UI | `make test-conversation-contract` |
 
 See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORATION.md).
@@ -31,8 +39,8 @@ ollama serve
 ollama pull qwen3.5:9b    # specialists, tool loop, and utility (OLLAMA_CODE_MODEL / OLLAMA_MODEL)
 make server-regression         # terminal 1
 make agents                    # terminal 1b — picks up env.local models
-make implement-scenarios       # terminal 2 — need 7/7 PASS
-make test-parity-stable        # optional — 3× sweeps at 7/7 under server-regression
+make implement-scenarios       # terminal 2 — need 16/16 PASS
+make test-parity-stable        # optional — 3× sweeps at 16/16 under server-regression
 ```
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
@@ -125,7 +133,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 2. `ollama serve` and `ollama pull qwen3.5:9b` (specialists + tool loop; set `OLLAMA_CODE_MODEL=qwen3.5:9b` in `env.local`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
-5. **`make test-regression-bundle`** — implement (7/7) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`
+5. **`make test-regression-bundle`** — implement (16/16) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`
 6. Optional: **`make test-parity-stable-restart`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)
 7. `make chat-scenarios-debug`
 8. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.

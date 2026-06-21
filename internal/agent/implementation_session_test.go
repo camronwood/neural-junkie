@@ -24,6 +24,10 @@ func TestShouldRunImplementationSession(t *testing.T) {
 	if shouldRunImplementationSession(a, msg) {
 		t.Fatal("ask mode should not run session")
 	}
+	msg.Metadata["editor_mode"] = "plan"
+	if shouldRunImplementationSession(a, msg) {
+		t.Fatal("plan mode should not run session")
+	}
 }
 
 func TestShouldRunImplementationSession_continuationAfterFileChange(t *testing.T) {
@@ -267,6 +271,30 @@ func TestGroundingSatisfied(t *testing.T) {
 	st3 := &ImplementationSessionState{SeedsLoaded: 1}
 	if !st3.groundingSatisfied() {
 		t.Fatal("one seed file should satisfy grounding")
+	}
+}
+
+func TestBuildImplementationSessionOutcome(t *testing.T) {
+	a := &Agent{}
+	state := &ImplementationSessionState{
+		RepairUsed:    true,
+		VerifyFailed:  false,
+		VerifySkipped: false,
+		FilesChanged:  []string{"core/sample/math.go"},
+	}
+	outcome := a.buildImplementationSessionOutcome(nil, state, true)
+	if outcome["repair_used"] != true {
+		t.Fatalf("repair_used=%v", outcome["repair_used"])
+	}
+	if outcome["verify_failed"] != false {
+		t.Fatalf("verify_failed=%v", outcome["verify_failed"])
+	}
+	if outcome["outcome"] == "no_changes" {
+		t.Fatalf("expected non-no_changes outcome, got %v", outcome["outcome"])
+	}
+	empty := a.buildImplementationSessionOutcome(nil, nil, false)
+	if empty["outcome"] != "no_changes" {
+		t.Fatalf("empty outcome=%v", empty["outcome"])
 	}
 }
 

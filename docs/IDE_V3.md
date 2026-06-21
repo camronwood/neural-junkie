@@ -19,7 +19,7 @@ When **IDE layout** and the dev pack are on, each send:
 
 - **Implicit routing** — `ide_route_agent_type` from the open file (Go → backend, TS/CSS/HTML → frontend) if you did not @ someone. No auto-`@BackendEngineer` in the message body (use `@mention` when you want a specific agent).
 - **Focus context** — active tab path, buffer, and editor selection (when scoped).
-- **Ask / Agent** — composer toggle: Ask adds a read-only instruction prefix; Agent allows file-change proposals.
+- **Ask / Agent / Plan / Export** — composer toggle: Ask adds a read-only instruction prefix; Plan outlines steps only (no file edits); Agent allows file-change proposals.
 - **@codebase** — hybrid embedding + keyword search via `POST /api/repo/search/semantic` → `prompt_attachments` (background index build on first query; status at `GET /api/repo/index/status`).
 - **Routing metadata** — `ide_route_agent_type`, `editor_mode`, `editor_agent_trust` on the message so only the matching specialist responds.
 
@@ -48,7 +48,9 @@ IDE-focused shortcuts (full list: [KEYBOARD_SHORTCUTS.md](KEYBOARD_SHORTCUTS.md)
 |------|----------|
 | **interactive** | Approve file changes in pending panel / review bar |
 | **auto_apply_edits** | Auto-approve proposals when the hub returns change IDs |
-| **yolo** | Reserved for tool approval parity with CLI agents |
+| **yolo** | Auto-approve file changes (tool parity) |
+
+Plan mode (composer) is read-only like Ask — no implementation session or file proposals until you switch to Agent.
 
 ## APIs (still used by fast edit / tooling)
 

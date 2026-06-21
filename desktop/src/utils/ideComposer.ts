@@ -18,7 +18,7 @@ import {
 } from './implementationContinuation';
 import { hasCodeReviewSignals } from './codeReviewSignals';
 
-export type EditorAgentMode = 'ask' | 'agent';
+export type EditorAgentMode = 'ask' | 'plan' | 'agent';
 
 /** Specialist type for IDE metadata routing (not injected as @mentions). */
 export function pickAgentTypeFromTab(activeTab: EditorTab | null): string {
@@ -85,6 +85,12 @@ export function applyIdeAskPrefix(content: string, mode: EditorAgentMode): strin
   if (mode !== 'ask') return content;
   if (content.toLowerCase().includes('[ask mode')) return content;
   return `[ASK mode — read-only tools, no file edits]\n${content}`;
+}
+
+export function applyIdePlanPrefix(content: string, mode: EditorAgentMode): string {
+  if (mode !== 'plan') return content;
+  if (content.toLowerCase().includes('[plan mode')) return content;
+  return `[PLAN mode — outline approach and numbered steps only; no file edits or shell commands that modify the repo]\n${content}`;
 }
 
 /** Resolve specialist slug from @mention or active editor tab. */
@@ -160,7 +166,7 @@ export function buildIdeDispatchPayload(options: {
   editorAgentTrust: string;
   composerMetadata?: Record<string, unknown>;
 }): { content: string; metadata: Record<string, unknown> } {
-  const content = applyIdeAskPrefix(options.content, options.editorAgentMode);
+  const content = applyIdePlanPrefix(applyIdeAskPrefix(options.content, options.editorAgentMode), options.editorAgentMode);
   const metadata = buildImplementationSessionMetadata(options);
   return { content, metadata };
 }

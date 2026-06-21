@@ -54,7 +54,7 @@ def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str
 def main() -> int:
     p = argparse.ArgumentParser(description="Stability gate for implement-scenarios")
     p.add_argument("--runs", type=int, default=3, help="Number of full sweeps (default 3)")
-    p.add_argument("--min-pass", type=int, default=7, help="Minimum scenarios that must pass per run")
+    p.add_argument("--min-pass", type=int, default=16, help="Minimum scenarios that must pass per run")
     p.add_argument("--hub", default="http://127.0.0.1:18765")
     p.add_argument("--log-dir", default=str(TESTING_DIR))
     p.add_argument(

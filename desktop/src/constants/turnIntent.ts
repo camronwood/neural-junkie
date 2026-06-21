@@ -31,6 +31,14 @@ export function resolveTurnCapabilities(options: {
         canRunImplSession: false,
         requiresWorkspace: false,
       };
+    case 'plan':
+      return {
+        composerMode,
+        contextTier: contextScope,
+        canProposeFiles: false,
+        canRunImplSession: false,
+        requiresWorkspace: false,
+      };
     case 'export':
       return {
         composerMode,

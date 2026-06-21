@@ -23,6 +23,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
 from lib.scenario_assert import check_text_patterns, looks_like_read_only_inspection_command  # noqa: E402
+from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "chat"
 DEFAULT_CHANNEL = "chat-scenarios"
@@ -30,70 +31,13 @@ DEFAULT_AGENT = "Assistant"
 DEFAULT_FROM = "ChatScenario"
 
 
-def _language_for_path(path: str) -> str:
-    ext = Path(path).suffix.lower()
-    return {
-        ".go": "go",
-        ".ts": "typescript",
-        ".tsx": "typescriptreact",
-        ".js": "javascript",
-        ".jsx": "javascriptreact",
-        ".py": "python",
-        ".md": "markdown",
-    }.get(ext, "text")
-
-
-def _load_open_files(workspace_root: Path, rel_paths: list, *, active: str | None = None) -> list[dict]:
-    active_rel = (active or (rel_paths[0] if rel_paths else "")).strip()
-    out: list[dict] = []
-    for rel in rel_paths:
-        rel = str(rel).strip()
-        if not rel:
-            continue
-        full = (workspace_root / rel).resolve()
-        content = ""
-        if full.is_file():
-            try:
-                content = full.read_text(encoding="utf-8", errors="replace")[:10000]
-            except OSError:
-                content = ""
-        out.append(
-            {
-                "path": str(full),
-                "language": _language_for_path(rel),
-                "content": content,
-                "is_active": rel == active_rel or (not active_rel and len(out) == 0),
-            }
-        )
-    return out
-
-
-def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
-    """Mirror desktop sends: context_scope without workspace_context cannot trigger visibility replies."""
-    if not meta:
-        return None
-    out = dict(meta)
-    scope = str(out.get("context_scope") or "").strip().lower()
-    if scope in ("", "none") or out.get("workspace_context"):
-        return out
-    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
-    root = os.environ.get("NEURAL_JUNKIE_SCENARIO_REPO", str(ROOT)).strip()
-    fixture = (ws_cfg.get("fixture") or scenario.get("workspace_fixture") or "").strip()
-    if fixture:
-        root = str((ROOT / "scenarios" / "fixtures" / fixture).resolve())
-    open_rel = ws_cfg.get("open_files") or []
-    open_files = (
-        _load_open_files(Path(root), open_rel, active=(open_rel[0] if open_rel else None))
-        if open_rel
-        else []
+def enrich_send_metadata_for_chat(meta: dict | None, scenario: dict, *, content: str = "") -> dict | None:
+    return enrich_send_metadata(
+        meta,
+        scenario,
+        content=content,
+        default_file_tree="desktop/\ninternal/\ncmd/\n",
     )
-    out["workspace_context"] = {
-        "workspace_name": Path(root).name,
-        "workspace_path": root,
-        "file_tree": ws_cfg.get("file_tree") or "desktop/\ninternal/\ncmd/\n",
-        "open_files": open_files,
-    }
-    return out
 
 
 class ChatScenarioContext:
@@ -177,7 +121,7 @@ def step_send(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
     content = ctx.format_send_content(step.get("content") or "")
     if not content:
         return False, "send: empty content"
-    meta = enrich_send_metadata(step.get("metadata"), ctx.scenario)
+    meta = enrich_send_metadata_for_chat(step.get("metadata"), ctx.scenario, content=content)
     from_name = (step.get("from") or DEFAULT_FROM).strip()
     # Baseline before send so instant replies (e.g. closure) still satisfy wait_reply.
     ctx.baseline_agent_count = hub.count_chat_agent_messages(
@@ -240,7 +184,9 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
                         ctx.base,
                         ctx.channel,
                         str(step.get("resend_content")),
-                        metadata=enrich_send_metadata(step.get("resend_metadata"), ctx.scenario),
+                        metadata=enrich_send_metadata_for_chat(
+                            step.get("resend_metadata"), ctx.scenario, content=str(step.get("resend_content") or "")
+                        ),
                         from_name=(step.get("resend_from") or DEFAULT_FROM).strip(),
                         max_retries=5,
                     )
@@ -262,7 +208,9 @@ def step_wait_reply(ctx: ChatScenarioContext, step: dict) -> tuple[bool, str]:
                     ctx.base,
                     ctx.channel,
                     str(step.get("resend_content")),
-                    metadata=enrich_send_metadata(step.get("resend_metadata"), ctx.scenario),
+                    metadata=enrich_send_metadata_for_chat(
+                        step.get("resend_metadata"), ctx.scenario, content=str(step.get("resend_content") or "")
+                    ),
                     from_name=(step.get("resend_from") or DEFAULT_FROM).strip(),
                     max_retries=5,
                 )

@@ -1,0 +1,52 @@
+{
+  "name": "rules-constrained-implement",
+  "description": "Implement theme toggle respecting .neural-junkie/rules.md constraints.",
+  "tags": ["implement", "cursor-parity", "react", "rules"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "FrontendEngineer",
+  "required_agents": ["FrontendEngineer"],
+  "workspace": {
+    "fixture": "rules-fixture",
+    "unchanged_files": ["tailwind.config.js", "package.json"]
+  },
+  "expect_deliverables": [
+    {
+      "path": "src/App.tsx",
+      "min_bytes": 80,
+      "for_question": {
+        "any_match": ["theme|toggle|dark|light"],
+        "none_match": ["console\\.log", "\\.jsx"]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "Please implement a light/dark theme toggle in src/App.tsx following the project rules in this repo.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "FrontendEngineer",
+      "timeout": "420s",
+      "until_any_match": ["applied and verified|implementation session complete|theme|toggle"]
+    },
+    {
+      "action": "assert_files_unchanged",
+      "paths": ["tailwind.config.js", "package.json"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "src/App.tsx",
+      "none_match": ["console\\.log", "\\.jsx"]
+    }
+  ],
+  "cleanup": "clear"
+}

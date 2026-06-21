@@ -93,7 +93,7 @@ export interface LayoutSettings {
   myAgentsPanelVisible: boolean;
   pendingChangesPanelVisible: boolean;
   /** IDE composer: ask (read-only) vs agent (may propose edits) */
-  editorAgentMode: 'ask' | 'agent';
+  editorAgentMode: 'ask' | 'plan' | 'agent';
   /** When false, agent shortcuts under Direct Messages are hidden (existing DM rows stay). */
   sidebarAgentsVisible: boolean;
   /** True after one-time IDE layout nudge when software-development pack is enabled. */

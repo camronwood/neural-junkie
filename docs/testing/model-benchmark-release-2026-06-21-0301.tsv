@@ -1,0 +1,11 @@
+model_tag	scenario_kind	scenario	passed	duration_s	detail
+qwen2.5-coder:14b	implement	go-handler	1	37.4	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	39.4	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	39.3	=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	61.5	=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	64.6	=== PASS: dm-backend-echo-followup ===
+gemma3:12b	implement	go-handler	1	35.5	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	43.5	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	39.2	=== PASS: ask-mode-no-write ===
+gemma3:12b	chat	dm-backend-workspace	1	37.4	=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	1	45.4	=== PASS: dm-backend-echo-followup ===

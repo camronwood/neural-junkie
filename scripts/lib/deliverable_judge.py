@@ -14,9 +14,9 @@ import urllib.request
 from typing import Any
 
 try:
-    from lib.gemini_rate_limit import throttle_gemini_api_call
+    from gemini_rate_limit import throttle_gemini_api_call
 except ImportError:
-    from gemini_rate_limit import throttle_gemini_api_call  # type: ignore[no-redef]
+    from lib.gemini_rate_limit import throttle_gemini_api_call  # type: ignore[no-redef]
 
 DEFAULT_JUDGE_PROVIDER = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
 DEFAULT_JUDGE_AGENT = os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT", "").strip()

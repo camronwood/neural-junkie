@@ -9,7 +9,10 @@
     "implement": [
       "go-handler",
       "theme-toggle",
-      "ask-mode-no-write"
+      "ask-mode-no-write",
+      "go-test-failure-repair",
+      "rules-constrained-implement",
+      "plan-mode-no-write"
     ],
     "chat": [
       "dm-backend-workspace",
@@ -17,7 +20,7 @@
     ]
   },
   "quick": {
-    "description": "Smoke benchmark — 3 implement + 2 chat scenarios (~15–45 min per model on ≤24B class).",
+    "description": "Smoke benchmark — 5 implement + 2 chat scenarios (~15–45 min per model on ≤24B class).",
     "max_params_b": 24,
     "models": [
       "deepseek-coder:6.7b",
@@ -31,7 +34,9 @@
     "implement": [
       "go-handler",
       "theme-toggle",
-      "ask-mode-no-write"
+      "ask-mode-no-write",
+      "go-test-failure-repair",
+      "typescript-compile-error-fix"
     ],
     "chat": [
       "dm-backend-workspace",
@@ -57,7 +62,15 @@
       "go-handler",
       "theme-toggle",
       "react-theme-toggle",
-      "ask-mode-no-write"
+      "ask-mode-no-write",
+      "go-test-failure-repair",
+      "typescript-compile-error-fix",
+      "rules-constrained-implement",
+      "selection-scoped-edit",
+      "at-file-explicit-path",
+      "verify-failure-one-repair",
+      "deny-destructive-command",
+      "plan-mode-no-write"
     ],
     "chat_tag": "regression"
   }

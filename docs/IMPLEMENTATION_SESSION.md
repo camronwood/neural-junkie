@@ -29,6 +29,8 @@ Desktop sets `implementation_session: true` automatically when Agent mode + code
 
 Interactive trust skips verify (proposals await manual approval).
 
+Implementation session replies include `implementation_session_outcome` metadata (`repair_used`, `verify_failed`, `outcome`, `files_changed`) for scenario harness assertions.
+
 ## Session summary headers
 
 | Outcome | Message prefix |

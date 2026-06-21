@@ -1,0 +1,60 @@
+{
+  "name": "verify-failure-one-repair",
+  "description": "Go verify loop repairs failing Multiply implementation.",
+  "tags": ["implement", "cursor-parity", "go", "repair"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "go-verify-repair" },
+  "expect_deliverables": [
+    {
+      "path": "core/sample/math.go",
+      "min_bytes": 20,
+      "for_question": {
+        "any_match": ["func Multiply", "\\*"],
+        "none_match": ["return a \\+ b[^*]"]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "go test ./... fails because Multiply in core/sample/math.go is wrong. Fix it so tests pass.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "420s",
+      "until_any_match": ["applied and verified|implementation session complete|Multiply"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation session|applied|verify|Multiply|math.go|go test"],
+      "none_match": ["finished without file changes"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "core/sample/math.go",
+      "any_match": ["\\*", "Multiply"]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "equals": {
+        "implementation_session_outcome.verify_failed": false
+      },
+      "optional": true
+    }
+  ],
+  "cleanup": "clear"
+}

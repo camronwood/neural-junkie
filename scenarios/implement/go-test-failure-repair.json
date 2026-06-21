@@ -1,0 +1,52 @@
+{
+  "name": "go-test-failure-repair",
+  "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+  "tags": ["implement", "cursor-parity", "go", "verify"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "go-api-with-tests" },
+  "expect_deliverables": [
+    {
+      "path": "core/sample/math.go",
+      "min_bytes": 20,
+      "for_question": {
+        "any_match": ["func Add", "return a \\+ b"],
+        "none_match": ["a \\+ b \\+ 1", "index\\.js"]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "go test ./... is failing in this workspace. Fix core/sample/math.go so all tests pass.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "420s",
+      "until_any_match": ["applied and verified|applied but verification failed|Multiply|Add\\(2, 3\\)|implementation session"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["implementation session|applied|verify|Add|math.go|go test|Preflight|file change"],
+      "none_match": ["finished without file changes"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "core/sample/math.go",
+      "none_match": ["a \\+ b \\+ 1"]
+    }
+  ],
+  "cleanup": "clear"
+}

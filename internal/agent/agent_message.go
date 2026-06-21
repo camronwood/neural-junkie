@@ -153,16 +153,17 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 	var implSessionProposed bool
 	var implSessionFiles []string
+	var implSessionOutcome map[string]interface{}
 	if resp, ok := a.tryImplementationStatusCheckShortcut(msg); ok {
 		response = resp
 	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 			streamMsgID = uuid.New().String()
-			response, streamMsgID, implSessionProposed, implSessionFiles, err = a.runImplementationSessionStreaming(genCtx, msg, eff, streamMsgID)
+			response, streamMsgID, implSessionProposed, implSessionFiles, implSessionOutcome, err = a.runImplementationSessionStreaming(genCtx, msg, eff, streamMsgID)
 			reasoningText = ""
 		} else {
-			response, implSessionProposed, implSessionFiles, err = a.runImplementationSession(genCtx, msg, eff)
+			response, implSessionProposed, implSessionFiles, implSessionOutcome, err = a.runImplementationSession(genCtx, msg, eff)
 		}
 	} else if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 		log.Printf("[%s] 📡 Streaming response...", a.Info.Name)
@@ -197,7 +198,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if implSessionProposed {
 		proposedFileChange = true
 	} else if !shouldRunImplementationSession(a, msg) {
-		if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
+		if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
 			response = sanitizeAskModeResponse(response)
 		} else {
 			response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
@@ -253,6 +254,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		responseMsg.Metadata[protocol.IdeMetaImplementationComplete] = true
 		if len(implSessionFiles) > 0 {
 			responseMsg.Metadata[protocol.IdeMetaImplementationFiles] = implSessionFiles
+		}
+		if implSessionOutcome != nil {
+			responseMsg.Metadata[protocol.IdeMetaImplementationOutcome] = implSessionOutcome
 		}
 	}
 	if paths := a.takeCADWrittenPaths(); len(paths) > 0 {

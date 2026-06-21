@@ -1,9 +1,13 @@
 :root {
-  --bg: #f8fafc;
-  --text: #0f172a;
+  --bg-light: #f8fafc;
+  --text-light: #0f172a;
+  --bg-dark: #0f172a;
+  --text-dark: #f8fafc;
+  --bg: var(--bg-light);
+  --text: var(--text-light);
 }
 
 [data-theme="dark"] {
-  --bg: #0f172a;
-  --text: #f8fafc;
+  --bg: var(--bg-dark);
+  --text: var(--text-dark);
 }

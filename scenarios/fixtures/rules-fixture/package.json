@@ -1,0 +1,70 @@
+import "./index.css";
+import { useState } from "react";
+
+export default function App() {
+  const [theme, setTheme] = useState("dark");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-slate-100 p-4 dark:from-slate-950 dark:to-slate-900 transition-colors duration-300">
+      {/* Sidebar */}
+      <aside className="w-64 bg-slate-950 border border-slate-800 rounded-lg shadow-xl p-4 flex flex-col gap-4 transition-all duration-300 dark:bg-slate-200/10 dark:border-slate-700/50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm shadow-inner dark:bg-indigo-600/10 dark:text-indigo-600">
+            NJ
+          </div>
+          <p className="text-base font-semibold text-slate-300 transition-colors duration-300 dark:text-slate-700">Neural Junkie</p>
+        </div>
+
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          className="flex items-center justify-center w-full px-3 py-2 bg-slate-800/50 hover:bg-indigo-600 text-slate-100 rounded-md transition-all duration-200 gap-2 shadow-sm border border-slate-700/50 hover:border-indigo-500 dark:bg-slate-300/10 dark:hover:bg-indigo-600/20 dark:text-slate-900 dark:border-slate-600/30 dark:hover:border-indigo-400"
+        >
+          {theme === "dark" ? (
+            <>
+              <span className="text-lg">☀</span>
+              <span className="font-medium text-sm">Light Mode</span>
+            </>
+          ) : (
+            <>
+              <span className="text-lg">🌙</span>
+              <span className="font-medium text-sm">Dark Mode</span>
+            </>
+          )}
+        </button>
+
+        {/* Quick Actions */}
+        <div className="flex flex-col gap-2 flex-1 overflow-hidden">
+          <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wider transition-colors duration-300 dark:text-slate-400">Quick Actions</h3>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-2 overflow-y-auto flex-1 custom-scrollbar">
+            {["New Project", "Load Model", "Clear Cache", "About"].map((label) => (
+              <button
+                key={label}
+                onClick={() => console.log(label)}
+                className="px-3 py-2 bg-slate-800/30 hover:bg-indigo-600/20 text-left rounded-md transition-all duration-200 border border-transparent hover:border-indigo-500/30 text-sm text-slate-300 hover:text-white dark:bg-slate-400/10 dark:text-slate-700 dark:hover:text-slate-900"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="text-xs text-slate-600 border-t border-slate-800 pt-3 transition-colors duration-300 dark:text-slate-500 dark:border-slate-600">
+          v1.0.0 • Neural Junkie
+        </footer>
+      </aside>
+    </div>
+  );
+}

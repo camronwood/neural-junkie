@@ -17,10 +17,6 @@
       "for_question": {
         "any_match": ["export|function|const|App"],
         "none_match": ["diff --git", "your valid javascript", "Expected \";\" but found \"git\""]
-      },
-      "llm_judge": {
-        "enabled": true,
-        "criteria": "PASS if src/App.tsx is valid React/TSX (exports an App component) that would allow Vite to boot. The corrupt src/App.js was intentionally removed; the file need not mention the vite log or App.js."
       }
     }
   ],

@@ -9,6 +9,7 @@ const (
 	IdeMetaImplementationSession   = "implementation_session"
 	IdeMetaImplementationComplete  = "implementation_session_complete"
 	IdeMetaImplementationFiles     = "implementation_files_changed"
+	IdeMetaImplementationOutcome   = "implementation_session_outcome"
 	IdeMetaCADFilesWritten         = "cad_files_written"
 )
 

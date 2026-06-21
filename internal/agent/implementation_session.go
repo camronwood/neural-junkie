@@ -118,7 +118,7 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
 		return false
 	}
-	if msg.IdeEditorModeIsAsk() || msg.IdeEditorMode() == "ask" {
+	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
 		return false
 	}
 	if a.Info.Type == protocol.AgentTypeAssistant && !assistantAllowsImplementationSession(a, msg) {
@@ -198,12 +198,12 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	return msg.ImplementationSession() || userRequestsFileExportForMessage(msg) || msg.IdeEditorModeIsExport()
 }
 
-func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, bool, []string, error) {
-	text, _, proposed, files, err := a.runImplementationSessionStreaming(ctx, msg, eff, "")
-	return text, proposed, files, err
+func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Message, eff ai.AIProvider) (string, bool, []string, map[string]interface{}, error) {
+	text, _, proposed, files, outcome, err := a.runImplementationSessionStreaming(ctx, msg, eff, "")
+	return text, proposed, files, outcome, err
 }
 
-func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, streamMsgID string) (string, string, bool, []string, error) {
+func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, streamMsgID string) (string, string, bool, []string, map[string]interface{}, error) {
 	sessionTimeout := implSessionTimeout
 	if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
 		if m := DetectStackManifest(wsPath); m != nil && (m.HasReact || m.HasTailwind) {
@@ -247,7 +247,8 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
 		summary := a.formatImplementationSessionSummary("", state, true, msg)
-		return summary, streamMsgID, true, state.FilesChanged, nil
+		outcome := a.buildImplementationSessionOutcome(msg, state, true)
+		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
 	}
 
 	var lastResponse string
@@ -276,7 +277,8 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 		response, err := a.generateImplementationRound(toolCtx, msg, eff)
 		if err != nil {
-			return "", streamMsgID, proposedAny, state.FilesChanged, err
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+			return "", streamMsgID, proposedAny, state.FilesChanged, outcome, err
 		}
 		lastResponse = response
 
@@ -420,7 +422,47 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		proposedAny = true
 	}
 	summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
-	return summary, streamMsgID, proposedAny, state.FilesChanged, nil
+	outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+	return summary, streamMsgID, proposedAny, state.FilesChanged, outcome, nil
+}
+
+func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *ImplementationSessionState, proposed bool) map[string]interface{} {
+	outcome := map[string]interface{}{
+		"repair_used":    false,
+		"verify_failed":  false,
+		"verify_skipped": false,
+		"files_changed":  []string{},
+		"outcome":        "no_changes",
+	}
+	if state == nil {
+		return outcome
+	}
+	outcome["repair_used"] = state.RepairUsed
+	outcome["verify_failed"] = state.VerifyFailed
+	outcome["verify_skipped"] = state.VerifySkipped
+	if len(state.FilesChanged) > 0 {
+		outcome["files_changed"] = append([]string(nil), state.FilesChanged...)
+	}
+	trust := ""
+	if msg != nil {
+		trust = msg.EditorAgentTrust()
+	}
+	if state.TrustMode != "" {
+		trust = state.TrustMode
+	}
+	applied := proposed && trust == editorTrustAutoApply && msg != nil &&
+		sessionFilesOnDisk(a.resolveWorkspacePath(msg), state.FilesChanged)
+	switch {
+	case !proposed:
+		outcome["outcome"] = "no_changes"
+	case trust == editorTrustAutoApply && applied && state.VerifyFailed:
+		outcome["outcome"] = "applied_verify_failed"
+	case trust == editorTrustAutoApply && applied && !state.VerifyFailed && !state.VerifySkipped:
+		outcome["outcome"] = "applied_and_verified"
+	case proposed:
+		outcome["outcome"] = "proposals_submitted"
+	}
+	return outcome
 }
 
 type implRepairNoteKey struct{}

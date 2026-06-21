@@ -34,11 +34,12 @@ def implement_requires_deliverable_contract(scenario: dict) -> bool:
         if (step.get("action") or "").strip() != "send":
             continue
         meta = step.get("metadata") if isinstance(step.get("metadata"), dict) else {}
-        if (meta.get("editor_mode") or "").strip().lower() == "ask":
+        mode = (meta.get("editor_mode") or "").strip().lower()
+        if mode in ("ask", "plan"):
             return False
-        if (meta.get("editor_mode") or "").strip().lower() == "agent":
+        if mode == "agent":
             return True
-        if meta.get("implementation_session") and (meta.get("editor_mode") or "").strip().lower() != "ask":
+        if meta.get("implementation_session") and mode not in ("ask", "plan"):
             return True
     return False
 

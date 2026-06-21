@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -18,9 +20,11 @@ from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
     check_text_patterns,
     expand_deliverable_steps,
+    looks_like_read_only_inspection_command,
     merge_deliverable_step,
     scenario_question,
 )
+from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "implement"
 DEFAULT_CHANNEL = "implement-scenarios"
@@ -61,22 +65,6 @@ def scenario_repo_root(scenario: dict) -> str:
     return root
 
 
-def enrich_send_metadata(meta: dict | None, scenario: dict) -> dict | None:
-    if not meta:
-        return None
-    out = dict(meta)
-    if out.get("workspace_context"):
-        return out
-    root = scenario_repo_root(scenario)
-    out["workspace_context"] = {
-        "workspace_name": Path(root).name,
-        "workspace_path": root,
-        "file_tree": "",
-        "open_files": [],
-    }
-    return out
-
-
 class ImplementContext:
     def __init__(self, base: str, scenario: dict) -> None:
         self.base = base.rstrip("/")
@@ -84,6 +72,7 @@ class ImplementContext:
         self.channel = (scenario.get("channel") or DEFAULT_CHANNEL).strip()
         self.target_agent = (scenario.get("target_agent") or "BackendEngineer").strip().lstrip("@")
         self.baseline_agent_count: dict[str, int] = {}
+        self.file_snapshots: dict[str, str] = {}
 
 
 def _chat_baseline(ctx: ImplementContext, agent: str) -> int:
@@ -91,11 +80,30 @@ def _chat_baseline(ctx: ImplementContext, agent: str) -> int:
     return hub.count_chat_agent_messages(hub.chat_agent_messages(msgs), agent)
 
 
+def _file_hash(root: Path, rel: str) -> str:
+    path = (root / rel).resolve()
+    if not path.is_file():
+        return ""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return ""
+    return hashlib.sha256(data).hexdigest()
+
+
+def snapshot_files(ctx: ImplementContext, rel_paths: list[str]) -> None:
+    root = Path(scenario_repo_root(ctx.scenario))
+    for rel in rel_paths:
+        rel = str(rel).strip()
+        if rel:
+            ctx.file_snapshots[rel] = _file_hash(root, rel)
+
+
 def step_send(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
     ctx.baseline_agent_count[from_name] = _chat_baseline(ctx, from_name)
     content = (step.get("content") or "").strip()
-    meta = enrich_send_metadata(step.get("metadata"), ctx.scenario)
+    meta = enrich_send_metadata(step.get("metadata"), ctx.scenario, content=content)
     code, _ = hub.send_message(ctx.base, ctx.channel, content, metadata=meta, from_name=DEFAULT_FROM)
     return (True, "sent") if code == 200 else (False, f"send failed ({code})")
 
@@ -169,19 +177,127 @@ def step_assert_file_absent(ctx: ImplementContext, step: dict) -> tuple[bool, st
     return step_assert_deliverable(ctx, {**step, "action": "assert_file_absent"})
 
 
+def _last_agent_message(ctx: ImplementContext, from_name: str) -> dict | None:
+    msgs = hub.list_messages(ctx.base, ctx.channel, 200)
+    pool = hub.chat_agent_messages(msgs)
+    candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
+    return candidates[-1] if candidates else None
+
+
 def step_assert_no_file_change(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
-    msgs = hub.list_messages(ctx.base, ctx.channel, 50)
-    for m in reversed(msgs):
-        if m.get("from", {}).get("name") != ctx.target_agent:
+    from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    msg = _last_agent_message(ctx, from_name)
+    if not msg:
+        return False, "no agent reply"
+    body = (msg.get("content") or "").lower()
+    if "[file_change]" in body:
+        return False, "file_change in reply"
+    meta = msg.get("metadata") or {}
+    if meta.get("implementation_files_changed"):
+        return False, "files changed"
+    outcome = meta.get("implementation_session_outcome")
+    if isinstance(outcome, dict):
+        if outcome.get("outcome") not in (None, "", "no_changes"):
+            return False, f"implementation outcome {outcome.get('outcome')!r}"
+        if outcome.get("files_changed"):
+            return False, "outcome lists files_changed"
+    return True, "no file changes"
+
+
+def step_assert_suggested_commands(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    msg = _last_agent_message(ctx, from_name)
+    if not msg:
+        return False, f"no messages from {from_name}"
+    meta = msg.get("metadata") or {}
+    raw_cmds = meta.get("suggested_commands") or []
+    if not isinstance(raw_cmds, list):
+        raw_cmds = []
+    want_safe = step.get("require_safe")
+    want_unsafe = step.get("require_unsafe")
+    cmd_pattern = (step.get("command_match") or "").strip()
+    none_match = step.get("none_match") or []
+    found = False
+    for item in raw_cmds:
+        if not isinstance(item, dict):
             continue
-        body = (m.get("content") or "").lower()
-        if "[file_change]" in body:
-            return False, "file_change in reply"
-        meta = m.get("metadata") or {}
-        if meta.get("implementation_files_changed"):
-            return False, "files changed"
-        return True, "no file changes"
-    return False, "no agent reply"
+        cmd = (item.get("command") or "").strip()
+        for pattern in none_match:
+            if re.search(pattern, cmd, re.I):
+                return False, f"forbidden command {cmd!r} matched {pattern!r}"
+        if cmd_pattern and not re.search(cmd_pattern, cmd, re.I):
+            continue
+        found = True
+        is_safe = bool(item.get("is_safe"))
+        if want_safe is True and not is_safe:
+            return False, f"expected safe command, got unsafe: {cmd!r}"
+        if want_unsafe is True and is_safe:
+            return False, f"expected unsafe command, got safe: {cmd!r}"
+        if step.get("deny_readonly_unsafe"):
+            if looks_like_read_only_inspection_command(cmd) and not is_safe:
+                return False, f"read-only command marked unsafe: {cmd!r}"
+    if not found:
+        if step.get("optional"):
+            return True, "skipped (no matching suggested_commands)"
+        return False, f"no suggested_commands matched (pattern={cmd_pattern!r})"
+    return True, "suggested command assertions ok"
+
+
+def _metadata_get(meta: dict, dotted: str):
+    cur: object = meta
+    for part in dotted.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def step_assert_message_metadata(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
+    msg = _last_agent_message(ctx, from_name)
+    if not msg:
+        if step.get("optional"):
+            return True, "skipped (no agent reply)"
+        return False, f"no messages from {from_name}"
+    meta = msg.get("metadata") or {}
+    for key, expected in (step.get("equals") or {}).items():
+        got = _metadata_get(meta, str(key))
+        if got != expected:
+            if step.get("optional"):
+                return True, f"skipped optional metadata mismatch on {key!r}"
+            return False, f"metadata {key!r}: got {got!r} want {expected!r}"
+    for key, pattern in (step.get("match") or {}).items():
+        got = _metadata_get(meta, str(key))
+        text = "" if got is None else str(got)
+        if not re.search(str(pattern), text, re.I):
+            if step.get("optional"):
+                return True, f"skipped optional metadata pattern on {key!r}"
+            return False, f"metadata {key!r} did not match {pattern!r} (got {text!r})"
+    for key in step.get("require_keys") or []:
+        if _metadata_get(meta, str(key)) is None:
+            if step.get("optional"):
+                return True, f"skipped optional missing metadata key {key!r}"
+            return False, f"missing metadata key {key!r}"
+    return True, "metadata assertions ok"
+
+
+def step_assert_files_unchanged(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    paths = step.get("paths") or []
+    if not paths:
+        return False, "assert_files_unchanged: paths required"
+    root = Path(scenario_repo_root(ctx.scenario))
+    for rel in paths:
+        rel = str(rel).strip()
+        if not rel:
+            continue
+        before = ctx.file_snapshots.get(rel)
+        if before is None:
+            before = _file_hash(root, rel)
+            ctx.file_snapshots[rel] = before
+        after = _file_hash(root, rel)
+        if before != after:
+            return False, f"file changed: {rel}"
+    return True, f"{len(paths)} file(s) unchanged"
 
 
 HANDLERS = {
@@ -192,6 +308,9 @@ HANDLERS = {
     "assert_file_exists": step_assert_file_exists,
     "assert_file_absent": step_assert_file_absent,
     "assert_no_file_change": step_assert_no_file_change,
+    "assert_suggested_commands": step_assert_suggested_commands,
+    "assert_message_metadata": step_assert_message_metadata,
+    "assert_files_unchanged": step_assert_files_unchanged,
 }
 
 
@@ -228,6 +347,10 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
     if scenario.get("cleanup", "clear") == "clear" and not keep:
         hub.clear_channel_history(ctx.base, ctx.channel)
     reset_fixture_baseline(scenario)
+    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
+    unchanged = ws_cfg.get("unchanged_files") or scenario.get("unchanged_files") or []
+    if unchanged:
+        snapshot_files(ctx, list(unchanged))
     # In-process agents discover new channels on a ~1s tick; allow subscribe before send.
     time.sleep(3.0)
     all_ok = True

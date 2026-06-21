@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-17T16:03:22Z",
-  "count": 53,
+  "updated": "2026-06-21T11:21:41Z",
+  "count": 57,
   "items": [
     {
       "id": "ide-v4-carousel-01",
@@ -234,6 +234,42 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-hardware-stacks-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-inference-gate-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-inference-gate-ad-1080.png",
+      "title": "Inference Gate",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-inference-gate-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-inference-layer-1200",
+      "src": "../media/gallery/ads/neural-junkie-inference-layer-1200.png",
+      "title": "Inference Layer 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-inference-layer-1200.png"
+    },
+    {
+      "id": "neural-junkie-inference-skip-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-inference-skip-ad-1080.png",
+      "title": "Inference Skip",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-inference-skip-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-inference-trust-ad-1080",
+      "src": "../media/gallery/ads/neural-junkie-inference-trust-ad-1080.png",
+      "title": "Inference Trust",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-inference-trust-ad-1080.png"
     },
     {
       "id": "neural-junkie-local-ai-tokens-ad-1080",

@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-19T20:31:36Z",
-  "count": 9,
+  "updated": "2026-06-21T11:21:32Z",
+  "count": 10,
   "items": [
     {
       "slug": "hardware",
@@ -61,6 +61,26 @@
       "sourceFile": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
       "sourcePath": "docs/marketing/MODULAR-AI-COMPOSITION-LINKEDIN.md",
       "href": "modular-ai-composition.html"
+    },
+    {
+      "slug": "inference-layer",
+      "title": "Decide Before You Generate: Neural Junkie's Inference Layer",
+      "teaser": "Everyone optimizes inference speed. Almost nobody optimizes inference *avoidance*. Neural Junkie's inference layer decides whether to call a model, which brain to use, and which provider runs the job \u2014 then shows you the answer on the message itself.",
+      "cover": "assets/neural-junkie-inference-layer-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-inference-layer-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "developertools",
+        "opensource",
+        "ollama",
+        "modularai"
+      ],
+      "sourceFile": "INFERENCE-LAYER-LINKEDIN.md",
+      "sourcePath": "docs/marketing/INFERENCE-LAYER-LINKEDIN.md",
+      "href": "inference-layer.html"
     },
     {
       "slug": "conversation-memory",

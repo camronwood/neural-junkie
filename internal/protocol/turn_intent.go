@@ -10,7 +10,7 @@ const (
 	TurnMetaRequiresWorkspace = "requires_workspace"
 )
 
-// ComposerModeFromMessage returns ask, agent, or export from explicit metadata.
+// ComposerModeFromMessage returns ask, agent, plan, or export from explicit metadata.
 func ComposerModeFromMessage(m *Message) string {
 	if m == nil || m.Metadata == nil {
 		return ""
@@ -28,6 +28,10 @@ func (m *Message) IdeEditorModeIsAsk() bool {
 func (m *Message) IdeEditorModeIsAgent() bool {
 	mode := ComposerModeFromMessage(m)
 	return mode == "agent" || mode == ""
+}
+
+func (m *Message) IdeEditorModeIsPlan() bool {
+	return ComposerModeFromMessage(m) == "plan"
 }
 
 func (m *Message) IdeEditorModeIsExport() bool {
@@ -53,7 +57,7 @@ func ResolveTurnCapabilities(m *Message) TurnCapabilities {
 		cap.ComposerMode = "agent"
 	}
 	switch cap.ComposerMode {
-	case "ask":
+	case "ask", "plan":
 		cap.CanProposeFiles = false
 		cap.CanRunImplSession = false
 	case "export":

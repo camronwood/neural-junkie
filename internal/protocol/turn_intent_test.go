@@ -26,3 +26,15 @@ func TestResolveTurnCapabilities_ask(t *testing.T) {
 		t.Fatalf("ask should be read-only: %+v", cap)
 	}
 }
+
+func TestResolveTurnCapabilities_plan(t *testing.T) {
+	msg := NewMessage(MessageTypeChat, "dm-test", AgentInfo{ID: "u1", Name: "User", Type: "human"}, "plan a refactor")
+	msg.Metadata = map[string]interface{}{IdeMetaEditorMode: "plan"}
+	cap := ResolveTurnCapabilities(msg)
+	if cap.CanProposeFiles || cap.CanRunImplSession {
+		t.Fatalf("plan should be read-only: %+v", cap)
+	}
+	if cap.ComposerMode != "plan" {
+		t.Fatalf("mode=%q", cap.ComposerMode)
+	}
+}

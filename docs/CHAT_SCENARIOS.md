@@ -11,7 +11,7 @@ General **1:1 / channel chat** regression harness — separate from collaboratio
 
 Layer A catches **routing** (intent, mode, closure, history caps, workspace visibility classification, scan shortcut heuristics, deterministic reply helpers).
 
-Layer B catches **multi-turn behavior** (echo, workspace visibility answers, fake package hallucinations, tool dumps on greetings).
+Layer B catches **multi-turn behavior** (echo, workspace visibility answers, fake package hallucinations, tool dumps on greetings). Implement scenarios also use `assert_suggested_commands` (shared with `implement-scenarios.py`).
 
 ## Prerequisites
 

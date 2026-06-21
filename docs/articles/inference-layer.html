@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Decide Before You Generate: Neural Junkie&#x27;s Inference Layer — Neural Junkie</title>
+  <meta name="description" content="Everyone optimizes inference speed. Almost nobody optimizes inference *avoidance*. Neural Junkie&#x27;s inference layer decides whether to call a model, which brain to use, and which provider runs the job — then shows you the answer on the message itself." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../index.html">Landing</a>
+        <a class="btn btn-ghost" href="index.html">Articles</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Decide Before You Generate: Neural Junkie&#x27;s Inference Layer
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Decide Before You Generate: Neural Junkie&#x27;s Inference Layer</h1>
+      <p class="article-lead">Everyone optimizes inference speed. Almost nobody optimizes inference *avoidance*. Neural Junkie&#x27;s inference layer decides whether to call a model, which brain to use, and which provider runs the job — then shows you the answer on the message itself.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">ollama</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-inference-layer-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>Most AI products optimize <strong>how fast</strong> inference runs. Faster GPUs. Better kernels. Cheaper tokens.</p>
+<p>That's necessary. It's not sufficient.</p>
+<p>If every user message wakes a 14B model — including "thanks," "hey," and "what model are you?" — you burn RAM, add latency, and get worse answers than a one-line canned reply would have given you.</p>
+<p><strong>Neural Junkie</strong> is my personal open-source desktop hub for running AI specialists on your hardware. The product bet isn't one perfect model. It's an <strong>inference layer</strong> — a decision pipeline that sits between your message and the GPU and answers three questions before tokens get spent:</p>
+<ol>
+<li><strong>Should we infer at all?</strong></li>
+<li><strong>Which model tag when we do?</strong></li>
+<li><strong>Which provider and tool loop runs the job?</strong></li>
+</ol>
+<p>This builds on our earlier articles on <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODEL-LAYERING-LINKEDIN.md">model layering</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODULAR-AI-COMPOSITION-LINKEDIN.md">modular composition</a>. Those explain <em>what stacks together</em>. This one explains <em>when and why tokens get spent</em> — and how you can verify it.</p>
+<h2>The inference layer in one diagram</h2>
+<p>Every user turn flows through a gate before you see a reply:</p>
+<pre><code>User message
+    → Context stack (mode · intent · memory · budget)
+    → Skip inference?  → canned reply (zero tokens)
+    → Unified router (domain · cost · tool_need)
+    → Pick model + provider
+    → Tools needed?  → chat model OR tool model loop
+    → Routing badge on reply
+</code></pre>
+<p>Same hub. Same UI. Different inference decisions at each stage.</p>
+<h2>Question 1: Should we infer at all?</h2>
+<p>Before any LLM call, every turn passes through the <strong>Conversation Context Stack</strong>:</p>
+<ol>
+<li><strong>Mode</strong> — chat, code, or collaboration</li>
+<li><strong>Intent</strong> — closure, casual, substantive, or task</li>
+<li><strong>Memory</strong> — rolling session summary + capped history</li>
+<li><strong>Grounding</strong> — workspace scan only when you're actually coding</li>
+<li><strong>Persona</strong> — DM vs channel vs collab framing</li>
+<li><strong>Budget</strong> — byte caps so prompts don't blow context windows</li>
+</ol>
+<p>This layer often <strong>avoids a model call entirely</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Intent</th>
+<th>What happens</th>
+<th>LLM?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>closure</code></td>
+<td>"Thanks!" → brief canned ack</td>
+<td><strong>No</strong></td>
+</tr>
+<tr>
+<td><code>casual</code></td>
+<td>Minimal prompt, 2 history rows</td>
+<td>Small model only</td>
+</tr>
+<tr>
+<td><code>substantive</code></td>
+<td>Full specialist prompt</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>task</code></td>
+<td>Full prompt + workspace scan</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The insight:</strong> routing <em>context</em> is cheaper and more reliable than asking a big model to "behave appropriately" every turn.</p>
+<p>Session summaries run asynchronously on <code>qwen3.5:9b</code> every few user turns — keeping long DM threads coherent without re-sending full transcripts to the 14B specialist every time.</p>
+<p>Delegation and collab consults are <strong>skipped for closure and casual intents</strong> — greetings shouldn't trigger a biology consult.</p>
+<h2>Question 2: Which model when we do infer?</h2>
+<p>Once a turn deserves real inference, the hub picks the <strong>weight layer</strong> — but not with one static default per agent.</p>
+<h3>Per-agent defaults</h3>
+<p>Software specialists default to <code>qwen3.5:9b</code> (or <code>qwen3.5:27b</code> on 16 GB+ RAM). Utility work — session summaries, moderator, assistant — stays on the smaller tier.</p>
+<h3>Unified router for jobs</h3>
+<p>Per-agent defaults aren't enough. Some <em>jobs</em> need different models than the agent's default chat tag.</p>
+<p>Neural Junkie classifies collab tasks, delegation consults, and implementation sessions through a <strong>unified router</strong> (<code>internal/routing</code>):</p>
+<ul>
+<li><strong>LLM default:</strong> <code>qwen3.5:9b</code> returns structured JSON — <code>domain</code>, <code>tool_need</code>, <code>cost_tier</code>, <code>confidence</code>, <code>reason</code></li>
+<li><strong>Rules fallback:</strong> consolidated keyword lists when the LLM fails, times out, or confidence drops below 0.6</li>
+<li><strong>Table-tested:</strong> 80+ deterministic cases mirror the chat quality router harness</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Job shape</th>
+<th>Typical route</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Security collab task</td>
+<td><code>nj-security:14b</code> if installed, else premium cloud</td>
+</tr>
+<tr>
+<td>Short typo fix</td>
+<td>cheapest local tier</td>
+</tr>
+<tr>
+<td>Biology tool question</td>
+<td><code>tool_need: true</code> → tool model loop</td>
+</tr>
+<tr>
+<td>User image + vision</td>
+<td>lowest-cost provider that supports vision</td>
+</tr>
+</tbody>
+</table>
+<p>Normal chat and per-agent defaults are unchanged. Routing kicks in for <strong>collaboration execution tasks</strong>, <strong>delegation consults</strong>, and <strong>implementation sessions</strong> — the work that would otherwise burn your best model on "fix this typo."</p>
+<p>Debug when <code>NEURAL_JUNKIE_DEBUG=1</code>:</p>
+<pre><code class="language-bash">curl 'http://localhost:18765/api/debug/routing-classify?q=review+JWT+auth+flow&amp;agent_type=security'
+</code></pre>
+<h2>Question 3: Which provider and tool loop?</h2>
+<p>The inference layer treats <strong>providers as interchangeable backends</strong> — not the product.</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Ollama</strong></td>
+<td>Default local inference, tool loops, LoRA composed tags</td>
+</tr>
+<tr>
+<td><strong>Anthropic / OpenAI-compatible</strong></td>
+<td>Configured fallbacks and premium paths</td>
+</tr>
+<tr>
+<td><strong>Hugging Face Inference</strong></td>
+<td>Hosted models (e.g. ESMFold for protein folding)</td>
+</tr>
+<tr>
+<td><strong>Cursor / Gemini CLI</strong></td>
+<td>Subprocess-backed agents when binaries are on PATH</td>
+</tr>
+</tbody>
+</table>
+<p>Implementation mode prefers <strong>local Ollama first</strong> for tool loops, with a smaller tool model (<code>qwen3.5:9b</code>) when configured. Cloud providers are fallbacks — not the default path for every file edit.</p>
+<h3>Split-brain specialists: one answer, two models</h3>
+<p>The clearest example of split inference is <strong>BiologyExpert</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>Model</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Chat / reasoning</strong></td>
+<td>OpenBio 8B</td>
+<td>Med/science-tuned weights</td>
+</tr>
+<tr>
+<td><strong>MCP tool loop</strong></td>
+<td><code>qwen3.5:9b</code></td>
+<td>Native Ollama tool calling</td>
+</tr>
+<tr>
+<td><strong>Empty-reply safety net</strong></td>
+<td><code>qwen3.5:9b</code></td>
+<td>Fallback if OpenBio returns empty stream</td>
+</tr>
+</tbody>
+</table>
+<p>OpenBio doesn't pretend it can call tools. Qwen doesn't pretend it was fine-tuned on MedMCQA. <strong>Each model does what it's good at.</strong> The hub wires them into one user-facing answer.</p>
+<p>Pack compose templates declare this explicitly:</p>
+<pre><code class="language-yaml">compose:
+  chat_model: koesn/llama3-openbiollm-8b:latest
+  tool_model: qwen3.5:9b
+  lora_tag: nj-biology:8b
+  consult_triggers: [biology, protein, sequence]
+</code></pre>
+<p>Life sciences and software development packs ship compose blocks today. One code path for DM, collab, and implementation — no biology-only <code>if</code> branches scattered through the hub.</p>
+<h2>Trust: see which model ran</h2>
+<p>Modular AI without observability is just vibes.</p>
+<p>Every agent response can carry routing metadata:</p>
+<ul>
+<li><code>routing_model</code> — chat model tag</li>
+<li><code>routing_tool_model</code> — tool loop when fallback fired</li>
+<li><code>routing_reason</code> — e.g. <code>security_lora_local</code>, <code>cheap_local</code></li>
+<li><code>routing_source</code> — <code>llm</code> or <code>rules</code></li>
+</ul>
+<p>The desktop shows a compact badge on each reply (<code>nj-security:14b · llm</code>). Tooltip shows the full chain. Toggle in <strong>Settings → Layout → Routing badges on messages</strong>.</p>
+<p>When you're debugging a collab run or arguing with a security review, you need to know <strong>which brain actually ran</strong> — not which agent name appeared in the chat bubble.</p>
+<h2>Walkthrough: three messages, three inference paths</h2>
+<p><strong>Message 1 — zero inference</strong></p>
+<blockquote>
+<p>"Thanks, that helped!"</p>
+</blockquote>
+<p>Intent: <code>closure</code>. Canned reply. <strong>Zero tokens.</strong> No workspace scan. No tool dump.</p>
+<p><strong>Message 2 — domain chat, no tools</strong></p>
+<blockquote>
+<p>"What's the difference between a scan summary and a scan analysis export in our Phoenix workflow?"</p>
+</blockquote>
+<p>BiologyExpert DM. No MCP tools required. Hub streams through <strong>OpenBio</strong>. Domain-aware language without spinning up a tool loop.</p>
+<p><strong>Message 3 — split inference</strong></p>
+<blockquote>
+<p>"Analyze this peptide and fold the structure: MKTAYIAKQRQISFVKSHFSRQ."</p>
+</blockquote>
+<p>MCP tools registered. Chat model lacks native tool support. Hub routes the tool loop through <strong><code>qwen3.5:9b</code></strong>:</p>
+<ol>
+<li>Qwen calls <code>analyze_sequence</code> → length, composition, validation</li>
+<li>Qwen calls <code>fold_protein</code> (HF token from Settings) → PDB under <code>~/.neural-junkie/bio/</code></li>
+<li>Qwen synthesizes one reply with paths and interpretation</li>
+</ol>
+<p>Reply badge: <code>routing · chat: koesn/llama3-openbiollm-8b · tool: qwen3.5:9b · source: llm</code></p>
+<p>Three messages. Three different inference paths. One coherent specialist experience.</p>
+<h2>Local-first economics</h2>
+<p>On a 16 GB laptop, you can't run six 14B models in parallel. Neural Junkie runs <strong>sequential inference</strong> on one Ollama backend when several agents reply in a thread or collaboration.</p>
+<p>The inference layer makes that workable:</p>
+<ul>
+<li><strong>Deflect easy turns</strong> before the GPU wakes up</li>
+<li><strong>Right-size every call</strong> — utility tier for summaries, LoRA tags for domain tasks, premium cloud only when configured and warranted</li>
+<li><strong>Document stacks per RAM tier</strong> — <code>GET /api/system/hardware</code> returns <code>recommended_stacks[]</code> from minimal (~10 GB) through heavy (~50+ GB)</li>
+</ul>
+<p>You're not guessing which <code>nj-*</code> tags to pull. The wizard and Pack Store render the same data.</p>
+<h2>What we learned building this</h2>
+<p><strong>1. Inference avoidance is a feature.</strong></p>
+<p>The fastest inference is the one you don't run. Classify intent first. Save the big model for substantive work.</p>
+<p><strong>2. One model is a demo. A decision pipeline is a product.</strong></p>
+<p>Specialists need different weights. Background tasks need smaller models. Tool loops sometimes need a different tag than chat. Collab tasks need per-task routing. Pretending one 14B does all of it wastes RAM and produces worse UX.</p>
+<p><strong>3. Orthogonal layers compose.</strong></p>
+<p>The context stack doesn't replace the unified router. The router doesn't replace per-agent defaults. LoRA doesn't replace MCP export. Each layer solves one constraint.</p>
+<p><strong>4. Local-first, cloud when it earns its keep.</strong></p>
+<p>We default to Ollama for specialists and tool loops. Cloud providers are configured fallbacks and premium paths for high-stakes tasks — not the only way to run the hub.</p>
+<p><strong>5. Test the orchestrator in code; test the conversation in scenarios.</strong></p>
+<p>Models change weekly. Deterministic tests cover phase transitions, routing heuristics, and classifier fallbacks. Live JSON scenarios cover "did the security task actually prefer the LoRA tag?" without guessing from the UI.</p>
+<h2>What's still on the roadmap</h2>
+<p>Honest gaps — not a commitment, but where the inference layer goes next:</p>
+<ul>
+<li><strong>Semantic answer cache</strong> — deflect repeated questions before compute (lower priority for local desktop)</li>
+<li><strong>Unified knowledge topology</strong> — vector vs hybrid vs graph retrieval per question shape (partially split across memory, <code>@codebase</code>, collab artifacts today)</li>
+<li><strong>Model/data policy gates</strong> — stronger pre-generation policy beyond tool approval and byte budgets</li>
+</ul>
+<h2>Try it</h2>
+<p>Personal open-source project — macOS, Windows, Linux.</p>
+<pre><code class="language-bash">make pull-models   # qwen3.5:9b + LoRA bases
+make start-all
+</code></pre>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p><strong>Docs:</strong><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CONTEXT_MODEL.md">Context model</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DELEGATION.md">Delegation</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/LORA_ADAPTERS.md">LoRA adapters</a><br />
+- <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/HARDWARE.md">Hardware tiers</a></p>
+<p>If you run a multi-model setup and hit a routing edge case — wrong model on a collab task, delegation firing on small talk, closure not skipping inference — GitHub issues welcome. That feedback becomes the next scenario in the harness.</p>
+<p><strong>Earlier in the series:</strong> <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODEL-LAYERING-LINKEDIN.md">Model layering</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/MODULAR-AI-COMPOSITION-LINKEDIN.md">Modular AI composition</a></p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/INFERENCE-LAYER-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="inference-layer.html">Decide Before You Generate: Neural Junkie&#x27;s Inference Layer</a></p>
+    </div>
+  </footer>
+</body>
+</html>

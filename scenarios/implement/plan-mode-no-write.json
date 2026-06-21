@@ -1,0 +1,40 @@
+{
+  "name": "plan-mode-no-write",
+  "description": "Plan composer mode produces structured plan without file edits.",
+  "tags": ["implement", "cursor-parity", "plan"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "minimal-repo" },
+  "expect_no_deliverables": true,
+  "steps": [
+    {
+      "action": "send",
+      "content": "Plan how to add a HelloWorld function to core/sample/main.go in this minimal Go repo. Outline steps only.",
+      "metadata": {
+        "editor_mode": "plan",
+        "composer_mode": "plan",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "300s"
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["1\\.|Step|plan|HelloWorld|core/sample/main\\.go"],
+      "none_match": ["\\[FILE_CHANGE\\]", "Proposing to edit", "Proposing to create"]
+    },
+    {
+      "action": "assert_no_file_change"
+    }
+  ],
+  "cleanup": "clear"
+}

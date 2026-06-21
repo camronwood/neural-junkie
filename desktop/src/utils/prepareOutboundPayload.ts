@@ -11,7 +11,7 @@ import {
   IDE_ROUTE_AGENT_TYPE_KEY,
 } from '../constants/promptMetadata';
 import {
-  applyIdeAskPrefix,
+  applyIdePlanPrefix,
   buildImplementationSessionMetadata,
   mergeCodebaseAttachments,
   pickAgentTypeForImplementation,
@@ -53,6 +53,8 @@ export async function prepareOutboundPayload(
   const effectiveMode = resolveEffectiveComposerMode(content, composerMode);
   if (effectiveMode === 'ask') {
     sendContent = applyIdeAskPrefix(content, 'ask');
+  } else if (effectiveMode === 'plan') {
+    sendContent = applyIdePlanPrefix(content, 'plan');
   }
 
   const hasExplicitMention = /@\w/.test(content);

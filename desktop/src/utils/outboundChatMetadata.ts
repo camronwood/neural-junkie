@@ -566,7 +566,7 @@ export function buildHumanOutboundMetadata(options: {
 
   const composerModeRaw = meta[EDITOR_MODE_KEY];
   const composerMode: ComposerMode =
-    composerModeRaw === 'ask' || composerModeRaw === 'agent' || composerModeRaw === 'export'
+    composerModeRaw === 'ask' || composerModeRaw === 'plan' || composerModeRaw === 'agent' || composerModeRaw === 'export'
       ? composerModeRaw
       : 'agent';
   return attachTurnCapabilitiesMetadata(

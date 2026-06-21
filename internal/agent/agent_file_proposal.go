@@ -55,7 +55,11 @@ func sanitizeAskModeResponse(response string) string {
 }
 
 func isAskModeReadOnly(sourceMsg *protocol.Message) bool {
-	return sourceMsg != nil && (sourceMsg.IdeEditorModeIsAsk() || sourceMsg.IdeEditorMode() == "ask")
+	if sourceMsg == nil {
+		return false
+	}
+	caps := protocol.ResolveTurnCapabilities(sourceMsg)
+	return !caps.CanProposeFiles && (caps.ComposerMode == "ask" || caps.ComposerMode == "plan")
 }
 
 func sanitizeInternalToolNames(response string) string {
