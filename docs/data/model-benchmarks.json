@@ -197,7 +197,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-20-1748",
@@ -504,7 +505,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-19-0639",
@@ -737,7 +739,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-18-0523",
@@ -918,7 +921,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-10-1547",
@@ -1101,7 +1105,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-10-0235",
@@ -1434,7 +1439,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-09-2344",
@@ -1617,7 +1623,8 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     },
     {
       "id": "quick-2026-06-09-2328",
@@ -1728,8 +1735,619 @@
           "llm_judge": false,
           "target_agent": "BackendEngineer"
         }
-      ]
+      ],
+      "judge_provider": "gemini"
     }
   ],
-  "updated_at": "2026-06-21T11:36:05.831007+00:00"
+  "updated_at": "2026-06-21T11:42:20.008861+00:00",
+  "scenario_index": {
+    "implement/ask-mode-no-write": {
+      "name": "ask-mode-no-write",
+      "kind": "implement",
+      "description": "IDE Ask mode must not run implementation session or propose edits.",
+      "tags": [
+        "implement",
+        "ask"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/at-file-explicit-path": {
+      "name": "at-file-explicit-path",
+      "kind": "implement",
+      "description": "Scoped edit via @file:src/App.tsx only.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "at-file"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/continuation-go-ahead": {
+      "name": "continuation-go-ahead",
+      "kind": "implement",
+      "description": "User affirms prior implementation ask; session should still run.",
+      "tags": [
+        "implement",
+        "continuation"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/deny-destructive-command": {
+      "name": "deny-destructive-command",
+      "kind": "implement",
+      "description": "Agent mode must not suggest rm -rf for cleanup; no repo edits.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "security",
+        "commands"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/general-workspace-implement": {
+      "name": "general-workspace-implement",
+      "kind": "implement",
+      "description": "Team-channel style: workspace_context + implementation_session metadata (no IDE layout UI).",
+      "tags": [
+        "implement",
+        "frontend",
+        "workspace"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/go-handler": {
+      "name": "go-handler",
+      "kind": "implement",
+      "description": "IDE Agent implementation session on minimal Go fixture.",
+      "tags": [
+        "implement",
+        "backend",
+        "go"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/go-test-failure-repair": {
+      "name": "go-test-failure-repair",
+      "kind": "implement",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "verify"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/plan-mode-no-write": {
+      "name": "plan-mode-no-write",
+      "kind": "implement",
+      "description": "Plan composer mode produces structured plan without file edits.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "plan"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/react-theme-multi-file": {
+      "name": "react-theme-multi-file",
+      "kind": "implement",
+      "description": "Single prompt lands tailwind darkMode and App.tsx theme wiring without a go-ahead turn.",
+      "tags": [
+        "implement",
+        "frontend",
+        "multi-file"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/react-theme-toggle": {
+      "name": "react-theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session adds darkMode to Tailwind on React fixture; rejects Vue paths.",
+      "tags": [
+        "implement",
+        "frontend",
+        "react"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/rules-constrained-implement": {
+      "name": "rules-constrained-implement",
+      "kind": "implement",
+      "description": "Implement theme toggle respecting .neural-junkie/rules.md constraints.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "rules"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/selection-scoped-edit": {
+      "name": "selection-scoped-edit",
+      "kind": "implement",
+      "description": "Extract selected sidebar footer block to a helper file without touching config.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "selection"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/theme-toggle": {
+      "name": "theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "tags": [
+        "implement",
+        "frontend"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/typescript-compile-error-fix": {
+      "name": "typescript-compile-error-fix",
+      "kind": "implement",
+      "description": "Fix TypeScript compile error in src/App.tsx.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "typescript"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/verify-failure-one-repair": {
+      "name": "verify-failure-one-repair",
+      "kind": "implement",
+      "description": "Go verify loop repairs failing Multiply implementation.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "repair"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "implement/vite-boot-fix-corrupt-appjs": {
+      "name": "vite-boot-fix-corrupt-appjs",
+      "kind": "implement",
+      "description": "SoftwareArchitect fixes corrupt src/App.js blocking Vite boot (Qwen 14B benchmark).",
+      "tags": [
+        "implement",
+        "boot-fix",
+        "react",
+        "benchmark"
+      ],
+      "llm_judge": false,
+      "target_agent": "SoftwareArchitect"
+    },
+    "chat/already-said-closure": {
+      "name": "already-said-closure",
+      "kind": "chat",
+      "description": "User says the agent already answered; expect canned won't-repeat style closure.",
+      "tags": [
+        "public",
+        "assistant",
+        "closure",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": ""
+    },
+    "chat/casual-opinion-chat": {
+      "name": "casual-opinion-chat",
+      "kind": "chat",
+      "description": "Chat mode opinion question should not dump workspace/tool blocks.",
+      "tags": [
+        "public",
+        "assistant",
+        "chat"
+      ],
+      "llm_judge": false,
+      "target_agent": ""
+    },
+    "chat/dm-architect-outline": {
+      "name": "dm-architect-outline",
+      "kind": "chat",
+      "description": "SoftwareArchitect DM repo structure question.",
+      "tags": [
+        "dm",
+        "architecture",
+        "substantive"
+      ],
+      "llm_judge": false,
+      "target_agent": "SoftwareArchitect"
+    },
+    "chat/dm-architect-workspace": {
+      "name": "dm-architect-workspace",
+      "kind": "chat",
+      "description": "SoftwareArchitect DM: workspace visibility from outline scope.",
+      "tags": [
+        "dm",
+        "architecture",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "SoftwareArchitect"
+    },
+    "chat/dm-assistant-continue-after-closure": {
+      "name": "dm-assistant-continue-after-closure",
+      "kind": "chat",
+      "description": "Assistant DM: thanks closure then a new substantive question must get a real answer, not repeated closure boilerplate.",
+      "tags": [
+        "dm",
+        "assistant",
+        "closure",
+        "continuation",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "Assistant"
+    },
+    "chat/dm-backend-codebase-semantic": {
+      "name": "dm-backend-codebase-semantic",
+      "kind": "chat",
+      "description": "BackendEngineer DM: @codebase finds symbol in non-obvious filename via semantic/keyword index.",
+      "tags": [
+        "dm",
+        "backend",
+        "codebase",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-backend-deep-continuation": {
+      "name": "dm-backend-deep-continuation",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a theme reply, go-deeper follow-up must stay on topic without echoing the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "continuation",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-backend-echo-followup": {
+      "name": "dm-backend-echo-followup",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "echo",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-backend-interject-resume": {
+      "name": "dm-backend-interject-resume",
+      "kind": "chat",
+      "description": "BackendEngineer DM: channel interject holds agents until the user sends again; resume must answer the new question (hub: make server-regression).",
+      "tags": [
+        "dm",
+        "backend",
+        "interject",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-backend-workspace": {
+      "name": "dm-backend-workspace",
+      "kind": "chat",
+      "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+      "tags": [
+        "dm",
+        "backend",
+        "workspace",
+        "regression",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-biology-greeting": {
+      "name": "dm-biology-greeting",
+      "kind": "chat",
+      "description": "BiologyExpert DM greeting (requires life-sciences pack).",
+      "tags": [
+        "dm",
+        "biology",
+        "greeting",
+        "life-sciences"
+      ],
+      "llm_judge": false,
+      "target_agent": "BiologyExpert"
+    },
+    "chat/dm-cad-greeting": {
+      "name": "dm-cad-greeting",
+      "kind": "chat",
+      "description": "CADExpert DM greeting (requires CAD pack).",
+      "tags": [
+        "dm",
+        "cad",
+        "greeting"
+      ],
+      "llm_judge": false,
+      "target_agent": "CADExpert"
+    },
+    "chat/dm-code-reviewer-task": {
+      "name": "dm-code-reviewer-task",
+      "kind": "chat",
+      "description": "CodeReviewer DM file review path.",
+      "tags": [
+        "dm",
+        "code-review",
+        "task",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "CodeReviewer"
+    },
+    "chat/dm-code-reviewer-workspace": {
+      "name": "dm-code-reviewer-workspace",
+      "kind": "chat",
+      "description": "CodeReviewer DM: workspace visibility from outline scope.",
+      "tags": [
+        "dm",
+        "code-review",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "CodeReviewer"
+    },
+    "chat/dm-database-greeting": {
+      "name": "dm-database-greeting",
+      "kind": "chat",
+      "description": "DatabaseSpecialist DM greeting.",
+      "tags": [
+        "dm",
+        "database",
+        "greeting"
+      ],
+      "llm_judge": false,
+      "target_agent": "DatabaseSpecialist"
+    },
+    "chat/dm-database-workspace": {
+      "name": "dm-database-workspace",
+      "kind": "chat",
+      "description": "DatabaseSpecialist DM: workspace visibility from outline scope.",
+      "tags": [
+        "dm",
+        "database",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "DatabaseSpecialist"
+    },
+    "chat/dm-frontend-code-task": {
+      "name": "dm-frontend-code-task",
+      "kind": "chat",
+      "description": "FrontendEngineer DM code-mode component question routes as task.",
+      "tags": [
+        "dm",
+        "frontend",
+        "task",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/dm-frontend-greeting": {
+      "name": "dm-frontend-greeting",
+      "kind": "chat",
+      "description": "FrontendEngineer DM greeting stays short without tooling dumps.",
+      "tags": [
+        "dm",
+        "frontend",
+        "greeting"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/dm-frontend-workspace": {
+      "name": "dm-frontend-workspace",
+      "kind": "chat",
+      "description": "FrontendEngineer DM: workspace visibility must use shared context, not fake packages.",
+      "tags": [
+        "dm",
+        "frontend",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/dm-greeting": {
+      "name": "dm-greeting",
+      "kind": "chat",
+      "description": "Real DM channel greeting stays conversational without tooling dumps.",
+      "tags": [
+        "dm",
+        "assistant",
+        "greeting"
+      ],
+      "llm_judge": false,
+      "target_agent": "Assistant"
+    },
+    "chat/dm-ide-route-backend": {
+      "name": "dm-ide-route-backend",
+      "kind": "chat",
+      "description": "IDE implicit routing: open Go file routes to backend specialist without @mention in body.",
+      "tags": [
+        "dm",
+        "backend",
+        "ide",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-platform-greeting": {
+      "name": "dm-platform-greeting",
+      "kind": "chat",
+      "description": "PlatformEngineer DM casual greeting.",
+      "tags": [
+        "dm",
+        "devops",
+        "greeting"
+      ],
+      "llm_judge": false,
+      "target_agent": "PlatformEngineer"
+    },
+    "chat/dm-platform-workspace": {
+      "name": "dm-platform-workspace",
+      "kind": "chat",
+      "description": "PlatformEngineer DM: workspace visibility from outline scope.",
+      "tags": [
+        "dm",
+        "devops",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "PlatformEngineer"
+    },
+    "chat/dm-safe-readonly-command": {
+      "name": "dm-safe-readonly-command",
+      "kind": "chat",
+      "description": "When BackendEngineer suggests read-only shell (cat/grep), metadata must mark is_safe.",
+      "tags": [
+        "dm",
+        "backend",
+        "cli",
+        "regression",
+        "optional"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/dm-security-review": {
+      "name": "dm-security-review",
+      "kind": "chat",
+      "description": "SecurityReviewer DM path-based review is a code task.",
+      "tags": [
+        "dm",
+        "security",
+        "task",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "SecurityReviewer"
+    },
+    "chat/dm-security-workspace": {
+      "name": "dm-security-workspace",
+      "kind": "chat",
+      "description": "SecurityReviewer DM: workspace visibility from outline scope.",
+      "tags": [
+        "dm",
+        "security",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "SecurityReviewer"
+    },
+    "chat/dm-topic-switch": {
+      "name": "dm-topic-switch",
+      "kind": "chat",
+      "description": "BackendEngineer DM: code task \u2192 casual chat opinion \u2192 back to code must not dump workspace blocks on the chat turn.",
+      "tags": [
+        "dm",
+        "backend",
+        "topic-switch",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/greeting-chat-mode": {
+      "name": "greeting-chat-mode",
+      "kind": "chat",
+      "description": "Chat mode greeting stays short without tooling blocks in the reply.",
+      "tags": [
+        "public",
+        "assistant",
+        "greeting"
+      ],
+      "llm_judge": false,
+      "target_agent": ""
+    },
+    "chat/public-backend-theme-workspace": {
+      "name": "public-backend-theme-workspace",
+      "kind": "chat",
+      "description": "Public channel @BackendEngineer: workspace visibility on second turn.",
+      "tags": [
+        "public",
+        "backend",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    "chat/public-frontend-theme-continuation": {
+      "name": "public-frontend-theme-continuation",
+      "kind": "chat",
+      "description": "FrontendEngineer: theme ask then go-ahead keeps code context (no path begging).",
+      "tags": [
+        "public",
+        "frontend",
+        "workspace",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "chat/task-flip-review": {
+      "name": "task-flip-review",
+      "kind": "chat",
+      "description": "Casual hello then code-mode review should route as task (debug) and avoid chat-only blocks on turn 2.",
+      "tags": [
+        "public",
+        "assistant",
+        "task",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": ""
+    },
+    "chat/thanks-closure": {
+      "name": "thanks-closure",
+      "kind": "chat",
+      "description": "After a substantive answer, ok thanks should get a canned closure without a long LLM reply.",
+      "tags": [
+        "public",
+        "assistant",
+        "closure",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": ""
+    }
+  }
 }

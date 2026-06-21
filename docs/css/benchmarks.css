@@ -206,27 +206,63 @@
 
 .benchmarks-kv {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.85rem 1.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
   margin: 0;
-  padding: 1rem 1.25rem;
+  padding: 1rem;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
-.benchmarks-kv dt {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin: 0 0 0.25rem;
+.benchmarks-kv-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 3.75rem;
 }
 
-.benchmarks-kv dd {
-  margin: 0;
+.benchmarks-kv-item--wide {
+  grid-column: 1 / -1;
+}
+
+.benchmarks-kv-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.benchmarks-kv-value {
   font-size: 0.95rem;
   line-height: 1.45;
+  color: var(--text);
+}
+
+.benchmarks-kv-value code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 0.12em 0.35em;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+}
+
+.benchmarks-kv-value .hub-local {
+  display: inline-block;
+  margin-right: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 640px) {
+  .benchmarks-kv {
+    grid-template-columns: 1fr;
+  }
 }
 
 .matrix-desc {

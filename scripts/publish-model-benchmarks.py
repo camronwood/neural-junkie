@@ -23,6 +23,7 @@ from lib.model_benchmark import (  # noqa: E402
     build_scenario_catalog,
     derive_capability_profiles,
     load_models,
+    load_scenario_meta,
     write_capability_profiles,
 )
 
@@ -95,6 +96,19 @@ def normalize_run(raw: dict, *, run_id: str, source_file: str) -> dict:
     }
 
 
+def build_scenario_index() -> dict[str, dict]:
+    """All scenario metadata keyed by kind/name for website client-side enrichment."""
+    index: dict[str, dict] = {}
+    for kind, subdir in (("implement", "implement"), ("chat", "chat")):
+        scenario_dir = ROOT / "scenarios" / subdir
+        if not scenario_dir.is_dir():
+            continue
+        for path in sorted(scenario_dir.glob("*.json")):
+            meta = load_scenario_meta(kind, path.stem)
+            index[f"{kind}/{path.stem}"] = meta
+    return index
+
+
 def refresh_run_metadata(run: dict) -> dict:
     """Fill scenario catalog and hardware note for runs imported before enrichment existed."""
     out = dict(run)
@@ -105,6 +119,9 @@ def refresh_run_metadata(run: dict) -> dict:
     hardware = out.get("hardware") if isinstance(out.get("hardware"), dict) else {}
     if not out.get("hardware_note") and hardware.get("total_memory_gb"):
         out["hardware_note"] = f"{hardware['total_memory_gb']} GB RAM ({hardware.get('tier', '?')} tier)"
+    judged = [s for s in (out.get("scenario_catalog") or []) if isinstance(s, dict) and s.get("llm_judge")]
+    if judged and not str(out.get("judge_provider") or "").strip():
+        out["judge_provider"] = "gemini"
     return out
 
 
@@ -147,6 +164,7 @@ def publish(*, testing_dir: Path, data_path: Path, only: str | None = None) -> i
         reverse=True,
     )
     catalog["runs"] = [refresh_run_metadata(r) for r in catalog.get("runs") or [] if isinstance(r, dict)]
+    catalog["scenario_index"] = build_scenario_index()
     catalog["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     data_path.parent.mkdir(parents=True, exist_ok=True)

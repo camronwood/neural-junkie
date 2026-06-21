@@ -53,7 +53,7 @@
 
     <section class="benchmarks-run-context" id="run-context" hidden aria-labelledby="run-context-heading">
       <h2 id="run-context-heading">Run context</h2>
-      <dl class="benchmarks-kv" id="run-context-grid"></dl>
+      <div class="benchmarks-kv" id="run-context-grid"></div>
     </section>
 
     <section class="benchmarks-scenarios" id="scenario-suite" hidden aria-labelledby="scenario-suite-heading">
@@ -201,7 +201,42 @@
     }
 
     function judgeScenarios(run) {
-      return (run.scenario_catalog || []).filter((s) => s.llm_judge);
+      return (run.scenario_catalog || []).filter((s) => s && s.llm_judge);
+    }
+
+    function enrichRun(run, catalog) {
+      const out = { ...run };
+      if (!out.scenario_catalog?.length) {
+        const index = catalog?.scenario_index || {};
+        out.scenario_catalog = scenarioRows(out).map((row) => {
+          const key = `${row.kind}/${row.name}`;
+          return index[key] || {
+            name: row.name,
+            kind: row.kind,
+            description: "",
+            llm_judge: false,
+            target_agent: "",
+          };
+        });
+      }
+      if (!String(out.judge_provider || "").trim() && judgeScenarios(out).length) {
+        out.judge_provider = "gemini";
+      }
+      return out;
+    }
+
+    function formatHub(hub) {
+      if (!hub) return "—";
+      const safe = escapeHtml(hub);
+      if (/127\.0\.0\.1|localhost/i.test(hub)) {
+        return `<span class="hub-local">Local benchmark host</span> <code>${safe}</code>`;
+      }
+      return `<a href="${escapeAttr(hub)}" rel="noopener noreferrer">${safe}</a>`;
+    }
+
+    function kvItem(label, valueHtml, wide) {
+      const cls = wide ? "benchmarks-kv-item benchmarks-kv-item--wide" : "benchmarks-kv-item";
+      return `<div class="${cls}"><span class="benchmarks-kv-label">${escapeHtml(label)}</span><span class="benchmarks-kv-value">${valueHtml}</span></div>`;
     }
 
     function judgeStats(result, run) {
@@ -254,36 +289,36 @@
       const panel = document.getElementById("run-context");
       const grid = document.getElementById("run-context-grid");
       const judged = judgeScenarios(run);
-      const rows = [
-        ["Suite", run.suite || "—"],
-        ["Description", run.description || "—"],
-        ["Date (UTC)", fmtDate(run.generated_at)],
-        ["Hub", run.hub || "—"],
-        [
-          "Hardware",
-          run.hardware_note ||
-            (run.hardware && run.hardware.total_memory_gb
-              ? `${run.hardware.total_memory_gb} GB RAM (${run.hardware.tier || "?"} tier)`
-              : "Not recorded for this run"),
-        ],
-        [
+      const implCount = (run.implement_scenarios || []).length;
+      const chatCount = (run.chat_scenarios || []).length;
+      const totalScenarios = implCount + chatCount;
+      const scenarioSummary =
+        `${totalScenarios} total` +
+        (implCount ? ` · ${implCount} implement` : "") +
+        (chatCount ? ` · ${chatCount} chat` : "") +
+        (judged.length ? ` · ${judged.length} LLM-judged` : "");
+      const hardwareHtml =
+        run.hardware_note ||
+        (run.hardware && run.hardware.total_memory_gb
+          ? `${run.hardware.total_memory_gb} GB RAM (${run.hardware.tier || "?"} tier)`
+          : 'Not recorded — re-run <code>make model-benchmark</code> to capture');
+      const judgeLabel = run.judge_provider
+        ? `${run.judge_provider} — independent review on implement deliverables`
+        : judged.length
+          ? "Gemini (default) — independent review on implement deliverables"
+          : "Not used in this suite";
+      grid.innerHTML = [
+        kvItem("Suite", escapeHtml(run.suite || "—")),
+        kvItem("Date (UTC)", escapeHtml(fmtDate(run.generated_at))),
+        kvItem("Scenarios", escapeHtml(scenarioSummary)),
+        kvItem(
           "Deliverable judge",
-          run.judge_provider
-            ? `${run.judge_provider} — independent review on implement deliverables`
-            : judged.length
-              ? "Gemini (default) — independent review on implement deliverables"
-              : "Not used in this suite",
-        ],
-        ["Implement scenarios", String((run.implement_scenarios || []).length)],
-        ["Chat scenarios", String((run.chat_scenarios || []).length)],
-        ["LLM-judged deliverables", String(judged.length)],
-      ];
-      grid.innerHTML = rows
-        .map(
-          ([label, value]) =>
-            `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`
-        )
-        .join("");
+          judged.length ? escapeHtml(judgeLabel) : '<span class="judge-na">Not used in this suite</span>'
+        ),
+        kvItem("Hardware", hardwareHtml.includes("<code>") ? hardwareHtml : escapeHtml(hardwareHtml)),
+        kvItem("Hub", formatHub(run.hub)),
+        kvItem("Description", escapeHtml(run.description || "—"), true),
+      ].join("");
       panel.hidden = false;
     }
 
@@ -393,6 +428,7 @@
     }
 
     function renderRun(run, catalog) {
+      run = enrichRun(run, catalog);
       const win = winnerForRun(run);
       const winnerEl = document.getElementById('benchmarks-winner');
       if (win) {
@@ -437,7 +473,7 @@
 
     async function init() {
       try {
-        const res = await fetch(DATA_URL);
+        const res = await fetch(`${DATA_URL}?v=${encodeURIComponent(Date.now())}`, { cache: "no-store" });
         if (!res.ok) throw new Error('Failed to load benchmark data (' + res.status + ')');
         const catalog = await res.json();
         document.getElementById('benchmarks-about').textContent = catalog.about || '';
