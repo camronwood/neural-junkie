@@ -186,3 +186,89 @@
   color: #f85149;
   background: rgba(248, 81, 73, 0.08);
 }
+
+.benchmarks-run-context,
+.benchmarks-scenarios {
+  margin-bottom: 2.5rem;
+}
+
+.benchmarks-run-context h2,
+.benchmarks-scenarios h2 {
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+}
+
+.benchmarks-section-lead {
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+  max-width: 70ch;
+}
+
+.benchmarks-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem 1.25rem;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.benchmarks-kv dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 0.25rem;
+}
+
+.benchmarks-kv dd {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.matrix-desc {
+  margin-top: 0.35rem;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  max-width: 18rem;
+}
+
+.matrix-judge {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.judge-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(126, 231, 135, 0.12);
+  color: #7ee787;
+  border: 1px solid rgba(126, 231, 135, 0.25);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.judge-pass {
+  color: #7ee787;
+  font-weight: 600;
+}
+
+.judge-fail {
+  color: #f85149;
+  font-weight: 600;
+}
+
+.judge-pending {
+  color: #d4a72c;
+  font-weight: 600;
+}
+
+.judge-na {
+  color: var(--text-muted);
+}

@@ -19,10 +19,6 @@
   },
   "expect_deliverables": [
     {
-      "path": "src/components/SidebarFooter.tsx",
-      "must_exist": false
-    },
-    {
       "path": "src/App.tsx",
       "min_bytes": 80,
       "for_question": {

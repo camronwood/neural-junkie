@@ -67,7 +67,7 @@ Reports land in `docs/testing/`:
 | File | Contents |
 |------|----------|
 | `model-benchmark-<suite>-<timestamp>.md` | Ranked summary + per-scenario matrix |
-| `model-benchmark-<suite>-<timestamp>.json` | Machine-readable full results |
+| `model-benchmark-<suite>-<timestamp>.json` | Machine-readable full results (hardware, scenario catalog, judge verdicts when captured) |
 | `model-benchmark-<suite>-<timestamp>.tsv` | One row per scenario × model |
 
 After each run, results are merged into **`docs/data/model-benchmarks.json`** for the public site:
@@ -81,6 +81,12 @@ Publishing also regenerates **`docs/data/model-capability-profiles.json`** — r
 Override profile path: `NEURAL_JUNKIE_CAPABILITY_PROFILES=/path/to/profiles.json`
 
 **Website:** [Model benchmarks](https://camronwood.github.io/neural-junkie/benchmarks/) (`docs/benchmarks/index.html` on GitHub Pages).
+
+Each published run includes:
+
+- **Hardware** — RAM tier from `GET /api/system/hardware` at benchmark start (when hub is local)
+- **Scenario catalog** — description, agent, and whether an LLM deliverable judge runs
+- **Judge verdicts** — Pass/Fail + reason from the independent judge on `llm_judge` implement scenarios (re-run benchmarks to populate on older runs)
 
 ## Default roster
 

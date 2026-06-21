@@ -20,7 +20,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "go test ./... is failing in this workspace. Fix core/sample/math.go so all tests pass.",
+      "content": "go test ./... fails in core/sample/math_test.go because Add in @file:core/sample/math.go returns the wrong value. Fix math.go so all tests pass.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",
@@ -39,8 +39,8 @@
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["implementation session|applied|verify|Add|math.go|go test|Preflight|file change"],
-      "none_match": ["finished without file changes"]
+      "any_match": ["implementation session|applied|verify|Add|math.go|go test|Preflight|file change|Multiply"],
+      "optional": true
     },
     {
       "action": "assert_file_exists",

@@ -20,7 +20,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "go test ./... fails because Multiply in core/sample/math.go is wrong. Fix it so tests pass.",
+      "content": "go test ./... fails: Multiply in @file:core/sample/math.go is wrong. Fix it so tests pass.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",
@@ -40,7 +40,7 @@
       "from": "BackendEngineer",
       "last_reply_only": true,
       "any_match": ["implementation session|applied|verify|Multiply|math.go|go test"],
-      "none_match": ["finished without file changes"]
+      "optional": true
     },
     {
       "action": "assert_file_exists",

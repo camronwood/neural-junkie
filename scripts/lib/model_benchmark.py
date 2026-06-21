@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -31,6 +32,9 @@ class ScenarioResult:
     passed: bool
     duration_s: float
     detail: str = ""
+    judge_passed: bool | None = None
+    judge_reason: str = ""
+    uses_llm_judge: bool = False
 
 
 @dataclass
@@ -284,7 +288,7 @@ def run_script_scenario(
     hub_url: str,
     *,
     extra_args: list[str] | None = None,
-) -> tuple[bool, float, str]:
+) -> tuple[bool, float, str, bool | None, str, bool]:
     cmd = [sys.executable, str(SCRIPTS_DIR / script), "--scenario", scenario, "--hub", hub_url]
     if extra_args:
         cmd.extend(extra_args)
@@ -300,7 +304,81 @@ def run_script_scenario(
             break
     if not detail and not passed:
         detail = output.strip().splitlines()[-1] if output.strip() else f"exit {proc.returncode}"
-    return passed, elapsed, detail
+    judge_passed, judge_reason = parse_judge_from_output(output)
+    uses_judge = judge_passed is not None
+    return passed, elapsed, detail, judge_passed, judge_reason, uses_judge
+
+
+def parse_judge_from_output(output: str) -> tuple[bool | None, str]:
+    """Extract deliverable judge verdict from implement scenario log lines."""
+    for line in output.splitlines():
+        lower = line.lower()
+        for prefix, verdict in (("judge:pass:", True), ("judge:fail:", False)):
+            idx = lower.find(prefix)
+            if idx >= 0:
+                reason = line[idx + len(prefix) :].strip()
+                return verdict, reason
+        if "llm_judge:" in lower:
+            idx = lower.find("llm_judge:")
+            reason = line[idx + len("llm_judge:") :].strip()
+            return False, reason
+    return None, ""
+
+
+def fetch_hardware_snapshot(hub_url: str) -> dict[str, Any]:
+    code, data = hub.hub_request(hub_url.rstrip("/"), "GET", "/api/system/hardware")
+    if code != 200 or not isinstance(data, dict):
+        return {}
+    return {
+        "total_memory_gb": data.get("total_memory_gb"),
+        "total_memory_bytes": data.get("total_memory_bytes"),
+        "tier": data.get("tier"),
+    }
+
+
+def resolve_judge_provider_note() -> str:
+    provider = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    model = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "").strip()
+    if provider == "ollama":
+        model = model or os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen2.5-coder:14b")
+        return f"ollama/{model}" if model else "ollama"
+    if model:
+        return f"{provider}/{model}"
+    return provider or "gemini"
+
+
+def load_scenario_meta(kind: str, name: str) -> dict[str, Any]:
+    if kind == "implement":
+        path = ROOT / "scenarios" / "implement" / f"{name}.json"
+    elif kind == "chat":
+        path = ROOT / "scenarios" / "chat" / f"{name}.json"
+    else:
+        return {"name": name, "kind": kind, "description": "", "llm_judge": False, "tags": []}
+    if not path.is_file():
+        return {"name": name, "kind": kind, "description": "", "llm_judge": False, "tags": []}
+    data = load_json_config(path)
+    llm_judge = False
+    for deliverable in data.get("expect_deliverables") or []:
+        if isinstance(deliverable, dict) and deliverable.get("llm_judge"):
+            llm_judge = True
+            break
+    return {
+        "name": name,
+        "kind": kind,
+        "description": str(data.get("description") or "").strip(),
+        "tags": [str(t) for t in (data.get("tags") or []) if str(t).strip()],
+        "llm_judge": llm_judge,
+        "target_agent": str(data.get("target_agent") or "").strip(),
+    }
+
+
+def build_scenario_catalog(implement_names: list[str], chat_names: list[str]) -> list[dict[str, Any]]:
+    catalog: list[dict[str, Any]] = []
+    for name in implement_names:
+        catalog.append(load_scenario_meta("implement", name))
+    for name in chat_names:
+        catalog.append(load_scenario_meta("chat", name))
+    return catalog
 
 
 def format_duration(seconds: float) -> str:
@@ -322,6 +400,8 @@ def render_markdown_report(
     results: list[ModelBenchmarkResult],
     implement_names: list[str],
     chat_names: list[str],
+    hardware: dict[str, Any] | None = None,
+    judge_provider: str = "",
 ) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lines = [
@@ -382,6 +462,17 @@ def render_markdown_report(
             lines.append(f"| {kind}/{name} | " + " | ".join(cells) + " |")
 
     lines.extend(["", "## Scenario lists", "", f"- **Implement:** {', '.join(implement_names) or '(none)'}", f"- **Chat:** {', '.join(chat_names) or '(none)'}", ""])
+    if hardware:
+        lines.extend(
+            [
+                "## Hardware",
+                "",
+                f"- **RAM:** {hardware.get('total_memory_gb', '?')} GB ({hardware.get('tier', '?')} tier)",
+                "",
+            ]
+        )
+    if judge_provider:
+        lines.extend(["## Deliverable judge", "", f"- **Provider:** `{judge_provider}`", ""])
     return "\n".join(lines)
 
 
@@ -394,6 +485,8 @@ def write_reports(
     results: list[ModelBenchmarkResult],
     implement_names: list[str],
     chat_names: list[str],
+    hardware: dict[str, Any] | None = None,
+    judge_provider: str = "",
 ) -> tuple[Path, Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
@@ -409,26 +502,39 @@ def write_reports(
             results=results,
             implement_names=implement_names,
             chat_names=chat_names,
+            hardware=hardware,
+            judge_provider=judge_provider,
         ),
         encoding="utf-8",
     )
+
+    hw_note = ""
+    if hardware and hardware.get("total_memory_gb"):
+        hw_note = f"{hardware['total_memory_gb']} GB RAM ({hardware.get('tier', '?')} tier)"
 
     payload = {
         "suite": suite_name,
         "description": suite_desc,
         "hub": hub_url,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "hardware": hardware or {},
+        "hardware_note": hw_note,
+        "judge_provider": judge_provider,
+        "scenario_catalog": build_scenario_catalog(implement_names, chat_names),
         "implement_scenarios": implement_names,
         "chat_scenarios": chat_names,
         "results": [r.to_dict() for r in results],
     }
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    tsv_lines = ["model_tag\tscenario_kind\tscenario\tpassed\tduration_s\tdetail"]
+    tsv_lines = [
+        "model_tag\tscenario_kind\tscenario\tpassed\tduration_s\tjudge_passed\tjudge_reason\tdetail"
+    ]
     for r in results:
         for s in r.scenarios:
+            judge_passed = "" if s.judge_passed is None else str(int(s.judge_passed))
             tsv_lines.append(
-                f"{r.model_tag}\t{s.kind}\t{s.name}\t{int(s.passed)}\t{s.duration_s:.1f}\t{s.detail.replace(chr(9), ' ')}"
+                f"{r.model_tag}\t{s.kind}\t{s.name}\t{int(s.passed)}\t{s.duration_s:.1f}\t{judge_passed}\t{s.judge_reason.replace(chr(9), ' ')}\t{s.detail.replace(chr(9), ' ')}"
             )
     tsv_path.write_text("\n".join(tsv_lines) + "\n", encoding="utf-8")
     return md_path, json_path, tsv_path

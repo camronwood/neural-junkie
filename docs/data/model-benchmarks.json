@@ -134,7 +134,70 @@
           "pass_rate": 1.0
         }
       ],
-      "source_file": "testing/model-benchmark-release-2026-06-21-0301.json"
+      "source_file": "testing/model-benchmark-release-2026-06-21-0301.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-20-1748",
@@ -378,7 +441,70 @@
           "pass_rate": 0.5
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-20-1748.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-20-1748.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-19-0639",
@@ -548,7 +674,70 @@
           "pass_rate": 0.8
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-19-0639.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-19-0639.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-18-0523",
@@ -666,7 +855,70 @@
           "pass_rate": 0.0
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-18-0523.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-18-0523.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-10-1547",
@@ -786,7 +1038,70 @@
           "pass_rate": 0.8
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-10-1547.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-10-1547.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-10-0235",
@@ -1056,7 +1371,70 @@
           "pass_rate": 0.6
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-10-0235.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-10-0235.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-09-2344",
@@ -1176,7 +1554,70 @@
           "pass_rate": 1.0
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-09-2344.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-09-2344.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     },
     {
       "id": "quick-2026-06-09-2328",
@@ -1224,8 +1665,71 @@
           "pass_rate": 0.0
         }
       ],
-      "source_file": "testing/model-benchmark-quick-2026-06-09-2328.json"
+      "source_file": "testing/model-benchmark-quick-2026-06-09-2328.json",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ]
     }
   ],
-  "updated_at": "2026-06-21T03:01:47.145215+00:00"
+  "updated_at": "2026-06-21T11:36:05.831007+00:00"
 }

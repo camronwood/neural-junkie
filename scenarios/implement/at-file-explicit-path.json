@@ -23,7 +23,7 @@
   "steps": [
     {
       "action": "send",
-      "content": "In @file:src/App.tsx add a short subtitle paragraph under the sidebar heading. Do not edit tailwind.config.js or any other file.",
+      "content": "@FrontendEngineer In @file:src/App.tsx add a short subtitle paragraph under the sidebar heading. Do not edit tailwind.config.js or any other file.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "frontend",

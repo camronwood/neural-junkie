@@ -20,6 +20,7 @@ import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
 from lib.model_benchmark import (  # noqa: E402
+    build_scenario_catalog,
     derive_capability_profiles,
     load_models,
     write_capability_profiles,
@@ -65,18 +66,46 @@ def run_id_from_path(path: Path) -> str | None:
 
 
 def normalize_run(raw: dict, *, run_id: str, source_file: str) -> dict:
+    implement = raw.get("implement_scenarios") or []
+    chat = raw.get("chat_scenarios") or []
+    hardware = raw.get("hardware") if isinstance(raw.get("hardware"), dict) else {}
+    hw_note = str(raw.get("hardware_note") or "").strip()
+    if not hw_note and hardware.get("total_memory_gb"):
+        hw_note = f"{hardware['total_memory_gb']} GB RAM ({hardware.get('tier', '?')} tier)"
+    catalog = raw.get("scenario_catalog")
+    if not isinstance(catalog, list) or not catalog:
+        catalog = build_scenario_catalog(
+            [str(x) for x in implement if str(x).strip()],
+            [str(x) for x in chat if str(x).strip()],
+        )
     return {
         "id": run_id,
         "suite": raw.get("suite") or "quick",
         "description": raw.get("description") or "",
         "generated_at": raw.get("generated_at") or "",
         "hub": raw.get("hub") or "",
-        "hardware_note": raw.get("hardware_note") or "",
-        "implement_scenarios": raw.get("implement_scenarios") or [],
-        "chat_scenarios": raw.get("chat_scenarios") or [],
+        "hardware": hardware,
+        "hardware_note": hw_note,
+        "judge_provider": str(raw.get("judge_provider") or "").strip(),
+        "scenario_catalog": catalog,
+        "implement_scenarios": implement,
+        "chat_scenarios": chat,
         "results": raw.get("results") or [],
         "source_file": source_file,
     }
+
+
+def refresh_run_metadata(run: dict) -> dict:
+    """Fill scenario catalog and hardware note for runs imported before enrichment existed."""
+    out = dict(run)
+    implement = [str(x) for x in (out.get("implement_scenarios") or []) if str(x).strip()]
+    chat = [str(x) for x in (out.get("chat_scenarios") or []) if str(x).strip()]
+    if not out.get("scenario_catalog"):
+        out["scenario_catalog"] = build_scenario_catalog(implement, chat)
+    hardware = out.get("hardware") if isinstance(out.get("hardware"), dict) else {}
+    if not out.get("hardware_note") and hardware.get("total_memory_gb"):
+        out["hardware_note"] = f"{hardware['total_memory_gb']} GB RAM ({hardware.get('tier', '?')} tier)"
+    return out
 
 
 def discover_runs(testing_dir: Path) -> list[tuple[str, Path]]:
@@ -117,6 +146,7 @@ def publish(*, testing_dir: Path, data_path: Path, only: str | None = None) -> i
         key=lambda r: r.get("generated_at") or "",
         reverse=True,
     )
+    catalog["runs"] = [refresh_run_metadata(r) for r in catalog.get("runs") or [] if isinstance(r, dict)]
     catalog["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     data_path.parent.mkdir(parents=True, exist_ok=True)

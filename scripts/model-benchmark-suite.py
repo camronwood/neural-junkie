@@ -21,14 +21,18 @@ from lib.model_benchmark import (  # noqa: E402
     ModelBenchmarkResult,
     ScenarioResult,
     SUITES_CONFIG,
+    build_scenario_catalog,
+    fetch_hardware_snapshot,
     filter_models_by_max_params,
     format_duration,
     load_models,
+    load_scenario_meta,
     load_suite,
     model_is_installed,
     model_params_b,
     ollama_installed_tags,
     pull_ollama_model,
+    resolve_judge_provider_note,
     resolve_suite_max_params_b,
     resolve_suite_model_tags,
     resolve_suite_scenarios,
@@ -149,9 +153,21 @@ def benchmark_model(
     model_t0 = time.monotonic()
     for name in implement:
         print(f"\n  [implement] {name}")
-        passed, elapsed, step_detail = run_script_scenario("implement-scenarios.py", name, hub_url)
+        passed, elapsed, step_detail, judge_passed, judge_reason, uses_judge = run_script_scenario(
+            "implement-scenarios.py", name, hub_url
+        )
+        meta = load_scenario_meta("implement", name)
         result.scenarios.append(
-            ScenarioResult(name=name, kind="implement", passed=passed, duration_s=elapsed, detail=step_detail)
+            ScenarioResult(
+                name=name,
+                kind="implement",
+                passed=passed,
+                duration_s=elapsed,
+                detail=step_detail,
+                judge_passed=judge_passed,
+                judge_reason=judge_reason,
+                uses_llm_judge=uses_judge or bool(meta.get("llm_judge")),
+            )
         )
         mark = "PASS" if passed else "FAIL"
         print(f"    {mark} in {format_duration(elapsed)} — {step_detail}")
@@ -160,9 +176,21 @@ def benchmark_model(
 
     for name in chat:
         print(f"\n  [chat] {name}")
-        passed, elapsed, step_detail = run_script_scenario("chat-scenarios.py", name, hub_url)
+        passed, elapsed, step_detail, judge_passed, judge_reason, uses_judge = run_script_scenario(
+            "chat-scenarios.py", name, hub_url
+        )
+        meta = load_scenario_meta("chat", name)
         result.scenarios.append(
-            ScenarioResult(name=name, kind="chat", passed=passed, duration_s=elapsed, detail=step_detail)
+            ScenarioResult(
+                name=name,
+                kind="chat",
+                passed=passed,
+                duration_s=elapsed,
+                detail=step_detail,
+                judge_passed=judge_passed,
+                judge_reason=judge_reason,
+                uses_llm_judge=uses_judge or bool(meta.get("llm_judge")),
+            )
         )
         mark = "PASS" if passed else "FAIL"
         print(f"    {mark} in {format_duration(elapsed)} — {step_detail}")
@@ -269,6 +297,12 @@ def main() -> int:
     print(f"  implement ({len(implement)}): {', '.join(implement) or '(none)'}")
     print(f"  chat ({len(chat)}): {', '.join(chat) or '(none)'}")
 
+    hardware = fetch_hardware_snapshot(hub_url)
+    judge_provider = resolve_judge_provider_note()
+    if hardware:
+        print(f"  hardware: {hardware.get('total_memory_gb')} GB RAM ({hardware.get('tier')} tier)")
+    print(f"  deliverable judge: {judge_provider}")
+
     results: list[ModelBenchmarkResult] = []
     for model in models:
         results.append(
@@ -292,6 +326,8 @@ def main() -> int:
         results=results,
         implement_names=implement,
         chat_names=chat,
+        hardware=hardware,
+        judge_provider=judge_provider,
     )
 
     active = [r for r in results if not r.skipped and r.scenarios]

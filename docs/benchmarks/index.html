@@ -51,6 +51,30 @@
 
     <div class="benchmarks-winner" id="benchmarks-winner" hidden></div>
 
+    <section class="benchmarks-run-context" id="run-context" hidden aria-labelledby="run-context-heading">
+      <h2 id="run-context-heading">Run context</h2>
+      <dl class="benchmarks-kv" id="run-context-grid"></dl>
+    </section>
+
+    <section class="benchmarks-scenarios" id="scenario-suite" hidden aria-labelledby="scenario-suite-heading">
+      <h2 id="scenario-suite-heading">Scenarios in this run</h2>
+      <p class="benchmarks-section-lead" id="scenario-suite-lead"></p>
+      <div class="benchmarks-table-wrap">
+        <table class="benchmarks-table" id="scenario-suite-table">
+          <thead>
+            <tr>
+              <th>Kind</th>
+              <th>Scenario</th>
+              <th>What it tests</th>
+              <th>Agent</th>
+              <th>Judge</th>
+            </tr>
+          </thead>
+          <tbody id="scenario-suite-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section aria-labelledby="leaderboard-heading">
       <h2 id="leaderboard-heading">Leaderboard</h2>
       <div class="benchmarks-table-wrap">
@@ -63,6 +87,7 @@
               <th>Rate</th>
               <th>Implement</th>
               <th>Chat</th>
+              <th>Judge</th>
               <th>Total time</th>
             </tr>
           </thead>
@@ -165,6 +190,136 @@
       ];
     }
 
+    function catalogMap(run) {
+      const map = new Map();
+      for (const entry of run.scenario_catalog || []) {
+        if (entry && entry.kind && entry.name) {
+          map.set(`${entry.kind}/${entry.name}`, entry);
+        }
+      }
+      return map;
+    }
+
+    function judgeScenarios(run) {
+      return (run.scenario_catalog || []).filter((s) => s.llm_judge);
+    }
+
+    function judgeStats(result, run) {
+      const judgedNames = new Set(judgeScenarios(run).map((s) => `${s.kind}/${s.name}`));
+      const hits = (result.scenarios || []).filter((s) => judgedNames.has(`${s.kind}/${s.name}`));
+      if (!hits.length) return { total: 0, passed: 0, recorded: 0, reasons: [] };
+      let recorded = 0;
+      let passed = 0;
+      const reasons = [];
+      for (const hit of hits) {
+        if (hit.judge_passed != null) {
+          recorded += 1;
+          if (hit.judge_passed) passed += 1;
+          if (hit.judge_reason) reasons.push(`${hit.kind}/${hit.name}: ${hit.judge_reason}`);
+        }
+      }
+      return { total: hits.length, passed, recorded, reasons };
+    }
+
+    function judgeCellHtml(hit, catalogEntry) {
+      if (!catalogEntry?.llm_judge && (hit?.judge_passed == null)) {
+        return '<span class="judge-na">—</span>';
+      }
+      if (hit?.judge_passed === true) {
+        const reason = hit.judge_reason ? ` title="${escapeAttr(hit.judge_reason)}"` : "";
+        return `<span class="judge-pass"${reason}>Pass</span>`;
+      }
+      if (hit?.judge_passed === false) {
+        const reason = hit.judge_reason ? ` title="${escapeAttr(hit.judge_reason)}"` : "";
+        return `<span class="judge-fail"${reason}>Fail</span>`;
+      }
+      return '<span class="judge-pending" title="Scenario uses LLM judge — re-run benchmark to capture verdict">Expected</span>';
+    }
+
+    function escapeAttr(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;");
+    }
+
+    function escapeHtml(text) {
+      return String(text || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function renderRunContext(run) {
+      const panel = document.getElementById("run-context");
+      const grid = document.getElementById("run-context-grid");
+      const judged = judgeScenarios(run);
+      const rows = [
+        ["Suite", run.suite || "—"],
+        ["Description", run.description || "—"],
+        ["Date (UTC)", fmtDate(run.generated_at)],
+        ["Hub", run.hub || "—"],
+        [
+          "Hardware",
+          run.hardware_note ||
+            (run.hardware && run.hardware.total_memory_gb
+              ? `${run.hardware.total_memory_gb} GB RAM (${run.hardware.tier || "?"} tier)`
+              : "Not recorded for this run"),
+        ],
+        [
+          "Deliverable judge",
+          run.judge_provider
+            ? `${run.judge_provider} — independent review on implement deliverables`
+            : judged.length
+              ? "Gemini (default) — independent review on implement deliverables"
+              : "Not used in this suite",
+        ],
+        ["Implement scenarios", String((run.implement_scenarios || []).length)],
+        ["Chat scenarios", String((run.chat_scenarios || []).length)],
+        ["LLM-judged deliverables", String(judged.length)],
+      ];
+      grid.innerHTML = rows
+        .map(
+          ([label, value]) =>
+            `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`
+        )
+        .join("");
+      panel.hidden = false;
+    }
+
+    function renderScenarioSuite(run) {
+      const section = document.getElementById("scenario-suite");
+      const body = document.getElementById("scenario-suite-body");
+      const lead = document.getElementById("scenario-suite-lead");
+      const catalog = run.scenario_catalog || [];
+      if (!catalog.length) {
+        section.hidden = true;
+        return;
+      }
+      const judged = judgeScenarios(run);
+      lead.textContent =
+        `${catalog.length} scenarios — ${run.implement_scenarios?.length || 0} implement, ${run.chat_scenarios?.length || 0} chat.` +
+        (judged.length
+          ? ` ${judged.length} implement scenario(s) run an independent LLM deliverable judge after structural checks pass.`
+          : "");
+      body.innerHTML = "";
+      for (const entry of catalog) {
+        const tr = document.createElement("tr");
+        const judgeBadge = entry.llm_judge
+          ? '<span class="judge-badge">LLM judge</span>'
+          : '<span class="judge-na">Structural only</span>';
+        tr.innerHTML = `
+          <td>${escapeHtml(entry.kind)}</td>
+          <td class="mono">${escapeHtml(entry.name)}</td>
+          <td>${escapeHtml(entry.description || "—")}</td>
+          <td>${escapeHtml(entry.target_agent || "—")}</td>
+          <td>${judgeBadge}</td>
+        `;
+        body.appendChild(tr);
+      }
+      section.hidden = false;
+    }
+
     function renderLeaderboard(run) {
       const tbody = document.getElementById('leaderboard-body');
       tbody.innerHTML = '';
@@ -181,15 +336,28 @@
         const implPass = impl.filter((s) => s.passed).length;
         const chatPass = chat.filter((s) => s.passed).length;
         const rate = Math.round((r.pass_rate ?? 0) * 100);
+        const judge = judgeStats(r, run);
+        let judgeCell = "—";
+        if (judge.total) {
+          if (judge.recorded) {
+            judgeCell = `${judge.passed}/${judge.total}`;
+            if (judge.reasons.length) {
+              judgeCell = `<span title="${escapeAttr(judge.reasons.join(" · "))}">${judge.passed}/${judge.total}</span>`;
+            }
+          } else {
+            judgeCell = `<span class="judge-pending" title="Judge expected on ${judge.total} scenario(s) — re-run to capture verdicts">${judge.total} expected</span>`;
+          }
+        }
         const tr = document.createElement('tr');
         const rankClass = r.model_tag === win?.model_tag && r.passed_count === r.total_count ? 'rank-1' : '';
         tr.innerHTML = `
           <td class="${rankClass}">${i + 1}</td>
-          <td class="mono">${r.model_tag}</td>
+          <td class="mono">${escapeHtml(r.model_tag)}</td>
           <td>${r.passed_count}/${r.total_count}</td>
           <td><span class="rate-bar" aria-hidden="true"><span style="width:${rate}%"></span></span>${rate}%</td>
           <td>${impl.length ? implPass + '/' + impl.length : '—'}</td>
           <td>${chat.length ? chatPass + '/' + chat.length : '—'}</td>
+          <td>${judgeCell}</td>
           <td class="mono">${fmtDuration(r.total_duration_s)}</td>
         `;
         tbody.appendChild(tr);
@@ -200,20 +368,23 @@
       const head = document.getElementById('matrix-head');
       const body = document.getElementById('matrix-body');
       const models = activeResults(run);
-      head.innerHTML = '<tr><th>Scenario</th>' + models.map((m) => `<th class="mono">${m.model_tag}</th>`).join('') + '</tr>';
+      const catalog = catalogMap(run);
+      head.innerHTML = '<tr><th>Scenario</th>' + models.map((m) => `<th class="mono">${escapeHtml(m.model_tag)}</th>`).join('') + '</tr>';
       body.innerHTML = '';
       for (const row of scenarioRows(run)) {
         const tr = document.createElement('tr');
         const label = `${row.kind}/${row.name}`;
-        let cells = `<td class="mono">${label}</td>`;
+        const entry = catalog.get(label);
+        let cells = `<td class="mono"><div>${escapeHtml(label)}</div>${entry?.description ? `<div class="matrix-desc">${escapeHtml(entry.description)}</div>` : ""}</td>`;
         for (const m of models) {
           const hit = (m.scenarios || []).find((s) => s.kind === row.kind && s.name === row.name);
           if (!hit) {
             cells += '<td class="cell-skip">—</td>';
-          } else if (hit.passed) {
-            cells += `<td class="cell-pass">✓ ${fmtDuration(hit.duration_s)}</td>`;
           } else {
-            cells += `<td class="cell-fail">✗ ${fmtDuration(hit.duration_s)}</td>`;
+            const passMark = hit.passed ? '✓' : '✗';
+            const cls = hit.passed ? 'cell-pass' : 'cell-fail';
+            const judgeHtml = judgeCellHtml(hit, entry);
+            cells += `<td class="${cls}"><div>${passMark} ${fmtDuration(hit.duration_s)}</div><div class="matrix-judge">${judgeHtml}</div></td>`;
           }
         }
         tr.innerHTML = cells;
@@ -238,6 +409,8 @@
       document.getElementById('run-meta').textContent =
         `${run.suite} suite · ${fmtDate(run.generated_at)}` +
         (run.description ? ` · ${run.description}` : '');
+      renderRunContext(run);
+      renderScenarioSuite(run);
       renderLeaderboard(run);
       renderMatrix(run);
     }

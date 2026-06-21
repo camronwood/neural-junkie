@@ -263,6 +263,7 @@ def check_file_deliverable(
             work_dir=root,
         )
         if not ok:
-            return False, f"llm_judge: {detail}"
+            return False, f"judge:fail:{detail}"
+        return True, f"judge:pass:{detail}"
 
     return True, rel
