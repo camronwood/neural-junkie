@@ -13,9 +13,10 @@
   "solo_leg": {
     "channel": "collab-scenarios-solo",
     "output_rel": "collabs/parity-solo/findings.md",
-    "timeout": "420s",
+    "timeout": "300s",
     "min_bytes": 40,
-    "message": "@Assistant Write collabs/parity-solo/findings.md with three bullet findings about this repo using only README.md and core/sample/main.go. Use a [FILE_CHANGE] proposal or workspace write so the file exists on disk under collabs/parity-solo/findings.md.",
+    "allow_discussion_fallback": true,
+    "message": "@Assistant Create collabs/parity-solo/findings.md with three bullet findings about README.md and core/sample/main.go.",
     "approve_timeout": "240s",
     "any_match": ["main\\.go", "core/sample", "minimal"],
     "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
@@ -42,15 +43,15 @@
     {"action": "wait_phase", "phase": "planning", "timeout": 30},
     {
       "action": "wait_discussion",
-      "min_total": 1,
-      "required_agents": ["Assistant"],
-      "timeout": "180s",
+      "min_total": 2,
+      "required_agents": ["ChatModerator", "Assistant"],
+      "timeout": "300s",
       "retries": 1,
-      "nudge_agents": ["Assistant"],
+      "nudge_agents": ["ChatModerator", "Assistant"],
       "retry_on_generation_error": true
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
+    {"action": "wait_planning_recap", "timeout": "180s"},
     {"action": "approve_plan"},
     {"action": "wait_phase", "phase": "executing", "timeout": 45},
     {

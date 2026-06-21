@@ -289,8 +289,46 @@ func planContentForTaskExtraction(planContent string) string {
 	return out
 }
 
+// expandCompoundTaskLinesInPlan splits inline " - Task N:" rows so ExtractTasksFromPlan
+// sees the same task boundaries as mergeTaskLinesFromDiscussion.
+func expandCompoundTaskLinesInPlan(planContent string) string {
+	lines := strings.Split(planContent, "\n")
+	var out []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			out = append(out, line)
+			continue
+		}
+		segments := splitCompoundTaskLine(trimmed)
+		if len(segments) <= 1 {
+			out = append(out, line)
+			continue
+		}
+		expanded := false
+		for _, seg := range segments {
+			seg = strings.TrimSpace(seg)
+			if seg == "" {
+				continue
+			}
+			if isTaskListLine(seg) || isPlainTaskLine(seg) {
+				if !strings.HasPrefix(seg, "-") && !strings.HasPrefix(seg, "*") {
+					seg = "- " + seg
+				}
+				out = append(out, seg)
+				expanded = true
+			}
+		}
+		if !expanded {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
 func ExtractTasksFromPlan(planContent string, agents []CollaborationAgent) []CollaborationTask {
 	planContent = planContentForTaskExtraction(planContent)
+	planContent = expandCompoundTaskLinesInPlan(planContent)
 	var tasks []CollaborationTask
 	now := time.Now()
 

@@ -47,7 +47,7 @@ export interface ChatToolbarActionsProps {
   onOpenMyAgents: () => void;
   totalAgentsCount: number;
   devPackEnabled: boolean;
-  /** When false, IDE layout toggle is shown disabled with install hint. */
+  /** When false, IDE layout toggle is hidden (Software development pack off). */
   ideLayoutAvailable: boolean;
   onOpenProblems: () => void;
   gitModalOpen: boolean;
@@ -121,8 +121,6 @@ export function ChatToolbarActions({
   const rootClass = isVertical
     ? 'flex flex-col items-center gap-1 py-1'
     : 'flex items-center gap-1.5 flex-nowrap justify-end';
-
-  const ideLayoutDisabledTitle = `Install and enable Software development pack in Domain packs (${formatChord('mod+shift+k')}) to switch IDE layout`;
 
   const groupClass = isVertical
     ? 'flex flex-col items-center gap-1 w-full'
@@ -225,24 +223,22 @@ export function ChatToolbarActions({
           <EditorIcon className="w-3.5 h-3.5" />
         </button>
 
-        <button
-          type="button"
-          onClick={ideLayoutAvailable ? onToggleIdeLayout : undefined}
-          disabled={!ideLayoutAvailable}
-          className={`${iconBtn} text-[10px] font-bold shrink-0 ${
-            !ideLayoutAvailable
-              ? 'bg-slack-bgHover text-slack-textMuted opacity-50 cursor-not-allowed'
-              : ideLayout
+        {ideLayoutAvailable && (
+          <button
+            type="button"
+            onClick={onToggleIdeLayout}
+            className={`${iconBtn} text-[10px] font-bold shrink-0 ${
+              ideLayout
                 ? 'bg-violet-600 text-white ring-1 ring-violet-400 ring-offset-1 ring-offset-slack-bg'
                 : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
-          }`}
-          title={ideLayoutAvailable ? ideLayoutButtonTitle : ideLayoutDisabledTitle}
-          aria-label="Toggle IDE vs team layout"
-          aria-pressed={ideLayoutAvailable ? ideLayout : undefined}
-          aria-disabled={!ideLayoutAvailable}
-        >
-          IDE
-        </button>
+            }`}
+            title={ideLayoutButtonTitle}
+            aria-label="Toggle IDE vs team layout"
+            aria-pressed={ideLayout}
+          >
+            IDE
+          </button>
+        )}
 
         {phoenixPackInstalled && onOpenPhoenix && (
           <button

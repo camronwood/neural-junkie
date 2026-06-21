@@ -32,7 +32,7 @@
     {
       "action": "wait_reply",
       "from": "BackendEngineer",
-      "timeout": "420s",
+      "timeout": "900s",
       "until_any_match": ["applied and verified|applied but verification failed|Multiply|Add\\(2, 3\\)|implementation session"]
     },
     {

@@ -6,6 +6,11 @@
   "dm_user": "ChatScenario",
   "target_agent": "BackendEngineer",
   "required_agents": ["BackendEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "file_tree": "README.md\ncore/sample/main.go\n",
+    "open_files": ["core/sample/main.go"]
+  },
   "steps": [
     {
       "action": "send",
@@ -16,7 +21,7 @@
     {
       "action": "send",
       "content": "go deeper on the approach — what would you implement first?",
-      "metadata": { "conversation_mode": "code", "context_scope": "hint" }
+      "metadata": { "conversation_mode": "chat", "context_scope": "hint" }
     },
     { "action": "wait_reply", "from": "BackendEngineer", "timeout": "180s" },
     {

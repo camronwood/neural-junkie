@@ -13,7 +13,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@ChatModerator @Assistant Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go with three concrete bullets."
+    "goal": "Use ONLY README.md and core/sample/main.go from the workspace. Do not reference src/theme.css or other paths. Plan one task: - Task 1: @Assistant - Write collabs/<id>/findings.md with three bullets about README.md and core/sample/main.go only."
   },
   "expect_deliverables": [
     {
@@ -21,28 +21,30 @@
       "min_bytes": 40,
       "for_question": {
         "any_match": ["README|main\\.go|minimal|sample"],
-        "none_match": ["\\[Insert", "insert file name", "lorem ipsum", "TASK_STATUS:"]
+        "none_match": ["\\[Insert", "insert file name", "lorem ipsum", "TASK_STATUS:", "index\\.js", "utils\\.js", "\\bapp\\.js\\b"]
       },
-      "llm_judge": true
+      "llm_judge": {
+        "criteria": "PASS only if findings cite README.md and/or core/sample/main.go from minimal-repo. FAIL if findings cite src/theme.css, index.js, or other hallucinated paths."
+      }
     }
   ],
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 30},
     {
       "action": "wait_discussion",
-      "min_total": 1,
-      "required_agents": ["Assistant"],
-      "timeout": "180s",
-      "retries": 1,
-      "nudge_agents": ["Assistant"],
+      "min_total": 2,
+      "required_agents": ["ChatModerator", "Assistant"],
+      "timeout": "300s",
+      "retries": 2,
+      "nudge_agents": ["ChatModerator", "Assistant"],
       "retry_on_generation_error": true
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
+    {"action": "wait_planning_recap", "timeout": "180s"},
     {
       "action": "assert_plan",
       "min_tasks": 1,
-      "max_tasks": 2,
+      "max_tasks": 3,
       "tasks_have_file_deliverable": true,
       "content_any_match": ["findings\\.md"]
     },
@@ -56,7 +58,9 @@
       "allow_recovered_generation_errors": true
     },
     {"action": "send", "content": "/resume-plan <collab-id>"},
-    {"action": "wait_tasks", "settle_only": true, "timeout": "120s"},
+    {"action": "wait_tasks", "min_completed": 1, "all_match": false, "timeout": "300s"},
+    {"action": "send", "content": "@Assistant Complete Task 1: write collabs/<collab-id>/findings.md with three bullets citing README.md and core/sample/main.go only."},
+    {"action": "wait_tasks", "min_completed": 1, "all_match": false, "timeout": "180s"},
     {
       "action": "approve_file_changes",
       "path_match": "findings.md",
@@ -71,7 +75,7 @@
       "must_exist": true,
       "min_bytes": 40,
       "any_match": ["README|main\\.go|minimal|sample"],
-      "none_match": ["\\[Insert", "insert file name", "lorem ipsum", "TASK_STATUS:"]
+      "none_match": ["\\[Insert", "insert file name", "lorem ipsum", "TASK_STATUS:", "index\\.js", "utils\\.js", "\\bapp\\.js\\b"]
     },
     {
       "action": "assert_messages",

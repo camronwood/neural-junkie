@@ -27,12 +27,12 @@ From [GETTING_STARTED.md](GETTING_STARTED.md) — software development track:
 
 | Role | Default tag | Disk (approx) |
 |------|-------------|---------------|
-| Coding specialists | `qwen3.5:27b` | ~17 GB |
-| Moderator + Assistant | `qwen3.5:9b` | ~6.6 GB |
+| Coding specialists | `qwen2.5-coder:14b` | ~9 GB |
+| Moderator + Assistant (utility) | `qwen3.5:9b` | ~6.6 GB |
 
 **Typical first-run disk:** installer + runtime + both models ≈ **15–20 GB**.
 
-Lighter alternatives in the Model library: `qwen3.5:9b` (~6.6 GB), `llama3.2:3b` (~2 GB). Life sciences and CAD tracks use different defaults — see [BIOLOGY_PACK.md](BIOLOGY_PACK.md) and [CAD_PACK.md](CAD_PACK.md).
+Lighter alternatives in the Model library: `qwen3.5:9b` (~6.6 GB), `gemma3:12b` (~8.1 GB, optional Assistant upgrade — release benchmark co-winner), `llama3.2:3b` (~2 GB). Life sciences and CAD tracks use different defaults — see [BIOLOGY_PACK.md](BIOLOGY_PACK.md) and [CAD_PACK.md](CAD_PACK.md).
 
 ---
 
@@ -57,8 +57,8 @@ flowchart TB
 |------|-----|-------------------------|---------|----------|
 | **minimal** | &lt; 8 GB | `llama3.2:3b` or `qwen3.5:9b` | `qwen3.5:9b` | Light chat; collab/repo work may struggle — prefer cloud hybrid |
 | **light** | 8–15 GB | `qwen3.5:9b` | `qwen3.5:9b` | Safe local dev; skip 27B default |
-| **recommended** | 16–31 GB | `qwen3.5:27b` | `qwen3.5:9b` | Full software pack, repo agents, collaboration |
-| **heavy** | 32 GB+ | `qwen3.5:27b` (+ optional LoRA bases, 70B experiments) | `qwen3.5:9b` | Multi-model library, LoRA training with CUDA |
+| **recommended** | 16–31 GB | `qwen2.5-coder:14b` | `qwen3.5:9b` | Full software pack, repo agents, collaboration |
+| **heavy** | 32 GB+ | `qwen2.5-coder:14b` (+ optional `qwen3.5:27b`, LoRA bases, 70B experiments) | `qwen3.5:9b` | Multi-model library, LoRA training with CUDA |
 
 **Life sciences:** `koesn/llama3-openbiollm-8b:latest` + `qwen3.5:9b` for tools on most tiers; under 8 GB, prefer cloud Hugging Face in the wizard.
 
@@ -72,7 +72,7 @@ Neural Junkie uses a **two-tier model strategy**: Qwen for day-to-day inference 
 |------|-----------------|----------------------|---------------|
 | **minimal** | `qwen3.5:9b` + cloud hybrid | none | ~10 GB |
 | **light** | `qwen3.5:9b` (chat + tools) | 1 base + 1 composed tag (e.g. `nj-security:14b`) | ~15 GB |
-| **recommended** | `qwen3.5:27b` + `qwen3.5:9b` | 3 bases + 4 bootstrap tags | ~35 GB |
+| **recommended** | `qwen2.5-coder:14b` + `qwen3.5:9b` (+ optional `qwen3.5:27b`, `gemma3:12b`) | 3 bases + 4 bootstrap tags | ~35 GB |
 | **heavy** | above + OpenBio / optional CAD imports | full specialist-tuning bootstrap | ~50+ GB |
 
 Collab smart routing may suggest composed tags you have not installed yet — the router falls back to your agent default model. See [LORA_ADAPTERS.md](LORA_ADAPTERS.md).

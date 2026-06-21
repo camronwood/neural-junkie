@@ -237,7 +237,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const hasIdeComposer = usePacksStore((s) => s.hasCapability('ide-v3-composer'));
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
   const devPackEnabled = hasIdeV2 || softwareDevPackActive;
-  const ideLayoutAvailable = devPackEnabled;
+  const ideLayoutAvailable = softwareDevPackActive;
   const phoenixPackInstalled = usePacksStore((s) => s.hasCapability(PACK_CAP.PHOENIX_IMPORT));
   const enabledPackCount = usePacksStore((s) => s.packs.filter((p) => p.enabled).length);
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;

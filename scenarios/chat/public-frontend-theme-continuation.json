@@ -7,6 +7,11 @@
   "mention": "@FrontendEngineer",
   "target_agent": "FrontendEngineer",
   "required_agents": ["FrontendEngineer"],
+  "workspace": {
+    "fixture": "react-tailwind-minimal",
+    "file_tree": "src/App.tsx\nsrc/main.tsx\ntailwind.config.js\npackage.json\n",
+    "open_files": ["src/App.tsx", "tailwind.config.js"]
+  },
   "steps": [
     {
       "action": "send",
@@ -17,7 +22,14 @@
     {
       "action": "send",
       "content": "yes please go ahead",
-      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+      "metadata": {
+        "conversation_mode": "code",
+        "context_scope": "outline",
+        "ide_route_agent_type": "frontend",
+        "implementation_session": true,
+        "editor_mode": "agent",
+        "editor_agent_trust": "auto_apply_edits"
+      }
     },
     { "action": "wait_reply", "from": "FrontendEngineer", "timeout": "180s" },
     {

@@ -108,6 +108,40 @@ Task 3: @PlatformEngineer - Write collabs/f7518f88-50a4-4561-9e88-174381f3090d/c
 	}
 }
 
+func TestExtractTasksFromPlan_compoundInlinePlanRow(t *testing.T) {
+	id := "978d32ad-ab95-41fc-9fe1-e2ffa6f36910"
+	plan := "## Refined Plan (v2) - Task 1: @BackendEngineer - Write collabs/" + id + "/api_schema.md - Task 2: @SoftwareArchitect - Write collabs/" + id + "/markdown_doc_structure.md - Task 3: @PlatformEngineer - Write collabs/" + id + "/ci_cd_pipeline.md"
+	tasks := ExtractTasksFromPlan(plan, phoenixAgents())
+	if len(tasks) != 3 {
+		t.Fatalf("expected 3 tasks from compound row, got %d: %v", len(tasks), taskTitles(tasks))
+	}
+}
+
+func TestNormalizeAndValidateTasksForExecution_keepsBootstrappedTasksWhenPlanUnderParses(t *testing.T) {
+	id := "978d32ad-ab95-41fc-9fe1-e2ffa6f36910"
+	goal := "Produce a short plan with exactly three file tasks under collabs/" + id + "/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@PlatformEngineer). Put dependency notes AFTER the tasks as plain bullets starting with 'depends on'"
+	plan := `## Plan
+
+- Task 1: @BackendEngineer - Write collabs/` + id + `/api_schema.md defining REST API contracts
+- Task 1 depends on Task 2 for the markdown structure and style guide.
+- Task 3 can be started independently but should reference the schema.`
+	c := &Collaboration{
+		ID:             id,
+		Description:    goal,
+		Agents:         phoenixAgents(),
+		SourceRepoPath: "/Users/test/Phoenix",
+		Plan:           &SharedArtifact{Content: plan},
+	}
+	c.Tasks = ExtractTasksFromCollaborationGoal(goal, id, phoenixAgents())
+	if len(c.Tasks) != 3 {
+		t.Fatalf("expected 3 bootstrapped tasks, got %d", len(c.Tasks))
+	}
+	tasks, _ := NormalizeAndValidateTasksForExecution(c)
+	if len(tasks) != 3 {
+		t.Fatalf("approve normalize should keep 3 bootstrapped tasks, got %d: %v", len(tasks), taskTitles(tasks))
+	}
+}
+
 func TestExtractTasksFromPlan_4ea36409_keepsFindingsTask(t *testing.T) {
 	plan := `## Plan
 

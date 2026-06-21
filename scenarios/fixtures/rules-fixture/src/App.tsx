@@ -1,34 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import './App.css'; // Ensure this file exists and imports Tailwind CSS
+import "./index.css";
+import { useState, useEffect } from "react";
 
-function App() {
-  const [theme, setTheme] = useState('light');
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-  }, []);
+export default function App() {
+  const [theme, setTheme] = useState("dark");
 
   useEffect(() => {
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(theme);
-    localStorage.setItem('theme', theme);
+    document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(theme === 'light' ? 'dark' : 'light');
+    setTheme((prevTheme) => (prevTheme === "dark" ? "light" : "dark"));
   };
 
   return (
-    <div className="App">
-      <button onClick={toggleTheme}>
-        Switch to {theme === 'light' ? 'Dark' : 'Light'} Theme
-      </button>
-      <h1 className="text-center">Hello, World!</h1>
+    <div className="min-h-screen bg-slate-900 text-slate-100 p-4 dark:bg-white dark:text-slate-900">
+      <aside className="w-48 border border-slate-700 rounded p-3 dark:border-slate-300">
+        <p className="text-sm text-slate-400 dark:text-slate-600">Sidebar</p>
+        <button className="mt-4 px-3 py-1 bg-slate-800 text-slate-100 rounded dark:bg-slate-200 dark:text-slate-900" onClick={toggleTheme}>
+          Toggle Theme
+        </button>
+      </aside>
     </div>
   );
 }
-
-export default App;

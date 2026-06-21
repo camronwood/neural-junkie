@@ -13,7 +13,7 @@
       "min_bytes": 20,
       "for_question": {
         "contains_all": ["dark"],
-        "any_match": ["light|--dark|var\\(|\\.dark"]
+        "any_match": ["light|data-theme|prefers-color-scheme|--dark|--bg-dark|var\\(|\\.dark"]
       },
       "llm_judge": true
     }

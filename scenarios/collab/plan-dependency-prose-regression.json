@@ -10,22 +10,22 @@
     "outline": true
   },
   "collaborate": {
-    "flags": ["--rounds", "1", "--messages", "6", "--workspace"],
+    "flags": ["--rounds", "1", "--messages", "4", "--workspace"],
     "goal": "@BackendEngineer @SoftwareArchitect @PlatformEngineer Produce a short plan with exactly three file tasks under collabs/<id>/: api_schema.md (@BackendEngineer), markdown_doc_structure.md (@SoftwareArchitect), ci_cd_pipeline.md (@PlatformEngineer). Put dependency notes AFTER the tasks as plain bullets starting with 'depends on' — do not make those bullets separate @assigned tasks."
   },
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 45},
     {
       "action": "wait_discussion",
-      "min_total": 2,
+      "min_total": 3,
       "min_per_agent": 1,
       "required_agents": ["BackendEngineer", "SoftwareArchitect", "PlatformEngineer"],
-      "timeout": "180s",
+      "timeout": "300s",
       "retries": 1,
-      "nudge_agents": ["PlatformEngineer"]
+      "nudge_agents": ["PlatformEngineer", "BackendEngineer", "SoftwareArchitect"]
     },
-    {"action": "wait_phase", "phase": "reviewing", "timeout": "120s"},
-    {"action": "wait_planning_recap", "timeout": "120s"},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "240s"},
+    {"action": "wait_planning_recap", "timeout": "180s"},
     {
       "action": "assert_plan",
       "min_tasks": 2,

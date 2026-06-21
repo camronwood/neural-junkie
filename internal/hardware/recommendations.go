@@ -104,11 +104,11 @@ func RecommendedStacksForTier(tier Tier) []RecommendedStack {
 	default:
 		return []RecommendedStack{{
 			Tier:            TierRecommended,
-			InferenceModels: []string{"qwen3.5:27b", "qwen3.5:9b"},
+			InferenceModels: []string{config.DevOllamaCodeModel, config.UtilityOllamaModel, "qwen3.5:27b"},
 			LoRABases:       []string{"llama3.1:8b", "llama3:8b", "mistral:7b"},
 			ComposedTags:    []string{"nj-security:14b", "nj-code-review:14b", "nj-backend:14b", "nj-biology:8b"},
 			DiskEstimateGB:  35,
-			Notes:           "Qwen inference tier + Llama/Mistral LoRA compose bases.",
+			Notes:           "Coding specialists on " + config.DevOllamaCodeModel + "; utility/tools on " + config.UtilityOllamaModel + ". Optional: gemma3:12b for Assistant chat (release benchmark co-winner). 27B optional upgrade.",
 		}}
 	}
 }

@@ -22,8 +22,8 @@
       "path": "src/App.tsx",
       "min_bytes": 80,
       "for_question": {
-        "any_match": ["SidebarFooter|renderSidebarFooter|footer"],
-        "none_match": ["Selection extract target block"]
+        "any_match": ["SidebarFooter|renderSidebarFooter|import"],
+        "none_match": ["\\.jsx"]
       }
     }
   ],

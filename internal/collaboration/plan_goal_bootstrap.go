@@ -158,7 +158,7 @@ func (cm *CollaborationManager) ensurePlanTasksFromGoalLocked(c *Collaboration) 
 		c.Plan = &SharedArtifact{}
 	}
 	existing := len(ExtractTasksFromPlan(strings.TrimSpace(c.Plan.Content), c.Agents))
-	if existing == 0 {
+	if existing < len(tasks) {
 		c.Plan.Content = formatPlanContentFromTasks(tasks)
 		c.Plan.Version++
 		c.Plan.UpdatedAt = time.Now()

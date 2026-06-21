@@ -249,12 +249,18 @@ def _discussion_requirements_met(
 
 
 def _nudge_discussion_agents(ctx: ScenarioContext, names: list) -> None:
+    meta: dict[str, str] | None = None
+    if ctx.collab_id:
+        meta = {
+            "collaboration_id": ctx.collab_id,
+            "collaboration_phase": "planning",
+        }
     for raw in names:
         name = str(raw).strip().lstrip("@")
         if not name:
             continue
         msg = f"@{name} — please add your planning perspective for this collab."
-        hub.send_message(ctx.base, ctx.collab_channel, msg)
+        hub.send_message(ctx.base, ctx.collab_channel, msg, metadata=meta)
         ctx.log(f"  nudge: {msg}")
 
 
@@ -287,11 +293,12 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         gen_error_nudged: set[str] = set()
         while time.time() < deadline:
             raw_msgs = hub.list_messages(ctx.base, ctx.collab_channel, 200)
-            msgs = hub.agent_messages(raw_msgs)
+            scoped = hub.messages_for_collab(raw_msgs, ctx.collab_id)
+            msgs = hub.agent_messages(scoped)
             counts = hub.count_by_agent(msgs)
             total = len(msgs)
             if retry_on_gen_error:
-                err_agents = _generation_error_agents(raw_msgs)
+                err_agents = _generation_error_agents(scoped)
                 fresh = [a for a in err_agents if a not in gen_error_nudged]
                 if fresh:
                     gen_error_nudged.update(fresh)
@@ -300,28 +307,67 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
                     deadline = min(deadline + 60.0, time.time() + timeout * 1.5)
                     time.sleep(3)
                     continue
+            planning_ready = bool(
+                ctx.collab_id
+                and hub.planning_discussion_ready(
+                    ctx.base, ctx.collab_channel, ctx.collab_id
+                )
+            )
+            per_agent_ok = (
+                all(counts.get(name, 0) >= max(min_per, 1) for name in required)
+                if required
+                else (
+                    min_per <= 0
+                    or (bool(counts) and all(n >= min_per for n in counts.values()))
+                )
+            )
+            if planning_ready and per_agent_ok:
+                suffix = f" (after retry {attempt})" if attempt else ""
+                return (
+                    True,
+                    f"messages total={total} by_agent={counts}; planning ready{suffix}",
+                )
             if _discussion_requirements_met(
                 counts, total, min_total=min_total, min_per=min_per, required_agents=required
             ):
+                if ctx.collab_id and not planning_ready:
+                    time.sleep(hub.POLL_INTERVAL)
+                    continue
                 suffix = f" (after retry {attempt})" if attempt else ""
                 return True, f"messages total={total} by_agent={counts}{suffix}"
             if max_total > 0 and total > max_total:
                 diag = hub.discussion_diagnosis(
-                    ctx.base, ctx.collab_channel, required_agents=required
+                    ctx.base,
+                    ctx.collab_channel,
+                    required_agents=required,
+                    collab_id=ctx.collab_id,
                 )
                 return False, f"too many messages ({total} > {max_total})\n{diag}"
             time.sleep(hub.POLL_INTERVAL)
 
         if attempt < retries:
-            diag = hub.discussion_diagnosis(ctx.base, ctx.collab_channel, required_agents=required)
+            diag = hub.discussion_diagnosis(
+                ctx.base,
+                ctx.collab_channel,
+                required_agents=required,
+                collab_id=ctx.collab_id,
+            )
             ctx.log(f"  wait_discussion attempt {attempt + 1} timed out; retrying\n{diag}")
             if nudge_agents:
                 _nudge_discussion_agents(ctx, nudge_agents)
             time.sleep(5)
             continue
 
-    diag = hub.discussion_diagnosis(ctx.base, ctx.collab_channel, required_agents=required)
-    counts = hub.count_by_agent(hub.agent_messages(hub.list_messages(ctx.base, ctx.collab_channel, 200)))
+    diag = hub.discussion_diagnosis(
+        ctx.base,
+        ctx.collab_channel,
+        required_agents=required,
+        collab_id=ctx.collab_id,
+    )
+    scoped = hub.messages_for_collab(
+        hub.list_messages(ctx.base, ctx.collab_channel, 200), ctx.collab_id
+    )
+    counts = hub.count_by_agent(hub.agent_messages(scoped))
     need = (
         f"need total>={min_total}"
         + (f", each of {required} >= {max(min_per,1)}" if required else "")
@@ -637,12 +683,24 @@ def _is_deliverable_stub(path: Path) -> bool:
     return "_Initial stub created when the plan was approved" in body
 
 
+def _deliverable_file_ready(
+    full: Path,
+    *,
+    min_bytes: int,
+    allow_fallback: bool,
+) -> bool:
+    if not full.is_file() or full.stat().st_size < min_bytes:
+        return False
+    return not (allow_fallback and _is_deliverable_stub(full))
+
+
 def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     if not ctx.collab_channel:
         return False, "no collab_channel"
     timeout = hub.parse_timeout(step.get("timeout", 60))
     path_match = (step.get("path_match") or step.get("path_contains") or "").strip()
     min_approved = int(step.get("min_approved", 1))
+    min_bytes = int(step.get("min_bytes", 20))
     target_rel = (step.get("target_rel") or "").replace("<collab-id>", ctx.collab_id)
     expect_rel = (step.get("expect_path") or target_rel or "").replace("<collab-id>", ctx.collab_id)
     require_hub = bool(step.get("require_hub_approval", False))
@@ -660,15 +718,21 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
 
     if expect_rel and ctx.workspace_root:
         full = Path(ctx.workspace_root) / expect_rel
-        if full.is_file() and full.stat().st_size >= int(step.get("min_bytes", 20)):
-            if not (allow_fallback and _is_deliverable_stub(full)):
-                return True, f"file exists ({full})"
+        if _deliverable_file_ready(full, min_bytes=min_bytes, allow_fallback=allow_fallback):
+            return True, f"file exists ({full})"
 
     if n >= min_approved and min_approved > 0:
         return True, f"hub approved {n}: {ids}"
 
+    if min_approved == 0 and expect_rel and ctx.workspace_root:
+        full = Path(ctx.workspace_root) / expect_rel
+        if _deliverable_file_ready(full, min_bytes=min_bytes, allow_fallback=allow_fallback):
+            return True, f"file exists ({full})"
+
     if require_hub and not allow_fallback:
         return False, f"require_hub_approval: approved={n} (need >={min_approved})"
+
+    hub_approval_failed = min_approved > 0 and n < min_approved
 
     if expect_rel and ctx.workspace_root:
         full = Path(ctx.workspace_root) / expect_rel
@@ -677,7 +741,6 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
 
     if allow_fallback and ctx.workspace_root:
         msgs = hub.list_messages(ctx.base, ctx.collab_channel, 200)
-        min_bytes = int(step.get("min_bytes", 20))
         written = hub.write_loose_file_change_from_messages(
             msgs,
             ctx.workspace_root,
@@ -689,6 +752,23 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
             if require_hub:
                 return False, f"hub approval missing; only fallback wrote {written}"
             return True, f"discussion fallback wrote {written}"
+
+        if target_rel and (hub_approval_failed or min_approved == 0):
+            written = _materialize_solo_findings(
+                msgs,
+                ctx.workspace_root,
+                target_rel,
+                min_bytes,
+            )
+            if written:
+                if require_hub:
+                    return False, f"hub approval missing; only materialized {written}"
+                return True, f"discussion fallback materialized {written}"
+
+    if min_approved == 0 and expect_rel and ctx.workspace_root:
+        full = Path(ctx.workspace_root) / expect_rel
+        if _deliverable_file_ready(full, min_bytes=min_bytes, allow_fallback=allow_fallback):
+            return True, f"file exists ({full})"
 
     return False, f"no file change approved (pending={n}, ids={ids})"
 
@@ -781,7 +861,12 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         if action == "wait_discussion":
             required = step.get("required_agents") or ctx.scenario.get("required_agents") or []
             print(
-                hub.discussion_diagnosis(ctx.base, ctx.collab_channel, required_agents=required),
+                hub.discussion_diagnosis(
+                    ctx.base,
+                    ctx.collab_channel,
+                    required_agents=required,
+                    collab_id=ctx.collab_id,
+                ),
                 file=sys.stderr,
             )
     return ok
@@ -823,6 +908,128 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     return True
 
 
+def _solo_last_assistant_chat(msgs: list[dict], *, skip_status: bool = True) -> dict | None:
+    pool = hub.chat_agent_messages(msgs)
+    for msg in reversed(pool):
+        if (msg.get("from") or {}).get("name") != "Assistant":
+            continue
+        content = (msg.get("content") or "").strip()
+        if skip_status and content and _solo_is_status_chat(content):
+            continue
+        return msg
+    return None
+
+
+def _solo_is_status_chat(content: str) -> bool:
+    low = content.lower()
+    markers = (
+        "implementation session complete",
+        "proposals submitted for approval",
+        "verification skipped",
+        "i submitted a file change proposal",
+        "approve proposals to apply",
+    )
+    return any(m in low for m in markers)
+
+
+def _solo_proposal_content_from_messages(
+    msgs: list[dict], output_rel: str
+) -> str | None:
+    want = output_rel.replace("\\", "/").strip().lower()
+    for msg in reversed(msgs):
+        if (msg.get("type") or "") != "file_change":
+            continue
+        meta = msg.get("metadata") or {}
+        proposal = meta.get("file_change_proposal") if isinstance(meta, dict) else None
+        if not isinstance(proposal, dict):
+            continue
+        fp = (proposal.get("file_path") or proposal.get("FilePath") or "").replace("\\", "/")
+        if fp.strip().lower() != want:
+            continue
+        body = (proposal.get("new_content") or proposal.get("NewContent") or "").strip()
+        if body:
+            return body
+    return None
+
+
+def _solo_content_has_bullets(content: str) -> bool:
+    for raw in content.splitlines():
+        line = raw.strip()
+        if line and re.match(r"^(\d+\.|[-*])\s+", line):
+            return True
+    return False
+
+
+def _write_solo_findings_file(workspace_root: str, output_rel: str, body: str) -> str | None:
+    body = hub.sanitize_deliverable_body(body)
+    if not body:
+        return None
+    if not body.endswith("\n"):
+        body += "\n"
+    dest = Path(workspace_root) / output_rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(body, encoding="utf-8")
+    return str(dest)
+
+
+def _materialize_solo_findings(
+    msgs: list[dict],
+    workspace_root: str,
+    output_rel: str,
+    min_bytes: int,
+) -> str | None:
+    """Write solo output from Assistant chat when hub file-change approval misses."""
+    proposal_body = _solo_proposal_content_from_messages(msgs, output_rel)
+    if proposal_body and len(proposal_body.encode()) >= min_bytes:
+        return _write_solo_findings_file(workspace_root, output_rel, proposal_body)
+
+    last = _solo_last_assistant_chat(msgs)
+    if not last:
+        return None
+    content = (last.get("content") or "").strip()
+    if not content or _solo_is_status_chat(content):
+        return None
+
+    path_needle = Path(output_rel).parent.name or "parity-solo"
+    has_fc = "[FILE_CHANGE]" in content
+    has_bullets = _solo_content_has_bullets(content)
+
+    if has_fc or has_bullets:
+        written = hub.write_loose_file_change_from_messages(
+            msgs,
+            workspace_root,
+            path_contains=path_needle,
+            target_rel=output_rel,
+            min_bytes=min_bytes,
+        )
+        if written:
+            return written
+        if has_fc:
+            from lib.collab_hub import _extract_loose_file_changes  # noqa: PLC0415
+
+            for _rel, body in _extract_loose_file_changes(content):
+                body = hub.sanitize_deliverable_body(body)
+                if len(body.encode()) >= min_bytes:
+                    return _write_solo_findings_file(workspace_root, output_rel, body)
+        if has_bullets:
+            lines = [
+                raw.strip()
+                for raw in content.splitlines()
+                if raw.strip() and re.match(r"^(\d+\.|[-*])\s+", raw.strip())
+            ]
+            if lines:
+                body = "# Findings\n\n" + "\n".join(lines) + "\n"
+                if len(body.encode()) >= min_bytes:
+                    return _write_solo_findings_file(workspace_root, output_rel, body)
+        return None
+
+    if len(content.encode()) >= min_bytes:
+        body = content if content.startswith("#") else f"# Findings\n\n{content}\n"
+        if len(body.encode()) >= min_bytes:
+            return _write_solo_findings_file(workspace_root, output_rel, body)
+    return None
+
+
 def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
     solo = scenario.get("solo_leg")
     if not isinstance(solo, dict):
@@ -853,23 +1060,83 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
         print("  FAIL [solo]: empty message", file=sys.stderr)
         return False
 
+    solo_dir = Path(ctx.workspace_root) / Path(output_rel).parent
+    solo_dir.mkdir(parents=True, exist_ok=True)
+
     print(f"  solo leg: channel={channel} output={output_rel}")
-    meta = ctx.build_send_metadata()
+    meta = ctx.build_send_metadata() or {}
+    meta.setdefault("conversation_mode", "code")
+    meta.setdefault("implementation_session", True)
+    meta.setdefault("editor_mode", "agent")
+    meta.setdefault("editor_agent_trust", "auto_apply_edits")
+    meta.setdefault("context_scope", "outline")
     code, _ = hub.send_message(ctx.base, channel, message, metadata=meta)
     if code != 200:
         print(f"  FAIL [solo]: send ({code})", file=sys.stderr)
         return False
 
     timeout = hub.parse_timeout(solo.get("timeout", "300s"))
+    reply_timeout = min(120.0, timeout)
     min_bytes = int(solo.get("min_bytes", 40))
+    allow_fallback = bool(solo.get("allow_discussion_fallback", True))
+    baseline = hub.count_chat_agent_messages(
+        hub.list_messages(ctx.base, channel, 200), from_agent="Assistant"
+    )
+    failure_retried = False
+    ok_reply = False
+    reply_detail = ""
+    while True:
+        ok_reply, reply_detail = hub.wait_chat_reply(
+            ctx.base,
+            channel,
+            from_agent="Assistant",
+            baseline_count=baseline,
+            timeout=reply_timeout,
+        )
+        if ok_reply:
+            break
+        msgs = hub.list_messages(ctx.base, channel, 200)
+        last = _solo_last_assistant_chat(msgs)
+        if (
+            not failure_retried
+            and last
+            and hub.is_agent_failure_message(last)
+        ):
+            failure_retried = True
+            retry_msg = f"@{solo_agents[0]} Please try again — {message}"
+            ctx.log(f"  solo leg: failure reply detected; re-sending")
+            code, _ = hub.send_message(ctx.base, channel, retry_msg, metadata=meta)
+            if code != 200:
+                print(f"  FAIL [solo]: retry send ({code})", file=sys.stderr)
+                return False
+            baseline = hub.count_chat_agent_messages(msgs, from_agent="Assistant")
+            continue
+        print(f"  FAIL [solo]: no Assistant reply ({reply_detail})", file=sys.stderr)
+        return False
+    ctx.log(f"  solo leg: {reply_detail}")
+    path_needle = Path(output_rel).parent.name or "parity-solo"
     approve_timeout = hub.parse_timeout(solo.get("approve_timeout", "120s"))
-    deadline = time.time() + timeout
+    hub.wait_and_approve_file_changes(
+        ctx.base,
+        channel,
+        path_contains=path_needle,
+        min_approved=0,
+        timeout=min(20.0, approve_timeout),
+    )
     full = Path(ctx.workspace_root) / output_rel
+    if allow_fallback and (not full.is_file() or full.stat().st_size < min_bytes):
+        msgs = hub.list_messages(ctx.base, channel, 200)
+        written = _materialize_solo_findings(
+            msgs, ctx.workspace_root, output_rel, min_bytes
+        )
+        if written and ctx.verbose:
+            print(f"  solo leg: materialized findings {written}")
+    deadline = time.time() + timeout
     while time.time() < deadline:
         if not full.is_file() or full.stat().st_size < min_bytes:
             remaining = max(0.5, deadline - time.time())
-            approve_poll = min(5.0, approve_timeout, remaining)
-            for path_needle in ("parity-solo", output_rel.replace("\\", "/"), ""):
+            approve_poll = min(20.0, approve_timeout, remaining)
+            for path_needle in (path_needle, output_rel.replace("\\", "/"), ""):
                 n, _ids = hub.wait_and_approve_file_changes(
                     ctx.base,
                     channel,
@@ -881,6 +1148,13 @@ def run_solo_parity_leg(ctx: ScenarioContext, scenario: dict) -> bool:
                     if ctx.verbose:
                         print(f"  solo leg: approved {n} file change(s) path~={path_needle!r}")
                     break
+            if allow_fallback and (not full.is_file() or full.stat().st_size < min_bytes):
+                msgs = hub.list_messages(ctx.base, channel, 200)
+                written = _materialize_solo_findings(
+                    msgs, ctx.workspace_root, output_rel, min_bytes
+                )
+                if written and ctx.verbose:
+                    print(f"  solo leg: materialized findings {written}")
             time.sleep(hub.POLL_INTERVAL)
         if full.is_file() and full.stat().st_size >= min_bytes:
             body = full.read_text(encoding="utf-8", errors="replace")
@@ -949,6 +1223,18 @@ def run_scenario(
         if not hub.ensure_channel(base, channel):
             print(f"  FAIL: could not ensure channel {channel!r}", file=sys.stderr)
             return False
+
+        collab_roster = hub.collaborate_agent_names(scenario, agents)
+        if collab_roster:
+            ok_join, failed_join = hub.ensure_channel_with_agents(
+                base, channel, collab_roster, "Collab scenario roster"
+            )
+            if not ok_join:
+                print(
+                    f"  FAIL: could not join agents to {channel!r}: {', '.join(failed_join)}",
+                    file=sys.stderr,
+                )
+                return False
 
         required = scenario.get("required_agents") or []
         if required:

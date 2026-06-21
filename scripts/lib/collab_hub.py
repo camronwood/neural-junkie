@@ -261,6 +261,7 @@ def wait_phase(
 
 def wait_planning_recap(base: str, channel: str, collab_id: str, timeout: float) -> bool:
     deadline = time.time() + timeout
+    nudged = False
     while time.time() < deadline:
         collab = fetch_collab(base, channel, collab_id)
         if collab is None:
@@ -268,6 +269,17 @@ def wait_planning_recap(base: str, channel: str, collab_id: str, timeout: float)
         status = (collab.get("planning_recap_status") or "").strip().lower()
         if status in ("complete", "failed"):
             return True
+        agent_id = (collab.get("planning_recap_agent_id") or "").strip()
+        if status == "pending" and agent_id and not nudged and (deadline - time.time()) < timeout * 0.5:
+            name = agent_id
+            code, data = hub_request(base, "GET", "/api/agents")
+            if code == 200 and isinstance(data, list):
+                for ag in data:
+                    if isinstance(ag, dict) and (ag.get("id") or "").strip() == agent_id:
+                        name = (ag.get("name") or agent_id).strip()
+                        break
+            send_message(base, channel, f"@{name} — please post the planning session recap for the user.")
+            nudged = True
         time.sleep(POLL_INTERVAL)
     return False
 
@@ -820,14 +832,55 @@ def write_loose_file_change_from_messages(
     return None
 
 
+def messages_for_collab(messages: list[dict], collab_id: str) -> list[dict]:
+    """Filter messages whose metadata collaboration_id matches collab_id."""
+    if not collab_id:
+        return messages
+    cid = collab_id.strip()
+    out: list[dict] = []
+    for m in messages:
+        meta = m.get("metadata") or {}
+        if not isinstance(meta, dict):
+            continue
+        if (meta.get("collaboration_id") or "").strip() == cid:
+            out.append(m)
+            continue
+        # Agents sometimes omit collaboration_id on error-path discussion posts.
+        if (m.get("type") or "") == "collaboration_discussion" and not (
+            meta.get("collaboration_id") or ""
+        ).strip():
+            out.append(m)
+    return out
+
+
+def planning_discussion_ready(base: str, channel: str, collab_id: str) -> bool:
+    """True when planning discussion finished or phase advanced past planning."""
+    collab = fetch_collab(base, channel, collab_id)
+    if not collab:
+        return False
+    phase = (collab.get("phase") or "").strip().lower()
+    if phase == "reviewing":
+        return True
+    disc = collab.get("discussion") or {}
+    status = (disc.get("status") or "").strip().lower()
+    if status and status != "active":
+        return True
+    total = int(disc.get("total_message_count") or 0)
+    max_msgs = int(disc.get("max_total_messages") or 0)
+    if max_msgs > 0 and total >= max_msgs:
+        return True
+    return False
+
+
 def discussion_diagnosis(
     base: str,
     channel: str,
     *,
     required_agents: list[str] | None = None,
+    collab_id: str = "",
 ) -> str:
     """Human-readable summary of who spoke and common failure signals."""
-    msgs = list_messages(base, channel, 200)
+    msgs = messages_for_collab(list_messages(base, channel, 200), collab_id)
     pool = agent_messages(msgs)
     counts = count_by_agent(pool)
     lines = [f"agent discussion: total={len(pool)} counts={counts}"]
@@ -857,6 +910,16 @@ def discussion_diagnosis(
     pending = len(list_pending_file_changes(base))
     lines.append(f"  system turn handoffs in channel: {handoffs}")
     lines.append(f"  pending file changes (hub): {pending}")
+    if collab_id:
+        ready = planning_discussion_ready(base, channel, collab_id)
+        collab = fetch_collab(base, channel, collab_id)
+        disc = (collab or {}).get("discussion") or {}
+        lines.append(
+            f"  planning_discussion_ready={ready} "
+            f"phase={(collab or {}).get('phase')!r} "
+            f"discussion.status={disc.get('status')!r} "
+            f"msgs={disc.get('total_message_count')}/{disc.get('max_total_messages')}"
+        )
     return "\n".join(lines)
 
 

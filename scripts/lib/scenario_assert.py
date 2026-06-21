@@ -250,6 +250,9 @@ def check_file_deliverable(
         label=f"file {rel}",
     )
     if not ok:
+        snippet = "\n".join(body.splitlines()[:20])
+        if snippet:
+            detail = f"{detail}\n--- file snippet (first 20 lines) ---\n{snippet}"
         return False, detail
 
     if _llm_judge_enabled(spec):

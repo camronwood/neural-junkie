@@ -1,8 +1,8 @@
 :root {
-  --bg-light: #f8fafc;
-  --text-light: #0f172a;
-  --bg-dark: #0f172a;
-  --text-dark: #f8fafc;
+  --bg-light: #ffffff;
+  --text-light: #000000;
+  --bg-dark: #000000;
+  --text-dark: #ffffff;
   --bg: var(--bg-light);
   --text: var(--text-light);
 }

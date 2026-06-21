@@ -1,6 +1,10 @@
 package hardware
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/config"
+)
 
 func TestParseSizeHintGB(t *testing.T) {
 	tests := []struct {
@@ -85,7 +89,7 @@ func TestRecommendationsForTier(t *testing.T) {
 		t.Fatalf("developer light: %s", light["developer"].PrimaryModel)
 	}
 	rec := RecommendationsForTier(TierRecommended, 16)
-	if rec["developer"].PrimaryModel != "qwen3.5:9b" {
+	if rec["developer"].PrimaryModel != config.DevOllamaCodeModel {
 		t.Fatalf("developer recommended: %s", rec["developer"].PrimaryModel)
 	}
 }

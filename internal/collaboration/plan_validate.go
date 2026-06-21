@@ -17,7 +17,13 @@ func NormalizeAndValidateTasksForExecution(c *Collaboration) ([]CollaborationTas
 	}
 
 	var warnings []string
-	tasks := ExtractTasksFromPlan(planContent, c.Agents)
+	parsed := ExtractTasksFromPlan(planContent, c.Agents)
+	tasks := parsed
+	// Goal bootstrap / discussion merge can leave more executable rows on c.Tasks than
+	// the stored plan markdown re-parses (e.g. one task line + dependency prose).
+	if len(c.Tasks) > len(parsed) {
+		tasks = append([]CollaborationTask(nil), c.Tasks...)
+	}
 	EnrichTasksWithPlanDeliverables(planContent, tasks)
 	NormalizeTaskDeliverablePathsForSandbox(c, tasks)
 	EnrichTasksWithContextPaths(tasks, c.SourceRepoPath)
