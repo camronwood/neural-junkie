@@ -256,6 +256,73 @@ def article_html_page(meta: dict, body_html: str) -> str:
 """
 
 
+def article_card_html(item: dict) -> str:
+    tags = item.get("tags", [])
+    tag_data = ",".join(tags)
+    tags_html = "".join(
+        f'<span class="article-tag">{html.escape(t)}</span>' for t in tags[:4]
+    )
+    cover = item.get("coverWeb", "")
+    media = ""
+    if cover:
+        media = (
+            f'<div class="articles-card-media">'
+            f'<img src="{html.escape(cover)}" alt="" loading="lazy" decoding="async" />'
+            f"</div>"
+        )
+    teaser = item.get("teaser", "")
+    teaser_html = (
+        f'<p class="articles-card-teaser">{html.escape(teaser)}</p>' if teaser else ""
+    )
+    tags_block = (
+        f'<div class="articles-card-tags">{tags_html}</div>' if tags_html else ""
+    )
+    return (
+        f'<a class="articles-card" href="{html.escape(item["href"])}" '
+        f'data-topic="{html.escape(item.get("topic", ""))}" '
+        f'data-tags="{html.escape(tag_data)}">'
+        f"{media}"
+        f'<div class="articles-card-body">'
+        f"<strong>{html.escape(item['title'])}</strong>"
+        f"{teaser_html}"
+        f"{tags_block}"
+        f"</div>"
+        f"</a>"
+    )
+
+
+def write_index_page(items: list[dict], updated: str) -> None:
+    index_path = OUT_DIR / "index.html"
+    if not index_path.is_file():
+        print(f"warn: missing {index_path}", file=sys.stderr)
+        return
+
+    grid_html = "\n      ".join(article_card_html(item) for item in items)
+    text = index_path.read_text(encoding="utf-8")
+    text = re.sub(
+        r'(<div class="articles-grid" id="articles-grid" aria-live="polite">).*?(</div>)',
+        rf"\1\n      {grid_html}\n    \2",
+        text,
+        count=1,
+        flags=re.DOTALL,
+    )
+    text = re.sub(
+        r'(<span class="articles-meta" id="articles-count">).*?(</span>)',
+        rf"\1{len(items)} articles\2",
+        text,
+        count=1,
+    )
+    updated_label = f"updated {updated[:10]}" if updated else ""
+    text = re.sub(
+        r'(<span id="articles-updated">).*?(</span>)',
+        rf"\1{html.escape(updated_label)}\2",
+        text,
+        count=1,
+    )
+    index_path.write_text(text, encoding="utf-8")
+    print(f"  index.html ← {len(items)} article cards")
+
+
 def load_article(slug: str) -> dict | None:
     source_name = SOURCE_BY_SLUG.get(slug)
     if not source_name:
@@ -313,6 +380,7 @@ def main() -> None:
     }
     MANIFEST.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {MANIFEST} ({len(items)} articles)")
+    write_index_page(items, payload["updated"])
 
 
 if __name__ == "__main__":
