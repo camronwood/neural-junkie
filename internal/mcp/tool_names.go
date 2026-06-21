@@ -73,6 +73,16 @@ var hubMCPToolNames = map[string]bool{
 	"query_prometheus":           true,
 	"profile_performance":        true,
 	"detect_race_conditions":     true,
+	// AWS
+	"aws_get_caller_identity": true,
+	"aws_list_profiles":       true,
+	"aws_sso_login_hint":      true,
+	"aws_cli_query":           true,
+	// Incident / Jira
+	"jira_get_issue":       true,
+	"jira_search_issues":   true,
+	"jira_add_comment":     true,
+	"jira_summarize_issue": true,
 	// Built-in agent tools
 	"generate_image": true,
 }

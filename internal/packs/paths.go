@@ -80,28 +80,6 @@ func UninstallPack(packID string) error {
 	return os.RemoveAll(dir)
 }
 
-// InstallPackFromBuiltin installs an official pack to the user packs dir.
-func InstallPackFromBuiltin(packID string) error {
-	root, err := UserPacksDir()
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(root, 0755); err != nil {
-		return err
-	}
-	found := false
-	for _, id := range BuiltinIDs {
-		if id == packID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return fmt.Errorf("unknown builtin pack %q", packID)
-	}
-	return InstallBuiltin(packID, root)
-}
-
 // ManifestByID finds a manifest in a slice.
 func ManifestByID(manifests []*Manifest, id string) *Manifest {
 	id = strings.TrimSpace(id)
@@ -111,17 +89,4 @@ func ManifestByID(manifests []*Manifest, id string) *Manifest {
 		}
 	}
 	return nil
-}
-
-// AllBuiltinManifests loads every embedded official pack.
-func AllBuiltinManifests() ([]*Manifest, error) {
-	var out []*Manifest
-	for _, id := range BuiltinIDs {
-		m, err := LoadBuiltinManifest(id)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	return out, nil
 }

@@ -48,6 +48,8 @@ const (
 	AgentTypeCodeReview   AgentType = "code-review"
 	AgentTypeBiology      AgentType = "biology"
 	AgentTypeCAD          AgentType = "cad"
+	AgentTypeAWS          AgentType = "aws"
+	AgentTypeIncident     AgentType = "incident"
 	AgentTypeGeneral      AgentType = "general"
 	AgentTypeRepo         AgentType = "repo"
 	AgentTypeExpert       AgentType = "expert"     // Custom domain experts (/create-expert)

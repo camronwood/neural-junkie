@@ -1,15 +1,14 @@
-# Customer packs
+# Official pack catalog
 
-Customer packs are **private zip bundles** sideloaded in-app. Each customer maintains their own repository with `pack.yaml`, workspace guides, runbooks, and optional tool assets.
+Official domain packs are listed in [`catalog.json`](catalog.json). Each pack lives in its **own repository** as a sibling of `neural-junkie` under `~/development/projects/`.
 
-Build and sideload from the customer repo:
+| Pack | Repository |
+|------|------------|
+| Software development | [neural-junkie-pack-software-development](https://github.com/camronwood/neural-junkie-pack-software-development) |
+| Life sciences | [neural-junkie-pack-life-sciences](https://github.com/camronwood/neural-junkie-pack-life-sciences) |
+| CAD | [neural-junkie-pack-cad](https://github.com/camronwood/neural-junkie-pack-cad) |
+| Specialist tuning | [neural-junkie-pack-specialist-tuning](https://github.com/camronwood/neural-junkie-pack-specialist-tuning) |
 
-```bash
-cd /path/to/customer-pack-repo
-make pack-zip
-# dist/<pack-id>-<version>.zip → Settings → Domain packs → Install custom pack
-```
+See [docs/PACKS.md](../docs/PACKS.md) for install flow and API.
 
-Unit tests use a minimal fixture at `internal/packs/testdata/customer-lab-pack/`.
-
-See [docs/PACKS_CUSTOM.md](../docs/PACKS_CUSTOM.md).
+**Customer / private packs:** sideload zip via Settings → Domain packs. See [PACKS_CUSTOM.md](../docs/PACKS_CUSTOM.md).

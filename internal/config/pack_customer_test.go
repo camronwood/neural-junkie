@@ -12,10 +12,9 @@ import (
 func TestInstallAndEnableCustomerPackRequiresLifeSciences(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	config.SetupTestOfficialPackCatalog(t)
 	cfg := config.DefaultConfig()
-	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
-		t.Fatal(err)
-	}
+	config.InstallTestPack(t, cfg, config.PackLifeSciences)
 	data, err := buildCustomerLabPackZip(t)
 	if err != nil {
 		t.Fatal(err)

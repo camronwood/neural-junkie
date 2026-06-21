@@ -1,15 +1,15 @@
 # Domain packs (install from GitHub)
 
-Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json) on the `main` branch. The hub loads that catalog (with embedded fallback) and installs pack bundles from **GitHub Releases** when `download_url` is set.
+Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json) on the `main` branch. Each pack is maintained in its own repository and published as a GitHub Release zip. The hub loads the catalog and installs pack bundles from **`download_url`** (catalog-only; no embedded fallback).
 
 ## Install flow
 
 1. Desktop **Settings → Domain packs → Pack store** → **Install**
 2. Hub `POST /api/packs/{id}/install`
-3. Hub reads catalog (`GET` remote JSON, merged with embedded listing)
+3. Hub fetches catalog (`GET` remote JSON)
 4. Hub downloads the pack **zip** from `download_url` (HTTPS, GitHub hosts only)
 5. Extracts to `~/.neural-junkie/packs/<pack-id>/` and validates `pack.yaml`
-6. If download fails (offline, release missing), **embedded builtin** copy is used for official packs
+6. Requires network for first install; already-installed packs work offline
 
 ## URLs
 
@@ -17,24 +17,36 @@ Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json
 |------|---------|
 | Catalog JSON | `https://raw.githubusercontent.com/camronwood/neural-junkie/main/packs/catalog.json` |
 | Override | `NEURAL_JUNKIE_PACKS_CATALOG_URL` |
-| Pack zips | `https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/<pack-id>-1.0.0.zip` |
+| Pack zips | Per-pack repo releases (see `download_url` in catalog) |
 
-## Publishing pack zips
+## Pack repositories
+
+| Pack ID | Repo |
+|---------|------|
+| `software-development` | `camronwood/neural-junkie-pack-software-development` |
+| `life-sciences` | `camronwood/neural-junkie-pack-life-sciences` |
+| `cad` | `camronwood/neural-junkie-pack-cad` |
+| `specialist-tuning` | `camronwood/neural-junkie-pack-specialist-tuning` |
+| `aws` | `camronwood/neural-junkie-pack-aws` |
+| `incident-management` | `camronwood/neural-junkie-pack-incident-management` |
+
+Build and release from each pack repo:
 
 ```bash
-/Users/camronwood/development/sandbox/neural-junkie/scripts/build-pack-zips.sh
+cd /Users/camronwood/development/projects/neural-junkie-pack-life-sciences
+make verify
+make pack-zip
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
-Upload `dist/packs/*.zip` to a GitHub Release tagged **`packs-v1.0.0`** (or update `download_url` / tag in `packs/catalog.json` when you bump versions).
-
-Until that release exists, installs still work via the **builtin** fallback shipped in the hub binary.
+Bump `version` in `pack.yaml`, update `packs/catalog.json` `download_url` / version when publishing.
 
 **Customer / private packs:** sideload zip via Settings → Domain packs. See [PACKS_CUSTOM.md](./PACKS_CUSTOM.md).
 
 ## API
 
 - `GET /api/packs/catalog` — store rows + `catalog_url`
-- `POST /api/packs/{id}/install` — download or builtin install (does not enable)
+- `POST /api/packs/{id}/install` — download from catalog (does not enable)
 - `POST /api/packs/install-zip` — install customer pack from base64 zip (see [PACKS_CUSTOM.md](./PACKS_CUSTOM.md))
 - `GET /api/packs/customer-context` — enabled customer pack workspace guides
 - `PUT /api/packs/{id}` — enable/disable

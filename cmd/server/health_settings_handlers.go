@@ -56,6 +56,9 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(incoming.HF.Token, "...") || incoming.HF.Token == "***" {
 			incoming.HF.Token = appConfig.HF.Token
 		}
+		if strings.Contains(incoming.Jira.APIToken, "...") || incoming.Jira.APIToken == "***" {
+			incoming.Jira.APIToken = appConfig.Jira.APIToken
+		}
 
 		appConfig.Server = incoming.Server
 		appConfig.AI = incoming.AI
@@ -73,6 +76,8 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			appConfig.Packs = incoming.Packs
 		}
 		appConfig.MCP = incoming.MCP
+		appConfig.AWS = incoming.AWS
+		appConfig.Jira = incoming.Jira
 		appConfig.EnsureMCPDefaults()
 		appConfig.SyncAgentsFromPacks()
 		syncMCPFromConfig()

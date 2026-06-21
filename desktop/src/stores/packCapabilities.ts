@@ -19,6 +19,11 @@ export const PACK_CAP = {
   PERSONAL_LEARNING: 'personal-learning',
   CUSTOMER_PACK: 'customer-pack',
   PHOENIX_IMPORT: 'phoenix-import',
+  AWS_API: 'aws-api',
+  AWS_SSO: 'aws-sso',
+  INCIDENT_API: 'incident-api',
+  JIRA_INTEGRATION: 'jira-integration',
+  INCIDENT_TRIAGE: 'incident-triage',
 } as const;
 
 export type PackCapability = (typeof PACK_CAP)[keyof typeof PACK_CAP];

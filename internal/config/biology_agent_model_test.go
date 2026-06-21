@@ -4,8 +4,8 @@ import "testing"
 
 func TestProviderForAgent_biologyUsesOpenBioDespiteCoderProviderDefault(t *testing.T) {
 	cfg := DefaultConfig()
-	_ = cfg.InstallPack(PackSoftwareDevelopment)
-	_ = cfg.InstallPack(PackLifeSciences)
+	installTestPack(t, cfg, PackSoftwareDevelopment)
+	installTestPack(t, cfg, PackLifeSciences)
 	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, true)
 	_ = cfg.SetPackEnabled(PackLifeSciences, true)
 	cfg.Packs.LayoutOwner = PackSoftwareDevelopment
@@ -34,7 +34,7 @@ func TestProviderForAgent_biologyUsesOpenBioDespiteCoderProviderDefault(t *testi
 
 func TestProviderForAgent_biologyRespectsExplicitAgentModelOverride(t *testing.T) {
 	cfg := DefaultConfig()
-	_ = cfg.InstallPack(PackLifeSciences)
+	installTestPack(t, cfg, PackLifeSciences)
 	_ = cfg.SetPackEnabled(PackLifeSciences, true)
 	cfg.AI.Providers = []ProviderConfig{{
 		ID:       "ollama-local",
@@ -62,7 +62,7 @@ func TestProviderForAgent_biologyRespectsExplicitAgentModelOverride(t *testing.T
 
 func TestProviderForAgent_biologyUsesMCPChatModelOverride(t *testing.T) {
 	cfg := DefaultConfig()
-	_ = cfg.InstallPack(PackLifeSciences)
+	installTestPack(t, cfg, PackLifeSciences)
 	_ = cfg.SetPackEnabled(PackLifeSciences, true)
 	cfg.MCP.Biology.ChatModel = "nj-bio:8b"
 	cfg.AI.Providers = []ProviderConfig{{
@@ -90,7 +90,7 @@ func TestProviderForAgent_biologyUsesMCPChatModelOverride(t *testing.T) {
 
 func TestProviderForAgent_biologyFallsBackToDelegationChatModel(t *testing.T) {
 	cfg := DefaultConfig()
-	_ = cfg.InstallPack(PackLifeSciences)
+	installTestPack(t, cfg, PackLifeSciences)
 	_ = cfg.SetPackEnabled(PackLifeSciences, true)
 	cfg.Delegation.BiologyChatModel = "nj-bio:8b"
 	cfg.AI.Providers = []ProviderConfig{{

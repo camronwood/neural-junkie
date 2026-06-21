@@ -14,15 +14,12 @@ import (
 // DefaultCatalogURL is the official pack store listing on GitHub (main branch).
 const DefaultCatalogURL = "https://raw.githubusercontent.com/camronwood/neural-junkie/main/packs/catalog.json"
 
-// Default packs release tag for download_url assets (see scripts/build-pack-zips.sh).
-const DefaultPacksReleaseTag = "packs-v1.0.0"
-
 var (
-	catalogClient     = &http.Client{Timeout: 30 * time.Second}
-	catalogCacheMu    sync.RWMutex
-	catalogCache      *Catalog
-	catalogCacheAt    time.Time
-	catalogCacheTTL   = 5 * time.Minute
+	catalogClient   = &http.Client{Timeout: 30 * time.Second}
+	catalogCacheMu  sync.RWMutex
+	catalogCache    *Catalog
+	catalogCacheAt  time.Time
+	catalogCacheTTL = 5 * time.Minute
 )
 
 // CatalogURL returns the remote catalog JSON URL (env override).
@@ -33,7 +30,7 @@ func CatalogURL() string {
 	return DefaultCatalogURL
 }
 
-// FetchCatalog loads the store catalog: remote JSON merged over embedded builtins.
+// FetchCatalog loads the remote pack store catalog.
 func FetchCatalog() (*Catalog, error) {
 	catalogCacheMu.RLock()
 	if catalogCache != nil && time.Since(catalogCacheAt) < catalogCacheTTL {
@@ -43,22 +40,18 @@ func FetchCatalog() (*Catalog, error) {
 	}
 	catalogCacheMu.RUnlock()
 
-	embedded, err := LoadBuiltinCatalog()
+	cat, err := fetchRemoteCatalog(CatalogURL())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pack catalog: %w", err)
 	}
-	remote, fetchErr := fetchRemoteCatalog(CatalogURL())
-	merged := mergeCatalogs(embedded, remote)
+	cat = orderCatalogPacks(cat)
 
 	catalogCacheMu.Lock()
-	catalogCache = merged
+	catalogCache = cat
 	catalogCacheAt = time.Now()
 	catalogCacheMu.Unlock()
 
-	if fetchErr != nil {
-		return merged, fmt.Errorf("pack catalog: using embedded listing (%w)", fetchErr)
-	}
-	return merged, nil
+	return cloneCatalog(cat), nil
 }
 
 // InvalidateCatalogCache clears the in-memory catalog cache (tests).
@@ -95,56 +88,23 @@ func fetchRemoteCatalog(url string) (*Catalog, error) {
 	return &cat, nil
 }
 
-func mergeCatalogs(base, remote *Catalog) *Catalog {
-	if base == nil && remote == nil {
+func orderCatalogPacks(cat *Catalog) *Catalog {
+	if cat == nil {
 		return &Catalog{Version: 1, Packs: nil}
 	}
-	if remote == nil || len(remote.Packs) == 0 {
-		return cloneCatalog(base)
-	}
-	byID := make(map[string]CatalogEntry)
-	if base != nil {
-		for _, e := range base.Packs {
-			byID[e.ID] = e
-		}
-	}
-	for _, e := range remote.Packs {
+	byID := make(map[string]CatalogEntry, len(cat.Packs))
+	for _, e := range cat.Packs {
 		id := strings.TrimSpace(e.ID)
 		if id == "" {
 			continue
 		}
-		prev := byID[id]
-		merged := e
-		if merged.Title == "" {
-			merged.Title = prev.Title
-		}
-		if merged.Description == "" {
-			merged.Description = prev.Description
-		}
-		if merged.Version == "" {
-			merged.Version = prev.Version
-		}
-		if merged.IconKey == "" {
-			merged.IconKey = prev.IconKey
-		}
-		if merged.Publisher == "" {
-			merged.Publisher = prev.Publisher
-		}
-		if merged.DownloadURL == "" {
-			merged.DownloadURL = prev.DownloadURL
-		}
-		if !merged.Builtin && prev.Builtin {
-			merged.Builtin = true
-		}
-		byID[id] = merged
+		byID[id] = e
 	}
-	out := &Catalog{Version: 1}
-	if remote.Version > 0 {
-		out.Version = remote.Version
-	} else if base != nil {
-		out.Version = base.Version
+	out := &Catalog{Version: cat.Version}
+	if out.Version == 0 {
+		out.Version = 1
 	}
-	for _, id := range BuiltinIDs {
+	for _, id := range OfficialPackIDs {
 		if e, ok := byID[id]; ok {
 			out.Packs = append(out.Packs, e)
 			delete(byID, id)

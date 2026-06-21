@@ -16,46 +16,38 @@ const maxPackZipBytes = 10 << 20 // 10 MiB
 
 var installHTTPClient = &http.Client{Timeout: 120 * time.Second}
 
-// InstallOfficialPack installs from catalog download_url when allowed, else embedded builtin.
+// SetInstallHTTPClientForTests replaces the pack install HTTP client (tests only).
+func SetInstallHTTPClientForTests(c *http.Client) (restore func()) {
+	prev := installHTTPClient
+	if c != nil {
+		installHTTPClient = c
+	}
+	return func() { installHTTPClient = prev }
+}
+
+// InstallOfficialPack installs from catalog download_url (catalog-only; requires network).
 func InstallOfficialPack(packID string) error {
 	packID = strings.TrimSpace(packID)
 	if packID == "" {
 		return fmt.Errorf("pack id required")
 	}
-	cat, catErr := FetchCatalog()
-	var dlURL, wantVersion string
-	if cat != nil {
-		if e := cat.CatalogEntryByID(packID); e != nil {
-			dlURL = strings.TrimSpace(e.DownloadURL)
-			wantVersion = strings.TrimSpace(e.Version)
-		}
+	cat, err := FetchCatalog()
+	if err != nil {
+		return err
 	}
-	if dlURL != "" {
-		if err := installFromZipURL(packID, dlURL, wantVersion); err == nil {
-			return nil
-		} else if catErr == nil {
-			// Remote catalog OK but download failed — surface error if not a builtin pack.
-			if !isBuiltinPackID(packID) {
-				return fmt.Errorf("download pack %q: %w (set NEURAL_JUNKIE_PACKS_CATALOG_URL or use offline hub)", packID, err)
-			}
-		}
-	}
-	if !isBuiltinPackID(packID) {
-		if catErr != nil {
-			return fmt.Errorf("unknown pack %q: %w", packID, catErr)
-		}
+	e := cat.CatalogEntryByID(packID)
+	if e == nil {
 		return fmt.Errorf("unknown pack %q", packID)
 	}
-	return InstallPackFromBuiltin(packID)
-}
-
-func isBuiltinPackID(packID string) bool {
-	for _, id := range BuiltinIDs {
-		if id == packID {
-			return true
-		}
+	dlURL := strings.TrimSpace(e.DownloadURL)
+	if dlURL == "" {
+		return fmt.Errorf("pack %q has no download_url in catalog", packID)
 	}
-	return false
+	wantVersion := strings.TrimSpace(e.Version)
+	if err := installFromZipURL(packID, dlURL, wantVersion); err != nil {
+		return fmt.Errorf("download pack %q: %w", packID, err)
+	}
+	return nil
 }
 
 func installFromZipURL(packID, rawURL, wantVersion string) error {

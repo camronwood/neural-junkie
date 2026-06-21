@@ -33,6 +33,7 @@ func TestWizardProfileGeneral(t *testing.T) {
 }
 
 func TestApplyWizardProfileDeveloperPack(t *testing.T) {
+	SetupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
 	cfg.ApplyWizardProfile(WizardTrackDeveloper, true)
 	if !cfg.IsPackEnabled(PackSoftwareDevelopment) {

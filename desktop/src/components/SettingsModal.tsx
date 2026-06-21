@@ -16,6 +16,7 @@ import { ModelsPerformanceSettingsTab } from './settings/ModelsPerformanceSettin
 import { CollabRoutingSettingsTab } from './settings/CollabRoutingSettingsTab';
 import { MemoryLearningSettingsTab } from './settings/MemoryLearningSettingsTab';
 import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab';
+import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
 import { DomainPacksSettingsTab } from './settings/DomainPacksSettingsTab';
@@ -118,6 +119,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <CollabRoutingSettingsTab hubHttp={hubHttp} isActive={activeTab === 'collab-routing'} />
             <MemoryLearningSettingsTab hubHttp={hubHttp} isActive={activeTab === 'memory-learning'} />
             <ApiCredentialsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'api-credentials'} />
+            <IntegrationsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'integrations'} />
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />
             <SlackSettingsTab hubHttp={hubHttp} isActive={activeTab === 'slack'} />
             <DomainPacksSettingsTab hubHttp={hubHttp} isActive={activeTab === 'domain-packs'} />

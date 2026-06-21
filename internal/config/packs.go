@@ -13,6 +13,8 @@ const (
 	PackSoftwareDevelopment = "software-development"
 	PackSpecialistTuning    = "specialist-tuning"
 	PackCAD                 = "cad"
+	PackAWS                 = "aws"
+	PackIncidentManagement  = "incident-management"
 )
 
 // DevOllamaCodeModel is the default local model for software-development specialists and live regression.
@@ -130,10 +132,7 @@ func (c *Config) installedPackManifestsFromIDs(ids []string) ([]*packs.Manifest,
 		}
 		m, err := packs.LoadManifest(dir)
 		if err != nil {
-			m, err = packs.LoadBuiltinManifest(id)
-			if err != nil {
-				continue
-			}
+			continue
 		}
 		out = append(out, m)
 	}
@@ -153,15 +152,19 @@ func (c *Config) PackCatalog() []DomainPack {
 	return out
 }
 
-// PackCatalogBuiltin returns metadata for all official packs (store listing).
-func PackCatalogBuiltin() ([]DomainPack, error) {
-	all, err := packs.AllBuiltinManifests()
+// PackCatalogOfficial returns store metadata for all official catalog packs.
+func PackCatalogOfficial() ([]DomainPack, error) {
+	cat, err := packs.FetchCatalog()
 	if err != nil {
 		return nil, err
 	}
 	var out []DomainPack
-	for _, m := range all {
-		out = append(out, manifestToDomainPack(m))
+	for _, e := range cat.Packs {
+		out = append(out, DomainPack{
+			ID:          e.ID,
+			Title:       e.Title,
+			Description: e.Description,
+		})
 	}
 	return out, nil
 }
@@ -285,7 +288,7 @@ func (c *Config) countEnabledPacksLocked() int {
 	return n
 }
 
-// InstallPack copies a builtin pack to ~/.neural-junkie/packs and adds to installed (does not enable).
+// InstallPack downloads a catalog pack to ~/.neural-junkie/packs and adds to installed (does not enable).
 func (c *Config) InstallPack(packID string) error {
 	packID = strings.TrimSpace(packID)
 	if packID == "" {
@@ -664,10 +667,7 @@ func (c *Config) installedPackManifestsLocked() ([]*packs.Manifest, error) {
 		}
 		m, err := packs.LoadManifest(dir)
 		if err != nil {
-			m, err = packs.LoadBuiltinManifest(id)
-			if err != nil {
-				continue
-			}
+			continue
 		}
 		out = append(out, m)
 	}
@@ -710,17 +710,8 @@ func packForAgentTypeLocked(c *Config, agentType string) string {
 }
 
 func packForAgentType(agentType string) string {
-	// Used where config is unavailable; check builtins only.
-	for _, id := range packs.BuiltinIDs {
-		m, err := packs.LoadBuiltinManifest(id)
-		if err != nil {
-			continue
-		}
-		for _, a := range m.Agents {
-			if a.Type == agentType {
-				return id
-			}
-		}
+	if id := packs.PackIDForAgentType(agentType); id != "" {
+		return id
 	}
 	for _, t := range legacyDevSpecialistTypes {
 		if t == agentType {
@@ -837,11 +828,9 @@ var legacyDevPackExpertSlugs = map[string]struct{}{
 }
 
 func isDevPackExpertSlug(slug string) bool {
-	if p, err := packs.LoadBuiltinManifest(PackSoftwareDevelopment); err == nil {
-		for _, ep := range p.ExpertPresets {
-			if ep.Slug == slug {
-				return true
-			}
+	for _, ep := range packs.SoftwareDevelopmentExpertSlugs {
+		if ep == slug {
+			return true
 		}
 	}
 	_, ok := legacyDevPackExpertSlugs[slug]
@@ -886,6 +875,10 @@ func (c *Config) PresetExpertDeniedMessage(slug string) string {
 		return "Biology experts require the **Life sciences** pack. Install and enable it in Settings → Domain packs."
 	case "cad":
 		return "CAD experts require the **CAD** pack. Install and enable it in Settings → Domain packs."
+	case "aws":
+		return "AWS experts require the **AWS** pack. Install and enable it in Settings → Domain packs."
+	case "incident":
+		return "Incident experts require the **Incident management** pack. Install and enable it in Settings → Domain packs."
 	default:
 		if isDevPackExpertSlug(slug) {
 			return "Software development specialists require the **Software development** pack. Install and enable it in Settings → Domain packs."
@@ -910,6 +903,12 @@ func (c *Config) PresetExpertAllowed(slug string) bool {
 	}
 	if slug == "cad" {
 		return c.IsPackEnabled(PackCAD)
+	}
+	if slug == "aws" {
+		return c.IsPackEnabled(PackAWS)
+	}
+	if slug == "incident" {
+		return c.IsPackEnabled(PackIncidentManagement)
 	}
 	if isDevPackExpertSlug(slug) {
 		return c.IsPackEnabled(PackSoftwareDevelopment)
@@ -996,8 +995,6 @@ func (c *Config) packStatusFromDomain(pack DomainPack) PackStatus {
 		ver = m.Version
 		custom = m.IsCustomerPack()
 		requires = append([]string(nil), m.RequiresPacks...)
-	} else if m, err := packs.LoadBuiltinManifest(pack.ID); err == nil && m != nil {
-		ver = m.Version
 	}
 	if !custom && !IsCatalogPackID(pack.ID) {
 		custom = true
@@ -1025,11 +1022,7 @@ func (c *Config) packStatusFromDomain(pack DomainPack) PackStatus {
 func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 	cat, err := packs.FetchCatalog()
 	if err != nil {
-		// Listing still works when remote catalog is unreachable (embedded merge).
-		cat, _ = packs.LoadBuiltinCatalog()
-		if cat == nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	var out []PackCatalogStatus
 	for _, e := range cat.Packs {
@@ -1107,23 +1100,20 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 	return out, nil
 }
 
-// packManifestForCatalog returns the installed pack manifest when present, else the builtin embed.
+// packManifestForCatalog returns the installed pack manifest when present.
 func (c *Config) packManifestForCatalog(packID string) (*packs.Manifest, error) {
 	if c != nil {
 		if m, err := c.InstalledPackManifestByID(packID); err == nil && m != nil {
 			return m, nil
 		}
 	}
-	return packs.LoadBuiltinManifest(packID)
+	return nil, fmt.Errorf("pack %q not installed", packID)
 }
 
 func ConfigurableSpecialistTypes() map[string]bool {
 	types := make(map[string]bool)
-	all, _ := packs.AllBuiltinManifests()
-	for _, m := range all {
-		for _, a := range m.Agents {
-			types[a.Type] = true
-		}
+	for _, t := range packs.KnownSpecialistAgentTypes {
+		types[t] = true
 	}
 	for _, t := range legacyDevSpecialistTypes {
 		types[t] = true

@@ -53,11 +53,10 @@ func TestDevReloadPack(t *testing.T) {
 }
 
 func TestDevLinkPreservesEnabledState(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := testConfig(t)
 	src := filepath.Join("..", "packs", "testdata", "customer-lab-pack")
-	if err := cfg.InstallPack(PackLifeSciences); err != nil {
-		t.Fatal(err)
-	}
+	installTestPack(t, cfg, PackLifeSciences)
 	if err := cfg.SetPackEnabled(PackLifeSciences, true); err != nil {
 		t.Fatal(err)
 	}

@@ -10,7 +10,7 @@
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/software-development-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v1.0.0/software-development-1.0.0.zip"
     },
     {
       "id": "life-sciences",
@@ -20,7 +20,7 @@
       "icon_key": "biology",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/life-sciences-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-life-sciences/releases/download/v1.0.0/life-sciences-1.0.0.zip"
     },
     {
       "id": "cad",
@@ -30,7 +30,7 @@
       "icon_key": "cad",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/cad-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-cad/releases/download/v1.0.0/cad-1.0.0.zip"
     },
     {
       "id": "specialist-tuning",
@@ -40,7 +40,27 @@
       "icon_key": "lora",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/specialist-tuning-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-specialist-tuning/releases/download/v1.0.0/specialist-tuning-1.0.0.zip"
+    },
+    {
+      "id": "aws",
+      "version": "1.0.0",
+      "title": "AWS",
+      "description": "AWSExpert with read-only AWS CLI MCP tools, SSO profile support, and account-scoped infra queries.",
+      "icon_key": "cloud",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-aws/releases/download/v1.0.0/aws-1.0.0.zip"
+    },
+    {
+      "id": "incident-management",
+      "version": "1.0.0",
+      "title": "Incident management",
+      "description": "IncidentManager for bug tickets, Jira triage, reproduction steps, and handoff to engineering specialists.",
+      "icon_key": "incident",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-incident-management/releases/download/v1.0.0/incident-management-1.0.0.zip"
     }
   ]
 }

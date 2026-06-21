@@ -1,34 +1,34 @@
 package packs
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
-func TestLoadBuiltinManifests(t *testing.T) {
-	for _, id := range BuiltinIDs {
-		m, err := LoadBuiltinManifest(id)
-		if err != nil {
-			t.Fatalf("pack %s: %v", id, err)
-		}
+func officialTestManifest(t *testing.T, packID string) *Manifest {
+	t.Helper()
+	dir, err := filepath.Abs(filepath.Join("testdata", "official", packID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("pack %s: %v", packID, err)
+	}
+	return m
+}
+
+func TestOfficialPackManifests(t *testing.T) {
+	for _, id := range OfficialPackIDs {
+		m := officialTestManifest(t, id)
 		if m.ID != id {
 			t.Fatalf("expected id %s, got %s", id, m.ID)
 		}
 	}
 }
 
-func TestLoadBuiltinCatalog(t *testing.T) {
-	cat, err := LoadBuiltinCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(cat.Packs) < 3 {
-		t.Fatal("expected at least 3 catalog entries")
-	}
-}
-
 func TestSoftwareDevCapabilities(t *testing.T) {
-	m, err := LoadBuiltinManifest("software-development")
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := officialTestManifest(t, "software-development")
 	if !m.HasCapability("git-rest") {
 		t.Fatal("expected git-rest")
 	}
@@ -38,20 +38,14 @@ func TestSoftwareDevCapabilities(t *testing.T) {
 }
 
 func TestSoftwareDevelopmentNoLoRAAdapters(t *testing.T) {
-	m, err := LoadBuiltinManifest("software-development")
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := officialTestManifest(t, "software-development")
 	if len(m.LoRAAdapters) != 0 {
 		t.Fatalf("expected no lora adapters on dev pack, got %d", len(m.LoRAAdapters))
 	}
 }
 
 func TestSpecialistTuningLoRAAdapters(t *testing.T) {
-	m, err := LoadBuiltinManifest("specialist-tuning")
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := officialTestManifest(t, "specialist-tuning")
 	if len(m.LoRAAdapters) != 4 {
 		t.Fatalf("expected 4 lora adapters, got %d", len(m.LoRAAdapters))
 	}
@@ -79,20 +73,14 @@ func TestSpecialistTuningLoRAAdapters(t *testing.T) {
 }
 
 func TestLifeSciencesNoLoRAAdapters(t *testing.T) {
-	m, err := LoadBuiltinManifest("life-sciences")
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := officialTestManifest(t, "life-sciences")
 	if len(m.LoRAAdapters) != 0 {
 		t.Fatalf("expected no lora adapters on life-sciences pack, got %d", len(m.LoRAAdapters))
 	}
 }
 
 func TestCADPackCapabilities(t *testing.T) {
-	m, err := LoadBuiltinManifest("cad")
-	if err != nil {
-		t.Fatal(err)
-	}
+	m := officialTestManifest(t, "cad")
 	if len(m.LoRAAdapters) != 0 {
 		t.Fatalf("expected no lora adapters on cad pack, got %d", len(m.LoRAAdapters))
 	}
@@ -106,5 +94,17 @@ func TestCADPackCapabilities(t *testing.T) {
 	}
 	if m.ExpertSlug != "cad" {
 		t.Fatalf("expected expert_slug cad, got %s", m.ExpertSlug)
+	}
+}
+
+func TestPackIDForAgentType(t *testing.T) {
+	if got := PackIDForAgentType("backend"); got != "software-development" {
+		t.Fatalf("got %q", got)
+	}
+	if got := PackIDForAgentType("biology"); got != "life-sciences" {
+		t.Fatalf("got %q", got)
+	}
+	if got := PackIDForAgentType("unknown"); got != "" {
+		t.Fatalf("got %q", got)
 	}
 }

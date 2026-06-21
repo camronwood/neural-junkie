@@ -6,40 +6,11 @@ import (
 	"testing"
 )
 
-func TestMergeCatalogRemoteOverridesDownloadURL(t *testing.T) {
-	base, err := LoadBuiltinCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
-	remote := &Catalog{
-		Version: 2,
-		Packs: []CatalogEntry{{
-			ID:          "software-development",
-			Version:     "1.0.1",
-			DownloadURL: "https://github.com/example/new.zip",
-		}},
-	}
-	merged := mergeCatalogs(base, remote)
-	e := merged.CatalogEntryByID("software-development")
-	if e == nil {
-		t.Fatal("missing entry")
-	}
-	if e.DownloadURL != "https://github.com/example/new.zip" {
-		t.Fatalf("download_url = %q", e.DownloadURL)
-	}
-	if e.Version != "1.0.1" {
-		t.Fatalf("version = %q", e.Version)
-	}
-	if e.Title == "" {
-		t.Fatal("expected title from embedded")
-	}
-}
-
 func TestFetchCatalogUsesRemote(t *testing.T) {
 	InvalidateCatalogCache()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"version":1,"packs":[{"id":"software-development","version":"9.9.9","title":"Remote","download_url":"https://github.com/camronwood/neural-junkie/releases/download/packs-v1.0.0/software-development-1.0.0.zip"}]}`))
+		_, _ = w.Write([]byte(`{"version":1,"packs":[{"id":"software-development","version":"9.9.9","title":"Remote","download_url":"https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v1.0.0/software-development-1.0.0.zip"}]}`))
 	}))
 	defer srv.Close()
 	t.Setenv("NEURAL_JUNKIE_PACKS_CATALOG_URL", srv.URL)
@@ -50,5 +21,31 @@ func TestFetchCatalogUsesRemote(t *testing.T) {
 	e := cat.CatalogEntryByID("software-development")
 	if e == nil || e.Version != "9.9.9" || e.Title != "Remote" {
 		t.Fatalf("unexpected entry: %+v", e)
+	}
+}
+
+func TestFetchCatalogRequiresRemote(t *testing.T) {
+	InvalidateCatalogCache()
+	t.Setenv("NEURAL_JUNKIE_PACKS_CATALOG_URL", "http://127.0.0.1:1/unreachable")
+	_, err := FetchCatalog()
+	if err == nil {
+		t.Fatal("expected error when catalog unreachable")
+	}
+}
+
+func TestOrderCatalogPacks(t *testing.T) {
+	cat := orderCatalogPacks(&Catalog{
+		Version: 1,
+		Packs: []CatalogEntry{
+			{ID: "cad", Title: "CAD"},
+			{ID: "software-development", Title: "Dev"},
+			{ID: "custom-pack", Title: "Custom"},
+		},
+	})
+	if len(cat.Packs) != 3 {
+		t.Fatalf("got %d packs", len(cat.Packs))
+	}
+	if cat.Packs[0].ID != "software-development" || cat.Packs[2].ID != "custom-pack" {
+		t.Fatalf("unexpected order: %+v", cat.Packs)
 	}
 }

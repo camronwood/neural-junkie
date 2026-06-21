@@ -3,10 +3,9 @@ package config
 import "testing"
 
 func TestMCPEnabledForAgentBiologyPack(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
-	if err := cfg.InstallPack(PackLifeSciences); err != nil {
-		t.Fatal(err)
-	}
+	installTestPack(t, cfg, PackLifeSciences)
 	cfg.Packs.Enabled[PackLifeSciences] = true
 	cfg.SyncAgentsFromPacks()
 	if !cfg.MCPEnabledForAgent("biology") {
@@ -20,10 +19,9 @@ func TestMCPEnabledForAgentBiologyPack(t *testing.T) {
 }
 
 func TestMCPEnabledForAgentSoftwareDevelopmentPack(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
-	if err := cfg.InstallPack(PackSoftwareDevelopment); err != nil {
-		t.Fatal(err)
-	}
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	cfg.SyncAgentsFromPacks()
 	for _, typ := range []string{"backend", "devops", "database", "frontend", "security"} {
@@ -39,10 +37,9 @@ func TestMCPEnabledForAgentSoftwareDevelopmentPack(t *testing.T) {
 }
 
 func TestMCPEnabledForAgentUserOverride(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
-	if err := cfg.InstallPack(PackSoftwareDevelopment); err != nil {
-		t.Fatal(err)
-	}
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	cfg.SyncAgentsFromPacks()
 	cfg.MCP.Agents["frontend"] = false
@@ -97,10 +94,9 @@ func TestMigrateBiologyMCPModels(t *testing.T) {
 }
 
 func TestMCPEnabledForAgentCADPack(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
-	if err := cfg.InstallPack(PackCAD); err != nil {
-		t.Fatal(err)
-	}
+	installTestPack(t, cfg, PackCAD)
 	cfg.Packs.Enabled[PackCAD] = true
 	cfg.SyncAgentsFromPacks()
 	if !cfg.MCPEnabledForAgent("cad") {

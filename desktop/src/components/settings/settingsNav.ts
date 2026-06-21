@@ -8,6 +8,7 @@ export type SettingsTab =
   | 'collab-routing'
   | 'memory-learning'
   | 'api-credentials'
+  | 'integrations'
   | 'assistant-tools'
   | 'slack'
   | 'domain-packs'
@@ -17,7 +18,6 @@ export type SettingsTab =
 /** Map deprecated tab ids from older deep links. */
 export const SETTINGS_TAB_ALIASES: Record<string, SettingsTab> = {
   'ai-providers': 'providers',
-  integrations: 'api-credentials',
 };
 
 export function resolveSettingsTab(tab?: string): SettingsTab | undefined {
@@ -54,6 +54,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     title: 'External',
     items: [
       { id: 'api-credentials', label: 'API credentials' },
+      { id: 'integrations', label: 'Integrations' },
       { id: 'assistant-tools', label: 'Assistant tools' },
       { id: 'slack', label: 'Slack' },
     ],

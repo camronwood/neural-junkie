@@ -30,6 +30,11 @@ var KnownCapabilityTokens = []string{
 	"personal-learning",
 	"customer-pack",
 	"phoenix-import",
+	"aws-api",
+	"aws-sso",
+	"incident-api",
+	"jira-integration",
+	"incident-triage",
 }
 
 // KnownOverlayKeys are settings_overlay keys applied by the hub for customer packs.
@@ -48,6 +53,13 @@ var KnownOverlayKeys = []string{
 	"mcp.biology.secondary_analysis_tools_path",
 	"mcp.biology.cumulative_qc_dir",
 	"mcp.biology.python_executable",
+	"aws_default_region",
+	"aws_profile",
+	"aws_sso_start_url",
+	"jira_base_url",
+	"jira_email",
+	"jira_api_token",
+	"jira_default_project_key",
 }
 
 // PackRequirementsContext supplies installed/enabled state for requires_packs checks.
@@ -214,8 +226,8 @@ func buildValidationReport(m *Manifest, packDir string, ctx *PackRequirementsCon
 	if err := m.Validate(); err != nil {
 		errors = append(errors, err.Error())
 	}
-	if isBuiltinPackID(m.ID) {
-		errors = append(errors, fmt.Sprintf("pack id %q collides with a builtin official pack", m.ID))
+	if IsOfficialPackID(m.ID) {
+		errors = append(errors, fmt.Sprintf("pack id %q collides with an official catalog pack", m.ID))
 	}
 	if m.IsCustomerPack() {
 		// customer packs are expected for dev studio

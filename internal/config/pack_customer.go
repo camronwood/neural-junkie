@@ -11,9 +11,22 @@ import (
 var biologyOverlayFields = map[string]func(*BiologyMCPConfig) *string{
 	"secondary_analysis_tools_path": func(b *BiologyMCPConfig) *string { return &b.SecondaryAnalysisToolsPath },
 	"python_executable":             func(b *BiologyMCPConfig) *string { return &b.PythonExecutable },
-	"cumulative_qc_dir":               func(b *BiologyMCPConfig) *string { return &b.CumulativeQCDir },
-	"default_panel_profile":           func(b *BiologyMCPConfig) *string { return &b.DefaultPanelProfile },
-	"artifacts_dir":                   func(b *BiologyMCPConfig) *string { return &b.ArtifactsDir },
+	"cumulative_qc_dir":             func(b *BiologyMCPConfig) *string { return &b.CumulativeQCDir },
+	"default_panel_profile":         func(b *BiologyMCPConfig) *string { return &b.DefaultPanelProfile },
+	"artifacts_dir":                 func(b *BiologyMCPConfig) *string { return &b.ArtifactsDir },
+}
+
+var awsOverlayFields = map[string]func(*AWSConfig) *string{
+	"aws_default_region": func(a *AWSConfig) *string { return &a.DefaultRegion },
+	"aws_profile":        func(a *AWSConfig) *string { return &a.Profile },
+	"aws_sso_start_url":  func(a *AWSConfig) *string { return &a.SSOStartURL },
+}
+
+var jiraOverlayFields = map[string]func(*JiraConfig) *string{
+	"jira_base_url":            func(j *JiraConfig) *string { return &j.BaseURL },
+	"jira_email":               func(j *JiraConfig) *string { return &j.Email },
+	"jira_api_token":           func(j *JiraConfig) *string { return &j.APIToken },
+	"jira_default_project_key": func(j *JiraConfig) *string { return &j.DefaultProjectKey },
 }
 
 var phoenixOverlayFields = map[string]func(*PhoenixConfig) *string{
@@ -83,6 +96,18 @@ func (c *Config) applyPackSettingsOverlayLocked(packID string) error {
 			field := setter(&c.Phoenix)
 			prev["phoenix:"+key] = *field
 			*field = val
+			continue
+		}
+		if setter, ok := awsOverlayFields[key]; ok {
+			field := setter(&c.AWS)
+			prev["aws:"+key] = *field
+			*field = val
+			continue
+		}
+		if setter, ok := jiraOverlayFields[key]; ok {
+			field := setter(&c.Jira)
+			prev["jira:"+key] = *field
+			*field = val
 		}
 	}
 	if len(prev) > 0 {
@@ -112,6 +137,22 @@ func (c *Config) revertPackSettingsOverlayLocked(packID string) {
 			k := strings.TrimPrefix(key, "phoenix:")
 			if setter, ok := phoenixOverlayFields[k]; ok {
 				field := setter(&c.Phoenix)
+				*field = val
+			}
+			continue
+		}
+		if strings.HasPrefix(key, "aws:") {
+			k := strings.TrimPrefix(key, "aws:")
+			if setter, ok := awsOverlayFields[k]; ok {
+				field := setter(&c.AWS)
+				*field = val
+			}
+			continue
+		}
+		if strings.HasPrefix(key, "jira:") {
+			k := strings.TrimPrefix(key, "jira:")
+			if setter, ok := jiraOverlayFields[k]; ok {
+				field := setter(&c.Jira)
 				*field = val
 			}
 		}
@@ -199,11 +240,8 @@ func (c *Config) EnabledCustomerPackContexts() ([]CustomerPackContext, error) {
 // IsCatalogPackID reports whether id appears in the official pack catalog.
 func IsCatalogPackID(id string) bool {
 	cat, err := packs.FetchCatalog()
-	if err != nil {
-		cat, _ = packs.LoadBuiltinCatalog()
-	}
-	if cat == nil {
-		return false
+	if err != nil || cat == nil {
+		return packs.IsOfficialPackID(id)
 	}
 	return cat.CatalogEntryByID(id) != nil
 }

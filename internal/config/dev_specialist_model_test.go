@@ -4,7 +4,7 @@ import "testing"
 
 func TestProviderForAgent_devSpecialistAvoidsBiologyModel(t *testing.T) {
 	cfg := DefaultConfig()
-	_ = cfg.InstallPack(PackSoftwareDevelopment)
+	installTestPack(t, cfg, PackSoftwareDevelopment)
 	_ = cfg.SetPackEnabled(PackSoftwareDevelopment, true)
 	cfg.AI.Providers = []ProviderConfig{{
 		ID:       "ollama-local",

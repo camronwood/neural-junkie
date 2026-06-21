@@ -31,6 +31,8 @@ var defaultPorts = map[string]int{
 	"CODE_REVIEW":  8089,
 	"ARCHITECTURE": 8090,
 	"CAD":          8091,
+	"AWS":          8092,
+	"INCIDENT":     8093,
 }
 
 // NormalizeAgentType maps agent type strings to MCP port config keys (e.g. code-review -> CODE_REVIEW).
@@ -151,6 +153,14 @@ func CreateTool(name, description string, inputSchema mcpgo.ToolInputSchema, han
 		Name:        name,
 		Description: description,
 		InputSchema: inputSchema,
+	}
+}
+
+// CreateEmptyInputSchema creates a tool schema with no parameters.
+func CreateEmptyInputSchema() mcpgo.ToolInputSchema {
+	return mcpgo.ToolInputSchema{
+		Type:       "object",
+		Properties: map[string]any{},
 	}
 }
 

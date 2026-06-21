@@ -1,0 +1,33 @@
+id: incident-management
+version: "1.0.0"
+title: Incident management
+description: IncidentManager for bug tickets, Jira triage, reproduction steps, and handoff to engineering specialists.
+layout_profile: team
+capabilities:
+  - incident-api
+  - jira-integration
+  - incident-triage
+requires_packs:
+  - software-development
+agents:
+  - type: incident
+    name: IncidentManager
+    implementation: builtin/incident
+    ollama_model: qwen2.5-coder:14b
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - bug
+        - incident
+        - ticket
+        - regression
+        - sentry
+        - stack trace
+        - jira
+models_to_ensure:
+  - qwen2.5-coder:14b
+  - qwen3.5:9b
+expert_slug: incident
+expert_label: Incident / Bug triage
+mcp_agents:
+  - incident

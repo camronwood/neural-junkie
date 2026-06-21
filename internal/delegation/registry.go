@@ -73,6 +73,12 @@ func typeKeywords(t protocol.AgentType) []string {
 	case protocol.AgentTypeBiology:
 		return []string{"biology", "protein", "gene", "genome", "dna", "rna", "sequence", "assay", "crispr",
 			"enzyme", "mutation", "pathway", "cell", "lab", "protocol", "peptide", "amino", "fold", "esm"}
+	case protocol.AgentTypeAWS:
+		return []string{"aws", "sso", "iam", "ec2", "s3", "lambda", "cloudformation", "terraform",
+			"vpc", "rds", "ecs", "eks", "cloudwatch", "route53", "dynamodb", "sqs", "sns"}
+	case protocol.AgentTypeIncident:
+		return []string{"incident", "bug", "ticket", "triage", "regression", "sentry", "jira",
+			"stack", "trace", "severity", "outage", "postmortem", "reproduce"}
 	default:
 		return nil
 	}

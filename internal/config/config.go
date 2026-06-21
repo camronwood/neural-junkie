@@ -136,6 +136,8 @@ type Config struct {
 	WebSearch      WebSearchConfig      `json:"web_search"`
 	Performance    PerformanceConfig    `json:"performance"`
 	Phoenix        PhoenixConfig        `json:"phoenix"`
+	AWS            AWSConfig            `json:"aws"`
+	Jira           JiraConfig           `json:"jira"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -180,6 +182,10 @@ func DefaultConfig() *Config {
 		Features:   FeaturesConfig{PersonalLearningEnabled: false},
 		Packs:      DefaultPacksConfig(),
 		MCP:        DefaultMCPConfig(),
+		AWS: AWSConfig{
+			DefaultRegion: DefaultAWSRegion,
+			ReadOnly:      boolPtr(true),
+		},
 	}
 }
 
@@ -644,6 +650,8 @@ func (c *Config) Redacted() *Config {
 		packs.Enabled = make(map[string]bool)
 	}
 	mcpCfg := c.MCP
+	awsCfg := c.AWS
+	jiraCfg := c.Jira
 	webSearch := c.WebSearch
 	performance := c.Performance
 	filePath := c.filePath
@@ -676,12 +684,22 @@ func (c *Config) Redacted() *Config {
 			redactedWebSearch.APIKey = "***"
 		}
 	}
+	redactedJira := jiraCfg
+	if redactedJira.APIToken != "" {
+		if len(redactedJira.APIToken) > 8 {
+			redactedJira.APIToken = redactedJira.APIToken[:4] + "..." + redactedJira.APIToken[len(redactedJira.APIToken)-4:]
+		} else {
+			redactedJira.APIToken = "***"
+		}
+	}
 	return &Config{
 		Server:        server,
 		AI:            AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
 		Agents:        agents,
 		Packs:         packs,
 		MCP:           mcpCfg,
+		AWS:           awsCfg,
+		Jira:          redactedJira,
 		Ollama:        ollama,
 		HF:            redactedHF,
 		Updates:       updates,

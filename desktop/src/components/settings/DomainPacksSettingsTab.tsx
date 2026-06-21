@@ -297,6 +297,8 @@ export function DomainPacksSettingsTab({ hubHttp, isActive }: SettingsTabProps) 
             ['architecture', 'SoftwareArchitect'],
             ['biology', 'BiologyExpert'],
             ['cad', 'CADExpert'],
+            ['aws', 'AWSExpert'],
+            ['incident', 'IncidentManager'],
             ['rust', 'RustExpert'],
           ].map(([key, label]) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">

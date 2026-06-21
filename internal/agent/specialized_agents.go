@@ -9,6 +9,8 @@ import (
 	"github.com/camronwood/neural-junkie/internal/mcp/backend"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/mcp/cad"
+	"github.com/camronwood/neural-junkie/internal/mcp/aws"
+	"github.com/camronwood/neural-junkie/internal/mcp/incident"
 	"github.com/camronwood/neural-junkie/internal/mcp/codereview"
 	"github.com/camronwood/neural-junkie/internal/mcp/database"
 	"github.com/camronwood/neural-junkie/internal/mcp/devops"
@@ -288,6 +290,44 @@ func NewCADAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return agent
 }
 
+// NewAWSAgent creates an AWS infrastructure agent with AWS CLI MCP tools.
+func NewAWSAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"AWS", "IAM", "EC2", "S3", "Lambda", "CloudFormation",
+		"SSO", "Organizations", "VPC", "RDS", "ECS", "EKS",
+		"Terraform", "Infrastructure", "Cost", "Security",
+	}
+
+	agent := NewAgent(protocol.AgentTypeAWS, name, expertise, ai, hub)
+
+	if awsMCP, err := aws.NewAWSMCP(); err != nil {
+		log.Printf("Failed to create AWS MCP server: %v", err)
+	} else {
+		startDomainAgentMCP(agent, "AWS", awsMCP)
+	}
+
+	return agent
+}
+
+// NewIncidentAgent creates an incident triage agent with Jira MCP tools.
+func NewIncidentAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Incident response", "Bug triage", "Root cause analysis",
+		"Reproduction steps", "Severity assessment", "Jira",
+		"Stack traces", "Regression analysis", "Handoff",
+	}
+
+	agent := NewAgent(protocol.AgentTypeIncident, name, expertise, ai, hub)
+
+	if incMCP, err := incident.NewIncidentMCP(); err != nil {
+		log.Printf("Failed to create Incident MCP server: %v", err)
+	} else {
+		startDomainAgentMCP(agent, "Incident", incMCP)
+	}
+
+	return agent
+}
+
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
@@ -329,6 +369,10 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewBiologyAgent(name, ai, hub), nil
 	case protocol.AgentTypeCAD:
 		return NewCADAgent(name, ai, hub), nil
+	case protocol.AgentTypeAWS:
+		return NewAWSAgent(name, ai, hub), nil
+	case protocol.AgentTypeIncident:
+		return NewIncidentAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeModerator:

@@ -1,6 +1,10 @@
 package config
 
 import (
+	"archive/zip"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,11 +12,114 @@ import (
 	"github.com/camronwood/neural-junkie/internal/packs"
 )
 
+func officialPackFixtureDir(packID string) (string, error) {
+	return filepath.Abs(filepath.Join("..", "packs", "testdata", "official", packID))
+}
+
 func installTestPack(t *testing.T, cfg *Config, packID string) {
 	t.Helper()
-	if err := cfg.InstallPack(packID); err != nil {
+	syncTestPack(t, packID)
+	cfg.mu.Lock()
+	defer cfg.mu.Unlock()
+	if cfg.Packs.Enabled == nil {
+		cfg.Packs.Enabled = make(map[string]bool)
+	}
+	if !cfg.packInstalledLocked(packID) {
+		cfg.Packs.Installed = append(cfg.Packs.Installed, packID)
+	}
+	cfg.Packs.Enabled[packID] = false
+}
+
+func syncTestPack(t *testing.T, packID string) {
+	t.Helper()
+	dir, err := officialPackFixtureDir(packID)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := packs.SyncPackFromDir(dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func setupTestOfficialPackCatalog(t *testing.T) {
+	t.Helper()
+	packs.InvalidateCatalogCache()
+	t.Setenv("NEURAL_JUNKIE_PACKS_ALLOW_TEST_HOSTS", "1")
+
+	zipDir := t.TempDir()
+	entries := make([]packs.CatalogEntry, 0, len(packs.OfficialPackIDs))
+	for _, id := range packs.OfficialPackIDs {
+		src, err := officialPackFixtureDir(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		zipPath := filepath.Join(zipDir, id+".zip")
+		if err := zipDirContents(src, zipPath); err != nil {
+			t.Fatal(err)
+		}
+		entries = append(entries, packs.CatalogEntry{
+			ID:          id,
+			Version:     "1.0.0",
+			Title:       id,
+			Builtin:     true,
+			DownloadURL: "", // filled after zip server starts
+		})
+	}
+
+	zipSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := filepath.Base(r.URL.Path)
+		http.ServeFile(w, r, filepath.Join(zipDir, name))
+	}))
+	t.Cleanup(zipSrv.Close)
+	restoreClient := packs.SetInstallHTTPClientForTests(zipSrv.Client())
+	t.Cleanup(restoreClient)
+
+	for i := range entries {
+		entries[i].DownloadURL = zipSrv.URL + "/" + entries[i].ID + ".zip"
+	}
+	catalogBody, err := json.Marshal(&packs.Catalog{Version: 1, Packs: entries})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	catalogSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(catalogBody)
+	}))
+	t.Cleanup(func() {
+		catalogSrv.Close()
+		packs.InvalidateCatalogCache()
+	})
+	t.Setenv("NEURAL_JUNKIE_PACKS_CATALOG_URL", catalogSrv.URL)
+}
+
+func zipDirContents(srcDir, zipPath string) error {
+	out, err := os.Create(zipPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	w := zip.NewWriter(out)
+	defer w.Close()
+	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		fw, err := w.Create(rel)
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		_, err = fw.Write(data)
+		return err
+	})
 }
 
 func TestSyncAgentsFromPacksLifeSciences(t *testing.T) {
@@ -342,6 +449,7 @@ func TestDefaultConfigNoPacksInstalled(t *testing.T) {
 }
 
 func TestInstallAndUninstallPack(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
 	if err := cfg.InstallPack(PackLifeSciences); err != nil {
 		t.Fatal(err)
@@ -369,6 +477,7 @@ func TestSetPackEnabledRequiresInstall(t *testing.T) {
 }
 
 func TestMigrateInstalledPacksBothOn(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
 	cfg.Packs.Enabled[PackSoftwareDevelopment] = true
 	cfg.Packs.Enabled[PackLifeSciences] = true
@@ -385,7 +494,9 @@ func TestMigrateInstalledPacksBothOn(t *testing.T) {
 }
 
 func TestListPackCatalogStatusLoRAAdapterCount(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
+	installTestPack(t, cfg, PackSpecialistTuning)
 	rows, err := cfg.ListPackCatalogStatus()
 	if err != nil {
 		t.Fatal(err)
@@ -422,6 +533,7 @@ func TestListPackCatalogStatusLoRAAdapterCount(t *testing.T) {
 }
 
 func TestMigrateSpecialistTuningForLoRAUsers(t *testing.T) {
+	setupTestOfficialPackCatalog(t)
 	cfg := DefaultConfig()
 	cfg.Ollama.ModelsToEnsure = []string{"nj-security:14b", "qwen2.5-coder:14b"}
 	cfg.Agents = append(cfg.Agents, AgentConfig{

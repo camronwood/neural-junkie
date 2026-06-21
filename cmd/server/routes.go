@@ -138,6 +138,9 @@ func registerRoutes() {
 	// Application config and health endpoints
 	http.HandleFunc("/api/health", corsMiddleware(handleHealth))
 	http.HandleFunc("/api/settings", corsMiddleware(handleSettings))
+	http.HandleFunc("/api/integrations/aws/profiles", corsMiddleware(localOnly(handleIntegrationsAWSProfiles)))
+	http.HandleFunc("/api/integrations/aws/test", corsMiddleware(localOnly(handleIntegrationsAWSTest)))
+	http.HandleFunc("/api/integrations/jira/test", corsMiddleware(localOnly(handleIntegrationsJiraTest)))
 	http.HandleFunc("/api/packs", corsMiddleware(handlePacksRoute))
 	http.HandleFunc("/api/packs/", corsMiddleware(handlePacksRoute))
 	http.HandleFunc("/api/expert-presets", corsMiddleware(handleExpertPresets))
