@@ -35,6 +35,7 @@ export interface ShortcutHandlerMap {
   toggleTerminal: ShortcutHandler;
   openCommandPalette: ShortcutHandler;
   openModelLibrary: ShortcutHandler;
+  openDomainPacks: ShortcutHandler;
   openChatFind: ShortcutHandler;
   handleEscape: ShortcutHandler;
   toggleChannelSidebar: ShortcutHandler;

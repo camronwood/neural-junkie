@@ -87,12 +87,13 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     clearError,
   } = useFileExplorerStore();
 
-  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openComparatorAnalysis, setPanelQCReport } =
+  const { openFile, openScanSummary, openScanAnalysis, openCadWorkbench, openHtmlBrowser, openComparatorAnalysis, setPanelQCReport } =
     useEditorStore();
   const hasScanSummary = usePacksStore((s) => s.hasCapability('scan-summary-viewer'));
   const hasScanAnalysis = usePacksStore((s) => s.hasCapability('scan-analysis-viewer'));
   const hasSecondaryAnalysis = usePacksStore((s) => s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_VIEWER));
   const hasCadWorkbench = usePacksStore((s) => s.hasCapability('cad-workbench'));
+  const hasHtmlBrowserWorkbench = usePacksStore((s) => s.hasCapability(PACK_CAP.WEB_BROWSER_WORKBENCH));
   const addToBasket = useSecondaryAnalysisStore((s) => s.addToBasket);
   const setPanelOpen = useSecondaryAnalysisStore((s) => s.setPanelOpen);
   const { addToast } = useToastStore();
@@ -550,6 +551,13 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           setSelectedPath(file.path);
           return;
         }
+        if (hasHtmlBrowserWorkbench && !file.is_dir && /\.html?$/i.test(file.path)) {
+          const content = await api.fetchFileContent(activeWorkspace.id, file.path);
+          openHtmlBrowser(activeWorkspace.id, file.path, content);
+          if (onFileOpen) onFileOpen();
+          setSelectedPath(file.path);
+          return;
+        }
       }
       // Open file in editor
       if (activeWorkspace) {
@@ -937,6 +945,19 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
   const handleOpenSecondaryPanel = () => {
     setPanelOpen(true);
     closeContextMenu();
+  };
+
+  const handleOpenHtmlFromMenu = async () => {
+    if (!contextMenu || !activeWorkspaceId || contextMenu.isDir) return;
+    if (!/\.html?$/i.test(contextMenu.path)) return;
+    try {
+      const content = await api.fetchFileContent(activeWorkspaceId, contextMenu.path);
+      openHtmlBrowser(activeWorkspaceId, contextMenu.path, content);
+      closeContextMenu();
+      if (onFileOpen) onFileOpen();
+    } catch (e) {
+      addToast({ type: 'error', title: 'HTML browser', message: e instanceof Error ? e.message : 'Failed to open' });
+    }
   };
 
   const handleOpenCadFromMenu = async () => {
@@ -1571,6 +1592,15 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
                 🧬 Run endogenous analysis…
               </button>
             </>
+          )}
+
+          {hasHtmlBrowserWorkbench && !contextMenu.isDir && /\.html?$/i.test(contextMenu.path) && (
+            <button
+              onClick={() => void handleOpenHtmlFromMenu()}
+              className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+            >
+              🌐 Open HTML browser
+            </button>
           )}
 
           {hasCadWorkbench && !contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.scad') && (

@@ -15,6 +15,7 @@ import type { EditorTab } from '../stores/editorStore';
 import { EditorImagePreview } from './EditorImagePreview';
 import { ScanSummaryViewer } from './ScanSummaryViewer';
 import { CadWorkbench } from './CadWorkbench';
+import { HtmlBrowserWorkbench } from './HtmlBrowserWorkbench';
 import { ScanAnalysisViewer } from './ScanAnalysisViewer';
 import { ComparatorAnalysisViewer } from './ComparatorAnalysisViewer';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -223,7 +224,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
 
     const monaco = monacoRef.current;
     const tab = useEditorStore.getState().getTabById(activeTabId);
-    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench') return;
+    if (!tab || tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'cad-workbench' || tab.viewMode === 'html-preview') return;
 
     const syncKey = tab.contentSyncKey ?? 0;
     const tabSwitched = lastAppliedRef.current.tabId !== activeTabId;
@@ -428,6 +429,7 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
   const getTabIcon = (tab: EditorTab) => {
     if (tab.viewMode === 'image') return '🖼️';
     if (tab.viewMode === 'cad-workbench') return '📐';
+    if (tab.viewMode === 'html-preview') return '🌐';
     if (tab.viewMode === 'scan-summary') return '🔬';
     if (tab.viewMode === 'scan-analysis') return '📊';
     if (tab.viewMode === 'comparator-analysis') return '📈';
@@ -639,6 +641,15 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
               data={activeTab.scanSummaryData}
               initialWell={activeTab.scanSummaryInitialWell ?? 'A1'}
               linkedAnalysisDir={activeTab.linkedAnalysisDir}
+            />
+          ) : activeTab.viewMode === 'html-preview' && activeTab.htmlPath ? (
+            <HtmlBrowserWorkbench
+              key={`${activeTab.id}:${activeTab.htmlPath}`}
+              workspaceId={activeTab.workspaceId}
+              htmlPath={activeTab.htmlPath}
+              initialContent={activeTab.content}
+              initialUrl={activeTab.htmlPreviewUrl}
+              tabId={activeTab.id}
             />
           ) : activeTab.viewMode === 'cad-workbench' && activeTab.cadScadPath ? (
             <CadWorkbench

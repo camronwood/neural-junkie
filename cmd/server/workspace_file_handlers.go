@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -244,4 +246,90 @@ func handleFileContent(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleWorkspacePreview serves workspace files for the HTML browser workbench (text/html and assets).
+func handleWorkspacePreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace"))
+	relPath := strings.TrimPrefix(strings.TrimSpace(r.URL.Query().Get("path")), "/")
+	if workspaceID == "" || relPath == "" {
+		http.Error(w, "workspace and path required", http.StatusBadRequest)
+		return
+	}
+	workspace, exists := workspaceManager.GetWorkspace(workspaceID)
+	if !exists {
+		http.Error(w, "Workspace not found", http.StatusNotFound)
+		return
+	}
+	if isRemoteWorkspace(workspace) {
+		content, code, msg := backendReadFile(r.Context(), workspaceID, relPath)
+		if code != 0 {
+			http.Error(w, msg, code)
+			return
+		}
+		writeWorkspacePreview(w, r, workspaceID, relPath, content)
+		return
+	}
+	fullPath := filepath.Join(workspace.Path, relPath)
+	absPath, err := pathutil.WithinRoot(workspace.Path, fullPath)
+	if err != nil {
+		http.Error(w, "Path outside workspace", http.StatusForbidden)
+		return
+	}
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeWorkspacePreview(w, r, workspaceID, relPath, content)
+}
+
+func writeWorkspacePreview(w http.ResponseWriter, r *http.Request, workspaceID, relPath string, content []byte) {
+	ext := strings.ToLower(filepath.Ext(relPath))
+	mimeType := mime.TypeByExtension(ext)
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+	if ext == ".html" || ext == ".htm" {
+		dir := filepath.ToSlash(filepath.Dir(relPath))
+		if dir == "." {
+			dir = ""
+		}
+		basePath := dir
+		if basePath != "" && !strings.HasSuffix(basePath, "/") {
+			basePath += "/"
+		}
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		baseHref := fmt.Sprintf("%s://%s/api/workspace-preview?workspace=%s&path=%s",
+			scheme, r.Host, url.QueryEscape(workspaceID), url.PathEscape(basePath))
+		html := string(content)
+		baseTag := fmt.Sprintf(`<base href="%s">`, baseHref)
+		lower := strings.ToLower(html)
+		if idx := strings.Index(lower, "<head"); idx >= 0 {
+			if end := strings.Index(lower[idx:], ">"); end >= 0 {
+				insertAt := idx + end + 1
+				html = html[:insertAt] + baseTag + html[insertAt:]
+			} else {
+				html = baseTag + html
+			}
+		} else {
+			html = baseTag + html
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(html))
+		return
+	}
+	w.Header().Set("Content-Type", mimeType)
+	_, _ = w.Write(content)
 }

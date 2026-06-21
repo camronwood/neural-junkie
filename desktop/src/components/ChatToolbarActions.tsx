@@ -7,6 +7,7 @@ import {
   TerminalIcon,
   GitIcon,
   ModelLibraryIcon,
+  DomainPacksIcon,
   SettingsIcon,
   LogoutIcon,
   TaskManagementIcon,
@@ -53,6 +54,8 @@ export interface ChatToolbarActionsProps {
   onToggleIdeLayout: () => void;
   ideLayoutButtonTitle: string;
   onOpenModelLibrary: () => void;
+  onOpenDomainPacks: () => void;
+  enabledPackCount?: number;
   onOpenSettings?: (tab?: SettingsTab) => void;
   onLogout?: () => void;
   username: string;
@@ -97,6 +100,8 @@ export function ChatToolbarActions({
   onToggleIdeLayout,
   ideLayoutButtonTitle,
   onOpenModelLibrary,
+  onOpenDomainPacks,
+  enabledPackCount = 0,
   onOpenSettings,
   onLogout,
   username,
@@ -215,6 +220,23 @@ export function ChatToolbarActions({
           <EditorIcon className="w-3.5 h-3.5" />
         </button>
 
+        {devPackEnabled && (
+          <button
+            type="button"
+            onClick={onToggleIdeLayout}
+            className={`${iconBtn} text-[10px] font-bold ${
+              ideLayout
+                ? 'bg-violet-600 text-white ring-1 ring-violet-400 ring-offset-1 ring-offset-slack-bg'
+                : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
+            }`}
+            title={ideLayoutButtonTitle}
+            aria-label="Toggle IDE vs team layout"
+            aria-pressed={ideLayout}
+          >
+            IDE
+          </button>
+        )}
+
         {phoenixPackInstalled && onOpenPhoenix && (
           <button
             type="button"
@@ -302,20 +324,6 @@ export function ChatToolbarActions({
           </button>
         )}
 
-        {devPackEnabled && (
-          <button
-            type="button"
-            onClick={onToggleIdeLayout}
-            className={`${iconBtn} text-[10px] font-bold ${
-              ideLayout ? 'bg-teal-600 text-white' : 'bg-slack-bgHover text-slack-textMuted hover:text-slack-text'
-            }`}
-            title={ideLayoutButtonTitle}
-            aria-label="Toggle IDE vs team layout"
-          >
-            IDE
-          </button>
-        )}
-
         <button
           type="button"
           onClick={() => useTerminalStore.getState().togglePanel()}
@@ -356,6 +364,21 @@ export function ChatToolbarActions({
           onOpenModelLibrary={onOpenModelLibrary}
           onOpenSettings={onOpenSettings}
         />
+
+        <button
+          type="button"
+          onClick={onOpenDomainPacks}
+          className={`${iconBtn} bg-teal-600 hover:bg-teal-500 text-white relative focus-visible:outline-teal-300`}
+          title={`Domain packs (${formatChord('mod+shift+k')})`}
+          aria-label="Open domain pack store"
+        >
+          <DomainPacksIcon className="w-3.5 h-3.5" />
+          {enabledPackCount > 0 && (
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold leading-none text-teal-700">
+              {enabledPackCount}
+            </span>
+          )}
+        </button>
 
         <button
           type="button"

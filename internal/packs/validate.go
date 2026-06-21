@@ -35,6 +35,9 @@ var KnownCapabilityTokens = []string{
 	"incident-api",
 	"jira-integration",
 	"incident-triage",
+	"web-browser",
+	"web-preview",
+	"web-browser-workbench",
 }
 
 // KnownOverlayKeys are settings_overlay keys applied by the hub for customer packs.

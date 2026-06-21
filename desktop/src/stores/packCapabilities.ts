@@ -24,6 +24,9 @@ export const PACK_CAP = {
   INCIDENT_API: 'incident-api',
   JIRA_INTEGRATION: 'jira-integration',
   INCIDENT_TRIAGE: 'incident-triage',
+  WEB_BROWSER: 'web-browser',
+  WEB_PREVIEW: 'web-preview',
+  WEB_BROWSER_WORKBENCH: 'web-browser-workbench',
 } as const;
 
 export type PackCapability = (typeof PACK_CAP)[keyof typeof PACK_CAP];

@@ -13,6 +13,7 @@ repos=(
   neural-junkie-pack-specialist-tuning:specialist-tuning
   neural-junkie-pack-aws:aws
   neural-junkie-pack-incident-management:incident-management
+  neural-junkie-pack-web-browser:web-browser
 )
 
 for spec in "${repos[@]}"; do

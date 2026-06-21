@@ -11,7 +11,6 @@ export type SettingsTab =
   | 'integrations'
   | 'assistant-tools'
   | 'slack'
-  | 'domain-packs'
   | 'security'
   | 'about';
 
@@ -62,7 +61,6 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   {
     title: 'Advanced',
     items: [
-      { id: 'domain-packs', label: 'Domain packs' },
       { id: 'security', label: 'Security' },
       { id: 'about', label: 'About' },
     ],

@@ -1,0 +1,35 @@
+id: web-browser
+version: "1.0.0"
+title: Web browser
+description: WebBrowserExpert with fetch_url, web search, and an HTML preview workbench for local pages and dev servers.
+layout_profile: team
+capabilities:
+  - web-browser
+  - web-preview
+  - web-browser-workbench
+requires_packs:
+  - software-development
+agents:
+  - type: browser
+    name: WebBrowserExpert
+    implementation: builtin/browser
+    ollama_model: qwen2.5-coder:14b
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - html
+        - css
+        - website
+        - localhost
+        - preview
+        - browser
+        - dom
+        - responsive
+        - fetch
+models_to_ensure:
+  - qwen2.5-coder:14b
+  - qwen3.5:9b
+expert_slug: browser
+expert_label: Web / HTML preview
+mcp_agents:
+  - browser

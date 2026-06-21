@@ -28,6 +28,7 @@ const defaultHandlers: ShortcutHandlerMap = {
   toggleTerminal: noop,
   openCommandPalette: noop,
   openModelLibrary: noop,
+  openDomainPacks: noop,
   openChatFind: noop,
   handleEscape: noop,
   toggleChannelSidebar: noop,

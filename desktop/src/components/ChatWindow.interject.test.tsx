@@ -181,6 +181,7 @@ vi.mock('./HubDataAccessModal', () => ({ HubDataAccessModal: () => null }));
 vi.mock('./PhoenixBrowserModal', () => ({ PhoenixBrowserModal: () => null }));
 vi.mock('./LearningProposalModal', () => ({ LearningProposalModal: () => null }));
 vi.mock('./ModelLibraryModal', () => ({ ModelLibraryModal: () => null }));
+vi.mock('./DomainPacksModal', () => ({ DomainPacksModal: () => null }));
 vi.mock('./SecondaryAnalysisPanel', () => ({ SecondaryAnalysisPanel: () => null }));
 vi.mock('./PendingApprovalsBar', () => ({ PendingApprovalsBar: () => null }));
 vi.mock('../stores/approvalStore', () => {

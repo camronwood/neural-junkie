@@ -29,6 +29,7 @@ Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json
 | `specialist-tuning` | `camronwood/neural-junkie-pack-specialist-tuning` |
 | `aws` | `camronwood/neural-junkie-pack-aws` |
 | `incident-management` | `camronwood/neural-junkie-pack-incident-management` |
+| `web-browser` | `camronwood/neural-junkie-pack-web-browser` |
 
 Build and release from each pack repo:
 

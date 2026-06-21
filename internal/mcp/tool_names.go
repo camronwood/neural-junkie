@@ -83,6 +83,9 @@ var hubMCPToolNames = map[string]bool{
 	"jira_search_issues":   true,
 	"jira_add_comment":     true,
 	"jira_summarize_issue": true,
+	// Web browser
+	"web_search": true,
+	"fetch_url":  true,
 	// Built-in agent tools
 	"generate_image": true,
 }

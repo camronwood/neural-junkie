@@ -79,6 +79,9 @@ func typeKeywords(t protocol.AgentType) []string {
 	case protocol.AgentTypeIncident:
 		return []string{"incident", "bug", "ticket", "triage", "regression", "sentry", "jira",
 			"stack", "trace", "severity", "outage", "postmortem", "reproduce"}
+	case protocol.AgentTypeBrowser:
+		return []string{"html", "css", "website", "webpage", "browser", "preview", "localhost",
+			"dom", "responsive", "iframe", "fetch", "page", "viewport", "layout"}
 	default:
 		return nil
 	}

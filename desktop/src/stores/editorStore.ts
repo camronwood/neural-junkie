@@ -10,7 +10,7 @@ import { getLanguageFromPath } from '../utils/editorLanguage';
 
 const api = new ChatAPI(getHubBaseURL());
 
-export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench';
+export type EditorTabViewMode = 'text' | 'csv-table' | 'markdown-preview' | 'image' | 'scan-summary' | 'scan-analysis' | 'comparator-analysis' | 'cad-workbench' | 'html-preview';
 
 export interface EditorTab {
   id: string;
@@ -46,6 +46,9 @@ export interface EditorTab {
   /** CAD workbench: relative .scad path in workspace. */
   cadScadPath?: string;
   cadProjectId?: string;
+  /** HTML browser workbench: relative .html path in workspace. */
+  htmlPath?: string;
+  htmlPreviewUrl?: string;
 }
 
 export interface OpenFileOptions {
@@ -111,6 +114,12 @@ interface EditorState {
     content: string,
     options?: { projectId?: string }
   ) => void;
+  openHtmlBrowser: (
+    workspaceId: string,
+    htmlPath: string,
+    content: string,
+    options?: { previewUrl?: string }
+  ) => void;
   linkScanToAnalysisTab: (tabId: string, scanDir: string) => void;
   linkAnalysisToScanTab: (tabId: string, analysisDir: string) => void;
   findLinkedAnalysisTab: (workspaceId: string, scanDir: string) => EditorTab | undefined;
@@ -171,7 +180,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content,
       isDirty: false,
       contentSyncKey: 0,
-      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' ? undefined : language,
+      language: viewMode === 'image' || viewMode === 'csv-table' || viewMode === 'markdown-preview' || viewMode === 'scan-summary' || viewMode === 'scan-analysis' || viewMode === 'comparator-analysis' || viewMode === 'cad-workbench' || viewMode === 'html-preview' ? undefined : language,
       viewMode,
       imageSrc,
       scanSummaryDir: options?.scanSummaryDir,
@@ -413,6 +422,52 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  openHtmlBrowser: (workspaceId, htmlPath, content, options) => {
+    const state = get();
+    const normalized = htmlPath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    const existingTab = state.tabs.find(
+      (t) =>
+        t.workspaceId === workspaceId &&
+        t.viewMode === 'html-preview' &&
+        (t.htmlPath ?? t.path).replace(/\\/g, '/').replace(/^\/+/, '') === normalized,
+    );
+    if (existingTab) {
+      set({
+        activeTabId: existingTab.id,
+        tabs: state.tabs.map((t) =>
+          t.id === existingTab.id
+            ? {
+                ...t,
+                path: normalized,
+                htmlPath: normalized,
+                content,
+                htmlPreviewUrl: options?.previewUrl ?? t.htmlPreviewUrl,
+                isDirty: false,
+              }
+            : t,
+        ),
+      });
+      return;
+    }
+
+    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newTab: EditorTab = {
+      id: tabId,
+      workspaceId,
+      path: normalized,
+      content,
+      isDirty: false,
+      viewMode: 'html-preview',
+      htmlPath: normalized,
+      htmlPreviewUrl: options?.previewUrl,
+    };
+    set({
+      tabs: [...state.tabs, newTab],
+      activeTabId: tabId,
+    });
+  },
+
   linkScanToAnalysisTab: (tabId, scanDir) => {
     set({
       tabs: get().tabs.map((t) =>
@@ -533,7 +588,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => {
         if (tab.id !== tabId) return tab;
-        if (tab.viewMode === 'cad-workbench') {
+        if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'html-preview') {
           return tab.content === content ? tab : { ...tab, content, isDirty: false };
         }
         if (tab.viewMode === 'image' || tab.viewMode === 'csv-table' || tab.viewMode === 'markdown-preview' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis') return tab;
@@ -582,7 +637,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (tab.viewMode === 'image' || tab.viewMode === 'scan-summary' || tab.viewMode === 'scan-analysis' || tab.viewMode === 'comparator-analysis' || tab.viewMode === 'cad-workbench') return true;
 
     set({ saving: true, error: null });
-    
+
     try {
       await api.saveFileContent(tab.workspaceId, tab.path, tab.content);
       
@@ -659,7 +714,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return;
     }
 
-    if (tab.viewMode === 'cad-workbench') {
+    if (tab.viewMode === 'cad-workbench' || tab.viewMode === 'html-preview') {
       try {
         const latestContent = await api.fetchFileContent(workspaceId, path);
         set(current => ({

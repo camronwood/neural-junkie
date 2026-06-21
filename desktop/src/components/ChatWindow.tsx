@@ -96,6 +96,7 @@ import { TaskManagementPanel } from './TaskManagementPanel';
 import { SecondaryAnalysisPanel } from './SecondaryAnalysisPanel';
 import { useSecondaryAnalysisStore } from '../stores/secondaryAnalysisStore';
 import { ModelLibraryModal } from './ModelLibraryModal';
+import { DomainPacksModal } from './DomainPacksModal';
 import { PhoenixBrowserModal } from './PhoenixBrowserModal';
 import { LearningProposalModal } from './LearningProposalModal';
 import type { LearningProposalAction } from '../api/chatAPI';
@@ -236,6 +237,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
   const devPackEnabled = hasIdeV2;
   const phoenixPackInstalled = usePacksStore((s) => s.hasCapability(PACK_CAP.PHOENIX_IMPORT));
+  const enabledPackCount = usePacksStore((s) => s.packs.filter((p) => p.enabled).length);
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -442,6 +444,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [commandDefs, setCommandDefs] = useState<CommandDefinition[]>([]);
   const [modelLibraryOpen, setModelLibraryOpen] = useState(false);
   const [modelLibraryInitialTab, setModelLibraryInitialTab] = useState<'ollama' | 'huggingface' | 'train' | undefined>();
+  const [domainPacksOpen, setDomainPacksOpen] = useState(false);
   const [loraTrainPrefill, setLoraTrainPrefill] = useState<LoraTrainPrefill | null>(null);
   const [learningProposal, setLearningProposal] = useState<LearningProposalAction | null>(null);
   const [learningProposalOpen, setLearningProposalOpen] = useState(false);
@@ -2133,8 +2136,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   useShortcutDispatcher(true);
 
+  const handleOpenSettings = useCallback(
+    (tab?: import('./SettingsModal').SettingsTab | 'domain-packs') => {
+      if (tab === 'domain-packs') {
+        setDomainPacksOpen(true);
+        return;
+      }
+      onOpenSettings?.(tab);
+    },
+    [onOpenSettings],
+  );
+
   useChatShortcutHandlers({
-    onOpenSettings,
+    onOpenSettings: handleOpenSettings,
     channelSearchRef,
     inputRef,
     devPackEnabled,
@@ -2156,6 +2170,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setFastEditOpen,
     setCommandPaletteOpen,
     setModelLibraryOpen,
+    setDomainPacksOpen,
     setChatFindOpen,
     setCreateChannelOpen,
     setCreateNewDmOpen,
@@ -2180,6 +2195,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     setModelLibraryOpen(false);
     setModelLibraryInitialTab(undefined);
     setLoraTrainPrefill(null);
+  }, []);
+
+  const closeDomainPacks = useCallback(() => {
+    setDomainPacksOpen(false);
   }, []);
 
   useChatShortcutOverlays({
@@ -2365,7 +2384,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       },
       ideLayoutButtonTitle: `Layout: ${layoutPresetLabel(ideLayout ? 'ide' : 'team')} (click to switch)`,
       onOpenModelLibrary: () => setModelLibraryOpen(true),
-      onOpenSettings,
+      onOpenDomainPacks: () => setDomainPacksOpen(true),
+      enabledPackCount,
+      onOpenSettings: handleOpenSettings,
       onLogout: onLogout ? handleLogout : undefined,
       username,
       serverAddr,
@@ -2384,8 +2405,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       phoenixPackInstalled,
       gitModalOpen,
       ideLayout,
-      onOpenSettings,
+      handleOpenSettings,
       onLogout,
+      enabledPackCount,
       handleLogout,
       username,
       serverAddr,
@@ -2444,7 +2466,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           </div>
         </div>
         
-        <div className="flex items-center gap-1.5 shrink-0" aria-label="Sidebar toggles">
+        <div className="flex items-center gap-1.5 shrink min-w-0 max-w-[min(100%,72rem)] overflow-x-auto overflow-y-visible" aria-label="Sidebar toggles">
           <button
             type="button"
             onClick={toggleChannelSidebar}
@@ -2943,6 +2965,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         defaultChannel={channel}
         initialTab={modelLibraryInitialTab}
         loraTrainPrefill={loraTrainPrefill}
+      />
+
+      <DomainPacksModal
+        isOpen={domainPacksOpen}
+        onClose={closeDomainPacks}
+        serverAddr={hubHttp}
       />
 
       <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setPhoenixModalOpen(false)} />

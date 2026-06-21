@@ -19,7 +19,6 @@ import { ApiCredentialsSettingsTab } from './settings/ApiCredentialsSettingsTab'
 import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
-import { DomainPacksSettingsTab } from './settings/DomainPacksSettingsTab';
 import { SecuritySettingsTab } from './settings/SecuritySettingsTab';
 import { AboutSettingsTab } from './settings/AboutSettingsTab';
 
@@ -122,7 +121,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <IntegrationsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'integrations'} />
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />
             <SlackSettingsTab hubHttp={hubHttp} isActive={activeTab === 'slack'} />
-            <DomainPacksSettingsTab hubHttp={hubHttp} isActive={activeTab === 'domain-packs'} />
             <SecuritySettingsTab hubHttp={hubHttp} isActive={activeTab === 'security'} />
             <AboutSettingsTab hubHttp={hubHttp} isActive={activeTab === 'about'} />
           </div>

@@ -35,6 +35,7 @@ export interface ChatShortcutHandlerDeps {
   setFastEditOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setModelLibraryOpen: (open: boolean) => void;
+  setDomainPacksOpen: (open: boolean) => void;
   setChatFindOpen: (open: boolean) => void;
   setCreateChannelOpen: (open: boolean) => void;
   setCreateNewDmOpen: (open: boolean) => void;
@@ -131,6 +132,7 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
       toggleTerminal: () => togglePanel(),
       openCommandPalette: () => void d.current.openCommandPalette(),
       openModelLibrary: () => d.current.setModelLibraryOpen(true),
+      openDomainPacks: () => d.current.setDomainPacksOpen(true),
       openChatFind: () => d.current.setChatFindOpen(true),
       handleEscape: async () => {
         if (closeTopOverlay()) return;
@@ -248,6 +250,7 @@ export function useChatShortcutHandlers(deps: ChatShortcutHandlerDeps) {
         'toggleTerminal',
         'openCommandPalette',
         'openModelLibrary',
+        'openDomainPacks',
         'openChatFind',
         'handleEscape',
         'toggleChannelSidebar',

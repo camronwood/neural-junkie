@@ -33,6 +33,7 @@ var defaultPorts = map[string]int{
 	"CAD":          8091,
 	"AWS":          8092,
 	"INCIDENT":     8093,
+	"BROWSER":      8094,
 }
 
 // NormalizeAgentType maps agent type strings to MCP port config keys (e.g. code-review -> CODE_REVIEW).

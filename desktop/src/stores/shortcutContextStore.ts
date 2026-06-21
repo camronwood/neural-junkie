@@ -4,6 +4,7 @@ export type ShortcutOverlayType =
   | 'settings'
   | 'commandPalette'
   | 'modelLibrary'
+  | 'domainPacks'
   | 'quickOpen'
   | 'symbol'
   | 'fastEdit'

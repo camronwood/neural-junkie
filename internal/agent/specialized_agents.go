@@ -11,6 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/mcp/cad"
 	"github.com/camronwood/neural-junkie/internal/mcp/aws"
 	"github.com/camronwood/neural-junkie/internal/mcp/incident"
+	"github.com/camronwood/neural-junkie/internal/mcp/browser"
 	"github.com/camronwood/neural-junkie/internal/mcp/codereview"
 	"github.com/camronwood/neural-junkie/internal/mcp/database"
 	"github.com/camronwood/neural-junkie/internal/mcp/devops"
@@ -328,6 +329,25 @@ func NewIncidentAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return agent
 }
 
+// NewBrowserAgent creates a web browsing agent with fetch_url and web_search MCP tools.
+func NewBrowserAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"HTML", "CSS", "Web pages", "DOM", "Responsive design",
+		"Local dev servers", "localhost", "Page preview", "Web fetch",
+		"Frontend QA", "Accessibility", "SEO basics",
+	}
+
+	agent := NewAgent(protocol.AgentTypeBrowser, name, expertise, ai, hub)
+
+	if browserMCP, err := browser.NewBrowserMCP(); err != nil {
+		log.Printf("Failed to create Browser MCP server: %v", err)
+	} else {
+		startDomainAgentMCP(agent, "Browser", browserMCP)
+	}
+
+	return agent
+}
+
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
@@ -373,6 +393,8 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewAWSAgent(name, ai, hub), nil
 	case protocol.AgentTypeIncident:
 		return NewIncidentAgent(name, ai, hub), nil
+	case protocol.AgentTypeBrowser:
+		return NewBrowserAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeModerator:

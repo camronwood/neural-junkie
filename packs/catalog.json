@@ -61,6 +61,16 @@
       "publisher": "Neural Junkie",
       "builtin": true,
       "download_url": "https://github.com/camronwood/neural-junkie-pack-incident-management/releases/download/v1.0.0/incident-management-1.0.0.zip"
+    },
+    {
+      "id": "web-browser",
+      "version": "1.0.0",
+      "title": "Web browser",
+      "description": "WebBrowserExpert with fetch_url, web search, and an HTML preview workbench for local pages and dev servers.",
+      "icon_key": "code",
+      "publisher": "Neural Junkie",
+      "builtin": true,
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-web-browser/releases/download/v1.0.0/web-browser-1.0.0.zip"
     }
   ]
 }

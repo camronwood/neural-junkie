@@ -72,6 +72,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/workspaces", corsMiddleware(localOnly(handleWorkspaces)))
 	http.HandleFunc("/api/files", corsMiddleware(localOnly(handleFiles)))
 	http.HandleFunc("/api/file-content", corsMiddleware(localOnly(handleFileContent)))
+	http.HandleFunc("/api/workspace-preview", corsMiddleware(localOnly(handleWorkspacePreview)))
 	http.HandleFunc("/api/file-create", corsMiddleware(localOnly(handleFileCreate)))
 	http.HandleFunc("/api/file-rename", corsMiddleware(localOnly(handleFileRename)))
 	http.HandleFunc("/api/file-delete", corsMiddleware(localOnly(handleFileDelete)))

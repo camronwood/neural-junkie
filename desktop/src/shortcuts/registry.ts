@@ -53,6 +53,14 @@ export const SHORTCUT_REGISTRY: ShortcutDefinition[] = [
     handlerId: 'openModelLibrary',
   },
   {
+    id: 'global.domainPacks',
+    chord: 'mod+shift+k',
+    label: 'Domain packs',
+    scope: 'global',
+    priority: 20,
+    handlerId: 'openDomainPacks',
+  },
+  {
     id: 'global.escape',
     chord: 'escape',
     label: 'Close overlay or stop agents',
