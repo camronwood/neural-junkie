@@ -54,6 +54,10 @@ desktop/node_modules/
 /gui
 /tool-approval-hook
 /cli
+/nj-remote
+
+# Local Gemini CLI home used by headless scenario scripts
+scripts/gemini-headless-home/
 
 # Runtime session data / agent backups
 .neural-junkie/
