@@ -1322,6 +1322,34 @@ func (cm *CollaborationManager) AgentOutOfTurnMentionAllowed(collabID string) bo
 	}
 }
 
+// PlanningSpeakerCooldownBlocked prevents one agent from dominating planning
+// before every other participant has spoken at least once in the current round.
+func (cm *CollaborationManager) PlanningSpeakerCooldownBlocked(collabID, agentID string) bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil || c.Discussion == nil || c.Phase != PhasePlanning {
+		return false
+	}
+	d := c.Discussion
+	if d.Status != DiscussionActive || !c.DiscussionBudgetEnforced() {
+		return false
+	}
+	if d.TurnsThisRound[agentID] == 0 {
+		return false
+	}
+	for _, pid := range d.Participants {
+		if pid == agentID {
+			continue
+		}
+		if d.TurnsThisRound[pid] == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // GetCollaborationForAgent returns the active collaboration a given agent
 // is participating in (if any). Returns nil if the agent has no active collab.
 func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collaboration {

@@ -140,6 +140,9 @@ type CollaborationClient interface {
 	// AgentOutOfTurnMentionAllowed is false when planning/review discussion
 	// has stopped accepting turns (e.g. budget_exhausted).
 	AgentOutOfTurnMentionAllowed(collabID string) bool
+	// PlanningSpeakerCooldownBlocked is true when this agent already spoke in the
+	// current planning round and another participant has not spoken yet.
+	PlanningSpeakerCooldownBlocked(collabID, agentID string) bool
 }
 
 // CollaborationInfo carries the subset of collaboration state an agent

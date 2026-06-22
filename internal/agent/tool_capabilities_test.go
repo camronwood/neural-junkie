@@ -70,6 +70,7 @@ func TestEffectiveToolLoopModelCADUsesConfiguredToolModel(t *testing.T) {
 }
 
 func TestDescribeToolCapabilitiesBiologyMCP(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
 	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {

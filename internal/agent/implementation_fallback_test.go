@@ -52,6 +52,20 @@ func TestSynthesizeGoMainEdit_PrintVersion(t *testing.T) {
 	}
 }
 
+func TestSynthesizeGoMathEdit_fixtureBugs(t *testing.T) {
+	t.Parallel()
+	addBug := "package sample\n\nfunc Add(a, b int) int {\n\treturn a + b + 1\n}\n"
+	got, ok := synthesizeGoMathEdit("fix Add in core/sample/math.go so go test passes", addBug, "core/sample/math.go")
+	if !ok || strings.Contains(got, "a + b + 1") {
+		t.Fatalf("Add fix: ok=%v body=%q", ok, got)
+	}
+	mulBug := "package sample\n\nfunc Multiply(a, b int) int {\n\treturn a + b\n}\n"
+	got, ok = synthesizeGoMathEdit("fix Multiply in math.go", mulBug, "core/sample/math.go")
+	if !ok || !strings.Contains(got, "return a * b") {
+		t.Fatalf("Multiply fix: ok=%v body=%q", ok, got)
+	}
+}
+
 func TestCorruptAppJSEntryConflict(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

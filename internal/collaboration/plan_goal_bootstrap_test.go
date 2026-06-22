@@ -1,6 +1,7 @@
 package collaboration
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -49,5 +50,24 @@ func TestExtractTasksFromCollaborationGoal_fileAssigneeList(t *testing.T) {
 	tasks := ExtractTasksFromCollaborationGoal(goal, "f7518f88-50a4-4561-9e88-174381f3090d", agents)
 	if len(tasks) != 3 {
 		t.Fatalf("expected 3 tasks, got %d: %#v", len(tasks), taskTitles(tasks))
+	}
+}
+
+func TestExtractTasksFromCollaborationGoal_unassignedFindingsTask(t *testing.T) {
+	goal := "Task 1 @BackendEngineer Write collabs/<id>/api_schema.md; Task 4 Document findings in collabs/<id>/findings.md (any assignee)."
+	agents := []CollaborationAgent{
+		{AgentID: "asst-1", AgentName: "Assistant", AgentType: protocol.AgentTypeGeneral},
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	tasks := ExtractTasksFromCollaborationGoal(goal, "abc-123", agents)
+	var hasFindings bool
+	for _, task := range tasks {
+		if strings.Contains(strings.ToLower(task.Description), "findings.md") {
+			hasFindings = true
+		}
+	}
+	if !hasFindings {
+		t.Fatalf("expected findings.md task in %#v", taskTitles(tasks))
 	}
 }

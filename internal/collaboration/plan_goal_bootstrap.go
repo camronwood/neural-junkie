@@ -49,6 +49,11 @@ func extractInlineGoalTasks(goal string, agents []CollaborationAgent) []Collabor
 			}
 		}
 	}
+	for _, m := range goalUnassignedDeliverableRe.FindAllString(goal, -1) {
+		if tasks := ExtractTasksFromPlan("## Plan\n\n"+strings.TrimSpace(m), agents); len(tasks) > 0 {
+			merged = append(merged, tasks...)
+		}
+	}
 	return merged
 }
 
@@ -147,27 +152,79 @@ func (cm *CollaborationManager) ensurePlanTasksFromGoalLocked(c *Collaboration) 
 	if c == nil {
 		return
 	}
-	tasks := ExtractTasksFromCollaborationGoal(c.Description, c.ID, c.Agents)
-	if len(tasks) == 0 {
-		return
-	}
-	if len(c.Tasks) > 0 && len(tasks) <= len(c.Tasks) {
+	goalTasks := ExtractTasksFromCollaborationGoal(c.Description, c.ID, c.Agents)
+	if len(goalTasks) == 0 {
 		return
 	}
 	if c.Plan == nil {
 		c.Plan = &SharedArtifact{}
 	}
-	existing := len(ExtractTasksFromPlan(strings.TrimSpace(c.Plan.Content), c.Agents))
-	if existing < len(tasks) {
-		c.Plan.Content = formatPlanContentFromTasks(tasks)
-		c.Plan.Version++
-		c.Plan.UpdatedAt = time.Now()
-		c.Plan.Status = ArtifactProposed
+	existing := ExtractTasksFromPlan(strings.TrimSpace(c.Plan.Content), c.Agents)
+	merged := mergeGoalTasksMissingDeliverables(existing, goalTasks)
+	if len(merged) == 0 {
+		return
 	}
-	if len(tasks) > maxTasksLimit() {
-		tasks = tasks[:maxTasksLimit()]
+	planContent := formatPlanContentFromTasks(merged)
+	if strings.TrimSpace(c.Plan.Content) == planContent {
+		if len(c.Tasks) == len(merged) {
+			return
+		}
+	} else if len(existing) > 0 && len(merged) == len(existing) && strings.Contains(strings.ToLower(c.Plan.Content), "findings.md") {
+		return
 	}
-	c.Tasks = tasks
+	c.Plan.Content = planContent
+	c.Plan.Version++
+	c.Plan.UpdatedAt = time.Now()
+	c.Plan.Status = ArtifactProposed
+	if len(merged) > maxTasksLimit() {
+		merged = merged[:maxTasksLimit()]
+	}
+	c.Tasks = merged
 	c.UpdatedAt = time.Now()
 	log.Printf("[CollaborationManager] Bootstrapped %d tasks from goal for %s", len(c.Tasks), c.ID[:8])
+}
+
+func mergeGoalTasksMissingDeliverables(existing, goal []CollaborationTask) []CollaborationTask {
+	if len(goal) == 0 {
+		return existing
+	}
+	havePath := make(map[string]bool)
+	for _, t := range existing {
+		for _, p := range ReferencedDeliverablePaths(t) {
+			havePath[strings.ToLower(p)] = true
+		}
+		combined := strings.ToLower(t.Title + " " + t.Description)
+		if strings.Contains(combined, "findings.md") {
+			havePath["findings.md"] = true
+		}
+	}
+	out := append([]CollaborationTask(nil), existing...)
+	for _, gt := range goal {
+		paths := ReferencedDeliverablePaths(gt)
+		missing := false
+		if len(paths) == 0 {
+			combined := strings.ToLower(gt.Title + " " + gt.Description)
+			if strings.Contains(combined, "findings.md") && !havePath["findings.md"] {
+				missing = true
+			}
+		} else {
+			for _, p := range paths {
+				key := strings.ToLower(p)
+				if !havePath[key] {
+					missing = true
+					break
+				}
+			}
+		}
+		if missing {
+			out = append(out, gt)
+			for _, p := range paths {
+				havePath[strings.ToLower(p)] = true
+			}
+			if strings.Contains(strings.ToLower(gt.Title+" "+gt.Description), "findings.md") {
+				havePath["findings.md"] = true
+			}
+		}
+	}
+	return DedupeTasks(out)
 }

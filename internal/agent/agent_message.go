@@ -507,6 +507,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 		if a.Collab.IsParticipant(collabID, a.Info.ID) && a.Collab.IsActive(collabID) {
 			collabPhase := a.Collab.GetCollaboration(collabID, a.Info.ID).Phase
+			if collabPhase == "planning" && a.Collab.PlanningSpeakerCooldownBlocked(collabID, a.Info.ID) {
+				if !(msg.IsMentioned(a.Info.ID) && collabOutOfTurnMentionOK(msg, collabPhase)) {
+					log.Printf("[%s] ⏸ planning cooldown — waiting for other participants (collab %s)", a.Info.Name, collabID[:8])
+					return false
+				}
+			}
 			if collabPhase == "executing" {
 				if msg.Type == protocol.MessageTypeCollabTask && msg.Metadata != nil {
 					if assignee, ok := taskAssigneeFromMetadata(msg.Metadata); ok && assignee == a.Info.ID {

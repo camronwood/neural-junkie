@@ -89,6 +89,7 @@ func (c *collabErrorRecordStub) RecordMessage(string, *protocol.Message) error {
 }
 func (c *collabErrorRecordStub) AnalyzeConsensus(string, *protocol.Message) string { return "" }
 func (c *collabErrorRecordStub) AgentOutOfTurnMentionAllowed(string) bool           { return true }
+func (c *collabErrorRecordStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
 
 func TestSendCollabVisibleGenerationError_PromptsNextTurn(t *testing.T) {
 	hub := &collabErrorCaptureHub{}

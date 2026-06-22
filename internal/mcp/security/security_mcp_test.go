@@ -8,6 +8,7 @@ import (
 )
 
 func TestNewSecurityMCPRegistersTools(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
 	if err := cfg.InstallPack(config.PackSoftwareDevelopment); err != nil {

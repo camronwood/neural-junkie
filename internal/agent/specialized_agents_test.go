@@ -12,6 +12,7 @@ import (
 
 func enableCADPackForTest(t *testing.T) {
 	t.Helper()
+	config.SetupTestOfficialPackCatalog(t)
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
 	if err := cfg.InstallPack(config.PackCAD); err != nil {

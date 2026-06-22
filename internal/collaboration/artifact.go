@@ -67,6 +67,7 @@ var (
 	detailedPlanBoundaryRe      = regexp.MustCompile(`(?i)^#{1,4}\s+detailed\s+plan\b`)
 	taskDependencyProseRe       = regexp.MustCompile(`(?i)^task\s+\d+\s+(?:depends\s+on|can\s+be\s+started|should\s+reference)\b`)
 	plainTaskLineRe             = regexp.MustCompile(`(?i)^Task\s+\d+\s*:?\s*@`)
+	goalUnassignedDeliverableRe = regexp.MustCompile(`(?i)Task\s+\d+\s+[^@;]+(?:findings\.md|[a-z0-9_./-]+\.md)[^@;]*`)
 )
 
 // ExtractPlanFromResponse attempts to extract a structured plan from an
@@ -181,6 +182,9 @@ func mergeTaskLinesFromDiscussion(disc *DiscussionSession, agents []Collaboratio
 						resolved = true
 						break
 					}
+				}
+				if !resolved && isDeliverableTaskWithoutAssignee(trimmed) {
+					resolved = true
 				}
 				if !resolved {
 					continue
@@ -457,13 +461,31 @@ func isTaskHeading(line string) bool {
 
 func isPlainTaskLine(line string) bool {
 	trimmed := strings.TrimSpace(line)
-	if !plainTaskLineRe.MatchString(trimmed) {
-		return false
-	}
 	if isTaskDependencyProse(trimmed) {
 		return false
 	}
-	return agentMentionRe.MatchString(trimmed)
+	if plainTaskLineRe.MatchString(trimmed) && agentMentionRe.MatchString(trimmed) {
+		return true
+	}
+	return isDeliverableTaskWithoutAssignee(trimmed)
+}
+
+// isDeliverableTaskWithoutAssignee matches "Task N: Document ... findings.md" rows
+// that intentionally omit an @assignee (round-robin fills assignee later).
+func isDeliverableTaskWithoutAssignee(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	rest := strings.TrimSpace(taskListPrefixRe.ReplaceAllString(trimmed, ""))
+	if !strings.HasPrefix(strings.ToLower(rest), "task ") {
+		return false
+	}
+	if agentMentionRe.MatchString(rest) {
+		return false
+	}
+	if isTaskDependencyProse(rest) {
+		return false
+	}
+	paths := ReferencedDeliverablePaths(CollaborationTask{Description: rest})
+	return len(paths) > 0 || strings.Contains(strings.ToLower(rest), "findings.md")
 }
 
 func isTaskListLine(line string) bool {
@@ -487,8 +509,10 @@ func isTaskListLine(line string) bool {
 		if isTaskDependencyProse(withoutPrefix) {
 			return false
 		}
-		// "Task N: @Agent - ..." rows only; dependency prose has no assignee.
-		return agentMentionRe.MatchString(withoutPrefix)
+		if agentMentionRe.MatchString(withoutPrefix) {
+			return true
+		}
+		return isDeliverableTaskWithoutAssignee(withoutPrefix)
 	}
 	// Numbered plan steps like "1. @Architect, review docs/..." are not executable tasks.
 	if hasListPrefix && numberedPlanStepRe.MatchString(trimmed) {

@@ -11,6 +11,7 @@ import {
   IDE_ROUTE_AGENT_TYPE_KEY,
 } from '../constants/promptMetadata';
 import {
+  applyIdeAskPrefix,
   applyIdePlanPrefix,
   buildImplementationSessionMetadata,
   mergeCodebaseAttachments,

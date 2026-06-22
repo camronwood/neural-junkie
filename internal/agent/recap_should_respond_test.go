@@ -52,3 +52,4 @@ func (collabRecapStub) GetCollaborationWorkingDirectory(string) string { return 
 func (collabRecapStub) RecordMessage(string, *protocol.Message) error { return nil }
 func (collabRecapStub) AnalyzeConsensus(string, *protocol.Message) string { return "" }
 func (collabRecapStub) AgentOutOfTurnMentionAllowed(string) bool       { return false }
+func (collabRecapStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }

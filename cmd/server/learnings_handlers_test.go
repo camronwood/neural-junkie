@@ -17,6 +17,7 @@ import (
 
 func enablePersonalLearningForTest(t *testing.T) {
 	t.Helper()
+	config.SetupTestOfficialPackCatalog(t)
 	appConfig = config.DefaultConfig()
 	appConfig.Packs = config.DefaultPacksConfig()
 	if err := appConfig.InstallPack(config.PackSpecialistTuning); err != nil {

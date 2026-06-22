@@ -7,6 +7,7 @@ import (
 )
 
 func TestGetMCPServerConfigFromHubConfig(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	ResetMCPPortReservation()
 	SetAppConfig(nil)
 	cfg := config.DefaultConfig()
@@ -61,6 +62,7 @@ func TestNewMCPServerDisabled(t *testing.T) {
 }
 
 func TestGetMCPServerConfigSecondInstanceInProcess(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	ResetMCPPortReservation()
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true

@@ -1210,6 +1210,10 @@ func (a *collabClientAdapter) AgentOutOfTurnMentionAllowed(collabID string) bool
 	return a.cm.AgentOutOfTurnMentionAllowed(collabID)
 }
 
+func (a *collabClientAdapter) PlanningSpeakerCooldownBlocked(collabID, agentID string) bool {
+	return a.cm.PlanningSpeakerCooldownBlocked(collabID, agentID)
+}
+
 func (a *collabClientAdapter) GetCurrentTurnAgent(collabID string) (string, error) {
 	return a.cm.GetCurrentTurnAgent(collabID)
 }

@@ -26,6 +26,7 @@ func TestHandleLoraTrainRoute_packDisabled(t *testing.T) {
 }
 
 func TestHandleLoraTrainExpertContext_repoAgent(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil
@@ -81,6 +82,7 @@ func TestHandleLoraTrainExpertContext_repoAgent(t *testing.T) {
 }
 
 func TestHandleLoraTrainExpertContext_assistantAgent(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil
@@ -129,6 +131,7 @@ func TestHandleLoraTrainExpertContext_assistantAgent(t *testing.T) {
 }
 
 func TestHandleLoraTrainStart_rejectsQwenBase(t *testing.T) {
+	config.SetupTestOfficialPackCatalog(t)
 	chatHub = hub.NewHub()
 	defer func() {
 		chatHub = nil

@@ -127,6 +127,7 @@ func TestTryBiologyScanToolShortcutRunsTool(t *testing.T) {
 
 	cfg := config.DefaultConfig()
 	cfg.MCP.Enabled = true
+	config.SetupTestOfficialPackCatalog(t)
 	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
 		t.Fatal(err)
 	}

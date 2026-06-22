@@ -19,6 +19,7 @@ import (
 
 func installCustomerLabPack(t *testing.T, cfg *config.Config) {
 	t.Helper()
+	config.SetupTestOfficialPackCatalog(t)
 	t.Setenv("HOME", t.TempDir())
 	if err := cfg.InstallPack(config.PackLifeSciences); err != nil {
 		t.Fatal(err)

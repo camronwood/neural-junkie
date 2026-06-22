@@ -294,6 +294,23 @@ func TestMergeTaskLinesFromDiscussion_ignoresOffRosterMentions(t *testing.T) {
 	}
 }
 
+func TestMergeTaskLinesFromDiscussion_includesUnassignedFindingsTask(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},
+	}
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "Assistant"},
+				"Task 4 Document findings in collabs/abc-123/findings.md (any assignee)"),
+		},
+	}
+	merged := mergeTaskLinesFromDiscussion(disc, agents)
+	if !strings.Contains(merged, "findings.md") {
+		t.Fatalf("expected findings task in merge, got %q", merged)
+	}
+}
+
 func TestSynthesizePlanFromDiscussion_mergesTaskLinesAcrossMessages(t *testing.T) {
 	agents := []CollaborationAgent{
 		{AgentID: "arch-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
