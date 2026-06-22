@@ -1,0 +1,9 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+qwen2.5-coder:14b	implement	go-handler	1	107.8	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the HelloWorld function and calls it from the main function, as per the user's request.	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	47.5	1	Gemini@http://127.0.0.1:18765: The deliverable file "src/theme.css" correctly implements light and dark theme variables and switches based on the data-theme attribute.	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	37.3			=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	0	903.9			=== FAIL: go-test-failure-repair ===
+gemma3:12b	implement	go-handler	1	39.5	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the `HelloWorld` function and calls it from `main`.	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	41.6	1	Gemini@http://127.0.0.1:18765: The file correctly implements light and dark theme variables and applies them based on the data-theme attribute.	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	39.3			=== PASS: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	0	903.9			=== FAIL: go-test-failure-repair ===
