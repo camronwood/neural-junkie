@@ -1,0 +1,318 @@
+{
+  "suite": "release",
+  "description": "Release gate \u2014 benchmark winners only (~10\u201320 min).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-22T15:15:35.280952+00:00",
+  "hardware": {
+    "total_memory_gb": 24,
+    "total_memory_bytes": 25769803776,
+    "tier": "recommended"
+  },
+  "hardware_note": "24 GB RAM (recommended tier)",
+  "judge_provider": "gemini",
+  "scenario_catalog": [
+    {
+      "name": "go-handler",
+      "kind": "implement",
+      "description": "IDE Agent implementation session on minimal Go fixture.",
+      "tags": [
+        "implement",
+        "backend",
+        "go"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "tags": [
+        "implement",
+        "frontend"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "ask-mode-no-write",
+      "kind": "implement",
+      "description": "IDE Ask mode must not run implementation session or propose edits.",
+      "tags": [
+        "implement",
+        "ask"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "go-test-failure-repair",
+      "kind": "implement",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "verify"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "rules-constrained-implement",
+      "kind": "implement",
+      "description": "Implement theme toggle respecting .neural-junkie/rules.md constraints.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "rules"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "plan-mode-no-write",
+      "kind": "implement",
+      "description": "Plan composer mode produces structured plan without file edits.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "plan"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-workspace",
+      "kind": "chat",
+      "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+      "tags": [
+        "dm",
+        "backend",
+        "workspace",
+        "regression",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-echo-followup",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "echo",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    }
+  ],
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write",
+    "go-test-failure-repair",
+    "rules-constrained-implement",
+    "plan-mode-no-write"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "qwen2.5-coder-14b",
+      "model_tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 149.53106850001495,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the `HelloWorld` function and calls it from the `main` function, as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 52.463940209010616,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file correctly implements light and dark theme variables under `src/theme.css`.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 41.535483000043314,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 903.9178942079889,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "rules-constrained-implement",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 71.35017733398126,
+          "detail": "=== PASS: rules-constrained-implement ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "plan-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 31.43075504200533,
+          "detail": "=== PASS: plan-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 36.58897149999393,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 77.95603304100223,
+          "detail": "=== PASS: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.003029332961887121,
+      "total_duration_s": 1364.7986079169787,
+      "passed_count": 7,
+      "total_count": 8,
+      "pass_rate": 0.875
+    },
+    {
+      "model_id": "gemma3-12b",
+      "model_tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 31.571106584044173,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the `HelloWorld` function and calls it from the `main` function.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 37.61807991703972,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file correctly implements light and dark theme variables under `src/theme.css`.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 33.42229779204354,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 904.1888594999909,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "rules-constrained-implement",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 99.49264775001211,
+          "detail": "=== PASS: rules-constrained-implement ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "plan-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 29.47337924997555,
+          "detail": "=== PASS: plan-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 49.85206000000471,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 52.04641404200811,
+          "detail": "=== PASS: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.010188749991357327,
+      "total_duration_s": 1237.692663291993,
+      "passed_count": 7,
+      "total_count": 8,
+      "pass_rate": 0.875
+    }
+  ]
+}

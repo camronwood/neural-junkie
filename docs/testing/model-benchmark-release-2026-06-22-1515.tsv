@@ -1,0 +1,17 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+qwen2.5-coder:14b	implement	go-handler	1	149.5	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the `HelloWorld` function and calls it from the `main` function, as requested.	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	52.5	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements light and dark theme variables under `src/theme.css`.	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	41.5			=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	0	903.9			=== FAIL: go-test-failure-repair ===
+qwen2.5-coder:14b	implement	rules-constrained-implement	1	71.4			=== PASS: rules-constrained-implement ===
+qwen2.5-coder:14b	implement	plan-mode-no-write	1	31.4			=== PASS: plan-mode-no-write ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	36.6			=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	78.0			=== PASS: dm-backend-echo-followup ===
+gemma3:12b	implement	go-handler	1	31.6	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the `HelloWorld` function and calls it from the `main` function.	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	37.6	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements light and dark theme variables under `src/theme.css`.	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	33.4			=== PASS: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	0	904.2			=== FAIL: go-test-failure-repair ===
+gemma3:12b	implement	rules-constrained-implement	1	99.5			=== PASS: rules-constrained-implement ===
+gemma3:12b	implement	plan-mode-no-write	1	29.5			=== PASS: plan-mode-no-write ===
+gemma3:12b	chat	dm-backend-workspace	1	49.9			=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	1	52.0			=== PASS: dm-backend-echo-followup ===
