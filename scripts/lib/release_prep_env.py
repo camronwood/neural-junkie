@@ -13,6 +13,9 @@ HEADLESS_GEMINI_HOME = ROOT / "scripts" / "gemini-headless-home"
 
 # Ollama fallback judge — independent coder model vs typical qwen3.5:9b implement agents.
 DEFAULT_OLLAMA_JUDGE_MODEL = "qwen2.5-coder:14b"
+# Free-tier Gemini: 5 RPM → ~12s between calls; flash-lite has more headroom than flash.
+DEFAULT_GEMINI_JUDGE_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_GEMINI_JUDGE_MIN_INTERVAL_S = "13"
 
 _ENV_LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 
@@ -74,7 +77,8 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     env.setdefault("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini")
     env.setdefault("NJ_DELIVERABLE_JUDGE_MODE", "hub")
     env.setdefault("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA", "1")
-    env.setdefault("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S", "3.5")
+    env.setdefault("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S", DEFAULT_GEMINI_JUDGE_MIN_INTERVAL_S)
+    env.setdefault("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", DEFAULT_GEMINI_JUDGE_MODEL)
     if not env.get("NJ_DELIVERABLE_JUDGE_MODEL"):
         env["NJ_DELIVERABLE_JUDGE_MODEL"] = DEFAULT_OLLAMA_JUDGE_MODEL
 
@@ -99,6 +103,9 @@ def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
         lines.append(f"NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA=1 → ollama/{ollama_model} on cloud errors")
     if env.get("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S"):
         lines.append(f"NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S={env['NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S']}")
+    gemini_model = (env.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
+    if gemini_model:
+        lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL={gemini_model}")
     if env.get("GEMINI_API_KEY"):
         lines.append("GEMINI_API_KEY loaded")
     else:

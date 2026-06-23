@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -37,6 +38,44 @@ _PROVIDER_DEFAULT_AGENT = {
     "cursor": "Cursor",
     "ollama": "",
 }
+
+# After a definitive cloud-judge failure, skip hub/CLI for the rest of the process.
+_cloud_judge_tripped: dict[str, str] = {}
+
+
+def reset_cloud_judge_circuit() -> None:
+    """Clear tripped cloud providers (for tests)."""
+    _cloud_judge_tripped.clear()
+
+
+def cloud_judge_tripped(provider: str) -> bool:
+    return provider.strip().lower() in _cloud_judge_tripped
+
+
+def trip_cloud_judge(provider: str, detail: str) -> None:
+    """Remember that cloud judging is unavailable for this provider."""
+    key = provider.strip().lower()
+    if not key or key in _cloud_judge_tripped:
+        return
+    reason = (detail or "cloud judge unavailable").strip()[:200]
+    _cloud_judge_tripped[key] = reason
+    print(
+        f"[deliverable-judge] cloud judge disabled for {key} (using ollama): {reason[:120]}",
+        file=sys.stderr,
+    )
+
+
+def _is_cloud_judge_agent_error(text: str) -> bool:
+    if not text:
+        return False
+    lower = text.lower()
+    if is_gemini_quota_error(text):
+        return True
+    if "sorry, i encountered an error" in lower:
+        return True
+    if "cli agent error" in lower:
+        return True
+    return False
 
 
 def judge_skip_enabled() -> bool:
@@ -95,7 +134,14 @@ def _should_fallback_to_ollama(provider: str, detail: str) -> bool:
         return True
     if "judge send failed" in lower or "judge agent offline" in lower:
         return True
+    if "judge error" in lower:
+        return True
     return False
+
+
+def _trip_cloud_judge_on_failure(provider: str, detail: str) -> None:
+    if _should_fallback_to_ollama(provider, detail):
+        trip_cloud_judge(provider, detail)
 
 
 def _judge_via_ollama(prompt: str, *, note: str) -> tuple[bool, str]:
@@ -333,7 +379,14 @@ def hub_judge_deliverable(
                 continue
             text = (msg.get("content") or "").strip()
             if text:
-                return parse_judge_response(text)
+                if _is_cloud_judge_agent_error(text):
+                    return False, f"{agent_name} judge error: {text[:300]}"
+                ok, detail = parse_judge_response(text)
+                if not ok and _is_cloud_judge_agent_error(detail):
+                    return False, f"{agent_name} judge error: {detail[:300]}"
+                if ok:
+                    return True, detail
+                return False, detail
         time.sleep(2.0)
     return False, f"timeout waiting for {agent_name} judge ({timeout_s}s)"
 
@@ -370,12 +423,21 @@ def judge_deliverable(
         ok, detail = ollama_judge_deliverable(prompt=prompt)
         return ok, f"ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
 
+    if (
+        provider in ("gemini", "cursor")
+        and cloud_judge_tripped(provider)
+        and ollama_fallback_enabled()
+    ):
+        ok, detail = ollama_judge_deliverable(prompt=prompt)
+        return ok, f"cloud circuit open → ollama/{DEFAULT_OLLAMA_MODEL}: {detail}"
+
     if mode == "cli" or not hub_base.strip():
         ok, detail = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
         if ok:
             prefix = f"{provider}-cli"
             return ok, f"{prefix}: {detail}"
         if _should_fallback_to_ollama(provider, detail):
+            _trip_cloud_judge_on_failure(provider, detail)
             return _judge_via_ollama(prompt, note="cloud judge error")
         if hub_base.strip():
             # fall through to hub when CLI fails and hub is available
@@ -393,10 +455,12 @@ def judge_deliverable(
         if ok:
             return ok, full_detail
         if _should_fallback_to_ollama(provider, detail):
+            _trip_cloud_judge_on_failure(provider, detail)
             return _judge_via_ollama(prompt, note="cloud judge error")
         return False, full_detail
 
     ok, detail = cli_judge_deliverable(provider=provider, prompt=prompt, work_dir=work_dir)
     if not ok and _should_fallback_to_ollama(provider, detail):
+        _trip_cloud_judge_on_failure(provider, detail)
         return _judge_via_ollama(prompt, note="cloud judge error")
     return ok, f"{provider}-cli: {detail}"

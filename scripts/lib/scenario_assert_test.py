@@ -8,7 +8,12 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from deliverable_judge import judge_deliverable, parse_judge_response
+from deliverable_judge import (
+    cloud_judge_tripped,
+    judge_deliverable,
+    parse_judge_response,
+    reset_cloud_judge_circuit,
+)
 from scenario_assert import (
     check_contains_all,
     check_file_deliverable,
@@ -118,6 +123,7 @@ class DeliverableAssertTest(unittest.TestCase):
         self.assertIn("stub", reason.lower())
 
     def test_cloud_judge_falls_back_to_ollama(self) -> None:
+        reset_cloud_judge_circuit()
         with mock.patch.dict(
             os.environ,
             {
@@ -142,8 +148,47 @@ class DeliverableAssertTest(unittest.TestCase):
                     )
         self.assertTrue(ok)
         self.assertIn("ollama/", detail)
+        self.assertTrue(cloud_judge_tripped("gemini"))
+
+    def test_cloud_judge_circuit_skips_hub_on_second_call(self) -> None:
+        reset_cloud_judge_circuit()
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NJ_DELIVERABLE_JUDGE_PROVIDER": "gemini",
+                "NJ_DELIVERABLE_JUDGE_MODE": "hub",
+                "NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA": "1",
+            },
+        ):
+            hub = mock.patch(
+                "deliverable_judge.hub_judge_deliverable",
+                return_value=(False, "quota exceeded for gemini-2.5-flash"),
+            )
+            ollama = mock.patch(
+                "deliverable_judge.ollama_judge_deliverable",
+                return_value=(True, "substantive pass"),
+            )
+            with hub as hub_mock, ollama as ollama_mock:
+                ok1, _ = judge_deliverable(
+                    question="write findings",
+                    rel_path="findings.md",
+                    file_body="# Findings\nmain.go",
+                    hub_base="http://127.0.0.1:18765",
+                )
+                ok2, detail2 = judge_deliverable(
+                    question="write findings",
+                    rel_path="findings2.md",
+                    file_body="# Findings\nmain.go",
+                    hub_base="http://127.0.0.1:18765",
+                )
+        self.assertTrue(ok1)
+        self.assertTrue(ok2)
+        self.assertEqual(hub_mock.call_count, 1)
+        self.assertEqual(ollama_mock.call_count, 2)
+        self.assertIn("cloud circuit open", detail2)
 
     def test_ollama_judge_routes_locally(self) -> None:
+        reset_cloud_judge_circuit()
         with mock.patch.dict(
             os.environ,
             {"NJ_DELIVERABLE_JUDGE_PROVIDER": "ollama", "NJ_DELIVERABLE_JUDGE_MODE": "ollama"},
