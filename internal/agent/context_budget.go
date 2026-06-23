@@ -47,8 +47,12 @@ func ideContextBudgetLimit() int {
 	return performanceFromHub().IdeContextBudgetBytes()
 }
 
-func implSessionBudgetLimit() int {
-	return performanceFromHub().ImplSessionBudgetBytes()
+func implSessionBudgetLimit(msg *protocol.Message) int {
+	perf := performanceFromHub()
+	if msg != nil && agentRuntimeV2ForMessage(msg) && (msg.ImplementationSession() || msg.IdeEditorMode() == "agent") {
+		return perf.AgentRuntimeBudgetBytes(ai.OllamaNumCtx())
+	}
+	return perf.ImplSessionBudgetBytes()
 }
 
 // applyContextBudget trims non-essential system sections when the prompt exceeds the budget.
@@ -63,8 +67,8 @@ func applyContextBudgetForMessage(msg *protocol.Message, prompt string) (string,
 	if msg != nil {
 		channelID = msg.Channel
 	}
-	if msg != nil && msg.ImplementationSession() {
-		limit = implSessionBudgetLimit()
+	if msg != nil && (msg.ImplementationSession() || (agentRuntimeV2ForMessage(msg) && msg.IdeEditorMode() == "agent")) {
+		limit = implSessionBudgetLimit(msg)
 		outline = ideWorkspaceOutlineBytes
 	} else if msg != nil && msg.IdeRouteAgentType() != "" {
 		limit = ideContextBudgetLimit()

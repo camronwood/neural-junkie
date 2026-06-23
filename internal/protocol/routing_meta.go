@@ -8,7 +8,9 @@ const (
 	MetadataRoutingReason     = "routing_reason"
 	MetadataRoutingSource     = "routing_source"
 	MetadataRoutingDomain     = "routing_domain"
-	MetadataRoutingCostTier   = "routing_cost_tier"
+	MetadataRoutingCostTier       = "routing_cost_tier"
+	MetadataRoutingKnowledgeRoute  = "routing_knowledge_route"
+	MetadataRoutingKnowledgeReason = "routing_knowledge_reason"
 )
 
 // RoutingMeta captures per-turn model routing decisions for UI display.
@@ -18,8 +20,10 @@ type RoutingMeta struct {
 	ToolModel  string `json:"tool_model,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 	Source     string `json:"source,omitempty"`
-	Domain     string `json:"domain,omitempty"`
-	CostTier   string `json:"cost_tier,omitempty"`
+	Domain          string `json:"domain,omitempty"`
+	CostTier        string `json:"cost_tier,omitempty"`
+	KnowledgeRoute  string `json:"knowledge_route,omitempty"`
+	KnowledgeReason string `json:"knowledge_reason,omitempty"`
 }
 
 // ApplyRoutingMeta writes routing fields onto message metadata.
@@ -27,7 +31,7 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 	if msg == nil {
 		return
 	}
-	if meta.ProviderID == "" && meta.Model == "" && meta.Reason == "" {
+	if meta.ProviderID == "" && meta.Model == "" && meta.Reason == "" && meta.KnowledgeRoute == "" {
 		return
 	}
 	if msg.Metadata == nil {
@@ -53,6 +57,12 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 	}
 	if meta.CostTier != "" {
 		msg.Metadata[MetadataRoutingCostTier] = meta.CostTier
+	}
+	if meta.KnowledgeRoute != "" {
+		msg.Metadata[MetadataRoutingKnowledgeRoute] = meta.KnowledgeRoute
+	}
+	if meta.KnowledgeReason != "" {
+		msg.Metadata[MetadataRoutingKnowledgeReason] = meta.KnowledgeReason
 	}
 }
 
@@ -82,6 +92,12 @@ func ExtractRoutingMeta(msg *Message) RoutingMeta {
 	}
 	if v, ok := msg.Metadata[MetadataRoutingCostTier].(string); ok {
 		out.CostTier = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingKnowledgeRoute].(string); ok {
+		out.KnowledgeRoute = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingKnowledgeReason].(string); ok {
+		out.KnowledgeReason = v
 	}
 	return out
 }

@@ -1,10 +1,16 @@
 package config
 
+import "time"
+
 const (
-	defaultContextBudgetKB     = 32
-	defaultIdeContextBudgetKB  = 48
-	defaultImplSessionBudgetKB = 64
-	defaultMaxHistoryMessages  = 10
+	defaultContextBudgetKB          = 32
+	defaultIdeContextBudgetKB       = 48
+	defaultImplSessionBudgetKB      = 64
+	defaultAgentRuntimeBudgetKB     = 192
+	defaultAgentRuntimeToolBytes    = 48000
+	defaultAgentRuntimeRetrieveTurn = 12
+	defaultMaxHistoryMessages       = 10
+	defaultAgentMaxSteps            = 100
 )
 
 // PerformanceConfig tunes prompt size and history depth (same models, less RAM/latency).
@@ -27,6 +33,16 @@ type PerformanceConfig struct {
 	ContextCacheTTLMinutes int `json:"context_cache_ttl_minutes,omitempty"`
 	// OutputShapingEnabled trims verbose model output after read-only tool steps (default false).
 	OutputShapingEnabled bool `json:"output_shaping_enabled,omitempty"`
+	// AgentRuntimeBudgetKB caps agent-runtime v2 prompts (default 192KB or derived from num_ctx).
+	AgentRuntimeBudgetKB int `json:"agent_runtime_budget_kb,omitempty"`
+	// AgentRuntimeMaxToolBytes caps compressed tool output in agent-runtime mode.
+	AgentRuntimeMaxToolBytes int `json:"agent_runtime_max_tool_bytes,omitempty"`
+	// AgentRuntimeMaxRetrievePerTurn raises nj_retrieve_context budget during agent loops.
+	AgentRuntimeMaxRetrievePerTurn int `json:"agent_runtime_max_retrieve_per_turn,omitempty"`
+	// AgentMaxSteps guardrail for open-ended agent runtime (default 100).
+	AgentMaxSteps int `json:"agent_max_steps,omitempty"`
+	// AgentTimeoutMinutes max wall clock for agent runtime (default 60).
+	AgentTimeoutMinutes int `json:"agent_timeout_minutes,omitempty"`
 }
 
 func (p PerformanceConfig) contextBudgetKBOr(defaultKB int) int {
@@ -65,4 +81,65 @@ func (p PerformanceConfig) MaxHistoryMessagesOrDefault() int {
 		return p.MaxHistoryMessages
 	}
 	return defaultMaxHistoryMessages
+}
+
+// AgentRuntimeBudgetBytes returns the agent-runtime prompt byte cap.
+func (p PerformanceConfig) AgentRuntimeBudgetBytes(numCtx int) int {
+	kb := p.AgentRuntimeBudgetKB
+	if kb <= 0 {
+		kb = budgetKBFromNumCtx(numCtx, defaultAgentRuntimeBudgetKB)
+	}
+	return kb * 1024
+}
+
+// AgentRuntimeMaxToolBytesOrDefault returns tool output cap for agent-runtime mode.
+func (p PerformanceConfig) AgentRuntimeMaxToolBytesOrDefault() int {
+	if p.AgentRuntimeMaxToolBytes > 0 {
+		return p.AgentRuntimeMaxToolBytes
+	}
+	return defaultAgentRuntimeToolBytes
+}
+
+// AgentRuntimeMaxRetrievePerTurnOrDefault returns retrieve cap per tool-loop turn.
+func (p PerformanceConfig) AgentRuntimeMaxRetrievePerTurnOrDefault() int {
+	if p.AgentRuntimeMaxRetrievePerTurn > 0 {
+		return p.AgentRuntimeMaxRetrievePerTurn
+	}
+	return defaultAgentRuntimeRetrieveTurn
+}
+
+// AgentMaxStepsOrDefault returns the step guardrail for agent runtime v2.
+func (p PerformanceConfig) AgentMaxStepsOrDefault() int {
+	if p.AgentMaxSteps > 0 && p.AgentMaxSteps <= 500 {
+		return p.AgentMaxSteps
+	}
+	return defaultAgentMaxSteps
+}
+
+// AgentTimeout returns max duration for agent runtime v2.
+func (p PerformanceConfig) AgentTimeout() time.Duration {
+	m := p.AgentTimeoutMinutes
+	if m <= 0 {
+		m = 60
+	}
+	if m > 180 {
+		m = 180
+	}
+	return time.Duration(m) * time.Minute
+}
+
+// budgetKBFromNumCtx maps Ollama num_ctx to a conservative prompt budget in KB.
+func budgetKBFromNumCtx(numCtx, fallbackKB int) int {
+	if numCtx <= 0 {
+		return fallbackKB
+	}
+	// ~2 bytes per token heuristic for mixed code/text prompts.
+	kb := (numCtx * 2) / 1024
+	if kb < 64 {
+		return 64
+	}
+	if kb > 512 {
+		return 512
+	}
+	return kb
 }

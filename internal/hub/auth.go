@@ -15,6 +15,7 @@ type HubSession struct {
 	Token     string    `json:"token"`
 	UserID    string    `json:"user_id"`
 	Username  string    `json:"username"`
+	Role      string    `json:"role"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
@@ -67,8 +68,30 @@ func slugUsername(username string) string {
 	return out
 }
 
+func normalizeRole(role string) string {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "admin":
+		return "admin"
+	case "viewer":
+		return "viewer"
+	default:
+		return "member"
+	}
+}
+
+// RoleCanMutate returns whether the role may send messages and approve changes.
+func RoleCanMutate(role string) bool {
+	r := normalizeRole(role)
+	return r == "admin" || r == "member"
+}
+
+// RoleCanAdmin returns whether the role may manage API keys and ACLs.
+func RoleCanAdmin(role string) bool {
+	return normalizeRole(role) == "admin"
+}
+
 // CreateSession registers a user session and returns the token.
-func (sm *SessionManager) CreateSession(username string) *HubSession {
+func (sm *SessionManager) CreateSession(username, role string) *HubSession {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.pruneLocked()
@@ -78,10 +101,14 @@ func (sm *SessionManager) CreateSession(username string) *HubSession {
 		Token:     token,
 		UserID:    user,
 		Username:  strings.TrimSpace(username),
+		Role:      normalizeRole(role),
 		ExpiresAt: time.Now().Add(sm.ttl),
 	}
 	if s.Username == "" {
 		s.Username = "Anonymous"
+	}
+	if s.Role == "" {
+		s.Role = "member"
 	}
 	sm.sessions[token] = s
 	return s
@@ -157,7 +184,7 @@ func RequireSessionForMutation(w http.ResponseWriter, r *http.Request, sm *Sessi
 	}
 	// Relaxed local mode: loopback clients may omit session
 	if AllowHubRequest(r) {
-		return &HubSession{UserID: "local", Username: "local"}, true
+		return &HubSession{UserID: "local", Username: "local", Role: "admin"}, true
 	}
 	http.Error(w, "Forbidden", http.StatusForbidden)
 	return nil, false

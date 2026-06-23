@@ -57,6 +57,9 @@ export function reservedWidthForRightPanels(visibility: MainChatPanelVisibility)
 }
 
 function isShrinkableFlexRegion(el: HTMLElement): boolean {
+  if (el.hasAttribute('data-shrinkable-workspace')) {
+    return true;
+  }
   const style = window.getComputedStyle(el);
   return parseFloat(style.flexGrow) > 0;
 }

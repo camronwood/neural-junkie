@@ -16,6 +16,8 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
+from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
     check_text_patterns,
@@ -330,12 +332,18 @@ def ensure_channel(ctx: ImplementContext) -> bool:
     return ok
 
 
+def ensure_hub_ready(base: str, context: str) -> bool:
+    if ensure_hub_with_recovery(ROOT, base, context=context, env=release_prep_env(ROOT)):
+        return True
+    print("  FAIL: hub unhealthy (recovery exhausted after 3 attempts)", file=sys.stderr)
+    return False
+
+
 def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
     scenario = load_scenario(name)
     ctx = ImplementContext(base, scenario)
     print(f"\n=== implement: {name} ===")
-    if not hub.check_health(base):
-        print("  FAIL: hub unhealthy", file=sys.stderr)
+    if not ensure_hub_ready(base, f"implement:{name}"):
         return False
     required = scenario.get("required_agents") or [ctx.target_agent]
     ok, missing = hub.verify_agents_online(base, required)

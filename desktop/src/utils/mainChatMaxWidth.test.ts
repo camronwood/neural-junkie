@@ -107,6 +107,12 @@ describe('measureMainChatMaxWidth', () => {
     expect(measureMainChatMaxWidth(container, chat, none)).toBe(1600 - 220);
   });
 
+  it('skips workspace marked with data-shrinkable-workspace', () => {
+    workspace.style.flexGrow = '0';
+    workspace.setAttribute('data-shrinkable-workspace', '');
+    expect(measureMainChatMaxWidth(container, chat, none)).toBe(1600 - 220);
+  });
+
   it('reserves compact mins for right-side panels', () => {
     expect(
       measureMainChatMaxWidth(container, chat, {

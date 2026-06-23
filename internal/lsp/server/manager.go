@@ -90,6 +90,11 @@ func languageServerCommand(lang string) (string, []string, error) {
 			return "pyright", []string{"--stdio"}, nil
 		}
 		return "pyright-langserver", []string{"--stdio"}, nil
+	case "typescript", "javascript":
+		if _, err := exec.LookPath("typescript-language-server"); err != nil {
+			return "", nil, fmt.Errorf("typescript-language-server not found on PATH")
+		}
+		return "typescript-language-server", []string{"--stdio"}, nil
 	default:
 		return "", nil, fmt.Errorf("unsupported language %q", lang)
 	}

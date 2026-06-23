@@ -11,6 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
 	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/hub/gitchange"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
@@ -38,6 +39,7 @@ type Hub struct {
 
 	// File change manager for handling file change approvals
 	fileChangeManager *filechange.FileChangeManager
+	gitChangeManager  *gitchange.Manager
 	fileChangeBackendFn func(workspaceRoot string) filechange.WorkspaceIO
 
 	// Workspace manager for handling workspace operations
@@ -117,6 +119,7 @@ func NewHub() *Hub {
 	// Initialize file change manager
 	executor := filechange.NewFileChangeExecutor(".")
 	hub.fileChangeManager = filechange.NewFileChangeManager(executor)
+	hub.gitChangeManager = gitchange.NewManager()
 
 	// Initialize workspace manager
 	workspaceManager, err := NewWorkspaceManager()
@@ -435,6 +438,10 @@ func (h *Hub) GetCommandDefinitions() []protocol.CommandDefinition {
 // GetFileChangeManager returns the file change manager for external access
 func (h *Hub) GetFileChangeManager() *filechange.FileChangeManager {
 	return h.fileChangeManager
+}
+
+func (h *Hub) GetGitChangeManager() *gitchange.Manager {
+	return h.gitChangeManager
 }
 
 // GetToolApprovalManager returns the tool approval manager for external access

@@ -26,6 +26,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
+from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
     check_text_patterns,
@@ -307,10 +309,18 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
                     deadline = min(deadline + 60.0, time.time() + timeout * 1.5)
                     time.sleep(3)
                     continue
+            phase = (
+                hub.collab_phase(ctx.base, ctx.collab_channel, ctx.collab_id)
+                if ctx.collab_id
+                else None
+            )
             planning_ready = bool(
                 ctx.collab_id
-                and hub.planning_discussion_ready(
-                    ctx.base, ctx.collab_channel, ctx.collab_id
+                and (
+                    phase == "reviewing"
+                    or hub.planning_discussion_ready(
+                        ctx.base, ctx.collab_channel, ctx.collab_id
+                    )
                 )
             )
             per_agent_ok = (
@@ -1197,6 +1207,13 @@ def cleanup_scenario_collabs(base: str, ctx: ScenarioContext, *, keep: bool) -> 
     print("  ✓ cleanup: cancelled and removed workspace artifacts")
 
 
+def ensure_hub_ready(base: str, context: str) -> bool:
+    if ensure_hub_with_recovery(ROOT, base, context=context, env=release_prep_env(ROOT)):
+        return True
+    print("  FAIL: hub not healthy (recovery exhausted after 3 attempts)", file=sys.stderr)
+    return False
+
+
 def run_scenario(
     base: str,
     name: str,
@@ -1215,9 +1232,7 @@ def run_scenario(
     print(f"  hub={base} channel={channel} agents={agents}")
 
     try:
-        health = hub.check_health(base)
-        if not health:
-            print("  FAIL: hub not healthy", file=sys.stderr)
+        if not ensure_hub_ready(base, f"collab:{name}"):
             return False
 
         if not hub.ensure_channel(base, channel):

@@ -17,7 +17,15 @@ ROOT = SCRIPTS_DIR.parent
 DEFAULT_TESTING_DIR = ROOT / "docs" / "testing"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
-from lib.hub_regression import wait_for_hub  # noqa: E402
+from lib.hub_regression import (  # noqa: E402
+    HubRecoveryJournal,
+    ensure_hub_with_recovery,
+    hub_is_healthy,
+    read_recovery_log_text,
+    recover_regression_hub,
+    restart_regression_hub,
+    wait_for_hub,
+)
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
 
@@ -159,6 +167,7 @@ def write_reports(report: RunReport, testing_dir: Path) -> None:
             "## Artifacts",
             "",
             f"- Full log: `{report.log_path}`",
+            f"- Hub recovery log: `{testing_dir / f'hub-recovery-{report.stamp}.log'}`",
             "",
         ]
     )
@@ -172,6 +181,10 @@ def write_reports(report: RunReport, testing_dir: Path) -> None:
             lines.append((r.output or "(no output)").strip()[-12000:])
             lines.append("```")
             lines.append("")
+
+    recovery_text = read_recovery_log_text()
+    if recovery_text.strip():
+        lines.extend(["## Hub recovery log", "", "```text", recovery_text.strip()[-12000:], "```", ""])
 
     report.summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -221,6 +234,10 @@ def main() -> int:
     )
     live_env = release_prep_env(ROOT)
     live_env["NEURAL_JUNKIE_HUB_URL"] = report.hub_url
+    recovery_log = testing_dir / f"hub-recovery-{stamp}.log"
+    live_env["NEURAL_JUNKIE_HUB_RECOVERY_LOG"] = str(recovery_log)
+    os.environ["NEURAL_JUNKIE_HUB_RECOVERY_LOG"] = str(recovery_log)
+    hub_journal = HubRecoveryJournal()
 
     print(f"test-everything → {testing_dir}/test-everything-{stamp}.{{md,log}}")
 
@@ -254,12 +271,66 @@ def main() -> int:
         _print_final(report)
         return 1
 
+    print("Restarting regression hub before live scenario harness...")
+    if not restart_regression_hub(ROOT, report.hub_url, env=live_env):
+        report.results.append(
+            StageResult(
+                name="hub-restart",
+                status="FAIL",
+                exit_code=1,
+                note="make server-regression failed before live stages",
+            )
+        )
+        write_reports(report, testing_dir)
+        _print_final(report)
+        return 1
+    time.sleep(3.0)
+
     preflight_regression_run(ROOT, report.hub_url, label="test-everything preflight")
 
     for name, cmd in live_stage_cmds(report.hub_url, args.full, args.verbose):
         env = live_env if name != "collab-scenario-regression" else {**live_env}
+        if not ensure_hub_with_recovery(
+            ROOT,
+            report.hub_url,
+            context=f"pre-stage:{name}",
+            journal=hub_journal,
+            env=live_env,
+        ):
+            report.results.append(
+                StageResult(
+                    name=f"{name}-hub-recovery",
+                    status="FAIL",
+                    exit_code=1,
+                    note="hub recovery exhausted before stage",
+                )
+            )
+            if not args.continue_on_fail:
+                break
+            continue
+
         result = run_cmd(name, cmd, env=env)
         report.results.append(result)
+
+        if not hub_is_healthy(report.hub_url):
+            if recover_regression_hub(
+                ROOT,
+                report.hub_url,
+                context=f"post-stage:{name}",
+                journal=hub_journal,
+                env=live_env,
+            ):
+                if result.status == "FAIL":
+                    print(f"\n>>> [{name}] retrying stage after hub recovery")
+                    retry = run_cmd(f"{name}-retry-after-hub-recovery", cmd, env=env)
+                    retry.note = "retried after hub crash recovery"
+                    report.results.append(retry)
+                    if retry.status == "OK":
+                        result.status = "OK"
+                        result.note = "initial run failed (hub crash); retry passed"
+            elif not args.continue_on_fail:
+                break
+
         if result.status == "FAIL" and not args.continue_on_fail:
             break
 

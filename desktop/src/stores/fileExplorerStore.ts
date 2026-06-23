@@ -2,6 +2,7 @@ import { createWithEqualityFn as create } from 'zustand/traditional';
 import { ChatAPI } from '../api/chatAPI';
 import { devLog } from '../utils/devLog';
 import { getHubBaseURL } from '../config/hubUrl';
+import { useEditorStore } from './editorStore';
 
 const api = new ChatAPI(getHubBaseURL());
 
@@ -332,7 +333,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   
   createFolder: async (workspaceId, path) => {
     try {
-      await api.createFile(workspaceId, path, ''); // Create empty file as folder
+      await api.createFile(workspaceId, path, '', true);
       await get().refreshTreeForPath(workspaceId, path);
     } catch (error) {
       console.error('Failed to create folder:', error);
@@ -340,11 +341,14 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       throw error;
     }
   },
-  
+
   renameFile: async (workspaceId, oldPath, newPath) => {
     try {
       await api.renameFile(workspaceId, oldPath, newPath);
+      useEditorStore.getState().relocateFilePath(workspaceId, oldPath, newPath);
+      await get().refreshTreeForPath(workspaceId, oldPath);
       await get().refreshTreeForPath(workspaceId, newPath);
+      set({ selectedPath: newPath });
     } catch (error) {
       console.error('Failed to rename file:', error);
       set({ error: error instanceof Error ? error.message : 'Failed to rename file' });

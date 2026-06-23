@@ -291,6 +291,80 @@ export class ChatAPI {
     return response.json();
   }
 
+  async searchMessages(channel: string, query: string, limit: number = 50): Promise<Message[]> {
+    const params = new URLSearchParams({ channel, q: query, limit: String(limit) });
+    const response = await this.hubFetch(`/api/messages/search?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to search messages: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async fetchGitChanges(userId: string): Promise<Array<Record<string, unknown>>> {
+    const response = await this.hubFetch(`/api/git-changes?user_id=${encodeURIComponent(userId)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch git changes: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async approveGitChange(changeId: string): Promise<void> {
+    const response = await this.hubFetch(`/api/git-changes/approve/${encodeURIComponent(changeId)}`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to approve git change: ${response.statusText}`);
+    }
+  }
+
+  async rejectGitChange(changeId: string): Promise<void> {
+    const response = await this.hubFetch(`/api/git-changes/reject/${encodeURIComponent(changeId)}`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to reject git change: ${response.statusText}`);
+    }
+  }
+
+  async fetchTurnTrace(channel: string, messageId: string, q?: string): Promise<Record<string, unknown>> {
+    const params = new URLSearchParams({ channel, message_id: messageId });
+    if (q?.trim()) params.set('q', q.trim());
+    const response = await this.hubFetch(`/api/debug/turn-trace?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch turn trace: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async listAPIKeys(): Promise<Array<Record<string, unknown>>> {
+    const response = await this.hubFetch('/api/auth/api-keys');
+    if (!response.ok) {
+      throw new Error(`Failed to list API keys: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async createAPIKey(name: string, role: string): Promise<{ api_key: string; record: Record<string, unknown> }> {
+    const response = await this.hubFetch('/api/auth/api-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, role }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to create API key: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async revokeAPIKey(id: string): Promise<void> {
+    const response = await this.hubFetch(`/api/auth/api-keys/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to revoke API key: ${response.statusText}`);
+    }
+  }
+
   // Fetch collaboration snapshots for task/collaboration management UIs
   async fetchCollaborations(channel?: string, includeTerminal: boolean = false): Promise<Collaboration[]> {
     const params = new URLSearchParams();
@@ -1958,7 +2032,7 @@ export class ChatAPI {
     return data;
   }
 
-  async createFile(workspaceId: string, path: string, content: string = ''): Promise<void> {
+  async createFile(workspaceId: string, path: string, content: string = '', isDir = false): Promise<void> {
     const response = await this.hubFetch(`/api/file-create`, {
       method: 'POST',
       headers: {
@@ -1968,6 +2042,7 @@ export class ChatAPI {
         workspace_id: workspaceId,
         path,
         content,
+        is_dir: isDir,
       }),
     });
 

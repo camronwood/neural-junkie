@@ -8,7 +8,7 @@ import (
 // MaxIndexedSourceFilesInMemory caps how many source file bodies we keep per
 // RepositoryIndex in RAM (and on disk after next save). Each entry can be up
 // to ~MaxFileSize compressed; without a cap, large monorepos can exceed 10GB+.
-const MaxIndexedSourceFilesInMemory = 2000
+const MaxIndexedSourceFilesInMemory = 10000
 
 const maxArchitectureDocBytes = 512 * 1024
 

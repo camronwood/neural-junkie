@@ -42,11 +42,20 @@ import { PACK_CAP } from '../stores/packCapabilities';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { workspacesForTabBar } from '../utils/workspaceOrder';
 import { ViewportContextMenu } from './ViewportContextMenu';
+import { FileNameDialog } from './FileNameDialog';
 import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import { WorkspaceTabBar } from './WorkspaceTabBar';
 import { devLog } from '../utils/devLog';
 import { qcReportRelativePath } from '../utils/panelQcUtils';
+import {
+  basenameRelativePath,
+  duplicateRelativePath,
+  joinRelativePath,
+  newItemParentPath,
+  replaceBasename,
+} from '../utils/workspacePaths';
+import { useTerminalStore } from '../stores/terminalStore';
 
 interface FileExplorerPanelProps {
   onClose: () => void;
@@ -153,6 +162,13 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     path: string;
     isDir: boolean;
   } | null>(null);
+  const [nameDialog, setNameDialog] = useState<{
+    mode: 'rename' | 'create-file' | 'create-folder';
+    initial: string;
+  } | null>(null);
+
+  const setTerminalPanelOpen = useTerminalStore((s) => s.setPanelOpen);
+  const alignTerminalCwd = useTerminalStore((s) => s.alignActiveTabCwd);
 
   const [api] = useState(() => new ChatAPI(getHubBaseURL()));
 
@@ -625,56 +641,137 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     setContextMenu(null);
   };
 
-  const handleCreateFile = async () => {
-    if (!contextMenu || !activeWorkspaceId) return;
-    
-    const fileName = prompt('Enter file name:');
-    if (!fileName) return;
-    
-    const newPath = contextMenu.isDir 
-      ? `${contextMenu.path}/${fileName}`
-      : `${contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/'))}/${fileName}`;
-    
+  const contextFileNode = (): FileNode | null => {
+    if (!contextMenu || !activeWorkspaceId) return null;
+    const tree = fileTree[activeWorkspaceId] ?? [];
+    return findFileNode(tree, contextMenu.path) ?? {
+      path: contextMenu.path,
+      name: basenameRelativePath(contextMenu.path),
+      is_dir: contextMenu.isDir,
+      size: 0,
+      mod_time: '',
+    };
+  };
+
+  const handleOpenFromMenu = async () => {
+    const node = contextFileNode();
+    if (!node || node.is_dir) return;
+    closeContextMenu();
+    await handleFileClick(node);
+  };
+
+  const handleCreateFile = () => {
+    if (!contextMenu) return;
+    setNameDialog({ mode: 'create-file', initial: '' });
+  };
+
+  const handleCreateFolder = () => {
+    if (!contextMenu) return;
+    setNameDialog({ mode: 'create-folder', initial: '' });
+  };
+
+  const handleRename = () => {
+    if (!contextMenu) return;
+    setNameDialog({
+      mode: 'rename',
+      initial: basenameRelativePath(contextMenu.path),
+    });
+  };
+
+  const handleNameDialogConfirm = async (name: string) => {
+    if (!nameDialog || !contextMenu || !activeWorkspaceId) {
+      setNameDialog(null);
+      return;
+    }
     try {
-      await createFile(activeWorkspaceId, newPath);
+      if (nameDialog.mode === 'rename') {
+        const newPath = replaceBasename(contextMenu.path, name);
+        if (newPath === contextMenu.path) {
+          setNameDialog(null);
+          closeContextMenu();
+          return;
+        }
+        await renameFile(activeWorkspaceId, contextMenu.path, newPath);
+        addToast({ type: 'success', title: 'Renamed', message: newPath });
+      } else {
+        const parent = newItemParentPath(contextMenu.path, contextMenu.isDir);
+        const newPath = joinRelativePath(parent, name);
+        if (nameDialog.mode === 'create-folder') {
+          await createFolder(activeWorkspaceId, newPath);
+          addToast({ type: 'success', title: 'Folder created', message: newPath });
+        } else {
+          await createFile(activeWorkspaceId, newPath);
+          addToast({ type: 'success', title: 'File created', message: newPath });
+        }
+      }
+      setNameDialog(null);
       closeContextMenu();
     } catch (error) {
-      console.error('Failed to create file:', error);
+      console.error('File operation failed:', error);
+      addToast({
+        type: 'error',
+        title: 'File operation failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
-  const handleCreateFolder = async () => {
-    if (!contextMenu || !activeWorkspaceId) return;
-    
-    const folderName = prompt('Enter folder name:');
-    if (!folderName) return;
-    
-    const newPath = contextMenu.isDir 
-      ? `${contextMenu.path}/${folderName}`
-      : `${contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/'))}/${folderName}`;
-    
+  const handleDuplicate = async () => {
+    if (!contextMenu || !activeWorkspaceId || contextMenu.isDir) return;
     try {
-      await createFolder(activeWorkspaceId, newPath);
+      const newPath = duplicateRelativePath(contextMenu.path);
+      const content = await api.fetchFileContent(activeWorkspaceId, contextMenu.path);
+      await createFile(activeWorkspaceId, newPath, content);
+      addToast({ type: 'success', title: 'Duplicated', message: newPath });
       closeContextMenu();
     } catch (error) {
-      console.error('Failed to create folder:', error);
+      addToast({
+        type: 'error',
+        title: 'Duplicate failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 
-  const handleRename = async () => {
-    if (!contextMenu || !activeWorkspaceId) return;
-    
-    const newName = prompt('Enter new name:', contextMenu.path.split('/').pop() || '');
-    if (!newName) return;
-    
-    const newPath = contextMenu.path.substring(0, contextMenu.path.lastIndexOf('/')) + '/' + newName;
-    
+  const handleCopyName = async () => {
+    if (!contextMenu) return;
     try {
-      await renameFile(activeWorkspaceId, contextMenu.path, newPath);
+      await navigator.clipboard.writeText(basenameRelativePath(contextMenu.path));
+      addToast({ type: 'success', title: 'Name copied', message: basenameRelativePath(contextMenu.path) });
+      closeContextMenu();
+    } catch {
+      addToast({ type: 'error', title: 'Copy failed', message: 'Could not copy file name' });
+    }
+  };
+
+  const handleRevealInFinder = async () => {
+    if (!contextMenu) return;
+    const activeWorkspace = getActiveWorkspace();
+    if (!activeWorkspace) return;
+    try {
+      const absolutePath = workspaceAbsolutePath(activeWorkspace.path, contextMenu.path);
+      const { open: openShell } = await import('@tauri-apps/api/shell');
+      await openShell(absolutePath);
       closeContextMenu();
     } catch (error) {
-      console.error('Failed to rename:', error);
+      addToast({
+        type: 'error',
+        title: 'Reveal failed',
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
+  };
+
+  const handleOpenInTerminal = () => {
+    if (!contextMenu) return;
+    const activeWorkspace = getActiveWorkspace();
+    if (!activeWorkspace) return;
+    const absolutePath = contextMenu.isDir
+      ? workspaceAbsolutePath(activeWorkspace.path, contextMenu.path)
+      : workspaceAbsolutePath(activeWorkspace.path, newItemParentPath(contextMenu.path, false) || '.');
+    alignTerminalCwd(absolutePath);
+    setTerminalPanelOpen(true);
+    closeContextMenu();
   };
 
   const handleDelete = async () => {
@@ -1545,6 +1642,106 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           y={contextMenu.y}
           onClose={closeContextMenu}
         >
+          {!contextMenu.isDir && (
+            <button
+              type="button"
+              onClick={() => void handleOpenFromMenu()}
+              className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+            >
+              Open
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void handleCopyName()}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            Copy name
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyPath}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            Copy absolute path
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyRelativePath}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            Copy relative path
+          </button>
+
+          <div className="border-t border-slack-border my-1" />
+
+          <button
+            type="button"
+            onClick={() => void handleRevealInFinder()}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            Reveal in Finder
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenInTerminal}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            Open in terminal
+          </button>
+
+          {!contextMenu.isDir && (
+            <button
+              type="button"
+              onClick={() => void handleDuplicate()}
+              className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+            >
+              Duplicate
+            </button>
+          )}
+
+          <div className="border-t border-slack-border my-1" />
+
+          <button
+            type="button"
+            onClick={handleCreateFile}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            New file…
+          </button>
+          <button
+            type="button"
+            onClick={handleCreateFolder}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            New folder…
+          </button>
+          <button
+            type="button"
+            onClick={handleRename}
+            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
+          >
+            Rename…
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-slack-bgHover"
+          >
+            Delete
+          </button>
+
+          {(hasScanAnalysis && contextMenuIsScanAnalysis()) ||
+          (hasSecondaryAnalysis && contextMenuIsScanAnalysis() && contextMenu?.isDir) ||
+          (hasSecondaryAnalysis && contextMenuIsComparator()) ||
+          (hasHtmlBrowserWorkbench && !contextMenu.isDir && /\.html?$/i.test(contextMenu.path)) ||
+          (hasCadWorkbench && !contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.scad')) ||
+          (hasScanSummary && contextMenuIsScanSummary()) ||
+          (!contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.md')) ? (
+            <div className="border-t border-slack-border my-1" />
+          ) : null}
+
           {hasScanAnalysis && contextMenuIsScanAnalysis() && (
             <button
               onClick={() => void handleOpenScanAnalysisFromMenu()}
@@ -1621,59 +1818,44 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
               </button>
             )}
 
-          {/* Show Preview Markdown option for .md files */}
           {!contextMenu.isDir && contextMenu.path.toLowerCase().endsWith('.md') && (
             <button
               onClick={handlePreviewMarkdown}
               className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
             >
-              📝 Preview Markdown
+              Preview Markdown
             </button>
           )}
-          
-          {/* Copy Path options */}
-          <button
-            onClick={handleCopyPath}
-            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
-          >
-            📋 Copy Path
-          </button>
-          <button
-            onClick={handleCopyRelativePath}
-            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
-          >
-            📋 Copy Relative Path
-          </button>
-          
-          {/* Separator before file operations */}
-          <div className="border-t border-slack-border my-1" />
-          
-          <button
-            onClick={handleCreateFile}
-            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
-          >
-            New File
-          </button>
-          <button
-            onClick={handleCreateFolder}
-            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
-          >
-            New Folder
-          </button>
-          <div className="border-t border-slack-border my-1" />
-          <button
-            onClick={handleRename}
-            className="w-full px-4 py-2 text-left text-sm text-slack-text hover:bg-slack-bgHover"
-          >
-            Rename
-          </button>
-          <button
-            onClick={handleDelete}
-            className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-slack-bgHover"
-          >
-            Delete
-          </button>
         </ViewportContextMenu>
+      )}
+
+      {nameDialog && (
+        <FileNameDialog
+          title={
+            nameDialog.mode === 'rename'
+              ? 'Rename'
+              : nameDialog.mode === 'create-file'
+                ? 'New file'
+                : 'New folder'
+          }
+          label={
+            nameDialog.mode === 'rename'
+              ? 'New name'
+              : nameDialog.mode === 'create-file'
+                ? 'File name'
+                : 'Folder name'
+          }
+          initialValue={nameDialog.initial}
+          confirmLabel={
+            nameDialog.mode === 'rename'
+              ? 'Rename'
+              : nameDialog.mode === 'create-file'
+                ? 'Create'
+                : 'Create folder'
+          }
+          onConfirm={(value) => void handleNameDialogConfirm(value)}
+          onCancel={() => setNameDialog(null)}
+        />
       )}
 
       {/* Remove workspace confirmation */}

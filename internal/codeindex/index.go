@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/codeindex/store"
 	"github.com/camronwood/neural-junkie/internal/embed"
 	"github.com/camronwood/neural-junkie/internal/git"
 	"github.com/camronwood/neural-junkie/internal/repo"
@@ -21,7 +22,7 @@ import (
 const (
 	defaultChunkLines = 100
 	maxChunkContent   = 4000
-	maxFilesPerBuild  = 500
+	maxFilesPerBuild  = 50000
 )
 
 var (
@@ -279,7 +280,7 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 		if err != nil {
 			continue
 		}
-		chunks = append(chunks, chunkFile(rel, string(b))...)
+		chunks = append(chunks, chunkFileAST(rel, string(b))...)
 	}
 
 	cp, _ := chunksPath(repoPath)
@@ -309,7 +310,19 @@ func BuildIndex(ctx context.Context, repoPath string) error {
 				continue
 			}
 			_ = vecStore.Set(ch.ID, model, vec)
+			if sqlStore, err := store.Open(dir); err == nil {
+				_ = sqlStore.Put(ch.ID, vec)
+				_ = sqlStore.Close()
+			}
 		}
+	}
+	keep := make(map[string]struct{}, len(chunks))
+	for _, ch := range chunks {
+		keep[ch.ID] = struct{}{}
+	}
+	if sqlStore, err := store.Open(dir); err == nil {
+		_ = sqlStore.DeleteMissing(keep)
+		_ = sqlStore.Close()
 	}
 
 	meta := IndexMeta{

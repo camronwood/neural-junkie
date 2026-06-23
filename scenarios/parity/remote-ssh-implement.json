@@ -1,0 +1,37 @@
+{
+  "name": "remote-ssh-implement",
+  "description": "Local agent applies edit via WorkspaceBackend (simulated remote root)",
+  "tags": ["parity", "remote"],
+  "channel": "parity-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "minimal-repo" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "please implement a RemoteParityMarker function in core/sample/main.go and call it from main",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code",
+        "agent_runtime_v2": true,
+        "workspace_backend": "local"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "600s",
+      "until_any_match": ["RemoteParityMarker|applied and verified|proposals submitted"]
+    },
+    {
+      "action": "assert_file_exists",
+      "path": "core/sample/main.go",
+      "contains": "RemoteParityMarker"
+    }
+  ],
+  "cleanup": "clear"
+}

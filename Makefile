@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -222,7 +222,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
@@ -261,6 +261,22 @@ implement-scenarios: ## Run all scenarios under scenarios/implement/
 
 implement-scenarios-list: ## List implementation scenarios
 	@python3 scripts/implement-scenarios.py --list
+
+parity-scenario: ## Run one parity scenario (SCENARIO=large-repo-semantic-find)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make parity-scenario SCENARIO=large-repo-semantic-find"; exit 1; fi
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/parity-scenarios.py --scenario "$(SCENARIO)" \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(KEEP),--keep,)
+
+parity-scenarios: ## Run all scenarios under scenarios/parity/
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/parity-scenarios.py --all \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(KEEP),--keep,)
+
+parity-scenarios-list: ## List Cursor parity scenarios
+	@python3 scripts/parity-scenarios.py --list
+
+test-parity-full-restart: ## implement + parity scenarios 3× with hub restart between sweeps
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/parity-full-restart.py --runs 3 \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable: ## Run implement-scenarios 3x with hub restart between sweeps (stable gate)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 16 \
@@ -671,6 +687,13 @@ build-nj-remote: ## Build nj-remote workspace sidecar (IDE v4 SSH/devcontainer)
 	@echo "🔨 Building nj-remote..."
 	@mkdir -p bin
 	@go build -o bin/nj-remote ./cmd/nj-remote
+
+nj-remote-install: build-nj-remote ## Install nj-remote on remote host (TARGET=user@host, optional ROOT=, PORT=)
+	@if [ -z "$(TARGET)" ]; then \
+		echo "❌ TARGET is required (e.g. make nj-remote-install TARGET=ec2-user@host)"; \
+		exit 1; \
+	fi
+	@./scripts/install-nj-remote.sh --remote "$(TARGET)" $(if $(ROOT),--root "$(ROOT)",) $(if $(PORT),--port "$(PORT)",)
 
 bundle-mac: build-server-mac-arm fetch-ollama ## Build production desktop app for macOS
 	@echo "📦 Building macOS bundle..."

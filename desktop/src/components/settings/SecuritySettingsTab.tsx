@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { ChatAPI } from '../../api/chatAPI';
 import type { SettingsTabProps } from './settingsShared';
 
 type HubSecurity = {
@@ -8,8 +9,38 @@ type HubSecurity = {
   loopback_only: boolean;
 };
 
+type APIKeyRecord = {
+  id: string;
+  name: string;
+  role: string;
+  prefix: string;
+  created_at: string;
+  revoked: boolean;
+};
+
 export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const [hubSecurity, setHubSecurity] = useState<HubSecurity | null>(null);
+  const [apiKeys, setApiKeys] = useState<APIKeyRecord[]>([]);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [newKeyRole, setNewKeyRole] = useState('member');
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [keysError, setKeysError] = useState<string | null>(null);
+  const [loadingKeys, setLoadingKeys] = useState(false);
+
+  const loadApiKeys = useCallback(async () => {
+    setLoadingKeys(true);
+    setKeysError(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const rows = (await api.listAPIKeys()) as APIKeyRecord[];
+      setApiKeys(rows.filter((k) => !k.revoked));
+    } catch (e) {
+      setKeysError(e instanceof Error ? e.message : String(e));
+      setApiKeys([]);
+    } finally {
+      setLoadingKeys(false);
+    }
+  }, [hubHttp]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -24,10 +55,36 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
         if (!cancelled) setHubSecurity(null);
       }
     })();
+    void loadApiKeys();
     return () => {
       cancelled = true;
     };
-  }, [isActive, hubHttp]);
+  }, [isActive, hubHttp, loadApiKeys]);
+
+  const handleCreateKey = async () => {
+    setKeysError(null);
+    setCreatedKey(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const { api_key } = await api.createAPIKey(newKeyName.trim() || 'automation', newKeyRole);
+      setCreatedKey(api_key);
+      setNewKeyName('');
+      await loadApiKeys();
+    } catch (e) {
+      setKeysError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleRevokeKey = async (id: string) => {
+    setKeysError(null);
+    try {
+      const api = new ChatAPI(hubHttp);
+      await api.revokeAPIKey(id);
+      await loadApiKeys();
+    } catch (e) {
+      setKeysError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   if (!isActive) return null;
 
@@ -73,6 +130,80 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
         </p>
       )}
     </div>
+
+    <div>
+      <h3 className="text-lg font-semibold text-slack-text mb-2">API keys</h3>
+      <p className="text-sm text-slack-textMuted mb-3">
+        Service account keys for CI/scripts (<code className="font-mono">nj_…</code>). Requires an admin session.
+        Pass <code className="font-mono">--api-key</code> to standalone agents or{' '}
+        <code className="font-mono">Authorization: Bearer nj_…</code> on hub HTTP calls.
+      </p>
+      {keysError && <p className="text-sm text-red-400 mb-2">{keysError}</p>}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <input
+          type="text"
+          placeholder="Key name"
+          value={newKeyName}
+          onChange={(e) => setNewKeyName(e.target.value)}
+          className="px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text"
+        />
+        <select
+          value={newKeyRole}
+          onChange={(e) => setNewKeyRole(e.target.value)}
+          className="px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text"
+        >
+          <option value="admin">admin</option>
+          <option value="member">member</option>
+          <option value="viewer">viewer</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => void handleCreateKey()}
+          className="px-3 py-1 rounded bg-slack-accent text-white text-sm hover:opacity-90"
+        >
+          Create key
+        </button>
+        <button
+          type="button"
+          onClick={() => void loadApiKeys()}
+          disabled={loadingKeys}
+          className="px-3 py-1 rounded border border-slack-border text-sm text-slack-textMuted"
+        >
+          Refresh
+        </button>
+      </div>
+      {createdKey && (
+        <div className="mb-3 p-3 rounded border border-emerald-700/50 bg-emerald-950/30 text-sm text-emerald-200">
+          Copy this key now — it will not be shown again:
+          <code className="block mt-1 font-mono break-all">{createdKey}</code>
+        </div>
+      )}
+      {loadingKeys ? (
+        <p className="text-sm text-slack-textMuted">Loading keys…</p>
+      ) : apiKeys.length === 0 ? (
+        <p className="text-sm text-slack-textMuted">No active API keys.</p>
+      ) : (
+        <ul className="space-y-2 text-sm">
+          {apiKeys.map((k) => (
+            <li key={k.id} className="flex items-center justify-between gap-2 rounded border border-slack-border p-2">
+              <div>
+                <span className="text-slack-text font-medium">{k.name || 'unnamed'}</span>
+                <span className="text-slack-textMuted ml-2">{k.prefix}</span>
+                <span className="text-slack-textMuted ml-2">({k.role})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleRevokeKey(k.id)}
+                className="px-2 py-0.5 rounded bg-red-900/60 text-red-200 text-xs"
+              >
+                Revoke
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+
     <div className="rounded-lg border border-slack-border bg-slack-bgHover/30 p-4 text-xs text-slack-textMuted space-y-2">
       <p>
         <strong className="text-slack-text">Shared machine:</strong> set{' '}
@@ -80,16 +211,7 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
         <code className="font-mono">NEURAL_JUNKIE_HUB_TOKEN</code> to random secrets.
       </p>
       <p>
-        JWT/API keys and user roles are planned for post-v1.0 — see{' '}
-        <a
-          href="https://github.com/camronwood/neural-junkie/blob/main/docs/PLATFORM_ROADMAP.md"
-          className="text-indigo-400 hover:underline"
-          target="_blank"
-          rel="noreferrer"
-        >
-          PLATFORM_ROADMAP.md
-        </a>
-        .
+        <strong className="text-slack-text">Roles:</strong> viewer (read-only), member (send/approve), admin (API keys + ACL).
       </p>
     </div>
   </div>

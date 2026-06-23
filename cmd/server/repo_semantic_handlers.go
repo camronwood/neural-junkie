@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/codeindex"
+	"github.com/camronwood/neural-junkie/internal/codeintel"
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
@@ -65,7 +66,7 @@ func handleRepoSemanticSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	results, err := codeindex.SearchViaBackend(ctx, root, backend, q, limit)
+	results, err := codeintel.SemanticSearchViaBackend(ctx, root, backend, q, limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

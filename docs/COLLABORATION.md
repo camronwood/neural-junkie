@@ -281,6 +281,18 @@ Optional: `TASK_STATUS: blocked` with a short reason. The hub also infers comple
 
 Agents create or edit files by emitting **`[FILE_CHANGE]`** blocks in their replies (the same machine-readable format as normal channels). **Plain discussion or markdown code fences alone do not write to disk** until a proposal is emitted and you approve it in the desktop **Pending changes** flow.
 
+Agents may propose **git operations** with **`[GIT_CHANGE]`** blocks (Software development pack). Supported operations: **stage**, **commit**, **push**. Example:
+
+```
+[GIT_CHANGE]
+operation: commit
+message: fix collab deliverable paths
+paths: src/foo.go, docs/bar.md
+[/GIT_CHANGE]
+```
+
+Git proposals appear in **Pending changes** alongside file proposals. **Push always requires explicit approval** — it is never auto-approved. Pull/status remain read-only via existing git REST endpoints.
+
 - **Workspace sharing:** The hub resolves file proposals against the **workspace path** carried in message metadata. Collaboration traffic usually happens in `collab-…` channels, while your IDE workspace is often attached to messages on `#general` or your project channel. The app now **falls back** to the most recent `workspace_context` from other channels the agent has seen, so proposals still register when you had sharing enabled from the project window.
 - **Paths must stay under the shared root:** Requests like “write under `~/development/test-site-001`” only work if that directory is the shared workspace (or added as a workspace) and sharing is on. Otherwise agents should explain the limitation and ask you to add that folder or use paths **relative** to the current workspace root.
 - **Collaboration sandbox (default):** When a plan is approved and execution starts, the hub creates `<assets-root>/<collaboration-id>/` (default assets root: `~/.neural-junkie/collaborations`), attaches it as `workspace_context` on `collaboration_task` messages **after you confirm**, and snapshots expose `working_directory` plus `workspace_acknowledged`.

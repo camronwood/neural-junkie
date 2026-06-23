@@ -80,9 +80,38 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
   const [showJumpButton, setShowJumpButton] = useState(false);
   const [, setLoadingOlder] = useState(false);
   const loadOlderRef = useRef(false);
+  const [archiveSearchHits, setArchiveSearchHits] = useState<MessageType[]>([]);
+
+  useEffect(() => {
+    if (normalizedSearchQuery.length < 3) {
+      setArchiveSearchHits([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const api = new ChatAPI(serverAddr || getHubBaseURL());
+        const hits = await api.searchMessages(channel, normalizedSearchQuery, 100);
+        if (!cancelled) {
+          setArchiveSearchHits(hits);
+        }
+      } catch {
+        if (!cancelled) {
+          setArchiveSearchHits([]);
+        }
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [channel, normalizedSearchQuery, serverAddr]);
 
   const channelMessages = useMemo(() => {
-    const filtered = messages.filter((m) => {
+    const base = normalizedSearchQuery.length >= 3 && archiveSearchHits.length > 0
+      ? archiveSearchHits
+      : messages;
+    const filtered = base.filter((m) => {
       if (m.is_thread_reply && !slackMirrorTimeline) return false;
       if (!m.content?.trim() && !channelTimelineAllowsEmptyContent(m.type)) return false;
       if (!normalizedSearchQuery) return true;
@@ -110,7 +139,7 @@ export function MessageList({ searchQuery = '' }: MessageListProps) {
       return ta - tb;
     });
     return deduped;
-  }, [messages, normalizedSearchQuery, slackMirrorTimeline]);
+  }, [messages, archiveSearchHits, normalizedSearchQuery, slackMirrorTimeline]);
 
   const loadOlderMessages = useCallback(async () => {
     if (loadOlderRef.current || normalizedSearchQuery) return;

@@ -50,7 +50,7 @@ func TestSelectForPrompt_keywordFallback(t *testing.T) {
 	_, _ = store.Add(Entry{AgentID: "a1", Content: "Prefer PostgreSQL over MySQL", Category: CategoryPreference, Scope: ScopeAgent})
 	_, _ = store.Add(Entry{AgentID: "a1", Content: "Use dark mode UI", Category: CategoryPreference, Scope: ScopeAgent})
 
-	_, agent, _, ids := SelectForPrompt(context.Background(), PromptContext{
+	_, agent, _, _, ids := SelectForPrompt(context.Background(), PromptContext{
 		Query:  "database postgres",
 		UserID: "",
 	}, "a1")

@@ -108,6 +108,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Log that we're processing this message
 	a.resetRoutingSnapshot()
 	a.resetCompressSnapshot()
+	a.recordKnowledgeRoute(msg)
 
 	log.Printf("[%s] ⬇️ RECEIVED msg ID %s from %s (mentions: %v)", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Mentions)
 	log.Printf("[%s] ✅ MARKED msg %s as responded", a.Info.Name, msg.ID[:8])
@@ -194,6 +195,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		response = sanitizeCollabDiscussionResponse(response, collabCtx, a.Info.Type)
 	}
 	var proposedFileChange bool
+	var proposedGitChange bool
 	var proposalErr error
 	if implSessionProposed {
 		proposedFileChange = true
@@ -203,6 +205,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		} else {
 			response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
 			if !proposedFileChange && proposalErr == nil {
+				response, proposedGitChange, proposalErr = a.maybeSubmitGitChangeFromResponse(context.Background(), response, msg.Channel, msg)
+			}
+			if !proposedFileChange && !proposedGitChange && proposalErr == nil {
 				response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
 			}
 		}
@@ -215,6 +220,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			response = "I submitted a file change proposal for your approval."
 		} else {
 			response += "\n\nI submitted a file change proposal for your approval."
+		}
+	}
+	if proposedGitChange {
+		if strings.TrimSpace(response) == "" {
+			response = "I submitted a git change proposal for your approval."
+		} else {
+			response += "\n\nI submitted a git change proposal for your approval."
 		}
 	}
 	log.Printf("[%s] ✍️  Generated response: %s", a.Info.Name, response[:min(50, len(response))])

@@ -46,8 +46,32 @@ func WithRetrieveBudget(ctx context.Context) context.Context {
 	return context.WithValue(ctx, retrieveCountKey{}, &n)
 }
 
+type retrieveBudgetKey struct{}
+
+// WithAgentRetrieveBudget raises per-turn nj_retrieve_context cap for agent-runtime loops.
+func WithAgentRetrieveBudget(ctx context.Context, max int) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if max <= 0 {
+		max = maxRetrievePerTurn
+	}
+	return context.WithValue(ctx, retrieveBudgetKey{}, max)
+}
+
+func retrieveBudgetFromContext(ctx context.Context) int {
+	if ctx == nil {
+		return maxRetrievePerTurn
+	}
+	if v, ok := ctx.Value(retrieveBudgetKey{}).(int); ok && v > 0 {
+		return v
+	}
+	return maxRetrievePerTurn
+}
+
 // TryConsumeRetrieve returns false when the per-turn retrieve budget is exhausted.
 func TryConsumeRetrieve(ctx context.Context) bool {
+	max := retrieveBudgetFromContext(ctx)
 	if ctx == nil {
 		return true
 	}
@@ -55,7 +79,7 @@ func TryConsumeRetrieve(ctx context.Context) bool {
 	if !ok || p == nil {
 		return true
 	}
-	if atomic.LoadInt32(p) >= maxRetrievePerTurn {
+	if atomic.LoadInt32(p) >= int32(max) {
 		return false
 	}
 	atomic.AddInt32(p, 1)

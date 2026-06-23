@@ -105,7 +105,8 @@ func shouldContinueImplementationSession(a *Agent, msg *protocol.Message, state 
 			return false, ""
 		}
 	}
-	if len(state.FilesChanged) >= implSessionMaxFiles {
+	_, _, maxFiles := implSessionLimits(msg)
+	if len(state.FilesChanged) >= maxFiles {
 		return false, ""
 	}
 	wsPath := a.resolveWorkspacePath(msg)

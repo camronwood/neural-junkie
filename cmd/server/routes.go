@@ -14,6 +14,7 @@ import (
 func registerRoutes() {
 	// HTTP routes with CORS middleware
 	http.HandleFunc("/ws", localOnly(handleWebSocket))
+	http.HandleFunc("/api/agents/ws", localOnly(handleAgentWebSocket))
 	http.HandleFunc("/api/channels", corsMiddleware(handleChannels))
 	http.HandleFunc("/api/channels/create", corsMiddleware(handleCreateChannel))
 	http.HandleFunc("/api/channels/create-dm-agent", corsMiddleware(handleCreateDMAgent))
@@ -36,6 +37,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/cached-agents", corsMiddleware(handleCachedAgents)) // Keep for backwards compatibility
 	http.HandleFunc("/api/removed-agents", corsMiddleware(handleRemovedAgents))
 	http.HandleFunc("/api/messages", corsMiddleware(handleMessages))
+	http.HandleFunc("/api/messages/search", corsMiddleware(handleMessagesSearch))
 	http.HandleFunc("/api/local-image", corsMiddleware(localOnly(handleLocalImage)))
 	http.HandleFunc("/api/collaborations", corsMiddleware(handleCollaborations))
 	http.HandleFunc("/api/collaborations/", corsMiddleware(handleCollaborationsSubRoute))
@@ -45,6 +47,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/runbook-templates", corsMiddleware(handleRunbookTemplatesRoute))
 	http.HandleFunc("/api/runbook-templates/", corsMiddleware(handleRunbookTemplatesRoute))
 	http.HandleFunc("/api/auth/session", corsMiddleware(handleAuthSession))
+	http.HandleFunc("/api/auth/api-keys", corsMiddleware(handleAPIKeysRoute))
+	http.HandleFunc("/api/auth/api-keys/", corsMiddleware(handleAPIKeyRevoke))
 	http.HandleFunc("/api/hub-data/read", corsMiddleware(localOnly(handleHubDataRead)))
 	http.HandleFunc("/api/send", corsMiddleware(localOnly(handleSendMessage)))
 	http.HandleFunc("/api/broadcast", corsMiddleware(localOnly(handleBroadcastDirect)))
@@ -95,6 +99,9 @@ func registerRoutes() {
 	http.HandleFunc("/api/git-file-sides", corsMiddleware(localOnly(handleGitFileSides)))
 	http.HandleFunc("/api/git-add", corsMiddleware(localOnly(handleGitAdd)))
 	http.HandleFunc("/api/git-reset", corsMiddleware(localOnly(handleGitReset)))
+	http.HandleFunc("/api/git-changes", corsMiddleware(handleGitChanges))
+	http.HandleFunc("/api/git-changes/approve/", corsMiddleware(localOnly(handleGitChangeApprove)))
+	http.HandleFunc("/api/git-changes/reject/", corsMiddleware(localOnly(handleGitChangeReject)))
 	http.HandleFunc("/api/workspaces/files/search", corsMiddleware(localOnly(handleWorkspaceFileSearch)))
 	http.HandleFunc("/api/workspaces/symbols/search", corsMiddleware(localOnly(handleWorkspaceSymbolSearch)))
 	http.HandleFunc("/api/dev/fast-edit", corsMiddleware(handleDevFastEdit))
@@ -213,6 +220,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/slack/inbox/human-dm-debug", corsMiddleware(handleSlackInboxHumanDMDebug))
 	http.HandleFunc("/api/web-search/config", corsMiddleware(handleWebSearchConfig))
 	http.HandleFunc("/api/web-search/test", corsMiddleware(handleWebSearchTest))
+	http.HandleFunc("/api/debug/turn-trace", corsMiddleware(localOnly(handleDebugTurnTrace)))
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" {
 		http.HandleFunc("/api/debug/hub-memory", corsMiddleware(handleDebugHubMemory))

@@ -53,6 +53,7 @@ export function useHorizontalPanelResize({
   const [isResizing, setIsResizing] = useState(false);
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(width);
+  const resizeStartMaxWidth = useRef(resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current));
   const currentWidthRef = useRef(width);
 
   useEffect(() => {
@@ -95,8 +96,7 @@ export function useHorizontalPanelResize({
         edge === 'left'
           ? resizeStartX.current - e.clientX
           : e.clientX - resizeStartX.current;
-      const max = resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current);
-      const next = clampWidth(resizeStartWidth.current + delta, minWidth, max);
+      const next = clampWidth(resizeStartWidth.current + delta, minWidth, resizeStartMaxWidth.current);
       setWidth(next);
     };
 
@@ -124,8 +124,9 @@ export function useHorizontalPanelResize({
     e.preventDefault();
     resizeStartX.current = e.clientX;
     resizeStartWidth.current = currentWidthRef.current;
+    resizeStartMaxWidth.current = resolveMaxWidth(maxWidthRatio, getMaxWidthRef.current);
     setIsResizing(true);
-  }, []);
+  }, [maxWidthRatio]);
 
   return { width, isResizing, onResizeStart };
 }

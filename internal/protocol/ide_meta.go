@@ -40,6 +40,17 @@ func (m *Message) ImplementationSession() bool {
 	return ok && v
 }
 
+// AgentRuntimeV2 reports whether agent-runtime v2 limits apply (metadata override or hub default).
+func (m *Message) AgentRuntimeV2() bool {
+	if m == nil || m.Metadata == nil {
+		return false
+	}
+	if v, ok := m.Metadata["agent_runtime_v2"].(bool); ok {
+		return v
+	}
+	return false
+}
+
 // EditorAgentTrust returns interactive, auto_apply_edits, or yolo from metadata.
 func (m *Message) EditorAgentTrust() string {
 	if m == nil || m.Metadata == nil {

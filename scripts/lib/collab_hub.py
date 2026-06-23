@@ -230,6 +230,11 @@ def find_collab(collabs: list, collab_id: str) -> dict | None:
 
 
 def fetch_collab(base: str, channel: str, collab_id: str) -> dict | None:
+    cid = (collab_id or "").strip()
+    if cid:
+        code, data = hub_request(base, "GET", f"/api/collaborations/{urllib.parse.quote(cid, safe='')}")
+        if code == 200 and isinstance(data, dict) and data.get("id") == cid:
+            return data
     q = urllib.parse.urlencode({"channel": channel, "include_terminal": "true"})
     code, data = hub_request(base, "GET", f"/api/collaborations?{q}")
     if code != 200 or not isinstance(data, list):

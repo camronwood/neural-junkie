@@ -13,7 +13,7 @@ import (
 func TestHandleUserRulesGetPut(t *testing.T) {
 	chatHub = hub.NewHub()
 	hubSessions = hub.NewSessionManager()
-	sess := hubSessions.CreateSession("Camron")
+	sess := hubSessions.CreateSession("Camron", "admin")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/user-rules", nil)
 	req.RemoteAddr = "127.0.0.1:1234"

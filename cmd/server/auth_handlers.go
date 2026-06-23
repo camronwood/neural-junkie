@@ -18,6 +18,7 @@ func handleAuthSession(w http.ResponseWriter, r *http.Request) {
 		}
 		var req struct {
 			Username string `json:"username"`
+			Role     string `json:"role"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
@@ -26,7 +27,7 @@ func handleAuthSession(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(req.Username) == "" {
 			req.Username = "Anonymous"
 		}
-		sess := hubSessions.CreateSession(req.Username)
+		sess := hubSessions.CreateSession(req.Username, req.Role)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(sess)
 	case http.MethodGet:
@@ -47,8 +48,24 @@ func ensureMutationAccess(w http.ResponseWriter, r *http.Request, channel string
 	if !hub.RequireHubAccess(w, r) {
 		return nil, false
 	}
+	if apiSess := sessionFromAPIKey(r); apiSess != nil {
+		if !hub.RoleCanMutate(apiSess.Role) {
+			http.Error(w, "Forbidden: viewer role cannot mutate", http.StatusForbidden)
+			return nil, false
+		}
+		if hub.EnforceChannelACL(r) && strings.TrimSpace(channel) != "" && chatHub != nil {
+			if !chatHub.RequireChannelAccess(w, apiSess.Username, channel) {
+				return nil, false
+			}
+		}
+		return apiSess, true
+	}
 	sess, ok := hub.RequireSessionForMutation(w, r, hubSessions)
 	if !ok {
+		return nil, false
+	}
+	if !hub.RoleCanMutate(sess.Role) {
+		http.Error(w, "Forbidden: viewer role cannot mutate", http.StatusForbidden)
 		return nil, false
 	}
 	if hub.EnforceChannelACL(r) && strings.TrimSpace(channel) != "" && chatHub != nil {
@@ -63,6 +80,9 @@ func ensureMutationAccess(w http.ResponseWriter, r *http.Request, channel string
 func ensureChannelReadAccess(w http.ResponseWriter, r *http.Request, channel string) bool {
 	if !hub.EnforceChannelACL(r) || chatHub == nil {
 		return true
+	}
+	if apiSess := sessionFromAPIKey(r); apiSess != nil {
+		return chatHub.RequireChannelAccess(w, apiSess.Username, channel)
 	}
 	sess := hub.SessionFromRequest(r, hubSessions)
 	if sess == nil {

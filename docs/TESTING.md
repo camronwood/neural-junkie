@@ -26,6 +26,10 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Destructive command denial | `assert_suggested_commands` + no writes | `deny-destructive-command` |
 | Plan mode no-write | Plan composer + read-only gates | `plan-mode-no-write` |
 | **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (16/16 PASS) |
+| **Agent Runtime v2 (open loop)** | [CURSOR_PARITY.md](CURSOR_PARITY.md), `features.agent_runtime_v2` | `make parity-scenarios`; model-aware budgets |
+| **Large-repo semantic discovery** | `internal/codeindex` + SQLite store | `large-repo-semantic-find` parity scenario |
+| **Multi-file + repair without nudge** | Agent Runtime v2 verify/repair | `multi-file-refactor-10`, `long-agent-loop-repair` |
+| **Workspace memory (local)** | [PERSONAL_LEARNING_V2.md](PERSONAL_LEARNING_V2.md) `scope: workspace` | Agent runtime prompt injection |
 | Conversation routing + collab wiring | Agent intent/closure, hub DM/collab, desktop chat UI | `make test-conversation-contract` |
 
 See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORATION.md).
@@ -40,6 +44,8 @@ ollama pull qwen3.5:9b    # specialists, tool loop, and utility (OLLAMA_CODE_MOD
 make server-regression         # terminal 1
 make agents                    # terminal 1b — picks up env.local models
 make implement-scenarios       # terminal 2 — need 16/16 PASS
+make parity-scenarios          # Cursor parity contract (scenarios/parity/)
+make test-parity-full-restart  # implement + parity, 3× with hub restart
 make test-parity-stable        # optional — 3× sweeps at 16/16 under server-regression
 ```
 

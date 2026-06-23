@@ -21,7 +21,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const maxReadBytes = 50 * 1024
+const maxReadBytes = 512 * 1024 // agent-runtime reads; CCR compresses before prompt
 
 // RootResolver returns the workspace root for tool calls.
 type RootResolver func() string

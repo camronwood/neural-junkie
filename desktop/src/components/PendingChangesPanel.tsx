@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useFileChangeStore } from '../stores/fileChangeStore';
+import { useGitChangeStore } from '../stores/gitChangeStore';
 import { FileChangeCard } from './FileChangeCard';
 import { FileChangePreview } from './FileChangePreview';
 import type { FileChange } from '../types/protocol';
@@ -22,12 +23,19 @@ export function PendingChangesPanel({ onClose, initialChangeId = null }: Pending
     clearError,
     refreshChanges,
   } = useFileChangeStore();
+  const {
+    pendingGitChanges,
+    fetchPendingGitChanges,
+    approveGitChange,
+    rejectGitChange,
+  } = useGitChangeStore();
 
   const [selectedChange, setSelectedChange] = useState<FileChange | null>(null);
 
   useEffect(() => {
     fetchPendingChanges();
-  }, [fetchPendingChanges]);
+    void fetchPendingGitChanges();
+  }, [fetchPendingChanges, fetchPendingGitChanges]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -169,6 +177,21 @@ export function PendingChangesPanel({ onClose, initialChangeId = null }: Pending
         )}
 
         <div className="flex-1 overflow-y-auto p-4">
+          {pendingGitChanges.length > 0 && (
+            <div className="mb-4 space-y-2">
+              <h3 className="text-sm font-semibold text-slack-text">Pending git operations</h3>
+              {pendingGitChanges.map((g) => (
+                <div key={g.id} className="rounded border border-slack-border p-3 text-sm">
+                  <div className="font-medium">{g.operation}</div>
+                  {g.message && <div className="text-slack-textMuted">{g.message}</div>}
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" className="px-2 py-1 rounded bg-emerald-700 text-white text-xs" onClick={() => void approveGitChange(g.id)}>Approve</button>
+                    <button type="button" className="px-2 py-1 rounded bg-red-800 text-white text-xs" onClick={() => void rejectGitChange(g.id)}>Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {loading && (Array.isArray(pendingChanges) ? pendingChanges.length === 0 : true) ? (
             <div className="flex items-center justify-center p-8">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-slack-border border-t-slack-accent" />

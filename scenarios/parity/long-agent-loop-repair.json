@@ -1,0 +1,43 @@
+{
+  "name": "long-agent-loop-repair",
+  "description": "Agent runtime fixes failing go test without manual go-ahead",
+  "tags": ["parity", "agent-runtime"],
+  "channel": "parity-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "go-verify-repair" },
+  "steps": [
+    {
+      "action": "send",
+      "content": "please implement: fix the failing tests in core/sample — make Add return correct sum and ensure go test ./... passes",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code",
+        "agent_runtime_v2": true
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "900s",
+      "until_any_match": ["applied and verified|verification failed|proposals submitted"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["applied and verified|applied but verification failed"],
+      "none_match": ["finished without file changes"]
+    },
+    {
+      "action": "assert_shell",
+      "command": "go test ./...",
+      "expect_exit": 0
+    }
+  ],
+  "cleanup": "clear"
+}

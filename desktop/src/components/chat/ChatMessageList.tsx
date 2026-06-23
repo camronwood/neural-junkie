@@ -1,6 +1,9 @@
 import type { Collaboration } from '../../types/protocol';
 import { ChatFindBar } from '../ChatFindBar';
 import { MessageList } from '../MessageList';
+import { RoutingTracePanel } from '../RoutingTracePanel';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useChatStore } from '../../stores/chatStore';
 
 interface ChatMessageListProps {
   channel: string;
@@ -25,6 +28,11 @@ export function ChatMessageList({
   channelAwaitingWorkspaceCollab,
   onOpenWorkspaceGate,
 }: ChatMessageListProps) {
+  const showRoutingOnMessages = useSettingsStore(
+    (s) => s.layoutSettings.showRoutingOnMessages !== false,
+  );
+  const highlightMessageId = useChatStore((s) => s.highlightMessageId);
+
   return (
     <>
       {isClosedCollaborationChannel && collaborationForChannel && (
@@ -81,6 +89,15 @@ export function ChatMessageList({
             Continue
           </button>
         </div>
+      )}
+
+      {highlightMessageId && (
+        <RoutingTracePanel
+          channel={channel}
+          messageId={highlightMessageId}
+          query={messageSearchQuery}
+          enabled={showRoutingOnMessages}
+        />
       )}
 
       <MessageList key={channel} searchQuery={messageSearchQuery} />

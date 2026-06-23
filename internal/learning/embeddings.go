@@ -110,9 +110,9 @@ type scoredEntry struct {
 	score float64
 }
 
-func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (global, agent, collab []Entry, ids []string) {
+func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (global, agent, collab, workspace []Entry, ids []string) {
 	if globalStore == nil || !learningEnabled() {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 	userID := pctx.UserID
 	if globalStore != nil {
@@ -141,11 +141,16 @@ func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (g
 	if collabID != "" {
 		poolCollab = globalStore.ListFiltered(Filter{UserID: userID, Scope: ScopeCollaboration, CollaborationID: collabID, IncludeLegacy: true})
 	}
+	poolWorkspace := []Entry{}
+	if ws := strings.TrimSpace(pctx.WorkspaceID); ws != "" {
+		poolWorkspace = globalStore.ListFiltered(Filter{UserID: userID, Scope: ScopeWorkspace, WorkspaceID: ws, IncludeLegacy: true})
+	}
 
 	queryVec, embedOK := embedQuery(ctx, query)
 	global = topK(poolGlobal, query, queryVec, embedOK, DefaultGlobalTopK)
 	agent = topK(poolAgent, query, queryVec, embedOK, DefaultAgentTopK)
 	collab = topK(poolCollab, query, queryVec, embedOK, DefaultCollabTopK)
+	workspace = topK(poolWorkspace, query, queryVec, embedOK, DefaultCollabTopK)
 
 	for _, e := range global {
 		ids = append(ids, e.ID)
@@ -156,10 +161,13 @@ func SelectForPrompt(ctx context.Context, pctx PromptContext, agentID string) (g
 	for _, e := range collab {
 		ids = append(ids, e.ID)
 	}
+	for _, e := range workspace {
+		ids = append(ids, e.ID)
+	}
 	if len(ids) > 0 {
 		globalStore.RecordUse(ids)
 	}
-	return global, agent, collab, ids
+	return global, agent, collab, workspace, ids
 }
 
 func topK(pool []Entry, query string, queryVec []float64, embedOK bool, k int) []Entry {
@@ -225,7 +233,7 @@ func ensureVector(ctx context.Context, id, content string) ([]float64, error) {
 
 // QueryPreview runs retrieval for API debug (no prompt write).
 func QueryPreview(ctx context.Context, pctx PromptContext, agentID string, scope Scope) []Entry {
-	g, a, c, _ := SelectForPrompt(ctx, pctx, agentID)
+	g, a, c, w, _ := SelectForPrompt(ctx, pctx, agentID)
 	switch scope {
 	case ScopeGlobal:
 		return g
@@ -233,11 +241,14 @@ func QueryPreview(ctx context.Context, pctx PromptContext, agentID string, scope
 		return c
 	case ScopeAgent:
 		return a
+	case ScopeWorkspace:
+		return w
 	default:
 		var all []Entry
 		all = append(all, g...)
 		all = append(all, a...)
 		all = append(all, c...)
+		all = append(all, w...)
 		return all
 	}
 }

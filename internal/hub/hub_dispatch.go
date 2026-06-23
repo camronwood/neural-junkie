@@ -148,6 +148,11 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 			h.registerFileChangeProposal(msg, proposalRaw)
 		}
 	}
+	if msg.Metadata != nil {
+		if proposalRaw, ok := msg.Metadata["git_change_proposal"]; ok {
+			h.registerGitChangeProposal(msg, proposalRaw)
+		}
+	}
 
 	activityMsg := msg
 	defer h.noteChannelActivity(activityMsg)

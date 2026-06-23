@@ -59,8 +59,18 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_channel_created ON messages(channel, created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_thread_created ON messages(thread_id, created_at);
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+  message_id UNINDEXED,
+  channel UNINDEXED,
+  content,
+  sender_name,
+  tokenize='unicode61'
+);
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.backfillFTS()
 }
 
 func (s *Store) Close() error {
@@ -85,7 +95,10 @@ func (s *Store) InsertMessage(msg *protocol.Message) error {
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		msg.ID, msg.Channel, threadID, msg.From.ID, msg.From.Name, string(msg.From.Type),
 		msg.Content, string(msg.Type), string(meta), created)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.indexMessageFTS(msg.ID, msg.Channel, msg.Content, msg.From.Name)
 }
 
 // ListChannelMessages returns messages for a channel with optional cursor pagination.

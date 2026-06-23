@@ -125,6 +125,7 @@ func main() {
 	chatHub = hub.NewHub()
 	applyCollabActionConfig()
 	initMessageStore()
+	initAuthStore()
 	initConversationMemory()
 	if appConfig != nil {
 		for _, ch := range appConfig.Server.DurableChannels {

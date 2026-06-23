@@ -3,8 +3,6 @@ import type { InstallPackLoRAResult } from '../../api/chatAPI';
 import { usePacksStore } from '../../stores/packsStore';
 import { PACK_CAP } from '../../stores/packCapabilities';
 
-import { CustomPackInstall } from './CustomPackInstall';
-
 export function PackStoreBrowse() {
   const catalog = usePacksStore((s) => s.catalog);
   const loading = usePacksStore((s) => s.loading);
@@ -51,7 +49,6 @@ export function PackStoreBrowse() {
 
   return (
     <div className="space-y-4">
-      <CustomPackInstall />
       {(error || actionError) && (
         <p className="text-sm text-red-400">{actionError ?? error}</p>
       )}

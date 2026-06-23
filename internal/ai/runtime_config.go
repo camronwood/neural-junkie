@@ -49,3 +49,8 @@ func PerformanceConfig() config.PerformanceConfig {
 func OutputShapingEnabled() bool {
 	return performanceConfig().OutputShapingEnabled
 }
+
+// OllamaNumCtx returns configured Ollama context window size.
+func OllamaNumCtx() int {
+	return ollamaRuntimeConfig().NumCtx
+}

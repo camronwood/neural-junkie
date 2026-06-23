@@ -89,7 +89,7 @@ func formatCallToolResult(ctx context.Context, toolName string, result *mcpgo.Ca
 		return "ERROR: " + text
 	}
 
-	opts := contextcompress.RuntimeOptions()
+	opts := compressOptsForContext(ctx)
 	maxBytes := opts.MaxToolBytes
 	if maxBytes <= 0 {
 		maxBytes = maxToolResultChars
@@ -119,6 +119,13 @@ func formatCallToolResult(ctx context.Context, toolName string, result *mcpgo.Ca
 		)
 	}
 	return compressed.Text
+}
+
+func compressOptsForContext(ctx context.Context) contextcompress.Options {
+	if implementationSessionStateFromContext(ctx) != nil {
+		return contextcompress.RuntimeOptionsForAgent()
+	}
+	return contextcompress.RuntimeOptions()
 }
 
 type agentCompressKey struct{}

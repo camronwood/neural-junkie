@@ -23,6 +23,8 @@ Start with the [README](README.md) (overview, screenshots, quick start, command 
 | LoRA adapters (import & compose) | [LORA_ADAPTERS.md](docs/LORA_ADAPTERS.md) |
 | LoRA training (in-app wizard) | [LORA_TRAINING.md](docs/LORA_TRAINING.md) |
 | Product overview | [USER_VALUE_GUIDE.md](docs/USER_VALUE_GUIDE.md) |
+| Testing and parity gates | [TESTING.md](docs/TESTING.md) |
+| Native Cursor parity (local-first) | [CURSOR_PARITY.md](docs/CURSOR_PARITY.md) |
 | Maintainer / internals | [DEVELOPMENT_NOTES.md](docs/DEVELOPMENT_NOTES.md) |
 | Release history | [CHANGELOG.md](docs/CHANGELOG.md) |
 | Roadmap / ideas | [FUTURE_ENHANCEMENTS.md](docs/FUTURE_ENHANCEMENTS.md) |

@@ -24,6 +24,7 @@ const (
 	ScopeAgent         Scope = "agent"
 	ScopeGlobal        Scope = "global"
 	ScopeCollaboration Scope = "collaboration"
+	ScopeWorkspace     Scope = "workspace"
 )
 
 const (
@@ -46,6 +47,7 @@ type Entry struct {
 	AgentType       string    `json:"agent_type,omitempty"`
 	AgentName       string    `json:"agent_name,omitempty"`
 	CollaborationID string    `json:"collaboration_id,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
 	Content         string    `json:"content"`
 	Category        Category  `json:"category"`
 	ContentHash     string    `json:"content_hash,omitempty"`
@@ -67,6 +69,7 @@ type Filter struct {
 	UserID          string
 	Scope           Scope
 	CollaborationID string
+	WorkspaceID     string
 	IncludeLegacy   bool // empty user_id rows when UserID set
 }
 
@@ -86,6 +89,7 @@ type PromptContext struct {
 	AgentName       string
 	Channel         string
 	CollaborationID string
+	WorkspaceID     string
 }
 
 // PromptResult is injection output for debug metadata.
@@ -101,7 +105,7 @@ func ContentHash(content string) string {
 
 func NormalizeScope(s Scope) Scope {
 	switch s {
-	case ScopeGlobal, ScopeCollaboration:
+	case ScopeGlobal, ScopeCollaboration, ScopeWorkspace:
 		return s
 	default:
 		return ScopeAgent

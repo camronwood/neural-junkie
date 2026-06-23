@@ -71,7 +71,7 @@ func AppendForAgent(system *strings.Builder, self *protocol.AgentInfo, pctx Prom
 	if pctx.CollaborationID == "" && pctx.Channel != "" {
 		pctx.CollaborationID = ResolveCollabID(pctx.Channel)
 	}
-	globalEntries, agentEntries, collabEntries, ids := SelectForPrompt(nil, pctx, self.ID)
+	globalEntries, agentEntries, collabEntries, workspaceEntries, ids := SelectForPrompt(nil, pctx, self.ID)
 	res.IDs = ids
 
 	writeSection := func(title, endTitle, hint string, entries []Entry, budget int) {
@@ -113,6 +113,15 @@ func AppendForAgent(system *strings.Builder, self *protocol.AgentInfo, pctx Prom
 		collabEntries,
 		DefaultCollabBudget,
 	)
+	if len(workspaceEntries) > 0 {
+		writeSection(
+			"LEARNINGS FOR THIS WORKSPACE (user-confirmed)",
+			"LEARNINGS FOR THIS WORKSPACE",
+			"The user approved these notes for this project workspace. Apply when relevant.",
+			workspaceEntries,
+			DefaultCollabBudget,
+		)
+	}
 
 	if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" && len(res.IDs) > 0 {
 		// caller attaches to metadata

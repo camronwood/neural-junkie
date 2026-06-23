@@ -14,6 +14,13 @@ import (
 	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 )
 
+func normalizeWorkspaceRelPath(p string) string {
+	p = strings.TrimSpace(p)
+	p = strings.TrimPrefix(p, "/")
+	p = strings.TrimPrefix(p, "\\")
+	return filepath.ToSlash(p)
+}
+
 func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
@@ -73,11 +80,13 @@ func handleFileCreate(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID string `json:"workspace_id"`
 		Path        string `json:"path"`
 		Content     string `json:"content"`
+		IsDir       bool   `json:"is_dir"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
+	req.Path = normalizeWorkspaceRelPath(req.Path)
 
 	workspace, exists := workspaceManager.GetWorkspace(req.WorkspaceID)
 	if !exists {
@@ -87,7 +96,25 @@ func handleFileCreate(w http.ResponseWriter, r *http.Request) {
 
 	if isRemoteWorkspace(workspace) {
 		if _, err := backendStat(r.Context(), req.WorkspaceID, req.Path); err == nil {
-			http.Error(w, "File already exists", http.StatusConflict)
+			http.Error(w, "Path already exists", http.StatusConflict)
+			return
+		}
+		if req.IsDir {
+			b, code, msg := backendForWorkspace(req.WorkspaceID)
+			if b == nil {
+				http.Error(w, msg, code)
+				return
+			}
+			res, err := b.Exec(r.Context(), workspacebackend.ExecRequest{
+				Command: "mkdir",
+				Args:    []string{"-p", req.Path},
+				RelCwd:  ".",
+			})
+			if err != nil || res.ExitCode != 0 {
+				http.Error(w, strings.TrimSpace(res.Stderr+res.Stdout), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 			return
 		}
 		if code, msg := backendWriteFile(r.Context(), req.WorkspaceID, req.Path, []byte(req.Content)); code != 0 {
@@ -106,13 +133,20 @@ func handleFileCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if file already exists
 	if _, err := os.Stat(absPath); err == nil {
-		http.Error(w, "File already exists", http.StatusConflict)
+		http.Error(w, "Path already exists", http.StatusConflict)
 		return
 	}
 
-	// Ensure directory exists
+	if req.IsDir {
+		if err := os.MkdirAll(absPath, 0755); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		return
+	}
+
 	if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -141,6 +175,8 @@ func handleFileRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
+	req.OldPath = normalizeWorkspaceRelPath(req.OldPath)
+	req.NewPath = normalizeWorkspaceRelPath(req.NewPath)
 
 	workspace, exists := workspaceManager.GetWorkspace(req.WorkspaceID)
 	if !exists {
@@ -156,7 +192,7 @@ func handleFileRename(w http.ResponseWriter, r *http.Request) {
 		}
 		res, err := b.Exec(r.Context(), workspacebackend.ExecRequest{
 			Command: "mv",
-			Args:    []string{strings.TrimPrefix(req.OldPath, "/"), strings.TrimPrefix(req.NewPath, "/")},
+			Args:    []string{req.OldPath, req.NewPath},
 			RelCwd:  ".",
 		})
 		if err != nil || res.ExitCode != 0 {

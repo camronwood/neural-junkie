@@ -15,8 +15,9 @@ import (
 
 // File size limits for auto-loaded files
 const (
-	maxFileSize      = 50 * 1024  // 50KB per file
-	maxTotalFileSize = 200 * 1024 // 200KB total across all referenced files
+	maxFileSize         = 512 * 1024 // prompt injection cap per referenced file
+	maxTotalFileSize    = 2 * 1024 * 1024
+	legacyMaxFileSize   = 50 * 1024
 )
 
 // binaryExtensions are file types we skip (non-text)

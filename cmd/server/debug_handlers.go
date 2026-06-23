@@ -114,6 +114,9 @@ func handleDebugChannelContext(w http.ResponseWriter, r *http.Request) {
 		out["resolved_intent"] = intent.String()
 		out["context_scope"] = agent.ResolveContextScope(msg)
 	}
+	if trace := routingTraceForChannel(msgs); len(trace) > 0 {
+		out["routing_trace"] = trace
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
 }
@@ -187,4 +190,33 @@ func handleDebugContextCompress(w http.ResponseWriter, r *http.Request) {
 func classifyTurnIntentForDebug(msg *protocol.Message, chType protocol.ChannelType) agent.TurnIntent {
 	// Lightweight mirror for debug endpoint without spinning up a full agent.
 	return agent.ClassifyTurnIntentPublic(msg, chType, "", nil)
+}
+
+func routingTraceForChannel(msgs []*protocol.Message) []map[string]interface{} {
+	const maxTrace = 12
+	var trace []map[string]interface{}
+	for i := len(msgs) - 1; i >= 0 && len(trace) < maxTrace; i-- {
+		m := msgs[i]
+		if m == nil || m.Metadata == nil {
+			continue
+		}
+		rm := protocol.ExtractRoutingMeta(m)
+		if rm.Reason == "" && rm.Model == "" && rm.ProviderID == "" {
+			continue
+		}
+		entry := map[string]interface{}{
+			"message_id":    m.ID,
+			"agent":         m.From.Name,
+			"routing":       rm,
+			"context_scope": m.Metadata[agent.MetadataContextScope],
+		}
+		if v, ok := m.Metadata["compress_strategy"].(string); ok && v != "" {
+			entry["compress_strategy"] = v
+		}
+		if v, ok := m.Metadata["agent_runtime_v2"].(bool); ok {
+			entry["agent_runtime_v2"] = v
+		}
+		trace = append(trace, entry)
+	}
+	return trace
 }

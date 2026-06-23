@@ -13,6 +13,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -51,6 +52,7 @@ type ImplementationSessionState struct {
 	VerifyFailed    bool
 	VerifySkipped   bool
 	RepairUsed      bool
+	RepairAttempts  int
 	Phase           string
 	StackManifest   *StackManifest
 	SeedsLoaded     int
@@ -204,12 +206,16 @@ func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Mess
 }
 
 func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, streamMsgID string) (string, string, bool, []string, map[string]interface{}, error) {
-	sessionTimeout := implSessionTimeout
-	if wsPath := a.resolveWorkspacePath(msg); wsPath != "" {
-		if m := DetectStackManifest(wsPath); m != nil && (m.HasReact || m.HasTailwind) {
-			sessionTimeout = implSessionFrontendTimeout
+	frontend := false
+	wsPathEarly := a.resolveWorkspacePath(msg)
+	if wsPathEarly != "" {
+		if m := DetectStackManifest(wsPathEarly); m != nil && (m.HasReact || m.HasTailwind) {
+			frontend = true
 		}
 	}
+	sessionTimeout := implSessionTimeoutForMessage(msg, frontend)
+	maxToolIter, maxEditRounds, maxFiles := implSessionLimits(msg)
+
 	sessionCtx, cancel := context.WithTimeout(ctx, sessionTimeout)
 	defer cancel()
 
@@ -226,7 +232,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		toolModel = a.resolveImplementationToolModel(plan.ToolModel)
 	}
 	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
-	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, implSessionMaxToolIterations)
+	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, maxToolIter)
+	perf := performanceFromHub()
+	sessionCtx = contextcompress.WithAgentRetrieveBudget(sessionCtx, perf.AgentRuntimeMaxRetrievePerTurnOrDefault())
 
 	history := a.channelHistory(msg.Channel)
 	state := &ImplementationSessionState{
@@ -239,6 +247,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
 	}
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
+	restoreImplSessionFromCheckpoint(msg, state)
 
 	if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
@@ -255,10 +264,10 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	proposedAny := false
 	var repairNote string
 
-	for fileCycle := 0; fileCycle < implSessionMaxFiles; fileCycle++ {
+	for fileCycle := 0; fileCycle < maxFiles; fileCycle++ {
 		cycleProposed := false
 
-	for round := 0; round < implSessionMaxEditRounds; round++ {
+	for round := 0; round < maxEditRounds; round++ {
 		state.EditRound = round
 		state.Phase = "discover"
 		roundCtx := withImplementationSessionRound(sessionCtx, round)
@@ -289,7 +298,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		if propErr != nil {
 			log.Printf("[%s] impl session file proposal error: %v", a.Info.Name, propErr)
 			repairNote = formatPreflightRepairNote(state.PreflightErrors, state.StackManifest)
-			if round < implSessionMaxEditRounds-1 {
+			if round < maxEditRounds-1 {
 				continue
 			}
 		}
@@ -317,7 +326,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			}
 		}
 
-		if round < implSessionMaxEditRounds-1 {
+		if round < maxEditRounds-1 {
 			if len(state.PreflightErrors) > 0 {
 				repairNote = formatPreflightRepairNote(state.PreflightErrors, state.StackManifest)
 			} else if !state.groundingSatisfied() {
@@ -369,13 +378,19 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
 
-		if verifyFailed && !state.RepairUsed {
-			state.RepairUsed = true
+		if verifyFailed {
+			maxRepairs := 1
+			if agentRuntimeV2ForMessage(msg) {
+				maxRepairs = agentRuntimeMaxRepairRounds
+			}
+			if state.RepairAttempts < maxRepairs {
+			state.RepairAttempts++
+			state.RepairUsed = state.RepairAttempts > 0
 			state.Phase = "repair"
 			repairNote = fmt.Sprintf("Verification failed. Fix the issues and emit corrected [FILE_CHANGE] blocks.\n\nCommand output:\n%s", verifyOut)
 			roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
 			roundCtx = withRepairNote(roundCtx, repairNote)
-			roundCtx = ai.WithToolLoopMaxIterations(roundCtx, implSessionMaxToolIterations)
+			roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
 			toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
 				if ev.Kind == "result" && isDiscoverTool(ev.Name) {
 					state.recordDiscoverTool(ev.Name)
@@ -401,6 +416,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 					lastResponse = response
 				}
 			}
+			}
 		}
 	}
 
@@ -413,10 +429,13 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	if cont, note := shouldContinueImplementationSession(a, msg, state); cont {
 		repairNote = note
 		state.Phase = "discover"
+		persistImplSessionCheckpoint(msg, state, fileCycle)
 		continue
 	}
 	break
 	} // fileCycle
+
+	persistImplSessionCheckpoint(msg, state, -1)
 
 	if !proposedAny && state != nil && state.ProposedCount > 0 {
 		proposedAny = true
@@ -608,6 +627,15 @@ func detectVerifyCommands(wsPath string) []string {
 	}
 	if _, err := os.Stat(filepath.Join(wsPath, "package.json")); err == nil {
 		return detectNodeVerifyCommands(wsPath)
+	}
+	if _, err := os.Stat(filepath.Join(wsPath, "pyproject.toml")); err == nil {
+		return []string{"python -m pytest -q"}
+	}
+	if _, err := os.Stat(filepath.Join(wsPath, "requirements.txt")); err == nil {
+		return []string{"python -m pytest -q"}
+	}
+	if matches, _ := filepath.Glob(filepath.Join(wsPath, "*.tf")); len(matches) > 0 {
+		return []string{"terraform validate"}
 	}
 	return nil
 }

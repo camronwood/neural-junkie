@@ -22,6 +22,8 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
+from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import check_text_patterns, looks_like_read_only_inspection_command  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
@@ -438,6 +440,13 @@ def ensure_scenario_channel(ctx: ChatScenarioContext) -> bool:
     return True
 
 
+def ensure_hub_ready(base: str, context: str) -> bool:
+    if ensure_hub_with_recovery(ROOT, base, context=context, env=release_prep_env(ROOT)):
+        return True
+    print("  FAIL: hub not healthy (recovery exhausted after 3 attempts)", file=sys.stderr)
+    return False
+
+
 def run_scenario(
     base: str,
     name: str,
@@ -452,9 +461,7 @@ def run_scenario(
     print(f"\n=== scenario: {name} ===")
     print(f"  hub={base}")
 
-    health = hub.check_health(base)
-    if not health:
-        print("  FAIL: hub not healthy", file=sys.stderr)
+    if not ensure_hub_ready(base, f"chat:{name}"):
         return False
 
     required = scenario.get("required_agents") or [ctx.target_agent]

@@ -4,6 +4,7 @@ import { PackScaffoldWizard } from './PackScaffoldWizard';
 import { PackManifestEditor } from './PackManifestEditor';
 import { PackDevLink } from './PackDevLink';
 import { PackTestPanel } from './PackTestPanel';
+import { CustomPackInstall } from '../CustomPackInstall';
 
 type DevTab = 'create' | 'edit' | 'link' | 'test';
 
@@ -20,9 +21,12 @@ export function PackDevStudio() {
 
   if (!isTauriRuntime()) {
     return (
-      <div className="border border-slack-border rounded-lg p-4 bg-slack-bgHover/20 text-sm text-slack-textMuted">
-        Pack dev studio requires the <strong className="text-slack-text">desktop app</strong> for folder access,
-        scaffold creation, and zip builds.
+      <div className="space-y-4">
+        <CustomPackInstall />
+        <div className="border border-slack-border rounded-lg p-4 bg-slack-bgHover/20 text-sm text-slack-textMuted">
+          Pack dev studio requires the <strong className="text-slack-text">desktop app</strong> for folder access,
+          scaffold creation, and zip builds.
+        </div>
       </div>
     );
   }
@@ -42,6 +46,8 @@ export function PackDevStudio() {
           Scaffold, edit, validate, and test customer packs before shipping a zip to your organization.
         </p>
       </div>
+
+      <CustomPackInstall />
 
       <div className="flex flex-wrap gap-2 border-b border-slack-border pb-2">
         {tabs.map((t) => (

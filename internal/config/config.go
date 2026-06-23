@@ -115,6 +115,8 @@ type FeaturesConfig struct {
 	ConversationMemoryEnabled      *bool  `json:"conversation_memory_enabled,omitempty"`
 	LearningEmbedModel             string `json:"learning_embed_model,omitempty"`
 	CodebaseEmbedModel             string `json:"codebase_embed_model,omitempty"`
+	// AgentRuntimeV2 enables open-ended native agent loop (Cursor parity).
+	AgentRuntimeV2 *bool `json:"agent_runtime_v2,omitempty"`
 }
 
 type Config struct {
@@ -179,7 +181,7 @@ func DefaultConfig() *Config {
 		},
 		Delegation: DefaultDelegationConfig(),
 		Routing:    DefaultRoutingConfig(),
-		Features:   FeaturesConfig{PersonalLearningEnabled: false},
+		Features: FeaturesConfig{PersonalLearningEnabled: false, AgentRuntimeV2: boolPtr(true)},
 		Packs:      DefaultPacksConfig(),
 		MCP:        DefaultMCPConfig(),
 		AWS: AWSConfig{
@@ -508,6 +510,19 @@ func (c *Config) PersonalLearningSuggestEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Features.PersonalLearningEnabled && c.Features.PersonalLearningSuggestEnabled
+}
+
+// AgentRuntimeV2Enabled reports whether open-ended agent runtime is active.
+func (c *Config) AgentRuntimeV2Enabled() bool {
+	if c == nil {
+		return true
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.Features.AgentRuntimeV2 == nil {
+		return true
+	}
+	return *c.Features.AgentRuntimeV2
 }
 
 // LearningEmbedModel returns configured Ollama embed model or default.

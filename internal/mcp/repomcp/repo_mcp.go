@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	mcp "github.com/camronwood/neural-junkie/internal/mcp"
-	"github.com/camronwood/neural-junkie/internal/codeindex"
+	"github.com/camronwood/neural-junkie/internal/codeintel"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/repo"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -103,7 +103,7 @@ func (r *RepoMCP) handleSearchCodebase(ctx context.Context, request mcpgo.CallTo
 	}
 	maxFiles := 5
 	if r.repoPath != "" {
-		results, err := codeindex.Search(ctx, r.repoPath, query, maxFiles)
+		results, err := codeintel.SemanticSearch(ctx, r.repoPath, query, maxFiles)
 		if err == nil && len(results) > 0 {
 			var b strings.Builder
 			for _, hit := range results {

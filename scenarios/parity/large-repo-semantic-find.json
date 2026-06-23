@@ -1,0 +1,19 @@
+{
+  "name": "large-repo-semantic-find",
+  "description": "semantic_search finds NjParityDistantHandler in large-repo fixture",
+  "tags": ["parity", "codeindex"],
+  "channel": "parity-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "large-repo" },
+  "steps": [
+    {
+      "action": "api_semantic_search",
+      "query": "NjParityDistantHandler parity distant handler",
+      "expect_path_contains": "handler.go",
+      "expect_content_contains": "NjParityDistantHandler"
+    }
+  ],
+  "cleanup": "clear"
+}

@@ -2,6 +2,7 @@ package hub
 
 import (
 	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,20 @@ func (s *stubPersistentStore) ListChannelMessages(channel string, limit int, bef
 	}
 	out := make([]*protocol.Message, len(msgs))
 	copy(out, msgs)
+	return out, nil
+}
+
+func (s *stubPersistentStore) SearchMessages(opts MessageSearchOptions) ([]*protocol.Message, error) {
+	s.mu.Lock()
+	msgs := s.byChannel[opts.Channel]
+	s.mu.Unlock()
+	q := strings.ToLower(strings.TrimSpace(opts.Query))
+	var out []*protocol.Message
+	for _, m := range msgs {
+		if q == "" || strings.Contains(strings.ToLower(m.Content), q) {
+			out = append(out, m)
+		}
+	}
 	return out, nil
 }
 

@@ -22,6 +22,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
 from lib.release_prep_hub import ensure_hub_for_release_prep  # noqa: E402
+from lib.hub_regression import recover_regression_hub, read_recovery_log_text  # noqa: E402
 
 REVIEW_RE = re.compile(r"^Review:\s+(.+)$", re.MULTILINE)
 LOG_RE = re.compile(r"^Full log:\s+(.+)$", re.MULTILINE)
@@ -95,6 +96,29 @@ def first_match(pattern: re.Pattern[str], text: str) -> str:
     return m.group(1).strip() if m else ""
 
 
+def parity_scorecard_section(report: ReleasePrepReport) -> list[str]:
+    """Append Cursor parity gate summary for release prep."""
+    impl = next((p for p in report.phases if p.name == "test-parity-stable-restart"), None)
+    parity_full = [p for p in report.phases if "parity-full" in (p.note or "")]
+    lines = [
+        "",
+        "## Parity scorecard (native Cursor)",
+        "",
+        "| Dimension | Release gate | Status |",
+        "|-----------|--------------|--------|",
+        f"| Implement regression (16 scenarios) | `make implement-scenarios` | {impl.status if impl else '—'} |",
+        f"| Stability (3× restart) | `make test-parity-stable-restart` | {impl.status if impl else '—'} |",
+        "| Parity contract | `make parity-scenarios` | run via `make test-parity-full-restart` |",
+        "| Agent Runtime v2 | `features.agent_runtime_v2` default on | config |",
+        "| Model-aware context | `ollama.num_ctx` → agent budget | config |",
+        "| Disk-backed code index | SQLite under `~/.neural-junkie/codeindex/` | build-time |",
+        "",
+        "## Child reports",
+        "",
+    ]
+    return lines
+
+
 def write_reports(report: ReleasePrepReport, testing_dir: Path) -> None:
     testing_dir.mkdir(parents=True, exist_ok=True)
     report.summary_path = testing_dir / f"release-prep-{report.stamp}.md"
@@ -121,13 +145,7 @@ def write_reports(report: ReleasePrepReport, testing_dir: Path) -> None:
         arts = ", ".join(f"`{a}`" for a in p.artifacts) if p.artifacts else "—"
         lines.append(f"| `{p.name}` | {p.status}{note} | {dur} | {arts} |")
 
-    lines.extend(
-        [
-            "",
-            "## Child reports",
-            "",
-        ]
-    )
+    lines.extend(parity_scorecard_section(report))
     for p in report.phases:
         if p.artifacts:
             lines.append(f"### {p.name}")
@@ -144,6 +162,21 @@ def write_reports(report: ReleasePrepReport, testing_dir: Path) -> None:
             lines.append((p.output or "(no output)").strip()[-16000:])
             lines.append("```")
             lines.append("")
+
+    recovery_text = read_recovery_log_text()
+    if recovery_text.strip():
+        recovery_path = os.environ.get("NEURAL_JUNKIE_HUB_RECOVERY_LOG", "")
+        lines.extend(
+            [
+                "## Hub recovery log",
+                "",
+                *( [f"Artifact: `{recovery_path}`", ""] if recovery_path else [] ),
+                "```text",
+                recovery_text.strip()[-16000:],
+                "```",
+                "",
+            ]
+        )
 
     report.summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -209,6 +242,12 @@ def main() -> int:
     stamp = args.stamp or datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
     hub_url = args.hub.rstrip("/")
     testing_dir = Path(args.log_dir)
+    recovery_log = testing_dir / f"hub-recovery-{stamp}.log"
+    hub_recovery_env = {
+        "NEURAL_JUNKIE_HUB_URL": hub_url,
+        "NEURAL_JUNKIE_HUB_RECOVERY_LOG": str(recovery_log),
+    }
+    os.environ["NEURAL_JUNKIE_HUB_RECOVERY_LOG"] = str(recovery_log)
     report = ReleasePrepReport(
         stamp=stamp,
         hub_url=hub_url,
@@ -239,7 +278,7 @@ def main() -> int:
             "--require-gemini",
             "--skip-judge-smoke",
         ]
-        preflight_phase = run_phase("release-prep-preflight", preflight_cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url})
+        preflight_phase = run_phase("release-prep-preflight", preflight_cmd, env=hub_recovery_env)
         if preflight_phase.status == "FAIL":
             report.phases.append(preflight_phase)
             write_reports(report, testing_dir)
@@ -264,7 +303,7 @@ def main() -> int:
             te_cmd.append("--skip-live")
         if args.verbose:
             te_cmd.append("--verbose")
-        phase = run_phase("test-everything", te_cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url})
+        phase = run_phase("test-everything", te_cmd, env=hub_recovery_env)
         review = first_match(REVIEW_RE, phase.output)
         log_file = first_match(LOG_RE, phase.output)
         if review:
@@ -278,6 +317,26 @@ def main() -> int:
             write_reports(report, testing_dir)
             _print_final(report)
             return 1
+
+        print("\n>>> [release-prep] recovering hub after test-everything (fresh hub for parity/benchmark)")
+        if not recover_regression_hub(
+            ROOT,
+            hub_url,
+            context="release-prep:post-test-everything",
+            env=release_prep_env(ROOT),
+        ):
+            phase = PhaseResult(
+                name="hub-restart-after-everything",
+                status="FAIL",
+                exit_code=1,
+                note="hub restart failed before parity/benchmark",
+            )
+            report.phases.append(phase)
+            write_reports(report, testing_dir)
+            _print_final(report)
+            return 1
+        time.sleep(3.0)
+        preflight_regression_run(ROOT, hub_url, label="release-prep post-everything preflight")
 
     if not args.skip_live and not args.skip_parity:
         parity_cmd = [
@@ -293,7 +352,7 @@ def main() -> int:
             "--log-dir",
             str(testing_dir),
         ]
-        phase = run_phase("test-parity-stable-restart", parity_cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url})
+        phase = run_phase("test-parity-stable-restart", parity_cmd, env=hub_recovery_env)
         parity_log = first_match(PARITY_LOG_RE, phase.output)
         if parity_log:
             phase.artifacts.append(parity_log)
@@ -331,7 +390,7 @@ def main() -> int:
             bench_cmd.extend(["--models", args.benchmark_models])
         if args.verbose:
             bench_cmd.append("--verbose")
-        phase = run_phase("model-benchmark", bench_cmd, env={"NEURAL_JUNKIE_HUB_URL": hub_url})
+        phase = run_phase("model-benchmark", bench_cmd, env=hub_recovery_env)
         for pattern in (BENCH_MD_RE, BENCH_JSON_RE, BENCH_TSV_RE):
             path = first_match(pattern, phase.output)
             if path:

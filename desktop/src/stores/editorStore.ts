@@ -139,6 +139,7 @@ interface EditorState {
   saveTab: (tabId: string) => Promise<boolean>;
   saveAllTabs: () => Promise<boolean>;
   refreshTabFromDisk: (workspaceId: string, path: string) => Promise<void>;
+  relocateFilePath: (workspaceId: string, oldPath: string, newPath: string) => void;
   closeAllTabs: () => void;
   closeOtherTabs: (keepTabId: string) => void;
   closeTabsToRight: (tabId: string) => void;
@@ -755,7 +756,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ error: errorMessage });
     }
   },
-  
+
+  relocateFilePath: (workspaceId, oldPath, newPath) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) => {
+        if (tab.workspaceId !== workspaceId || tab.path !== oldPath) {
+          return tab;
+        }
+        const next: EditorTab = { ...tab, path: newPath };
+        if (tab.cadScadPath === oldPath) next.cadScadPath = newPath;
+        if (tab.htmlPath === oldPath) next.htmlPath = newPath;
+        return next;
+      }),
+    }));
+  },
+
   closeAllTabs: () => {
     set({ tabs: [], activeTabId: null });
   },

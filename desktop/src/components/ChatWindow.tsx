@@ -979,6 +979,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         channelSidebarOpen,
         fileExplorerOpen,
         ideLayout,
+        codeEditorOpen,
         openThreadId,
         panelCollaboration?.id,
         taskManagementOpen,
@@ -988,6 +989,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     channelSidebarOpen,
     fileExplorerOpen,
     ideLayout,
+    codeEditorOpen,
     openThreadId,
     panelCollaboration,
     taskManagementOpen,
@@ -2556,9 +2558,12 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           />
         )}
 
-        {/* Workspace slot — editor (IDE) or reclaimed space when chat is resized */}
-        {ideLayout && chatPanelVisible && (
-          <div className="flex flex-1 min-w-0 min-h-0 flex-col h-full border-r border-slack-border">
+        {/* Workspace slot — flex region for editor + space reclaimed when chat is resized */}
+        {chatPanelVisible && (ideLayout || chatResizable) && (
+          <div
+            data-shrinkable-workspace
+            className="flex flex-1 min-w-0 min-h-0 flex-col h-full border-r border-slack-border"
+          >
             {codeEditorOpen ? (
               <CodeEditorPanel
                 variant="embedded"
@@ -2567,25 +2572,25 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                   void updateLayoutSettings({ editorPanelVisible: false });
                 }}
               />
-            ) : (
+            ) : ideLayout ? (
               <div className="flex flex-1 min-h-0 items-center justify-center px-6 text-center text-sm text-slack-textMuted">
                 Open a file from the explorer to start editing
               </div>
+            ) : (
+              <div className="flex-1 min-w-0" aria-hidden="true" />
             )}
           </div>
         )}
 
-        {/* Code Editor — overlay mode (team layout) */}
-        {codeEditorOpen && !ideLayout && (
+        {/* Code Editor — overlay when chat is not docked (narrow viewport) */}
+        {codeEditorOpen && !ideLayout && !chatResizable && (
           <CodeEditorPanel
             variant="overlay"
-            onClose={() => setCodeEditorOpen(false)}
+            onClose={() => {
+              setCodeEditorOpen(false);
+              void updateLayoutSettings({ editorPanelVisible: false });
+            }}
           />
-        )}
-
-        {/* Team layout: flex workspace absorbs space when chat is narrowed */}
-        {!ideLayout && chatResizable && !codeEditorOpen && (
-          <div className="flex-1 min-w-0" aria-hidden="true" />
         )}
 
         {/* Main Chat Area */}

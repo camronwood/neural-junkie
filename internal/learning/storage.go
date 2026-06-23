@@ -221,6 +221,9 @@ func (s *Store) ListFiltered(f Filter) []Entry {
 		if f.CollaborationID != "" && e.CollaborationID != f.CollaborationID {
 			continue
 		}
+		if f.WorkspaceID != "" && e.WorkspaceID != f.WorkspaceID {
+			continue
+		}
 		if !s.matchesUser(e, f.UserID, f.IncludeLegacy) {
 			continue
 		}
@@ -251,6 +254,10 @@ func (s *Store) validateEntry(e *Entry) error {
 	case ScopeCollaboration:
 		if strings.TrimSpace(e.CollaborationID) == "" {
 			return fmt.Errorf("collaboration_id required for collaboration scope")
+		}
+	case ScopeWorkspace:
+		if strings.TrimSpace(e.WorkspaceID) == "" {
+			return fmt.Errorf("workspace_id required for workspace scope")
 		}
 	case ScopeAgent:
 		if strings.TrimSpace(e.AgentID) == "" {

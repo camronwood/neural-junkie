@@ -44,7 +44,7 @@ func TestCanUserAccessPrivateCustomChannel(t *testing.T) {
 
 func TestSessionManagerCreateValidate(t *testing.T) {
 	sm := NewSessionManager()
-	s := sm.CreateSession("Camron Wood")
+	s := sm.CreateSession("Camron Wood", "member")
 	if s.Token == "" {
 		t.Fatal("token")
 	}

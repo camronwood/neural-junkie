@@ -18,7 +18,7 @@ PASS_RE = re.compile(r"^=== PASS: (\S+) ===")
 FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
 
 sys.path.insert(0, str(SCRIPTS_DIR))
-from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
+from lib.hub_regression import recover_regression_hub, wait_for_hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 
@@ -92,23 +92,27 @@ def main() -> int:
     all_ok = True
     for run in range(1, args.runs + 1):
         lines.append(f"## run {run}/{args.runs}")
-        if not wait_for_hub(args.hub):
+        if args.restart_between:
+            lines.append("recovering regression hub...")
+            if not recover_regression_hub(
+                ROOT,
+                args.hub,
+                context=f"parity-stable:run-{run}",
+                env=release_prep_env(ROOT),
+            ):
+                lines.append("hub recovery failed")
+                all_ok = False
+                lines.append(f"RESULT run {run}: FAIL (hub restart)")
+                lines.append("")
+                continue
+        elif not wait_for_hub(args.hub):
             lines.append(f"hub unhealthy before run {run}: {args.hub}")
             all_ok = False
             lines.append(f"RESULT run {run}: FAIL (hub down)")
             lines.append("")
             continue
-        if run > 1:
-            if args.restart_between:
-                lines.append("restarting regression hub...")
-                if not restart_regression_hub(ROOT, args.hub, env=release_prep_env(ROOT)):
-                    lines.append("hub restart failed")
-                    all_ok = False
-                    lines.append(f"RESULT run {run}: FAIL (hub restart)")
-                    lines.append("")
-                    continue
-            else:
-                time.sleep(30.0)
+        elif run > 1:
+            time.sleep(30.0)
         code, output, passed, failed = run_sweep(args.hub, script)
         pass_count = len(passed)
         lines.append(f"exit_code={code} pass={pass_count} fail={len(failed)}")

@@ -29,6 +29,20 @@ Neural Junkie v4 supports **SSH** and **dev container** workspaces via the **`nj
 
 ## Deploy on EC2 (example)
 
+### One-command bootstrap (recommended)
+
+From your laptop (repo checkout):
+
+```bash
+make nj-remote-install TARGET=ec2-user@i-06fbd5c90ad9871f9 ROOT=/home/ec2-user/myproject
+```
+
+This builds `bin/nj-remote`, copies it over SSH, writes `/etc/nj-remote.env`, and enables the systemd unit. The script prints the Bearer token once — save it for desktop **connect-remote**.
+
+Linux uses `scripts/install-nj-remote.sh` (systemd). macOS remote hosts can use `scripts/com.neuraljunkie.nj-remote.plist.template` with launchd (`~/Library/LaunchAgents/`).
+
+### Manual install
+
 ```bash
 # On remote host
 go install github.com/camronwood/neural-junkie/cmd/nj-remote@latest

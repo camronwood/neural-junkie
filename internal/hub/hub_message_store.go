@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/camronwood/neural-junkie/internal/memory"
@@ -11,8 +12,17 @@ import (
 type PersistentMessageStore interface {
 	InsertMessage(msg *protocol.Message) error
 	ListChannelMessages(channel string, limit int, beforeID string) ([]*protocol.Message, error)
+	SearchMessages(opts MessageSearchOptions) ([]*protocol.Message, error)
 	// ClearChannelMessages removes all persisted rows for a channel (e.g. after clear-history).
 	ClearChannelMessages(channel string) error
+}
+
+// MessageSearchOptions configures archive search.
+type MessageSearchOptions struct {
+	Channel string
+	Query   string
+	Limit   int
+	Before  int64
 }
 
 // SetPersistentMessageStore wires optional SQLite (or other) durable storage.
@@ -44,10 +54,20 @@ func (h *Hub) GetMessagesPage(channelName string, limit int, beforeID string) ([
 	if limit <= 0 {
 		limit = 50
 	}
-	if beforeID != "" && h.persistentStore != nil {
-		return h.persistentStore.ListChannelMessages(channelName, limit, beforeID)
+	if h.persistentStore != nil {
+		if beforeID != "" || h.isChannelDurable(channelName) {
+			return h.persistentStore.ListChannelMessages(channelName, limit, beforeID)
+		}
 	}
 	return h.GetMessages(channelName, limit)
+}
+
+// SearchMessages searches persisted archive when store supports it.
+func (h *Hub) SearchMessages(opts MessageSearchOptions) ([]*protocol.Message, error) {
+	if h.persistentStore == nil {
+		return nil, fmt.Errorf("message archive search unavailable")
+	}
+	return h.persistentStore.SearchMessages(opts)
 }
 
 // MarkChannelDurable skips age-based prune for IDE-heavy channels.

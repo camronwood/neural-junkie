@@ -17,6 +17,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/hub/wsclient"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -28,21 +29,39 @@ var (
 	useMock    = flag.Bool("mock", false, "Use mock AI responses (set to true for testing without API calls)")
 	repoPath   = flag.String("repo-path", "", "Repository path (required for repo type agents)")
 	modelName  = flag.String("model", "", "Ollama model to use (overrides OLLAMA_MODEL env var)")
+	usePoll    = flag.Bool("poll", false, "Use HTTP polling instead of WebSocket for hub messages")
+	apiKey     = flag.String("api-key", "", "Hub API key (Bearer nj_...) for automation")
 )
 
 type httpHubClient struct {
 	baseURL     string
 	client      *http.Client
+	agentID     string
+	apiKey      string
+	usePoll     bool
+	stopWS      chan struct{}
 	holdMu      sync.RWMutex
 	channelHeld map[string]bool
+
+	agentWSMu sync.Mutex
+	agentWSCh chan *protocol.Message
+	agentSubs map[string][]chan *protocol.Message
 }
 
-func newHTTPHubClient(baseURL string) *httpHubClient {
+func newHTTPHubClient(baseURL string, usePoll bool, apiKey string) *httpHubClient {
 	return &httpHubClient{
 		baseURL:     baseURL,
 		client:      &http.Client{Timeout: 10 * time.Second},
+		apiKey:      strings.TrimSpace(apiKey),
+		usePoll:     usePoll,
+		stopWS:      make(chan struct{}),
 		channelHeld: make(map[string]bool),
+		agentSubs:   make(map[string][]chan *protocol.Message),
 	}
+}
+
+func (h *httpHubClient) SetAgentID(id string) {
+	h.agentID = strings.TrimSpace(id)
 }
 
 func (h *httpHubClient) setChannelHeld(channel string, held bool) {
@@ -64,13 +83,40 @@ func (h *httpHubClient) IsChannelHeld(channel string) bool {
 	return h.channelHeld[channel]
 }
 
+func (h *httpHubClient) authRequest(req *http.Request) {
+	if h.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+h.apiKey)
+	}
+}
+
+func (h *httpHubClient) doGet(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	h.authRequest(req)
+	return h.client.Do(req)
+}
+
+func (h *httpHubClient) doPost(url, contentType string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	h.authRequest(req)
+	return h.client.Do(req)
+}
+
 func (h *httpHubClient) SendMessage(msg *protocol.Message) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 
-	resp, err := h.client.Post(h.baseURL+"/api/send", "application/json", bytes.NewBuffer(data))
+	resp, err := h.doPost(h.baseURL+"/api/send", "application/json", data)
 	if err != nil {
 		return err
 	}
@@ -88,7 +134,7 @@ func (h *httpHubClient) BroadcastDirect(channelName string, msg *protocol.Messag
 	if err != nil {
 		return
 	}
-	resp, err := h.client.Post(h.baseURL+"/api/broadcast", "application/json", bytes.NewBuffer(data))
+	resp, err := h.doPost(h.baseURL+"/api/broadcast", "application/json", data)
 	if err != nil {
 		return
 	}
@@ -96,8 +142,13 @@ func (h *httpHubClient) BroadcastDirect(channelName string, msg *protocol.Messag
 }
 
 func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, error) {
-	// For HTTP client, we'll poll for new messages
-	// In a real implementation, this would use WebSockets
+	if !h.usePoll && h.agentID != "" {
+		return h.subscribeAgentChannel(channelName)
+	}
+	if !h.usePoll {
+		return wsclient.Subscribe(h.baseURL, channelName, h.stopWS)
+	}
+
 	ch := make(chan *protocol.Message, 100)
 
 	go func() {
@@ -150,11 +201,50 @@ func (h *httpHubClient) Subscribe(channelName string) (chan *protocol.Message, e
 	return ch, nil
 }
 
+func (h *httpHubClient) subscribeAgentChannel(channelName string) (chan *protocol.Message, error) {
+	h.agentWSMu.Lock()
+	defer h.agentWSMu.Unlock()
+
+	if h.agentWSCh == nil {
+		onHold := func(channel string, held bool) {
+			h.setChannelHeld(channel, held)
+		}
+		feed, err := wsclient.SubscribeAgent(h.baseURL, h.agentID, h.stopWS, onHold)
+		if err != nil {
+			return nil, err
+		}
+		h.agentWSCh = feed
+		go h.fanOutAgentMessages()
+	}
+
+	out := make(chan *protocol.Message, 512)
+	h.agentSubs[channelName] = append(h.agentSubs[channelName], out)
+	return out, nil
+}
+
+func (h *httpHubClient) fanOutAgentMessages() {
+	for msg := range h.agentWSCh {
+		if msg == nil {
+			break
+		}
+		h.agentWSMu.Lock()
+		subs := append([]chan *protocol.Message(nil), h.agentSubs[msg.Channel]...)
+		h.agentWSMu.Unlock()
+		for _, sub := range subs {
+			select {
+			case sub <- msg:
+			default:
+			}
+		}
+	}
+}
+
 func (h *httpHubClient) GetMessages(channelName string, limit int) ([]*protocol.Message, error) {
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/messages?channel=%s&limit=%d", h.baseURL, channelName, limit), nil)
 	if err != nil {
 		return nil, err
 	}
+	h.authRequest(req)
 	if s := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET")); s != "" {
 		req.Header.Set("X-NJ-Full-Metadata", s)
 	}
@@ -178,6 +268,7 @@ func (h *httpHubClient) GetChannelMessagesMerged(channelName string, limit int) 
 	if err != nil {
 		return nil, err
 	}
+	h.authRequest(req)
 	if s := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET")); s != "" {
 		req.Header.Set("X-NJ-Full-Metadata", s)
 	}
@@ -203,7 +294,7 @@ func (h *httpHubClient) GetChannelMessagesMerged(channelName string, limit int) 
 }
 
 func (h *httpHubClient) GetChannelAgents(channelName string) ([]protocol.AgentInfo, error) {
-	resp, err := h.client.Get(fmt.Sprintf("%s/api/agents", h.baseURL))
+	resp, err := h.doGet(fmt.Sprintf("%s/api/agents", h.baseURL))
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +309,7 @@ func (h *httpHubClient) GetChannelAgents(channelName string) ([]protocol.AgentIn
 }
 
 func (h *httpHubClient) GetThreadParentAuthor(threadID string) string {
-	resp, err := h.client.Get(fmt.Sprintf("%s/api/threads/%s/parent-author", h.baseURL, threadID))
+	resp, err := h.doGet(fmt.Sprintf("%s/api/threads/%s/parent-author", h.baseURL, threadID))
 	if err != nil {
 		return ""
 	}
@@ -238,7 +329,7 @@ func (h *httpHubClient) GetCommandHandler() agent.CommandHandlerInterface {
 }
 
 func (h *httpHubClient) GetAgentChannels(agentID string) []string {
-	resp, err := h.client.Get(fmt.Sprintf("%s/api/agent-channels?agent_id=%s", h.baseURL, agentID))
+	resp, err := h.doGet(fmt.Sprintf("%s/api/agent-channels?agent_id=%s", h.baseURL, agentID))
 	if err != nil {
 		return nil
 	}
@@ -259,7 +350,7 @@ func (h *httpHubClient) GetThreadMessages(threadID string, limit int) ([]*protoc
 }
 
 func (h *httpHubClient) GetChannelType(channelName string) protocol.ChannelType {
-	resp, err := h.client.Get(fmt.Sprintf("%s/api/channels", h.baseURL))
+	resp, err := h.doGet(fmt.Sprintf("%s/api/channels", h.baseURL))
 	if err != nil {
 		return protocol.ChannelTypePublic
 	}
@@ -342,8 +433,17 @@ func main() {
 		log.Printf("Using Ollama AI provider (model: %s)", aiProvider.GetModel())
 	}
 
-	// Create hub client
-	hubClient := newHTTPHubClient(*serverAddr)
+	usePollTransport := *usePoll || strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_AGENT_POLL")) == "1"
+	key := strings.TrimSpace(*apiKey)
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_API_KEY"))
+	}
+	hubClient := newHTTPHubClient(*serverAddr, usePollTransport, key)
+	if !usePollTransport {
+		log.Println("Using WebSocket transport for hub messages")
+	} else {
+		log.Println("Using HTTP polling for hub messages (legacy)")
+	}
 
 	// Register agent with hub
 	log.Printf("Creating %s agent: %s", aType, name)
@@ -367,10 +467,12 @@ func main() {
 		}
 	}
 
+	hubClient.SetAgentID(agentInstance.Info.ID)
+
 	// Register with hub
 	registerData, _ := json.Marshal(agentInstance.Info)
 
-	resp, err := http.Post(*serverAddr+"/api/agents", "application/json", bytes.NewBuffer(registerData))
+	resp, err := hubClient.doPost(*serverAddr+"/api/agents", "application/json", registerData)
 	if err != nil {
 		log.Printf("Warning: Failed to register with hub: %v", err)
 	} else {
@@ -388,7 +490,7 @@ func main() {
 		"greeting": greeting,
 	})
 
-	resp, err = http.Post(*serverAddr+"/api/channels/join", "application/json", bytes.NewBuffer(joinData))
+	resp, err = hubClient.doPost(*serverAddr+"/api/channels/join", "application/json", joinData)
 	if err != nil {
 		log.Printf("Warning: Failed to join channel: %v", err)
 	} else {
@@ -418,6 +520,7 @@ func main() {
 	<-sigCh
 
 	log.Println("Shutting down agent...")
+	close(hubClient.stopWS)
 	agentInstance.Stop()
 }
 

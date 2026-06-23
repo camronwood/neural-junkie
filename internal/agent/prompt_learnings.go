@@ -20,6 +20,15 @@ func buildLearningPromptContext(msg *protocol.Message) learning.PromptContext {
 			break
 		}
 	}
+	if msg.Metadata != nil {
+		if ws, ok := msg.Metadata["workspace_id"].(string); ok {
+			pctx.WorkspaceID = strings.TrimSpace(ws)
+		} else if wctx, ok := msg.Metadata["workspace_context"].(map[string]interface{}); ok {
+			if ws, ok := wctx["workspace_id"].(string); ok {
+				pctx.WorkspaceID = strings.TrimSpace(ws)
+			}
+		}
+	}
 	return pctx
 }
 

@@ -13,9 +13,18 @@ Neural Junkie assembles agent context through a **Conversation Context Stack** â
 
 **Non-goals**
 
-- Full RAG or vector retrieval rewrite
-- Cross-session long-term memory (see [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md))
+- Full RAG or vector retrieval rewrite (chat/casual stay on small budgets)
+- Cross-session long-term memory for casual chat (see [FUTURE_ENHANCEMENTS.md](FUTURE_ENHANCEMENTS.md); **agent-runtime v2** uses full Context Stack + CCR + workspace learnings)
 - CLI agent context unification (see [CLI_AGENTS.md](CLI_AGENTS.md) follow-up)
+
+## Agent-runtime v2 exception
+
+When `features.agent_runtime_v2` is enabled (default) and the user is in **Agent** / implementation mode:
+
+- Prompt budget derives from `ollama.num_ctx` ([HARDWARE.md](HARDWARE.md) tiers)
+- CCR tool compression uses elevated `agent_runtime_max_tool_bytes` and `nj_retrieve_context` per-turn budget
+- Per-file read caps use chunked `read_file` (512 KB agent reads) instead of silent 50 KB truncation
+- See [CURSOR_PARITY.md](CURSOR_PARITY.md)
 
 ## Baseline fixes (v2 foundation)
 
