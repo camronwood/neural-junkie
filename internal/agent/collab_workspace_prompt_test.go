@@ -46,6 +46,29 @@ func TestCollabPlanningSuppressMCPTools_DevOpsExecutionDocCollab(t *testing.T) {
 	}
 }
 
+func TestIsCollabTurnPromptForAgent_MentionOnly(t *testing.T) {
+	stub := collabSystemTurnStub{agentID: "assistant-id"}
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments.",
+	)
+	msg.SetCollaborationID("550e8400-e29b-41d4-a716-446655440000")
+	msg.Mentions = []string{"assistant-id"}
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]interface{}{}
+	}
+	msg.Metadata["collab_internal_event"] = true
+
+	if !isCollabTurnPromptForAgent(msg, msg.GetCollaborationID(), "assistant-id", stub) {
+		t.Fatal("mentioned agent should match turn handoff prompt")
+	}
+	if isCollabTurnPromptForAgent(msg, msg.GetCollaborationID(), "moderator-id", stub) {
+		t.Fatal("non-mentioned agent must not match turn handoff prompt when IsAgentTurn is true")
+	}
+}
+
 func TestSanitizeCollabDiscussionResponse_ToolJSON(t *testing.T) {
 	raw := "```json\n{\"name\": \"kubectl_query\", \"arguments\": {\"namespace\": \"default\"}}\n```"
 	out := sanitizeCollabDiscussionResponse(raw, CollaborationInfo{Phase: "planning"}, protocol.AgentTypeDevOps)

@@ -20,16 +20,26 @@ func buildLearningPromptContext(msg *protocol.Message) learning.PromptContext {
 			break
 		}
 	}
-	if msg.Metadata != nil {
-		if ws, ok := msg.Metadata["workspace_id"].(string); ok {
-			pctx.WorkspaceID = strings.TrimSpace(ws)
-		} else if wctx, ok := msg.Metadata["workspace_context"].(map[string]interface{}); ok {
-			if ws, ok := wctx["workspace_id"].(string); ok {
-				pctx.WorkspaceID = strings.TrimSpace(ws)
-			}
-		}
-	}
+	pctx.WorkspaceID = workspaceIDFromMetadata(msg.Metadata)
 	return pctx
+}
+
+func workspaceIDFromMetadata(meta map[string]any) string {
+	if meta == nil {
+		return ""
+	}
+	if ws, ok := meta["workspace_id"].(string); ok {
+		return strings.TrimSpace(ws)
+	}
+	wctx, ok := meta["workspace_context"].(map[string]interface{})
+	if !ok || wctx == nil {
+		return ""
+	}
+	ws, ok := wctx["workspace_id"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(ws)
 }
 
 // AppendLearningsForMessage injects user-confirmed learnings into the system portion of a prompt.

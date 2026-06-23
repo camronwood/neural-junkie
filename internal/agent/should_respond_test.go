@@ -131,6 +131,42 @@ func TestShouldRespond_CollabInternalHandoffWakesMentionedAgent(t *testing.T) {
 	}
 }
 
+func TestShouldRespond_CollabInternalHandoffIgnoresNonMentionedOnTurn(t *testing.T) {
+	const mentionedID = "assistant-id"
+	const otherID = "moderator-id"
+
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+
+	mentioned := NewAgent(protocol.AgentTypeAssistant, "Assistant", []string{}, mockAI, hubStub)
+	mentioned.Info.ID = mentionedID
+	mentioned.SetCollabClient(collabSystemTurnStub{agentID: mentionedID})
+
+	other := NewAgent(protocol.AgentTypeModerator, "ChatModerator", []string{}, mockAI, hubStub)
+	other.Info.ID = otherID
+	other.SetCollabClient(collabSystemTurnStub{agentID: otherID})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeCollabDiscussion,
+		"collab-test",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff: next participant, please continue the plan discussion and refine task assignments.",
+	)
+	msg.SetCollaborationID("550e8400-e29b-41d4-a716-446655440000")
+	msg.Mentions = []string{mentionedID}
+	if msg.Metadata == nil {
+		msg.Metadata = map[string]interface{}{}
+	}
+	msg.Metadata["collab_internal_event"] = true
+
+	if !mentioned.shouldRespond(msg) {
+		t.Fatal("expected mentioned agent to respond to collaboration turn handoff")
+	}
+	if other.shouldRespond(msg) {
+		t.Fatal("non-mentioned agent must not respond to collaboration turn handoff even when IsAgentTurn is true")
+	}
+}
+
 func TestShouldRespond_CollabSeedBannerIgnored(t *testing.T) {
 	const agentID = "gemini-cli-id"
 	hubStub := shouldRespondTestHub{}

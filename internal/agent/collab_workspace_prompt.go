@@ -97,8 +97,16 @@ func stackSignalsKubernetes(fileTree string) bool {
 	return false
 }
 
+// isCollabTurnHandoffContent reports System prompts that target one participant.
+func isCollabTurnHandoffContent(content string) bool {
+	return strings.Contains(content, "Collaboration turn handoff") ||
+		strings.Contains(content, "You're up first")
+}
+
 // isCollabTurnPromptForAgent returns true for System turn prompts that should wake
 // the next collaboration participant (not seed banners marked collab_internal_event).
+// Handoffs always carry an explicit Mentions entry for the next speaker — do not
+// also admit every agent where IsAgentTurn happens to be true (duplicate replies).
 func isCollabTurnPromptForAgent(msg *protocol.Message, collabID, agentID string, collab CollaborationClient) bool {
 	if msg == nil || collab == nil || collabID == "" || agentID == "" {
 		return false
@@ -106,12 +114,10 @@ func isCollabTurnPromptForAgent(msg *protocol.Message, collabID, agentID string,
 	if msg.Type != protocol.MessageTypeCollabDiscussion || !msg.IsFromSystem() {
 		return false
 	}
-	content := msg.Content
-	if !strings.Contains(content, "Collaboration turn handoff") &&
-		!strings.Contains(content, "You're up first") {
+	if !isCollabTurnHandoffContent(msg.Content) {
 		return false
 	}
-	return msg.IsMentioned(agentID) || collab.IsAgentTurn(collabID, agentID)
+	return msg.IsMentioned(agentID)
 }
 
 // collabPlanningSuppressMCPTools hides DevOps MCP tool catalogs during planning and

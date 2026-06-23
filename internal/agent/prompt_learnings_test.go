@@ -68,3 +68,39 @@ func TestBuildLearningPromptContext_sessionUsername(t *testing.T) {
 		t.Fatalf("UserID = %q, want camron", pctx.UserID)
 	}
 }
+
+func TestAppendLearningsForMessage_concurrentPerAgentCopy(t *testing.T) {
+	unlock := learning.LockTestGlobals()
+	defer unlock()
+	learning.SetEnabledChecker(func() bool { return false })
+
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "collab-scenarios",
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
+		"Collaboration turn handoff")
+	msg.Metadata = map[string]any{
+		"workspace_id":        "ws-collab",
+		"collaboration_id":    "abc",
+		"collab_internal_event": true,
+	}
+
+	self := &protocol.AgentInfo{ID: "assistant-1", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	const workers = 12
+	errCh := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			work, err := protocol.CloneMessage(msg)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			var sb strings.Builder
+			AppendLearningsForMessage(&sb, work, self)
+			errCh <- nil
+		}()
+	}
+	for i := 0; i < workers; i++ {
+		if err := <-errCh; err != nil {
+			t.Fatal(err)
+		}
+	}
+}

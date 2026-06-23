@@ -99,6 +99,13 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 	a.respondedMessages[msg.ID] = true
 	a.respondedMutex.Unlock()
+
+	// Hub broadcasts one *Message to every subscriber; concurrent agents may otherwise
+	// read/write msg.Metadata during prompt build (fatal map race).
+	if work, err := protocol.CloneMessage(msg); err == nil && work != nil {
+		msg = work
+	}
+
 	clearResponded := func() {
 		a.respondedMutex.Lock()
 		delete(a.respondedMessages, msg.ID)
@@ -511,9 +518,13 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 		if msg.Metadata != nil {
 			if internal, ok := msg.Metadata["collab_internal_event"].(bool); ok && internal {
-				// Seed banners and status noise stay ignored; turn prompts must wake the next speaker.
+				// Seed banners and status noise stay ignored; turn prompts wake only @mentioned agent.
 				if !isCollabTurnPromptForAgent(msg, collabID, a.Info.ID, a.Collab) {
 					return false
+				}
+				if isCollabTurnHandoffContent(msg.Content) {
+					log.Printf("[%s] ✅ COLLABORATION TURN HANDOFF - will respond (collab %s)", a.Info.Name, collabID[:8])
+					return true
 				}
 			}
 		}
