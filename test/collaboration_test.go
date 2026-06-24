@@ -849,9 +849,16 @@ func TestDiscussionTurnTaking(t *testing.T) {
 	msg2.SetCollaborationID(collab.ID)
 	cm.RecordMessage(collab.ID, msg2)
 
-	// Round 2: Agent 1 should have turn again
-	if !cm.IsAgentTurn(collab.ID, "a1") {
-		t.Error("expected agent a1 to have turn in round 2")
+	// Both agents spoke once; participation quorum ends planning before round 2.
+	c, err := cm.GetCollaboration(collab.ID)
+	if err != nil {
+		t.Fatalf("GetCollaboration failed: %v", err)
+	}
+	if c.Phase != collaboration.PhaseReviewing {
+		t.Errorf("expected phase reviewing after participation quorum, got %s", c.Phase)
+	}
+	if cm.IsAgentTurn(collab.ID, "a1") {
+		t.Error("expected no agent turn after participation quorum")
 	}
 }
 

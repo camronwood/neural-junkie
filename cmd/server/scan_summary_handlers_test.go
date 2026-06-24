@@ -17,7 +17,7 @@ import (
 	"golang.org/x/image/tiff"
 )
 
-func installCustomerLabPack(t *testing.T, cfg *config.Config) {
+func installScanSummaryLegacyTestPack(t *testing.T, cfg *config.Config) {
 	t.Helper()
 	config.SetupTestOfficialPackCatalog(t)
 	t.Setenv("HOME", t.TempDir())
@@ -27,21 +27,51 @@ func installCustomerLabPack(t *testing.T, cfg *config.Config) {
 	if err := cfg.SetPackEnabled(config.PackLifeSciences, true); err != nil {
 		t.Fatal(err)
 	}
-	src := filepath.Join("..", "..", "internal", "packs", "testdata", "customer-lab-pack")
-	if _, err := os.Stat(filepath.Join(src, "pack.yaml")); err != nil {
-		t.Skip("customer-lab-pack fixture missing")
+
+	packDir := t.TempDir()
+	packYAML := `id: scan-summary-legacy-test
+version: "1.0.0"
+title: Scan summary legacy test
+description: Capability-only fixture for in-hub scan summary handler tests.
+pack_kind: customer
+capabilities:
+  - scan-summary-api
+requires_packs:
+  - life-sciences
+`
+	if err := os.WriteFile(filepath.Join(packDir, "pack.yaml"), []byte(packYAML), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	zipPath := filepath.Join(t.TempDir(), "customer-lab-pack.zip")
-	out, err := os.Create(zipPath)
+	zipPath := filepath.Join(t.TempDir(), "scan-summary-legacy-test.zip")
+	if err := writeDirZip(zipPath, packDir); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(zipPath)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := cfg.InstallPackFromZip(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetPackEnabled("scan-summary-legacy-test", true); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RouteOwnerPackID("/api/scan-summary") != "" {
+		t.Fatal("expected legacy scan-summary handler without pack sidecar route owner")
+	}
+}
+
+func writeDirZip(destZip, srcDir string) error {
+	out, err := os.Create(destZip)
+	if err != nil {
+		return err
+	}
 	w := zip.NewWriter(out)
-	walkErr := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return err
 		}
-		rel, err := filepath.Rel(src, path)
+		rel, err := filepath.Rel(srcDir, path)
 		if err != nil {
 			return err
 		}
@@ -56,27 +86,15 @@ func installCustomerLabPack(t *testing.T, cfg *config.Config) {
 		_, err = fw.Write(data)
 		return err
 	})
-	if walkErr != nil {
+	if err != nil {
 		out.Close()
-		t.Fatal(walkErr)
+		return err
 	}
 	if err := w.Close(); err != nil {
 		out.Close()
-		t.Fatal(err)
+		return err
 	}
-	if err := out.Close(); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(zipPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := cfg.InstallPackFromZip(data); err != nil {
-		t.Fatal(err)
-	}
-	if err := cfg.SetPackEnabled("customer-lab-pack", true); err != nil {
-		t.Fatal(err)
-	}
+	return out.Close()
 }
 
 func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func()) {
@@ -107,7 +125,7 @@ func setupScanSummaryHandlerTest(t *testing.T) (workspaceID string, cleanup func
 	}
 
 	appConfig = config.DefaultConfig()
-	installCustomerLabPack(t, appConfig)
+	installScanSummaryLegacyTestPack(t, appConfig)
 
 	return ws.ID, func() {
 		appConfig = nil
