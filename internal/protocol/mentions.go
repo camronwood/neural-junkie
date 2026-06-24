@@ -15,7 +15,7 @@ var mentionRegex = regexp.MustCompile(`@([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*)`)
 // Example: "@Frontend can you help with @Backend integration?"
 // Returns: ["frontend", "backend"]
 func ParseMentions(content string) []string {
-	matches := mentionRegex.FindAllStringSubmatch(content, -1)
+	matches := mentionRegex.FindAllStringSubmatchIndex(content, -1)
 	if len(matches) == 0 {
 		return []string{}
 	}
@@ -25,15 +25,21 @@ func ParseMentions(content string) []string {
 	var mentions []string
 
 	for _, match := range matches {
-		if len(match) > 1 {
-			mention := strings.ToLower(match[1])
-			if IsSlackMentionToken(mention) {
-				continue
-			}
-			if !seen[mention] {
-				mentions = append(mentions, mention)
-				seen[mention] = true
-			}
+		if len(match) < 4 {
+			continue
+		}
+		end := match[1]
+		// Skip IDE scoped-path syntax (@file:path, @folder:path) — not agent mentions.
+		if end < len(content) && content[end] == ':' {
+			continue
+		}
+		mention := strings.ToLower(content[match[2]:match[3]])
+		if IsSlackMentionToken(mention) {
+			continue
+		}
+		if !seen[mention] {
+			mentions = append(mentions, mention)
+			seen[mention] = true
 		}
 	}
 

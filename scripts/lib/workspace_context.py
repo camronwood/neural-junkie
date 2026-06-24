@@ -112,6 +112,7 @@ def build_workspace_context(scenario: dict) -> dict[str, Any]:
         "workspace_path": str(root),
         "file_tree": ws_cfg.get("file_tree") or "",
         "open_files": open_files,
+        "unchanged_files": list(ws_cfg.get("unchanged_files") or []),
     }
 
 

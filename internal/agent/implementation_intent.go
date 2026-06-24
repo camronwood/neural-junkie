@@ -20,6 +20,7 @@ var (
 	workspaceDirectiveRE   = regexp.MustCompile(`(?i)\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b`)
 	bootErrorIntentRE           = regexp.MustCompile(`(?i)(not booting|won't boot|does not boot|failed to scan|esbuild|✘\s*\[ERROR\]|\[ERROR\].*Expected|make start-all|vite dev|syntax error|white screen|blank screen|exit_code=)`)
 	implementationStatusCheckRE = regexp.MustCompile(`(?i)^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$`)
+	destructiveCommandRE       = regexp.MustCompile(`(?i)\brm\s+-rf\b|\brm\s+-r\b|\brmdir\s+/\b|>\s*/dev/`)
 	contentDeliveryRE      = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
 	fileExportRE           = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
 	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
@@ -39,6 +40,10 @@ var contentDeliveryDocSeeds = []string{
 }
 
 const maxImplementationSeedFiles = 8
+
+func userRequestsDestructiveCommand(content string) bool {
+	return destructiveCommandRE.MatchString(content)
+}
 
 // userRequestsImplementation reports coding/build asks (themes, features, fixes) where the
 // user expects [FILE_CHANGE] deliverables, not a codebase overview.

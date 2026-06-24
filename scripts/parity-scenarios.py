@@ -28,6 +28,7 @@ from lib.scenario_assert import (  # noqa: E402
     merge_deliverable_step,
     scenario_question,
 )
+from lib.fixture_baseline import reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "parity"
@@ -39,24 +40,6 @@ def load_scenario(name: str) -> dict:
     path = SCENARIOS_DIR / f"{name}.json"
     with path.open(encoding="utf-8") as f:
         return json.load(f)
-
-
-def reset_fixture_baseline(scenario: dict) -> None:
-    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
-    fixture = (ws_cfg.get("fixture") or "").strip()
-    if not fixture:
-        return
-    fixture_root = ROOT / "scenarios" / "fixtures" / fixture
-    baseline = fixture_root / ".scenario-baseline"
-    if not baseline.is_dir():
-        return
-    for src in baseline.rglob("*"):
-        if not src.is_file():
-            continue
-        rel = src.relative_to(baseline)
-        dest = fixture_root / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(src.read_bytes())
 
 
 def scenario_repo_root(scenario: dict) -> str:
@@ -266,24 +249,27 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
         return False
     if scenario.get("cleanup", "clear") == "clear" and not keep:
         hub.clear_channel_history(ctx.base, ctx.channel)
-    reset_fixture_baseline(scenario)
+    reset_fixture_baseline(scenario, root=ROOT)
     time.sleep(3.0)
     all_ok = True
-    steps = list(scenario.get("setup") or []) + list(scenario.get("steps") or []) + expand_deliverable_steps(scenario)
-    for i, step in enumerate(steps, 1):
-        action = (step.get("action") or "").strip()
-        fn = HANDLERS.get(action)
-        if not fn:
-            print(f"  FAIL unknown action {action}", file=sys.stderr)
-            all_ok = False
-            break
-        ok, detail = fn(ctx, step)
-        print(f"  {'✓' if ok else '✗'} [{i}] {action}: {detail}")
-        if not ok:
-            all_ok = False
-            break
-    if scenario.get("cleanup", "clear") == "clear" and not keep:
-        hub.clear_channel_history(ctx.base, ctx.channel)
+    try:
+        steps = list(scenario.get("setup") or []) + list(scenario.get("steps") or []) + expand_deliverable_steps(scenario)
+        for i, step in enumerate(steps, 1):
+            action = (step.get("action") or "").strip()
+            fn = HANDLERS.get(action)
+            if not fn:
+                print(f"  FAIL unknown action {action}", file=sys.stderr)
+                all_ok = False
+                break
+            ok, detail = fn(ctx, step)
+            print(f"  {'✓' if ok else '✗'} [{i}] {action}: {detail}")
+            if not ok:
+                all_ok = False
+                break
+    finally:
+        reset_fixture_baseline(scenario, root=ROOT)
+        if scenario.get("cleanup", "clear") == "clear" and not keep:
+            hub.clear_channel_history(ctx.base, ctx.channel)
     print(f"=== {'PASS' if all_ok else 'FAIL'}: {name} ===\n")
     return all_ok
 
@@ -304,6 +290,8 @@ def main() -> int:
     if not names:
         p.print_help()
         return 1
+    if args.all:
+        reset_all_fixture_baselines(root=ROOT)
     failed = sum(1 for n in names if not run_scenario(args.hub, n, keep=args.keep))
     return 1 if failed else 0
 

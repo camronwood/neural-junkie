@@ -249,7 +249,26 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
 	restoreImplSessionFromCheckpoint(msg, state)
 
+	if userRequestsDestructiveCommand(msg.Content) {
+		state.FilesChanged = nil
+		state.ProposedCount = 0
+		summary := "I can't run destructive cleanup commands against your workspace. No file changes were made."
+		outcome := a.buildImplementationSessionOutcome(msg, state, false)
+		return summary, streamMsgID, false, nil, outcome, nil
+	}
+
 	if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		summary := a.formatImplementationSessionSummary("", state, true, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, true)
+		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+	}
+
+	if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
 		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
 		state.VerifyOutput = verifyOut

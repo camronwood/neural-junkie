@@ -289,6 +289,9 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     retries = max(0, int(step.get("retries", 0)))
     nudge_agents = step.get("nudge_agents") or []
     retry_on_gen_error = bool(step.get("retry_on_generation_error", True))
+    nudge_silent = bool(step.get("nudge_silent_agents", True))
+    nudged_silent: set[str] = set()
+    started = time.time()
 
     for attempt in range(retries + 1):
         deadline = time.time() + timeout
@@ -331,20 +334,30 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
                     or (bool(counts) and all(n >= min_per for n in counts.values()))
                 )
             )
-            if planning_ready and per_agent_ok:
+            requirements_met = _discussion_requirements_met(
+                counts, total, min_total=min_total, min_per=min_per, required_agents=required
+            )
+            if requirements_met and per_agent_ok and (planning_ready or phase == "reviewing"):
                 suffix = f" (after retry {attempt})" if attempt else ""
                 return (
                     True,
                     f"messages total={total} by_agent={counts}; planning ready{suffix}",
                 )
-            if _discussion_requirements_met(
-                counts, total, min_total=min_total, min_per=min_per, required_agents=required
-            ):
-                if ctx.collab_id and not planning_ready:
-                    time.sleep(hub.POLL_INTERVAL)
-                    continue
+            if requirements_met and per_agent_ok:
                 suffix = f" (after retry {attempt})" if attempt else ""
-                return True, f"messages total={total} by_agent={counts}{suffix}"
+                return True, f"messages total={total} by_agent={counts}; participation ready{suffix}"
+            if nudge_silent and required and time.time() - started > timeout * 0.35:
+                silent = [
+                    name
+                    for name in required
+                    if counts.get(name, 0) < max(min_per, 1) and name not in nudged_silent
+                ]
+                if silent:
+                    nudged_silent.update(silent)
+                    ctx.log(f"  wait_discussion: silent agents {silent}; nudging")
+                    _nudge_discussion_agents(ctx, silent)
+                    time.sleep(3)
+                    continue
             if max_total > 0 and total > max_total:
                 diag = hub.discussion_diagnosis(
                     ctx.base,

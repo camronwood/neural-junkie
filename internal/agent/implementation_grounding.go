@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -70,8 +71,67 @@ func (a *Agent) ResolveProposalPath(ctx context.Context, sourceMsg *protocol.Mes
 	return RedirectProposalPath(path, manifest)
 }
 
+func protectedWorkspaceFilesFromMessage(msg *protocol.Message) []string {
+	if msg == nil || msg.Metadata == nil {
+		return nil
+	}
+	raw, ok := msg.Metadata["workspace_context"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	files, ok := raw["unchanged_files"].([]interface{})
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, item := range files {
+		if s, ok := item.(string); ok {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
+func isProtectedWorkspaceFile(msg *protocol.Message, path string) bool {
+	if msg == nil {
+		return false
+	}
+	rel := normalizeFileChangeRelPath(path)
+	for _, p := range protectedWorkspaceFilesFromMessage(msg) {
+		if normalizeFileChangeRelPath(p) == rel {
+			return true
+		}
+	}
+	lower := strings.ToLower(msg.Content)
+	base := strings.ToLower(filepath.Base(rel))
+	if base == "" {
+		return false
+	}
+	for _, phrase := range []string{
+		"do not modify " + base,
+		"do not change " + base,
+		"don't modify " + base,
+		"don't change " + base,
+		"do not edit " + base,
+		"don't edit " + base,
+		"never modify " + base,
+		"never change " + base,
+	} {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *Agent) validateProposalForSession(ctx context.Context, sourceMsg *protocol.Message, path string, op ProposalOperation) error {
 	path = a.ResolveProposalPath(ctx, sourceMsg, path)
+	if isProtectedWorkspaceFile(sourceMsg, path) {
+		return fmt.Errorf("protected file: edits to %s are not allowed for this request", path)
+	}
 	wsPath := ""
 	if sourceMsg != nil {
 		wsPath = a.resolveWorkspacePath(sourceMsg)

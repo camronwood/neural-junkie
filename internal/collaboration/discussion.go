@@ -117,6 +117,12 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 	}
 
 	cm.advanceTurn(c)
+	if c.Phase == PhasePlanning && d.Status == DiscussionActive && enforced &&
+		participationQuorumMet(d) && cm.enterReviewingFromPlanningLocked(c) {
+		notifyReviewing = collabID
+		log.Printf("[Discussion %s] Participation quorum met (%d/%d messages) — reviewing",
+			d.ID[:8], d.TotalMessageCount, d.MaxTotalMessages)
+	}
 	if d.Status != DiscussionActive && c.Phase == PhasePlanning && enforced {
 		if cm.enterReviewingFromPlanningLocked(c) {
 			notifyReviewing = collabID
@@ -266,6 +272,26 @@ func (cm *CollaborationManager) EndDiscussion(collabID string, status Discussion
 	c.Discussion.Status = status
 	c.UpdatedAt = time.Now()
 	return nil
+}
+
+// participationQuorumMet is true when every discussion participant has spoken at least once.
+func participationQuorumMet(d *DiscussionSession) bool {
+	if d == nil || len(d.Participants) < 2 {
+		return false
+	}
+	spoken := make(map[string]bool, len(d.Participants))
+	for _, m := range d.Messages {
+		if m == nil || m.From.ID == "" {
+			continue
+		}
+		spoken[m.From.ID] = true
+	}
+	for _, pid := range d.Participants {
+		if !spoken[pid] {
+			return false
+		}
+	}
+	return d.TotalMessageCount >= len(d.Participants)
 }
 
 // advanceTurn moves to the next participant in round-robin order.

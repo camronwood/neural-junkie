@@ -37,6 +37,17 @@ func TestParseMentionsKeepsSpecialistAgentNames(t *testing.T) {
 	}
 }
 
+func TestParseMentionsIgnoresScopedPathSyntax(t *testing.T) {
+	got := ParseMentions("Fix @file:core/sample/math.go and @folder:src/ only")
+	if len(got) != 0 {
+		t.Fatalf("expected no agent mentions, got %v", got)
+	}
+	got = ParseMentions("@BackendEngineer check @file:main.go")
+	if len(got) != 1 || got[0] != "backendengineer" {
+		t.Fatalf("expected backendengineer only, got %v", got)
+	}
+}
+
 func TestSlackSenderSkipsMentionParsing(t *testing.T) {
 	msg := NewMessage(
 		MessageTypeQuestion,
