@@ -17,6 +17,9 @@ OUT_DIR = ROOT / "docs" / "articles"
 COVERS_DIR = ROOT / "docs" / "media" / "articles" / "covers"
 MANIFEST = OUT_DIR / "manifest.json"
 
+sys.path.insert(0, str(ROOT / "scripts"))
+from site_nav import render_site_chrome  # noqa: E402
+
 # Explicit order + optional overrides (cover when not in source metadata).
 ARTICLE_ORDER = [
     "hardware",
@@ -195,6 +198,8 @@ def article_html_page(meta: dict, body_html: str) -> str:
       <img src="{html.escape(cover)}" alt="" loading="eager" decoding="async" width="1200" height="627" />
     </figure>"""
 
+    site_chrome = render_site_chrome(OUT_DIR / f"{meta['slug']}.html")
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -212,20 +217,7 @@ def article_html_page(meta: dict, body_html: str) -> str:
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="wrap">
-      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
-        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
-        Neural Junkie
-      </a>
-      <nav class="nav-actions" aria-label="Primary">
-        <a class="btn btn-ghost" href="../index.html">Landing</a>
-        <a class="btn btn-ghost" href="index.html">Articles</a>
-        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
-        <a class="btn btn-primary" href="../download.html">Download</a>
-      </nav>
-    </div>
-  </header>
+{site_chrome}
 
   <main id="main" class="wrap article-page">
     <nav class="breadcrumb" aria-label="Breadcrumb">

@@ -218,3 +218,5 @@ if [[ -n "${BUMP_FROM}" ]]; then
   done
   echo "Note: release-notes.html is append-only — add a new section manually for ${TAG}"
 fi
+
+python3 "${ROOT}/scripts/sync-site-nav.py"

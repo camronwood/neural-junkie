@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -48,6 +48,10 @@ gallery-sync: ## Copy ads/screenshots to docs/media/gallery and rebuild manifest
 articles-sync: ## Regenerate docs/articles from docs/marketing LinkedIn sources
 	@chmod +x ./scripts/sync-articles.sh
 	@./scripts/sync-articles.sh
+	@python3 ./scripts/sync-site-nav.py
+
+site-nav-sync: ## Unify header navigation across all docs/*.html pages
+	@python3 ./scripts/sync-site-nav.py
 
 build: ## Build all binaries
 	@echo "🔨 Building server... $(if $(SERVER_GO_TAGS),[Slack vendor embedded],)"
