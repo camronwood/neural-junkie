@@ -1,4 +1,5 @@
 import type { ResolvedCapability } from '../api/chatAPI';
+import { normalizeToolbarChipLabel, resolvePackToolbarIconUrl } from '../utils/packAssetUrl';
 
 /** NJ built-in viewer ids referenced by pack capability_defs.viewer */
 export const NJ_VIEWER = {
@@ -60,18 +61,43 @@ function globMatch(pattern: string, path: string): boolean {
   return path === p || path.endsWith('/' + p);
 }
 
+export type PackToolbarAction = {
+  id: string;
+  label: string;
+  iconUrl?: string;
+  modal: string;
+  capabilityId: string;
+  packId: string;
+  packTitle?: string;
+  title: string;
+};
+
 export function toolbarActionsFromRegistry(
   registry: ResolvedCapability[],
-): Array<{ id: string; label: string; modal: string; capabilityId: string }> {
-  const out: Array<{ id: string; label: string; modal: string; capabilityId: string }> = [];
+  packs: Array<{ id: string; title: string; custom?: boolean; enabled?: boolean }>,
+): PackToolbarAction[] {
+  const packTitleById = new Map(packs.map((p) => [p.id, p.title]));
+  const out: PackToolbarAction[] = [];
   for (const rc of registry) {
+    if (rc.platform) continue;
     const tb = rc.ui?.toolbar;
     if (!tb?.id) continue;
+    const packId = rc.pack_id ?? '';
+    const packTitle = packTitleById.get(packId);
+    const label = normalizeToolbarChipLabel(tb.label, tb.id);
+    const iconUrl = resolvePackToolbarIconUrl(packId, tb.icon);
+    const modal = rc.ui?.modal ?? rc.id;
+    const titleParts = [packTitle ?? packId, rc.id].filter(Boolean);
+    if (modal) titleParts.push(modal);
     out.push({
       id: tb.id,
-      label: tb.label ?? tb.id,
-      modal: rc.ui?.modal ?? rc.id,
+      label: iconUrl ? '' : label,
+      iconUrl,
+      modal,
       capabilityId: rc.id,
+      packId,
+      packTitle,
+      title: titleParts.join(' · '),
     });
   }
   return out;

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/filechange"
+	"github.com/camronwood/neural-junkie/internal/fileedit"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -256,6 +257,20 @@ func handleApproveFileChange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileChangeManager := chatHub.GetFileChangeManager()
+
+	var req struct {
+		NewContent string `json:"new_content"`
+	}
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	if strings.TrimSpace(req.NewContent) != "" {
+		if _, err := fileChangeManager.UpdatePendingNewContent(path, req.NewContent); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
 	change, err := fileChangeManager.ApproveFileChange(path, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -307,59 +322,52 @@ func handleRejectFileChange(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleFileChangeDiff(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Extract change ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/file-changes/")
-	if path == "" {
+	if path == "" || strings.Contains(path, "/") {
 		http.Error(w, "Change ID required", http.StatusBadRequest)
 		return
 	}
 
 	fileChangeManager := chatHub.GetFileChangeManager()
+
+	if r.Method == http.MethodPatch {
+		var req struct {
+			NewContent string `json:"new_content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+		change, err := fileChangeManager.UpdatePendingNewContent(path, req.NewContent)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		diff := ""
+		if change.Operation == filechange.FileOperationEdit {
+			diff = fileedit.UnifiedDiff(change.FilePath, change.OldContent, change.NewContent)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"change": change, "diff": diff})
+		return
+	}
+
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	change, err := fileChangeManager.GetFileChange(path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	// Generate diff for edit operations
+	// Generate unified diff for edit operations
 	var diff string
-	if change.Operation == "edit" {
-		// Simple diff implementation - in production, use a proper diff library
-		diff = "--- Old content\n+++ New content\n"
-		oldLines := strings.Split(change.OldContent, "\n")
-		newLines := strings.Split(change.NewContent, "\n")
-
-		maxLines := len(oldLines)
-		if len(newLines) > maxLines {
-			maxLines = len(newLines)
-		}
-
-		for i := 0; i < maxLines; i++ {
-			oldLine := ""
-			newLine := ""
-
-			if i < len(oldLines) {
-				oldLine = oldLines[i]
-			}
-			if i < len(newLines) {
-				newLine = newLines[i]
-			}
-
-			if oldLine != newLine {
-				diff += fmt.Sprintf("@@ -%d +%d @@\n", i+1, i+1)
-				if oldLine != "" {
-					diff += fmt.Sprintf("-%s\n", oldLine)
-				}
-				if newLine != "" {
-					diff += fmt.Sprintf("+%s\n", newLine)
-				}
-			}
-		}
+	if change.Operation == filechange.FileOperationEdit {
+		diff = fileedit.UnifiedDiff(change.FilePath, change.OldContent, change.NewContent)
 	}
 
 	response := map[string]interface{}{

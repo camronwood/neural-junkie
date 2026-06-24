@@ -196,6 +196,29 @@ func (fcm *FileChangeManager) RejectFileChange(changeID, requestingUserID, reaso
 	return change, nil
 }
 
+// UpdatePendingNewContent updates NewContent on a pending edit proposal (e.g. partial hunk accept).
+func (fcm *FileChangeManager) UpdatePendingNewContent(changeID, newContent string) (*FileChange, error) {
+	fcm.mu.Lock()
+	defer fcm.mu.Unlock()
+
+	change, ok := fcm.changes[changeID]
+	if !ok {
+		return nil, fmt.Errorf("file change not found: %s", changeID)
+	}
+	if change.IsExpired() {
+		delete(fcm.changes, changeID)
+		return nil, fmt.Errorf("file change expired")
+	}
+	if change.Status != FileChangeStatusPending {
+		return nil, fmt.Errorf("file change already processed")
+	}
+	if change.Operation != FileOperationEdit && change.Operation != FileOperationCreate {
+		return nil, fmt.Errorf("only create/edit proposals support content updates")
+	}
+	change.NewContent = SanitizeFileChangeContent(newContent)
+	return change, nil
+}
+
 // ListPendingFileChanges returns all pending file changes for a user
 func (fcm *FileChangeManager) ListPendingFileChanges(userID string) []*FileChange {
 	fcm.mu.RLock()

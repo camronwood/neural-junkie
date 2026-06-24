@@ -734,7 +734,7 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	prompt.WriteString("Use only dependencies already in package.json / the repo — do not invent packages.\n")
 	prompt.WriteString("Keep conversational text short (2-4 sentences); put code in [FILE_CHANGE], not long fenced dumps.\n")
 	if a != nil && a.hasWorkspaceTools() {
-		prompt.WriteString("When workspace tools are available, prefer propose_file_edit over [FILE_CHANGE] text blocks.\n")
+		prompt.WriteString("When workspace tools are available, prefer search_replace or apply_patch for edits; propose_file_edit for creates.\n")
 	}
 	prompt.WriteString("Do NOT ask the user to paste or share file contents when REFERENCED FILES or WORKSPACE SOURCE FILES appear below — read them and emit [FILE_CHANGE].\n")
 	prompt.WriteString("Only ask for a path if a required file is missing from every context section.\n")

@@ -539,7 +539,7 @@ start-all: setup-env ensure-ollama ensure-lora-deps ## Start server and all agen
 		echo "🚀 Starting complete Neural Junkie system..."; \
 		echo "   (Specialist agents are started in-process by the server via config)"; \
 		if [ -f "$(SLACK_VENDOR_JSON)" ]; then echo "   Slack: bundled NJ app (vendor/oauth.json → Connect Slack enabled)"; fi; \
-		go run $(SERVER_GO_TAGS) ./cmd/server & \
+		NEURAL_JUNKIE_RELAXED_LOCAL=1 go run $(SERVER_GO_TAGS) ./cmd/server & \
 		echo "⏳ Waiting for hub at http://localhost:$${PORT}/api/health ..."; \
 		ok=0; for i in $$(seq 1 60); do \
 			if curl -sf "http://localhost:$${PORT}/api/health" | grep -q "\"status\":\"ok\""; then ok=1; break; fi; \

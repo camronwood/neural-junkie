@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/fileedit"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 )
 
@@ -205,48 +206,14 @@ func (fce *FileChangeExecutor) GetFileContent(filePath string) (string, error) {
 	return string(content), nil
 }
 
-// GetFileDiff generates a diff between old and new content
+// GetFileDiff generates a unified diff between old and new content.
 func (fce *FileChangeExecutor) GetFileDiff(oldContent, newContent string) (string, error) {
-	// Simple diff implementation - in production, you might want to use a proper diff library
 	if oldContent == newContent {
 		return "No changes", nil
 	}
-
-	// Basic line-by-line diff
-	oldLines := strings.Split(oldContent, "\n")
-	newLines := strings.Split(newContent, "\n")
-
-	var diff strings.Builder
-	diff.WriteString("--- Old content\n")
-	diff.WriteString("+++ New content\n")
-
-	// Simple diff logic (this is basic - for production use a proper diff library)
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
+	diff := fileedit.UnifiedDiff("file", oldContent, newContent)
+	if diff == "" {
+		return "No changes", nil
 	}
-
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		newLine := ""
-
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
-
-		if oldLine != newLine {
-			diff.WriteString(fmt.Sprintf("@@ -%d +%d @@\n", i+1, i+1))
-			if oldLine != "" {
-				diff.WriteString(fmt.Sprintf("-%s\n", oldLine))
-			}
-			if newLine != "" {
-				diff.WriteString(fmt.Sprintf("+%s\n", newLine))
-			}
-		}
-	}
-
-	return diff.String(), nil
+	return diff, nil
 }

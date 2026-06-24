@@ -229,7 +229,8 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 			system.WriteString("9. NEVER mention internal tool/function names (e.g., ProposeFileEdit/ProposeFileCreate) to the user.\n")
 			system.WriteString("10. When you want to submit an actual file change proposal, include this machine-readable block exactly:\n")
 			if a.hasWorkspaceTools() {
-				system.WriteString("    Prefer propose_file_edit tool calls when workspace tools are available; use [FILE_CHANGE] only if tools fail.\n")
+				appendFileEditToolsPrompt(&system)
+				system.WriteString("    Prefer search_replace or apply_patch for edits; propose_file_edit for creates. Use [FILE_CHANGE] only if tools fail.\n")
 			}
 			appendFileChangeMachineBlockDocs(&system)
 		}

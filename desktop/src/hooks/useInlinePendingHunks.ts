@@ -155,7 +155,15 @@ export function useInlinePendingHunks(
       useEditorStore.getState().updateTabContent(activeTabId, next);
       model.setValue(next);
       acceptedHunksRef.current.add(hunk.id);
+      void useFileChangeStore.getState().updateChangeContent(change.id, next);
       useFileChangeStore.getState().selectChange(change.id);
+
+      const remaining = parseUnifiedDiff(previewData?.diff ?? '').filter(
+        (h) => !acceptedHunksRef.current.has(h.id)
+      );
+      if (remaining.length === 0) {
+        void useFileChangeStore.getState().approveChange(change.id, 'default', next);
+      }
     });
 
     return () => {

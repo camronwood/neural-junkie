@@ -20,6 +20,8 @@ import type { WorkspaceContextMode } from '../constants/promptMetadata';
 import type { SettingsTab } from './SettingsModal';
 import { OllamaRuntimeChip } from './OllamaRuntimeChip';
 import { MemoryMonitorChip } from './MemoryMonitorChip';
+import { CustomPackToolbarChip } from './CustomPackToolbarChip';
+import type { PackToolbarAction } from '../stores/packCapabilityRegistry';
 import { useApprovalStore } from '../stores/approvalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { formatChord } from '../shortcuts/format';
@@ -39,8 +41,8 @@ export interface ChatToolbarActionsProps {
   onOpenPendingChanges: () => void;
   onOpenFileExplorer: () => void;
   onOpenCodeEditor: () => void;
-  phoenixPackInstalled?: boolean;
-  onOpenPhoenix?: () => void;
+  customPackToolbarActions?: PackToolbarAction[];
+  onCustomPackToolbarAction?: (modal: string) => void;
   taskManagementOpen: boolean;
   onToggleTaskManagement: () => void;
   onNewRunbook: () => void;
@@ -87,8 +89,8 @@ export function ChatToolbarActions({
   onOpenPendingChanges,
   onOpenFileExplorer,
   onOpenCodeEditor,
-  phoenixPackInstalled,
-  onOpenPhoenix,
+  customPackToolbarActions = [],
+  onCustomPackToolbarAction,
   taskManagementOpen,
   onToggleTaskManagement,
   onNewRunbook,
@@ -240,18 +242,22 @@ export function ChatToolbarActions({
           </button>
         )}
 
-        {phoenixPackInstalled && onOpenPhoenix && (
-          <button
-            type="button"
-            onClick={onOpenPhoenix}
-            className={`${iconBtn} bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold focus-visible:outline-indigo-400`}
-            title="Phoenix TIM — sign in, browse, download"
-            aria-label="Open Phoenix TIM browser"
-          >
-            PHX
-          </button>
-        )}
       </div>
+
+      {customPackToolbarActions.length > 0 && onCustomPackToolbarAction && (
+        <>
+          <ToolbarDivider layout={layout} />
+          <div className={groupClass} aria-label="Custom pack tools">
+            {customPackToolbarActions.map((action) => (
+              <CustomPackToolbarChip
+                key={`${action.packId}:${action.id}`}
+                action={action}
+                onClick={() => onCustomPackToolbarAction(action.modal)}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       <ToolbarDivider layout={layout} />
 

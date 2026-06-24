@@ -31,6 +31,8 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
   const [overlay, setOverlay] = useState<Record<string, string>>({});
   const [workspaceGuide, setWorkspaceGuide] = useState('assets/WORKSPACE.md');
   const [runbooksGlob, setRunbooksGlob] = useState('assets/runbooks/*.md');
+  const [toolbarChipLabel, setToolbarChipLabel] = useState('');
+  const [toolbarChipIcon, setToolbarChipIcon] = useState('');
 
   const catalogChoices = useMemo(
     () => catalog.filter((c) => c.builtin).map((c) => ({ id: c.id, title: c.title })),
@@ -88,6 +90,8 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
           settings_overlay: overlay,
           workspace_guide: workspaceGuide.trim() || null,
           runbooks_glob: runbooksGlob.trim() || null,
+          toolbar_chip_label: toolbarChipLabel.trim() || null,
+          toolbar_chip_icon: toolbarChipIcon.trim() || null,
         },
         ...ipcWorkspaceRoots(),
       });
@@ -108,6 +112,8 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
     overlay,
     workspaceGuide,
     runbooksGlob,
+    toolbarChipLabel,
+    toolbarChipIcon,
     onScaffolded,
   ]);
 
@@ -178,6 +184,25 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
               className="mt-1 w-full rounded border border-slack-border bg-slack-bg px-2 py-1.5 text-sm text-slack-text"
             />
           </label>
+          <label className="text-xs text-slack-textMuted">
+            Sidebar chip label (optional, max 3 letters)
+            <input
+              value={toolbarChipLabel}
+              onChange={(e) => setToolbarChipLabel(e.target.value.slice(0, 3))}
+              placeholder="LAB"
+              maxLength={3}
+              className="mt-1 w-full rounded border border-slack-border bg-slack-bg px-2 py-1.5 text-sm text-slack-text font-mono uppercase"
+            />
+          </label>
+          <label className="text-xs text-slack-textMuted">
+            Sidebar chip icon (optional, pack-relative path)
+            <input
+              value={toolbarChipIcon}
+              onChange={(e) => setToolbarChipIcon(e.target.value)}
+              placeholder="assets/icons/chip.png"
+              className="mt-1 w-full rounded border border-slack-border bg-slack-bg px-2 py-1.5 text-sm text-slack-text font-mono"
+            />
+          </label>
         </div>
       )}
 
@@ -200,11 +225,12 @@ export function PackScaffoldWizard({ onScaffolded }: PackScaffoldWizardProps) {
       {step === 2 && (
         <div className="space-y-3">
           <p className="text-xs text-slack-textMuted">
-            Generic customer packs use workspace guides and runbooks below. Secondary analysis overlays (
+            Generic custom packs use workspace guides and runbooks below. Biology tool overlays (
             <code className="font-mono text-teal-300/90">secondary_analysis_tools_path</code>,{' '}
             <code className="font-mono text-teal-300/90">cumulative_qc_dir</code>, etc.) belong in your
-            customer pack with <code className="font-mono text-teal-300/90">secondary-analysis-api</code>{' '}
-            — add them in the YAML editor after scaffold, or in the private pack repo.
+            org-specific pack repo (e.g. brightest-bio-lab) with{' '}
+            <code className="font-mono text-teal-300/90">secondary-analysis-api</code> — add them in the YAML
+            editor after scaffold.
           </p>
           {GENERIC_OVERLAY_FIELD_DOCS.map((f) => (
             <label key={f.key} className="block text-xs text-slack-textMuted">

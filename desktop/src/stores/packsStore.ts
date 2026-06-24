@@ -246,7 +246,7 @@ export const usePacksStore = create<PacksState>((set, get) => ({
 
   getFileViewerForPath: (path) => matchFileViewer(get().capabilityRegistry, path),
 
-  getToolbarActions: () => toolbarActionsFromRegistry(get().capabilityRegistry),
+  getToolbarActions: () => toolbarActionsFromRegistry(get().capabilityRegistry, get().packs),
 
   getPackSettingsKeys: () => settingsKeysFromRegistry(get().capabilityRegistry),
 

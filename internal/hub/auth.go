@@ -149,10 +149,16 @@ func (sm *SessionManager) Validate(token string) *HubSession {
 	return s
 }
 
-// ExtractSessionToken reads X-NJ-Session or Authorization: Bearer (after hub token check).
+// ExtractSessionToken reads X-NJ-Session, Authorization: Bearer (after hub token check),
+// or nj_session query param (browser WebSocket cannot set custom headers).
 func ExtractSessionToken(r *http.Request) string {
 	if h := strings.TrimSpace(r.Header.Get("X-NJ-Session")); h != "" {
 		return h
+	}
+	if r != nil && r.URL != nil {
+		if q := strings.TrimSpace(r.URL.Query().Get("nj_session")); q != "" {
+			return q
+		}
 	}
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
 	// If both hub token and session use Bearer, prefer X-NJ-Session; hub token uses X-NJ-Hub-Token

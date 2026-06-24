@@ -216,7 +216,7 @@ export interface ResolvedCapability {
   platform?: boolean;
   routes?: string[];
   ui?: {
-    toolbar?: { id?: string; label?: string };
+    toolbar?: { id?: string; label?: string; icon?: string };
     modal?: string;
   };
   match_glob?: string;
@@ -285,7 +285,7 @@ export class ChatAPI {
   }
 
   /** Create or refresh a hub user session (channel ACL). */
-  async createSession(username: string): Promise<{ token: string; username: string }> {
+  async createSession(username: string): Promise<{ token: string; username: string; role?: string }> {
     const response = await this.hubFetch('/api/auth/session', {
       method: 'POST',
       body: JSON.stringify({ username }),
@@ -293,7 +293,41 @@ export class ChatAPI {
     if (!response.ok) {
       throw new Error(`Failed to create session: ${response.statusText}`);
     }
-    const data = (await response.json()) as { token: string; username: string };
+    const data = (await response.json()) as { token: string; username: string; role?: string };
+    if (data.token) {
+      setHubSessionToken(data.token);
+    }
+    return data;
+  }
+
+  /** Mint an admin session using the hub bootstrap secret (API keys, ACL admin). */
+  async createAdminSession(
+    username: string,
+    bootstrapToken: string
+  ): Promise<{ token: string; username: string; role: string }> {
+    const boot = bootstrapToken.trim();
+    if (!boot) {
+      throw new Error('Bootstrap token is required for admin session');
+    }
+    const response = await fetch(`${this.baseURL}/api/auth/session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...hubAuthHeaders(),
+        'X-NJ-Bootstrap': boot,
+      },
+      body: JSON.stringify({ username, role: 'admin' }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).trim();
+      throw new Error(
+        detail ? `Admin unlock failed: ${detail}` : `Admin unlock failed: ${response.statusText}`
+      );
+    }
+    const data = (await response.json()) as { token: string; username: string; role: string };
+    if (data.role !== 'admin') {
+      throw new Error('Hub did not grant admin role — check bootstrap token');
+    }
     if (data.token) {
       setHubSessionToken(data.token);
     }
@@ -2582,17 +2616,43 @@ export class ChatAPI {
     return response.json();
   }
 
-  // Approve a file change
-  async approveFileChange(changeId: string, userId: string = 'default'): Promise<FileChange> {
+  // Approve a file change (optional new_content when editor buffer was partially edited)
+  async approveFileChange(
+    changeId: string,
+    userId: string = 'default',
+    newContent?: string
+  ): Promise<FileChange> {
+    const body =
+      newContent !== undefined && newContent !== ''
+        ? JSON.stringify({ new_content: newContent })
+        : undefined;
     const response = await this.hubFetch(`/api/file-changes/approve/${changeId}?user_id=${encodeURIComponent(userId)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      body,
     });
 
     if (!response.ok) {
       throw new Error(`Failed to approve file change: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Update pending file change content (partial hunk accept)
+  async updateFileChangeContent(changeId: string, newContent: string): Promise<FileChangeDiff> {
+    const response = await this.hubFetch(`/api/file-changes/${changeId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ new_content: newContent }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update file change: ${response.statusText}`);
     }
 
     return response.json();

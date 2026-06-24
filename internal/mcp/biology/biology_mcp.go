@@ -118,7 +118,7 @@ func (b *BiologyMCP) registerTools() {
 func (b *BiologyMCP) requireScanTool(toolName string) error {
 	cfg := mcp.AppConfig()
 	if cfg == nil || !cfg.ScanMCPToolAllowed(toolName) {
-		return fmt.Errorf("%s requires an enabled customer pack with the appropriate capability (see capability_defs in your lab pack)", toolName)
+		return fmt.Errorf("%s requires an enabled custom pack with the appropriate capability (see capability_defs in your lab pack)", toolName)
 	}
 	return nil
 }

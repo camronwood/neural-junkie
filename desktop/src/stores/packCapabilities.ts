@@ -25,7 +25,7 @@ export const PACK_PLATFORM_CAP = {
 } as const;
 
 /**
- * Common pack-local capability ids (defined in customer pack capability_defs, not NJ platform).
+ * Common pack-local capability ids (defined in custom pack capability_defs, not NJ platform).
  * Prefer registryHasCapability / capability_registry from the hub for runtime checks.
  */
 export const PACK_LOCAL_CAP = {

@@ -362,7 +362,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			} else if !state.groundingSatisfied() {
 				repairNote = "Read the stack manifest and use read_file/glob_file_search on real paths before proposing edits."
 			} else {
-				repairNote = "You must emit [FILE_CHANGE] blocks or call propose_file_edit with real file paths and content. Advice-only replies do not satisfy this implementation request."
+				repairNote = "You must call search_replace, apply_patch, propose_file_edit, or emit [FILE_CHANGE] blocks with real file paths and content. Advice-only replies do not satisfy this implementation request."
 			}
 		}
 	}
@@ -889,7 +889,7 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 	prompt.WriteString("\n=== IMPLEMENTATION SESSION (required delivery) ===\n")
 	prompt.WriteString("Ship working file changes in this turn — advice-only is not acceptable.\n")
 	if a.hasWorkspaceTools() {
-		prompt.WriteString("Prefer the propose_file_edit tool (path, content, operation create|edit) for each file you change.\n")
+		prompt.WriteString("Prefer search_replace (exact unique old_string) or apply_patch for edits; propose_file_edit for new files or full small-file rewrites.\n")
 	}
 	prompt.WriteString("Alternatively emit one or more [FILE_CHANGE] blocks with real relative paths and full file content.\n")
 	prompt.WriteString("Do NOT re-plan or ask design questions when the user already approved or said to proceed — ship file changes in this turn.\n")

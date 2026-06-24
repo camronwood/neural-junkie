@@ -54,7 +54,7 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer))...)
 	}
 	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
-		tools = append(tools, proposeFileEditToolDefinition())
+		tools = append(tools, fileEditToolDefinitions()...)
 	}
 	return tools
 }
@@ -91,6 +91,12 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	if name == proposeFileEditToolName {
 		return a.executeProposeFileEditTool(ctx, msg, input)
+	}
+	if name == searchReplaceToolName {
+		return a.executeSearchReplaceTool(ctx, msg, input)
+	}
+	if name == applyPatchToolName {
+		return a.executeApplyPatchTool(ctx, msg, input)
 	}
 	mcpServer := mcpServerFromInterface(a.MCPServer)
 	if mcpServer == nil {

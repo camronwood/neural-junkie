@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChatAPI } from '../../api/chatAPI';
+import { useChatStore } from '../../stores/chatStore';
 import type { SettingsTabProps } from './settingsShared';
 
 type HubSecurity = {
@@ -20,7 +21,26 @@ type APIKeyRecord = {
   revoked: boolean;
 };
 
+function isForbiddenError(message: string | null): boolean {
+  if (!message) return false;
+  const lower = message.toLowerCase();
+  return lower.includes('forbidden') || lower.includes('admin');
+}
+
+async function readLocalBootstrapToken(): Promise<string> {
+  if (typeof window === 'undefined' || !(window as { __TAURI__?: unknown }).__TAURI__) {
+    throw new Error('Local bootstrap read is only available in the desktop app');
+  }
+  const { invoke } = await import('@tauri-apps/api/tauri');
+  const token = await invoke<string>('read_hub_bootstrap_token');
+  if (!token.trim()) {
+    throw new Error('Bootstrap token file is empty');
+  }
+  return token.trim();
+}
+
 export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
+  const username = useChatStore((s) => s.username);
   const [hubSecurity, setHubSecurity] = useState<HubSecurity | null>(null);
   const [apiKeys, setApiKeys] = useState<APIKeyRecord[]>([]);
   const [newKeyName, setNewKeyName] = useState('');
@@ -28,6 +48,10 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [keysError, setKeysError] = useState<string | null>(null);
   const [loadingKeys, setLoadingKeys] = useState(false);
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [bootstrapInput, setBootstrapInput] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const loadApiKeys = useCallback(async () => {
     setLoadingKeys(true);
@@ -36,9 +60,14 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
       const api = new ChatAPI(hubHttp);
       const rows = (await api.listAPIKeys()) as APIKeyRecord[];
       setApiKeys(rows.filter((k) => !k.revoked));
+      setAdminUnlocked(true);
     } catch (e) {
-      setKeysError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setKeysError(msg);
       setApiKeys([]);
+      if (isForbiddenError(msg)) {
+        setAdminUnlocked(false);
+      }
     } finally {
       setLoadingKeys(false);
     }
@@ -62,6 +91,33 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
       cancelled = true;
     };
   }, [isActive, hubHttp, loadApiKeys]);
+
+  const handleUnlockAdmin = async (bootstrapToken: string) => {
+    setUnlockError(null);
+    setUnlocking(true);
+    try {
+      const api = new ChatAPI(hubHttp);
+      const who = (username || 'local').trim() || 'local';
+      await api.createAdminSession(who, bootstrapToken);
+      setAdminUnlocked(true);
+      setBootstrapInput('');
+      await loadApiKeys();
+    } catch (e) {
+      setUnlockError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const handleUseLocalBootstrap = async () => {
+    setUnlockError(null);
+    try {
+      const token = await readLocalBootstrapToken();
+      await handleUnlockAdmin(token);
+    } catch (e) {
+      setUnlockError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const handleCreateKey = async () => {
     setKeysError(null);
@@ -87,6 +143,8 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
       setKeysError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const needsAdminUnlock = !adminUnlocked && (isForbiddenError(keysError) || hubSecurity?.relaxed_local);
 
   if (!isActive) return null;
 
@@ -151,23 +209,73 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
     <div>
       <h3 className="text-lg font-semibold text-slack-text mb-2">API keys</h3>
       <p className="text-sm text-slack-textMuted mb-3">
-        Service account keys for CI/scripts (<code className="font-mono">nj_…</code>). Requires an admin session.
+        Service account keys for CI/scripts (<code className="font-mono">nj_…</code>). Requires an{' '}
+        <strong className="text-slack-text">admin</strong> hub session (login alone grants member only).
         Pass <code className="font-mono">--api-key</code> to standalone agents or{' '}
         <code className="font-mono">Authorization: Bearer nj_…</code> on hub HTTP calls.
       </p>
-      {keysError && <p className="text-sm text-red-400 mb-2">{keysError}</p>}
+
+      {needsAdminUnlock && hubSecurity?.bootstrap_configured && (
+        <div className="mb-4 rounded-lg border border-amber-700/40 bg-amber-950/20 p-3 space-y-2">
+          <p className="text-sm text-amber-200">
+            Your session is <strong>member</strong> (chat works; API key admin does not). Unlock admin with
+            the hub bootstrap token from{' '}
+            <code className="font-mono text-xs">~/.neural-junkie/bootstrap.token</code>.
+          </p>
+          {unlockError && <p className="text-sm text-red-400">{unlockError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="password"
+              placeholder="Bootstrap token"
+              value={bootstrapInput}
+              onChange={(e) => setBootstrapInput(e.target.value)}
+              className="flex-1 min-w-[12rem] px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text font-mono"
+            />
+            <button
+              type="button"
+              disabled={unlocking || !bootstrapInput.trim()}
+              onClick={() => void handleUnlockAdmin(bootstrapInput)}
+              className="px-3 py-1 rounded bg-amber-700 text-white text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              {unlocking ? 'Unlocking…' : 'Unlock admin'}
+            </button>
+            <button
+              type="button"
+              disabled={unlocking}
+              onClick={() => void handleUseLocalBootstrap()}
+              className="px-3 py-1 rounded border border-slack-border text-sm text-slack-textMuted hover:text-slack-text"
+            >
+              Use local bootstrap file
+            </button>
+          </div>
+        </div>
+      )}
+
+      {adminUnlocked && (
+        <p className="text-sm text-emerald-400 mb-2">Admin session active — you can manage API keys.</p>
+      )}
+
+      {keysError && !needsAdminUnlock && <p className="text-sm text-red-400 mb-2">{keysError}</p>}
+      {keysError && needsAdminUnlock && !hubSecurity?.bootstrap_configured && (
+        <p className="text-sm text-red-400 mb-2">
+          {keysError} — bootstrap token not configured on this hub.
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2 mb-3">
         <input
           type="text"
           placeholder="Key name"
           value={newKeyName}
           onChange={(e) => setNewKeyName(e.target.value)}
-          className="px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text"
+          disabled={!adminUnlocked}
+          className="px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text disabled:opacity-50"
         />
         <select
           value={newKeyRole}
           onChange={(e) => setNewKeyRole(e.target.value)}
-          className="px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text"
+          disabled={!adminUnlocked}
+          className="px-2 py-1 rounded border border-slack-border bg-slack-bg text-sm text-slack-text disabled:opacity-50"
         >
           <option value="admin">admin</option>
           <option value="member">member</option>
@@ -176,7 +284,8 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
         <button
           type="button"
           onClick={() => void handleCreateKey()}
-          className="px-3 py-1 rounded bg-slack-accent text-white text-sm hover:opacity-90"
+          disabled={!adminUnlocked}
+          className="px-3 py-1 rounded bg-slack-accent text-white text-sm hover:opacity-90 disabled:opacity-50"
         >
           Create key
         </button>
@@ -198,7 +307,9 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
       {loadingKeys ? (
         <p className="text-sm text-slack-textMuted">Loading keys…</p>
       ) : apiKeys.length === 0 ? (
-        <p className="text-sm text-slack-textMuted">No active API keys.</p>
+        <p className="text-sm text-slack-textMuted">
+          {adminUnlocked ? 'No active API keys.' : 'Unlock admin to list keys.'}
+        </p>
       ) : (
         <ul className="space-y-2 text-sm">
           {apiKeys.map((k) => (

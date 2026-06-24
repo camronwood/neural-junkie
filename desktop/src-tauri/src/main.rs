@@ -576,6 +576,10 @@ struct PackScaffoldRequest {
     settings_overlay: std::collections::HashMap<String, String>,
     workspace_guide: Option<String>,
     runbooks_glob: Option<String>,
+    /// Optional sidebar chip label (max 3 characters).
+    toolbar_chip_label: Option<String>,
+    /// Optional pack-relative icon path (e.g. assets/icons/chip.png).
+    toolbar_chip_icon: Option<String>,
 }
 
 /// Register an absolute path from a native file/folder picker (pack dev / custom install).
@@ -646,7 +650,7 @@ fn write_pack_scaffold(
     }
     if !std::path::Path::new(&guide_path).exists() {
         let guide_body = format!(
-            "# {}\n\nWorkspace guide for the **{}** customer pack.\n\n## Layout\n\nDescribe expected folders and data layout here.\n",
+            "# {}\n\nWorkspace guide for the **{}** custom pack.\n\n## Layout\n\nDescribe expected folders and data layout here.\n",
             title, id
         );
         std::fs::write(&guide_path, guide_body).map_err(|e| format!("write workspace guide: {}", e))?;
@@ -655,6 +659,20 @@ fn write_pack_scaffold(
     let mut caps: Vec<String> = req.capabilities;
     if !caps.iter().any(|c| c == "customer-pack") {
         caps.insert(0, "customer-pack".to_string());
+    }
+    let chip_label = req
+        .toolbar_chip_label
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let chip_icon = req
+        .toolbar_chip_icon
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let include_toolbar_chip = chip_label.is_some() || chip_icon.is_some();
+    if include_toolbar_chip && !caps.iter().any(|c| c == "pack-toolbar") {
+        caps.push("pack-toolbar".to_string());
     }
     let mut yaml = String::new();
     yaml.push_str(&format!("id: {}\n", id));
@@ -671,6 +689,21 @@ fn write_pack_scaffold(
     yaml.push_str("capabilities:\n");
     for c in &caps {
         yaml.push_str(&format!("  - {}\n", c));
+    }
+    if include_toolbar_chip {
+        yaml.push_str("capability_defs:\n");
+        yaml.push_str("  pack-toolbar:\n");
+        yaml.push_str("    kind: toolbar-chip\n");
+        yaml.push_str("    ui:\n");
+        yaml.push_str("      toolbar:\n");
+        yaml.push_str(&format!("        id: {}-chip\n", id));
+        if let Some(label) = chip_label {
+            let short: String = label.chars().take(3).collect();
+            yaml.push_str(&format!("        label: {}\n", short));
+        }
+        if let Some(icon) = chip_icon {
+            yaml.push_str(&format!("        icon: {}\n", icon));
+        }
     }
     if !req.requires_packs.is_empty() {
         yaml.push_str("requires_packs:\n");
@@ -807,7 +840,7 @@ fn walkdir_for_pack(root: &std::path::Path) -> Result<Vec<std::path::PathBuf>, S
     Ok(out)
 }
 
-/// Read a customer pack zip as base64 (dialog paths are outside Tauri fs allowlist).
+/// Read a custom pack zip as base64 (dialog paths are outside Tauri fs allowlist).
 #[tauri::command]
 fn read_pack_zip_base64(
     absolute_path: String,
@@ -1407,6 +1440,18 @@ fn restart_bundled_ollama(
     Ok(())
 }
 
+/// Read ~/.neural-junkie/bootstrap.token for local admin unlock (loopback dev only).
+#[tauri::command]
+fn read_hub_bootstrap_token() -> Result<String, String> {
+    let path = dirs::home_dir()
+        .ok_or_else(|| "home directory not found".to_string())?
+        .join(".neural-junkie")
+        .join("bootstrap.token");
+    std::fs::read_to_string(&path)
+        .map(|s| s.trim().to_string())
+        .map_err(|e| format!("could not read {}: {}", path.display(), e))
+}
+
 fn machine_credential_key() -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let home = dirs::home_dir()
@@ -1573,7 +1618,8 @@ fn main() {
             stop_bundled_ollama,
             restart_bundled_ollama,
             encrypt_credential_blob,
-            decrypt_credential_blob
+            decrypt_credential_blob,
+            read_hub_bootstrap_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

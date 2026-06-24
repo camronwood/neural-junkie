@@ -19,7 +19,7 @@ func phoenixImportEnabled(w http.ResponseWriter) bool {
 		return false
 	}
 	if !appConfig.AnyPackCapability(capPhoenixImport) && !appConfig.AnyPackCapability(capCustomerPack) {
-		http.Error(w, "Phoenix import requires an enabled customer pack", http.StatusForbidden)
+		http.Error(w, "Phoenix import requires an enabled custom pack", http.StatusForbidden)
 		return false
 	}
 	return true

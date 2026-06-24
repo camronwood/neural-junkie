@@ -4,7 +4,6 @@ import { useChatStore } from '../stores/chatStore';
 import { useTerminalStore, createNewTab } from '../stores/terminalStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { usePacksStore } from '../stores/packsStore';
-import { PACK_CAP } from '../stores/packCapabilities';
 import { GitModal } from './GitPanel';
 import { QuickOpenModal } from './QuickOpenModal';
 import { SymbolModal } from './SymbolModal';
@@ -230,7 +229,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const [fastEditOpen, setFastEditOpen] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
   const [gitModalOpen, setGitModalOpen] = useState(false);
-  const [phoenixModalOpen, setPhoenixModalOpen] = useState(false);
+  const [activePackModal, setActivePackModal] = useState<string | null>(null);
+  const phoenixModalOpen = activePackModal === 'phoenix-import';
   const layoutProfile = usePacksStore((s) => s.layoutProfile);
   const hasIdeV2 = usePacksStore((s) => s.hasCapability('ide-v2'));
   const softwareDevPackActive = usePacksStore((s) => s.softwareDevelopmentPackActive());
@@ -238,8 +238,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const ideLayout = layoutProfile === 'ide' && isIdeLayout(layoutSettings);
   const devPackEnabled = hasIdeV2 || softwareDevPackActive;
   const ideLayoutAvailable = softwareDevPackActive;
-  const phoenixPackInstalled = usePacksStore((s) => s.hasCapability(PACK_CAP.PHOENIX_IMPORT));
   const enabledPackCount = usePacksStore((s) => s.packs.filter((p) => p.enabled).length);
+  const customPackToolbarActions = usePacksStore((s) => s.getToolbarActions());
   const chatPanelVisible = layoutSettings.chatPanelVisible !== false;
   const toolbarChipsPlacement = layoutSettings.toolbarChipsPlacement ?? 'top';
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -2226,7 +2226,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     problemsOpen,
     onCloseProblems: () => setProblemsOpen(false),
     phoenixModalOpen,
-    onClosePhoenix: () => setPhoenixModalOpen(false),
+    onClosePhoenix: () => setActivePackModal(null),
     learningProposalOpen,
     onCloseLearningProposal: () => {
       setLearningProposalOpen(false);
@@ -2370,8 +2370,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         setCodeEditorOpen(true);
         void updateLayoutSettings({ editorPanelVisible: true });
       },
-      phoenixPackInstalled,
-      onOpenPhoenix: phoenixPackInstalled ? () => setPhoenixModalOpen(true) : undefined,
+      customPackToolbarActions,
+      onCustomPackToolbarAction: (modal: string) => setActivePackModal(modal),
       taskManagementOpen,
       onToggleTaskManagement: () => setTaskManagementOpen((o) => !o),
       onNewRunbook: () => void handleNewRunbook(),
@@ -2408,7 +2408,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       totalAgentsCount,
       devPackEnabled,
       ideLayoutAvailable,
-      phoenixPackInstalled,
+      customPackToolbarActions,
       gitModalOpen,
       ideLayout,
       handleOpenSettings,
@@ -2986,7 +2986,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         serverAddr={hubHttp}
       />
 
-      <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setPhoenixModalOpen(false)} />
+      <PhoenixBrowserModal isOpen={phoenixModalOpen} onClose={() => setActivePackModal(null)} />
 
       <LearningProposalModal
         isOpen={learningProposalOpen}

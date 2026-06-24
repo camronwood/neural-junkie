@@ -45,7 +45,7 @@ func stripFileChangeBlocksFromResponse(response string) string {
 	return strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
 }
 
-var askModeFileChangeMentionRE = regexp.MustCompile(`(?i)\[file_change\]|propose_file_edit`)
+var askModeFileChangeMentionRE = regexp.MustCompile(`(?i)\[file_change\]|propose_file_edit|search_replace|apply_patch`)
 var askModeLooseFileChangeRE = regexp.MustCompile(`(?is)\[FILE_CHANGE\][\s\S]*?(?:\n\n|$)`)
 
 // sanitizeAskModeResponse strips file-edit mechanisms from ask-mode advisory replies.

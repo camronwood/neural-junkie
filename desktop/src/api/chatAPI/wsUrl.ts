@@ -1,4 +1,4 @@
-import { getHubAccessToken } from '../../config/hubUrl';
+import { getHubAccessToken, getHubSessionToken } from '../../config/hubUrl';
 
 /**
  * Build hub WebSocket URL for a channel subscription.
@@ -21,6 +21,10 @@ export function buildChannelWebSocketURL(
   if (token) {
     params.set('hub_token', token);
   }
+  const session = getHubSessionToken();
+  if (session) {
+    params.set('nj_session', session);
+  }
   return `${wsURL}/ws?${params.toString()}`;
 }
 
@@ -37,6 +41,10 @@ export function buildThreadWebSocketURL(
   params.set('thread', threadId);
   if (token) {
     params.set('hub_token', token);
+  }
+  const session = getHubSessionToken();
+  if (session) {
+    params.set('nj_session', session);
   }
   return `${wsURL}/ws?${params.toString()}`;
 }

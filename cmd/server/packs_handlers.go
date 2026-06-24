@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -65,6 +68,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 2 && parts[1] == "install-loras" {
 		handlePackInstallLoRAs(w, r, packID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "asset" {
+		handlePackAsset(w, r, packID)
 		return
 	}
 	handlePackByID(w, r, packID)
@@ -477,6 +484,44 @@ func handlePackLayoutOwner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writePacksMutationResponse(w, body.LayoutOwner, map[string]any{"layout_owner": body.LayoutOwner})
+}
+
+func handlePackAsset(w http.ResponseWriter, r *http.Request, packID string) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !appConfig.IsPackInstalled(packID) {
+		http.Error(w, "Pack not installed", http.StatusNotFound)
+		return
+	}
+	rel := strings.TrimSpace(r.URL.Query().Get("path"))
+	if rel == "" {
+		http.Error(w, "path query parameter required", http.StatusBadRequest)
+		return
+	}
+	dir, err := packs.InstalledPackDir(packID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	abs, err := packs.ResolvePackRelativePath(dir, rel)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	info, err := os.Stat(abs)
+	if err != nil || info.IsDir() {
+		http.Error(w, "asset not found", http.StatusNotFound)
+		return
+	}
+	if ct := mime.TypeByExtension(filepath.Ext(abs)); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	}
+	w.Header().Set("Cache-Control", "private, max-age=300")
+	http.ServeFile(w, r, abs)
 }
 
 func writePacksMutationResponse(w http.ResponseWriter, packID string, extra map[string]any) {

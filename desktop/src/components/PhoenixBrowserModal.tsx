@@ -288,7 +288,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
               Phoenix TIM
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {environment} · customer pack (phoenix-import)
+              {environment} · custom pack (phoenix-import)
             </p>
           </div>
           <button
@@ -303,7 +303,7 @@ export function PhoenixBrowserModal({ isOpen, onClose }: PhoenixBrowserModalProp
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {!hasPhoenixApi && (
             <p className="text-sm text-amber-400">
-              Enable a customer pack with <code className="font-mono">phoenix-import</code> (and Life sciences) in Settings → Domain packs.
+              Enable a custom pack with <code className="font-mono">phoenix-import</code> (e.g. brightest-bio-lab) and Life sciences in Settings → Domain packs.
             </p>
           )}
 

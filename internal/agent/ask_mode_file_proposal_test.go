@@ -8,6 +8,7 @@ import (
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -56,8 +57,9 @@ func TestAgentToolDefinitions_askModeOmitsProposeFileEdit(t *testing.T) {
 		},
 	}
 	for _, td := range a.agentToolDefinitions(askMsg) {
-		if td.Name == proposeFileEditToolName {
-			t.Fatal("ask mode must not expose propose_file_edit")
+		switch td.Name {
+		case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+			t.Fatalf("ask mode must not expose %q", td.Name)
 		}
 	}
 	editMsg := &protocol.Message{
@@ -75,6 +77,18 @@ func TestAgentToolDefinitions_askModeOmitsProposeFileEdit(t *testing.T) {
 	if !hasPropose {
 		t.Fatal("edit mode should expose propose_file_edit when workspace tools are available")
 	}
+	if !toolNamesInclude(a.agentToolDefinitions(editMsg), searchReplaceToolName) {
+		t.Fatal("edit mode should expose search_replace")
+	}
+}
+
+func toolNamesInclude(tools []ai.ClaudeToolDefinition, name string) bool {
+	for _, td := range tools {
+		if td.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func TestExecuteProposeFileEditTool_askModeRejected(t *testing.T) {

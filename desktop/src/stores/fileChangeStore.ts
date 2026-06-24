@@ -15,7 +15,8 @@ interface FileChangeState {
   
   // Actions
   fetchPendingChanges: (userId?: string) => Promise<void>;
-  approveChange: (changeId: string, userId?: string) => Promise<void>;
+  approveChange: (changeId: string, userId?: string, newContent?: string) => Promise<void>;
+  updateChangeContent: (changeId: string, newContent: string) => Promise<void>;
   rejectChange: (changeId: string, reason?: string, userId?: string) => Promise<void>;
   getFileDiff: (changeId: string) => Promise<void>;
   selectChange: (changeId: string | null) => void;
@@ -51,12 +52,12 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
   },
 
   // Approve a file change
-  approveChange: async (changeId: string, userId = 'default') => {
+  approveChange: async (changeId: string, userId = 'default', newContent?: string) => {
     set({ loading: true, error: null });
     
     try {
       const api = new ChatAPI();
-      const approvedChange = await api.approveFileChange(changeId, userId);
+      const approvedChange = await api.approveFileChange(changeId, userId, newContent);
       
       // Remove the approved change from the list
       const state = get();
@@ -86,6 +87,22 @@ export const useFileChangeStore = create<FileChangeState>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to approve file change';
       set({ error: errorMessage, loading: false });
+    }
+  },
+
+  updateChangeContent: async (changeId: string, newContent: string) => {
+    try {
+      const api = new ChatAPI();
+      const diffData = await api.updateFileChangeContent(changeId, newContent);
+      set({ previewData: diffData, loading: false });
+      set((state) => ({
+        pendingChanges: state.pendingChanges.map((c) =>
+          c.id === changeId ? { ...c, new_content: newContent } : c
+        ),
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update file change';
+      set({ error: errorMessage });
     }
   },
 

@@ -64,7 +64,7 @@ func handleDevFastEdit(w http.ResponseWriter, r *http.Request) {
 	} else if content != "" {
 		prompt += "\n\nFile " + relPath + ":\n```\n" + content + "\n```"
 	}
-	prompt += "\n\nEmit a [FILE_CHANGE] block to edit the file when changes are needed."
+	prompt += "\n\nUse search_replace or apply_patch for edits (preferred). Use propose_file_edit for new files. Emit [FILE_CHANGE] only if tools fail."
 
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dev-fast-edit", protocol.AgentInfo{
 		ID: "human", Name: "Developer", Type: "human",

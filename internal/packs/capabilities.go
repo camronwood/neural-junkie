@@ -52,9 +52,12 @@ var KnownCapabilityTokens = append(
 )
 
 // CapabilityToolbarUI declares a toolbar chip for a pack-local capability.
+// Label is shown when Icon is empty (max 3 characters recommended). Icon is a pack-relative
+// asset path (e.g. assets/icons/chip.png) or http(s) URL served by the desktop via the hub.
 type CapabilityToolbarUI struct {
 	ID    string `yaml:"id,omitempty" json:"id,omitempty"`
 	Label string `yaml:"label,omitempty" json:"label,omitempty"`
+	Icon  string `yaml:"icon,omitempty" json:"icon,omitempty"`
 }
 
 // CapabilityUI declares desktop UI hooks for a pack-local capability.

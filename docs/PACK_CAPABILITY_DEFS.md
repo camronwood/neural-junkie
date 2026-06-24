@@ -1,6 +1,6 @@
 # Pack capability definitions (`capability_defs`)
 
-Customer packs declare **pack-local capabilities** in `pack.yaml` under `capability_defs`. Each entry in `capabilities:` that is not an NJ **platform** token must have a matching definition.
+Custom packs declare **pack-local capabilities** in `pack.yaml` under `capability_defs`. Each entry in `capabilities:` that is not an NJ **platform** token must have a matching definition.
 
 Official domain packs continue to use platform tokens only (`ide-v2`, `cad-workbench`, etc.) — see [PACK_CAPABILITIES.md](./PACK_CAPABILITIES.md).
 
@@ -37,7 +37,7 @@ capability_defs:
     sidecar:
       module: assets/hub/routes/phoenix.py
     ui:
-      toolbar: { id: phx, label: PHX }
+      toolbar: { id: phx, label: PHX, icon: assets/icons/phx.png }
       modal: phoenix-import
     settings:
       - phoenix_environment

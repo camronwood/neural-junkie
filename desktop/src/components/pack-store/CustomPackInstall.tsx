@@ -32,7 +32,7 @@ export function CustomPackInstall() {
       const selected = await open({
         multiple: false,
         filters: [{ name: 'Pack zip', extensions: ['zip'] }],
-        title: 'Select customer pack zip',
+        title: 'Select custom pack zip',
       });
       if (!selected || typeof selected !== 'string') {
         return;
@@ -59,10 +59,10 @@ export function CustomPackInstall() {
   return (
     <div className="border border-teal-700/40 rounded-xl p-4 bg-teal-950/20 space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-teal-200">Custom / customer packs</h4>
+        <h4 className="text-sm font-semibold text-teal-200">Custom packs</h4>
         <p className="text-xs text-gray-400 mt-1">
           Install a private pack zip from your organization (workspace SOPs, data layout, optional tool paths).
-          Use together with official packs such as <strong className="text-gray-300">Life sciences</strong> — customer
+          Use together with official packs such as <strong className="text-gray-300">Life sciences</strong> — custom
           packs do not replace domain analysis features.
         </p>
       </div>

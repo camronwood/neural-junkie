@@ -8,6 +8,7 @@ Neural Junkie native agents target **Cursor-equivalent workspace access** withou
 
 | Dimension | Cursor | NJ acceptance |
 |-----------|--------|---------------|
+| Edit primitive | `search_replace`, `apply_patch`, full write | `search_replace`, `apply_patch`, `propose_file_edit` (full file) via FileChange pipeline |
 | File reach | Read/write/delete within workspace | `WorkspaceBackend` (local + `nj-remote`) |
 | Discovery | Semantic + grep + glob at scale | `semantic_search` in 10k+ file repos |
 | Agent loop | Open-ended until done | Agent Runtime v2 until success, guardrail, or cancel |

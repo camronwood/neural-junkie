@@ -43,7 +43,7 @@ export function PackDevStudio() {
       <div>
         <h3 className="text-lg font-semibold text-teal-100">Pack dev studio</h3>
         <p className="text-sm text-slack-textMuted mt-1">
-          Scaffold, edit, validate, and test customer packs before shipping a zip to your organization.
+          Scaffold, edit, validate, and test custom packs before shipping a zip to your organization.
         </p>
       </div>
 
