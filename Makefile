@@ -307,7 +307,7 @@ test-everything: ## CI smoke + live harness; writes docs/testing/test-everything
 test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-all, ~1-3h)
 	@$(MAKE) test-everything FULL=1 $(if $(VERBOSE),VERBOSE=1,) $(if $(CONTINUE),CONTINUE=1,)
 
-release-prep: ## Full release gate: test-everything-full + parity-restart + benchmark → docs/testing/release-prep-*.md
+release-prep: ## Full release gate: test-everything-full + parity-restart + quick benchmark (7 models) → docs/testing/release-prep-*.md
 	@chmod +x scripts/release-prep.py scripts/test-everything.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/release-prep.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \

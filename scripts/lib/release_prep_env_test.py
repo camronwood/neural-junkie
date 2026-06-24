@@ -34,7 +34,7 @@ class TestReleasePrepEnv(unittest.TestCase):
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA"), "1")
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MODEL"), "qwen2.5-coder:14b")
         self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S"), "13")
-        self.assertEqual(env.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL"), "gemini-2.5-flash-lite")
+        self.assertNotIn("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", env)
 
     def test_load_gemini_from_file_when_env_empty(self) -> None:
         key_path = SCRIPTS_DIR.parent / ".gemini-api-key"

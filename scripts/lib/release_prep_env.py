@@ -13,8 +13,7 @@ HEADLESS_GEMINI_HOME = ROOT / "scripts" / "gemini-headless-home"
 
 # Ollama fallback judge — independent coder model vs typical qwen3.5:9b implement agents.
 DEFAULT_OLLAMA_JUDGE_MODEL = "qwen2.5-coder:14b"
-# Free-tier Gemini: 5 RPM → ~12s between calls; flash-lite has more headroom than flash.
-DEFAULT_GEMINI_JUDGE_MODEL = "gemini-2.5-flash-lite"
+# Free-tier Gemini: 5 RPM → ~12s between calls; release-prep probes fast → pro → fast-light.
 DEFAULT_GEMINI_JUDGE_MIN_INTERVAL_S = "13"
 
 _ENV_LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
@@ -54,6 +53,15 @@ def load_gemini_api_key(root: Path = ROOT) -> str:
     return ""
 
 
+def explicit_gemini_judge_model(root: Path = ROOT) -> str:
+    """User-configured judge model (env.local or shell); empty means probe at release-prep start."""
+    local = parse_env_file(root / "env.local")
+    return (
+        local.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", "").strip()
+        or (os.environ.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
+    )
+
+
 def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     """Build subprocess environment for a successful live release gate."""
     env = os.environ.copy()
@@ -79,7 +87,12 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     env.setdefault("NJ_DELIVERABLE_JUDGE_MODE", "hub")
     env.setdefault("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA", "1")
     env.setdefault("NJ_DELIVERABLE_JUDGE_MIN_INTERVAL_S", DEFAULT_GEMINI_JUDGE_MIN_INTERVAL_S)
-    env.setdefault("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", DEFAULT_GEMINI_JUDGE_MODEL)
+    shell_gemini = (os.environ.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
+    explicit_gemini = local.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", "").strip() or shell_gemini
+    if explicit_gemini:
+        env["NJ_DELIVERABLE_JUDGE_GEMINI_MODEL"] = explicit_gemini
+    else:
+        env.pop("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL", None)
     if not env.get("NJ_DELIVERABLE_JUDGE_MODEL"):
         env["NJ_DELIVERABLE_JUDGE_MODEL"] = DEFAULT_OLLAMA_JUDGE_MODEL
 
@@ -94,6 +107,8 @@ def apply_release_prep_env(root: Path = ROOT) -> dict[str, str]:
 
 
 def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
+    from lib.gemini_judge_auth import GEMINI_JUDGE_PROBE_CANDIDATES
+
     lines: list[str] = []
     provider = (env.get("NJ_DELIVERABLE_JUDGE_PROVIDER") or "gemini").strip().lower()
     mode = (env.get("NJ_DELIVERABLE_JUDGE_MODE") or "hub").strip().lower()
@@ -107,6 +122,9 @@ def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
     gemini_model = (env.get("NJ_DELIVERABLE_JUDGE_GEMINI_MODEL") or "").strip()
     if gemini_model:
         lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL={gemini_model}")
+    else:
+        probe_labels = " → ".join(label for label, _ in GEMINI_JUDGE_PROBE_CANDIDATES)
+        lines.append(f"NJ_DELIVERABLE_JUDGE_GEMINI_MODEL=probe ({probe_labels})")
     if env.get("GEMINI_API_KEY"):
         lines.append("GEMINI_API_KEY loaded")
     else:

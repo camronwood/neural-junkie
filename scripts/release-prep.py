@@ -213,7 +213,7 @@ def main() -> int:
     p.add_argument("--skip-parity", action="store_true", help="Skip test-parity-stable-restart")
     p.add_argument("--skip-benchmark", action="store_true", help="Skip model-benchmark phase")
     p.add_argument("--no-full", action="store_true", help="test-everything without collab-scenarios-all")
-    p.add_argument("--benchmark-suite", default="release", help="model-benchmark suite (default: release)")
+    p.add_argument("--benchmark-suite", default="quick", help="model-benchmark suite (default: quick — full ≤24B roster)")
     p.add_argument("--benchmark-models", help="Comma-separated Ollama tags for benchmark")
     p.add_argument(
         "--no-pull-models",

@@ -99,7 +99,7 @@ Prerequisites: `ollama serve` + `ollama pull qwen2.5-coder:14b` (fallback judge)
 
 **Deliverable judge:** tries hub Gemini first; on quota/API errors falls back to local Ollama so sweeps keep running.
 
-Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP_BENCHMARK=1`, `SKIP_PARITY=1`, `NO_RESTART_HUB=1`, `BENCHMARK_SUITE=standard`, `BENCHMARK_MODELS='qwen3.5:9b,qwen2.5-coder:14b'`, `PULL=1`, `STOP_ON_FAIL=1`.
+Options: `SKIP_LIVE=1` (CI only), `NO_FULL=1` (skip collab-scenarios-all), `SKIP_BENCHMARK=1`, `SKIP_PARITY=1`, `NO_RESTART_HUB=1`, `BENCHMARK_SUITE=release` (winners-only fast gate), `BENCHMARK_SUITE=standard`, `BENCHMARK_MODELS='qwen3.5:9b,qwen2.5-coder:14b'`, `PULL=1`, `STOP_ON_FAIL=1`.
 
 **Model benchmark:** compare top local coder models against the same scenarios — see [testing/MODEL_BENCHMARK.md](testing/MODEL_BENCHMARK.md):
 
