@@ -40,6 +40,16 @@ function App() {
     loadSettings();
   }, [loadSettings]);
 
+  // Return to login when hub rejects the session (401).
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setHubSessionToken(null);
+      setPhase('login');
+    };
+    window.addEventListener('nj-hub-unauthorized', onUnauthorized);
+    return () => window.removeEventListener('nj-hub-unauthorized', onUnauthorized);
+  }, []);
+
   // Check for preview mode on mount
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

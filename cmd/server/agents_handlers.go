@@ -91,6 +91,9 @@ func handleChannelTools(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleRegisterAgent(w http.ResponseWriter, r *http.Request) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 	var agent protocol.AgentInfo
 	if err := json.NewDecoder(r.Body).Decode(&agent); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

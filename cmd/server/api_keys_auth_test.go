@@ -12,6 +12,7 @@ import (
 
 func TestAPIKeyViewerBlockedFromMutation(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
 	dir := t.TempDir()
 	store, err := authstore.Open(filepath.Join(dir, "auth.db"))
 	if err != nil {
@@ -40,6 +41,7 @@ func TestAPIKeyViewerBlockedFromMutation(t *testing.T) {
 
 func TestAPIKeyMemberAllowedToMutate(t *testing.T) {
 	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
 	dir := t.TempDir()
 	store, err := authstore.Open(filepath.Join(dir, "auth.db"))
 	if err != nil {

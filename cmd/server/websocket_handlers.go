@@ -7,8 +7,30 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func wsEnsureChannelAccess(w http.ResponseWriter, r *http.Request, channels ...string) bool {
+	if !hub.RequireHubAccess(w, r) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(channels))
+	for _, ch := range channels {
+		ch = strings.TrimSpace(ch)
+		if ch == "" {
+			continue
+		}
+		if _, ok := seen[ch]; ok {
+			continue
+		}
+		seen[ch] = struct{}{}
+		if !ensureChannelReadAccess(w, r, ch) {
+			return false
+		}
+	}
+	return true
+}
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	channel := r.URL.Query().Get("channel")
@@ -17,6 +39,29 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	if channel == "" {
 		channel = "general"
+	}
+
+	if threadID != "" {
+		ch := threadChannelForACL(threadID, r)
+		if ch == "" {
+			ch = channel
+		}
+		if !wsEnsureChannelAccess(w, r, ch) {
+			return
+		}
+	} else {
+		watch := []string{channel}
+		if extraParam != "" {
+			for _, name := range strings.Split(extraParam, ",") {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					watch = append(watch, name)
+				}
+			}
+		}
+		if !wsEnsureChannelAccess(w, r, watch...) {
+			return
+		}
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)

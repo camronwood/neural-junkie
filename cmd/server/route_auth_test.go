@@ -3,7 +3,10 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/hub"
 )
 
 func TestLocalOnlyRoutesRejectRemote(t *testing.T) {
@@ -43,6 +46,40 @@ func TestLocalOnlyRoutesRejectRemote(t *testing.T) {
 				t.Fatal("handler should not run for remote client")
 			}
 		})
+	}
+}
+
+func TestStrictLoopbackRunbookCreateRequiresSession(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+	t.Setenv("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "")
+	hubSessions = hub.NewSessionManager()
+	chatHub = hub.NewHub()
+
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"description":"x","agent_ids":["a1"],"channel":"general","created_by":"t"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", body)
+	req.RemoteAddr = "127.0.0.1:1234"
+	handleRunbooksRoute(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without session, got %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestStrictLoopbackSendRequiresSession(t *testing.T) {
+	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
+	t.Setenv("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "")
+	hubSessions = hub.NewSessionManager()
+
+	rec := httptest.NewRecorder()
+	body := strings.NewReader(`{"channel":"general","content":"hi","type":"chat"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/send", body)
+	req.RemoteAddr = "127.0.0.1:1234"
+	h := localOnly(handleSendMessage)
+	h(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without session, got %d %s", rec.Code, rec.Body.String())
 	}
 }
 

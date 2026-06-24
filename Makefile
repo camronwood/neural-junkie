@@ -64,11 +64,13 @@ build: ## Build all binaries
 
 run-server: ## Start the chat hub server
 	@echo "🚀 Starting chat hub server on http://localhost:18765 $(if $(SERVER_GO_TAGS),[Slack vendor],)"
-	@go run $(SERVER_GO_TAGS) ./cmd/server
+	@NEURAL_JUNKIE_RELAXED_LOCAL=1 go run $(SERVER_GO_TAGS) ./cmd/server
+
+run-hub: run-server ## Alias: dev hub with NEURAL_JUNKIE_RELAXED_LOCAL=1 (loopback synthetic member)
 
 server: setup-env ## Start server with environment loaded
 	@echo "🚀 Starting chat hub server with environment from env.local... $(if $(SERVER_GO_TAGS),[Slack vendor],)"
-	@bash -c 'source load-env.sh && go run $(SERVER_GO_TAGS) ./cmd/server'
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RELAXED_LOCAL=1 go run $(SERVER_GO_TAGS) ./cmd/server'
 
 server-debug: setup-env ## Hub with NEURAL_JUNKIE_DEBUG=1 (pprof + /api/debug/hub-memory); logs to /tmp/nj-hub.log
 	@echo "🔧 Starting debug hub → /tmp/nj-hub.log  (pprof: http://127.0.0.1:6060/debug/pprof/) $(if $(SERVER_GO_TAGS),[Slack vendor],)"
@@ -222,7 +224,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)

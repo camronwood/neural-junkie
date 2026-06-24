@@ -42,7 +42,7 @@ func TestHandleRunbookTemplatesListAndInstantiate(t *testing.T) {
 		"created_by":  "tester",
 		"agent_ids":   []string{"a1", "a2"},
 	})
-	instReq := httptest.NewRequest(http.MethodPost, "/api/runbook-templates/health-check-alert/instantiate", bytes.NewReader(body))
+	instReq := loopbackRequest(http.MethodPost, "/api/runbook-templates/health-check-alert/instantiate", bytes.NewReader(body))
 	instRec := httptest.NewRecorder()
 	handleRunbookTemplatesRoute(instRec, instReq)
 	if instRec.Code != http.StatusOK {

@@ -19,6 +19,9 @@ func handleProviders(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(redacted.AI.Providers)
 
 	case http.MethodPost:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		var p config.ProviderConfig
 		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -79,6 +82,9 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPut:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		var p config.ProviderConfig
 		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -96,6 +102,9 @@ func handleProviderByID(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 
 	case http.MethodDelete:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		if err := appConfig.RemoveProvider(id); err != nil {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return

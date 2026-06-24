@@ -24,6 +24,9 @@ func handleWebSearchConfig(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, webSearchConfigPublic())
 	case http.MethodPut, http.MethodPost:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		var body struct {
 			Enabled    *bool  `json:"enabled"`
 			Provider   string `json:"provider"`

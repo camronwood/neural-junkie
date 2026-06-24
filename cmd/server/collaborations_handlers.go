@@ -27,6 +27,9 @@ func handleCollaborationWorkspaceAck(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 	var req struct {
 		CollaborationID string `json:"collaboration_id"`
 		SourceRepoPath  string `json:"source_repo_path"`
@@ -57,6 +60,11 @@ func handleCollaborationsSubRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	parts := strings.Split(path, "/")
 	id := parts[0]
+	if r.Method != http.MethodGet {
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
+	}
 	if len(parts) == 1 {
 		if r.Method == http.MethodGet {
 			snap, err := chatHub.GetCollaborationManager().GetCollaborationSnapshot(id)

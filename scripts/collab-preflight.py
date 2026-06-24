@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from lib import collab_hub as hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.hub_auth import ensure_automation_api_key, hub_auth_headers, ensure_hub_session  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env  # noqa: E402
 
 DEFAULT_ROSTER = [
@@ -93,6 +94,35 @@ def check_hub(base: str) -> bool:
         return False
     _ok(f"hub healthy at {base}")
     return True
+
+
+def check_hub_auth(base: str) -> bool:
+    """Verify scripts can authenticate when NEURAL_JUNKIE_AUTH_REQUIRED=1."""
+    if os.environ.get("NEURAL_JUNKIE_AUTH_REQUIRED", "").strip() != "1":
+        _ok("hub auth strict mode off (NEURAL_JUNKIE_AUTH_REQUIRED not set)")
+        return True
+    try:
+        if hub_auth_headers().get("Authorization", "").startswith("Bearer nj_"):
+            _ok("automation API key configured for strict hub auth")
+            return True
+        ensure_hub_session(base)
+        code, _ = hub.hub_request(base, "GET", "/api/messages?channel=general&limit=1")
+        if code == 200:
+            _ok("hub session auth OK for strict mode")
+            return True
+        if code == 401:
+            try:
+                ensure_automation_api_key(base)
+                _ok("provisioned automation API key via bootstrap token")
+                return True
+            except RuntimeError as exc:
+                _fail(f"hub auth failed (401) and could not provision API key: {exc}")
+                return False
+        _fail(f"hub auth check unexpected status {code}")
+        return False
+    except (urllib.error.URLError, RuntimeError, TimeoutError) as exc:
+        _fail(f"hub auth check failed: {exc}")
+        return False
 
 
 def check_regression_log_hint() -> None:
@@ -237,6 +267,9 @@ def main() -> int:
 
     print(f"Collab preflight → {base}")
     if not check_hub(base):
+        print("Preflight failed.", file=sys.stderr)
+        return 1
+    if not check_hub_auth(base):
         print("Preflight failed.", file=sys.stderr)
         return 1
 

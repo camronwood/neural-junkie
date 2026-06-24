@@ -103,6 +103,9 @@ func handleAssistantGoogleConfig(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, meetnotes.PublicAppConfigFromDir(baseDir))
 	case http.MethodPut, http.MethodPost:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		var body struct {
 			ClientID     string `json:"client_id"`
 			ClientSecret string `json:"client_secret"`

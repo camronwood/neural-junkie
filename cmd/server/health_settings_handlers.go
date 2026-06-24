@@ -39,6 +39,9 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(payload)
 
 	case http.MethodPut:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		var incoming config.Config
 		if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
 			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)

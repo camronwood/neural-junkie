@@ -27,7 +27,8 @@ func handleAuthSession(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(req.Username) == "" {
 			req.Username = "Anonymous"
 		}
-		sess := hubSessions.CreateSession(req.Username, req.Role)
+		role := resolveSessionRole(r, req.Role)
+		sess := hubSessions.CreateSession(req.Username, role)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(sess)
 	case http.MethodGet:
@@ -76,18 +77,58 @@ func ensureMutationAccess(w http.ResponseWriter, r *http.Request, channel string
 	return sess, true
 }
 
-// ensureChannelReadAccess applies ACL for message/history reads when a session is sent.
-func ensureChannelReadAccess(w http.ResponseWriter, r *http.Request, channel string) bool {
-	if !hub.EnforceChannelACL(r) || chatHub == nil {
+// resolveSessionRole caps client-supplied roles; admin requires bootstrap or an existing admin caller.
+func resolveSessionRole(r *http.Request, requested string) string {
+	want := hub.NormalizeRole(requested)
+	if want != "admin" {
+		if want == "" {
+			return "member"
+		}
+		return want
+	}
+	if hub.ValidBootstrapToken(r) || callerIsAdmin(r) {
+		return "admin"
+	}
+	return "member"
+}
+
+func callerIsAdmin(r *http.Request) bool {
+	if apiSess := sessionFromAPIKey(r); apiSess != nil && hub.RoleCanAdmin(apiSess.Role) {
 		return true
 	}
-	if apiSess := sessionFromAPIKey(r); apiSess != nil {
-		return chatHub.RequireChannelAccess(w, apiSess.Username, channel)
+	if sess := hub.SessionFromRequest(r, hubSessions); sess != nil && hub.RoleCanAdmin(sess.Role) {
+		return true
 	}
-	sess := hub.SessionFromRequest(r, hubSessions)
-	if sess == nil {
-		http.Error(w, "Unauthorized: X-NJ-Session required", http.StatusUnauthorized)
+	return false
+}
+
+// ensureChannelReadAccess applies hub access and channel ACL for message/history reads.
+func ensureChannelReadAccess(w http.ResponseWriter, r *http.Request, channel string) bool {
+	if !hub.RequireHubAccess(w, r) {
 		return false
 	}
-	return chatHub.RequireChannelAccess(w, sess.Username, channel)
+	apiSess := sessionFromAPIKey(r)
+	sess := hub.SessionFromRequest(r, hubSessions)
+	hasIdentity := apiSess != nil || sess != nil
+	if hub.AuthRequired() || hasIdentity {
+		if !hasIdentity {
+			http.Error(w, "Unauthorized: X-NJ-Session required", http.StatusUnauthorized)
+			return false
+		}
+		username := ""
+		if sess != nil {
+			username = sess.Username
+		} else if apiSess != nil {
+			username = apiSess.Username
+		}
+		if chatHub != nil && strings.TrimSpace(channel) != "" {
+			return chatHub.RequireChannelAccess(w, username, channel)
+		}
+		return true
+	}
+	if hub.RelaxedLocal() {
+		return true
+	}
+	http.Error(w, "Unauthorized: X-NJ-Session required", http.StatusUnauthorized)
+	return false
 }

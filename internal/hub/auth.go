@@ -79,6 +79,11 @@ func normalizeRole(role string) string {
 	}
 }
 
+// NormalizeRole maps arbitrary role strings to admin, member, or viewer.
+func NormalizeRole(role string) string {
+	return normalizeRole(role)
+}
+
 // RoleCanMutate returns whether the role may send messages and approve changes.
 func RoleCanMutate(role string) bool {
 	r := normalizeRole(role)
@@ -182,9 +187,13 @@ func RequireSessionForMutation(w http.ResponseWriter, r *http.Request, sm *Sessi
 		http.Error(w, "Unauthorized: valid X-NJ-Session required (POST /api/auth/session)", http.StatusUnauthorized)
 		return nil, false
 	}
-	// Relaxed local mode: loopback clients may omit session
+	// Relaxed local mode: loopback clients may omit session (member only, not admin).
+	if RelaxedLocal() && AllowHubRequest(r) {
+		return &HubSession{UserID: "local", Username: "local", Role: "member"}, true
+	}
 	if AllowHubRequest(r) {
-		return &HubSession{UserID: "local", Username: "local", Role: "admin"}, true
+		http.Error(w, "Unauthorized: valid X-NJ-Session required (POST /api/auth/session)", http.StatusUnauthorized)
+		return nil, false
 	}
 	http.Error(w, "Forbidden", http.StatusForbidden)
 	return nil, false

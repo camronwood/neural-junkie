@@ -19,6 +19,9 @@ func handleImport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 
 	// Parse request body
 	var request struct {

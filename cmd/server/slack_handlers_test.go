@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/testutil"
 )
 
@@ -77,6 +78,8 @@ func TestHandleSlackStatus_configuredNoBridge(t *testing.T) {
 func TestHandleSlackConfig_getPut(t *testing.T) {
 	testutil.IsolateNeuralJunkieHome(t)
 	resetSlackTestGlobals(t)
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
+	hubSessions = hub.NewSessionManager()
 	appConfig = config.DefaultConfig()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/slack/config", nil)
@@ -98,7 +101,7 @@ func TestHandleSlackConfig_getPut(t *testing.T) {
 		"enabled":        &enabled,
 		"default_policy": "mention_only",
 	})
-	req = httptest.NewRequest(http.MethodPut, "/api/slack/config", bytes.NewReader(body))
+	req = loopbackRequest(http.MethodPut, "/api/slack/config", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec = httptest.NewRecorder()
 	handleSlackConfig(rec, req)

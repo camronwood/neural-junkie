@@ -46,6 +46,9 @@ func handleRunbookTemplatesRoute(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(path, "/")
 	name := parts[0]
 	if len(parts) == 2 && parts[1] == "instantiate" && r.Method == http.MethodPost {
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		handleRunbookTemplateInstantiate(w, r, name)
 		return
 	}

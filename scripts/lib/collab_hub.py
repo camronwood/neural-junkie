@@ -40,9 +40,11 @@ def hub_request(
     *,
     max_retries: int = 3,
 ) -> tuple[int, Any]:
+    from lib.hub_auth import ensure_hub_auth_headers
+
     url = f"{base.rstrip('/')}{path}"
     data = None
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", **ensure_hub_auth_headers(base)}
     if body is not None:
         data = json.dumps(body).encode()
         headers["Content-Type"] = "application/json"

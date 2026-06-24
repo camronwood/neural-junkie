@@ -10,6 +10,11 @@ import (
 )
 
 func handleRunbooksRoute(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
+	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/runbooks")
 	path = strings.Trim(path, "/")
 	if path == "" {

@@ -438,6 +438,9 @@ func main() {
 	if key == "" {
 		key = strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_API_KEY"))
 	}
+	if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_AUTH_REQUIRED")) == "1" && key == "" {
+		log.Fatal("NEURAL_JUNKIE_AUTH_REQUIRED=1: set --api-key or NEURAL_JUNKIE_API_KEY for standalone agents")
+	}
 	hubClient := newHTTPHubClient(*serverAddr, usePollTransport, key)
 	if !usePollTransport {
 		log.Println("Using WebSocket transport for hub messages")

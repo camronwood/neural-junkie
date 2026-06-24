@@ -1,6 +1,10 @@
 import { getHubAccessToken } from '../../config/hubUrl';
 
-/** Build hub WebSocket URL for a channel subscription (includes hub_token when configured). */
+/**
+ * Build hub WebSocket URL for a channel subscription.
+ * Browser WebSocket cannot set X-NJ-Hub-Token; use hub_token query when LAN-exposed.
+ * Non-browser clients should prefer the X-NJ-Hub-Token header on upgrade.
+ */
 export function buildChannelWebSocketURL(
   baseURL: string,
   channel: string,

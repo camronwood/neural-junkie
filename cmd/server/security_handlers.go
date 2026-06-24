@@ -10,8 +10,10 @@ import (
 )
 
 type systemSecuritySnapshot struct {
-	HubTokenConfigured bool `json:"hub_token_configured"`
+	HubTokenConfigured  bool `json:"hub_token_configured"`
 	AuthRequired        bool `json:"auth_required"`
+	RelaxedLocal        bool `json:"relaxed_local"`
+	BootstrapConfigured bool `json:"bootstrap_configured"`
 	ListenAll           bool `json:"listen_all"`
 	LoopbackOnly        bool `json:"loopback_only"`
 }
@@ -22,8 +24,10 @@ func handleSystemSecurity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := systemSecuritySnapshot{
-		HubTokenConfigured: hub.HubTokenConfigured(),
+		HubTokenConfigured:  hub.HubTokenConfigured(),
 		AuthRequired:        hub.AuthRequired(),
+		RelaxedLocal:        hub.RelaxedLocal(),
+		BootstrapConfigured: hub.BootstrapConfigured(),
 		ListenAll:           strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_LISTEN_ALL")) == "1",
 		LoopbackOnly:        !strings.EqualFold(strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_LISTEN_ALL")), "1"),
 	}

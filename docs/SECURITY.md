@@ -31,7 +31,9 @@ Strict mode (always require session for mutations):
 export NEURAL_JUNKIE_AUTH_REQUIRED=1
 ```
 
-**Desktop:** Settings → **Security** shows hub token, strict auth, and listen-all status (`GET /api/system/security`).
+**Desktop:** Settings → **Security** shows hub token, strict auth, listen-all, bootstrap, and relaxed-local status (`GET /api/system/security`).
+
+**Migration:** See [SECURITY_HARDENING.md](SECURITY_HARDENING.md) for rollout notes and breaking changes.
 
 ## Rate limiting
 
@@ -72,19 +74,29 @@ In Tauri builds, remembered login is stored as an encrypted blob (`encrypt_crede
 | `VITE_NJ_HUB_TOKEN` | Same for desktop |
 | `NEURAL_JUNKIE_CONFIG_KEY` | 32-byte hex key for config encryption |
 | `NEURAL_JUNKIE_AUTH_REQUIRED=1` | Require session on all mutations |
-| `NEURAL_JUNKIE_LISTEN_ALL=1` | Bind `0.0.0.0` |
+| `NEURAL_JUNKIE_RELAXED_LOCAL=1` | Loopback synthetic **member** session (dev/Makefile only) |
+| `NEURAL_JUNKIE_BOOTSTRAP_TOKEN` | Override bootstrap secret for admin session minting |
+| `NEURAL_JUNKIE_LISTEN_ALL=1` | Bind `0.0.0.0` (requires hub token unless DEBUG/RELAXED_LOCAL) |
 | `NEURAL_JUNKIE_CORS_ANY=1` | Wildcard CORS (legacy) |
 | `NEURAL_JUNKIE_SESSION_TTL_HOURS` | Session lifetime (default 168h) |
 | `NEURAL_JUNKIE_DEBUG=1` | Debug routes + pprof (loopback) |
 
 ## Local-only routes (hub access)
 
-Require loopback **or** valid `NEURAL_JUNKIE_HUB_TOKEN` (`X-NJ-Hub-Token`, `Authorization: Bearer`, or WebSocket `?hub_token=`). Many also require session + channel ACL when `NEURAL_JUNKIE_AUTH_REQUIRED=1` or `X-NJ-Session` is sent.
+Require loopback **or** valid `NEURAL_JUNKIE_HUB_TOKEN` (`X-NJ-Hub-Token`, `Authorization: Bearer`, or WebSocket `?hub_token=`). Mutations also require session or API key when `NEURAL_JUNKIE_AUTH_REQUIRED=1` (or when `X-NJ-Session` / Bearer `nj_…` is sent). Reads on sensitive routes apply channel ACL when identity is present or auth is required.
 
 | Route pattern | Methods | Notes |
 |---------------|---------|-------|
-| `/ws` | GET (upgrade) | Real-time chat; hub token via query when LAN-exposed |
+| `/ws` | GET (upgrade) | Channel ACL before subscribe; hub token via query when LAN-exposed |
 | `/api/send`, `/api/broadcast` | POST | Mutations; session + ACL when enforced |
+| `/api/messages`, `/api/messages/search` | GET | Channel ACL when enforced |
+| `/api/threads/*` | GET/POST | Reads: channel ACL; replies: session + ACL |
+| `/api/collaborations*`, `/api/runbooks*` | GET/POST/PUT | Mutations require session/API key |
+| `/api/file-changes`, `/api/git-changes` | GET/POST | Agent change workflow |
+| `/api/memory/*`, `/api/learnings/*` | GET/POST | Personal learning store |
+| `/api/packs/*` (install, enable, dev-link) | POST/PUT/DELETE | Pack mutations |
+| `/api/settings`, `/api/providers`, `/api/slack/config`, `/api/web-search/config` | PUT/POST | Config writes |
+| `/api/auth/api-keys` | GET/POST/DELETE | Admin session required |
 | `/api/hub-data/read` | POST | Hub data reads |
 | `/api/workspaces`, `/api/files`, `/api/file-content` | GET/POST | Workspace file APIs |
 | `/api/file-create`, `/api/file-rename`, `/api/file-delete` | POST | Workspace mutations |
@@ -92,12 +104,16 @@ Require loopback **or** valid `NEURAL_JUNKIE_HUB_TOKEN` (`X-NJ-Hub-Token`, `Auth
 | `/api/git-*` | GET/POST | Git operations (also requires software-dev pack) |
 | `/api/ollama/install`, `/start`, `/stop`, `/pull`, `/delete` | POST | Ollama lifecycle |
 | `/api/hf/download`, `/delete`, `/import-ollama`, `/local` | GET/POST | Hugging Face downloads |
+| `/api/agents`, `/api/import` | POST | Agent registration / import |
 | `/api/agents/restart` | POST | Restart configured agents |
 | `/api/lora/train` | POST | LoRA training |
-| `/api/channels/delete`, `/clear-history`, `/api/channel-export` | POST/GET | Channel admin |
+| `/api/channels/create`, `/join`, `/agents`, `/delete`, `/clear-history` | POST | Channel admin |
+| `/api/repo/search/semantic`, `/api/dev/*`, `/api/lsp/*/diagnostics` | GET/POST | Code intelligence |
+| `/api/phoenix/*`, `/api/cad/*`, `/api/secondary-analysis/*` | GET/POST | Pack-gated integrations |
+| `/api/debug/*` | GET | Always loopback-only (even when `NEURAL_JUNKIE_DEBUG=1`) |
 | `/api/local-image` | GET | Local image proxy |
 
-Routes not listed here (e.g. `/api/messages`, `/api/health`, read-only Ollama status) remain CORS + rate-limit protected only; safe on default loopback bind.
+`/api/health` and read-only status endpoints remain CORS + rate-limit protected on the default loopback bind.
 
 ## Production checklist
 

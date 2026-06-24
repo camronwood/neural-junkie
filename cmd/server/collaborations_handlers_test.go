@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,12 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func collabSubRouteRequest(method, url string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, url, body)
+	req.RemoteAddr = "127.0.0.1:1234"
+	return req
+}
 
 func createExecutingRunbookForCollabAPI(t *testing.T) (collabID, taskID string) {
 	t.Helper()
@@ -21,7 +28,7 @@ func createExecutingRunbookForCollabAPI(t *testing.T) (collabID, taskID string) 
 		"channel":     "general",
 		"created_by":  "tester",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(body))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	var created struct {
@@ -35,18 +42,18 @@ func createExecutingRunbookForCollabAPI(t *testing.T) (collabID, taskID string) 
 		{ID: "t2", Title: "Second", AssignedTo: "a2", AssignedName: "SecurityExpert", Status: collaboration.TaskPending, Dependencies: []string{"t1"}, CreatedAt: now, UpdatedAt: now},
 	}
 	putBody, _ := json.Marshal(map[string]any{"tasks": tasks})
-	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putReq := loopbackRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
 	putRec := httptest.NewRecorder()
 	handleRunbooksRoute(putRec, putReq)
 
-	subReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
+	subReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
 	subRec := httptest.NewRecorder()
 	handleRunbooksRoute(subRec, subReq)
 	if subRec.Code != http.StatusOK {
 		t.Fatalf("submit status %d: %s", subRec.Code, subRec.Body.String())
 	}
 
-	startReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
+	startReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
 	startRec := httptest.NewRecorder()
 	handleRunbooksRoute(startRec, startReq)
 	if startRec.Code != http.StatusOK {
@@ -61,7 +68,7 @@ func createExecutingRunbookForCollabAPI(t *testing.T) (collabID, taskID string) 
 func TestHandleCollabTaskCompleteDispatchesWave(t *testing.T) {
 	collabID, taskID := createExecutingRunbookForCollabAPI(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collabID+"/tasks/"+taskID+"/complete", nil)
+	req := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+collabID+"/tasks/"+taskID+"/complete", nil)
 	rec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(rec, req)
 	if rec.Code != http.StatusOK {
@@ -111,7 +118,7 @@ func TestHandleCollabParticipantRequestApprove(t *testing.T) {
 		t.Fatalf("request participant: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collab.ID+"/participant-requests/a3/approve", nil)
+	req := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+collab.ID+"/participant-requests/a3/approve", nil)
 	rec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(rec, req)
 	if rec.Code != http.StatusOK {
@@ -133,7 +140,7 @@ func TestHandleCollabParticipantRequestApprove(t *testing.T) {
 func TestHandleCollabTaskSkipDispatchesWave(t *testing.T) {
 	collabID, taskID := createExecutingRunbookForCollabAPI(t)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collabID+"/tasks/"+taskID+"/skip", nil)
+	req := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+collabID+"/tasks/"+taskID+"/skip", nil)
 	rec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(rec, req)
 	if rec.Code != http.StatusOK {
@@ -162,7 +169,7 @@ func TestHandleCollabTaskReassign(t *testing.T) {
 	collabID, taskID := createExecutingRunbookForCollabAPI(t)
 
 	body, _ := json.Marshal(map[string]string{"agent_id": "a2"})
-	req := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collabID+"/tasks/"+taskID+"/reassign", bytes.NewReader(body))
+	req := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+collabID+"/tasks/"+taskID+"/reassign", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(rec, req)
 	if rec.Code != http.StatusOK {
@@ -185,7 +192,7 @@ func TestHandleCollabTaskApproveDispatchesGatedTask(t *testing.T) {
 		"channel":     "general",
 		"created_by":  "tester",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(body))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	var created struct {
@@ -202,13 +209,13 @@ func TestHandleCollabTaskApproveDispatchesGatedTask(t *testing.T) {
 		},
 	}
 	putBody, _ := json.Marshal(map[string]any{"tasks": tasks})
-	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putReq := loopbackRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
 	putRec := httptest.NewRecorder()
 	handleRunbooksRoute(putRec, putReq)
 
-	subReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
+	subReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
 	handleRunbooksRoute(httptest.NewRecorder(), subReq)
-	startReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
+	startReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
 	startRec := httptest.NewRecorder()
 	handleRunbooksRoute(startRec, startReq)
 	_ = chatHub.AcknowledgeCollaborationWorkspace(created.CollaborationID, "")
@@ -218,7 +225,7 @@ func TestHandleCollabTaskApproveDispatchesGatedTask(t *testing.T) {
 		t.Fatalf("gated task should require approval: %#v", snap.Tasks[0])
 	}
 
-	approveReq := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+created.CollaborationID+"/tasks/t1/approve", nil)
+	approveReq := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+created.CollaborationID+"/tasks/t1/approve", nil)
 	approveRec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(approveRec, approveReq)
 	if approveRec.Code != http.StatusOK {
@@ -234,7 +241,7 @@ func TestHandleCollabTaskApproveDispatchesGatedTask(t *testing.T) {
 func TestHandleCollabPauseResume(t *testing.T) {
 	collabID, _ := createExecutingRunbookForCollabAPI(t)
 
-	pauseReq := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collabID+"/pause", nil)
+	pauseReq := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+collabID+"/pause", nil)
 	pauseRec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(pauseRec, pauseReq)
 	if pauseRec.Code != http.StatusOK {
@@ -246,7 +253,7 @@ func TestHandleCollabPauseResume(t *testing.T) {
 		t.Fatal("expected dispatch_paused")
 	}
 
-	resumeReq := httptest.NewRequest(http.MethodPost, "/api/collaborations/"+collabID+"/resume", nil)
+	resumeReq := collabSubRouteRequest(http.MethodPost, "/api/collaborations/"+collabID+"/resume", nil)
 	resumeRec := httptest.NewRecorder()
 	handleCollaborationsSubRoute(resumeRec, resumeReq)
 	if resumeRec.Code != http.StatusOK {

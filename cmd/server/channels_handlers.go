@@ -38,6 +38,9 @@ func handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 
 	var req struct {
 		Name        string   `json:"name"`
@@ -187,6 +190,9 @@ func handleCLIAgentTypes(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleJoinChannel(w http.ResponseWriter, r *http.Request) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 	var req struct {
 		AgentID  string `json:"agent_id"`
 		Channel  string `json:"channel"`
@@ -265,6 +271,9 @@ func handleChannelAgentsManage(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodPost:
+		if _, ok := ensureMutationAccess(w, r, channelName); !ok {
+			return
+		}
 		var req struct {
 			AgentIDs []string `json:"agent_ids"`
 		}
@@ -281,6 +290,9 @@ func handleChannelAgentsManage(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 
 	case http.MethodDelete:
+		if _, ok := ensureMutationAccess(w, r, channelName); !ok {
+			return
+		}
 		agentID := r.URL.Query().Get("agent_id")
 		if agentID == "" {
 			http.Error(w, "agent_id query parameter required", http.StatusBadRequest)

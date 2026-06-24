@@ -102,6 +102,9 @@ func handlePacksCatalogRefresh(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 	packs.InvalidateCatalogCache()
 	rows, err := appConfig.ListPackCatalogStatus()
 	if err != nil {
@@ -121,7 +124,7 @@ func handlePackInstallZip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !hub.RequireHubAccess(w, r) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	var body struct {
@@ -166,7 +169,7 @@ func handlePackValidate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !hub.RequireHubAccess(w, r) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	var body struct {
@@ -210,7 +213,7 @@ func handlePackDevLink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !hub.RequireHubAccess(w, r) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	var body struct {
@@ -246,7 +249,7 @@ func handlePackDevReload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !hub.RequireHubAccess(w, r) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	var body struct {
@@ -291,7 +294,7 @@ func handlePackDevUnlink(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !hub.RequireHubAccess(w, r) {
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	var body struct {
@@ -339,6 +342,9 @@ func handlePackInstall(w http.ResponseWriter, r *http.Request, packID string) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
 	if err := appConfig.InstallPack(packID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -353,6 +359,9 @@ func handlePackInstall(w http.ResponseWriter, r *http.Request, packID string) {
 func handlePackInstallLoRAs(w http.ResponseWriter, r *http.Request, packID string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	if !requireLoRACapability(w, capLoRAAdapters) {
@@ -388,6 +397,12 @@ func handlePackInstallLoRAs(w http.ResponseWriter, r *http.Request, packID strin
 }
 
 func handlePackByID(w http.ResponseWriter, r *http.Request, packID string) {
+	switch r.Method {
+	case http.MethodPut, http.MethodDelete:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
+	}
 	switch r.Method {
 	case http.MethodPut:
 		var body struct {
@@ -441,6 +456,9 @@ func handlePackByID(w http.ResponseWriter, r *http.Request, packID string) {
 func handlePackLayoutOwner(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
 		return
 	}
 	var body struct {

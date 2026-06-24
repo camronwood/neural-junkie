@@ -149,6 +149,9 @@ func handleSlackConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, pub)
 	case http.MethodPut, http.MethodPost:
+		if _, ok := ensureMutationAccess(w, r, ""); !ok {
+			return
+		}
 		var body struct {
 			Enabled        *bool   `json:"enabled"`
 			AppToken       string  `json:"app_token"`

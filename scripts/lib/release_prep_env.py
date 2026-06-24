@@ -68,6 +68,7 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
 
     env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
     env.setdefault("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765")
+    env.setdefault("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
 
     headless = root / "scripts" / "gemini-headless-home"
     if headless.is_dir() and not env.get("NEURAL_JUNKIE_GEMINI_CLI_HOME"):
@@ -110,4 +111,6 @@ def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
         lines.append("GEMINI_API_KEY loaded")
     else:
         lines.append("GEMINI_API_KEY missing — cloud judge will use Ollama fallback only")
+    if env.get("NEURAL_JUNKIE_AUTH_REQUIRED") == "1":
+        lines.append("NEURAL_JUNKIE_AUTH_REQUIRED=1 (scripts use API key or hub_auth session)")
     return lines

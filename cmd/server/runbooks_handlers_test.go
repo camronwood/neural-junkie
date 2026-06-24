@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,8 +15,17 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+func loopbackRequest(method, url string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, url, body)
+	req.RemoteAddr = "127.0.0.1:1234"
+	return req
+}
+
 func setupRunbookAPITest(t *testing.T) *hub.Hub {
 	t.Helper()
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
+	t.Setenv("NEURAL_JUNKIE_AUTH_REQUIRED", "")
+	hubSessions = hub.NewSessionManager()
 	chatHub = hub.NewHub()
 	chatHub.CreateChannel("general", "General", "")
 	a1 := &protocol.AgentInfo{ID: "a1", Name: "RustExpert", Type: protocol.AgentTypeRust, Status: "active"}
@@ -39,7 +49,7 @@ func TestHandleRunbooksCreateAndSubmit(t *testing.T) {
 		"created_by":  "api-tester",
 	}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(raw))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(raw))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	if rec.Code != http.StatusOK {
@@ -62,14 +72,14 @@ func TestHandleRunbooksCreateAndSubmit(t *testing.T) {
 		{ID: "t2", Title: "Two", Description: "second", AssignedTo: "a2", AssignedName: "SecurityExpert", Status: collaboration.TaskPending, Dependencies: []string{"t1"}, CreatedAt: now, UpdatedAt: now},
 	}
 	putBody, _ := json.Marshal(map[string]any{"tasks": tasks})
-	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putReq := loopbackRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
 	putRec := httptest.NewRecorder()
 	handleRunbooksRoute(putRec, putReq)
 	if putRec.Code != http.StatusOK {
 		t.Fatalf("put status %d: %s", putRec.Code, putRec.Body.String())
 	}
 
-	subReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
+	subReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
 	subRec := httptest.NewRecorder()
 	handleRunbooksRoute(subRec, subReq)
 	if subRec.Code != http.StatusOK {
@@ -94,7 +104,7 @@ func TestHandleRunbookStartDefersDispatchUntilWorkspaceAck(t *testing.T) {
 		"created_by":  "api-tester",
 	}
 	raw, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(raw))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(raw))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	if rec.Code != http.StatusOK {
@@ -114,21 +124,21 @@ func TestHandleRunbookStartDefersDispatchUntilWorkspaceAck(t *testing.T) {
 		{ID: "t1", Title: "One", AssignedTo: "a1", AssignedName: "RustExpert", Status: collaboration.TaskPending, CreatedAt: now, UpdatedAt: now},
 	}
 	putBody, _ := json.Marshal(map[string]any{"tasks": tasks})
-	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putReq := loopbackRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
 	putRec := httptest.NewRecorder()
 	handleRunbooksRoute(putRec, putReq)
 	if putRec.Code != http.StatusOK {
 		t.Fatalf("put status %d: %s", putRec.Code, putRec.Body.String())
 	}
 
-	subReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
+	subReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/submit", nil)
 	subRec := httptest.NewRecorder()
 	handleRunbooksRoute(subRec, subReq)
 	if subRec.Code != http.StatusOK {
 		t.Fatalf("submit status %d: %s", subRec.Code, subRec.Body.String())
 	}
 
-	startReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
+	startReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/start", nil)
 	startRec := httptest.NewRecorder()
 	handleRunbooksRoute(startRec, startReq)
 	if startRec.Code != http.StatusOK {
@@ -195,7 +205,7 @@ func TestHandleRunbookParsePlan(t *testing.T) {
 		"agent_ids":   []string{"a1", "a2"},
 		"channel":     "general",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	var created struct {
@@ -205,7 +215,7 @@ func TestHandleRunbookParsePlan(t *testing.T) {
 
 	md := "## Plan\n- Task 1: @RustExpert - Build\n- Task 2: @SecurityExpert - Review\n  - depends: 1\n"
 	parseBody, _ := json.Marshal(map[string]string{"markdown": md})
-	parseReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/parse-plan", bytes.NewReader(parseBody))
+	parseReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/parse-plan", bytes.NewReader(parseBody))
 	parseRec := httptest.NewRecorder()
 	handleRunbooksRoute(parseRec, parseReq)
 	if parseRec.Code != http.StatusOK {
@@ -230,7 +240,7 @@ func TestHandleRunbookUpdateExecutionPolicyAndGraphLayout(t *testing.T) {
 		"agent_ids":   []string{"a1", "a2"},
 		"channel":     "general",
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	var created struct {
@@ -249,7 +259,7 @@ func TestHandleRunbookUpdateExecutionPolicyAndGraphLayout(t *testing.T) {
 			"n1": map[string]any{"x": 10.0, "y": 20.0},
 		},
 	})
-	putReq := httptest.NewRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
+	putReq := loopbackRequest(http.MethodPut, "/api/runbooks/"+created.CollaborationID, bytes.NewReader(putBody))
 	putRec := httptest.NewRecorder()
 	handleRunbooksRoute(putRec, putReq)
 	if putRec.Code != http.StatusOK {
@@ -276,7 +286,7 @@ func TestHandleRunbookSuggestAssignee(t *testing.T) {
 		"description": "suggest",
 		"agent_ids":   []string{"a1", "a2"},
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
+	req := loopbackRequest(http.MethodPost, "/api/runbooks", bytes.NewReader(createBody))
 	rec := httptest.NewRecorder()
 	handleRunbooksRoute(rec, req)
 	var created struct {
@@ -288,7 +298,7 @@ func TestHandleRunbookSuggestAssignee(t *testing.T) {
 		"title":       "Security review",
 		"description": "Audit JWT handling and OAuth flows",
 	})
-	suggestReq := httptest.NewRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/suggest-assignee", bytes.NewReader(suggestBody))
+	suggestReq := loopbackRequest(http.MethodPost, "/api/runbooks/"+created.CollaborationID+"/suggest-assignee", bytes.NewReader(suggestBody))
 	suggestRec := httptest.NewRecorder()
 	handleRunbooksRoute(suggestRec, suggestReq)
 	if suggestRec.Code != http.StatusOK {

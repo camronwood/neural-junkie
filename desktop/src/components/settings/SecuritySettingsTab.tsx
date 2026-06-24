@@ -5,6 +5,8 @@ import type { SettingsTabProps } from './settingsShared';
 type HubSecurity = {
   hub_token_configured: boolean;
   auth_required: boolean;
+  relaxed_local: boolean;
+  bootstrap_configured: boolean;
   listen_all: boolean;
   loopback_only: boolean;
 };
@@ -119,6 +121,14 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
             <span className="text-slack-textMuted">Strict auth (NEURAL_JUNKIE_AUTH_REQUIRED):</span>{' '}
             {hubSecurity.auth_required ? 'On' : 'Off'}
           </li>
+          <li>
+            <span className="text-slack-textMuted">Relaxed local (dev escape hatch):</span>{' '}
+            {hubSecurity.relaxed_local ? 'On' : 'Off'}
+          </li>
+          <li>
+            <span className="text-slack-textMuted">Bootstrap token configured:</span>{' '}
+            {hubSecurity.bootstrap_configured ? 'Yes' : 'No'}
+          </li>
         </ul>
       ) : (
         <p className="text-sm text-slack-textMuted">Could not read hub security status.</p>
@@ -126,7 +136,14 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
       {hubSecurity?.listen_all && !hubSecurity.hub_token_configured && (
         <p className="mt-3 text-sm text-amber-400">
           Hub is listening on all interfaces without NEURAL_JUNKIE_HUB_TOKEN — set a hub token before exposing
-          the hub on a network.
+          the hub on a network. The server refuses to start in this configuration unless NEURAL_JUNKIE_DEBUG=1
+          or NEURAL_JUNKIE_RELAXED_LOCAL=1.
+        </p>
+      )}
+      {hubSecurity?.auth_required && hubSecurity.relaxed_local && (
+        <p className="mt-3 text-sm text-amber-400">
+          Both NEURAL_JUNKIE_AUTH_REQUIRED and NEURAL_JUNKIE_RELAXED_LOCAL are set — loopback clients get a
+          synthetic member session; remote clients still need a real session or API key.
         </p>
       )}
     </div>

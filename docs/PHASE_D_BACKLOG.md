@@ -30,6 +30,14 @@ Sequence follows dependency order in [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md).
 | Optional | SSO, JWT (deferred) |
 | Files | `internal/hub/authstore/`, `cmd/server/api_keys_handlers.go`, `cmd/server/auth_handlers.go` |
 
+### D3.1 — Auth hardening ✅
+
+| Item | Detail |
+|------|--------|
+| Goal | Close route/role-escalation gaps; require sessions or API keys for mutations; script/desktop wiring |
+| Status | Bootstrap token, `NEURAL_JUNKIE_AUTH_REQUIRED`, `NEURAL_JUNKIE_RELAXED_LOCAL`, WS channel ACL, `scripts/lib/hub_auth.py` |
+| Docs | [SECURITY_HARDENING.md](SECURITY_HARDENING.md), [SECURITY.md](SECURITY.md) route table |
+
 ## D4 — Distributed hub
 
 | Item | Detail |

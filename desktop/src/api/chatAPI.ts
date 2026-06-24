@@ -250,14 +250,19 @@ export class ChatAPI {
     };
   }
 
-  /** Hub fetch with auth headers on every request. */
-  private hubFetch(path: string, init?: RequestInit): Promise<Response> {
+  /** Hub fetch with auth headers on every request. Clears session on 401. */
+  private async hubFetch(path: string, init?: RequestInit): Promise<Response> {
     const extra = (init?.headers as Record<string, string> | undefined) ?? {};
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
-    return fetch(url, {
+    const response = await fetch(url, {
       ...init,
       headers: { ...this.hubHeaders(), ...extra },
     });
+    if (response.status === 401) {
+      setHubSessionToken(null);
+      window.dispatchEvent(new CustomEvent('nj-hub-unauthorized'));
+    }
+    return response;
   }
 
   /** Create or refresh a hub user session (channel ACL). */

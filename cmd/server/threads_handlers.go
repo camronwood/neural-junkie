@@ -7,8 +7,23 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
+
+func threadChannelForACL(threadID string, r *http.Request) string {
+	if c := strings.TrimSpace(r.URL.Query().Get("channel")); c != "" {
+		return c
+	}
+	if chatHub == nil {
+		return ""
+	}
+	meta, err := chatHub.GetThreadMetadata(threadID)
+	if err != nil || meta == nil {
+		return ""
+	}
+	return strings.TrimSpace(meta.Channel)
+}
 
 func handleThreads(w http.ResponseWriter, r *http.Request) {
 	// Parse URL path: /api/threads/{threadID}/messages or /api/threads/{threadID}/reply or /api/threads/{threadID}/metadata
@@ -46,6 +61,9 @@ func handleThreads(w http.ResponseWriter, r *http.Request) {
 func handleThreadMessages(w http.ResponseWriter, r *http.Request, threadID string) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !ensureChannelReadAccess(w, r, threadChannelForACL(threadID, r)) {
 		return
 	}
 
@@ -95,7 +113,7 @@ func handleThreadReply(w http.ResponseWriter, r *http.Request, threadID string) 
 
 	senderID, senderName, senderType := defaultHumanSender()
 
-	if req.From != nil {
+	if req.From != nil && hub.HubTokenConfigured() {
 		if req.From.ID != "" {
 			senderID = req.From.ID
 		}
@@ -145,6 +163,9 @@ func handleThreadMetadata(w http.ResponseWriter, r *http.Request, threadID strin
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !ensureChannelReadAccess(w, r, threadChannelForACL(threadID, r)) {
+		return
+	}
 
 	metadata, err := chatHub.GetThreadMetadata(threadID)
 	if err != nil {
@@ -158,6 +179,9 @@ func handleThreadMetadata(w http.ResponseWriter, r *http.Request, threadID strin
 func handleThreadParentAuthor(w http.ResponseWriter, r *http.Request, threadID string) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !ensureChannelReadAccess(w, r, threadChannelForACL(threadID, r)) {
 		return
 	}
 

@@ -113,6 +113,13 @@ func main() {
 
 	// Resolve bind address (loopback by default; see docs/SECURITY.md)
 	*addr = resolveListenAddr(*addr, appConfig)
+	if os.Getenv("NEURAL_JUNKIE_LISTEN_ALL") == "1" && !hub.HubTokenConfigured() {
+		if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" || hub.RelaxedLocal() {
+			log.Printf("⚠️  NEURAL_JUNKIE_LISTEN_ALL=1 without NEURAL_JUNKIE_HUB_TOKEN — hub is exposed on the LAN without network auth")
+		} else {
+			log.Fatal("NEURAL_JUNKIE_LISTEN_ALL=1 requires NEURAL_JUNKIE_HUB_TOKEN (set a shared secret before binding 0.0.0.0)")
+		}
+	}
 	hubListenHost := hubPublicHost(*addr)
 	slackint.SetHubPublicBaseURL("http://" + hubListenHost)
 	if slackint.SeedBundledAppToken(&appConfig.Slack) {
@@ -126,6 +133,7 @@ func main() {
 	applyCollabActionConfig()
 	initMessageStore()
 	initAuthStore()
+	hub.EnsureBootstrapToken()
 	initConversationMemory()
 	if appConfig != nil {
 		for _, ch := range appConfig.Server.DurableChannels {

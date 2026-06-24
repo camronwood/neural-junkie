@@ -36,6 +36,7 @@ func TestHandleWebSearchConfigGet(t *testing.T) {
 func TestHandleWebSearchConfigPut(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
+	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
 	appConfig = config.DefaultConfig()
 	appConfig.WebSearch.Enabled = false
 
@@ -47,6 +48,7 @@ func TestHandleWebSearchConfigPut(t *testing.T) {
 		"api_key":     "new-key",
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/web-search/config", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1234"
 	rec := httptest.NewRecorder()
 	handleWebSearchConfig(rec, req)
 	if rec.Code != http.StatusOK {
