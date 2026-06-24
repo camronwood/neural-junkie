@@ -54,9 +54,38 @@ func (h *Hub) CanUserAccessChannel(username, channelName string) bool {
 	}
 }
 
+func isAutomationPrincipal(userSlug string) bool {
+	switch userSlug {
+	case "apikey", "automation", "automation-admin", "local":
+		return true
+	default:
+		return false
+	}
+}
+
+func channelDMUserSlug(channelName string) string {
+	name := strings.ToLower(strings.TrimSpace(channelName))
+	if !strings.HasPrefix(name, "dm-") {
+		return ""
+	}
+	parts := strings.Split(name, "-")
+	if len(parts) >= 3 {
+		return parts[1]
+	}
+	return ""
+}
+
 func userMayAccessDMChannel(userSlug, channelName, createdBy string) bool {
 	if createdBy != "" && strings.EqualFold(slugUsername(createdBy), userSlug) {
 		return true
+	}
+	// Release-prep / scenario harness uses nj_ API keys (username "apikey") against
+	// DM channels owned by ChatScenario, DeliverableJudge, etc.
+	if isAutomationPrincipal(userSlug) && createdBy != "" {
+		owner := slugUsername(createdBy)
+		if owner != "" && owner == channelDMUserSlug(channelName) {
+			return true
+		}
 	}
 	name := strings.ToLower(strings.TrimSpace(channelName))
 	if !strings.HasPrefix(name, "dm-") {

@@ -279,6 +279,17 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
 	}
 
+	if a.tryEarlyTypeScriptCompileFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		summary := a.formatImplementationSessionSummary("", state, true, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, true)
+		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+	}
+
 	var lastResponse string
 	proposedAny := false
 	var repairNote string

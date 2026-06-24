@@ -210,17 +210,15 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	var proposalErr error
 	if implSessionProposed {
 		proposedFileChange = true
-	} else if !shouldRunImplementationSession(a, msg) {
-		if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
-			response = sanitizeAskModeResponse(response)
-		} else {
-			response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
-			if !proposedFileChange && proposalErr == nil {
-				response, proposedGitChange, proposalErr = a.maybeSubmitGitChangeFromResponse(context.Background(), response, msg.Channel, msg)
-			}
-			if !proposedFileChange && !proposedGitChange && proposalErr == nil {
-				response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
-			}
+	} else if isAskModeReadOnly(msg) {
+		response = sanitizeAskModeResponse(response)
+	} else {
+		response, proposedFileChange, proposalErr = a.maybeSubmitFileChangeFromResponse(context.Background(), response, msg.Channel, msg)
+		if !proposedFileChange && proposalErr == nil {
+			response, proposedGitChange, proposalErr = a.maybeSubmitGitChangeFromResponse(context.Background(), response, msg.Channel, msg)
+		}
+		if !proposedFileChange && !proposedGitChange && proposalErr == nil {
+			response, proposedFileChange, proposalErr = a.maybeProposeCombinedDeliveryExport(context.Background(), msg, response)
 		}
 	}
 	if proposalErr != nil {

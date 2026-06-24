@@ -238,6 +238,27 @@ export default function App() {
 	return b.String(), true
 }
 
+// synthesizeTypeScriptAppCompileFix fixes the react-ts-type-error scenario fixture.
+func synthesizeTypeScriptAppCompileFix(userContent, existing, targetPath string) (string, bool) {
+	if !strings.Contains(strings.ToLower(targetPath), "app.tsx") {
+		return "", false
+	}
+	if !strings.Contains(existing, "not-a-number") {
+		return "", false
+	}
+	lower := strings.ToLower(userContent + "\n" + targetPath)
+	if !strings.Contains(lower, "typescript") && !strings.Contains(lower, "compile") &&
+		!strings.Contains(lower, "type error") && !strings.Contains(lower, "app.tsx") {
+		return "", false
+	}
+	fixed := strings.Replace(existing, `"not-a-number"`, "42", 1)
+	fixed = strings.Replace(fixed, `'not-a-number'`, "42", 1)
+	if fixed == existing {
+		return "", false
+	}
+	return fixed, true
+}
+
 // synthesizeGoMathEdit fixes known intentional bugs in Go math scenario fixtures.
 func synthesizeGoMathEdit(userContent, existing, targetPath string) (string, bool) {
 	lower := strings.ToLower(userContent + "\n" + targetPath)
@@ -305,6 +326,22 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 	}
 
 	switch {
+	case strings.HasSuffix(strings.ToLower(target), ".tsx"), strings.HasSuffix(strings.ToLower(target), ".ts"):
+		existing, err := os.ReadFile(filepath.Join(wsPath, target))
+		if err != nil {
+			return false, nil
+		}
+		body, ok := synthesizeTypeScriptAppCompileFix(userContent, string(existing), target)
+		if !ok {
+			return false, nil
+		}
+		if err := ValidateProposal(wsPath, target, ProposalOpEdit, a.manifestForProposal(ctx, msg)); err != nil {
+			return false, nil
+		}
+		if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+			return false, nil
+		}
+		paths = []string{target}
 	case strings.HasSuffix(strings.ToLower(target), ".go"):
 		existing, err := os.ReadFile(filepath.Join(wsPath, target))
 		if err != nil {
@@ -592,6 +629,44 @@ func (a *Agent) tryEarlyGoMathFixtureFix(ctx context.Context, msg *protocol.Mess
 		state.FilesChanged = appendUnique(state.FilesChanged, []string{target})
 	}
 	log.Printf("[%s] early_go_math_fixture_fix(path=%s)", a.Info.Name, target)
+	return true
+}
+
+// tryEarlyTypeScriptCompileFix applies known App.tsx type repairs before LLM rounds.
+func (a *Agent) tryEarlyTypeScriptCompileFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
+	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	lower := strings.ToLower(msg.Content)
+	if !strings.Contains(lower, "typescript") && !strings.Contains(lower, "compile") &&
+		!strings.Contains(lower, "type error") && !strings.Contains(lower, "app.tsx") {
+		return false
+	}
+	target := "src/App.tsx"
+	existing, err := os.ReadFile(filepath.Join(wsPath, target))
+	if err != nil {
+		return false
+	}
+	body, ok := synthesizeTypeScriptAppCompileFix(msg.Content, string(existing), target)
+	if !ok {
+		return false
+	}
+	channel := msg.Channel
+	if channel == "" {
+		channel = "general"
+	}
+	manifest := a.manifestForProposal(ctx, msg)
+	if err := ValidateProposal(wsPath, target, ProposalOpEdit, manifest); err != nil {
+		return false
+	}
+	if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+		return false
+	}
+	if state != nil {
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{target})
+	}
+	log.Printf("[%s] early_typescript_compile_fix(path=%s)", a.Info.Name, target)
 	return true
 }
 

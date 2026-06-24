@@ -66,6 +66,23 @@ func TestSynthesizeGoMathEdit_fixtureBugs(t *testing.T) {
 	}
 }
 
+func TestSynthesizeTypeScriptAppCompileFix_fixtureBug(t *testing.T) {
+	t.Parallel()
+	bug := `export default function App() {
+  const brokenCount: number = "not-a-number";
+  return <p>{brokenCount}</p>;
+}
+`
+	got, ok := synthesizeTypeScriptAppCompileFix(
+		"Fix the TypeScript compile error in src/App.tsx",
+		bug,
+		"src/App.tsx",
+	)
+	if !ok || strings.Contains(got, "not-a-number") {
+		t.Fatalf("App.tsx fix: ok=%v body=%q", ok, got)
+	}
+}
+
 func TestCorruptAppJSEntryConflict(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

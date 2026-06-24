@@ -99,6 +99,15 @@ func TestSanitizeAskModeResponse_stripsMentions(t *testing.T) {
 	}
 }
 
+func TestSanitizeAskModeResponse_stripsLooseFileChangeBlock(t *testing.T) {
+	t.Parallel()
+	raw := "Advice only.\n[FILE_CHANGE]\noperation: edit\npath: core/sample/main.go\n```go\npackage main\n```\n"
+	got := sanitizeAskModeResponse(raw)
+	if strings.Contains(strings.ToLower(got), "file_change") {
+		t.Fatalf("loose block not stripped: %q", got)
+	}
+}
+
 func TestShouldUseFileChangeFenceFallback_askMode(t *testing.T) {
 	t.Parallel()
 	a := &Agent{Info: protocol.AgentInfo{ID: "be-1", Type: protocol.AgentTypeBackend}}

@@ -366,7 +366,10 @@ def hub_judge_deliverable(
         },
     )
     if code != 200:
-        return False, f"judge send failed ({code})"
+        detail = f"judge send failed ({code})"
+        if code == 403:
+            trip_cloud_judge(agent_name, detail)
+        return False, detail
 
     deadline = time.time() + timeout_s
     while time.time() < deadline:
