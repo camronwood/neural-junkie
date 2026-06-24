@@ -3,7 +3,7 @@
   "description": "After /cancel-plan, no file_change proposals may appear on the cancelled collab channel (26e9081e draft.md regression).",
   "tags": ["collab", "conversation", "regression"],
   "channel": "collab-scenarios",
-  "agents": "@ChatModerator @Assistant",
+  "agents": "@Assistant",
   "required_agents": ["Assistant"],
   "workspace": {
     "fixture": "minimal-repo",
@@ -13,7 +13,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "2"],
-    "goal": "@ChatModerator @Assistant Plan one task: @Assistant Write collabs/<id>/findings.md with three bullets from README.md."
+    "goal": "@Assistant Plan one task: @Assistant Write collabs/<id>/findings.md with three bullets from README.md."
   },
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 30},

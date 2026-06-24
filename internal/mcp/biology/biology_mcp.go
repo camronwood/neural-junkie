@@ -115,6 +115,14 @@ func (b *BiologyMCP) registerTools() {
 	log.Printf("Registered %d Biology MCP tools", len(b.mcpServer.ListTools()))
 }
 
+func (b *BiologyMCP) requireScanTool(toolName string) error {
+	cfg := mcp.AppConfig()
+	if cfg == nil || !cfg.ScanMCPToolAllowed(toolName) {
+		return fmt.Errorf("%s requires an enabled customer pack with the appropriate capability (see capability_defs in your lab pack)", toolName)
+	}
+	return nil
+}
+
 func (b *BiologyMCP) handleAnalyzeSequence(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
 	if err := mcp.ValidateToolInput(request, []string{"sequence"}); err != nil {
 		return mcp.HandleToolError(err, "analyze_sequence"), nil
@@ -128,6 +136,9 @@ func (b *BiologyMCP) handleAnalyzeSequence(ctx context.Context, request mcpgo.Ca
 }
 
 func (b *BiologyMCP) handleSummarizeScanSummary(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := b.requireScanTool("summarize_scan_summary"); err != nil {
+		return mcp.HandleToolError(err, "summarize_scan_summary"), nil
+	}
 	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
 		return mcp.HandleToolError(err, "summarize_scan_summary"), nil
 	}
@@ -140,6 +151,9 @@ func (b *BiologyMCP) handleSummarizeScanSummary(ctx context.Context, request mcp
 }
 
 func (b *BiologyMCP) handleSummarizeScanAnalysis(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := b.requireScanTool("summarize_scan_analysis"); err != nil {
+		return mcp.HandleToolError(err, "summarize_scan_analysis"), nil
+	}
 	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
 		return mcp.HandleToolError(err, "summarize_scan_analysis"), nil
 	}
@@ -152,6 +166,9 @@ func (b *BiologyMCP) handleSummarizeScanAnalysis(ctx context.Context, request mc
 }
 
 func (b *BiologyMCP) handleRun12PlexQC(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := b.requireScanTool("run_12plex_qc"); err != nil {
+		return mcp.HandleToolError(err, "run_12plex_qc"), nil
+	}
 	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
 		return mcp.HandleToolError(err, "run_12plex_qc"), nil
 	}
@@ -163,6 +180,9 @@ func (b *BiologyMCP) handleRun12PlexQC(ctx context.Context, request mcpgo.CallTo
 }
 
 func (b *BiologyMCP) handleSummarizePanelQC(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := b.requireScanTool("summarize_panel_qc"); err != nil {
+		return mcp.HandleToolError(err, "summarize_panel_qc"), nil
+	}
 	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
 		return mcp.HandleToolError(err, "summarize_panel_qc"), nil
 	}
@@ -174,6 +194,9 @@ func (b *BiologyMCP) handleSummarizePanelQC(ctx context.Context, request mcpgo.C
 }
 
 func (b *BiologyMCP) handleSummarizeComparatorOutput(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := b.requireScanTool("summarize_comparator_output"); err != nil {
+		return mcp.HandleToolError(err, "summarize_comparator_output"), nil
+	}
 	if err := mcp.ValidateToolInput(request, []string{"path"}); err != nil {
 		return mcp.HandleToolError(err, "summarize_comparator_output"), nil
 	}
@@ -185,6 +208,9 @@ func (b *BiologyMCP) handleSummarizeComparatorOutput(ctx context.Context, reques
 }
 
 func (b *BiologyMCP) handleRunSecondaryAnalysis(ctx context.Context, request mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+	if err := b.requireScanTool("run_secondary_analysis"); err != nil {
+		return mcp.HandleToolError(err, "run_secondary_analysis"), nil
+	}
 	if err := mcp.ValidateToolInput(request, []string{"workflow"}); err != nil {
 		return mcp.HandleToolError(err, "run_secondary_analysis"), nil
 	}

@@ -34,7 +34,7 @@ func phoenixSettings() phoeniximport.Settings {
 	}
 }
 
-func handlePhoenixRoute(w http.ResponseWriter, r *http.Request) {
+func legacyHandlePhoenixRoute(w http.ResponseWriter, r *http.Request) {
 	if !phoenixImportEnabled(w) {
 		return
 	}

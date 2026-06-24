@@ -184,7 +184,7 @@ export function ProviderManager({ serverAddr }: ProviderManagerProps) {
         <div className="text-sm text-white font-medium">Why two Claudes?</div>
         <p className="mt-1 text-xs text-gray-400 leading-relaxed">
           <span className="text-gray-300">Anthropic (Claude API)</span> is the in-process cloud provider for
-          built-in specialists (moderator, repo agents, etc.) — it calls Anthropic&apos;s HTTP API with your API key.
+          built-in specialists (Assistant, repo agents, etc.) — it calls Anthropic&apos;s HTTP API with your API key.
           <span className="text-gray-300"> Claude Code CLI</span> is a separate auto-detected subprocess agent when
           the <code className="text-gray-300">claude</code> binary is on your PATH. They can both appear in this list
           because they are different integration paths, not duplicates of the same thing.

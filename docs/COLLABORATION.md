@@ -503,7 +503,7 @@ Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`
 **Environment**
 
 - `NEURAL_JUNKIE_HUB_URL` — default `http://127.0.0.1:18765`
-- `NJ_SCENARIO_PROFILE` — `fast` (`@ChatModerator @Assistant`) or `realistic` (`@SoftwareArchitect @BackendEngineer`)
+- `NJ_SCENARIO_PROFILE` — `fast` (`@Assistant`) or `realistic` (`@SoftwareArchitect @BackendEngineer`)
 - `NJ_COLLAB_SCENARIO_AGENTS` — override mentions
 - `NEURAL_JUNKIE_SCENARIO_REPO` — optional repo root for `resource-api-schema-planning` (`--workspace` metadata when set)
 - `NJ_SCENARIO_ALLOW_FILE_FALLBACK` — allow discussion-only file write fallback (dev)

@@ -73,7 +73,7 @@ func (ch *CommandHandler) GetAgentToolCapabilities(agentID string) (protocol.Age
 	return agent.CapabilitiesFromAgentInfo(info), nil
 }
 
-// ListChannelToolCapabilities returns tool info for agents in a channel (excludes moderator/system).
+// ListChannelToolCapabilities returns tool info for agents in a channel (excludes system agents).
 func (ch *CommandHandler) ListChannelToolCapabilities(channel string) (protocol.ChannelToolsResponse, error) {
 	channel = strings.TrimSpace(channel)
 	if channel == "" {

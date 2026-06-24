@@ -65,7 +65,6 @@ See [BIOLOGY_PACK.md](BIOLOGY_PACK.md) for model pulls and disclaimers.
 - **In-process hub agents only** (not standalone `cmd/agent` subprocesses).
 - **No delegation** during collaboration task/recap messages (collab orchestration owns multi-agent flow).
 - **Max depth** 1 — no consult chains (A→B→C).
-- **Moderator** is not a consult target.
 
 ## Debug
 

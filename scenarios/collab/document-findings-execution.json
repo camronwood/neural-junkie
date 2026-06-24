@@ -10,7 +10,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@ChatModerator @Assistant Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
+    "goal": "@Assistant Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
   },
   "expect_deliverables": [
     {

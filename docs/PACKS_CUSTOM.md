@@ -16,7 +16,7 @@ Hub APIs (hub access required): `POST /api/packs/validate`, `POST /api/packs/dev
 
 Use **dev link** while iterating; use **zip validate + sideload** for the final artifact you ship to analysts.
 
-Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Advanced capabilities (**Phoenix import**, **secondary-analysis-api/viewer/python**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in the customer’s **private pack repository**, not in the generic scaffold wizard.
+Pack dev studio scaffolds **generic** customer packs (workspace guide, `customer-pack`). Advanced capabilities (**Phoenix import**, **secondary-analysis-api/viewer/python**, `secondary_analysis_tools_path`, `cumulative_qc_dir`, etc.) are authored in the customer's **private pack repository** with **`capability_defs`** — see [PACK_CAPABILITY_DEFS.md](./PACK_CAPABILITY_DEFS.md). The generic scaffold wizard does not emit `capability_defs` yet.
 
 ## Install (zip)
 

@@ -44,6 +44,8 @@ Bump `version` in `pack.yaml`, update `packs/catalog.json` `download_url` / vers
 
 **Customer / private packs:** sideload zip via Settings → Domain packs. See [PACKS_CUSTOM.md](./PACKS_CUSTOM.md).
 
+**Capability tokens:** full registry of `capabilities:` flags and what they gate — [PACK_CAPABILITIES.md](./PACK_CAPABILITIES.md).
+
 ## API
 
 - `GET /api/packs/catalog` — store rows + `catalog_url`

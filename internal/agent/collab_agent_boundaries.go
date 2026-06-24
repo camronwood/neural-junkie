@@ -50,15 +50,9 @@ func collabLaneFor(agentType protocol.AgentType, agentName string) collabLane {
 		}
 	case protocol.AgentTypeAssistant:
 		return collabLane{
-			owns:   "clarifying the goal, synthesizing discussion, structuring tasks, sequencing work; assigned summary/deliverable files via [FILE_CHANGE]",
+			owns:   "clarifying the goal, synthesizing discussion, structuring tasks, sequencing work, keeping discussion on track, surfacing blockers; assigned summary/deliverable files via [FILE_CHANGE]",
 			defers: "deep schema design to @SoftwareArchitect when not assigned; infra to @PlatformEngineer when not assigned",
-			avoid:  "generic filler tasks that duplicate peers; ignoring an assigned file deliverable",
-		}
-	case protocol.AgentTypeModerator:
-		return collabLane{
-			owns:   "keeping discussion on track, summarizing agreements, surfacing blockers",
-			defers: "technical design and file deliverables to specialist agents unless explicitly assigned",
-			avoid:  "assigning yourself technical deliverables without a task line",
+			avoid:  "generic filler tasks that duplicate peers; ignoring an assigned file deliverable; assigning yourself technical deliverables without a task line",
 		}
 	case protocol.AgentTypeCodeReview:
 		return collabLane{

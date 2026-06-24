@@ -9,37 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// KnownCapabilityTokens are capability tokens recognized by the desktop app.
-var KnownCapabilityTokens = []string{
-	"ide-v2",
-	"ide-v3-composer",
-	"git-rest",
-	"inline-completion",
-	"scan-summary-api",
-	"scan-summary-viewer",
-	"scan-analysis-viewer",
-	"secondary-analysis-api",
-	"secondary-analysis-viewer",
-	"secondary-analysis-python",
-	"cad-api",
-	"cad-viewer",
-	"cad-workbench",
-	"lora-training",
-	"lora-compose",
-	"lora-adapters",
-	"personal-learning",
-	"customer-pack",
-	"phoenix-import",
-	"aws-api",
-	"aws-sso",
-	"incident-api",
-	"jira-integration",
-	"incident-triage",
-	"web-browser",
-	"web-preview",
-	"web-browser-workbench",
-}
-
 // KnownOverlayKeys are settings_overlay keys applied by the hub for customer packs.
 var KnownOverlayKeys = []string{
 	"secondary_analysis_tools_path",
@@ -94,8 +63,9 @@ type ManifestSummary struct {
 	Publisher       string            `json:"publisher,omitempty"`
 	PackKind        string            `json:"pack_kind,omitempty"`
 	LayoutProfile   string            `json:"layout_profile,omitempty"`
-	Capabilities    []string          `json:"capabilities,omitempty"`
-	RequiresPacks   []string          `json:"requires_packs,omitempty"`
+	Capabilities    []string                    `json:"capabilities,omitempty"`
+	CapabilityDefs  map[string]CapabilityDef    `json:"capability_defs,omitempty"`
+	RequiresPacks   []string                    `json:"requires_packs,omitempty"`
 	SettingsOverlay map[string]string `json:"settings_overlay,omitempty"`
 	Agents          []AgentSpec       `json:"agents,omitempty"`
 	MCPAgents       []string          `json:"mcp_agents,omitempty"`
@@ -238,9 +208,22 @@ func buildValidationReport(m *Manifest, packDir string, ctx *PackRequirementsCon
 		warnings = append(warnings, "pack_kind is not customer; custom packs should set pack_kind: customer or declare customer-pack capability")
 	}
 
+	capWarnings, capErrors := m.ValidateCapabilityDefs(packDir)
+	warnings = append(warnings, capWarnings...)
+	errors = append(errors, capErrors...)
 	for _, cap := range m.Capabilities {
-		if !isKnownCapability(cap) {
-			warnings = append(warnings, fmt.Sprintf("unknown capability token %q (may still work if the hub/desktop adds support later)", cap))
+		_, shortID := ParseQualifiedCapabilityID(strings.TrimSpace(cap))
+		if shortID == "" {
+			shortID = strings.TrimSpace(cap)
+		}
+		if IsPlatformCapability(shortID) {
+			continue
+		}
+		if _, ok := m.CapabilityDefs[shortID]; ok {
+			continue
+		}
+		if !isKnownCapability(shortID) {
+			warnings = append(warnings, fmt.Sprintf("unknown capability token %q (define in capability_defs for pack-local capabilities)", shortID))
 		}
 	}
 	for key := range m.SettingsOverlay {
@@ -377,6 +360,7 @@ func manifestSummary(m *Manifest) *ManifestSummary {
 		PackKind:        m.PackKind,
 		LayoutProfile:   m.DefaultLayoutProfile(),
 		Capabilities:    append([]string(nil), m.Capabilities...),
+		CapabilityDefs:  copyCapabilityDefs(m.CapabilityDefs),
 		RequiresPacks:   append([]string(nil), m.RequiresPacks...),
 		SettingsOverlay: copyStringMap(m.SettingsOverlay),
 		Agents:          append([]AgentSpec(nil), m.Agents...),
@@ -427,6 +411,17 @@ func isKnownOverlayKey(key string) bool {
 		}
 	}
 	return false
+}
+
+func copyCapabilityDefs(in map[string]CapabilityDef) map[string]CapabilityDef {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]CapabilityDef, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 func copyStringMap(in map[string]string) map[string]string {

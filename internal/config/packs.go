@@ -246,8 +246,16 @@ func (c *Config) LayoutProfile() string {
 	return "team"
 }
 
-// EnabledCapabilities returns the union of capabilities from all enabled installed packs.
+// EnabledCapabilities returns capability tokens from the resolved registry (short + qualified).
 func (c *Config) EnabledCapabilities() []string {
+	if c == nil {
+		return nil
+	}
+	tokens := c.ResolvedCapabilityRegistry().Capabilities
+	if len(tokens) > 0 {
+		return tokens
+	}
+	// Fallback for manifests without capability_defs (legacy).
 	seen := make(map[string]struct{})
 	var out []string
 	for _, pack := range c.PackCatalog() {
@@ -265,15 +273,9 @@ func (c *Config) EnabledCapabilities() []string {
 	return out
 }
 
-// AnyPackCapability reports whether any enabled pack declares cap.
+// AnyPackCapability reports whether any enabled pack declares cap (short or qualified).
 func (c *Config) AnyPackCapability(cap string) bool {
-	cap = strings.TrimSpace(cap)
-	for _, ccap := range c.EnabledCapabilities() {
-		if ccap == cap {
-			return true
-		}
-	}
-	return false
+	return c.HasPackCapability(cap)
 }
 
 func (c *Config) countEnabledPacksLocked() int {
@@ -398,6 +400,17 @@ func (c *Config) setPackEnabledLocked(packID string, enabled bool) error {
 		}
 	}
 	c.Packs.Enabled[packID] = enabled
+	if enabled {
+		if err := c.validateCapabilityCollisionsAfterEnableLocked(); err != nil {
+			c.Packs.Enabled[packID] = false
+			if wasEnabled {
+				c.Packs.Enabled[packID] = true
+			} else {
+				c.revertPackSettingsOverlayLocked(packID)
+			}
+			return err
+		}
+	}
 	if !enabled && wasEnabled {
 		c.revertPackSettingsOverlayLocked(packID)
 	}
@@ -974,18 +987,26 @@ type PackCatalogStatus struct {
 
 // PacksAPIResponse is GET /api/packs payload.
 type PacksAPIResponse struct {
-	Packs         []PackStatus `json:"packs"`
-	LayoutOwner   string       `json:"layout_owner,omitempty"`
-	LayoutProfile string       `json:"layout_profile,omitempty"`
-	Capabilities  []string     `json:"capabilities,omitempty"`
+	Packs              []PackStatus                   `json:"packs"`
+	LayoutOwner        string                         `json:"layout_owner,omitempty"`
+	LayoutProfile      string                         `json:"layout_profile,omitempty"`
+	Capabilities       []string                       `json:"capabilities,omitempty"`
+	CapabilityRegistry []packs.ResolvedCapability     `json:"capability_registry,omitempty"`
+	ShortIDCollisions  []string                       `json:"short_id_collisions,omitempty"`
 }
 
 // ListPackStatus returns installed packs with status.
 func (c *Config) ListPackStatus() PacksAPIResponse {
+	reg := c.ResolvedCapabilityRegistry()
 	resp := PacksAPIResponse{
-		LayoutOwner:   c.LayoutOwnerPackID(),
-		LayoutProfile: c.LayoutProfile(),
-		Capabilities:  c.EnabledCapabilities(),
+		LayoutOwner:        c.LayoutOwnerPackID(),
+		LayoutProfile:      c.LayoutProfile(),
+		Capabilities:       reg.Capabilities,
+		CapabilityRegistry: reg.CapabilityRegistry,
+		ShortIDCollisions:  reg.ShortIDCollisions,
+	}
+	if len(resp.Capabilities) == 0 {
+		resp.Capabilities = c.EnabledCapabilities()
 	}
 	for _, pack := range c.PackCatalog() {
 		resp.Packs = append(resp.Packs, c.packStatusFromDomain(pack))

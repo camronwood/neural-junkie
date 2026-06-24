@@ -2,8 +2,8 @@
   "name": "planning-two-agent",
   "description": "Two agents produce a structured plan and reach reviewing without grounding spam.",
   "channel": "collab-scenarios",
-  "agents": "@ChatModerator @Assistant",
-  "required_agents": ["ChatModerator", "Assistant"],
+  "agents": "@Assistant @SoftwareArchitect",
+  "required_agents": ["Assistant", "SoftwareArchitect"],
   "collaborate": {
     "flags": ["--rounds", "2", "--messages", "4"],
     "goal": "Design a small CLI file encryption tool. Propose a plan using lines like: - Task 1: @AgentName - description. Include at least two tasks for different agents."
@@ -14,7 +14,7 @@
       "action": "wait_discussion",
       "min_total": 2,
       "min_per_agent": 1,
-      "required_agents": ["ChatModerator", "Assistant"],
+      "required_agents": ["Assistant", "SoftwareArchitect"],
       "timeout": "180s",
       "retries": 1,
       "nudge_agents": ["Assistant"],

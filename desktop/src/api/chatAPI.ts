@@ -208,12 +208,31 @@ export interface LoraTrainStartRequest {
   hyperparams?: { rank?: number; epochs?: number; learning_rate?: number; max_seq_len?: number };
 }
 
+export interface ResolvedCapability {
+  id: string;
+  qualified_id: string;
+  pack_id?: string;
+  kind?: string;
+  platform?: boolean;
+  routes?: string[];
+  ui?: {
+    toolbar?: { id?: string; label?: string };
+    modal?: string;
+  };
+  match_glob?: string;
+  viewer?: string;
+  settings?: string[];
+  mcp_tools?: string[];
+}
+
 export interface PacksAPIResponse {
   packs: PackStatus[];
   pack_id?: string;
   layout_owner?: string;
   layout_profile?: string;
   capabilities?: string[];
+  capability_registry?: ResolvedCapability[];
+  short_id_collisions?: string[];
 }
 
 export interface ExpertPresetOption {

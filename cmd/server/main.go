@@ -211,9 +211,6 @@ func main() {
 		log.Printf("🧹 Removed %d legacy seed channel(s) (project-alpha, project-beta)", n)
 	}
 
-	// Initialize and start moderator agent
-	initializeModeratorAgent()
-
 	// Initialize and start assistant agent
 	initializeAssistantAgent()
 
@@ -251,6 +248,7 @@ func main() {
 	}
 
 	registerRoutes()
+	syncPackSidecars()
 
 	log.Printf("Chat Hub Server starting on %s", *addr)
 	log.Printf("WebSocket endpoint: ws://%s/ws", hubPublicHost(*addr))

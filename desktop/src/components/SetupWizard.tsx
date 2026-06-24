@@ -314,7 +314,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
               >
                 <div className="font-medium text-white">Team chat &amp; productivity</div>
                 <div className="text-xs text-gray-400">
-                  ChatModerator, Assistant, and auto-detected CLI tools when their binaries are on your PATH.
+                  Assistant and auto-detected CLI tools when their binaries are on your PATH.
                   Enable the Software development pack later for in-process coding specialists.
                 </div>
               </button>
@@ -524,7 +524,7 @@ export function SetupWizard({ onComplete, serverAddr }: SetupWizardProps) {
             {wizardTrack === 'general' ? (
               <div className="space-y-3 text-sm text-gray-400">
                 <p>
-                  <strong className="text-white">ChatModerator</strong> is always on with the hub (commands and chat help).
+                  <strong className="text-white">Assistant</strong> is always on with the hub (productivity, platform help, and chat commands).
                 </p>
                 <p>
                   <strong className="text-white">CLI agents</strong> auto-join #general when their binaries are on your PATH (see /list-cli-agents).

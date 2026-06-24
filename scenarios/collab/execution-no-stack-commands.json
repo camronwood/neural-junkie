@@ -2,7 +2,7 @@
   "name": "execution-no-stack-commands",
   "description": "Markdown deliverable execution must not surface docker-compose/npm/kubectl Run suggestions despite decoy stack files in the tree (f7518f88 + stack decoy regression).",
   "channel": "collab-scenarios",
-  "agents": "@ChatModerator @Assistant @PlatformEngineer",
+  "agents": "@Assistant @PlatformEngineer",
   "required_agents": ["Assistant", "PlatformEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
@@ -12,7 +12,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "4"],
-    "goal": "@ChatModerator @Assistant @PlatformEngineer Plan ONE task only: @Assistant Write collabs/<id>/findings.md with three bullets grounded in README.md and core/sample/main.go. Do NOT plan docker, npm, or deployment work — markdown file only."
+    "goal": "@Assistant @PlatformEngineer Plan ONE task only: @Assistant Write collabs/<id>/findings.md with three bullets grounded in README.md and core/sample/main.go. Do NOT plan docker, npm, or deployment work — markdown file only."
   },
   "expect_deliverables": [
     {

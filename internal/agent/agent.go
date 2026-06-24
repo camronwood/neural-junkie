@@ -92,6 +92,9 @@ type Agent struct {
 
 	// Optional full prompt builder (Assistant uses buildAssistantPrompt).
 	customPromptBuilder func(*protocol.Message) string
+
+	// unansweredTracker monitors public-channel user messages for the Assistant safety net.
+	unansweredTracker *unansweredMessageTracker
 }
 
 // MCPServerInterface defines the interface for MCP servers

@@ -480,14 +480,17 @@ func handlePackLayoutOwner(w http.ResponseWriter, r *http.Request) {
 }
 
 func writePacksMutationResponse(w http.ResponseWriter, packID string, extra map[string]any) {
+	syncPackSidecars()
 	st := appConfig.ListPackStatus()
 	out := map[string]any{
-		"status":         "ok",
-		"pack_id":        packID,
-		"packs":          st.Packs,
-		"layout_owner":   st.LayoutOwner,
-		"layout_profile": st.LayoutProfile,
-		"capabilities":   st.Capabilities,
+		"status":               "ok",
+		"pack_id":              packID,
+		"packs":                st.Packs,
+		"layout_owner":         st.LayoutOwner,
+		"layout_profile":       st.LayoutProfile,
+		"capabilities":         st.Capabilities,
+		"capability_registry":  st.CapabilityRegistry,
+		"short_id_collisions":  st.ShortIDCollisions,
 	}
 	for k, v := range extra {
 		out[k] = v

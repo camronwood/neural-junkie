@@ -92,6 +92,8 @@ func NewAssistantAgent(name string, ai ai.AIProvider, hub HubClient) *AssistantA
 		pendingApprovals: make(map[string]*PendingApproval),
 	}
 
+	baseAgent.unansweredTracker = newUnansweredMessageTracker(baseAgent)
+
 	if assistantMCP, err := assistantmcp.NewAssistantMCP(); err != nil {
 		log.Printf("Failed to create Assistant MCP server: %v", err)
 	} else {
@@ -116,6 +118,10 @@ var assistantPromptNow = time.Now
 func (a *AssistantAgent) Start(ctx context.Context, channel string) error {
 	// Start the reminder monitoring goroutine
 	go a.monitorReminders(ctx)
+
+	if a.unansweredTracker != nil {
+		a.unansweredTracker.start(ctx)
+	}
 
 	a.ensureGoogleMeetNotesSync(ctx)
 
@@ -1068,6 +1074,9 @@ func (a *AssistantAgent) Stop() {
 		a.emailWatcher.Close()
 	}
 	close(a.stopEmailWatcher)
+	if a.unansweredTracker != nil {
+		a.unansweredTracker.stop()
+	}
 	a.Agent.Stop()
 }
 

@@ -18,8 +18,9 @@ type Manifest struct {
 	Publisher       string            `yaml:"publisher,omitempty"`
 	PackKind        string            `yaml:"pack_kind,omitempty"` // customer | domain
 	LayoutProfile   string            `yaml:"layout_profile"` // team | ide
-	Capabilities    []string          `yaml:"capabilities"`
-	RequiresPacks   []string          `yaml:"requires_packs,omitempty"`
+	Capabilities    []string                   `yaml:"capabilities"`
+	CapabilityDefs  map[string]CapabilityDef   `yaml:"capability_defs,omitempty"`
+	RequiresPacks   []string                   `yaml:"requires_packs,omitempty"`
 	SettingsOverlay map[string]string `yaml:"settings_overlay,omitempty"`
 	Assets          PackAssetsSpec    `yaml:"assets,omitempty"`
 	Agents          []AgentSpec       `yaml:"agents"`

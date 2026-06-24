@@ -277,7 +277,7 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-slack-border bg-slack-bgHover/30 p-4 text-sm text-slack-textMuted">
-        <strong className="text-slack-text">Always on:</strong> ChatModerator, Assistant, and CLI agents
+        <strong className="text-slack-text">Always on:</strong> Assistant and CLI agents
         when installed. Domain packs add optional in-process specialists and MCP tools below.
       </div>
 

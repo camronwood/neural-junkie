@@ -17,7 +17,7 @@ POLL_INTERVAL = 1.0
 MAX_CONCURRENT_COLLABS = 3
 
 AGENT_PROFILES: dict[str, str] = {
-    "fast": "@ChatModerator @Assistant",
+    "fast": "@Assistant",
     "realistic": "@SoftwareArchitect @BackendEngineer",
 }
 
@@ -770,7 +770,7 @@ def _collect_bullet_findings(messages: list[dict], limit: int = 8) -> str:
     lines: list[str] = []
     for msg in messages:
         who = (msg.get("from") or {}).get("name") or ""
-        if who in ("System", "ChatModerator"):
+        if who in ("System",):
             continue
         typ = msg.get("type") or ""
         if typ not in DISCUSSION_TYPES and typ != "collaboration_discussion":

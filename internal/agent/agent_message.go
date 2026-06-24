@@ -81,6 +81,10 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	// Add to history first (so we have context for decision)
 	a.addToHistory(msg)
 
+	if a.unansweredTracker != nil {
+		a.unansweredTracker.observe(msg)
+	}
+
 	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
 		return
 	}
@@ -675,6 +679,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		}
 
 		return false
+	}
+
+	// Assistant stays passive on public channels unless mentioned or asking NJ platform help.
+	if a.Info.Type == protocol.AgentTypeAssistant && channelType == protocol.ChannelTypePublic {
+		return assistantPublicShouldRespond(a, msg)
 	}
 
 	// Check if message is from another agent (not a human)

@@ -617,7 +617,7 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
           {/* Filter */}
           <div className="flex gap-1 flex-wrap">
             {(activeTab === 'active'
-              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'code-review', 'rust', 'database', 'cli', 'assistant', 'moderator']
+              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'code-review', 'rust', 'database', 'cli', 'assistant']
               : ['all', 'repo', 'confluence']
             ).map((type) => (
               <button
@@ -797,7 +797,7 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
                             {(agent as AgentInfo).tool_count} tool{(agent as AgentInfo).tool_count !== 1 ? 's' : ''}
                           </span>
                         )}
-                        {hasLoRATraining && onTrainLoRA && agent.type !== 'cli' && agent.type !== 'moderator' && agent.type !== 'human' && 'id' in agent && !String(agent.id).startsWith('loading-') && (
+                        {hasLoRATraining && onTrainLoRA && agent.type !== 'cli' && agent.type !== 'assistant' && agent.type !== 'human' && 'id' in agent && !String(agent.id).startsWith('loading-') && (
                           <button
                             type="button"
                             onClick={() => onTrainLoRA(agent.id)}

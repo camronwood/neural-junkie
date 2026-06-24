@@ -191,5 +191,3 @@ func handleThreadParentAuthor(w http.ResponseWriter, r *http.Request, threadID s
 	response := map[string]string{"author_id": authorID}
 	json.NewEncoder(w).Encode(response)
 }
-
-// initializeModeratorAgent creates and starts the system moderator agent

@@ -16,6 +16,57 @@ capabilities:
   - secondary-analysis-api
   - secondary-analysis-viewer
   - secondary-analysis-python
+capability_defs:
+  phoenix-import:
+    kind: hub-sidecar
+    routes:
+      - /api/phoenix
+    sidecar:
+      module: assets/hub/routes/phoenix.py
+    ui:
+      toolbar:
+        id: phx
+        label: PHX
+      modal: phoenix-import
+    settings:
+      - phoenix_environment
+      - phoenix_auth_config_path
+      - phoenix_credentials_path
+  scan-summary-api:
+    kind: hub-sidecar
+    routes:
+      - /api/scan-summary
+    sidecar:
+      module: assets/hub/routes/scan_summary.py
+  scan-summary-viewer:
+    kind: file-viewer
+    match_glob: "**/scan-export/imageMetadata.json"
+    viewer: nj.scan-summary
+  scan-analysis-viewer:
+    kind: file-viewer
+    match_glob: "**/reports/results.json"
+    viewer: nj.scan-analysis
+  secondary-analysis-api:
+    kind: hub-sidecar
+    routes:
+      - /api/secondary-analysis
+    sidecar:
+      module: assets/hub/routes/secondary_analysis.py
+    settings:
+      - secondary_analysis_tools_path
+      - python_executable
+      - default_panel_profile
+      - cumulative_qc_dir
+  secondary-analysis-viewer:
+    kind: file-viewer
+    match_glob: "**/reports/results.json"
+    viewer: nj.scan-analysis
+  secondary-analysis-python:
+    kind: mcp-tools
+    mcp_tools_path: assets/secondary-analysis-tools
+    settings:
+      - secondary_analysis_tools_path
+      - python_executable
 requires_packs:
   - life-sciences
 settings_overlay:

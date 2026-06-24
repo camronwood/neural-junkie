@@ -384,7 +384,7 @@ export function CommandForm({
   };
 
   const selectableCollaborators = agents.filter(
-    a => a.status === 'active' && a.type !== 'human' && a.type !== 'moderator'
+    a => a.status === 'active' && a.type !== 'human'
   );
 
   const fieldClass =
@@ -606,7 +606,7 @@ export function CommandForm({
         const selectable =
           arg.type === 'repo-agent-name'
             ? agents.filter(a => a.type === 'repo')
-            : agents.filter(a => a.type !== 'moderator' && a.type !== 'human');
+            : agents.filter(a => a.type !== 'human');
         const placeholder =
           arg.type === 'repo-agent-name' ? 'Select repo agent...' : 'Select agent...';
         return (

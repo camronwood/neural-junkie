@@ -4,7 +4,7 @@
   "tags": ["collab", "conversation", "regression", "optional"],
   "optional": true,
   "channel": "collab-scenarios",
-  "agents": "@ChatModerator @Assistant @SoftwareArchitect",
+  "agents": "@Assistant @SoftwareArchitect",
   "required_agents": ["Assistant", "SoftwareArchitect"],
   "workspace": {
     "fixture": "minimal-repo",
@@ -14,7 +14,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "4"],
-    "goal": "@ChatModerator @Assistant @SoftwareArchitect Plan two tasks: Task 1 @Assistant Write collabs/<id>/findings.md from README.md; Task 2 @SoftwareArchitect Write collabs/<id>/architecture-notes.md with two bullets on package layout."
+    "goal": "@Assistant @SoftwareArchitect Plan two tasks: Task 1 @Assistant Write collabs/<id>/findings.md from README.md; Task 2 @SoftwareArchitect Write collabs/<id>/architecture-notes.md with two bullets on package layout."
   },
   "steps": [
     {"action": "wait_phase", "phase": "planning", "timeout": 25},

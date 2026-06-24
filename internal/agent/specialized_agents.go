@@ -397,9 +397,6 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewBrowserAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
-	case protocol.AgentTypeModerator:
-		moderator := NewModeratorAgent(name, ai, hub)
-		return moderator.Agent, nil
 	case protocol.AgentTypeAssistant:
 		assistant := NewAssistantAgent(name, ai, hub)
 		return assistant.Agent, nil

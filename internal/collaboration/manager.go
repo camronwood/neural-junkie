@@ -1617,8 +1617,6 @@ func SuggestRole(agentType protocol.AgentType, expertise []string) string {
 		return "Platform, CI/CD & Runtime (not schema design)"
 	case protocol.AgentTypeAssistant:
 		return "Facilitation & Requirements Synthesis"
-	case protocol.AgentTypeModerator:
-		return "Discussion Facilitation"
 	case protocol.AgentTypeDatabase:
 		return "Data Modeling & Query Optimization"
 	case protocol.AgentTypeRepo:

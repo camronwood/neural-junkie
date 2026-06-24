@@ -73,7 +73,7 @@ func messageAsksAboutNJApp(content string) bool {
 func appendNJAppKnowledgeBrief(b *strings.Builder) {
 	b.WriteString("=== NEURAL JUNKIE APP (brief) ===\n")
 	b.WriteString("Neural Junkie (NJ) is a multi-agent collaboration desktop app (Tauri + React) with a Go hub sidecar.\n")
-	b.WriteString("Users chat in channels/DMs with specialist agents (@mention by name), the Moderator, and you (Assistant).\n")
+	b.WriteString("Users chat in channels/DMs with specialist agents (@mention by name) and you (Assistant).\n")
 	b.WriteString("Domain packs enable role-specific experts: Software development (IDE, Git, repo agents), Life sciences, Team chat & productivity.\n")
 	b.WriteString("Desktop UI: channel sidebar, main chat, optional IDE panels (explorer, Monaco editor, terminal, Git, problems, tasks, My Agents).\n")
 	b.WriteString("Layout presets: Team (chat-first) vs IDE (project-first, dev pack). Toggle via toolbar or mod+shift+i (dev pack).\n")
@@ -94,7 +94,7 @@ func appendNJAppKnowledgeFull(b *strings.Builder) {
 
 	b.WriteString("**Architecture**\n")
 	b.WriteString("• Desktop app bundles the Go hub (default http://localhost:18765) and starts specialists from enabled domain packs.\n")
-	b.WriteString("• Assistant + Moderator auto-start with the hub. CLI agents (Cursor, Claude Code, etc.) join when binaries are on PATH.\n")
+	b.WriteString("• Assistant auto-starts with the hub. CLI agents (Cursor, Claude Code, etc.) join when binaries are on PATH.\n")
 	b.WriteString("• Repository expert agents index codebases; /create-repo-agent, /reindex-agent, /enable-watch manage them.\n\n")
 
 	b.WriteString("**Domain packs** (Settings → Domain packs)\n")

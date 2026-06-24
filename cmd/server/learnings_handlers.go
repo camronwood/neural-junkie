@@ -370,7 +370,7 @@ func emitLearningProposal(channel string, target *protocol.AgentInfo, draft stri
 	proposal := protocol.NewMessage(
 		protocol.MessageTypeSystemInfo,
 		channel,
-		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeModerator},
+		protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral},
 		"Learning proposal — confirm in the dialog to save for "+target.Name+".",
 	)
 	if proposal.Metadata == nil {
@@ -410,7 +410,7 @@ func resolveLearningTargetAgent(msg *protocol.Message) *protocol.AgentInfo {
 		return nil
 	}
 	for _, a := range agents {
-		if a.Type != protocol.AgentTypeCLI && a.Type != protocol.AgentTypeModerator && !protocol.IsUserLikeSender(protocol.AgentInfo{Type: a.Type, Name: a.Name}) {
+		if a.Type != protocol.AgentTypeCLI && !protocol.IsUserLikeSender(protocol.AgentInfo{Type: a.Type, Name: a.Name}) {
 			cp := a
 			return &cp
 		}

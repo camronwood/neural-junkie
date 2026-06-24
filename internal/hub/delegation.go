@@ -111,12 +111,7 @@ func (ch *CommandHandler) listRuntimeAgentInfos() []protocol.AgentInfo {
 }
 
 func skipDelegationTarget(info protocol.AgentInfo) bool {
-	switch info.Type {
-	case protocol.AgentTypeModerator:
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func (ch *CommandHandler) modelConsult(

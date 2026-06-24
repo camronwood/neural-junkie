@@ -2,9 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { usePacksStore } from './packsStore';
 
 describe('packsStore', () => {
-  it('hasCapability unions hub capabilities', () => {
+  it('hasCapability unions hub capabilities and registry', () => {
     usePacksStore.setState({
-      capabilities: ['git-rest', 'scan-summary-viewer'],
+      capabilities: ['git-rest', 'scan-summary-viewer', 'customer-lab-pack/phoenix-import'],
+      capabilityRegistry: [
+        {
+          id: 'scan-summary-viewer',
+          qualified_id: 'customer-lab-pack/scan-summary-viewer',
+          kind: 'file-viewer',
+          viewer: 'nj.scan-summary',
+        },
+      ],
+      shortIdCollisions: [],
       packs: [],
       catalog: [],
       layoutOwner: 'software-development',
@@ -18,6 +27,8 @@ describe('packsStore', () => {
   it('softwareDevelopmentEnabled falls back to pack row when capability missing', () => {
     usePacksStore.setState({
       capabilities: [],
+      capabilityRegistry: [],
+      shortIdCollisions: [],
       packs: [
         {
           id: 'software-development',
@@ -57,6 +68,8 @@ describe('packsStore', () => {
       ],
       catalog: [],
       capabilities: [],
+      capabilityRegistry: [],
+      shortIdCollisions: [],
       layoutOwner: '',
       layoutProfile: 'team',
     });

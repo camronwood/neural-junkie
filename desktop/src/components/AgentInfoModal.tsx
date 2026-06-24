@@ -84,7 +84,7 @@ export function AgentInfoModal({
     !!agent &&
     agent.type !== 'loading' &&
     agent.type !== 'cli' &&
-    agent.type !== 'moderator' &&
+    agent.type !== 'assistant' &&
     agent.type !== 'human';
 
   useEffect(() => {
@@ -271,7 +271,7 @@ export function AgentInfoModal({
                 ⏳ Loading...
               </span>
             )}
-            {agent.type === 'moderator' && !isLoading && (
+            {agent.type === 'assistant' && !isLoading && (
               <span className="text-sm px-2 py-1 rounded bg-purple-500/20 text-purple-500 font-medium">
                 🔒 System
               </span>
@@ -795,7 +795,7 @@ export function AgentInfoModal({
               )}
               
               {/* Remove — hide from channel only (can recall later) */}
-              {!offlineMode && onRemove && agent.type !== 'moderator' && agent.type !== 'human' && (
+              {!offlineMode && onRemove && agent.type !== 'assistant' && agent.type !== 'human' && (
                 <button
                   type="button"
                   disabled={deletingAgent}
@@ -811,7 +811,7 @@ export function AgentInfoModal({
               )}
 
               {/* Delete — permanent */}
-              {!offlineMode && onDelete && agent.type !== 'moderator' && agent.type !== 'human' && (
+              {!offlineMode && onDelete && agent.type !== 'assistant' && agent.type !== 'human' && (
                 <button
                   type="button"
                   disabled={deletingAgent}

@@ -131,7 +131,7 @@ func AppendForAgent(system *strings.Builder, self *protocol.AgentInfo, pctx Prom
 
 func isExpertAgent(t protocol.AgentType) bool {
 	switch t {
-	case protocol.AgentTypeCLI, protocol.AgentTypeModerator:
+	case protocol.AgentTypeCLI:
 		return false
 	default:
 		return t != ""

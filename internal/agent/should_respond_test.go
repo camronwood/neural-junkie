@@ -133,7 +133,7 @@ func TestShouldRespond_CollabInternalHandoffWakesMentionedAgent(t *testing.T) {
 
 func TestShouldRespond_CollabInternalHandoffIgnoresNonMentionedOnTurn(t *testing.T) {
 	const mentionedID = "assistant-id"
-	const otherID = "moderator-id"
+	const otherID = "backend-id"
 
 	hubStub := shouldRespondTestHub{}
 	mockAI := ai.NewMockProvider()
@@ -142,7 +142,7 @@ func TestShouldRespond_CollabInternalHandoffIgnoresNonMentionedOnTurn(t *testing
 	mentioned.Info.ID = mentionedID
 	mentioned.SetCollabClient(collabSystemTurnStub{agentID: mentionedID})
 
-	other := NewAgent(protocol.AgentTypeModerator, "ChatModerator", []string{}, mockAI, hubStub)
+	other := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", []string{}, mockAI, hubStub)
 	other.Info.ID = otherID
 	other.SetCollabClient(collabSystemTurnStub{agentID: otherID})
 

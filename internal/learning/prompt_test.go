@@ -41,8 +41,8 @@ func TestAppendForAgent_scopedAndGated(t *testing.T) {
 	}
 
 	sb.Reset()
-	if AppendForAgent(&sb, &protocol.AgentInfo{ID: "mod", Type: protocol.AgentTypeModerator}, PromptContext{}).Count != 0 {
-		t.Fatal("moderator should not inject")
+	if AppendForAgent(&sb, &protocol.AgentInfo{ID: "cli", Type: protocol.AgentTypeCLI}, PromptContext{}).Count != 0 {
+		t.Fatal("CLI agent should not inject learnings")
 	}
 }
 

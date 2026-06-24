@@ -128,7 +128,7 @@ func (ch *CommandHandler) resolveLearningTarget(msg *protocol.Message) *protocol
 		return nil
 	}
 	for _, a := range agents {
-		if a.Type == protocol.AgentTypeCLI || a.Type == protocol.AgentTypeModerator {
+		if a.Type == protocol.AgentTypeCLI {
 			continue
 		}
 		if protocol.IsUserLikeSender(protocol.AgentInfo{Type: a.Type, Name: a.Name}) {

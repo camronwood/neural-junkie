@@ -2,7 +2,7 @@
   "name": "solo-vs-collab-parity",
   "description": "Compare solo @Assistant deliverable vs collab execution on the same minimal-repo fixture.",
   "channel": "collab-scenarios",
-  "agents": "@ChatModerator @Assistant",
+  "agents": "@Assistant",
   "required_agents": ["Assistant"],
   "workspace": {
     "fixture": "minimal-repo",
@@ -23,7 +23,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@ChatModerator @Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write collabs/<collab-id>/findings.md"
+    "goal": "@Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write collabs/<collab-id>/findings.md"
   },
   "expect_deliverables": [
     {
@@ -44,10 +44,10 @@
     {
       "action": "wait_discussion",
       "min_total": 2,
-      "required_agents": ["ChatModerator", "Assistant"],
+      "required_agents": ["Assistant"],
       "timeout": "300s",
       "retries": 1,
-      "nudge_agents": ["ChatModerator", "Assistant"],
+      "nudge_agents": ["Assistant"],
       "retry_on_generation_error": true
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},

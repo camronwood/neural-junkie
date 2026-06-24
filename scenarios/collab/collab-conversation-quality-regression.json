@@ -3,7 +3,7 @@
   "description": "Execution deliverables must be substantive prose (no placeholders) and collab discussion must not be raw JSON (26e9081e session regression).",
   "tags": ["collab", "conversation", "regression"],
   "channel": "collab-scenarios",
-  "agents": "@ChatModerator @Assistant",
+  "agents": "@Assistant",
   "required_agents": ["Assistant"],
   "workspace": {
     "fixture": "minimal-repo",
@@ -33,10 +33,10 @@
     {
       "action": "wait_discussion",
       "min_total": 2,
-      "required_agents": ["ChatModerator", "Assistant"],
+      "required_agents": ["Assistant"],
       "timeout": "300s",
       "retries": 2,
-      "nudge_agents": ["ChatModerator", "Assistant"],
+      "nudge_agents": ["Assistant"],
       "retry_on_generation_error": true
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},

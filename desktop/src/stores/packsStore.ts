@@ -10,6 +10,14 @@ import {
 } from '../api/chatAPI';
 import { getHubBaseURL } from '../config/hubUrl';
 import type { PackCapability } from './packCapabilities';
+import {
+  parseCapabilityRegistry,
+  registryHasCapability,
+  matchFileViewer,
+  toolbarActionsFromRegistry,
+  settingsKeysFromRegistry,
+} from './packCapabilityRegistry';
+import type { ResolvedCapability } from '../api/chatAPI';
 
 export const PACK_LIFE_SCIENCES = 'life-sciences';
 export const PACK_SOFTWARE_DEVELOPMENT = 'software-development';
@@ -20,6 +28,8 @@ interface PacksState {
   layoutOwner: string;
   layoutProfile: 'team' | 'ide';
   capabilities: string[];
+  capabilityRegistry: ResolvedCapability[];
+  shortIdCollisions: string[];
   loading: boolean;
   error: string | null;
   applyPacksResponse: (data: PacksAPIResponse) => void;
@@ -41,6 +51,9 @@ interface PacksState {
   devUnlinkPack: (packId: string) => Promise<PacksAPIResponse>;
   fetchCustomerPackContext: () => Promise<CustomerPackContextResponse>;
   hasCapability: (cap: PackCapability | string) => boolean;
+  getFileViewerForPath: (path: string) => ResolvedCapability | undefined;
+  getToolbarActions: () => ReturnType<typeof toolbarActionsFromRegistry>;
+  getPackSettingsKeys: () => string[];
   /** True when software-development is installed and enabled (pack row, not capability union). */
   softwareDevelopmentPackActive: () => boolean;
   /** @deprecated use hasCapability(PACK_CAP.SCAN_SUMMARY_VIEWER) */
@@ -49,13 +62,19 @@ interface PacksState {
   softwareDevelopmentEnabled: () => boolean;
 }
 
-function parsePacksResponse(data: PacksAPIResponse): Pick<PacksState, 'packs' | 'layoutOwner' | 'layoutProfile' | 'capabilities'> {
+function parsePacksResponse(data: PacksAPIResponse): Pick<
+  PacksState,
+  'packs' | 'layoutOwner' | 'layoutProfile' | 'capabilities' | 'capabilityRegistry' | 'shortIdCollisions'
+> {
   const layoutProfile = data.layout_profile === 'ide' ? 'ide' : 'team';
+  const reg = parseCapabilityRegistry(data);
   return {
     packs: data.packs ?? [],
     layoutOwner: data.layout_owner ?? '',
     layoutProfile,
-    capabilities: data.capabilities ?? [],
+    capabilities: reg.capabilities,
+    capabilityRegistry: reg.capabilityRegistry,
+    shortIdCollisions: data.short_id_collisions ?? [],
   };
 }
 
@@ -65,6 +84,8 @@ export const usePacksStore = create<PacksState>((set, get) => ({
   layoutOwner: '',
   layoutProfile: 'team',
   capabilities: [],
+  capabilityRegistry: [],
+  shortIdCollisions: [],
   loading: false,
   error: null,
 
@@ -219,9 +240,15 @@ export const usePacksStore = create<PacksState>((set, get) => ({
   },
 
   hasCapability: (cap) => {
-    const c = String(cap).trim();
-    return get().capabilities.includes(c);
+    const state = get();
+    return registryHasCapability(state.capabilities, state.capabilityRegistry, cap);
   },
+
+  getFileViewerForPath: (path) => matchFileViewer(get().capabilityRegistry, path),
+
+  getToolbarActions: () => toolbarActionsFromRegistry(get().capabilityRegistry),
+
+  getPackSettingsKeys: () => settingsKeysFromRegistry(get().capabilityRegistry),
 
   softwareDevelopmentPackActive: () => {
     const pack = get().packs.find((p) => p.id === PACK_SOFTWARE_DEVELOPMENT);

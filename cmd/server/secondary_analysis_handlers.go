@@ -40,7 +40,7 @@ func secondaryAnalysisEnabled(w http.ResponseWriter) bool {
 	return true
 }
 
-func handleSecondaryAnalysisRoute(w http.ResponseWriter, r *http.Request) {
+func legacyHandleSecondaryAnalysisRoute(w http.ResponseWriter, r *http.Request) {
 	if !secondaryAnalysisEnabled(w) {
 		return
 	}
