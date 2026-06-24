@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Start here — Neural Junkie</title>
+  <meta name="description" content="Get Neural Junkie running in five minutes: download, setup wizard, first chat, repo expert, and collaboration." />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="index.html">Home</a>
+        <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
+        <a class="btn btn-ghost" href="known-issues.html">Known issues</a>
+        <a class="btn btn-primary" href="download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Start here
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Start here</h1>
+      <p class="feature-deep-lead">
+        Neural Junkie is a <strong>multi-agent desktop workspace</strong> — not a single chatbot. Specialists collaborate in channels, you approve risky changes, and models can run locally or in the cloud. This page gets you from download to a real first win in about five minutes.
+      </p>
+      <p class="release-landing-actions" style="margin-top: 1rem;">
+        <a class="btn btn-primary" href="download.html">Download v1.2.0-beta.1</a>
+        <a class="btn btn-ghost" href="security.html">Security &amp; privacy</a>
+      </p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>1. Install</h2>
+      <p>No Go, Node, or Rust required for the desktop app.</p>
+      <ol>
+        <li>Download from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.1">GitHub Releases</a> (macOS <code>.dmg</code>, Windows <code>.msi</code>, Linux <code>.deb</code>).</li>
+        <li>Open the app. On macOS, right-click → <strong>Open</strong> if Gatekeeper blocks the ad-hoc signed build.</li>
+        <li>Complete the <strong>setup wizard</strong> — pick a focus track:
+          <ul>
+            <li><strong>Software development</strong> — engineering specialists + IDE</li>
+            <li><strong>Life sciences &amp; lab work</strong> — BiologyExpert + sequence tools (<a href="features/life-sciences.html">lab guide</a>)</li>
+            <li><strong>Team chat &amp; productivity</strong> — Assistant, Moderator, Slack-ready</li>
+          </ul>
+        </li>
+        <li>Choose <strong>local Ollama</strong> (recommended) or a <strong>cloud API key</strong>. macOS bundles Ollama; Windows/Linux use slim installers and the wizard <strong>Install Ollama</strong> step.</li>
+      </ol>
+
+      <h2>2. First chat</h2>
+      <ol>
+        <li>Open the default channel or start a <strong>DM</strong> with <strong>Assistant</strong> or a specialist.</li>
+        <li>Press <strong>⌘K</strong> (or <strong>Ctrl+K</strong>) to open the <strong>command palette</strong> — discover slash commands without memorizing them.</li>
+        <li>Ask a real question, e.g. <code>@Assistant what can you help me with in this workspace?</code></li>
+        <li>Confirm providers under <strong>Settings → AI Providers</strong> — local vs cloud usage is visible per agent.</li>
+      </ol>
+
+      <h2>3. Five-minute first win (developers)</h2>
+      <ol>
+        <li>Confirm Ollama or a cloud provider is connected in Settings.</li>
+        <li>Create a repo expert: <code>/create-repo-agent /path/to/repo MyRepoExpert</code></li>
+        <li>Ask: <code>@MyRepoExpert summarize the architecture and top risk areas</code></li>
+        <li>Start structured work: <code>/collaborate @BackendEngineer @SecurityReviewer harden auth middleware</code></li>
+      </ol>
+      <p>You should see a shared plan, specialist ownership, and an execution path with <strong>human approval</strong> before file changes.</p>
+
+      <h2>4. Five-minute first win (lab &amp; research)</h2>
+      <ol>
+        <li>Enable the <strong>Life sciences</strong> pack: <strong>Domain packs</strong> (⌘⇧K) → Store → Install → toggle on.</li>
+        <li>Pull models via the wizard or <strong>Model library</strong> (⇧⌘M) — OpenBioLLM 8B + <code>qwen2.5:7b</code> for tool routing.</li>
+        <li>DM <strong>BiologyExpert</strong> or run sequence analysis via MCP tools.</li>
+        <li>For deeper lab workflows (scan QC, TIM import, custom viewers), organizations can sideload a <strong>customer pack</strong> — see <a href="features/domain-packs.html">Domain packs</a>.</li>
+      </ol>
+
+      <h2>What you get out of the box</h2>
+      <ul>
+        <li><strong>Moderator</strong> and <strong>Assistant</strong> — always on; command help and productivity flows.</li>
+        <li><strong>Domain packs</strong> — optional specialists for engineering, biology, CAD, AWS, incidents, and more.</li>
+        <li><strong>Custom experts</strong> — any topic via <code>/create-expert</code> (guitar coach, compliance, internal APIs…).</li>
+        <li><strong>Human approval</strong> — agents propose file edits and tool calls; you approve with diff preview.</li>
+        <li><strong>Slack Connect</strong> — optional; mirror channels when your team lives in Slack.</li>
+      </ul>
+
+      <h2>Hardware &amp; honesty</h2>
+      <p>The app is ~15 MB; local models are not. Plan for <strong>15–20 GB disk</strong> and <strong>16 GB+ RAM</strong> for comfortable software-development defaults. See <a href="features/hardware-requirements.html">Hardware requirements</a> and <a href="known-issues.html">Known issues</a> before you bet production work on open beta.</p>
+
+      <h2>Next steps</h2>
+      <ul>
+        <li><a href="features/index.html">Feature guides</a> — deep dives per capability</li>
+        <li><a href="index.html#use-cases">Use cases on the homepage</a></li>
+        <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/GETTING_STARTED.md">GETTING_STARTED.md</a> — source builds and provider setup</li>
+        <li><a href="https://github.com/camronwood/neural-junkie/issues">GitHub Issues</a> — bugs and feedback welcome</li>
+      </ul>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>
+        <a href="https://github.com/camronwood/neural-junkie">Neural Junkie</a>
+        — open source (MIT) · v1.2.0-beta.1 open beta
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

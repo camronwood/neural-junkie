@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Life sciences &amp; lab workflows — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie Life sciences pack: BiologyExpert, OpenBioLLM, sequence analysis, protein folding, and customer sideload packs for lab QC workflows." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="index.html">All features</a>
+        <a class="btn btn-primary" href="../download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · Life sciences
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Life sciences &amp; lab workflows</h1>
+      <p class="feature-deep-lead">
+        Analysts and researchers get the same multi-agent workspace as engineering teams — with <strong>BiologyExpert</strong>, domain-tuned models, and sequence tools running <strong>locally</strong> when you choose Ollama. Install the official <strong>Life sciences</strong> pack from the store; organizations with proprietary instruments or QC pipelines can add a <strong>customer sideload pack</strong> on top.
+      </p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Who this is for</h2>
+      <ul>
+        <li>Lab analysts reviewing assay data, sequences, and QC checkpoints</li>
+        <li>Research teams that want AI assistance without sending everything to a public chat UI</li>
+        <li>Organizations that need <strong>human approval</strong> before agents touch files or run tools</li>
+        <li>Teams already using Neural Junkie for software who also run biology workflows</li>
+      </ul>
+
+      <h2>Official Life sciences pack</h2>
+      <p>Install from <strong>Domain packs</strong> (⌘⇧K) → <strong>Store</strong> → Life sciences. Or pick <strong>Life sciences &amp; lab work</strong> in the first-run wizard.</p>
+      <table class="release-install-table hardware-tier-table" aria-label="Life sciences pack components">
+        <thead>
+          <tr><th scope="col">Component</th><th scope="col">What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>BiologyExpert</strong></td><td>Preset agent with bio MCP tools and OpenBio-tuned chat</td></tr>
+          <tr><td><strong>OpenBioLLM 8B</strong></td><td><code>koesn/llama3-openbiollm-8b:latest</code> — recommended Ollama pull</td></tr>
+          <tr><td><strong>Tool runner</strong></td><td><code>qwen2.5:7b</code> routes MCP tools when the chat model has no native tools API</td></tr>
+          <tr><td><strong>analyze_sequence</strong></td><td>DNA/RNA/protein checks, length, reverse complement</td></tr>
+          <tr><td><strong>fold_protein</strong></td><td>ESMFold via Hugging Face Inference → PDB artifacts under hub data</td></tr>
+          <tr><td><strong>Sequence review runbook</strong></td><td>Importable template for structured review workflows</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Typical workflow</h2>
+      <ol>
+        <li>Download Neural Junkie and complete the wizard with <strong>local models</strong> or cloud HF token for folding.</li>
+        <li>Enable Life sciences pack; pull OpenBioLLM + qwen via <strong>Model library</strong> (⇧⌘M).</li>
+        <li>DM <strong>BiologyExpert</strong> or @mention in a channel for sequence questions.</li>
+        <li>Use <code>/collaborate</code> for multi-step analysis write-ups with review and approval phases.</li>
+        <li>Configure HF token under <strong>Settings → AI Providers</strong> when using ESMFold or GGUF import.</li>
+      </ol>
+
+      <h2>Customer &amp; instrument packs</h2>
+      <p>
+        The public Life sciences pack covers general biology tooling. Organizations with proprietary formats (e.g. plate readers, multiplex QC, TIM imports, custom scan viewers) can build a <strong>customer pack</strong> with Pack Dev Studio and install via sideload zip — same hub, private specialists and viewers, no public store listing.
+        See <a href="domain-packs.html">Domain packs</a> and <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/PACKS_CUSTOM.md">PACKS_CUSTOM.md</a>.
+      </p>
+
+      <h2>Privacy &amp; data locality</h2>
+      <p>
+        With local Ollama, chat and tool routing stay on your workstation. ESMFold and Hugging Face downloads require network access and your HF token. Slack, Jira, and cloud LLM providers are optional. Read <a href="../security.html">Security &amp; privacy</a> before deploying on shared lab machines.
+      </p>
+
+      <h2>Hardware notes</h2>
+      <p>OpenBio 8B + qwen2.5:7b fit comfortably on <strong>16 GB RAM</strong> machines; see <a href="hardware-requirements.html">Hardware requirements</a>. Multi-agent chat shares one Ollama backend — you do not load six separate 14B models.</p>
+
+      <aside class="repo-links">
+        <h2>Repository docs</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/BIOLOGY_PACK.md">BIOLOGY_PACK.md</a></li>
+          <li><a href="../start-here.html">Start here</a> — lab first-win steps</li>
+          <li><a href="bundled-ollama.html">Install-and-go local AI</a></li>
+        </ul>
+      </aside>
+    </article>
+
+    <nav class="feature-nav" aria-labelledby="related-features">
+      <h2 id="related-features">Related guides</h2>
+      <div class="feature-nav-grid">
+        <a href="domain-packs.html">Domain packs <span>Store + sideload</span></a>
+        <a href="multi-agent-collaboration.html">Collaboration <span>Plans &amp; approval</span></a>
+        <a href="bundled-ollama.html">Local AI <span>Ollama bundled</span></a>
+        <a href="personal-learning.html">Personal learning <span>Scoped memory</span></a>
+      </div>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

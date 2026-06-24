@@ -354,6 +354,64 @@ section h2 {
   line-height: 1;
 }
 
+/* Homepage pillars & personas */
+.pillars-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.pillar-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.5rem;
+}
+
+.pillar-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.pillar-card p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+}
+
+.persona-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.persona-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.persona-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.persona-card p {
+  margin: 0;
+  flex: 1;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+}
+
+.persona-card--dev { border-left: 3px solid rgba(59, 130, 246, 0.7); }
+.persona-card--bio { border-left: 3px solid rgba(34, 197, 94, 0.7); }
+.persona-card--ops { border-left: 3px solid rgba(244, 63, 94, 0.7); }
+.persona-card--any { border-left: 3px solid rgba(168, 85, 247, 0.7); }
+
 /* Stack strip */
 .stack-strip {
   background: var(--bg-elevated);

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security &amp; privacy — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie is local-first: loopback hub, encrypted secrets, human approval for mutations, and optional strict auth for shared machines." />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="features/index.html">Feature guides</a>
+        <a class="btn btn-primary" href="download.html">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="index.html">Home</a> · Security &amp; privacy
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>Security &amp; privacy</h1>
+      <p class="feature-deep-lead">
+        Neural Junkie is a <strong>local-first desktop tool</strong>, not a multi-tenant cloud service. The hub runs on your machine (<code>127.0.0.1:18765</code> by default). Your models, chat history, repo indexes, and approvals stay under your control unless you explicitly connect cloud providers or Slack.
+      </p>
+    </header>
+
+    <article class="feature-prose">
+      <h2>Privacy by default</h2>
+      <ul>
+        <li><strong>Local inference</strong> — Ollama runs on your hardware; no per-token cloud bill unless you add Claude, OpenAI-compatible APIs, or similar.</li>
+        <li><strong>Loopback hub</strong> — the Go hub binds to localhost; random websites cannot call your agents without crossing browser same-origin protections and your OS firewall.</li>
+        <li><strong>Opt-in cloud</strong> — API keys are stored encrypted; you choose which agents use which provider.</li>
+        <li><strong>Personal learning</strong> — memory is user-confirmed; nothing is saved without your approval.</li>
+        <li><strong>No telemetry page</strong> — open source; inspect the code or run air-gapped with local models only.</li>
+      </ul>
+
+      <h2>Human control</h2>
+      <ul>
+        <li><strong>File change approval</strong> — agents propose edits; you approve or reject with diff preview.</li>
+        <li><strong>Tool approvals</strong> — gate risky MCP and shell tools where your stack requires it.</li>
+        <li><strong>Collaboration phases</strong> — planning → review → approve → execute; workspace confirmation before agents touch files.</li>
+      </ul>
+
+      <h2>Built-in protections</h2>
+      <table class="release-install-table hardware-tier-table" aria-label="Default threat mitigations">
+        <thead>
+          <tr><th scope="col">Concern</th><th scope="col">Mitigation</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Cross-site calls to the hub</td><td>Loopback bind, restricted CORS, sensitive routes need loopback or hub token</td></tr>
+          <tr><td>Path traversal</td><td><code>pathutil.WithinRoot</code>, resolved hub data paths</td></tr>
+          <tr><td>XSS in chat markdown</td><td>DOMPurify; unsafe <code>style</code> attributes disallowed</td></tr>
+          <tr><td>Secrets on disk</td><td>AES-GCM for config tokens and desktop credentials (machine-bound key)</td></tr>
+          <tr><td>API abuse</td><td>Per-IP/session rate limits (configurable)</td></tr>
+          <tr><td>Hub on LAN</td><td>Opt-in only — requires <code>NEURAL_JUNKIE_HUB_TOKEN</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>Shared or production machines</h2>
+      <p>For laptops used by multiple people or servers exposed beyond localhost:</p>
+      <ol>
+        <li>Set <code>NEURAL_JUNKIE_HUB_TOKEN</code> and <code>NEURAL_JUNKIE_CONFIG_KEY</code> to random secrets.</li>
+        <li>Enable <code>NEURAL_JUNKIE_AUTH_REQUIRED=1</code> so mutations require a session.</li>
+        <li>Do not use <code>NEURAL_JUNKIE_LISTEN_ALL</code> or wildcard CORS without TLS and proxy auth.</li>
+        <li>Review MCP tools (shell, kubectl, docker) — they run as <strong>your OS user</strong>.</li>
+      </ol>
+      <p>Desktop <strong>Settings → Security</strong> surfaces hub token, strict auth, and listen-all status.</p>
+
+      <h2>Lab &amp; regulated environments</h2>
+      <p>Life sciences and customer packs can add viewers and QC tools that read local scan data. Data stays on the workstation unless you configure cloud models or external integrations (Slack, Jira, AWS read-only MCP, Hugging Face for folding). Customer-specific packs are installed via sideload zip — not published to the public store.</p>
+
+      <aside class="repo-links">
+        <h2>Full technical detail</h2>
+        <ul>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SECURITY.md">SECURITY.md</a></li>
+          <li><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/SECURITY_HARDENING.md">SECURITY_HARDENING.md</a></li>
+        </ul>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><a href="index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>
