@@ -151,8 +151,14 @@ a:hover {
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: flex-end;
+  gap: 0.45rem;
   flex-wrap: wrap;
+}
+
+.site-header .nav-actions .btn {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
 }
 
 .btn {

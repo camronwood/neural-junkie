@@ -18,6 +18,11 @@ NAV_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
     {"id": "product", "label": "Product", "path": "index.html#pillars", "landing_path": "#pillars"},
     {"id": "guides", "label": "Guides", "path": "features/index.html"},
+    {"id": "articles", "label": "Articles", "path": "articles/index.html"},
+    {"id": "benchmarks", "label": "Benchmarks", "path": "benchmarks/index.html"},
+    {"id": "gallery", "label": "Gallery", "path": "gallery/index.html"},
+    {"id": "security", "label": "Security", "path": "security.html"},
+    {"id": "releases", "label": "Release notes", "path": "release-notes.html"},
     {"id": "known-issues", "label": "Known issues", "path": "known-issues.html"},
     {"id": "download", "label": "Download", "path": "download.html"},
     {
@@ -153,14 +158,24 @@ def detect_active_nav(html_path: Path) -> str | None:
     rel = html_path.relative_to(DOCS).as_posix()
     if rel == "start-here.html":
         return "start-here"
+    if rel == "security.html":
+        return "security"
     if rel == "known-issues.html":
         return "known-issues"
     if rel == "download.html":
         return "download"
+    if rel == "release-notes.html":
+        return "releases"
     if rel == "index.html":
         return "product"
     if rel.startswith("features/"):
         return "guides"
+    if rel.startswith("articles/"):
+        return "articles"
+    if rel == "benchmarks/index.html":
+        return "benchmarks"
+    if rel == "gallery/index.html":
+        return "gallery"
     return None
 
 

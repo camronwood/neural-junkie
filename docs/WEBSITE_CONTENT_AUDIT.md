@@ -11,11 +11,16 @@
 | Start here | `start-here.html` | Primary onboarding (was GitHub DOWNLOAD.md) |
 | Product | `#pillars` | Three pillars + use cases |
 | Guides | `features/index.html` | Deep capability pages |
+| Articles | `articles/index.html` | Long-form architecture writing |
+| Benchmarks | `benchmarks/index.html` | Live scenario pass rates |
+| Gallery | `gallery/index.html` | Ads, screenshots, Slack art |
+| Security | `security.html` | Privacy, approvals, threat model |
+| Release notes | `release-notes.html` | Version history |
 | Known issues | `known-issues.html` | Trust / beta honesty |
 | Download | `download.html` | Conversion |
 | Star on GitHub | repo | Community |
 
-Footer doc-strip: Start here, Security, guides, articles, benchmarks, gallery, releases, known issues, architecture.
+Footer doc-strip: same sections plus Architecture (repo doc).
 
 ---
 
