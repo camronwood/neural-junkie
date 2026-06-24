@@ -20,7 +20,8 @@ const selectChangeMock = vi.fn();
 const approveChangeMock = vi.fn().mockResolvedValue(undefined);
 const rejectChangeMock = vi.fn().mockResolvedValue(undefined);
 const fetchPendingChangesMock = vi.fn();
-const refreshChangesMock = vi.fn();
+const refreshChangesMock = vi.fn().mockResolvedValue(undefined);
+const fetchPendingGitChangesMock = vi.fn().mockResolvedValue(undefined);
 
 let pendingChanges: FileChange[] = [];
 let loading = false;
@@ -40,15 +41,30 @@ vi.mock('../stores/fileChangeStore', () => ({
   }),
 }));
 
+vi.mock('../stores/gitChangeStore', () => ({
+  useGitChangeStore: () => ({
+    pendingGitChanges: [],
+    fetchPendingGitChanges: fetchPendingGitChangesMock,
+    approveGitChange: vi.fn().mockResolvedValue(undefined),
+    rejectGitChange: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 afterEach(() => {
   cleanup();
   pendingChanges = [];
   loading = false;
   vi.clearAllMocks();
+  fetchPendingChangesMock.mockResolvedValue(undefined);
+  refreshChangesMock.mockResolvedValue(undefined);
+  fetchPendingGitChangesMock.mockResolvedValue(undefined);
 });
 
 describe('PendingChangesPanel preview close cascade', () => {
   beforeEach(() => {
+    fetchPendingChangesMock.mockResolvedValue(undefined);
+    refreshChangesMock.mockResolvedValue(undefined);
+    fetchPendingGitChangesMock.mockResolvedValue(undefined);
     vi.stubGlobal(
       'setInterval',
       vi.fn(() => 0 as unknown as ReturnType<typeof setInterval>),
