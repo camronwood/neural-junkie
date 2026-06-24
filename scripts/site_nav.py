@@ -11,6 +11,8 @@ GITHUB_REPO = "https://github.com/camronwood/neural-junkie"
 
 CHROME_START = "<!-- NJ-SITE-CHROME:START -->"
 CHROME_END = "<!-- NJ-SITE-CHROME:END -->"
+FOOTER_NAV_START = "<!-- NJ-SITE-FOOTER-NAV:START -->"
+FOOTER_NAV_END = "<!-- NJ-SITE-FOOTER-NAV:END -->"
 
 NAV_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
@@ -23,6 +25,22 @@ NAV_ITEMS: tuple[dict, ...] = (
         "label": "Star on GitHub",
         "href": GITHUB_REPO,
         "primary": True,
+    },
+)
+
+FOOTER_EXPLORE_ITEMS: tuple[dict, ...] = (
+    {"id": "start-here", "label": "Start here", "path": "start-here.html"},
+    {"id": "security", "label": "Security", "path": "security.html"},
+    {"id": "guides", "label": "Guides", "path": "features/index.html"},
+    {"id": "articles", "label": "Articles", "path": "articles/index.html"},
+    {"id": "benchmarks", "label": "Benchmarks", "path": "benchmarks/index.html"},
+    {"id": "gallery", "label": "Gallery", "path": "gallery/index.html"},
+    {"id": "releases", "label": "Release notes", "path": "release-notes.html"},
+    {"id": "known-issues", "label": "Known issues", "path": "known-issues.html"},
+    {
+        "id": "architecture",
+        "label": "Architecture",
+        "href": f"{GITHUB_REPO}/blob/main/docs/ARCHITECTURE.md",
     },
 )
 
@@ -146,6 +164,73 @@ def detect_active_nav(html_path: Path) -> str | None:
     return None
 
 
+def detect_active_footer(html_path: Path) -> str | None:
+    rel = html_path.relative_to(DOCS).as_posix()
+    if rel == "start-here.html":
+        return "start-here"
+    if rel == "security.html":
+        return "security"
+    if rel == "known-issues.html":
+        return "known-issues"
+    if rel.startswith("features/"):
+        return "guides"
+    if rel.startswith("articles/"):
+        return "articles"
+    if rel == "benchmarks/index.html":
+        return "benchmarks"
+    if rel == "gallery/index.html":
+        return "gallery"
+    if rel == "release-notes.html":
+        return "releases"
+    return None
+
+
+def render_footer_explore(
+    *,
+    depth: int,
+    active: str | None = None,
+) -> str:
+    prefix = asset_prefix(depth)
+    links: list[str] = []
+    for item in FOOTER_EXPLORE_ITEMS:
+        href = _href(item, prefix=prefix, is_landing=False)
+        is_active = active == item["id"]
+        classes = ["btn", "btn-ghost", "btn-sm"]
+        attrs = f'class="{" ".join(classes)}" href="{href}"'
+        if is_active:
+            attrs += ' aria-current="page"'
+        links.append(f"        <a {attrs}>{item['label']}</a>")
+
+    nav_inner = "\n".join(links)
+    return f"""{FOOTER_NAV_START}
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+{nav_inner}
+    </nav>
+{FOOTER_NAV_END}"""
+
+
+_FEATURE_NAV_RE = re.compile(
+    r"\n    <nav class=\"feature-nav\".*?</nav>",
+    re.DOTALL,
+)
+
+_INLINE_DOC_STRIP_RE = re.compile(
+    r"\n        <p class=\"doc-strip\">.*?</p>",
+    re.DOTALL,
+)
+
+_MARKED_FOOTER_NAV_RE = re.compile(
+    re.escape(FOOTER_NAV_START) + r".*?" + re.escape(FOOTER_NAV_END),
+    re.DOTALL,
+)
+
+_FOOTER_WRAP_RE = re.compile(
+    r"(<footer class=\"site-footer\">\s*<div class=\"wrap\">)",
+    re.DOTALL,
+)
+
+
 _LEGACY_CHROME_RE = re.compile(
     r"(?:  <div class=\"dev-banner\".*?</div>\s*)?  <header class=\"site-header\">.*?</header>",
     re.DOTALL,
@@ -161,10 +246,26 @@ def apply_site_chrome(html_path: Path, text: str, *, version: str | None = None)
     active = detect_active_nav(html_path)
     chrome = render_site_chrome(html_path, version=version, active=active)
     if CHROME_START in text and CHROME_END in text:
-        return _MARKED_CHROME_RE.sub(chrome, text, count=1)
-    if _LEGACY_CHROME_RE.search(text):
-        return _LEGACY_CHROME_RE.sub(chrome, text, count=1)
-    raise ValueError(f"no site chrome block found in {html_path}")
+        text = _MARKED_CHROME_RE.sub(chrome, text, count=1)
+    elif _LEGACY_CHROME_RE.search(text):
+        text = _LEGACY_CHROME_RE.sub(chrome, text, count=1)
+    else:
+        raise ValueError(f"no site chrome block found in {html_path}")
+
+    text = _FEATURE_NAV_RE.sub("", text, count=0)
+    text = _INLINE_DOC_STRIP_RE.sub("", text, count=1)
+
+    depth = page_depth(html_path)
+    footer_active = detect_active_footer(html_path)
+    footer_nav = render_footer_explore(depth=depth, active=footer_active)
+    if FOOTER_NAV_START in text and FOOTER_NAV_END in text:
+        text = _MARKED_FOOTER_NAV_RE.sub(footer_nav, text, count=1)
+    elif _FOOTER_WRAP_RE.search(text):
+        text = _FOOTER_WRAP_RE.sub(rf"\1\n{footer_nav}", text, count=1)
+    else:
+        raise ValueError(f"no site footer block found in {html_path}")
+
+    return text
 
 
 def iter_site_html() -> list[Path]:

@@ -1316,6 +1316,11 @@ section h2 {
   color: var(--accent);
 }
 
+.site-footer .footer-explore {
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
 /* Lists */
 .feature-list {
   list-style: none;

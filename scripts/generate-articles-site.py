@@ -18,7 +18,7 @@ COVERS_DIR = ROOT / "docs" / "media" / "articles" / "covers"
 MANIFEST = OUT_DIR / "manifest.json"
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from site_nav import render_site_chrome  # noqa: E402
+from site_nav import render_footer_explore, render_site_chrome  # noqa: E402
 
 # Explicit order + optional overrides (cover when not in source metadata).
 ARTICLE_ORDER = [
@@ -199,6 +199,7 @@ def article_html_page(meta: dict, body_html: str) -> str:
     </figure>"""
 
     site_chrome = render_site_chrome(OUT_DIR / f"{meta['slug']}.html")
+    footer_nav = render_footer_explore(depth=2, active="articles")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -240,6 +241,7 @@ def article_html_page(meta: dict, body_html: str) -> str:
 
   <footer class="site-footer">
     <div class="wrap">
+{footer_nav}
       <p><a href="../index.html">Neural Junkie</a> — articles · <a href="{slug}.html">{title}</a></p>
     </div>
   </footer>
