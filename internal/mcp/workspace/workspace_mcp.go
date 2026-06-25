@@ -91,10 +91,11 @@ func (w *tools) register(mcpServer *server.MCPServer) {
 
 	mcpServer.AddTool(mcp.CreateTool(
 		"run_command",
-		"Run an allowlisted verify command in the workspace (npm run build, npm test, go test, etc.). "+
-			"Use npm run build to verify boot fixes — npm install is NOT allowlisted.",
+		"Run an allowlisted command in the workspace (npm run build, npm test, go test, make start-all, etc.). "+
+			"During implementation sessions you may also run npm install, npm ci, or npx for missing deps and verification. "+
+			"Output is posted to the channel and mirrored in the desktop terminal panel.",
 		mcp.CreateMultiStringInputSchema(map[string]string{
-			"command": "Shell command (allowlisted: npm run build/test/lint, go test, cargo test, etc.)",
+			"command": "Shell command (verify: npm run build/test/lint, go test; impl session: npm install/ci, npx)",
 			"cwd":     "Optional relative subdirectory",
 		}),
 		nil,
@@ -168,6 +169,9 @@ func (w *tools) handleReadFile(ctx context.Context, request mcpgo.CallToolReques
 			startLine = len(lines)
 		}
 		content = strings.Join(lines[startLine-1:endLine], "\n")
+	}
+	if p := shared.CommandPolicyFromContext(ctx); p != nil {
+		p.RecordReadPath(rel)
 	}
 	return mcp.HandleToolSuccess(fmt.Sprintf("### %s\n```\n%s\n```", rel, content)), nil
 }
@@ -394,7 +398,12 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 	if cmdStr == "" {
 		return mcp.HandleToolError(fmt.Errorf("command is required"), "run_command"), nil
 	}
-	if !CommandAllowed(cmdStr) {
+	if p := shared.CommandPolicyFromContext(ctx); p != nil {
+		if err := p.ShouldBlockRunCommand(cmdStr); err != nil {
+			return mcp.HandleToolError(err, "run_command"), nil
+		}
+	}
+	if !CommandAllowedForContext(ctx, cmdStr) {
 		return mcp.HandleToolError(fmt.Errorf("command not allowlisted: %s", cmdStr), "run_command"), nil
 	}
 	relCwd := strings.TrimSpace(request.GetString("cwd", ""))
@@ -424,7 +433,11 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		if err != nil && exitCode == 0 {
 			exitCode = 1
 		}
-		return mcp.HandleToolSuccess(fmt.Sprintf("exit_code=%d\n%s", exitCode, text)), nil
+		summary := fmt.Sprintf("exit_code=%d\n%s", exitCode, text)
+		if p := shared.CommandPolicyFromContext(ctx); p != nil {
+			p.RecordCommandRun(cmdStr, exitCode, summary)
+		}
+		return mcp.HandleToolSuccess(summary), nil
 	}
 	cwd := root
 	if sub := strings.TrimSpace(request.GetString("cwd", "")); sub != "" && sub != "." {
@@ -451,6 +464,9 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		}
 	}
 	summary := fmt.Sprintf("exit_code=%d\n%s", exitCode, text)
+	if p := shared.CommandPolicyFromContext(ctx); p != nil {
+		p.RecordCommandRun(cmdStr, exitCode, summary)
+	}
 	if err != nil {
 		return mcp.HandleToolSuccess(summary), nil
 	}

@@ -46,11 +46,15 @@
     </nav>
     <header class="feature-deep-hero">
       <h1>Release notes</h1>
-      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.1">v1.2.0-beta.1</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
+      <p class="feature-deep-lead">Notable changes by version. <strong>Latest download:</strong> <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3">v1.2.0-beta.3</a> — macOS, Windows, and Linux. Sections <strong>0.1.2–0.1.4</strong> are development milestones bundled into the first public beta. Canonical log: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md"><code>docs/CHANGELOG.md</code></a>. <a href="gallery/index.html">Ads &amp; screenshots gallery</a>.</p>
     </header>
 
     <nav class="release-jump" aria-label="Jump to version">
       <span class="release-jump-label">On this page</span>
+      <a href="#v1-2-0-beta-3">1.2.0-beta.3</a>
+      <span aria-hidden="true">·</span>
+      <a href="#v1-2-0-beta-2">1.2.0-beta.2</a>
+      <span aria-hidden="true">·</span>
       <a href="#v1-2-0-beta-1">1.2.0-beta.1</a>
       <span aria-hidden="true">·</span>
       <a href="#v1-0-0-beta-35">1.0.0-beta.35</a>
@@ -154,6 +158,44 @@
       <h3>Known limitation</h3>
       <ul>
         <li><strong>macOS ad-hoc signing</strong> — <code>macos-adhoc-sign</code> until v1.0.1 notarization.</li>
+      </ul>
+
+      <h2 id="v1-2-0-beta-3" class="release-version-heading">1.2.0-beta.3 <span class="release-date">— 2026-06-24</span></h2>
+
+      <p><strong>Site navigation polish and CI reliability.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3">GitHub Releases</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Unified site nav</strong> — canonical header and footer explore strip across all marketing pages via <code>scripts/site_nav.py</code>.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>CI release gate</strong> — Node 24 in workflows; PendingChangesPanel tests use mock git change store.</li>
+      </ul>
+
+      <h2 id="v1-2-0-beta-2" class="release-version-heading">1.2.0-beta.2 <span class="release-date">— 2026-06-24</span></h2>
+
+      <p><strong>Marketing refresh, pack expansion, IDE v4.1.</strong> Install from <a href="download.html">Downloads</a> or <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.2">GitHub Releases</a>. See <a href="start-here.html">Start here</a>, <a href="security.html">Security</a>, and <a href="features/life-sciences.html">Life sciences guide</a>.</p>
+
+      <h3>Added</h3>
+      <ul>
+        <li><strong>Marketing site refresh</strong> — hive-mind narrative, start-here onboarding, security page, life-sciences feature guide.</li>
+        <li><strong>AWS, incident-management, and web-browser domain packs</strong> — seven official packs in the store.</li>
+        <li><strong>Pack capability sidecars</strong> — per-pack hub routes when packs are enabled.</li>
+        <li><strong>IDE v4.1</strong> — remote LSP relay and remote collab worktrees. See <a href="features/ide-v4.html">IDE v4 guide</a>.</li>
+      </ul>
+
+      <h3>Changed</h3>
+      <ul>
+        <li><strong>Moderator merged into Assistant</strong> — chat guidance and safety-net on Assistant.</li>
+        <li><strong>Hub auth hardening</strong> — mutations require real sessions or API keys.</li>
+      </ul>
+
+      <h3>Fixed</h3>
+      <ul>
+        <li><strong>Cursor parity infrastructure</strong> — release-prep reliability, collab turn routing, implement scenario regressions.</li>
+        <li><strong>Domain pack catalog</strong> — stale hub catalog no longer hides new packs.</li>
       </ul>
 
       <h2 id="v1-2-0-beta-1" class="release-version-heading">1.2.0-beta.1 <span class="release-date">— 2026-06-17</span></h2>

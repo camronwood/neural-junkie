@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -39,9 +40,8 @@ func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}
 	a := &Agent{
 		Info: protocol.AgentInfo{
-			Name:                    "Frontend",
-			Type:                    protocol.AgentTypeFrontend,
-			SupportsImageGeneration: true,
+			Name: "Frontend",
+			Type: protocol.AgentTypeFrontend,
 		},
 		Hub: hub,
 	}
@@ -71,14 +71,114 @@ func TestExecuteGenerateImageTool(t *testing.T) {
 	}
 }
 
-func TestImageGenerationToolsDisabledWithoutFlag(t *testing.T) {
+func TestImageGenerationToolsEnabledForBackend(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}
 	a := &Agent{
 		Info: protocol.AgentInfo{Name: "Backend", Type: protocol.AgentTypeBackend},
 		Hub:  hub,
 	}
+	tools := a.agentToolDefinitions(nil)
+	if len(tools) != 1 || tools[0].Name != generateImageToolName {
+		t.Fatalf("backend agent should get generate_image tool, got %+v", tools)
+	}
+}
+
+func TestTryHubImageGenerationShortcut(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "Assistant", Type: protocol.AgentTypeAssistant},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{Channel: "general", Content: "Can you generate me an image of a ship?"}
+	resp, ok := a.tryHubImageGenerationShortcut(context.Background(), msg)
+	if !ok {
+		t.Fatal("expected shortcut to run")
+	}
+	if !hub.posted {
+		t.Fatal("expected image post")
+	}
+	if !strings.Contains(resp, "posted") {
+		t.Fatalf("unexpected response: %q", resp)
+	}
+}
+
+func TestImageGenerationDisabledDuringImplementationSession(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{
+		Metadata: map[string]interface{}{
+			protocol.IdeMetaImplementationSession: true,
+			MetadataConversationMode:              ConversationModeCode,
+			protocol.IdeMetaEditorMode:            "agent",
+		},
+	}
+	if a.imageGenerationToolsEnabledForMessage(msg) {
+		t.Fatal("image gen should be disabled during implementation session")
+	}
+	tools := a.agentToolDefinitions(msg)
+	for _, td := range tools {
+		if td.Name == generateImageToolName {
+			t.Fatal("generate_image should not be in tool list during implementation session")
+		}
+	}
+}
+
+func TestTryHubImageGenerationShortcutSkippedDuringImplementationSession(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "SoftwareArchitect", Type: protocol.AgentTypeArchitecture},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{
+		Channel: "general",
+		Content: "Can you generate me an image of a ship?",
+		Metadata: map[string]interface{}{
+			protocol.IdeMetaImplementationSession: true,
+			MetadataConversationMode:              ConversationModeCode,
+		},
+	}
+	if _, ok := a.tryHubImageGenerationShortcut(context.Background(), msg); ok {
+		t.Fatal("image shortcut should not run during implementation session")
+	}
+	if hub.posted {
+		t.Fatal("image should not be posted during implementation session")
+	}
+}
+
+func TestExecuteGenerateImageToolBlockedDuringCodeMode(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "Frontend", Type: protocol.AgentTypeFrontend},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{
+		Channel:  "general",
+		Metadata: map[string]interface{}{MetadataConversationMode: ConversationModeCode},
+	}
+	input, _ := json.Marshal(map[string]string{"prompt": "logo"})
+	if _, err := a.executeGenerateImageTool(context.Background(), msg, input); err == nil {
+		t.Fatal("expected error when generate_image called during code mode")
+	}
+	if hub.posted {
+		t.Fatal("image should not be posted")
+	}
+}
+
+func TestImageGenerationToolsDisabledForCLI(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{
+			Name:                    "Cursor",
+			Type:                    protocol.AgentTypeCLI,
+			SupportsImageGeneration: false,
+		},
+		Hub: hub,
+	}
 	if len(a.agentToolDefinitions(nil)) != 0 {
-		t.Fatalf("backend agent should not get image tools")
+		t.Fatalf("CLI agent should not get hub image tools")
 	}
 }
 

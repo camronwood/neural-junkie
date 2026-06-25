@@ -1,0 +1,670 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-25T04:49:15.067605+00:00",
+  "hardware": {
+    "total_memory_gb": 24,
+    "total_memory_bytes": 25769803776,
+    "tier": "recommended"
+  },
+  "hardware_note": "24 GB RAM (recommended tier)",
+  "judge_provider": "gemini/qwen2.5-coder:14b",
+  "scenario_catalog": [
+    {
+      "name": "go-handler",
+      "kind": "implement",
+      "description": "IDE Agent implementation session on minimal Go fixture.",
+      "tags": [
+        "implement",
+        "backend",
+        "go"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "tags": [
+        "implement",
+        "frontend"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "ask-mode-no-write",
+      "kind": "implement",
+      "description": "IDE Ask mode must not run implementation session or propose edits.",
+      "tags": [
+        "implement",
+        "ask"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "go-test-failure-repair",
+      "kind": "implement",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "verify"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "typescript-compile-error-fix",
+      "kind": "implement",
+      "description": "Fix TypeScript compile error in src/App.tsx.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "typescript"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "dm-backend-workspace",
+      "kind": "chat",
+      "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+      "tags": [
+        "dm",
+        "backend",
+        "workspace",
+        "regression",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-echo-followup",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "echo",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    }
+  ],
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write",
+    "go-test-failure-repair",
+    "typescript-compile-error-fix"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "deepseek-coder-6.7b",
+      "model_tag": "deepseek-coder:6.7b",
+      "title": "DeepSeek Coder 6.7B",
+      "size_hint_gb": 3.8,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 107.90982883400284,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 115.90620075003244,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 165.5867377499817,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.1553655420430005,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.119093208923005,
+          "detail": "=== PASS: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 68.49970379110891,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.75501758395694,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.004600999993272126,
+      "total_duration_s": 588.9378762920387,
+      "passed_count": 6,
+      "total_count": 7,
+      "pass_rate": 0.8571
+    },
+    {
+      "model_id": "codegemma-7b",
+      "model_tag": "codegemma:7b",
+      "title": "CodeGemma 7B",
+      "size_hint_gb": 5,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 37.82143474998884,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 53.740825874963775,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 169.61556779197417,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.149577499949373,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.119262582971714,
+          "detail": "=== PASS: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 0.08741012506652623,
+          "detail": "=== FAIL: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 234.41470574995037,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.005935541004873812,
+      "total_duration_s": 505.95415875001345,
+      "passed_count": 5,
+      "total_count": 7,
+      "pass_rate": 0.7143
+    },
+    {
+      "model_id": "qwen3.5-9b",
+      "model_tag": "qwen3.5:9b",
+      "title": "Qwen 3.5 9B",
+      "size_hint_gb": 6.6,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 48.977872416959144,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 48.229910416994244,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables under src/theme.css.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 101.42463770799804,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.150856708991341,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.126746625057422,
+          "detail": "=== PASS: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 56.429161667008884,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 207.3260855410481,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.0057565419701859355,
+      "total_duration_s": 472.67280158307403,
+      "passed_count": 6,
+      "total_count": 7,
+      "pass_rate": 0.8571
+    },
+    {
+      "model_id": "gemma3-12b",
+      "model_tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 42.11199258302804,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 49.70041033392772,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 87.38959233299829,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.153999082976952,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.112475291010924,
+          "detail": "=== PASS: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 99.6795656660106,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 237.48751987493597,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.006350790965370834,
+      "total_duration_s": 526.6435187909519,
+      "passed_count": 6,
+      "total_count": 7,
+      "pass_rate": 0.8571
+    },
+    {
+      "model_id": "qwen2.5-coder-14b",
+      "model_tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 55.86960741598159,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 55.72943937499076,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 67.32722037506755,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.157535500009544,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.127555083017796,
+          "detail": "=== PASS: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 104.69808712496888,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.77867300005164,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.006252584047615528,
+      "total_duration_s": 414.6947145409649,
+      "passed_count": 6,
+      "total_count": 7,
+      "pass_rate": 0.8571
+    },
+    {
+      "model_id": "codestral-22b",
+      "model_tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 39.9815434999764,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 50.12276483292226,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables under src/theme.css.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 304.1225815420039,
+          "detail": "=== FAIL: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.006438291980884969,
+      "total_duration_s": 0.0,
+      "passed_count": 2,
+      "total_count": 3,
+      "pass_rate": 0.6667
+    },
+    {
+      "model_id": "devstral-24b",
+      "model_tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 43.8812632500194,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 48.088076541083865,
+          "detail": "=== PASS: theme-toggle ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables under src/theme.css.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 97.38514949998353,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.141344957984984,
+          "detail": "=== PASS: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 5.116206333041191,
+          "detail": "=== PASS: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 151.05206124996766,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.77330437500495,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.00904245802666992,
+      "total_duration_s": 471.44307700009085,
+      "passed_count": 6,
+      "total_count": 7,
+      "pass_rate": 0.8571
+    }
+  ]
+}

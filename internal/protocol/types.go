@@ -89,6 +89,22 @@ const (
 	ThinkingStatusAborted   ThinkingStatus = "aborted"
 )
 
+// ThinkingActivity labels what the agent is doing while thinking_status is started.
+type ThinkingActivity string
+
+const (
+	ThinkingActivityGeneratingImage ThinkingActivity = "generating_image"
+	ThinkingActivityUsingTool       ThinkingActivity = "using_tool"
+	ThinkingActivityReasoning       ThinkingActivity = "reasoning"
+	ThinkingActivityWriting         ThinkingActivity = "writing"
+	ThinkingActivityVerifying       ThinkingActivity = "verifying"
+	ThinkingActivityProposingEdit   ThinkingActivity = "proposing_edit"
+	ThinkingActivityImplementation  ThinkingActivity = "implementation"
+)
+
+// MetadataThinkingActivityDetail is a short human-readable line for the typing indicator.
+const MetadataThinkingActivityDetail = "thinking_activity_detail"
+
 // Channel control metadata keys (agent_status broadcasts).
 const (
 	MetadataChannelHold           = "channel_hold"

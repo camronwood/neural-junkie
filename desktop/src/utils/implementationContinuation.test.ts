@@ -3,12 +3,14 @@ import { buildHumanOutboundMetadata } from './outboundChatMetadata';
 import {
   hasBareWorkspaceDirectiveOnly,
   hasContentDeliverySignals,
+  hasErrorLogFollowUpSignals,
   hasFileExportSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
   hasImplementationStatusCheckSignals,
   hasPriorReferenceExportSignals,
   hasCombinedContentDeliveryExport,
+  channelHasImplementationThread,
 } from './implementationContinuation';
 
 describe('implementationContinuation', () => {
@@ -82,6 +84,39 @@ describe('implementationContinuation', () => {
         'Write a LinkedIn article about the app and save the file to the workspace root'
       )
     ).toBe(true);
+  });
+
+  it('detects error-log follow-up signals', () => {
+    expect(
+      hasErrorLogFollowUpSignals(
+        'I am still getting this: VITE v5.4.21 ready\nWarn Waiting for your frontend dev server'
+      )
+    ).toBe(true);
+    expect(
+      hasErrorLogFollowUpSignals(
+        'also got this:\nAre they installed?\nat file:///Users/me/proj/node_modules/vite/dist/node/chunks/dep.js:50669:15'
+      )
+    ).toBe(true);
+    expect(hasErrorLogFollowUpSignals('thoughts on lunch?')).toBe(false);
+  });
+
+  it('detects implementation thread history in channel messages', () => {
+    expect(
+      channelHasImplementationThread([
+        { type: 'question', metadata: { implementation_session: true } },
+      ])
+    ).toBe(true);
+    expect(
+      channelHasImplementationThread([
+        {
+          type: 'chat',
+          metadata: {
+            implementation_session_outcome: { verify_failed: true },
+          },
+        },
+      ])
+    ).toBe(true);
+    expect(channelHasImplementationThread([{ type: 'chat', metadata: {} }])).toBe(false);
   });
 });
 

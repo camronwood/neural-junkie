@@ -27,6 +27,7 @@ import { useChatStore } from '../stores/chatStore';
 import { USER_IMAGES_METADATA_KEY } from '../constants/promptMetadata';
 import { slackThreadOpenId } from '../utils/slackThread';
 import { generatedImageSrc } from '../utils/chatImageSrc';
+import { formatToolStepLabel } from '../utils/thinkingActivityLabel';
 
 function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
   const raw = metadata?.[USER_IMAGES_METADATA_KEY];
@@ -103,11 +104,23 @@ function MessageReasoningBlock({
   );
 }
 
-function MessageToolStepsBlock({ steps }: { steps: ReturnType<typeof getToolSteps> }) {
+function MessageToolStepsBlock({ steps, isStreaming }: { steps: ReturnType<typeof getToolSteps>; isStreaming?: boolean }) {
   if (!steps.length) return null;
+  const last = steps[steps.length - 1];
+  const imageGenActive =
+    !!isStreaming && last?.name === 'generate_image' && last?.kind === 'start';
   return (
-    <details className="mb-2 rounded border border-slack-border/70 bg-slack-bgHover/40 text-xs text-slack-textMuted">
-      <summary className="cursor-pointer px-3 py-2">Agent activity ({steps.length})</summary>
+    <details
+      open={isStreaming || imageGenActive || undefined}
+      className="mb-2 rounded border border-slack-border/70 bg-slack-bgHover/40 text-xs text-slack-textMuted"
+    >
+      <summary className="cursor-pointer px-3 py-2">
+        {imageGenActive
+          ? 'Generating image…'
+          : isStreaming && last
+            ? `Agent activity — ${formatToolStepLabel(last)}`
+            : `Agent activity (${steps.length})`}
+      </summary>
       <ul className="px-3 pb-2 space-y-1">
         {steps.map((step, i) => (
           <li key={i}>
@@ -120,8 +133,16 @@ function MessageToolStepsBlock({ steps }: { steps: ReturnType<typeof getToolStep
   );
 }
 
-function MessageGeneratedImage({ metadata }: { metadata?: Record<string, unknown> }) {
-  const src = generatedImageSrc(metadata);
+function MessageGeneratedImage({
+  metadata,
+  messageId,
+  channelName,
+}: {
+  metadata?: Record<string, unknown>;
+  messageId?: string;
+  channelName?: string;
+}) {
+  const src = generatedImageSrc(metadata, { messageId, channel: channelName });
   if (!src) {
     const g = metadata?.generated_image as Record<string, unknown> | undefined;
     if (g?.data_redacted === true) {
@@ -423,9 +444,13 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
         ) : (
           <>
             <MessageUserImages metadata={message.metadata as Record<string, unknown> | undefined} />
-            <MessageGeneratedImage metadata={message.metadata as Record<string, unknown> | undefined} />
+            <MessageGeneratedImage
+              metadata={message.metadata as Record<string, unknown> | undefined}
+              messageId={message.id}
+              channelName={channelName ?? message.channel}
+            />
             <MessageReasoningBlock reasoningText={reasoningText} isStreaming={isStreaming} />
-            <MessageToolStepsBlock steps={toolSteps} />
+            <MessageToolStepsBlock steps={toolSteps} isStreaming={isStreaming} />
             <MessageContent content={slackMessageBody(message)} isStreaming={isStreaming} />
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />

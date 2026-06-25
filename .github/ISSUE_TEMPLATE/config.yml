@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Known issues (beta)
+    url: https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md
+    about: Living list of known limitations before filing a duplicate bug
+  - name: Documentation
+    url: https://github.com/camronwood/neural-junkie/blob/main/DOCS.md
+    about: Full documentation index

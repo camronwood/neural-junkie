@@ -112,7 +112,7 @@ def main() -> int:
             lines.append("")
             continue
         elif run > 1:
-            time.sleep(30.0)
+            time.sleep(45.0)
         code, output, passed, failed = run_sweep(args.hub, script)
         pass_count = len(passed)
         lines.append(f"exit_code={code} pass={pass_count} fail={len(failed)}")

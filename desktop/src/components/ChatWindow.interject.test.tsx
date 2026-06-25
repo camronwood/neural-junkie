@@ -133,6 +133,7 @@ vi.mock('../stores/packsStore', () => {
     fetchPackCatalog: vi.fn(),
     installPack: vi.fn(),
     uninstallPack: vi.fn(),
+    getToolbarActions: () => [],
   };
   return {
     usePacksStore: Object.assign(

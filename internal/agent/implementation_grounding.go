@@ -189,7 +189,9 @@ func attachIdeSessionMetadataToProposal(msg *protocol.Message, sourceMsg *protoc
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
 	}
-	if t := sourceMsg.EditorAgentTrust(); t != "" {
+	if t := resolveImplementationTrustMode(sourceMsg); t != "" {
+		msg.Metadata["editor_agent_trust"] = t
+	} else if t := sourceMsg.EditorAgentTrust(); t != "" {
 		msg.Metadata["editor_agent_trust"] = t
 	}
 	if m := sourceMsg.IdeEditorMode(); m != "" {

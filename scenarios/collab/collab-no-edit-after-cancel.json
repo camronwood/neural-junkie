@@ -3,8 +3,8 @@
   "description": "After /cancel-plan, no file_change proposals may appear on the cancelled collab channel (26e9081e draft.md regression).",
   "tags": ["collab", "conversation", "regression"],
   "channel": "collab-scenarios",
-  "agents": "@Assistant",
-  "required_agents": ["Assistant"],
+  "agents": "@Assistant @BackendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,

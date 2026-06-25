@@ -6,7 +6,39 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
-_(Nothing yet.)_
+### Added
+- **NJ Fix Loop** — platform policy on Agent Runtime v2: command telemetry, circuit breaker on repeated failures, boot-fix grounding gates, deterministic playbooks (e.g. missing `start-all` Makefile target), and mandatory `implementation_session_outcome` summaries. See [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md).
+- **Ollama image generation** — hub-side generated image store, lookup API, and agent tools for local image gen via Ollama.
+- **Editor agent trust** — expanded trust modes and boot-fix routing in the IDE composer.
+- **Thinking activity labels** — hub and desktop show structured in-progress labels during agent tool loops.
+
+## [1.2.0-beta.3] - 2026-06-24
+
+Site navigation polish and CI reliability for the beta line.
+
+### Added
+- **Unified site nav** — canonical header + footer explore strip across all `docs/**/*.html` via [`scripts/site_nav.py`](../scripts/site_nav.py).
+
+### Fixed
+- **CI release gate** — Node 24 in workflows; PendingChangesPanel tests use mock git change store.
+
+## [1.2.0-beta.2] - 2026-06-24
+
+Marketing site refresh, pack expansion, and IDE v4.1 follow-ups.
+
+### Added
+- **Marketing site refresh** — hive-mind narrative, [`start-here.html`](start-here.html), [`security.html`](security.html), and [`features/life-sciences.html`](features/life-sciences.html).
+- **AWS, incident-management, and web-browser domain packs** — seven official packs in the store ([`PACKS.md`](PACKS.md)).
+- **Pack capability sidecars** — per-pack hub routes when packs are enabled.
+- **IDE v4.1** — remote LSP relay and remote collab worktrees ([`IDE_V4.md`](IDE_V4.md)).
+
+### Changed
+- **Moderator merged into Assistant** — chat guidance and safety-net behavior live on Assistant; Moderator removed as a separate auto-started agent.
+- **Hub auth hardening** — mutations require real sessions or API keys.
+
+### Fixed
+- **Cursor parity infrastructure** — release-prep reliability, collab turn routing, implement scenario regressions.
+- **Domain pack catalog** — stale hub catalog no longer hides new packs (web-browser, AWS, incident-management).
 
 ## [1.2.0-beta.1] - 2026-06-17
 

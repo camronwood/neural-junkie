@@ -3,42 +3,24 @@ package hub
 import (
 	"context"
 	"fmt"
-	"os"
+	"log"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-// ImageGenerationAvailable reports whether the hub can call an OpenAI-compatible Images API.
+// ImageGenerationAvailable reports whether the hub can generate images (local Ollama by default).
 func ImageGenerationAvailable() bool {
-	return OpenAIImageGenFromEnv() != nil
-}
-
-// OpenAIImageGenFromEnv builds an image generator from OPENAI_API_KEY (and optional
-// OPENAI_BASE_URL, NEURAL_JUNKIE_IMAGE_MODEL).
-func OpenAIImageGenFromEnv() ai.ImageGenerator {
-	key := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
-	if key == "" {
-		return nil
-	}
-	endpoint := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
-	if endpoint == "" {
-		endpoint = "https://api.openai.com/v1"
-	}
-	model := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_IMAGE_MODEL"))
-	if model == "" {
-		model = "dall-e-3"
-	}
-	return ai.NewOpenAICompatProvider(strings.TrimRight(endpoint, "/"), key, model, nil)
+	return ai.ImageGeneratorFromEnv() != nil
 }
 
 func agentTypeSupportsImageGeneration(t protocol.AgentType) bool {
 	switch t {
-	case protocol.AgentTypeFrontend, protocol.AgentTypeAssistant, protocol.AgentTypeExpert:
-		return true
-	default:
+	case protocol.AgentTypeCLI, protocol.AgentTypeModerator:
 		return false
+	default:
+		return true
 	}
 }
 
@@ -57,9 +39,9 @@ func (h *Hub) ImageGenerationEnabled() bool {
 
 // GenerateAndPostImage generates an image and posts it to a channel.
 func (h *Hub) GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error {
-	gen := OpenAIImageGenFromEnv()
+	gen := ai.ImageGeneratorFromEnv()
 	if gen == nil {
-		return fmt.Errorf("image generation not configured: set OPENAI_API_KEY on the hub server")
+		return fmt.Errorf("image generation disabled (set NEURAL_JUNKIE_IMAGE_PROVIDER or pull an Ollama image model)")
 	}
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
@@ -70,9 +52,15 @@ func (h *Hub) GenerateAndPostImage(ctx context.Context, channel string, from pro
 		return err
 	}
 	out := protocol.NewMessage(protocol.MessageTypeChat, channel, from, "🖼️ Generated image.")
-	out.Metadata["generated_image"] = map[string]interface{}{
+	meta := map[string]interface{}{
 		"mime": mime,
 		"data": b64,
 	}
+	if path, err := saveGeneratedImageFile(out.ID, mime, b64); err != nil {
+		log.Printf("[hub] generated image file save failed (inline only): %v", err)
+	} else {
+		meta["path"] = path
+	}
+	out.Metadata["generated_image"] = meta
 	return h.SendMessage(out)
 }

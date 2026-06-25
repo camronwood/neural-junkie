@@ -9,6 +9,7 @@ import {
   PROMPT_ATTACHMENTS_METADATA_KEY,
 } from '../constants/promptMetadata';
 import { hasCodeTaskSignals } from './conversationMode';
+import { hasBootFixRoutingSignals } from './bootFixRouting';
 import {
   hasImplementationContinuationSignals,
   hasImplementationStatusCheckSignals,
@@ -127,11 +128,14 @@ export function buildImplementationSessionMetadata(options: {
   composerMetadata?: Record<string, unknown>;
 }): Record<string, unknown> {
   const hasExplicitMention = /@\w/.test(options.content);
-  const agentType = pickAgentTypeForImplementation(
+  let agentType = pickAgentTypeForImplementation(
     options.content,
     options.activeTab,
     options.agents
   );
+  if (!hasExplicitMention && hasBootFixRoutingSignals(options.content)) {
+    agentType = 'frontend';
+  }
   const metadata: Record<string, unknown> = {
     ...(options.composerMetadata ?? {}),
     ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),

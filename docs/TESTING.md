@@ -81,11 +81,20 @@ make test-everything-full         # above + collab-scenarios-all (~1-3h extra)
 **Release prep (one command):** `test-everything-full` + `test-parity-stable-restart` + `model-benchmark` with a unified report:
 
 ```bash
-ollama serve
-make server-regression    # terminal 1 (optional — release-prep can start/restart hub)
 make release-prep VERBOSE=1
 # unified: docs/testing/release-prep-*.md + release-prep-*.log
 # child:   test-everything-*.md, parity-stable-restart-*.log, model-benchmark-*.{md,json,tsv}
+```
+
+**Overnight (walk away):** one command before bed — starts Ollama if needed, detaches in tmux, keeps the Mac awake, tees a log, and runs the full release gate:
+
+```bash
+make overnight-release-prep
+# tmux session: nj-release-prep  |  log: ~/nj-overnight-YYYYMMDD-HHMM.log
+# attach: tmux attach -t nj-release-prep
+# lighter weeknight: make overnight-release-prep NJ_OVERNIGHT_TARGET=test-everything-full SKIP_PARITY=1 SKIP_BENCHMARK=1
+# foreground (already in tmux): make overnight-release-prep IN_TMUX=0
+# pre-pull models first: make overnight-release-prep PULL=1
 ```
 
 `make release-prep` automatically:
@@ -95,7 +104,7 @@ make release-prep VERBOSE=1
 - Verifies hub health + judge smoke (restarts regression hub once if needed)
 - Runs `collab-preflight --require-gemini` before the long phases
 
-Prerequisites: `ollama serve` + `ollama pull qwen2.5-coder:14b` (fallback judge). Optional: `.gemini-api-key` for cloud judge when quota allows.
+Prerequisites: Ollama (started automatically by `make overnight-release-prep`; otherwise `ollama serve`) + `ollama pull qwen2.5-coder:14b` (fallback judge). Optional: `.gemini-api-key` for cloud judge when quota allows. Hub and in-process specialists are started by `release-prep` — no separate `make server-regression` / `make agents` required.
 
 **Deliverable judge:** tries hub Gemini first; on quota/API errors falls back to local Ollama so sweeps keep running.
 

@@ -221,5 +221,23 @@
     "size_hint": "~16.5 GB (Q4)",
     "icon_key": "cad",
     "publisher": "Neural Junkie"
+  },
+  {
+    "name": "x/flux2-klein:4b",
+    "title": "FLUX.2 Klein 4B",
+    "description": "Default image model for agent generate_image and /generate-image. Fast local text-to-image via Ollama (Apple Silicon).",
+    "tags": ["image-generation", "recommended"],
+    "size_hint": "~5.7 GB",
+    "icon_key": "flux",
+    "publisher": "Black Forest Labs"
+  },
+  {
+    "name": "x/z-image-turbo:fp8",
+    "title": "Z-Image Turbo (FP8)",
+    "description": "Higher-quality Ollama image model (Flux architecture). Needs more VRAM than FLUX.2 Klein 4B.",
+    "tags": ["image-generation"],
+    "size_hint": "~15 GB",
+    "icon_key": "flux",
+    "publisher": "Ollama"
   }
 ]

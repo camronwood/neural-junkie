@@ -21,6 +21,23 @@ describe('TypingIndicator Stop control', () => {
     expect(screen.getByRole('button', { name: 'Stop agents' })).toBeTruthy();
   });
 
+  it('shows tool activity in footer', () => {
+    const active: ThinkingAgent[] = [
+      {
+        id: 'a1',
+        name: 'SoftwareArchitect',
+        type: 'architecture',
+        activity: 'using_tool',
+        activityDetail: 'read_file — package.json',
+        toolSteps: [{ kind: 'start', name: 'read_file', preview: '[read_file] start' }],
+      },
+    ];
+    render(<TypingIndicator agents={active} />);
+    expect(screen.getByText('SoftwareArchitect')).toBeTruthy();
+    expect(screen.getByText(/is using read_file/)).toBeTruthy();
+    expect(screen.getByText(/▸/)).toBeTruthy();
+  });
+
   it('shows thinking agents and Stop; invokes onStop on click', () => {
     const onStop = vi.fn();
     render(<TypingIndicator agents={agents} showStop onStop={onStop} />);

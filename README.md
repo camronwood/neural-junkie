@@ -24,8 +24,7 @@ Neural Junkie isn't a chatbot. It's a distributed intelligence grid.
 graph TB
     Core[🧠 The Core · Hub<br/>Signal routing · Channel management<br/>Command handling · Session persistence]
 
-    Core --> SomethingElse[🎯 SomethingElse<br/>Auto-started · Chat commands<br/>User guidance · Safety net]
-    Core --> Assistant[📋 Assistant<br/>Reminders · Tasks · Notes<br/>Meeting summaries]
+    Core --> Assistant[📋 Assistant<br/>Reminders · Tasks · Notes<br/>Chat guidance · Safety net]
 
     Core --> BackendEngineer[⚙️ BackendEngineer<br/>APIs · Services · Integrations]
     Core --> FrontendEngineer[🎨 FrontendEngineer<br/>UI · Accessibility · Design systems]
@@ -38,7 +37,6 @@ graph TB
     Core --> ConfluenceAgents[📚 Confluence Agents<br/>Space indexing · Doc search<br/>Knowledge Q&A]
 
     style Core fill:#1a1a2e,stroke:#e94560,color:#fff,stroke-width:2px
-    style Moderator fill:#16213e,stroke:#0f3460,color:#fff
     style Assistant fill:#16213e,stroke:#0f3460,color:#fff
     style BackendEngineer fill:#0f3460,stroke:#533483,color:#fff
     style FrontendEngineer fill:#0f3460,stroke:#533483,color:#fff
@@ -52,51 +50,34 @@ graph TB
 
 ## What's In the Box
 
-- **Tauri + React Desktop App** -- Slack-inspired UI with command palette, code editor, file explorer, terminal panel, and thread support
-- **Install-and-go local AI (beta.22)** -- Ollama runtime bundled in macOS, Windows, and Linux installers
-- **Domain packs** -- Software development, Life sciences, CAD, and Specialist tuning from the pack store; custom packs via Pack Dev Studio
-- **Slack Connect** -- Channel mirroring, personal inbox, selective forwarding (beta.21+)
-- **Personal learning v2** -- User-confirmed scoped memory with embedding retrieval (Specialist tuning pack)
-- **Multi-agent collaboration** -- Bounded planning/execution with `/collaborate`, runbooks, and approval workflow
-- **Custom experts** -- Any domain via `/create-expert`; not limited to engineering specialists
-- **Dynamic AI Providers** -- Ollama (managed), Claude, LM Studio, and any OpenAI-compatible API (Amazon Q, Azure OpenAI, Together AI, Groq, etc.)
-- **First-Run Setup Wizard** -- Guided onboarding to configure your AI backend and enable agents
-- **Auto-Updates** -- In-app update notifications with one-click install via Tauri updater
-- **Single-Binary Packaging** -- Go server ships as a Tauri sidecar; one `.dmg` or `.AppImage` to distribute
-- **50+ Slash Commands** -- Agent management, repo indexing, Confluence search, file changes, provider switching, and more
-- **Command Palette** -- Searchable UI for discovering and executing slash commands with guided argument forms
-- **Repository Expert Agents** -- Index your codebase, watch for changes, answer project-specific questions
-- **Confluence Doc Agents** -- Index Confluence spaces, search documentation, answer knowledge-base questions
-- **File Change System** -- Agents propose file edits, you approve/reject with diff preview
-- **MCP Export/Import** -- Export agent knowledge to MCP format for sharing across tools
-- **@Mention System** -- Direct questions to specific agents by name or type
-- **Threaded Conversations** -- Reply in threads to keep complex discussions organized
-- **Agent Review** -- Get a second opinion by @mentioning another agent in a reply
-- **Engineering specialists** -- Backend, frontend, platform, security, architecture, and code review (Software development pack); plus Moderator, Assistant, repo, Confluence, and CLI agents
+- **Multi-agent workspace** — Specialist agents, bounded `/collaborate` sessions, threads, file-change approval, and Slack Connect
+- **IDE v4 + implementation sessions** — Full Monaco LSP, remote SSH via `nj-remote`, Ask/Agent composer, and the NJ Fix Loop for boot/build repair ([guide](docs/features/fix-loop.html))
+- **Seven domain packs** — Software development, life sciences, CAD, specialist tuning, AWS, incident management, and web browser — plus Pack Dev Studio for custom packs ([PACKS.md](docs/PACKS.md))
+- **Local-first AI** — Bundled Ollama, Agent Runtime v2, model library, and optional cloud providers (Claude, OpenAI-compatible APIs, LM Studio)
+- **Repo + Confluence experts** — Index codebases and documentation spaces; MCP export/import for sharing agent knowledge
+- **CLI agents + remote workspaces** — Auto-detected Cursor, Gemini, and other CLI tools; SSH workspaces with remote terminal and file apply
+
+Full capability guides: [docs/features/](docs/features/) on the marketing site. Five-minute path: [start-here.html](docs/start-here.html).
 
 ## Screenshots
 
-Main workspace with files, code editor, multi-agent collaboration, and chat.
+Desktop workspace and IDE (gallery art — see [Gallery](https://camronwood.github.io/neural-junkie/gallery/) for more).
 
-![Neural Junkie main workspace with files, editor, and chat](assets/screenshots/Screenshot%202026-05-29%20at%202.31.27%20PM.png)
+![Neural Junkie workspace](docs/media/gallery/ads/ide-v4-carousel-01.png)
 
-Command palette for discovering and running slash commands (repo agents, Confluence, experts, agent management).
+IDE Agent mode with editor, terminal, and chat ([IDE v4 guide](docs/features/ide-v4.html)).
 
-![Command palette with slash commands](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.02%E2%80%AFPM.png)
+![Neural Junkie IDE](docs/media/gallery/ads/ide-v4-carousel-03.png)
 
-**My Agents** dashboard: search, category filters, and status for each agent.
+Multi-agent collaboration and specialist routing ([collaboration guide](docs/features/multi-agent-collaboration.html)).
 
-![My Agents dashboard](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.21%E2%80%AFPM.png)
+![Neural Junkie collaboration](docs/media/gallery/ads/ide-v4-carousel-02.png)
 
-Integrated **Files** tree and **Code Editor** alongside chat for repo-aware workflows.
-
-![Files panel, code editor, and chat](assets/screenshots/Screenshot%202026-05-13%20at%2012.36.44%E2%80%AFPM.png)
-
-**Web hub (when the server is running):** the built-in browser UI at `http://localhost:18765` is a lightweight chat client. The **native desktop app** is what you see above. For a static HTML preview of these screenshots without the hub, serve the repo root and open `public/index.html` (see the note in that file).
+**Web hub:** the browser UI at `http://localhost:18765` is a lightweight chat client. Use the **Tauri desktop app** for the full workspace.
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.2.0-beta.1](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.1) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.2.0-beta.3](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -113,7 +94,7 @@ The Go hub is bundled as a Tauri sidecar — you do **not** need Go installed to
 
 **Auto-update (beta.27+):** In-app updates on beta and stable channels — Settings → About → **Check for updates**. Installers from before beta.27 need one manual upgrade first; see [docs/RELEASE_UPDATES.md](docs/RELEASE_UPDATES.md).
 
-**Quick start after install:** [docs/DOWNLOAD.md](docs/DOWNLOAD.md)
+**Quick start after install:** [docs/DOWNLOAD.md](docs/DOWNLOAD.md) · [5-minute start guide](https://camronwood.github.io/neural-junkie/start-here.html)
 
 **Site:** [camronwood.github.io/neural-junkie](https://camronwood.github.io/neural-junkie/)
 
@@ -130,7 +111,7 @@ make gui-install
 make start-all
 ```
 
-That's it. **`make start-all`** starts the **hub** (with **Moderator**, **Assistant**, and the **six default specialist agents** running **in-process** per `~/.neural-junkie/config.json`) and opens the **desktop app**. It does **not** spawn separate `cmd/agent` processes; those are optional (see below).
+That's it. **`make start-all`** starts the **hub** (with **Assistant** and enabled **domain-pack specialists** running **in-process** per `~/.neural-junkie/config.json`) and opens the **desktop app**. It does **not** spawn separate `cmd/agent` processes; those are optional (see below).
 
 ### Other Ways to Run
 
@@ -190,8 +171,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 
 | Agent | Role |
 |-------|------|
-| **Moderator** | Chat commands, feature guidance, 20s safety-net for unanswered questions |
-| **Assistant** | Reminders, tasks, notes, meeting summaries, scheduling |
+| **Assistant** | Reminders, tasks, notes, meetings, scheduling, chat guidance, and safety-net for unanswered questions |
 | **Cursor** | Codebase analysis, code generation, refactoring, shell commands (requires [Cursor CLI](docs/CLI_AGENTS.md)) |
 | **Gemini** | Code generation, code review, multimodal analysis, architecture (requires [Gemini CLI](docs/CLI_AGENTS.md)) |
 
@@ -199,7 +179,7 @@ Switch providers at runtime from the desktop Settings > AI Providers tab, or via
 
 When the **Software development** domain pack is enabled (Settings → Domain packs, or the developer setup wizard track), the hub starts **six** broad in-process specialists: **BackendEngineer**, **FrontendEngineer**, **PlatformEngineer**, **SecurityReviewer**, **SoftwareArchitect**, and **CodeReviewer**. See [docs/SOFTWARE_DEVELOPMENT_PACK.md](docs/SOFTWARE_DEVELOPMENT_PACK.md).
 
-Fresh installs default to **pack off** (Moderator, Assistant, and auto-detected CLI agents only). Enable the pack when you want hub-hosted coding specialists.
+Fresh installs default to **pack off** (Assistant and auto-detected CLI agents only). Enable the pack when you want hub-hosted coding specialists.
 
 | Agent | Expertise |
 |-------|-----------|
@@ -277,24 +257,19 @@ Full index: **[DOCS.md](DOCS.md)** (`make docs` prints the same file).
 
 | Doc | What It Covers |
 |-----|----------------|
-| **[Getting Started](docs/GETTING_STARTED.md)** | Setup, configuration, first steps |
+| **[Getting Started](docs/GETTING_STARTED.md)** | Source setup, configuration, make targets |
+| **[Domain packs](docs/PACKS.md)** | Seven official packs and install flow |
+| **[Implementation sessions](docs/IMPLEMENTATION_SESSION.md)** | IDE Agent mode, verify/repair, NJ Fix Loop |
+| **[IDE v4](docs/IDE_V4.md)** | Full LSP, remote SSH, dev containers |
+| **[Cursor parity](docs/CURSOR_PARITY.md)** | Native agent workspace contract |
+| **[Collaboration](docs/COLLABORATION.md)** | Multi-agent planning, delegation, execution |
 | **[Architecture](docs/ARCHITECTURE.md)** | System design, data flow, patterns |
 | **[Repo Agents](docs/REPO_AGENTS.md)** | Repository indexing and analysis |
-| **[Confluence Agents](docs/CONFLUENCE_AGENTS.md)** | Confluence space integration |
-| **[Assistant Agent](docs/ASSISTANT_AGENT.md)** | Reminders, tasks, notes, meetings |
-| **[Moderator Agent](docs/MODERATOR_AGENT.md)** | Chat guidance and command help |
-| **[MCP Integration](docs/MCP_INTEGRATION.md)** | MCP tool servers for agents |
-| **[MCP Exports](docs/MCP_EXPORTS.md)** | Exporting agent knowledge |
-| **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI agent setup and custom CLI agents |
-| **[Agent Review](docs/AGENT_REVIEW.md)** | Second-opinion review system |
-| **[Collaboration](docs/COLLABORATION.md)** | Structured multi-agent planning, bounded discussion, task delegation, and execution |
-| **[User Value Guide](docs/USER_VALUE_GUIDE.md)** | Product-oriented overview of what the app is, why it matters, and how to get value fast |
-| **[Development Notes](docs/DEVELOPMENT_NOTES.md)** | Internal layout, design decisions, contributor-focused notes |
-| **[Status](docs/STATUS.md)** | Current project status |
-| **[Stable scope](docs/STABLE_SCOPE.md)** | v1.0 in/out of scope |
-| **[Stable release checklist](docs/STABLE_RELEASE_CHECKLIST.md)** | Gates before tagging v1.0.0 |
-| **[Platform roadmap](docs/PLATFORM_ROADMAP.md)** | Post-v1.0 enterprise backlog |
+| **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI and custom CLI integrations |
+| **[Testing](docs/TESTING.md)** | Scenario gates and parity contract |
+| **[Contributing](CONTRIBUTING.md)** | How to contribute and run test gates |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
+| **[Known issues](docs/KNOWN_ISSUES.md)** | Beta limitations and workarounds |
 
 ## Make Targets
 
@@ -339,3 +314,10 @@ Then open `http://127.0.0.1:8765/` in a browser. Do not commit API keys or other
 ## License
 
 MIT
+
+## Contributing · Security · Issues
+
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Known issues](docs/KNOWN_ISSUES.md)
+- [Report a bug](https://github.com/camronwood/neural-junkie/issues/new?template=bug_report.yml)

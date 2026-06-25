@@ -14,6 +14,13 @@ const IMPLEMENTATION_REQUEST_RE =
 const IMPLEMENTATION_STATUS_CHECK_RE =
   /^(?:@\w+\s+)?(?:is it fixed|did (?:that|it) fix|does it work(?: now)?|is it working(?: now)?|still broken|still not (?:booting|working)|working now)\??[!.?\s]*$/i;
 
+/** Error-log / stack-trace paste while debugging in an active implementation thread. */
+const ERROR_LOG_FOLLOW_UP_RE =
+  /\b(still getting|also got this|got this error|seeing this|getting this)\b/i;
+
+const ERROR_LOG_MARKERS_RE =
+  /\b(?:VITE v?\d|exit_code=\d+|error TS\d+|TS\d{4,5}:|npm ERR!|UnhandledPromiseRejection|stack trace|node_modules\/|at file:\/\/|process\.processTicksAndRejections|Waiting for your frontend dev server)\b/i;
+
 /** User directs the agent to use the shared workspace instead of asking for pasted files. */
 export const WORKSPACE_DIRECTIVE_RE =
   /\b(use|read|from)\s+(the\s+)?(open\s+)?workspace\b/i;
@@ -114,6 +121,46 @@ export function hasImplementationStatusCheckSignals(message: string): boolean {
   const text = (message ?? '').trim();
   if (!text) return false;
   return IMPLEMENTATION_STATUS_CHECK_RE.test(text);
+}
+
+/** User pasted build/runtime output or a stack trace while iterating on a fix. */
+export function hasErrorLogFollowUpSignals(message: string): boolean {
+  const text = (message ?? '').trim();
+  if (!text) return false;
+  if (ERROR_LOG_FOLLOW_UP_RE.test(text) && ERROR_LOG_MARKERS_RE.test(text)) return true;
+  if (ERROR_LOG_MARKERS_RE.test(text) && text.length >= 40) return true;
+  return false;
+}
+
+export type ChannelMessageRef = {
+  type?: string;
+  metadata?: Record<string, unknown>;
+};
+
+/** Recent channel history shows an active or recently failed implementation session. */
+export function channelHasImplementationThread(
+  messages: ChannelMessageRef[] | undefined,
+  lookback = 24
+): boolean {
+  if (!messages?.length) return false;
+  const recent = messages.slice(-lookback);
+  for (const m of recent) {
+    const meta = m.metadata ?? {};
+    if (meta.implementation_session === true) return true;
+    if (meta.implementation_session_complete === true) return true;
+    if (meta.file_change_approved === true) return true;
+    if (meta.can_run_impl_session === true) return true;
+    if (m.type === 'file_change') return true;
+    const outcome = meta.implementation_session_outcome;
+    if (
+      outcome &&
+      typeof outcome === 'object' &&
+      (outcome as { verify_failed?: boolean }).verify_failed === true
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function hasImplementationRequestSignals(message: string): boolean {

@@ -65,7 +65,10 @@ export async function prepareOutboundPayload(
     ...(composerMetadata ?? {}),
     ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
     [EDITOR_MODE_KEY]: effectiveMode,
-    [EDITOR_AGENT_TRUST_KEY]: editorAgentTrust,
+    [EDITOR_AGENT_TRUST_KEY]:
+      effectiveMode === 'ask' || effectiveMode === 'plan'
+        ? 'interactive'
+        : 'auto_apply_edits',
   };
 
   if (effectiveMode === 'export') {

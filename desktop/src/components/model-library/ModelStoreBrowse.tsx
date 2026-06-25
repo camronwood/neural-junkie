@@ -15,6 +15,8 @@ interface ModelStoreBrowseProps {
   onViewChange?: (view: 'grid' | 'detail') => void;
   /** Parent requests closing detail (e.g. tab switch) */
   resetDetailSignal?: number;
+  /** Fired when the user opens a model detail view (for lazy data loads). */
+  onDetailOpen?: (item: StoreModelItem) => void;
   footer?: React.ReactNode;
   banner?: React.ReactNode;
 }
@@ -28,12 +30,19 @@ export function ModelStoreBrowse({
   emptyMessage,
   onViewChange,
   resetDetailSignal,
+  onDetailOpen,
   footer,
   banner,
 }: ModelStoreBrowseProps) {
   const nav = useModelStoreNavigation();
 
-  const { isDetail, reset } = nav;
+  const { isDetail, reset, openDetail } = nav;
+
+  const handleOpenDetail = (id: string) => {
+    openDetail(id);
+    const item = items.find((i) => i.id === id);
+    if (item) onDetailOpen?.(item);
+  };
 
   useEffect(() => {
     onViewChange?.(isDetail ? 'detail' : 'grid');
@@ -63,7 +72,7 @@ export function ModelStoreBrowse({
         items={items}
         query={query}
         onQueryChange={onQueryChange}
-        onOpenDetail={nav.openDetail}
+        onOpenDetail={handleOpenDetail}
         searchPlaceholder={searchPlaceholder}
         headerRight={headerRight}
         emptyMessage={emptyMessage}

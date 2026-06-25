@@ -16,6 +16,12 @@ const sampleTagsHTML = `
 <a href="/library/qwen2.5-coder:14b">14b</a>
 `
 
+const sampleXTagsHTML = `
+<a href="/x/flux2-klein:latest">latest</a>
+<a href="/x/flux2-klein:4b">4b</a>
+<a href="/x/flux2-klein:9b">9b</a>
+`
+
 func TestParseLibraryNames(t *testing.T) {
 	names := uniqueStrings(parseLibraryNames(sampleLibraryHTML))
 	if len(names) != 2 {
@@ -26,10 +32,32 @@ func TestParseLibraryNames(t *testing.T) {
 	}
 }
 
+func TestParseLibraryNamesIncludesXNamespace(t *testing.T) {
+	html := `<a href="/x/flux2-klein">FLUX</a><a href="/library/llama3.1">Llama</a>`
+	names := uniqueStrings(parseLibraryNames(html))
+	if len(names) != 2 {
+		t.Fatalf("expected 2 names, got %#v", names)
+	}
+	seen := make(map[string]bool)
+	for _, n := range names {
+		seen[n] = true
+	}
+	if !seen["x/flux2-klein"] || !seen["llama3.1"] {
+		t.Fatalf("unexpected: %#v", names)
+	}
+}
+
 func TestParseTagNames(t *testing.T) {
 	tags := parseTagNames(sampleTagsHTML, "qwen2.5-coder")
 	if len(tags) != 4 {
 		t.Fatalf("expected 4 tags, got %d", len(tags))
+	}
+}
+
+func TestParseTagNamesXNamespace(t *testing.T) {
+	tags := parseTagNames(sampleXTagsHTML, "x/flux2-klein")
+	if len(tags) != 3 {
+		t.Fatalf("expected 3 tags, got %#v", tags)
 	}
 }
 
@@ -68,5 +96,17 @@ func TestMergeCatalogWithRegistry(t *testing.T) {
 func TestNormalizeRegistryName(t *testing.T) {
 	if got := normalizeRegistryName("https://ollama.com/library/qwen2.5-coder:7b"); got != "qwen2.5-coder" {
 		t.Fatalf("normalize = %q", got)
+	}
+	if got := normalizeRegistryName("https://ollama.com/x/flux2-klein:4b"); got != "x/flux2-klein" {
+		t.Fatalf("normalize x namespace = %q", got)
+	}
+}
+
+func TestRegistryTagsPageURL(t *testing.T) {
+	if got := registryTagsPageURL("qwen2.5-coder"); got != "https://ollama.com/library/qwen2.5-coder/tags" {
+		t.Fatalf("library tags url = %q", got)
+	}
+	if got := registryTagsPageURL("x/flux2-klein"); got != "https://ollama.com/x/flux2-klein/tags" {
+		t.Fatalf("x namespace tags url = %q", got)
 	}
 }

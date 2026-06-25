@@ -9,6 +9,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
@@ -235,6 +236,10 @@ func (a *Agent) generateWithMCPTools(
 			callCtx := ctx
 			if len(history) > 0 {
 				callCtx = a.contextWithWorkspaceBackend(ctx, history[len(history)-1])
+				last := history[len(history)-1]
+				if last.ImplementationSession() || implementationSessionStateFromContext(ctx) != nil {
+					callCtx = shared.ContextWithImplementationSession(callCtx, true)
+				}
 			}
 			callCtx = contextcompress.WithCompressContext(
 				contextWithCompressAgent(callCtx, a),

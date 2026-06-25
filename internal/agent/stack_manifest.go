@@ -251,6 +251,16 @@ func (m *StackManifest) ImplementationSeedPaths() []string {
 	} {
 		add(p)
 	}
+	if m.HasTauri {
+		for _, p := range []string{
+			"Makefile",
+			"scripts/start-all.sh",
+			"src-tauri/tauri.conf.json",
+			"src-tauri/Cargo.toml",
+		} {
+			add(p)
+		}
+	}
 	return out
 }
 
@@ -308,6 +318,10 @@ func (m *StackManifest) FormatRepairHints() string {
 	}
 	if m.HasReact && m.ExtVue == 0 {
 		b.WriteString("- Use .tsx components under src/components/ (no .vue files in this repo)\n")
+	}
+	if m.HasTauri {
+		b.WriteString("- Tauri boot: Makefile, scripts/start-all.sh, src-tauri/tauri.conf.json; vite.config at repo root\n")
+		b.WriteString("- devPath in tauri.conf.json must match the Vite port in vite.config.js/ts\n")
 	}
 	return b.String()
 }

@@ -55,6 +55,9 @@ const VALID_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp',
 const TEXT_FILE_ACCEPT =
   '.go,.rs,.py,.ts,.tsx,.js,.jsx,.md,.json,.yaml,.yml,.toml,.sql,.sh,.txt,.html,.css,.scss,.vue,.rb,.java,.kt,.swift,.c,.cpp,.h,.cs,.tf,.hcl';
 
+const COMPOSER_CHIP_CLASS =
+  'text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded border border-slack-border text-slack-textMuted hover:bg-slack-bgHover hover:text-slack-text transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
 type PendingImage = { id: string; file: File; preview: string };
 
 async function readImageBase64Payload(file: File): Promise<{ mime: string; data: string }> {
@@ -650,7 +653,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
           />
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 min-w-0">
           <textarea
             ref={textareaRef}
             value={message}
@@ -659,7 +662,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             onPaste={handlePaste}
             disabled={disabled}
             placeholder={placeholder}
-            className="flex-1 bg-slack-bgHover text-slack-text placeholder-slack-textMuted px-4 py-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-slack-bgHover text-slack-text placeholder-slack-textMuted px-4 py-3 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-slack-accent disabled:opacity-50 disabled:cursor-not-allowed"
             rows={3}
             style={{
               maxHeight: '200px',
@@ -667,7 +670,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
             }}
           />
 
-          <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
             <input
               ref={attachInputRef}
               type="file"
@@ -688,19 +691,19 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               type="button"
               onClick={() => attachInputRef.current?.click()}
               disabled={disabled}
-              className="px-3 py-2 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={COMPOSER_CHIP_CLASS}
               title="Attach text files for agent context (drag-and-drop also supported)"
             >
-              📎
+              Files{pendingAttachments.length > 0 ? ` (${pendingAttachments.length})` : ''}
             </button>
             <button
               type="button"
               onClick={() => imageInputRef.current?.click()}
               disabled={disabled}
-              className="px-3 py-2 text-slack-textMuted hover:text-slack-text hover:bg-slack-bgHover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className={COMPOSER_CHIP_CLASS}
               title="Attach images (up to 6, 5MB each). @mention vision-capable agents."
             >
-              📷
+              Images{pendingImages.length > 0 ? ` (${pendingImages.length})` : ''}
             </button>
 
             {pendingImages.length > 0 && hasVisionAgents && (
@@ -708,10 +711,10 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
                 type="button"
                 onClick={() => void handleAnalyzeDesign()}
                 disabled={disabled || isAnalyzing}
-                className="px-3 py-2 bg-slack-accent hover:bg-slack-accent/80 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={COMPOSER_CHIP_CLASS}
                 title="Analyze design with @mentioned agents"
               >
-                {isAnalyzing ? '⏳' : '🎨'}
+                {isAnalyzing ? 'Analyzing…' : 'Analyze'}
               </button>
             )}
 
@@ -719,7 +722,7 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               type="button"
               onClick={handleSend}
               disabled={disabled || !hasComposerContext}
-              className="px-6 py-3 bg-slack-success hover:bg-slack-success/80 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-1.5 bg-slack-success hover:bg-slack-success/80 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Send
             </button>

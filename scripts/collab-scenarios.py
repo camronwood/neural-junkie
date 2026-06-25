@@ -262,7 +262,9 @@ def _nudge_discussion_agents(ctx: ScenarioContext, names: list) -> None:
         if not name:
             continue
         msg = f"@{name} — please add your planning perspective for this collab."
-        hub.send_message(ctx.base, ctx.collab_channel, msg, metadata=meta)
+        nudge_meta = dict(meta) if meta else {}
+        nudge_meta["mentions"] = [name]
+        hub.send_message(ctx.base, ctx.collab_channel, msg, metadata=nudge_meta)
         ctx.log(f"  nudge: {msg}")
 
 

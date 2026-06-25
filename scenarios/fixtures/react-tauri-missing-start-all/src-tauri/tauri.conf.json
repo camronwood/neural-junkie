@@ -1,0 +1,12 @@
+{
+  "productName": "react-tauri-missing-start-all",
+  "version": "0.1.0",
+  "identifier": "com.example.tauri-missing-start-all",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "title": "App", "width": 800, "height": 600 }]
+  }
+}

@@ -4,6 +4,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/filechange"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -27,6 +28,9 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 				trust = strings.TrimSpace(t)
 			}
 		}
+	}
+	if trust == "" {
+		trust = agent.EffectiveEditorTrustForAutoApprove(msg)
 	}
 	if trust != editorTrustAutoApply && trust != editorTrustYolo {
 		return

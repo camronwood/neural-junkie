@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/scansummary"
 	"github.com/camronwood/neural-junkie/internal/scananalysis"
@@ -42,12 +43,109 @@ func generateImageToolDefinition() ai.ClaudeToolDefinition {
 }
 
 func (a *Agent) imageGenerationToolsEnabled() bool {
-	return a.Info.SupportsImageGeneration && a.Hub != nil && a.Hub.ImageGenerationEnabled()
+	return a.imageGenerationToolsEnabledForMessage(nil)
+}
+
+func (a *Agent) imageGenerationToolsEnabledForMessage(msg *protocol.Message) bool {
+	if a.Hub == nil || !a.Hub.ImageGenerationEnabled() {
+		return false
+	}
+	if !agentTypeSupportsHubImageGen(a.Info.Type) {
+		return false
+	}
+	if messageSuppressesImageGeneration(msg) {
+		return false
+	}
+	return true
+}
+
+// messageSuppressesImageGeneration disables image tools during code/implementation work
+// so specialists do not call generate_image instead of editing or running commands.
+func messageSuppressesImageGeneration(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if msg.ImplementationSession() {
+		return true
+	}
+	if ConversationModeFromMessage(msg) == ConversationModeCode {
+		return true
+	}
+	if msg.IdeEditorMode() == "agent" || msg.IdeEditorModeIsExport() {
+		return true
+	}
+	return false
+}
+
+func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
+	switch t {
+	case protocol.AgentTypeCLI, protocol.AgentTypeModerator:
+		return false
+	default:
+		return true
+	}
+}
+
+// tryHubImageGenerationShortcut posts a hub-generated image when the user asked for one.
+func (a *Agent) tryHubImageGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
+	if msg == nil || a.Hub == nil || !UserRequestsGeneratedImage(msg.Content) {
+		return "", false
+	}
+	if !a.imageGenerationToolsEnabledForMessage(msg) {
+		return "", false
+	}
+	prompt := ImagePromptFromMessage(msg.Content)
+	if err := a.generateAndPostImageWithProgress(ctx, msg, StreamMessageIDFromContext(ctx), prompt, "", true); err != nil {
+		return fmt.Sprintf("I couldn't generate that image: %v", err), true
+	}
+	return "Done — I've posted the generated image to the channel.", true
+}
+
+func (a *Agent) generateAndPostImageWithProgress(
+	ctx context.Context,
+	msg *protocol.Message,
+	streamMsgID, prompt, size string,
+	broadcastToolStart bool,
+) error {
+	a.sendThinkingActivity(msg, protocol.ThinkingActivityGeneratingImage, imageGenToolPreview(prompt))
+	defer a.sendThinkingActivity(msg, "")
+
+	if broadcastToolStart && streamMsgID != "" {
+		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
+			Kind:    "start",
+			Name:    generateImageToolName,
+			Preview: imageGenToolPreview(prompt),
+		})
+	}
+
+	err := a.Hub.GenerateAndPostImage(ctx, msg.Channel, a.Info, prompt, size)
+
+	if broadcastToolStart && streamMsgID != "" {
+		ev := ai.ToolStepEvent{Kind: "done", Name: generateImageToolName, Preview: "Image ready"}
+		if err != nil {
+			ev.Kind = "error"
+			ev.Preview = err.Error()
+		}
+		a.broadcastToolStep(ctx, msg, streamMsgID, ev)
+	}
+	return err
+}
+
+func imageGenToolPreview(prompt string) string {
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" {
+		return "Generating image…"
+	}
+	const max = 80
+	if len(prompt) <= max {
+		return "Generating image: " + prompt
+	}
+	return "Generating image: " + prompt[:max] + "…"
 }
 
 func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefinition {
 	var tools []ai.ClaudeToolDefinition
-	if a.imageGenerationToolsEnabled() {
+	if a.imageGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateImageToolDefinition())
 	}
 	if a.MCPServer != nil {
@@ -66,6 +164,9 @@ func appendImageGenerationPrompt(system *strings.Builder) {
 }
 
 func (a *Agent) executeGenerateImageTool(ctx context.Context, msg *protocol.Message, input json.RawMessage) (string, error) {
+	if messageSuppressesImageGeneration(msg) {
+		return "", fmt.Errorf("generate_image is not available during implementation or code-editing sessions")
+	}
 	var args struct {
 		Prompt string `json:"prompt"`
 		Size   string `json:"size"`
@@ -79,7 +180,7 @@ func (a *Agent) executeGenerateImageTool(ctx context.Context, msg *protocol.Mess
 	if args.Prompt == "" {
 		return "", fmt.Errorf("generate_image requires a non-empty prompt")
 	}
-	if err := a.Hub.GenerateAndPostImage(ctx, msg.Channel, a.Info, args.Prompt, strings.TrimSpace(args.Size)); err != nil {
+	if err := a.generateAndPostImageWithProgress(ctx, msg, StreamMessageIDFromContext(ctx), args.Prompt, strings.TrimSpace(args.Size), false); err != nil {
 		return "", err
 	}
 	return "Image generated and posted to the channel.", nil
@@ -111,7 +212,19 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 		writtenPath = cadWrittenPathFromToolInput(wsRoot, input)
 	}
 	toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
+	if msg.ImplementationSession() || implementationSessionStateFromContext(ctx) != nil {
+		toolCtx = shared.ContextWithImplementationSession(toolCtx, true)
+		if st := implementationSessionStateFromContext(ctx); st != nil {
+			toolCtx = attachImplSessionCommandPolicy(toolCtx, st)
+		}
+	}
 	result, err := executeMCPTool(toolCtx, mcpServer, name, input)
+	if name == "run_command" && err == nil {
+		cmd := parseRunCommandToolInput(input)
+		if !shouldSkipDuplicateCommandBroadcast(msg.Channel, a.Info.ID, cmd, result) {
+			a.broadcastAgentRunCommandOutput(msg, cmd, result)
+		}
+	}
 	if err == nil && writtenPath != "" {
 		a.trackCADFileWritten(wsRoot, writtenPath)
 	}

@@ -12,6 +12,7 @@ import {
   CONTEXT_SCOPE_REASON_KEY,
   CONVERSATION_MODE_METADATA_KEY,
   EDITOR_MODE_KEY,
+  EDITOR_AGENT_TRUST_KEY,
   IMPLEMENTATION_SESSION_METADATA_KEY,
   type ContextScope,
   type ConversationModeSetting,
@@ -34,9 +35,13 @@ import { hasCodeTaskSignals, resolveConversationMode } from './conversationMode'
 import {
   hasContentDeliverySignals,
   hasFileExportSignals,
+  hasErrorLogFollowUpSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
+  hasImplementationStatusCheckSignals,
   hasPriorReferenceExportSignals,
+  channelHasImplementationThread,
+  type ChannelMessageRef,
 } from './implementationContinuation';
 import { hasCodeReviewSignals } from './codeReviewSignals';
 import type { ComposerMode } from '../constants/composerMode';
@@ -328,6 +333,12 @@ function messageRequestsCADWorkspace(message: string): boolean {
   );
 }
 
+/** True for dm-{user}-assistant channels (personal assistant only). */
+export function isPersonalAssistantDmChannel(channel: string): boolean {
+  const name = (channel ?? '').trim().toLowerCase();
+  return name.endsWith('-assistant') && name.startsWith('dm-');
+}
+
 /**
  * Builds metadata sent with human messages so agents receive user rules, scoped workspace, and attachments.
  */
@@ -342,9 +353,19 @@ export function buildHumanOutboundMetadata(options: {
   composerMetadata?: Record<string, unknown>;
   /** When true, attach IDE-focused workspace context (active tab + selection). */
   ideCoding?: boolean;
+  /** Recent messages in the active channel (for implementation-thread carry-forward). */
+  recentChannelMessages?: ChannelMessageRef[];
 }): Record<string, unknown> | undefined {
-  const { contextMode, message, channel, composerMetadata, messageOverride, channelType, ideCoding } =
-    options;
+  const {
+    contextMode,
+    message,
+    channel,
+    composerMetadata,
+    messageOverride,
+    channelType,
+    ideCoding,
+    recentChannelMessages,
+  } = options;
   const meta: Record<string, unknown> = { ...(composerMetadata ?? {}) };
 
   const rules = (useSettingsStore.getState().settings.userRulesMarkdown ?? '').trim();
@@ -353,6 +374,15 @@ export function buildHumanOutboundMetadata(options: {
   }
 
   const channelKind = options.channelKind ?? channelNameToKind(channel, channelType);
+  const personalAssistantDm = channelKind === 'dm' && isPersonalAssistantDmChannel(channel);
+  const specialistDm = channelKind === 'dm' && !personalAssistantDm;
+  const implementationThreadActive =
+    specialistDm && channelHasImplementationThread(recentChannelMessages);
+  const implementationThreadFollowUp =
+    implementationThreadActive &&
+    (hasErrorLogFollowUpSignals(message) ||
+      hasImplementationStatusCheckSignals(message) ||
+      hasImplementationContinuationSignals(message));
   const activeTab = useEditorStore.getState().tabs.find(
     (t) => t.id === useEditorStore.getState().activeTabId
   );
@@ -385,7 +415,7 @@ export function buildHumanOutboundMetadata(options: {
 
   // Personal-assistant DMs should stay read-only unless the message is clearly a code/export task.
   if (
-    channelKind === 'dm' &&
+    personalAssistantDm &&
     explicitEditorMode !== 'ask' &&
     !hasFileExportSignals(message) &&
     !hasPriorReferenceExportSignals(message) &&
@@ -425,6 +455,27 @@ export function buildHumanOutboundMetadata(options: {
   if (needsOpenEditorContext) {
     scope = activeTabPath || hasScanViewerTab ? 'focus' : 'hint';
     reason = 'open editor or scan tool request';
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+  } else if (implementationThreadFollowUp && contextMode !== 'off') {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'implementation thread continuation';
+    }
+    meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
+    if (meta[EDITOR_MODE_KEY] === 'ask' || !meta[EDITOR_MODE_KEY]) {
+      meta[EDITOR_MODE_KEY] = 'agent';
+      meta[IMPLEMENTATION_SESSION_METADATA_KEY] = true;
+    }
+    meta[EDITOR_AGENT_TRUST_KEY] = 'auto_apply_edits';
+  } else if (
+    specialistDm &&
+    hasErrorLogFollowUpSignals(message) &&
+    contextMode !== 'off'
+  ) {
+    if (scope === 'none' || scope === 'hint') {
+      scope = activeTabPath ? 'focus' : 'outline';
+      reason = 'error log follow-up';
+    }
     meta[CONVERSATION_MODE_METADATA_KEY] = 'code';
   } else if (hasImplementationContinuationSignals(message) && contextMode !== 'off') {
     if (scope === 'none' || scope === 'hint') {
@@ -491,7 +542,7 @@ export function buildHumanOutboundMetadata(options: {
 
   // Personal Assistant DMs: no project workspace unless the user asked for code/export work.
   if (
-    channelKind === 'dm' &&
+    personalAssistantDm &&
     meta[EDITOR_MODE_KEY] === 'ask' &&
     !hasFileExportSignals(message) &&
     !hasPriorReferenceExportSignals(message) &&
@@ -569,6 +620,11 @@ export function buildHumanOutboundMetadata(options: {
     composerModeRaw === 'ask' || composerModeRaw === 'plan' || composerModeRaw === 'agent' || composerModeRaw === 'export'
       ? composerModeRaw
       : 'agent';
+  if (composerMode === 'ask' || composerMode === 'plan') {
+    meta[EDITOR_AGENT_TRUST_KEY] = 'interactive';
+  } else {
+    meta[EDITOR_AGENT_TRUST_KEY] = 'auto_apply_edits';
+  }
   return attachTurnCapabilitiesMetadata(
     meta,
     resolveTurnCapabilities({

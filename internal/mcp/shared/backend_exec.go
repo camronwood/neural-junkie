@@ -9,6 +9,24 @@ import (
 )
 
 type backendKey struct{}
+type implementationSessionKey struct{}
+
+// ContextWithImplementationSession marks tool calls that may use broader run_command allowlists.
+func ContextWithImplementationSession(ctx context.Context, enabled bool) context.Context {
+	if !enabled {
+		return ctx
+	}
+	return context.WithValue(ctx, implementationSessionKey{}, true)
+}
+
+// ImplementationSessionFromContext reports whether implementation-session commands are allowed.
+func ImplementationSessionFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	v, _ := ctx.Value(implementationSessionKey{}).(bool)
+	return v
+}
 
 // ContextWithBackend attaches a workspace backend for remote command execution.
 func ContextWithBackend(ctx context.Context, b workspacebackend.Backend) context.Context {

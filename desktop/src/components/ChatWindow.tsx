@@ -113,13 +113,13 @@ import type {
   ThinkingAgent,
   ThinkingStatusMetadata,
 } from '../types/protocol';
-import { isCollaborationMessage, getCollaborationId, showThreadReplyInMainTimeline } from '../types/protocol';
+import { isCollaborationMessage, getCollaborationId, showThreadReplyInMainTimeline, isToolStepStreamDelta, isReasoningStreamDelta, THINKING_ACTIVITY_DETAIL_KEY, THINKING_ACTIVITY_REASONING, THINKING_ACTIVITY_USING_TOOL, THINKING_ACTIVITY_WRITING } from '../types/protocol';
 import { findThreadParentMessage } from '../utils/slackThread';
 import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDisplayName } from '../utils/slackChannelDisplay';
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
-import { resolveTerminalCwd } from '../utils/terminalCwd';
+import { mirrorAgentCommandInTerminal } from '../utils/mirrorAgentCommandInTerminal';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
 import {
   ensureRepoAgentWorkspace,
@@ -1404,12 +1404,36 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         if (message.metadata?.thinking_status) {
           const thinkingStatus = message.metadata.thinking_status as ThinkingStatusMetadata['thinking_status'];
           if (thinkingStatus === 'started') {
-            st.addThinkingAgent(msgChannel, message.from.id, message.from.name, message.from.type);
+            const activity =
+              typeof message.metadata.thinking_activity === 'string'
+                ? message.metadata.thinking_activity
+                : undefined;
+            const activityDetail =
+              typeof message.metadata[THINKING_ACTIVITY_DETAIL_KEY] === 'string'
+                ? (message.metadata[THINKING_ACTIVITY_DETAIL_KEY] as string)
+                : typeof message.metadata.thinking_activity_detail === 'string'
+                  ? message.metadata.thinking_activity_detail
+                  : undefined;
+            st.addThinkingAgent(
+              msgChannel,
+              message.from.id,
+              message.from.name,
+              message.from.type,
+              activity,
+              activityDetail
+            );
             if (
               msgChannel !== activeChannel &&
               msgChannel.startsWith('collab-')
             ) {
-              st.addThinkingAgent(activeChannel, message.from.id, message.from.name, message.from.type);
+              st.addThinkingAgent(
+                activeChannel,
+                message.from.id,
+                message.from.name,
+                message.from.type,
+                activity,
+                activityDetail
+              );
             }
           } else if (
             thinkingStatus === 'completed' ||
@@ -1460,16 +1484,41 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         (!message.channel || message.channel === activeChannel) &&
         (!message.is_thread_reply || showThreadReplyInMainTimeline(streamChannel));
       if (message.type === 'stream_delta') {
+        const streamMeta = message.metadata ?? {};
+        const agentChannel = message.channel || activeChannel;
+        if (isToolStepStreamDelta(streamMeta)) {
+          st.updateThinkingAgentActivity(agentChannel, message.from.id, {
+            activity: THINKING_ACTIVITY_USING_TOOL,
+            activityDetail:
+              typeof streamMeta.tool_preview === 'string' ? streamMeta.tool_preview : undefined,
+            toolStep: {
+              kind: String(streamMeta.tool_step ?? ''),
+              name: String(streamMeta.tool_name ?? ''),
+              iteration:
+                typeof streamMeta.tool_iteration === 'number' ? streamMeta.tool_iteration : undefined,
+              preview:
+                typeof streamMeta.tool_preview === 'string' ? streamMeta.tool_preview : undefined,
+            },
+          });
+        } else if (isReasoningStreamDelta(streamMeta)) {
+          st.updateThinkingAgentActivity(agentChannel, message.from.id, {
+            activity: THINKING_ACTIVITY_REASONING,
+          });
+        } else if ((message.content ?? '').length > 0) {
+          st.updateThinkingAgentActivity(agentChannel, message.from.id, {
+            activity: THINKING_ACTIVITY_WRITING,
+          });
+        }
         if (streamOnMainTimeline) {
           st.appendStreamDelta(message);
         }
-        st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
         return;
       }
       if (message.type === 'stream_end') {
         if (streamOnMainTimeline) {
           st.finalizeStream(message.id);
         }
+        st.removeThinkingAgent(message.channel || activeChannel, message.from.id);
         return;
       }
 
@@ -1622,6 +1671,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
         handleSuggestedCommands(message, activeChannel);
 
+        if (message.type === 'command_output') {
+          mirrorAgentCommandInTerminal(message);
+        }
+
         if (message.metadata?.event === 'agent-open-terminal') {
           const agentName = message.metadata.agent_name as string || 'Agent';
           const msgCh = message.channel || activeChannel;
@@ -1759,7 +1812,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         composerMode,
         agents,
         activeTab: activeEditorTab,
-        editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
+        editorAgentTrust: resolveEditorAgentTrust(layoutSettings, composerMode),
         composerMetadata: metadata,
         api: devPackEnabled ? api : undefined,
         repoPath: devPackEnabled ? ws?.path : undefined,
@@ -1773,6 +1826,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         channelType: activeChannelMeta?.type,
         composerMetadata: payload.metadata,
         ideCoding: ideLayout && hasIdeComposer,
+        recentChannelMessages: useChatStore.getState().messages,
       });
       await api.sendThreadReply(
         threadId,
@@ -1832,7 +1886,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         composerMode,
         agents,
         activeTab: activeEditorTab,
-        editorAgentTrust: resolveEditorAgentTrust(layoutSettings),
+        editorAgentTrust: resolveEditorAgentTrust(layoutSettings, composerMode),
         composerMetadata: composerMeta,
         api: devPackEnabled ? api : undefined,
         repoPath: devPackEnabled ? ws?.path : undefined,
@@ -1849,6 +1903,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         channelType: activeChannelMeta?.type,
         composerMetadata: composerMeta,
         ideCoding: ideLayout && hasIdeComposer,
+        recentChannelMessages: useChatStore.getState().messages,
       });
 
       useChatStore.getState().setIsTyping(true);

@@ -27,9 +27,21 @@ Desktop sets `implementation_session: true` automatically when Agent mode + code
 7. **Repair** — one extra round if preflight or verify fails
 8. **Multi-file continue** — when stack manifest targets remain (e.g. `tailwind.config.js` then `src/App.tsx`), the session loops in the **same user turn** up to 5 files — no manual "go ahead" between files
 
+### NJ Fix Loop (boot/build repair policy)
+
+Platform policy on top of Agent Runtime v2 so command failures close the loop:
+
+1. **Command telemetry** — `run_command` results recorded in `ImplementationSessionState.CommandHistory`
+2. **Circuit breaker** — same failing command twice without a `read_file` / edit in between → MCP blocks a third run
+3. **Boot-fix grounding** — `make start-all` / `npm run dev` blocked until `Makefile`, `package.json`, or `scripts/start-all.sh` was read
+4. **Playbooks** — known signatures (e.g. `No rule to make target 'start-all'`) trigger deterministic Makefile repairs when `scripts/start-all.sh` exists
+5. **Session finale** — every session posts a summary + `implementation_session_outcome` (includes `command_failures`, `playbook_used`, `circuit_breaker_triggered` when relevant)
+
+Boot-fix tasks route to **FrontendEngineer** via `ide_route_agent_type: frontend` when the composer detects boot/build failure signals.
+
 Interactive trust skips verify (proposals await manual approval).
 
-Implementation session replies include `implementation_session_outcome` metadata (`repair_used`, `verify_failed`, `outcome`, `files_changed`) for scenario harness assertions.
+Implementation session replies include `implementation_session_outcome` metadata (`repair_used`, `verify_failed`, `outcome`, `files_changed`, `command_failures`, `playbook_used`, `circuit_breaker_triggered`) for scenario harness assertions.
 
 ## Session summary headers
 
@@ -57,6 +69,7 @@ make implement-scenarios-list
 make implement-scenario SCENARIO=go-handler
 make implement-scenario SCENARIO=react-theme-toggle
 make implement-scenario SCENARIO=react-theme-multi-file
+make implement-scenario SCENARIO=tauri-make-start-all-missing
 make implement-scenarios
 make test-parity-stable
 ```

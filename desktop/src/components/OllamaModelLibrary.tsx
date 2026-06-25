@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ModelStoreBrowse } from './model-library/ModelStoreBrowse';
 import type { StoreModelAction, StoreModelItem } from './model-library/types';
 
@@ -48,6 +48,13 @@ interface OllamaModelLibraryProps {
   onAfterModelChange?: () => void;
   onViewChange?: (view: 'grid' | 'detail') => void;
   resetDetailSignal?: number;
+}
+
+function hubFetchError(status: number, fallback: string): string {
+  if (status === 429) {
+    return 'Hub rate limit exceeded — wait a moment and try again';
+  }
+  return fallback;
 }
 
 function familyName(tag: string): string {
@@ -135,6 +142,37 @@ export function OllamaModelLibrary({
   const [deletingName, setDeletingName] = useState<string | null>(null);
   const [useBusyName, setUseBusyName] = useState<string | null>(null);
   const [tagCache, setTagCache] = useState<Record<string, RegistryTagsResponse>>({});
+  const tagCacheRef = useRef(tagCache);
+  tagCacheRef.current = tagCache;
+  const tagsInflightRef = useRef(new Map<string, Promise<RegistryTagsResponse | null>>());
+
+  const loadTagsForFamily = useCallback(
+    async (family: string): Promise<RegistryTagsResponse | null> => {
+      const fam = familyName(family);
+      if (!fam) return null;
+      const cached = tagCacheRef.current[fam];
+      if (cached) return cached;
+      const pending = tagsInflightRef.current.get(fam);
+      if (pending) return pending;
+
+      const work = (async () => {
+        try {
+          const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(fam)}`);
+          if (!r.ok) return null;
+          const data = (await r.json()) as RegistryTagsResponse;
+          setTagCache((prev) => ({ ...prev, [fam]: data }));
+          return data;
+        } catch {
+          return null;
+        } finally {
+          tagsInflightRef.current.delete(fam);
+        }
+      })();
+      tagsInflightRef.current.set(fam, work);
+      return work;
+    },
+    [serverAddr]
+  );
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -174,7 +212,7 @@ export function OllamaModelLibrary({
     (async () => {
       try {
         const r = await fetch(`${serverAddr}/api/ollama/catalog`);
-        if (!r.ok) throw new Error(r.statusText);
+        if (!r.ok) throw new Error(hubFetchError(r.status, r.statusText));
         const rows = (await r.json()) as OllamaCatalogEntry[];
         if (!cancelled) {
           setCurated(Array.isArray(rows) ? rows : []);
@@ -200,7 +238,7 @@ export function OllamaModelLibrary({
         const params = new URLSearchParams({ page: String(page) });
         if (searchQuery) params.set('q', searchQuery);
         const r = await fetch(`${serverAddr}/api/ollama/library/search?${params}`);
-        if (!r.ok) throw new Error(await r.text());
+        if (!r.ok) throw new Error(hubFetchError(r.status, await r.text()));
         const data = (await r.json()) as RegistrySearchResponse;
         setRegistry((prev) => (append ? [...prev, ...(data.models ?? [])] : data.models ?? []));
         setRegistryPage(data.page ?? page);
@@ -259,13 +297,10 @@ export function OllamaModelLibrary({
 
   async function resolvePullTag(model: string): Promise<string> {
     if (model.includes(':')) return model;
-    const cached = tagCache[model];
-    if (cached?.default_tag) return cached.default_tag;
-    const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(model)}`);
-    if (!r.ok) return `${model}:latest`;
-    const data = (await r.json()) as RegistryTagsResponse;
-    setTagCache((prev) => ({ ...prev, [model]: data }));
-    return data.default_tag || data.tags?.[0]?.name || `${model}:latest`;
+    const fam = familyName(model);
+    const data = (await loadTagsForFamily(fam)) ?? tagCacheRef.current[fam];
+    if (data?.default_tag) return data.default_tag;
+    return data?.tags?.[0]?.name || `${fam}:latest`;
   }
 
   async function pullModel(model: string) {
@@ -494,25 +529,12 @@ export function OllamaModelLibrary({
     tagCache,
   ]);
 
-  useEffect(() => {
-    const families = new Set<string>();
-    for (const row of filtered) {
-      const fam = familyName(row.name);
-      if (fam) families.add(fam);
-    }
-    for (const fam of families) {
-      void (async () => {
-        try {
-          const r = await fetch(`${serverAddr}/api/ollama/library/tags?name=${encodeURIComponent(fam)}`);
-          if (!r.ok) return;
-          const data = (await r.json()) as RegistryTagsResponse;
-          setTagCache((prev) => (prev[fam] ? prev : { ...prev, [fam]: data }));
-        } catch {
-          /* optional enrichment */
-        }
-      })();
-    }
-  }, [filtered, serverAddr]);
+  const handleDetailOpen = useCallback(
+    (item: StoreModelItem) => {
+      void loadTagsForFamily(item.id);
+    },
+    [loadTagsForFamily]
+  );
 
   const banner = (
     <>
@@ -602,6 +624,7 @@ export function OllamaModelLibrary({
       onQueryChange={setQuery}
       searchPlaceholder="Search all Ollama models…"
       onViewChange={onViewChange}
+      onDetailOpen={handleDetailOpen}
       resetDetailSignal={resetDetailSignal}
       banner={banner}
       footer={footer}

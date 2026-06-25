@@ -564,13 +564,13 @@ def ensure_dm_channel(base: str, user: str, agent_name: str) -> str | None:
     return name or None
 
 
-def clear_channel_history(base: str, channel: str, *, max_retries: int = 3) -> bool:
+def clear_channel_history(base: str, channel: str, *, max_retries: int = 5) -> bool:
     payload = {"name": channel}
     for attempt in range(max_retries):
         code, _ = hub_request(base, "POST", "/api/channels/clear-history", payload)
         if code == 200:
             return True
-        if code == 429 and attempt + 1 < max_retries:
+        if code in (429, 500, 502, 503, 504) and attempt + 1 < max_retries:
             time.sleep(2.0 * (attempt + 1))
             continue
         return False

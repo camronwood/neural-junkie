@@ -31,7 +31,7 @@ func RedirectProposalPath(path string, manifest *StackManifest) string {
 		}
 	}
 	base := strings.ToLower(filepath.Base(path))
-	if (base == "app.vue" || base == "app.jsx") && manifest.EntryPoint != "" {
+	if (base == "app.vue" || base == "app.jsx" || base == "app.js") && manifest.EntryPoint != "" {
 		entryBase := strings.ToLower(filepath.Base(manifest.EntryPoint))
 		if base != entryBase && manifest.HasReact {
 			return manifest.EntryPoint
@@ -72,6 +72,11 @@ func ValidateProposal(wsPath, path string, op ProposalOperation, manifest *Stack
 		if statErr == nil && !info.IsDir() {
 			// existing file — prefer edit; not a hard error
 		}
+		if manifest != nil {
+			if err := validateEntryAlternateConflict(path, manifest); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -96,6 +101,31 @@ func validateProposalStackRules(path string, manifest *StackManifest) error {
 		norm := filepath.ToSlash(path)
 		if norm != manifest.TailwindConfig {
 			return fmt.Errorf("tailwind config belongs at %q, not %q", manifest.TailwindConfig, path)
+		}
+	}
+	return nil
+}
+
+func validateEntryAlternateConflict(path string, manifest *StackManifest) error {
+	if manifest == nil || manifest.EntryPoint == "" {
+		return nil
+	}
+	base := strings.ToLower(filepath.Base(path))
+	entryBase := strings.ToLower(filepath.Base(manifest.EntryPoint))
+	if base == entryBase {
+		return nil
+	}
+	alternates := map[string][]string{
+		"app.tsx": {"app.js", "app.jsx"},
+		"app.jsx": {"app.js", "app.tsx"},
+		"app.js":  {"app.tsx", "app.jsx"},
+	}
+	for _, alt := range alternates[entryBase] {
+		if base == alt {
+			return fmt.Errorf(
+				"path %q is not the project entry — edit %q instead (do not create a parallel App file)",
+				path, manifest.EntryPoint,
+			)
 		}
 	}
 	return nil

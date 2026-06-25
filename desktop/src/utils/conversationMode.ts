@@ -4,6 +4,7 @@ import {
   messageRequestsScanTool,
 } from './inferContextScope';
 import {
+  hasErrorLogFollowUpSignals,
   hasImplementationContinuationSignals,
   hasImplementationRequestSignals,
 } from './implementationContinuation';
@@ -66,6 +67,7 @@ export function hasCodeTaskSignals(message: string): boolean {
   if (!text) return false;
   if (hasImplementationContinuationSignals(text)) return true;
   if (hasImplementationRequestSignals(text)) return true;
+  if (hasErrorLogFollowUpSignals(text)) return true;
   if (hasScanOrEditorTaskSignals(text)) return true;
   if (/@codebase\b/i.test(text)) return true;
   if (CODE_VERBS_RE.test(text)) return true;

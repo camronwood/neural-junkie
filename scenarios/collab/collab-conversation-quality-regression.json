@@ -3,8 +3,8 @@
   "description": "Execution deliverables must be substantive prose (no placeholders) and collab discussion must not be raw JSON (26e9081e session regression).",
   "tags": ["collab", "conversation", "regression"],
   "channel": "collab-scenarios",
-  "agents": "@Assistant",
-  "required_agents": ["Assistant"],
+  "agents": "@Assistant @BackendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,

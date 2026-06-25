@@ -1542,7 +1542,7 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 		},
 		{
 			Name:        "/generate-image",
-			Description: "Generate an image via OpenAI Images API (requires OPENAI_API_KEY on server)",
+			Description: "Generate an image (local Ollama by default; optional OpenAI via NEURAL_JUNKIE_IMAGE_PROVIDER=openai)",
 			Category:    "Design",
 			Arguments: []protocol.CommandArgument{
 				{Name: "prompt", Description: "What to generate", Type: "string", Required: true},

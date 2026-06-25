@@ -55,8 +55,13 @@ func (t *unansweredMessageTracker) observe(msg *protocol.Message) {
 	if isUserLikeInboundMessage(msg) {
 		t.trackUserMessage(msg)
 	}
-	if isAgentInboundMessage(msg) && msg.ReplyTo != "" {
-		t.markAsResponded(msg.ReplyTo)
+	if isAgentInboundMessage(msg) {
+		if msg.ReplyTo != "" {
+			t.markAsResponded(msg.ReplyTo)
+		}
+		if isAgentChatReply(msg) {
+			t.markLatestChannelResponded(msg.Channel)
+		}
 	}
 }
 
@@ -70,11 +75,39 @@ func isAgentInboundMessage(msg *protocol.Message) bool {
 		!protocol.IsUserLikeSender(msg.From)
 }
 
+// shouldTrackUnansweredUserMessage reports whether a public-channel user line
+// should participate in the unanswered-message nudge timer.
+func shouldTrackUnansweredUserMessage(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	switch msg.Type {
+	case protocol.MessageTypeSystemInfo, protocol.MessageTypeAgentJoin, protocol.MessageTypeAgentLeave,
+		protocol.MessageTypeAgentStatus:
+		return false
+	}
+	if strings.HasPrefix(strings.TrimSpace(msg.Content), "/") {
+		return false
+	}
+	if classifyConversationalClosure(msg.Content) != ClosureNone {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(msg.Content))
+	if strings.Contains(lower, "has joined") || strings.Contains(lower, "has left") {
+		return false
+	}
+	// Directed @mentions are handled by mention routing — do not inject Assistant nudge.
+	if len(protocol.ParseMentions(msg.Content)) > 0 || msg.HasMentions() {
+		return false
+	}
+	return true
+}
+
 func (t *unansweredMessageTracker) trackUserMessage(msg *protocol.Message) {
-	if strings.HasPrefix(msg.Content, "/") {
+	if t.agent.Hub != nil && t.agent.effectiveChannelType(msg.Channel) != protocol.ChannelTypePublic {
 		return
 	}
-	if t.agent.Hub != nil && t.agent.effectiveChannelType(msg.Channel) != protocol.ChannelTypePublic {
+	if !shouldTrackUnansweredUserMessage(msg) {
 		return
 	}
 
@@ -99,6 +132,28 @@ func (t *unansweredMessageTracker) markAsResponded(messageID string) {
 	if tracker, exists := t.trackedMessages[messageID]; exists {
 		tracker.HasResponse = true
 		log.Printf("[%s] Message %s received response", t.agent.Info.Name, messageID)
+	}
+}
+
+func (t *unansweredMessageTracker) markLatestChannelResponded(channel string) {
+	channel = strings.TrimSpace(channel)
+	if channel == "" {
+		return
+	}
+	t.trackerMutex.Lock()
+	defer t.trackerMutex.Unlock()
+	var latest *MessageTracker
+	for _, tracker := range t.trackedMessages {
+		if tracker.Channel != channel || tracker.HasResponse {
+			continue
+		}
+		if latest == nil || tracker.Timestamp.After(latest.Timestamp) {
+			latest = tracker
+		}
+	}
+	if latest != nil {
+		latest.HasResponse = true
+		log.Printf("[%s] Message %s received agent reply in channel", t.agent.Info.Name, latest.MessageID)
 	}
 }
 

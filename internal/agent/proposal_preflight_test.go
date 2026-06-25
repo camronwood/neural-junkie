@@ -39,6 +39,28 @@ func TestValidateProposal_rejectsWrongTailwindPath(t *testing.T) {
 	}
 }
 
+func TestRedirectProposalPath_appJsToTsx(t *testing.T) {
+	t.Parallel()
+	m := &StackManifest{HasReact: true, EntryPoint: "src/App.tsx"}
+	got := RedirectProposalPath("src/App.js", m)
+	if got != "src/App.tsx" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestValidateProposal_rejectsCreateAppJsWhenTsxEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"dependencies":{"react":"^18.2.0"}}`)
+	writeFile(t, dir, "src/App.tsx", "export default function App() {}\n")
+	m := DetectStackManifest(dir)
+
+	err := ValidateProposal(dir, "src/App.js", ProposalOpCreate, m)
+	if err == nil || !strings.Contains(err.Error(), "src/App.tsx") {
+		t.Fatalf("expected entry conflict, got %v", err)
+	}
+}
+
 func TestValidateProposal_editMustExist(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

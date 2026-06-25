@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep overnight-release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -119,6 +119,7 @@ test-regression-live: ## Print pre-release live regression checklist (does not s
 	@echo "Pre-release live regression (see docs/TESTING.md):"
 	@echo ""
 	@echo "  make release-prep                 # one-shot: env+Gemini judge + test-everything-full + parity + benchmark"
+	@echo "  make overnight-release-prep       # walk-away: Ollama + tmux + caffeinate + release-prep"
 	@echo "  make test-everything              # CI + live harness; review docs/testing/test-everything-*.md"
 	@echo "  make test-everything-full         # above + all collab scenarios (~1-3h extra)"
 	@echo ""
@@ -327,6 +328,17 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + quic
 		$(if $(NO_RESTART_HUB),--no-restart-hub,) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(STOP_ON_FAIL),--stop-on-fail,)'
+
+overnight-release-prep: ## Walk-away gate: ensure Ollama + tmux + caffeinate + release-prep → ~/nj-overnight-*.log (IN_TMUX=0 foreground; PULL=1 pre-pull; NJ_OVERNIGHT_TARGET=test-everything-full for lighter run)
+	@chmod +x scripts/overnight-release-prep.sh
+	@SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
+	 NO_FULL='$(NO_FULL)' SKIP_EVERYTHING='$(SKIP_EVERYTHING)' BENCHMARK_SUITE='$(BENCHMARK_SUITE)' \
+	 BENCHMARK_MODELS='$(BENCHMARK_MODELS)' NO_PULL='$(NO_PULL)' BENCHMARK_ALLOW_LARGE='$(BENCHMARK_ALLOW_LARGE)' \
+	 NO_RESTART_HUB='$(NO_RESTART_HUB)' VERBOSE='$(VERBOSE)' STOP_ON_FAIL='$(STOP_ON_FAIL)' \
+	 IN_TMUX='$(IN_TMUX)' PULL='$(PULL)' NJ_OVERNIGHT_TARGET='$(NJ_OVERNIGHT_TARGET)' \
+	 NJ_OVERNIGHT_LOG_DIR='$(NJ_OVERNIGHT_LOG_DIR)' NJ_OVERNIGHT_SESSION='$(NJ_OVERNIGHT_SESSION)' \
+	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' \
+	 ./scripts/overnight-release-prep.sh
 
 model-benchmark: ## Benchmark ≤24B coder models (SUITE=quick; pulls by default; NO_PULL=1 to skip; BENCHMARK_ALLOW_LARGE=1 to bypass cap)
 	@chmod +x scripts/model-benchmark-suite.py

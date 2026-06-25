@@ -731,7 +731,7 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 	prompt.WriteString("The user wants working changes in the shared workspace, not advice-only.\n")
 	prompt.WriteString("You MUST include one or more [FILE_CHANGE] blocks with real file paths and content.\n")
 	prompt.WriteString("Each path must be a real relative file (e.g. tailwind.config.js, src/index.css) — never labels like \"File:\" or \"path:\".\n")
-	prompt.WriteString("Use only dependencies already in package.json / the repo — do not invent packages.\n")
+	prompt.WriteString("Prefer dependencies already declared in package.json; run npm install or npm ci when modules are missing from node_modules.\n")
 	prompt.WriteString("Keep conversational text short (2-4 sentences); put code in [FILE_CHANGE], not long fenced dumps.\n")
 	if a != nil && a.hasWorkspaceTools() {
 		prompt.WriteString("When workspace tools are available, prefer search_replace or apply_patch for edits; propose_file_edit for creates.\n")
@@ -742,7 +742,11 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 		history := a.channelHistory(msg.Channel)
 		if messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content) {
 			prompt.WriteString("Boot/build fix: use read_file on paths from the error log, then fix or delete conflicting files. ")
-			prompt.WriteString("Verify with npm run build (or go test ./...) — do NOT run npm install; dependencies are already in the repo.\n")
+			if messageSuggestsMissingDependencies(msg.Content, history) {
+				prompt.WriteString("When errors cite missing npm packages (Cannot find module, TS2307), run npm install or npm ci in the workspace root, then verify with npm run build.\n")
+			} else {
+				prompt.WriteString("Verify with npm run build (or go test ./...). Use npm install only when package.json lists a dependency that is absent from node_modules.\n")
+			}
 		}
 		applied := channelRecentlyAppliedFilePaths(history, msg.ID, a.Info.ID)
 		if len(applied) > 0 {
@@ -763,6 +767,34 @@ func appendImplementationDeliveryGuidance(prompt *strings.Builder, a *Agent, msg
 // messageHasBootOrBuildError reports Vite/esbuild/boot failure logs in message text.
 func messageHasBootOrBuildError(content string) bool {
 	return bootErrorIntentRE.MatchString(strings.TrimSpace(content))
+}
+
+// messageSuggestsMissingDependencies reports build output that likely needs npm install.
+func messageSuggestsMissingDependencies(content string, history []*protocol.Message) bool {
+	check := func(text string) bool {
+		lower := strings.ToLower(strings.TrimSpace(text))
+		if lower == "" {
+			return false
+		}
+		return strings.Contains(lower, "cannot find module") ||
+			strings.Contains(lower, "module not found") ||
+			strings.Contains(lower, "are they installed") ||
+			strings.Contains(lower, "ts2307") ||
+			strings.Contains(lower, "missing dependency") ||
+			strings.Contains(lower, "command not allowlisted: npm install")
+	}
+	if check(content) {
+		return true
+	}
+	for i := len(history) - 1; i >= 0 && i >= len(history)-12; i-- {
+		if history[i] == nil {
+			continue
+		}
+		if check(history[i].Content) {
+			return true
+		}
+	}
+	return false
 }
 
 // userRequestsImplementationStatusCheck reports short follow-ups after a fix attempt.
@@ -865,7 +897,10 @@ func implementationSeedCandidates(workspacePath string, content string, history 
 		}
 	}
 	if messageImpliesBootFix(content, history) {
-		for _, p := range []string{"src/App.js", "src/App.tsx", "src/main.tsx", "src/main.ts", "package.json"} {
+		for _, p := range []string{
+			"Makefile", "scripts/start-all.sh",
+			"src/App.js", "src/App.tsx", "src/main.tsx", "src/main.ts", "package.json",
+		} {
 			add(p)
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/hub"
 )
 
 func TestHandleWebSearchConfigGet(t *testing.T) {
@@ -37,6 +38,8 @@ func TestHandleWebSearchConfigPut(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	t.Setenv("NEURAL_JUNKIE_RELAXED_LOCAL", "1")
+	hubSessions = hub.NewSessionManager()
+	sess := hubSessions.CreateSession("test", "admin")
 	appConfig = config.DefaultConfig()
 	appConfig.WebSearch.Enabled = false
 
@@ -49,6 +52,7 @@ func TestHandleWebSearchConfigPut(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/web-search/config", bytes.NewReader(body))
 	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("X-NJ-Session", sess.Token)
 	rec := httptest.NewRecorder()
 	handleWebSearchConfig(rec, req)
 	if rec.Code != http.StatusOK {

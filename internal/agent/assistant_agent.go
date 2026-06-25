@@ -267,6 +267,11 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• fetch_url — read a public HTTPS page after search when snippets are not enough\n")
 	prompt.WriteString("• Requires Settings → Integrations → Web search (Tavily recommended; Brave also supported).\n\n")
 
+	prompt.WriteString("**Image generation (hub tool):**\n")
+	prompt.WriteString("• When the user asks you to draw, create, or generate an image, call the generate_image tool with a detailed prompt.\n")
+	prompt.WriteString("• Requires a pulled Ollama image model (Model library → FLUX.2 Klein 4B). The image posts to the channel automatically.\n")
+	prompt.WriteString("• Users can also run `/generate-image <prompt>` directly.\n\n")
+
 	prompt.WriteString("**Conversation Summarization:**\n")
 	prompt.WriteString("• Summarize long discussions\n")
 	prompt.WriteString("• Extract action items and decisions\n")
@@ -282,6 +287,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• /note-search <query> - Search notes\n")
 	prompt.WriteString("• /meeting-add <time> <title> - Add meeting\n")
 	prompt.WriteString("• /summarize [last N messages] - Summarize conversation\n")
+	prompt.WriteString("• /generate-image <prompt> - Generate an image via local Ollama (e.g. `/generate-image a sailboat at sunset`)\n")
 	prompt.WriteString("• /help-assistant - Show assistant help\n\n")
 
 	prompt.WriteString("=== SYSTEM COMMANDS (Neural Junkie platform) ===\n")

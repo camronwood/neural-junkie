@@ -1,0 +1,87 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check [Known issues](https://github.com/camronwood/neural-junkie/blob/main/docs/KNOWN_ISSUES.md) before filing. For collaboration bugs, include the phase (planning, review, workspace gate, execution, files).
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: e.g. v1.2.0-beta.3 or commit SHA from source build
+      placeholder: v1.2.0-beta.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_source
+    attributes:
+      label: Install source
+      options:
+        - GitHub Release installer
+        - Built from source (make start-all)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Neural Junkie
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: collab_phase
+    attributes:
+      label: Collaboration phase (if applicable)
+      options:
+        - Not a collaboration issue
+        - Planning
+        - Review
+        - Workspace gate
+        - Execution
+        - Files / pending changes
+        - Other
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Hub logs, terminal output, or screenshots. Redact API keys and tokens.
+    validations:
+      required: false

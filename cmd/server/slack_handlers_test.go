@@ -101,8 +101,10 @@ func TestHandleSlackConfig_getPut(t *testing.T) {
 		"enabled":        &enabled,
 		"default_policy": "mention_only",
 	})
+	sess := hubSessions.CreateSession("test", "admin")
 	req = loopbackRequest(http.MethodPut, "/api/slack/config", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-NJ-Session", sess.Token)
 	rec = httptest.NewRecorder()
 	handleSlackConfig(rec, req)
 	if rec.Code != http.StatusOK {

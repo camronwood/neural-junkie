@@ -238,6 +238,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			response += "\n\nI submitted a git change proposal for your approval."
 		}
 	}
+	if isAskModeReadOnly(msg) {
+		response = sanitizeAskModeResponse(response)
+	}
 	log.Printf("[%s] ✍️  Generated response: %s", a.Info.Name, response[:min(50, len(response))])
 
 	// Send response -- reuse the stream message ID when available so the
@@ -574,6 +577,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 			}
 			if a.Collab.IsAgentTurn(collabID, a.Info.ID) {
 				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
+				return true
+			}
+			if !msg.IsFromSystem() && msg.IsMentioned(a.Info.ID) && isHumanCollabSpeaker(msg) &&
+				collabOutOfTurnMentionOK(msg, collabPhase) {
+				log.Printf("[%s] ✅ HUMAN @mention during %s - will respond (collab %s)", a.Info.Name, collabPhase, collabID[:8])
 				return true
 			}
 			if msg.IsMentioned(a.Info.ID) && a.Collab.AgentOutOfTurnMentionAllowed(collabID) &&

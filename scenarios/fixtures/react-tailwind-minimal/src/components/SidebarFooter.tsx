@@ -1,6 +1,6 @@
-import React from "react";
+import React from 'react';
 
-const SidebarFooter: React.FC = () => {
+export default function SidebarFooter() {
   return (
     <footer className="text-xs text-slate-600 border-t border-slate-800 pt-3">
       <p>Neural Junkie fixture</p>
@@ -9,6 +9,4 @@ const SidebarFooter: React.FC = () => {
       <p>Do not move theme toggle logic here</p>
     </footer>
   );
-};
-
-export default SidebarFooter;
+}

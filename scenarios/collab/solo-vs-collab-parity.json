@@ -2,8 +2,8 @@
   "name": "solo-vs-collab-parity",
   "description": "Compare solo @Assistant deliverable vs collab execution on the same minimal-repo fixture.",
   "channel": "collab-scenarios",
-  "agents": "@Assistant",
-  "required_agents": ["Assistant"],
+  "agents": "@Assistant @BackendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,

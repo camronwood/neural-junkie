@@ -9,6 +9,17 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+type streamMessageIDKey struct{}
+
+func WithStreamMessageID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, streamMessageIDKey{}, id)
+}
+
+func StreamMessageIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(streamMessageIDKey{}).(string)
+	return id
+}
+
 func (a *Agent) broadcastToolStep(ctx context.Context, msg *protocol.Message, streamMsgID string, ev ai.ToolStepEvent) {
 	if a.Hub == nil || msg == nil {
 		return
@@ -33,6 +44,9 @@ func (a *Agent) broadcastToolStep(ctx context.Context, msg *protocol.Message, st
 		delta.IsThreadReply = true
 	}
 	a.Hub.BroadcastDirect(msg.Channel, delta)
+	if ev.Kind == "start" || ev.Kind == "result" || ev.Kind == "error" || ev.Kind == "done" {
+		a.sendThinkingActivity(msg, protocol.ThinkingActivityUsingTool, toolActivityDetail(ev))
+	}
 }
 
 func (a *Agent) streamTextAsTokens(ctx context.Context, msg *protocol.Message, streamMsgID, text string) (string, string, string, error) {

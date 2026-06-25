@@ -343,15 +343,29 @@ export interface AssistantStateResponse {
 export interface ThinkingStatusMetadata {
   thinking_status: 'started' | 'completed' | 'error' | 'aborted';
   question_id: string;
+  thinking_activity?: 'generating_image' | string;
+  thinking_activity_detail?: string;
 }
 
 /** Ephemeral agent_status: channel agents paused until user sends a message. */
 export const METADATA_CHANNEL_HOLD = 'channel_hold';
 
+export const THINKING_ACTIVITY_GENERATING_IMAGE = 'generating_image';
+export const THINKING_ACTIVITY_USING_TOOL = 'using_tool';
+export const THINKING_ACTIVITY_REASONING = 'reasoning';
+export const THINKING_ACTIVITY_WRITING = 'writing';
+export const THINKING_ACTIVITY_VERIFYING = 'verifying';
+export const THINKING_ACTIVITY_PROPOSING_EDIT = 'proposing_edit';
+export const THINKING_ACTIVITY_IMPLEMENTATION = 'implementation';
+export const THINKING_ACTIVITY_DETAIL_KEY = 'thinking_activity_detail';
+
 export interface ThinkingAgent {
   id: string;
   name: string;
   type: AgentType;
+  activity?: string;
+  activityDetail?: string;
+  toolSteps?: ToolStepMeta[];
 }
 
 export interface ThreadMetadata {

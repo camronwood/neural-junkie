@@ -17,7 +17,9 @@ const ollamaWebOrigin = "https://ollama.com"
 
 var (
 	libraryLinkRe = regexp.MustCompile(`href="/library/([a-zA-Z0-9._-]+)"`)
+	xNamespaceLinkRe = regexp.MustCompile(`href="/(x/[^":]+)"`)
 	tagLinkRe     = regexp.MustCompile(`href="/library/([a-zA-Z0-9._:-]+)"`)
+	xTagLinkRe    = regexp.MustCompile(`href="/(x/[^"]+)"`)
 )
 
 // RegistryModel is one model family from the public Ollama library.
@@ -133,8 +135,8 @@ func (c *registryClient) search(ctx context.Context, query string, page int) (Re
 	for _, name := range pageNames {
 		out.Models = append(out.Models, RegistryModel{
 			Name:  name,
-			Title: humanizeModelName(name),
-			URL:   fmt.Sprintf("%s/library/%s", ollamaWebOrigin, name),
+			Title: humanizeModelName(strings.TrimPrefix(name, "x/")),
+			URL:   registryModelPageURL(name),
 		})
 	}
 
@@ -156,7 +158,7 @@ func (c *registryClient) tags(ctx context.Context, name string) (RegistryTagsRes
 	}
 	c.cacheMu.RUnlock()
 
-	target := fmt.Sprintf("%s/library/%s/tags", ollamaWebOrigin, url.PathEscape(name))
+	target := registryTagsPageURL(name)
 	body, err := c.fetch(ctx, target)
 	if err != nil {
 		return RegistryTagsResult{}, err
@@ -229,6 +231,16 @@ func parseLibraryNames(html string) []string {
 		}
 		out = append(out, name)
 	}
+	for _, m := range xNamespaceLinkRe.FindAllStringSubmatch(html, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		name := strings.TrimSpace(m[1])
+		if name == "" || strings.Contains(name, ":") {
+			continue
+		}
+		out = append(out, name)
+	}
 	return out
 }
 
@@ -244,7 +256,32 @@ func parseTagNames(html, family string) []string {
 		}
 		out = append(out, tag)
 	}
+	for _, m := range xTagLinkRe.FindAllStringSubmatch(html, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		tag := strings.TrimSpace(m[1])
+		if tag == "" || !strings.HasPrefix(tag, family+":") {
+			continue
+		}
+		out = append(out, tag)
+	}
 	return out
+}
+
+// registryTagsPageURL returns the ollama.com tags page for a model family.
+func registryTagsPageURL(name string) string {
+	if strings.HasPrefix(name, "x/") {
+		return fmt.Sprintf("%s/%s/tags", ollamaWebOrigin, name)
+	}
+	return fmt.Sprintf("%s/library/%s/tags", ollamaWebOrigin, url.PathEscape(name))
+}
+
+func registryModelPageURL(name string) string {
+	if strings.HasPrefix(name, "x/") {
+		return fmt.Sprintf("%s/%s", ollamaWebOrigin, name)
+	}
+	return fmt.Sprintf("%s/library/%s", ollamaWebOrigin, name)
 }
 
 func filterCommonTags(family string, tags []string) []string {
@@ -265,8 +302,9 @@ func filterCommonTags(family string, tags []string) []string {
 
 func normalizeRegistryName(name string) string {
 	name = strings.TrimSpace(name)
-	name = strings.TrimPrefix(name, ollamaWebOrigin+"/library/")
-	name = strings.TrimPrefix(name, "/library/")
+	name = strings.TrimPrefix(name, ollamaWebOrigin+"/")
+	name = strings.TrimPrefix(name, "/")
+	name = strings.TrimPrefix(name, "library/")
 	if i := strings.Index(name, ":"); i >= 0 {
 		name = name[:i]
 	}

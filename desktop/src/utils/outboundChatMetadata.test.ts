@@ -3,6 +3,7 @@ import {
   buildHumanOutboundMetadata,
   isCollabSandboxPath,
   isCollaborateCommand,
+  isPersonalAssistantDmChannel,
   trimWorkspaceContext,
 } from './outboundChatMetadata';
 import type { WorkspaceContext } from './workspaceContext';
@@ -132,5 +133,61 @@ describe('buildHumanOutboundMetadata DM personal questions', () => {
     expect(meta?.context_scope).toBe('none');
     expect(meta?.conversation_mode).toBe('chat');
     expect(meta?.workspace_context).toBeUndefined();
+  });
+
+  it('does not strip workspace for specialist DM error-log follow-ups', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      message:
+        'I am still getting this: VITE v5.4.21 ready in 121 ms\nWarn Waiting for your frontend dev server to start on http://localhost:5177/...',
+      channel: 'dm-camron-softwarearchitect',
+      channelType: 'dm',
+      composerMetadata: { editor_mode: 'ask' },
+      recentChannelMessages: [
+        {
+          type: 'question',
+          metadata: {
+            implementation_session: true,
+            can_run_impl_session: true,
+            conversation_mode: 'code',
+          },
+        },
+        {
+          type: 'chat',
+          metadata: {
+            implementation_session_complete: true,
+            implementation_session_outcome: { verify_failed: true },
+          },
+        },
+      ],
+    });
+    expect(meta?.context_scope_reason).not.toBe('personal assistant DM');
+    expect(meta?.conversation_mode).toBe('code');
+    expect(meta?.context_scope_reason).toBe('implementation thread continuation');
+    expect(meta?.editor_mode).toBe('agent');
+    expect(meta?.implementation_session).toBe(true);
+    expect(meta?.workspace_context).toBeDefined();
+  });
+
+  it('keeps agent mode in specialist DMs for non-code messages', () => {
+    const meta = buildHumanOutboundMetadata({
+      contextMode: 'auto',
+      message: 'What is your opinion on microservices?',
+      channel: 'dm-camron-softwarearchitect',
+      channelType: 'dm',
+      composerMetadata: {
+        editor_mode: 'agent',
+        implementation_session: true,
+      },
+    });
+    expect(meta?.editor_mode).toBe('agent');
+    expect(meta?.implementation_session).toBe(true);
+  });
+});
+
+describe('isPersonalAssistantDmChannel', () => {
+  it('matches assistant DMs only', () => {
+    expect(isPersonalAssistantDmChannel('dm-camron-assistant')).toBe(true);
+    expect(isPersonalAssistantDmChannel('dm-camron-softwarearchitect')).toBe(false);
   });
 });

@@ -87,7 +87,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
 		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type)
 	}
-	if includeTooling && a.imageGenerationToolsEnabled() {
+	if includeTooling && a.imageGenerationToolsEnabledForMessage(msg) {
 		appendImageGenerationPrompt(&system)
 	}
 

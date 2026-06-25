@@ -57,8 +57,26 @@ func (rl *RateLimiter) clientKey(r *http.Request) string {
 	return host
 }
 
+// rateLimitExempt reports read-only catalog endpoints that should not consume the global GET budget.
+func rateLimitExempt(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	switch r.URL.Path {
+	case "/api/ollama/catalog", "/api/hf/catalog", "/api/ollama/install-status":
+		return true
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/ollama/library/") {
+		return true
+	}
+	return false
+}
+
 func (rl *RateLimiter) Allow(r *http.Request) bool {
 	if rl == nil || !rl.enabled {
+		return true
+	}
+	if rateLimitExempt(r) {
 		return true
 	}
 	limit := rl.readMax

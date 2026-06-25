@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -186,12 +187,18 @@ func (ch *CommandHandler) handleListWorkspaces(ctx context.Context, msg *protoco
 func (ch *CommandHandler) handleGenerateImage(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
 	if len(parts) < 2 {
 		return ch.systemResponse(msg.Channel,
-			"❌ Usage: `/generate-image <prompt>`\n\nExample: `/generate-image a minimal app icon for a biotech lab`\n\nRequires `OPENAI_API_KEY` on the hub server (optional `OPENAI_BASE_URL`, `NEURAL_JUNKIE_IMAGE_MODEL`)."), nil
+			"❌ Usage: `/generate-image <prompt>`\n\nExample: `/generate-image a minimal app icon for a biotech lab`\n\n"+
+				"Uses local Ollama by default (`ollama pull x/flux2-klein:4b`). The image model is unloaded after each run (set `OLLAMA_IMAGE_KEEP_ALIVE=-1` to keep it loaded). Optional: `OLLAMA_IMAGE_MODEL`, `OLLAMA_ENDPOINT`, "+
+				"`NEURAL_JUNKIE_IMAGE_PROVIDER=openai` + `OPENAI_API_KEY` for cloud."), nil
 	}
 	prompt := strings.TrimSpace(strings.Join(parts[1:], " "))
 	if !ImageGenerationAvailable() {
 		return ch.systemResponse(msg.Channel,
-			"❌ Image generation is not configured. Set `OPENAI_API_KEY` on the hub server."), nil
+			"❌ Image generation is not configured. Pull an Ollama image model (e.g. `ollama pull x/flux2-klein:4b`) or set `NEURAL_JUNKIE_IMAGE_PROVIDER=none` to disable."), nil
+	}
+	progress := ch.systemResponse(msg.Channel, "🎨 Generating image…")
+	if err := ch.hub.SendMessage(progress); err != nil {
+		log.Printf("generate-image: failed to post progress message: %v", err)
 	}
 	if err := ch.hub.GenerateAndPostImage(ctx, msg.Channel, msg.From, prompt, ""); err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Image generation failed: %v", err)), nil

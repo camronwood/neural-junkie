@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NJ Fix Loop — Neural Junkie</title>
+  <meta name="description" content="Neural Junkie NJ Fix Loop: platform policy that closes the gap between command execution and repair — circuit breaker, boot-fix playbooks, session outcomes." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="stylesheet" href="../css/landing.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-primary" href="../features/index.html" aria-current="page">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap feature-deep" style="padding-top: clamp(2rem, 5vw, 3rem);">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Features</a> · NJ Fix Loop
+    </nav>
+    <header class="feature-deep-hero">
+      <h1>NJ Fix Loop — execution is not repair</h1>
+      <p class="feature-deep-lead">Platform policy on <strong>Agent Runtime v2</strong> so command failures close the loop: read manifests, edit files, re-run verify, and always report an outcome — instead of spamming the same failing command.</p>
+      <figure style="margin-top: 1.5rem;">
+        <img src="../media/articles/covers/neural-junkie-fix-loop-1200.png" alt="NJ Fix Loop — from command spam to closed-loop boot fixes" width="1200" height="630" loading="lazy" style="max-width: 100%; height: auto; border-radius: 8px;" />
+      </figure>
+    </header>
+
+    <article class="feature-prose">
+      <h2>The gap</h2>
+      <p>An agent that can <code>run_command</code> can still fail to fix your app. A typical boot-fix session might run <code>make start-all</code> eight times, fill chat with <code>command_output</code> messages, and never touch disk.</p>
+      <p><strong>Execution without repair</strong> is a platform problem, not just a model problem. The NJ Fix Loop adds hub policy so failures force <strong>read → edit → verify</strong> and a user-visible summary.</p>
+
+      <h2>What ships in the Fix Loop</h2>
+      <ol>
+        <li><strong>Command telemetry</strong> — every <code>run_command</code> result recorded in session state.</li>
+        <li><strong>Circuit breaker</strong> — same failing command twice without a read or edit in between blocks a third run.</li>
+        <li><strong>Boot-fix grounding</strong> — <code>make start-all</code> / <code>npm run dev</code> blocked until <code>Makefile</code>, <code>package.json</code>, or startup scripts were read.</li>
+        <li><strong>Playbooks</strong> — known signatures (e.g. <code>No rule to make target 'start-all'</code>) trigger deterministic repairs when fixtures exist.</li>
+        <li><strong>Session finale</strong> — every implementation session posts a summary plus <code>implementation_session_outcome</code> metadata.</li>
+      </ol>
+
+      <h2>Where it runs</h2>
+      <p>Fix Loop policy applies during <strong>IDE Agent mode</strong> implementation sessions — the same path as stack manifest injection, grounding gates, verify/repair, and auto-apply when editor trust allows. Boot/build failure signals route to <strong>FrontendEngineer</strong> when the composer detects them.</p>
+      <p>See also <a href="ide-v4.html">IDE v4</a> and <a href="ide-v3.html">IDE v3</a> for Ask/Agent routing and editor trust modes.</p>
+
+      <h2>Status</h2>
+      <p>Fix Loop ships on <code>main</code> ahead of the next beta tag. Tagged in <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CHANGELOG.md#unreleased">CHANGELOG [Unreleased]</a> until <strong>v1.2.0-beta.4</strong>.</p>
+
+      <p><a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IMPLEMENTATION_SESSION.md">IMPLEMENTATION_SESSION.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CURSOR_PARITY.md">CURSOR_PARITY.md</a> · <a href="../articles/index.html">Articles</a></p>
+    </article>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html" aria-current="page">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — <a href="https://github.com/camronwood/neural-junkie">open source</a> (MIT)</p>
+    </div>
+  </footer>
+</body>
+</html>

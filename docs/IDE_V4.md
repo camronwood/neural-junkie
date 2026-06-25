@@ -81,7 +81,7 @@ Desktop **Add workspace → Dev container**: browse local repo, load plan, tunne
 
 Returns container name, image, workspace folder, sidecar port. Run `nj-remote` inside the container after `devcontainer up`.
 
-## v4.1 (shipped on beta.N after v1.2.0-beta.1)
+## v4.1 (shipped in v1.2.0-beta.2+)
 
 | Feature | Status |
 |---------|--------|

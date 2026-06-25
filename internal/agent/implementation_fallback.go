@@ -316,6 +316,12 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 	}
 	var paths []string
 
+	if st := implementationSessionStateFromContext(ctx); st != nil {
+		if ok, p := a.attemptPlaybookForSessionState(ctx, msg, st); ok {
+			return true, p
+		}
+	}
+
 	if a.attemptCorruptAppJSBootFix(ctx, msg, wsPath, channel, userContent, implementationSessionStateFromContext(ctx)) {
 		return true, []string{"src/App.js"}
 	}

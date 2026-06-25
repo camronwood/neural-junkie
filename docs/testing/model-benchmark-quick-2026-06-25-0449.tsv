@@ -1,0 +1,46 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+deepseek-coder:6.7b	implement	go-handler	1	107.9	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+deepseek-coder:6.7b	implement	theme-toggle	1	115.9	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.	=== PASS: theme-toggle ===
+deepseek-coder:6.7b	implement	ask-mode-no-write	1	165.6			=== PASS: ask-mode-no-write ===
+deepseek-coder:6.7b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+deepseek-coder:6.7b	implement	typescript-compile-error-fix	1	5.1			=== PASS: typescript-compile-error-fix ===
+deepseek-coder:6.7b	chat	dm-backend-workspace	1	68.5			=== PASS: dm-backend-workspace ===
+deepseek-coder:6.7b	chat	dm-backend-echo-followup	0	120.8			=== FAIL: dm-backend-echo-followup ===
+codegemma:7b	implement	go-handler	1	37.8	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+codegemma:7b	implement	theme-toggle	1	53.7	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.	=== PASS: theme-toggle ===
+codegemma:7b	implement	ask-mode-no-write	1	169.6			=== PASS: ask-mode-no-write ===
+codegemma:7b	implement	go-test-failure-repair	1	5.1			=== PASS: go-test-failure-repair ===
+codegemma:7b	implement	typescript-compile-error-fix	1	5.1			=== PASS: typescript-compile-error-fix ===
+codegemma:7b	chat	dm-backend-workspace	0	0.1			=== FAIL: dm-backend-workspace ===
+codegemma:7b	chat	dm-backend-echo-followup	0	234.4			=== FAIL: dm-backend-echo-followup ===
+qwen3.5:9b	implement	go-handler	1	49.0	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+qwen3.5:9b	implement	theme-toggle	1	48.2	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables under src/theme.css.	=== PASS: theme-toggle ===
+qwen3.5:9b	implement	ask-mode-no-write	1	101.4			=== PASS: ask-mode-no-write ===
+qwen3.5:9b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+qwen3.5:9b	implement	typescript-compile-error-fix	1	5.1			=== PASS: typescript-compile-error-fix ===
+qwen3.5:9b	chat	dm-backend-workspace	1	56.4			=== PASS: dm-backend-workspace ===
+qwen3.5:9b	chat	dm-backend-echo-followup	0	207.3			=== FAIL: dm-backend-echo-followup ===
+gemma3:12b	implement	go-handler	1	42.1	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	49.7	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	87.4			=== PASS: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+gemma3:12b	implement	typescript-compile-error-fix	1	5.1			=== PASS: typescript-compile-error-fix ===
+gemma3:12b	chat	dm-backend-workspace	1	99.7			=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	0	237.5			=== FAIL: dm-backend-echo-followup ===
+qwen2.5-coder:14b	implement	go-handler	1	55.9	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	55.7	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables.	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	67.3			=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+qwen2.5-coder:14b	implement	typescript-compile-error-fix	1	5.1			=== PASS: typescript-compile-error-fix ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	104.7			=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	0	120.8			=== FAIL: dm-backend-echo-followup ===
+codestral:22b	implement	go-handler	1	40.0	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+codestral:22b	implement	theme-toggle	1	50.1	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables under src/theme.css.	=== PASS: theme-toggle ===
+codestral:22b	implement	ask-mode-no-write	0	304.1			=== FAIL: ask-mode-no-write ===
+devstral:24b	implement	go-handler	1	43.9	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+devstral:24b	implement	theme-toggle	1	48.1	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css with light and dark variables under src/theme.css.	=== PASS: theme-toggle ===
+devstral:24b	implement	ask-mode-no-write	1	97.4			=== PASS: ask-mode-no-write ===
+devstral:24b	implement	go-test-failure-repair	1	5.1			=== PASS: go-test-failure-repair ===
+devstral:24b	implement	typescript-compile-error-fix	1	5.1			=== PASS: typescript-compile-error-fix ===
+devstral:24b	chat	dm-backend-workspace	1	151.1			=== PASS: dm-backend-workspace ===
+devstral:24b	chat	dm-backend-echo-followup	0	120.8			=== FAIL: dm-backend-echo-followup ===

@@ -14,6 +14,7 @@ Neural Junkie native agents target **Cursor-equivalent workspace access** withou
 | Agent loop | Open-ended until done | Agent Runtime v2 until success, guardrail, or cancel |
 | Multi-file | Coordinated edits | Batched apply + checkpoint (no 5-file cap) |
 | Verify | Build/test loop | Node, Go, Rust, Python, Terraform |
+| Failure-driven repair | Read → edit → re-run on errors | **NJ Fix Loop** — circuit breaker, boot-fix playbooks, grounding gates |
 | Context | Large effective context | Model-aware budget + CCR + `nj_retrieve_context` |
 | Apply UX | Edits in editor | Auto-apply default in Agent mode; Monaco buffer sync |
 | Governance | Optional | `interactive` / `auto_apply_edits` / `yolo` |

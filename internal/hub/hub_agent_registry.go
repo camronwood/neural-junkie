@@ -43,6 +43,7 @@ func (h *Hub) RegisterAgent(agent *protocol.AgentInfo) error {
 	stored := new(protocol.AgentInfo)
 	*stored = *agent
 	enrichAgentImageGeneration(stored)
+	agent.SupportsImageGeneration = stored.SupportsImageGeneration
 	if h.agentRulesStore != nil {
 		if md, ok := h.agentRulesStore.Get(stored.ID); ok {
 			stored.CustomRulesMarkdown = md

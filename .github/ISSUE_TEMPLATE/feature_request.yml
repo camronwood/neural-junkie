@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an improvement or new capability
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For Cursor-like agent behavior, see [CURSOR_PARITY.md](https://github.com/camronwood/neural-junkie/blob/main/docs/CURSOR_PARITY.md) and [TESTING.md](https://github.com/camronwood/neural-junkie/blob/main/docs/TESTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to accomplish? What is painful today?
+      placeholder: I want to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: cursor_parity
+    attributes:
+      label: Cursor parity
+      options:
+        - label: This relates to native agent / IDE parity with Cursor (see CURSOR_PARITY.md)
+          required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

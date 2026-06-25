@@ -1,59 +1,29 @@
 package protocol
 
-import (
-	"encoding/base64"
-	"testing"
-)
+import "testing"
 
-func TestExtractUserImages_JSONStringBase64(t *testing.T) {
-	raw := []byte{0x89, 0x50, 0x4e, 0x47} // fake png header
-	b64 := base64.StdEncoding.EncodeToString(raw)
+func TestRedactImageBinaryMetadataPreservesGeneratedImagePath(t *testing.T) {
 	msg := &Message{
 		Metadata: map[string]interface{}{
-			MetadataImageData: b64,
-			MetadataImageType: "image/png",
-		},
-	}
-	parts := ExtractUserImages(msg)
-	if len(parts) != 1 {
-		t.Fatalf("got %d parts, want 1", len(parts))
-	}
-	if parts[0].MIME != "image/png" {
-		t.Fatalf("mime %q", parts[0].MIME)
-	}
-	if string(parts[0].Data) != string(raw) {
-		t.Fatalf("data mismatch")
-	}
-}
-
-func TestExtractUserImages_UserImagesArray(t *testing.T) {
-	raw := []byte("hello")
-	b64 := base64.StdEncoding.EncodeToString(raw)
-	msg := &Message{
-		Metadata: map[string]interface{}{
-			MetadataUserImages: []interface{}{
-				map[string]interface{}{"mime": "image/jpeg", "data": b64},
+			"generated_image": map[string]interface{}{
+				"mime": "image/png",
+				"data": "aGVsbG8=",
+				"path": "/Users/me/.neural-junkie/generated-images/msg-1.png",
 			},
 		},
 	}
-	parts := ExtractUserImages(msg)
-	if len(parts) != 1 || string(parts[0].Data) != "hello" {
-		t.Fatalf("got %+v", parts)
+	RedactImageBinaryMetadata(msg)
+	raw, ok := msg.Metadata["generated_image"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected generated_image map")
 	}
-}
-
-func TestSanitizeUserImagesMetadata_NormalizesLegacy(t *testing.T) {
-	b64 := base64.StdEncoding.EncodeToString([]byte("x"))
-	msg := &Message{Metadata: map[string]interface{}{
-		MetadataImageData: b64,
-		MetadataImageType: "image/gif",
-	}}
-	SanitizeUserImagesMetadata(msg)
-	if _, ok := msg.Metadata[MetadataImageData]; ok {
-		t.Fatal("expected legacy keys removed")
+	if raw["data_redacted"] != true {
+		t.Fatal("expected data_redacted")
 	}
-	arr, ok := msg.Metadata[MetadataUserImages].([]interface{})
-	if !ok || len(arr) != 1 {
-		t.Fatalf("user_images: %v", msg.Metadata[MetadataUserImages])
+	if _, has := raw["data"]; has {
+		t.Fatal("data should be stripped")
+	}
+	if raw["path"] != "/Users/me/.neural-junkie/generated-images/msg-1.png" {
+		t.Fatalf("path not preserved: %+v", raw)
 	}
 }

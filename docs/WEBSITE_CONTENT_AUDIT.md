@@ -127,7 +127,7 @@ Footer doc-strip: same sections plus Architecture (repo doc).
 
 ## Remaining gaps (future work)
 
-1. **Version strings** — `v1.2.0-beta.1` still duplicated across HTML; consider generating from release tag in `release-prep.py`.
+1. **Version strings** — synced to **v1.2.0-beta.3** via `./scripts/update-website-release.sh` + `python3 scripts/sync-site-nav.py` (dev banner reads `desktop/package.json`). Re-run both on each beta tag; append `release-notes.html` manually.
 2. **61 repo markdown docs** — only top onboarding + security surfaced on-site; full docs site optional.
 3. **No Pages CI** — deploy is push-to-`main` on `/docs`.
 4. **README** — still engineering-heavy; optional sync with landing voice.

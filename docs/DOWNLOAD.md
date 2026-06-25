@@ -1,6 +1,6 @@
-# Download and first run (v1.2.0-beta.1)
+# Download and first run (v1.2.0-beta.3)
 
-Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neural-junkie/releases) — no Go, Node, or Rust required for the desktop app.
+Install Neural Junkie from [GitHub Releases — v1.2.0-beta.3](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3) ([latest](https://github.com/camronwood/neural-junkie/releases/latest)) — no Go, Node, or Rust required for the desktop app.
 
 **Auto-update:** After you install a release that includes in-app updates, Neural Junkie checks for newer builds on your channel (beta or stable) and can install them with one click. See [RELEASE_UPDATES.md](RELEASE_UPDATES.md). If you are on an older installer from before auto-update shipped, install one current release manually first.
 
@@ -30,18 +30,9 @@ Install Neural Junkie from [GitHub Releases](https://github.com/camronwood/neura
 
 The bundled hub listens on **`http://localhost:18765`** (started by the desktop app).
 
-## 3. Five-minute first win
+## 3. Next steps
 
-1. In chat, ask **Moderator**:
-   ```
-   @Moderator What can Neural Junkie do?
-   ```
-2. Open the **command palette** with **Cmd+Shift+P** on macOS or **Ctrl+Shift+P** on Linux/Windows, then run **Help**.
-3. Optional — index a repo and ask an expert:
-   ```
-   /create-repo-agent /path/to/your/repo MyRepoExpert
-   @MyRepoExpert summarize the architecture and top risk areas
-   ```
+For a guided five-minute path (first chat, command palette, repo expert, collaboration), see the marketing site [Start here guide](https://camronwood.github.io/neural-junkie/start-here.html) or [GETTING_STARTED.md](GETTING_STARTED.md) for source developers.
 
 ## Troubleshooting
 

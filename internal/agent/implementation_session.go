@@ -58,8 +58,18 @@ type ImplementationSessionState struct {
 	SeedsLoaded     int
 	DiscoverTools   []string
 	PreflightErrors []string
-	TrustMode       string
-	BootFixIntent   bool
+	TrustMode                  string
+	BootFixIntent              bool
+	CommandHistory             []CommandRunRecord
+	LastReadPaths              []string
+	BootReadPaths              []string
+	SinceLastCommandReadOrEdit bool
+	CommandOnlyRounds          int
+	CommandFailuresSinceEdit   map[string]int
+	LastCommandOutputText      string
+	LastFailedCommand          string
+	CircuitBreakerFired        bool
+	PlaybookUsedName           string
 }
 
 func withImplementationSessionState(ctx context.Context, s *ImplementationSessionState) context.Context {
@@ -121,6 +131,9 @@ func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 		return false
 	}
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() || msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan" {
+		return false
+	}
+	if isAskModeReadOnly(msg) {
 		return false
 	}
 	if a.Info.Type == protocol.AgentTypeAssistant && !assistantAllowsImplementationSession(a, msg) {
@@ -236,10 +249,12 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	perf := performanceFromHub()
 	sessionCtx = contextcompress.WithAgentRetrieveBudget(sessionCtx, perf.AgentRuntimeMaxRetrievePerTurnOrDefault())
 
+	a.sendThinkingActivity(msg, protocol.ThinkingActivityImplementation, "exploring workspace and applying fixes")
+
 	history := a.channelHistory(msg.Channel)
 	state := &ImplementationSessionState{
 		Phase:     "discover",
-		TrustMode: msg.EditorAgentTrust(),
+		TrustMode: resolveImplementationTrustMode(msg),
 	}
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath != "" {
@@ -247,6 +262,8 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
 	}
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
+	sessionCtx = shared.ContextWithImplementationSession(sessionCtx, true)
+	sessionCtx = attachImplSessionCommandPolicy(sessionCtx, state)
 	restoreImplSessionFromCheckpoint(msg, state)
 
 	if userRequestsDestructiveCommand(msg.Content) {
@@ -258,6 +275,17 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 
 	if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		summary := a.formatImplementationSessionSummary("", state, true, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, true)
+		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+	}
+
+	if a.tryEarlyMissingStartAllMakefileFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
 		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
 		state.VerifyOutput = verifyOut
@@ -306,16 +334,17 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 
 		toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
-			if ev.Kind == "result" && isDiscoverTool(ev.Name) {
-				state.recordDiscoverTool(ev.Name)
-			}
-			if streamMsgID != "" {
-				a.broadcastToolStep(roundCtx, msg, streamMsgID, ev)
-			}
+			a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
 		})
+		toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
 
 		response, err := a.generateImplementationRound(toolCtx, msg, eff)
 		if err != nil {
+			if sessionCtx.Err() != nil {
+				summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
+				outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
+				return summary, streamMsgID, proposedAny, state.FilesChanged, outcome, nil
+			}
 			outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
 			return "", streamMsgID, proposedAny, state.FilesChanged, outcome, err
 		}
@@ -388,6 +417,23 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			state.FilesChanged = appendUnique(state.FilesChanged, paths)
 		}
 	}
+	if !cycleProposed {
+		if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
+			proposedAny = true
+			cycleProposed = true
+			state.FilesChanged = appendUnique(state.FilesChanged, paths)
+		}
+	}
+	state.noteCommandOnlyRound(cycleProposed)
+	if !cycleProposed && state.commandThrashingDetected() {
+		if ok, paths := a.attemptPlaybookForSessionState(sessionCtx, msg, state); ok {
+			proposedAny = true
+			cycleProposed = true
+			state.FilesChanged = appendUnique(state.FilesChanged, paths)
+		} else {
+			break
+		}
+	}
 	a.repairTailwindDarkModeIfNeeded(sessionCtx, msg, state)
 	a.repairAppThemeIfNeeded(sessionCtx, msg, state)
 	a.repairCorruptAppJSEntryIfNeeded(sessionCtx, msg, state)
@@ -422,13 +468,9 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			roundCtx = withRepairNote(roundCtx, repairNote)
 			roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
 			toolCtx := ai.WithToolStepObserver(roundCtx, func(ev ai.ToolStepEvent) {
-				if ev.Kind == "result" && isDiscoverTool(ev.Name) {
-					state.recordDiscoverTool(ev.Name)
-				}
-				if streamMsgID != "" {
-					a.broadcastToolStep(roundCtx, msg, streamMsgID, ev)
-				}
+				a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
 			})
+			toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
 			response, err := a.generateImplementationRound(toolCtx, msg, eff)
 			if err == nil {
 				proposalsBefore := state.ProposedCount
@@ -511,6 +553,23 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	case proposed:
 		outcome["outcome"] = "proposals_submitted"
 	}
+	if len(state.CommandHistory) > 0 {
+		failures := state.CommandFailureSummary()
+		if len(failures) > 0 {
+			rows := make([]map[string]interface{}, 0, len(failures))
+			for _, f := range failures {
+				rows = append(rows, map[string]interface{}{
+					"cmd":   f.Command,
+					"count": f.Count,
+				})
+			}
+			outcome["command_failures"] = rows
+		}
+	}
+	if state.PlaybookUsedName != "" {
+		outcome["playbook_used"] = state.PlaybookUsedName
+	}
+	outcome["circuit_breaker_triggered"] = state.CircuitBreakerFired
 	return outcome
 }
 
@@ -617,6 +676,7 @@ func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Messa
 	if len(cmds) == 0 {
 		return "", false, true
 	}
+	a.sendThinkingActivity(msg, protocol.ThinkingActivityVerifying, strings.Join(cmds, "; "))
 	mcpServer := mcpServerFromInterface(a.MCPServer)
 	if mcpServer == nil {
 		return "", false, true
@@ -741,6 +801,12 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 	switch {
 	case !proposed:
 		b.WriteString("Implementation session finished without file changes.\n\n")
+		if state != nil {
+			if line := state.formatCommandFailureSummaryLine(); line != "" {
+				b.WriteString(line)
+				b.WriteString("\n\n")
+			}
+		}
 	case trust == editorTrustAutoApply && state != nil && applied && state.VerifyFailed:
 		if len(state.FilesChanged) > 0 {
 			b.WriteString(fmt.Sprintf("Implementation session complete — applied but verification failed (changes to: %s).\n\n", strings.Join(state.FilesChanged, ", ")))
@@ -909,6 +975,12 @@ func appendImplementationSessionToolGuidance(prompt *strings.Builder, a *Agent, 
 		}
 	}
 	appendFileChangeMachineBlockDocs(prompt)
+	if a != nil && msg != nil {
+		history := a.channelHistorySafe(msg.Channel)
+		if messageImpliesBootFix(msg.Content, history) || messageHasBootOrBuildError(msg.Content) {
+			prompt.WriteString("Boot-fix: read Makefile, package.json, and scripts/start-all.sh with read_file before running make start-all or npm run dev.\n")
+		}
+	}
 }
 
 const proposeFileEditToolName = "propose_file_edit"
@@ -960,6 +1032,7 @@ func (a *Agent) executeProposeFileEditTool(ctx context.Context, msg *protocol.Me
 	if st := implementationSessionStateFromContext(ctx); st != nil {
 		st.ProposedCount++
 		st.FilesChanged = appendUnique(st.FilesChanged, []string{path})
+		st.RecordEdit(path)
 	}
 	return fmt.Sprintf(`{"status":"proposed","path":%q}`, path), nil
 }

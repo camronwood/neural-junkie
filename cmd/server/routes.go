@@ -39,6 +39,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/messages", corsMiddleware(localOnly(handleMessages)))
 	http.HandleFunc("/api/messages/search", corsMiddleware(localOnly(handleMessagesSearch)))
 	http.HandleFunc("/api/local-image", corsMiddleware(localOnly(handleLocalImage)))
+	http.HandleFunc("/api/generated-image", corsMiddleware(localOnly(handleGeneratedImage)))
 	http.HandleFunc("/api/collaborations", corsMiddleware(localOnly(handleCollaborations)))
 	http.HandleFunc("/api/collaborations/", corsMiddleware(localOnly(handleCollaborationsSubRoute)))
 	http.HandleFunc("/api/collaboration-workspace-ack", corsMiddleware(localOnly(handleCollaborationWorkspaceAck)))

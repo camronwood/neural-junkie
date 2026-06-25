@@ -15,6 +15,7 @@ import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
 import { isHumanJoinAnnouncement } from '../utils/joinMessage';
+import { mergeMessageImageMetadata, mergeMessagePreservingImages } from '../utils/mergeMessageImageMetadata';
 import {
   capStreamContent,
   MAX_UI_CHANNEL_MESSAGES,
@@ -83,7 +84,23 @@ export interface ChatState {
   setAgents: (agents: AgentInfo[]) => void;
   setIsTyping: (isTyping: boolean) => void;
   setErrorMessage: (message: string | null) => void;
-  addThinkingAgent: (channelName: string, agentId: string, agentName: string, agentType: AgentType) => void;
+  addThinkingAgent: (
+    channelName: string,
+    agentId: string,
+    agentName: string,
+    agentType: AgentType,
+    activity?: string,
+    activityDetail?: string
+  ) => void;
+  updateThinkingAgentActivity: (
+    channelName: string,
+    agentId: string,
+    patch: {
+      activity?: string;
+      activityDetail?: string;
+      toolStep?: ToolStepMeta;
+    }
+  ) => void;
   removeThinkingAgent: (channelName: string, agentId: string) => void;
   clearThinkingAgents: (channelName?: string) => void;
   cleanupStaleThinking: (channelName: string, messages: Message[]) => void;
@@ -248,10 +265,8 @@ export const useChatStore = create<ChatState>((set, get) => {
 
       const existingIdx = state.messages.findIndex(m => m.id === message.id);
       if (existingIdx !== -1) {
-        // A message with this ID already exists (e.g. promoted from streaming).
-        // Replace it with the authoritative final version which carries full metadata.
         const updated = [...state.messages];
-        updated[existingIdx] = message;
+        updated[existingIdx] = mergeMessagePreservingImages(updated[existingIdx], message);
         return {
           messages: trimMessagesToMax(updated, MAX_UI_CHANNEL_MESSAGES),
           isTyping: false,
@@ -290,19 +305,33 @@ export const useChatStore = create<ChatState>((set, get) => {
     }),
 
   setMessages: (messages) =>
-    set({
-      messages: trimMessagesToMax(
-        messages.filter(
-          (m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)
+    set((state) => {
+      const byId = new Map(state.messages.map((m) => [m.id, m]));
+      const merged = messages.map((m) => {
+        const prev = byId.get(m.id);
+        return prev ? mergeMessagePreservingImages(prev, m) : m;
+      });
+      return {
+        messages: trimMessagesToMax(
+          merged.filter(
+            (m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)
+          ),
+          MAX_UI_CHANNEL_MESSAGES
         ),
-        MAX_UI_CHANNEL_MESSAGES
-      ),
+      };
     }),
 
   prependMessages: (older) =>
     set((state) => {
       const ids = new Set(state.messages.map((m) => m.id));
-      const merged = [...older.filter((m) => !ids.has(m.id)), ...state.messages];
+      const byId = new Map(state.messages.map((m) => [m.id, m]));
+      const mergedOlder = older
+        .filter((m) => !ids.has(m.id))
+        .map((m) => {
+          const prev = byId.get(m.id);
+          return prev ? mergeMessagePreservingImages(prev, m) : m;
+        });
+      const merged = [...mergedOlder, ...state.messages];
       return {
         messages: trimMessagesToMax(
           merged.filter((m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)),
@@ -317,17 +346,59 @@ export const useChatStore = create<ChatState>((set, get) => {
   
   setErrorMessage: (message) => set({ errorMessage: message }),
   
-  addThinkingAgent: (channelName, agentId, agentName, agentType) =>
+  addThinkingAgent: (channelName, agentId, agentName, agentType, activity, activityDetail) =>
     set((state) => {
       const innerExisting = state.channelThinkingAgents.get(channelName);
       const prev = innerExisting?.get(agentId);
-      if (prev && prev.name === agentName && prev.type === agentType) {
+      if (
+        prev &&
+        prev.name === agentName &&
+        prev.type === agentType &&
+        prev.activity === activity &&
+        prev.activityDetail === activityDetail
+      ) {
         return state;
       }
       const outer = new Map(state.channelThinkingAgents);
       const inner = new Map(outer.get(channelName) || []);
-      inner.set(agentId, { id: agentId, name: agentName, type: agentType });
+      inner.set(agentId, {
+        id: agentId,
+        name: agentName,
+        type: agentType,
+        activity,
+        activityDetail,
+        toolSteps: prev?.toolSteps,
+      });
       outer.set(channelName, inner);
+      return { channelThinkingAgents: outer };
+    }),
+
+  updateThinkingAgentActivity: (channelName, agentId, patch) =>
+    set((state) => {
+      const inner = state.channelThinkingAgents.get(channelName);
+      if (!inner || !inner.has(agentId)) return state;
+      const prev = inner.get(agentId)!;
+      const toolSteps = patch.toolStep
+        ? [...(prev.toolSteps ?? []), patch.toolStep].slice(-12)
+        : prev.toolSteps;
+      const next: ThinkingAgent = {
+        ...prev,
+        activity: patch.activity !== undefined ? patch.activity : prev.activity,
+        activityDetail:
+          patch.activityDetail !== undefined ? patch.activityDetail : prev.activityDetail,
+        toolSteps,
+      };
+      if (
+        next.activity === prev.activity &&
+        next.activityDetail === prev.activityDetail &&
+        next.toolSteps === prev.toolSteps
+      ) {
+        return state;
+      }
+      const outer = new Map(state.channelThinkingAgents);
+      const newInner = new Map(inner);
+      newInner.set(agentId, next);
+      outer.set(channelName, newInner);
       return { channelThinkingAgents: outer };
     }),
   

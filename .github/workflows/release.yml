@@ -16,6 +16,22 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          chmod +x ./scripts/extract-changelog-section.sh
+          if body="$(./scripts/extract-changelog-section.sh "${{ github.ref_name }}")"; then
+            {
+              echo "body<<EOF"
+              echo "${body}"
+              echo "EOF"
+            } >> "${GITHUB_OUTPUT}"
+          else
+            echo "body=_No changelog section found for this tag — see docs/CHANGELOG.md._" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Create GitHub release (draft)
         uses: softprops/action-gh-release@v2
         with:
@@ -46,6 +62,10 @@ jobs:
             **Quick start:** [docs/DOWNLOAD.md](https://github.com/camronwood/neural-junkie/blob/main/docs/DOWNLOAD.md)
 
             **From source:** [README Quick Start](https://github.com/camronwood/neural-junkie#quick-start)
+
+            ## What's new
+
+            ${{ steps.changelog.outputs.body }}
 
   test-gate:
     runs-on: ubuntu-latest

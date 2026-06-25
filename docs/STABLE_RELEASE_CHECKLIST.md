@@ -124,6 +124,13 @@ When ready checklist passes:
 
 **Website bump:** `update-website-release.sh --bump-site` only rewrites `index.html`, `features/index.html`, `features/hardware-requirements.html`, and root `README.md`. It does **not** rewrite historical entries in `release-notes.html` (append-only).
 
+**Beta / stable tag checklist:**
+
+1. Add section to [CHANGELOG.md](CHANGELOG.md) and append [release-notes.html](release-notes.html)
+2. `./scripts/update-website-release.sh vX.Y.Z --bump-site vPREV`
+3. `python3 scripts/sync-site-nav.py`
+4. Verify `./scripts/extract-changelog-section.sh vX.Y.Z` matches the new CHANGELOG section (used by release CI for GitHub release body)
+
 **Linux:** CI publishes `.deb` for stable; AppImage is not on the download page.
 
 **Beta users:** stay on beta channel until they install a stable build manually. See [RELEASE_UPDATES.md](RELEASE_UPDATES.md).
