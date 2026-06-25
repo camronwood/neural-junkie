@@ -59,19 +59,11 @@ graph TB
 
 Full capability guides: [docs/features/](docs/features/) on the marketing site. Five-minute path: [start-here.html](docs/start-here.html).
 
-## Screenshots
+## Screenshot
 
-Desktop workspace and IDE (gallery art — see [Gallery](https://camronwood.github.io/neural-junkie/gallery/) for more).
+Main workspace — files, editor, multi-agent collaboration, and chat (same as the [marketing site](https://camronwood.github.io/neural-junkie/)).
 
-![Neural Junkie workspace](docs/media/gallery/ads/ide-v4-carousel-01.png)
-
-IDE Agent mode with editor, terminal, and chat ([IDE v4 guide](docs/features/ide-v4.html)).
-
-![Neural Junkie IDE](docs/media/gallery/ads/ide-v4-carousel-03.png)
-
-Multi-agent collaboration and specialist routing ([collaboration guide](docs/features/multi-agent-collaboration.html)).
-
-![Neural Junkie collaboration](docs/media/gallery/ads/ide-v4-carousel-02.png)
+![Neural Junkie desktop: files panel, code editor, multi-agent collaboration, and chat](assets/screenshots/Screenshot%202026-05-29%20at%202.31.27%20PM.png)
 
 **Web hub:** the browser UI at `http://localhost:18765` is a lightweight chat client. Use the **Tauri desktop app** for the full workspace.
 
