@@ -135,7 +135,7 @@ func collabPlanningSuppressMCPTools(info CollaborationInfo, agentType protocol.A
 }
 
 // sanitizeCollabDiscussionResponse replaces raw tool-call JSON mistaken for chat
-// during collaboration planning (common with DevOps MCP-equipped agents).
+// during collaboration planning (common with MCP-equipped agents).
 func sanitizeCollabDiscussionResponse(content string, collabInfo CollaborationInfo, agentType protocol.AgentType) string {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
@@ -147,7 +147,9 @@ func sanitizeCollabDiscussionResponse(content string, collabInfo CollaborationIn
 	if collabInfo.Phase != "planning" {
 		return content
 	}
-	looksToolJSON := rawToolJSONDiscussionRE.MatchString(trimmed)
+	looksToolJSON := rawToolJSONDiscussionRE.MatchString(trimmed) ||
+		strings.Contains(strings.ToLower(trimmed), `"name": "task-add"`) ||
+		strings.Contains(strings.ToLower(trimmed), "task-add")
 	looksKubectl := strings.Contains(strings.ToLower(trimmed), "kubectl")
 	if !looksToolJSON && !looksKubectl {
 		return content
@@ -157,7 +159,19 @@ func sanitizeCollabDiscussionResponse(content string, collabInfo CollaborationIn
 			"Propose or refine tasks using lines like `- Task N: @AgentName - description` focused on " +
 			"API document schema standardization, registration, and a markdown deliverable."
 	}
-	return content
+	stripped := stripFencedToolJSONBlocks(content)
+	if strings.TrimSpace(stripped) == "" {
+		return "I'll refine the task list in prose using lines like `- Task N: @AgentName - description`."
+	}
+	return stripped
+}
+
+var fencedToolJSONBlockRE = regexp.MustCompile("(?is)```(?:json)?\\s*\\{[^`]*\"name\"\\s*:\\s*\"[^\"]+\"[^`]*\\}[^`]*```")
+
+func stripFencedToolJSONBlocks(content string) string {
+	out := fencedToolJSONBlockRE.ReplaceAllString(content, "")
+	out = rawToolJSONDiscussionRE.ReplaceAllString(out, "")
+	return strings.TrimSpace(out)
 }
 
 func collaborationTurnHandoffBody(phase string) string {

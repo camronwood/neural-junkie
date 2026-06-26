@@ -1,12 +1,28 @@
 {
-  "productName": "react-tauri-missing-start-all",
-  "version": "0.1.0",
-  "identifier": "com.example.tauri-missing-start-all",
   "build": {
-    "devUrl": "http://localhost:5173",
-    "frontendDist": "../dist"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:5173",
+    "distDir": "../dist"
   },
-  "app": {
-    "windows": [{ "title": "App", "width": 800, "height": 600 }]
+  "package": {
+    "productName": "react-tauri-missing-start-all",
+    "version": "1.0.0",
+    "name": "react-tauri-missing-start-all",
+    "binaries": [
+      {
+        "target": "x86_64-apple-darwin",
+        "path": "src-tauri/target/release/react-tauri-missing-start-all.app"
+      },
+      {
+        "target": "x86_64-pc-windows-msvc",
+        "path": "src-tauri/target/release/react-tauri-missing-start-all.exe"
+      },
+      {
+        "target": "x86_64-unknown-linux-gnu",
+        "path": "src-tauri/target/release/react-tauri-missing-start-all"
+      }
+    ],
+    "active": true
   }
 }

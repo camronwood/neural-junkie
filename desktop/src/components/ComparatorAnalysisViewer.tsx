@@ -12,20 +12,47 @@ interface ComparatorAnalysisViewerProps {
 }
 
 function CsvTable({ rows, maxRows = 25 }: { rows: string[][]; maxRows?: number }) {
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(() => new Set());
   if (!rows.length) return <p className="text-xs text-slack-textMuted">No data</p>;
+  const visible = rows.slice(0, maxRows);
   return (
     <div className="overflow-auto max-h-48 border border-slack-border rounded">
       <table className="w-full text-[10px] font-mono">
         <tbody>
-          {rows.slice(0, maxRows).map((row, i) => (
-            <tr key={i} className="border-t border-slack-border/50">
-              {row.map((cell, j) => (
-                <td key={j} className="p-1">
-                  {cell}
+          {visible.map((row, i) => {
+            const expanded = expandedRows.has(i);
+            return (
+              <tr key={i} className="border-t border-slack-border/50">
+                <td className="p-1 w-6 align-top text-slack-textMuted">
+                  <button
+                    type="button"
+                    title={expanded ? 'Collapse row' : 'Expand row'}
+                    onClick={() =>
+                      setExpandedRows((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(i)) next.delete(i);
+                        else next.add(i);
+                        return next;
+                      })
+                    }
+                    className="hover:text-slack-text"
+                    aria-expanded={expanded}
+                  >
+                    {expanded ? '▼' : '▶'}
+                  </button>
                 </td>
-              ))}
-            </tr>
-          ))}
+                {row.map((cell, j) => (
+                  <td
+                    key={j}
+                    className={`p-1 align-top ${expanded ? 'whitespace-pre-wrap break-words max-w-none' : 'truncate max-w-[12rem]'}`}
+                    title={expanded ? undefined : cell}
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

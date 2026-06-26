@@ -38,7 +38,13 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 		ImplSession: caps.CanRunImplSession,
 	})
 	installed := collectInstalledOllamaTags(ctx)
-	sel := capabilities.SelectOllamaTag(capabilities.Global(), class, installed, ollamaBase.GetModel())
+	tagFilter := ollamaToolCapableTagFilter(ctx)
+	var sel capabilities.SelectResult
+	if capabilities.RequiresToolCapableModel(class) {
+		sel = capabilities.SelectOllamaTagWithFilter(capabilities.Global(), class, installed, ollamaBase.GetModel(), tagFilter)
+	} else {
+		sel = capabilities.SelectOllamaTag(capabilities.Global(), class, installed, ollamaBase.GetModel())
+	}
 	tag := strings.TrimSpace(sel.Tag)
 	if tag == "" || tag == strings.TrimSpace(ollamaBase.GetModel()) {
 		return base

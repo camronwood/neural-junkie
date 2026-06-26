@@ -17,7 +17,10 @@ import {
   mergeCodebaseAttachments,
   pickAgentTypeForImplementation,
 } from './ideComposer';
+import { hasBootFixRoutingSignals } from './bootFixRouting';
 import { hasCodeReviewSignals } from './codeReviewSignals';
+import { resolveDmPartnerAgent } from './dmChannelDisplay';
+import type { Channel } from '../types/protocol';
 
 export type PrepareOutboundPayloadOptions = {
   content: string;
@@ -29,6 +32,8 @@ export type PrepareOutboundPayloadOptions = {
   api?: ChatAPI;
   repoPath?: string;
   devPackEnabled?: boolean;
+  channel?: string;
+  channelMeta?: Pick<Channel, 'type' | 'agents' | 'description' | 'name'>;
 };
 
 /**
@@ -59,7 +64,14 @@ export async function prepareOutboundPayload(
   }
 
   const hasExplicitMention = /@\w/.test(content);
-  const agentType = pickAgentTypeForImplementation(content, activeTab, agents);
+  const isDm = options.channelMeta?.type === 'dm';
+  const dmPartner = resolveDmPartnerAgent(options.channel ?? '', options.channelMeta, agents);
+  let agentType = pickAgentTypeForImplementation(content, activeTab, agents);
+  if (isDm && dmPartner?.type) {
+    agentType = dmPartner.type;
+  } else if (!hasExplicitMention && hasBootFixRoutingSignals(content)) {
+    agentType = 'frontend';
+  }
 
   const metadata: Record<string, unknown> = {
     ...(composerMetadata ?? {}),
@@ -86,6 +98,8 @@ export async function prepareOutboundPayload(
       editorAgentMode: 'agent',
       editorAgentTrust,
       composerMetadata: metadata,
+      channelType: options.channelMeta?.type,
+      dmPartnerAgentType: dmPartner?.type,
     });
     if (implMeta[IMPLEMENTATION_SESSION_METADATA_KEY]) {
       metadata[IMPLEMENTATION_SESSION_METADATA_KEY] = true;

@@ -28,6 +28,7 @@ import { USER_IMAGES_METADATA_KEY } from '../constants/promptMetadata';
 import { slackThreadOpenId } from '../utils/slackThread';
 import { generatedImageSrc } from '../utils/chatImageSrc';
 import { formatToolStepLabel } from '../utils/thinkingActivityLabel';
+import { ChatClickableImage } from './ImageLightboxModal';
 
 function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> }) {
   const raw = metadata?.[USER_IMAGES_METADATA_KEY];
@@ -52,11 +53,11 @@ function MessageUserImages({ metadata }: { metadata?: Record<string, unknown> })
         const data = String(obj.data || '');
         if (!data) return null;
         return (
-          <img
+          <ChatClickableImage
             key={i}
             src={`data:${mime};base64,${data}`}
-            className="max-h-36 rounded border border-slack-border object-contain bg-slack-bgHover"
-            alt=""
+            className="max-h-48 rounded border border-slack-border object-contain bg-slack-bgHover"
+            alt="Attached image"
           />
         );
       })}
@@ -156,9 +157,9 @@ function MessageGeneratedImage({
   }
   return (
     <div className="mb-2">
-      <img
+      <ChatClickableImage
         src={src}
-        className="max-h-48 rounded border border-slack-border object-contain bg-slack-bgHover"
+        className="max-h-64 rounded border border-slack-border object-contain bg-slack-bgHover"
         alt="Generated"
       />
     </div>

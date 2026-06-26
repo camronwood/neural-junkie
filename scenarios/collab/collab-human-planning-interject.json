@@ -26,6 +26,7 @@
       "min_total": 2,
       "min_per_agent": 1,
       "required_agents": ["SoftwareArchitect", "BackendEngineer"],
+      "nudge_agents": ["BackendEngineer"],
       "timeout": "180s"
     },
     {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},

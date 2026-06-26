@@ -1,0 +1,350 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-26T11:09:03.386419+00:00",
+  "hardware": {
+    "total_memory_gb": 24,
+    "total_memory_bytes": 25769803776,
+    "tier": "recommended"
+  },
+  "hardware_note": "24 GB RAM (recommended tier)",
+  "judge_provider": "gemini/qwen2.5-coder:14b",
+  "scenario_catalog": [
+    {
+      "name": "go-handler",
+      "kind": "implement",
+      "description": "IDE Agent implementation session on minimal Go fixture.",
+      "tags": [
+        "implement",
+        "backend",
+        "go"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "tags": [
+        "implement",
+        "frontend"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "ask-mode-no-write",
+      "kind": "implement",
+      "description": "IDE Ask mode must not run implementation session or propose edits.",
+      "tags": [
+        "implement",
+        "ask"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "go-test-failure-repair",
+      "kind": "implement",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "verify"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "typescript-compile-error-fix",
+      "kind": "implement",
+      "description": "Fix TypeScript compile error in src/App.tsx.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "typescript"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "dm-backend-workspace",
+      "kind": "chat",
+      "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+      "tags": [
+        "dm",
+        "backend",
+        "workspace",
+        "regression",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-echo-followup",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "echo",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    }
+  ],
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write",
+    "go-test-failure-repair",
+    "typescript-compile-error-fix"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "deepseek-coder-6.7b",
+      "model_tag": "deepseek-coder:6.7b",
+      "title": "DeepSeek Coder 6.7B",
+      "size_hint_gb": 3.8,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 338.81123508291785,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.4855929170735,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.0034336670069023967,
+      "total_duration_s": 0.0,
+      "passed_count": 1,
+      "total_count": 2,
+      "pass_rate": 0.5
+    },
+    {
+      "model_id": "codegemma-7b",
+      "model_tag": "codegemma:7b",
+      "title": "CodeGemma 7B",
+      "size_hint_gb": 5,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 222.83914858300705,
+          "detail": "=== FAIL: go-handler ===",
+          "judge_passed": false,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable contains two main functions, which is incorrect in Go. Only one main function is allowed per package.",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.0038185829762369394,
+      "total_duration_s": 0.0,
+      "passed_count": 0,
+      "total_count": 1,
+      "pass_rate": 0.0
+    },
+    {
+      "model_id": "qwen3.5-9b",
+      "model_tag": "qwen3.5:9b",
+      "title": "Qwen 3.5 9B",
+      "size_hint_gb": 6.6,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 114.62112358305603,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.4804648330901,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.004232417093589902,
+      "total_duration_s": 0.0,
+      "passed_count": 1,
+      "total_count": 2,
+      "pass_rate": 0.5
+    },
+    {
+      "model_id": "gemma3-12b",
+      "model_tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 119.91572966694366,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable correctly implements the HelloWorld function and calls it from the main function.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.5870807499159,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.0036744580138474703,
+      "total_duration_s": 0.0,
+      "passed_count": 1,
+      "total_count": 2,
+      "pass_rate": 0.5
+    },
+    {
+      "model_id": "qwen2.5-coder-14b",
+      "model_tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 105.39010025002062,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.5750230420381,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.004074999946169555,
+      "total_duration_s": 0.0,
+      "passed_count": 1,
+      "total_count": 2,
+      "pass_rate": 0.5
+    },
+    {
+      "model_id": "codestral-22b",
+      "model_tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 132.41674483404495,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.4638341249665,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.0034571249270811677,
+      "total_duration_s": 0.0,
+      "passed_count": 1,
+      "total_count": 2,
+      "pass_rate": 0.5
+    },
+    {
+      "model_id": "devstral-24b",
+      "model_tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 121.65669254097156,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.4858968750341,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        }
+      ],
+      "switch_duration_s": 0.0035304169869050384,
+      "total_duration_s": 0.0,
+      "passed_count": 1,
+      "total_count": 2,
+      "pass_rate": 0.5
+    }
+  ]
+}

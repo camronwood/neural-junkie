@@ -46,6 +46,7 @@ import { FileNameDialog } from './FileNameDialog';
 import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import { WorkspaceTabBar } from './WorkspaceTabBar';
+import { WorkspaceIndexStatus } from './WorkspaceIndexStatus';
 import { devLog } from '../utils/devLog';
 import { qcReportRelativePath } from '../utils/panelQcUtils';
 import {
@@ -1283,13 +1284,16 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       )}
 
       {/* Workspace Tabs */}
-      <div className="px-4 py-2 border-b border-slack-border bg-slack-bgHover">
-        <WorkspaceTabBar
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelect={setActiveWorkspace}
-          onRemove={handleRemoveWorkspace}
-        />
+      <div className="px-4 py-2 border-b border-slack-border bg-slack-bgHover flex items-center min-w-0">
+        <div className="flex-1 min-w-0">
+          <WorkspaceTabBar
+            workspaces={workspaces}
+            activeWorkspaceId={activeWorkspaceId}
+            onSelect={setActiveWorkspace}
+            onRemove={handleRemoveWorkspace}
+          />
+        </div>
+        <WorkspaceIndexStatus repoPath={getActiveWorkspace()?.path} />
       </div>
 
       {/* File Tree */}

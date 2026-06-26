@@ -45,7 +45,7 @@ func parseCollaborateLeadFlags(parts []string) (collaborateFlagParse, []string, 
 			if i+1 >= len(parts) {
 				return out, nil, "❌ `--repo` needs an absolute or relative directory path."
 			}
-			out.RepoPath = parts[i+1]
+			out.RepoPath = strings.Trim(parts[i+1], `"'`)
 			out.AttachWorkspace = true
 			i += 2
 		case "worktree":

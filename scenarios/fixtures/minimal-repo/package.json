@@ -1,8 +1,20 @@
 {
-  "name": "minimal-fixture",
-  "private": true,
+  "name": "react-ts-type-error",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "test": "echo \"no tests\""
+    "build": "tsc",
+    "start": "react-scripts start",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "4.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.5"
   }
 }

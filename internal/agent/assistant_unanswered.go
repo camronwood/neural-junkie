@@ -19,10 +19,17 @@ type unansweredMessageTracker struct {
 	stopTracking    chan struct{}
 }
 
+// unansweredTrackMaxAge skips tracking stale lines replayed from history on hub/agent restart.
+const unansweredTrackMaxAge = 5 * time.Minute
+
+// unansweredNudgeDelay is how long to wait after tracking begins before nudging.
+const unansweredNudgeDelay = 20 * time.Second
+
 // MessageTracker tracks a user message awaiting an agent reply.
 type MessageTracker struct {
 	MessageID   string
-	Timestamp   time.Time
+	Timestamp   time.Time // original message send time (for reply threading)
+	TrackedAt   time.Time // when tracking started (for nudge timeout)
 	HasResponse bool
 	Channel     string
 	FromUser    bool
@@ -110,19 +117,31 @@ func (t *unansweredMessageTracker) trackUserMessage(msg *protocol.Message) {
 	if !shouldTrackUnansweredUserMessage(msg) {
 		return
 	}
+	if messageTooOldForUnansweredTrack(msg) {
+		return
+	}
 
+	now := time.Now()
 	t.trackerMutex.Lock()
 	defer t.trackerMutex.Unlock()
 
 	t.trackedMessages[msg.ID] = &MessageTracker{
 		MessageID:   msg.ID,
 		Timestamp:   msg.Timestamp,
+		TrackedAt:   now,
 		HasResponse: false,
 		Channel:     msg.Channel,
 		FromUser:    true,
 	}
 
 	log.Printf("[%s] Tracking user message: %s (channel: %s)", t.agent.Info.Name, msg.ID, msg.Channel)
+}
+
+func messageTooOldForUnansweredTrack(msg *protocol.Message) bool {
+	if msg == nil || msg.Timestamp.IsZero() {
+		return false
+	}
+	return time.Since(msg.Timestamp) > unansweredTrackMaxAge
 }
 
 func (t *unansweredMessageTracker) markAsResponded(messageID string) {
@@ -181,15 +200,19 @@ func (t *unansweredMessageTracker) checkTimeouts(ctx context.Context) {
 	toDelete := []string{}
 
 	for msgID, tracker := range t.trackedMessages {
-		elapsed := now.Sub(tracker.Timestamp)
+		trackedAt := tracker.TrackedAt
+		if trackedAt.IsZero() {
+			trackedAt = tracker.Timestamp
+		}
+		elapsed := now.Sub(trackedAt)
 
-		if !tracker.HasResponse && elapsed >= 20*time.Second {
+		if !tracker.HasResponse && elapsed >= unansweredNudgeDelay {
 			log.Printf("[%s] No response for message %s after 20s, stepping in", t.agent.Info.Name, msgID)
 			go t.respondToUnanswered(ctx, tracker)
 			toDelete = append(toDelete, msgID)
 		}
 
-		if elapsed > 5*time.Minute {
+		if elapsed > unansweredTrackMaxAge {
 			toDelete = append(toDelete, msgID)
 		}
 	}

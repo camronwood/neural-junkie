@@ -74,4 +74,15 @@ describe('getKeyEventContext', () => {
     expect(getKeyEventContext(child).inMonaco).toBe(true);
     document.body.removeChild(monaco);
   });
+
+  it('detects xterm helper textarea as terminal focus', () => {
+    const xterm = document.createElement('div');
+    xterm.className = 'xterm';
+    const textarea = document.createElement('textarea');
+    textarea.className = 'xterm-helper-textarea';
+    xterm.appendChild(textarea);
+    document.body.appendChild(xterm);
+    expect(getKeyEventContext(textarea).inTerminal).toBe(true);
+    document.body.removeChild(xterm);
+  });
 });

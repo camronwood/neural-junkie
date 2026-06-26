@@ -119,13 +119,23 @@ func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
 				"general": {
 					{
 						Type:    protocol.MessageTypeQuestion,
-						From:    protocol.AgentInfo{ID: "u", Name: "User"},
+						From:    protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
 						Content: "how would you add a light/dark theme toggle in a React settings page?",
 					},
 					{
 						Type:    protocol.MessageTypeChat,
 						From:    protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant},
 						Content: "Use useState and a theme context provider.",
+					},
+					{
+						Type:    protocol.MessageTypeQuestion,
+						From:    protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+						Content: "ok thanks",
+					},
+					{
+						Type:    protocol.MessageTypeChat,
+						From:    protocol.AgentInfo{ID: "asst", Name: "Assistant", Type: protocol.AgentTypeAssistant},
+						Content: "You're welcome! Let me know if you need anything else.",
 					},
 				},
 			},
@@ -134,7 +144,7 @@ func TestShouldRunImplementationSession_respectsChatMode(t *testing.T) {
 	msg := protocol.NewMessage(
 		protocol.MessageTypeQuestion,
 		"general",
-		protocol.AgentInfo{ID: "u", Name: "User"},
+		protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
 		"One more thing — where should the theme toggle live in the settings UI?",
 	)
 	msg.Metadata = map[string]interface{}{

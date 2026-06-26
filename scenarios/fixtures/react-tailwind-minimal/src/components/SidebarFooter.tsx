@@ -1,6 +1,6 @@
-import React from 'react';
+import React from "react";
 
-export default function SidebarFooter() {
+function SidebarFooter() {
   return (
     <footer className="text-xs text-slate-600 border-t border-slate-800 pt-3">
       <p>Neural Junkie fixture</p>
@@ -10,3 +10,5 @@ export default function SidebarFooter() {
     </footer>
   );
 }
+
+export default SidebarFooter;

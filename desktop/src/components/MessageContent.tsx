@@ -9,6 +9,7 @@ import {
   promoteStandaloneImageFilePaths,
 } from '../utils/markdownNormalize';
 import { resolveChatImageSrc } from '../utils/chatImageSrc';
+import { ChatClickableImage } from './ImageLightboxModal';
 import {
   type ContentPart,
   getCachedContentParts,
@@ -139,10 +140,10 @@ function parseMarkdownToElements(text: string): React.ReactNode[] {
         const src = resolveChatImageSrc(m.url);
         elements.push(
           <span key={`img-wrap-${idx}`} className="block pt-2 pb-2">
-            <img
+            <ChatClickableImage
               src={src}
               alt={m.alt || 'Image'}
-              className="max-h-64 max-w-full rounded border border-slack-border object-contain bg-slack-bgHover"
+              className="max-h-80 max-w-full rounded border border-slack-border object-contain bg-slack-bgHover"
               loading="lazy"
             />
           </span>

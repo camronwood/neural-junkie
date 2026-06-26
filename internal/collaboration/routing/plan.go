@@ -26,6 +26,7 @@ type PlanInput struct {
 	Providers                     []config.ProviderConfig
 	InstalledLoRATags             map[string]struct{}
 	InstalledOllamaTags           map[string]struct{}
+	OllamaTagToolFilter           func(tag string) bool
 }
 
 // PlanResult predicts provider and model selection for one collaboration task.
@@ -169,7 +170,12 @@ func pickCapabilityModel(in PlanInput, class capabilities.TaskClass) capabilityP
 	if p == nil {
 		return capabilityPick{}
 	}
-	sel := capabilities.SelectOllamaTag(p, class, in.InstalledOllamaTags, in.AgentModel)
+	var sel capabilities.SelectResult
+	if capabilities.RequiresToolCapableModel(class) && in.OllamaTagToolFilter != nil {
+		sel = capabilities.SelectOllamaTagWithFilter(p, class, in.InstalledOllamaTags, in.AgentModel, in.OllamaTagToolFilter)
+	} else {
+		sel = capabilities.SelectOllamaTag(p, class, in.InstalledOllamaTags, in.AgentModel)
+	}
 	if sel.Tag == "" {
 		return capabilityPick{}
 	}

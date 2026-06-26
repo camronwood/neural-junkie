@@ -43,6 +43,7 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		TaskText:                      taskText,
 		AgentType:                     string(info.Type),
 		InstalledOllamaTags:           collectInstalledOllamaTags(ctx),
+		OllamaTagToolFilter:           ollamaToolCapableTagFilter(ctx),
 	})
 	mainModel, mainReason := implrouting.SelectMainModel(implrouting.Input{
 		RoutingEnabled:                cfg.RoutingEnabled,
@@ -51,6 +52,7 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		TaskText:                      taskText,
 		AgentType:                     string(info.Type),
 		InstalledOllamaTags:           collectInstalledOllamaTags(ctx),
+		OllamaTagToolFilter:           ollamaToolCapableTagFilter(ctx),
 	})
 	plan = agent.ImplementationRoutingPlan{
 		ProviderID: selID,

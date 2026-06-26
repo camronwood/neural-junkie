@@ -29,6 +29,9 @@ func (s *ImplementationSessionState) groundingSatisfied() bool {
 		return true
 	}
 	if s.BootFixIntent {
+		if s.BootFixReadsSatisfied() {
+			return true
+		}
 		return false
 	}
 	if s.StackManifest != nil && s.StackManifest.HasEntryPoint() {

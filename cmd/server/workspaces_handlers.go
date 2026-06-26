@@ -52,6 +52,7 @@ func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 		}
 		if workspace.Path != "" {
 			codeindex.BuildIndexAsync(workspace.Path)
+			ensureHiddenRepoAgentForWorkspace(workspace)
 		}
 		json.NewEncoder(w).Encode(workspace)
 	case "DELETE":
@@ -59,6 +60,9 @@ func handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			http.Error(w, "id parameter required", http.StatusBadRequest)
 			return
+		}
+		if ws, ok := workspaceManager.GetWorkspace(id); ok {
+			stopHiddenRepoAgentForWorkspace(ws)
 		}
 		if err := workspaceManager.RemoveWorkspace(id); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

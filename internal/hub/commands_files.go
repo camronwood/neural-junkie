@@ -151,6 +151,9 @@ func (ch *CommandHandler) handleAddWorkspace(ctx context.Context, msg *protocol.
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to add workspace: %v", err)), nil
 	}
+	if _, err := ch.EnsureHiddenRepoAgent(ctx, ws.Path, EnsureHiddenRepoAgentOptions{}); err != nil {
+		log.Printf("[hidden-repo] /add-workspace ensure: %v", err)
+	}
 
 	return ch.systemResponse(msg.Channel,
 		fmt.Sprintf("📁 Added workspace: %s\nPath: %s", ws.Name, ws.Path)), nil

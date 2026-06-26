@@ -151,6 +151,64 @@ func TestUnansweredMessageTracker_marksChannelOnAgentReply(t *testing.T) {
 	}
 }
 
+func TestUnansweredMessageTracker_skipsStaleReplayedMessages(t *testing.T) {
+	mockAI := ai.NewMockProvider()
+	hub := channelTypeHubStub{shouldRespondTestHub: shouldRespondTestHub{}, chType: protocol.ChannelTypePublic}
+	ag := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, mockAI, hub)
+	tracker := newUnansweredMessageTracker(ag)
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "anyone there?")
+	msg.Timestamp = time.Now().Add(-10 * time.Minute)
+	tracker.observe(msg)
+
+	tracker.trackerMutex.RLock()
+	count := len(tracker.trackedMessages)
+	tracker.trackerMutex.RUnlock()
+	if count != 0 {
+		t.Fatalf("expected stale replayed message not tracked, got %d", count)
+	}
+}
+
+func TestUnansweredMessageTracker_nudgeUsesTrackedAtNotMessageTime(t *testing.T) {
+	mockAI := ai.NewMockProvider()
+	hub := channelTypeHubStub{shouldRespondTestHub: shouldRespondTestHub{}, chType: protocol.ChannelTypePublic}
+	ag := NewAgent(protocol.AgentTypeAssistant, "Assistant", nil, mockAI, hub)
+	tracker := newUnansweredMessageTracker(ag)
+
+	msg := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "anyone there?")
+	// Message is recent enough to track but would have fired immediately with old Timestamp logic.
+	msg.Timestamp = time.Now().Add(-2 * time.Minute)
+	tracker.observe(msg)
+
+	tracker.trackerMutex.RLock()
+	tracked := tracker.trackedMessages[msg.ID]
+	tracker.trackerMutex.RUnlock()
+	if tracked == nil {
+		t.Fatal("expected message to be tracked")
+	}
+	if tracked.TrackedAt.IsZero() {
+		t.Fatal("expected TrackedAt to be set")
+	}
+	elapsed := time.Since(tracked.TrackedAt)
+	if elapsed >= unansweredNudgeDelay {
+		t.Fatal("expected nudge timer to start from TrackedAt, not original message time")
+	}
+}
+
+func TestMessageTooOldForUnansweredTrack(t *testing.T) {
+	fresh := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "hi")
+	fresh.Timestamp = time.Now().Add(-1 * time.Minute)
+	if messageTooOldForUnansweredTrack(fresh) {
+		t.Fatal("expected 1m old message to be trackable")
+	}
+
+	stale := protocol.NewMessage(protocol.MessageTypeChat, "general", protocol.AgentInfo{ID: "u", Name: "User"}, "hi")
+	stale.Timestamp = time.Now().Add(-6 * time.Minute)
+	if !messageTooOldForUnansweredTrack(stale) {
+		t.Fatal("expected 6m old message to be skipped")
+	}
+}
+
 type channelTypeHubStub struct {
 	shouldRespondTestHub
 	chType protocol.ChannelType

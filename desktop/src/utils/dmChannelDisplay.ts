@@ -24,6 +24,23 @@ export function parseDMDisplayName(dmChannel: Channel): string {
   return `${raw.charAt(0).toUpperCase()}${raw.slice(1)}`;
 }
 
+/** Agent the user is DMing — used for outbound metadata (not multi-agent routing). */
+export function resolveDmPartnerAgent(
+  channelName: string,
+  channel: Pick<Channel, 'type' | 'agents' | 'description' | 'name'> | undefined,
+  agents: AgentInfo[]
+): AgentInfo | undefined {
+  const name = (channelName ?? channel?.name ?? '').trim();
+  if (!name.startsWith('dm-')) return undefined;
+  const member = channel?.agents?.[0];
+  if (member?.type) return member;
+  const displayName = channel
+    ? parseDMDisplayName(channel as Channel)
+    : name.replace(/^dm-[^-]+-/, '').replace(/^./, (c) => c.toUpperCase());
+  const needle = displayName.toLowerCase();
+  return agents.find((a) => a.name.toLowerCase() === needle);
+}
+
 /** DM channel slugs that belong to this agent (by membership or display name). */
 export function dmChannelNamesForAgent(channels: Channel[], agent: AgentInfo): string[] {
   const nameLower = agent.name.toLowerCase();

@@ -65,6 +65,20 @@ func (ch *CommandHandler) Consult(ctx context.Context, req delegation.ConsultReq
 	}
 	target, ok := ch.runtimeAgents[req.ToID]
 	if !ok || target == nil {
+		ch.agentsMu.RLock()
+		repoAgent, repoOK := ch.repoAgents[req.ToID]
+		ch.agentsMu.RUnlock()
+		if repoOK && repoAgent != nil {
+			text, err := repoAgent.GenerateConsultResponse(ctx, req.SubQuestion, req.Channel)
+			if err != nil {
+				return delegation.ConsultResult{AgentName: repoAgent.Info.Name, Err: err.Error()}, err
+			}
+			return delegation.ConsultResult{
+				Text:      text,
+				AgentName: repoAgent.Info.Name,
+				Model:     repoAgent.GetAIProvider().GetModel(),
+			}, nil
+		}
 		return delegation.ConsultResult{}, fmt.Errorf("consult target not in runtime: %s", req.ToID)
 	}
 	intent := req.Intent
@@ -111,7 +125,7 @@ func (ch *CommandHandler) listRuntimeAgentInfos() []protocol.AgentInfo {
 }
 
 func skipDelegationTarget(info protocol.AgentInfo) bool {
-	return false
+	return info.ConsultOnly
 }
 
 func (ch *CommandHandler) modelConsult(

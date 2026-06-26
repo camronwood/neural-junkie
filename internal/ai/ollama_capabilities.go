@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 type ollamaShowResponse struct {
@@ -53,6 +54,27 @@ func ollamaModelLikelyNoNativeTools(model string) bool {
 		return true
 	}
 	return false
+}
+
+var ollamaToolsCapCache sync.Map // tag -> bool
+
+// OllamaTagSupportsTools reports whether an Ollama model tag advertises native tool calling.
+// On probe failure, returns false so implement routing does not pick unknown models.
+func OllamaTagSupportsTools(ctx context.Context, endpoint, tag string) bool {
+	tag = strings.TrimSpace(tag)
+	if tag == "" {
+		return false
+	}
+	if ollamaModelLikelyNoNativeTools(tag) {
+		return false
+	}
+	if v, ok := ollamaToolsCapCache.Load(tag); ok {
+		return v.(bool)
+	}
+	caps, err := ollamaFetchCapabilities(ctx, endpoint, tag)
+	supported := err == nil && ollamaCapabilitiesIncludeTools(caps)
+	ollamaToolsCapCache.Store(tag, supported)
+	return supported
 }
 
 func ollamaCapabilitiesIncludeTools(caps []string) bool {

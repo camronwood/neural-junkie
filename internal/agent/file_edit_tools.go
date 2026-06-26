@@ -116,7 +116,7 @@ func (a *Agent) executeSearchReplaceTool(ctx context.Context, msg *protocol.Mess
 	if channel == "" {
 		channel = "general"
 	}
-	if err := a.proposeFileEditInChannel(channel, path, oldContent, newContent, msg); err != nil {
+	if err := a.proposeFileEditInChannel(ctx, channel, path, oldContent, newContent, msg); err != nil {
 		return "", err
 	}
 	a.trackFileEditProposal(ctx, msg, path)
@@ -166,7 +166,7 @@ func (a *Agent) executeApplyPatchTool(ctx context.Context, msg *protocol.Message
 	if channel == "" {
 		channel = "general"
 	}
-	if err := a.proposeFileEditInChannel(channel, path, oldContent, newContent, msg); err != nil {
+	if err := a.proposeFileEditInChannel(ctx, channel, path, oldContent, newContent, msg); err != nil {
 		return "", err
 	}
 	a.trackFileEditProposal(ctx, msg, path)
@@ -214,7 +214,7 @@ func (a *Agent) searchReplaceSmartFallback(
 	if channel == "" {
 		channel = "general"
 	}
-	if err := a.proposeFileEditInChannel(channel, path, fileContent, newContent, msg); err != nil {
+	if err := a.proposeFileEditInChannel(ctx, channel, path, fileContent, newContent, msg); err != nil {
 		return "", err
 	}
 	a.trackFileEditProposal(ctx, msg, path)

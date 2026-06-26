@@ -344,7 +344,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := ValidateProposal(wsPath, target, ProposalOpEdit, a.manifestForProposal(ctx, msg)); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -363,7 +363,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -375,7 +375,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := a.validateProposalForSession(ctx, msg, "src/theme.css", ProposalOpCreate); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileCreateInChannel(channel, "src/theme.css", body, msg); err != nil {
+		if err := a.proposeFileCreateInChannel(ctx, msg.Channel, "src/theme.css", body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{"src/theme.css"}
@@ -392,7 +392,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -409,7 +409,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 			return false, nil
 		}
 		paths = []string{target}
@@ -484,7 +484,7 @@ func (a *Agent) repairTailwindDarkModeIfNeeded(ctx context.Context, msg *protoco
 		if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
 			continue
 		}
-		if err := a.proposeFileEditInChannel(channel, rel, string(existing), body, msg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err != nil {
 			continue
 		}
 		state.ProposedCount++
@@ -538,7 +538,7 @@ func (a *Agent) repairAppThemeIfNeeded(ctx context.Context, msg *protocol.Messag
 	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
 		return
 	}
-	if err := a.proposeFileEditInChannel(channel, rel, string(existing), body, msg); err != nil {
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err != nil {
 		return
 	}
 	state.ProposedCount++
@@ -573,7 +573,7 @@ func (a *Agent) attemptCorruptAppJSBootFix(ctx context.Context, msg *protocol.Me
 	if _, err := os.Stat(filepath.Join(wsPath, rel)); err != nil {
 		return false
 	}
-	if err := a.proposeFileDeleteInChannel(channel, rel, msg); err != nil {
+	if err := a.proposeFileDeleteInChannel(ctx, msg.Channel, rel, msg); err != nil {
 		return false
 	}
 	if state != nil {
@@ -627,7 +627,7 @@ func (a *Agent) tryEarlyGoMathFixtureFix(ctx context.Context, msg *protocol.Mess
 	if err := ValidateProposal(wsPath, target, ProposalOpEdit, manifest); err != nil {
 		return false
 	}
-	if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 		return false
 	}
 	if state != nil {
@@ -665,7 +665,7 @@ func (a *Agent) tryEarlyTypeScriptCompileFix(ctx context.Context, msg *protocol.
 	if err := ValidateProposal(wsPath, target, ProposalOpEdit, manifest); err != nil {
 		return false
 	}
-	if err := a.proposeFileEditInChannel(channel, target, string(existing), body, msg); err != nil {
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
 		return false
 	}
 	if state != nil {
@@ -713,7 +713,7 @@ func (a *Agent) repairCorruptAppJSEntryIfNeeded(ctx context.Context, msg *protoc
 			return
 		}
 	}
-	if err := a.proposeFileDeleteInChannel(channel, rel, msg); err != nil {
+	if err := a.proposeFileDeleteInChannel(ctx, msg.Channel, rel, msg); err != nil {
 		return
 	}
 	state.ProposedCount++

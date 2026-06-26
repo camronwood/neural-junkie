@@ -5,6 +5,7 @@ import { getAgentColor } from '../types/protocol';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { AgentInfoModal } from './AgentInfoModal';
+import { isUserFacingAgent } from '../utils/agentVisibility';
 
 interface AgentListProps {
   agents: AgentInfo[];
@@ -145,7 +146,7 @@ export function AgentList({
   };
   
   // Filter out removed agents from the main sidebar
-  const activeAgents = agents.filter(agent => agent.status === 'active');
+  const activeAgents = agents.filter(agent => agent.status === 'active' && isUserFacingAgent(agent));
   
   // Create loading agents for display
   const loadingAgentsList: AgentInfo[] = Array.from(loadingAgents).map(agentName => ({

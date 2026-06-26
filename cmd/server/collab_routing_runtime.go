@@ -95,6 +95,7 @@ func buildCollabPlanInput(ctx context.Context, assignee protocol.AgentInfo, task
 		HasLoRACapability:      hasLoRACapability(capLoRAAdapters),
 		InstalledLoRATags:      collectInstalledLoRATags(ctx),
 		InstalledOllamaTags:    collectInstalledOllamaTags(ctx),
+		OllamaTagToolFilter:    ollamaToolCapableTagFilter(ctx),
 	}
 	if appConfig != nil {
 		in.SmartRoutingEnabled = appConfig.Collaboration.SmartRoutingEnabled

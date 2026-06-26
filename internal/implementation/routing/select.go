@@ -23,6 +23,7 @@ type Input struct {
 	TaskText                      string
 	AgentType                     string
 	InstalledOllamaTags           map[string]struct{}
+	OllamaTagToolFilter           func(tag string) bool
 }
 
 // SelectProviderID returns provider id, tool-loop model tag, and reason code.
@@ -62,17 +63,14 @@ func SelectMainModel(in Input) (model string, reason string) {
 }
 
 func resolveToolModel(in Input) string {
-	fallback := strings.TrimSpace(in.LocalToolModel)
-	if fallback == "" {
-		fallback = DefaultLocalToolModel
-	}
+	fallback := toolModelFallback(in)
 	if in.ModelCapabilityRoutingEnabled {
 		if p := capabilities.Global(); p != nil {
 			_, toolClass := capabilities.ClassifyImpl(capabilities.ImplInput{
 				TaskText:  in.TaskText,
 				AgentType: in.AgentType,
 			})
-			if sel := capabilities.SelectOllamaTag(p, toolClass, in.InstalledOllamaTags, fallback); sel.Tag != "" {
+			if sel := capabilities.SelectOllamaTagWithFilter(p, toolClass, in.InstalledOllamaTags, fallback, implTagFilter(in, toolClass)); sel.Tag != "" {
 				return sel.Tag
 			}
 		}
@@ -80,29 +78,62 @@ func resolveToolModel(in Input) string {
 	if text := strings.TrimSpace(in.TaskText); text != "" {
 		dec := unified.ClassifyRules(unified.Input{Text: text, AgentType: in.AgentType})
 		if dec.CostTier == unified.CostCheap {
-			return DefaultLocalToolModel
+			return pickToolCapableModel(in, DefaultLocalToolModel)
 		}
 	}
-	return fallback
+	return pickToolCapableModel(in, fallback)
 }
 
 func resolveMainModel(in Input) (string, string) {
-	fallback := strings.TrimSpace(in.LocalToolModel)
-	if fallback == "" {
-		fallback = DefaultLocalToolModel
-	}
+	fallback := toolModelFallback(in)
 	if in.ModelCapabilityRoutingEnabled {
 		if p := capabilities.Global(); p != nil {
 			mainClass, _ := capabilities.ClassifyImpl(capabilities.ImplInput{
 				TaskText:  in.TaskText,
 				AgentType: in.AgentType,
 			})
-			if sel := capabilities.SelectOllamaTag(p, mainClass, in.InstalledOllamaTags, fallback); sel.Tag != "" {
+			if sel := capabilities.SelectOllamaTagWithFilter(p, mainClass, in.InstalledOllamaTags, fallback, implTagFilter(in, mainClass)); sel.Tag != "" {
 				return sel.Tag, sel.Reason
 			}
 		}
 	}
-	return fallback, "default_agent_provider"
+	model := pickToolCapableModel(in, fallback)
+	return model, "default_agent_provider"
+}
+
+func toolModelFallback(in Input) string {
+	fallback := strings.TrimSpace(in.LocalToolModel)
+	if fallback == "" {
+		fallback = DefaultLocalToolModel
+	}
+	return fallback
+}
+
+func pickToolCapableModel(in Input, preferred string) string {
+	preferred = strings.TrimSpace(preferred)
+	if preferred == "" {
+		preferred = DefaultLocalToolModel
+	}
+	if in.OllamaTagToolFilter == nil || in.OllamaTagToolFilter(preferred) {
+		return preferred
+	}
+	for _, candidate := range []string{DefaultLocalToolModel, preferred} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" || candidate == preferred {
+			continue
+		}
+		if in.OllamaTagToolFilter(candidate) {
+			return candidate
+		}
+	}
+	return preferred
+}
+
+func implTagFilter(in Input, class capabilities.TaskClass) func(string) bool {
+	if in.OllamaTagToolFilter == nil || !capabilities.RequiresToolCapableModel(class) {
+		return nil
+	}
+	return in.OllamaTagToolFilter
 }
 
 func providerExists(providers []config.ProviderConfig, id string) bool {

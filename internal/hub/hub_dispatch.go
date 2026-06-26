@@ -143,9 +143,16 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 	}
 
 	// Intercept file change proposals and register with FileChangeManager
+	var fileChangeRegErr error
 	if msg.Type == protocol.MessageTypeFileChange && msg.Metadata != nil {
 		if proposalRaw, ok := msg.Metadata["file_change_proposal"]; ok {
-			h.registerFileChangeProposal(msg, proposalRaw)
+			fileChangeRegErr = h.registerFileChangeProposal(msg, proposalRaw)
+			if fileChangeRegErr != nil {
+				if msg.Metadata == nil {
+					msg.Metadata = make(map[string]interface{})
+				}
+				msg.Metadata[protocol.MetaFileChangeRegistrationError] = fileChangeRegErr.Error()
+			}
 		}
 	}
 	if msg.Metadata != nil {
@@ -206,6 +213,11 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		}
 		h.appendChannelMessageLocked(msg.Channel, msg)
 		h.broadcast(msg.Channel, msg)
+	}
+
+	if fileChangeRegErr != nil {
+		h.postFileChangeRegistrationFailureLocked(msg, fileChangeRegErr)
+		return fileChangeRegErr
 	}
 
 	return nil
@@ -1309,25 +1321,74 @@ func (a *collabClientAdapter) AnalyzeConsensus(collabID string, msg *protocol.Me
 	return string(a.cm.AnalyzeConsensus(collabID, msg))
 }
 
+func (h *Hub) postFileChangeRegistrationFailureLocked(msg *protocol.Message, regErr error) {
+	if h == nil || msg == nil || regErr == nil {
+		return
+	}
+	path := fileChangeProposalPath(msg)
+	agentName := msg.From.Name
+	if agentName == "" {
+		agentName = "Agent"
+	}
+	content := fmt.Sprintf("File change proposal for %s was not registered: %s", path, regErr.Error())
+	sys := protocol.NewMessage(protocol.MessageTypeSystemInfo, msg.Channel, protocol.AgentInfo{
+		ID:   "system",
+		Name: "System",
+		Type: protocol.AgentTypeGeneral,
+	}, content)
+	h.appendChannelMessageLocked(msg.Channel, sys)
+	h.broadcast(msg.Channel, sys)
+	log.Printf("[FileChange] Registration failed for %s from %s: %v", path, agentName, regErr)
+}
+
+func fileChangeProposalPath(msg *protocol.Message) string {
+	if msg == nil || msg.Metadata == nil {
+		return "(unknown path)"
+	}
+	raw, ok := msg.Metadata["file_change_proposal"]
+	if !ok {
+		return "(unknown path)"
+	}
+	proposalBytes, err := json.Marshal(raw)
+	if err != nil {
+		return "(unknown path)"
+	}
+	var proposal protocol.FileChangeProposal
+	if json.Unmarshal(proposalBytes, &proposal) != nil {
+		return "(unknown path)"
+	}
+	path := strings.TrimSpace(proposal.FilePath)
+	if path == "" {
+		return "(unknown path)"
+	}
+	return path
+}
+
 // registerFileChangeProposal extracts a FileChangeProposal from message metadata
 // and registers it with the FileChangeManager so it appears in the pending changes UI.
-func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw interface{}) {
+func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw interface{}) error {
+	if msg != nil && (msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() ||
+		msg.IdeEditorMode() == "ask" || msg.IdeEditorMode() == "plan") {
+		log.Printf("[FileChange] Rejected proposal in read-only editor mode (%s) from %s",
+			msg.IdeEditorMode(), msg.From.Name)
+		return fmt.Errorf("file changes not allowed in ask/plan mode")
+	}
 	if err := h.rejectFileChangeOnClosedCollab(msg); err != nil {
 		log.Printf("[FileChange] Rejected proposal on closed collaboration: %v", err)
-		return
+		return err
 	}
 
 	// Convert the raw proposal to typed struct via JSON round-trip
 	proposalBytes, err := json.Marshal(proposalRaw)
 	if err != nil {
 		log.Printf("[FileChange] Failed to marshal proposal: %v", err)
-		return
+		return fmt.Errorf("marshal proposal: %w", err)
 	}
 
 	var proposal protocol.FileChangeProposal
 	if err := json.Unmarshal(proposalBytes, &proposal); err != nil {
 		log.Printf("[FileChange] Failed to unmarshal proposal: %v", err)
-		return
+		return fmt.Errorf("unmarshal proposal: %w", err)
 	}
 
 	// Resolve workspace root from message context. No default workspace fallback is allowed.
@@ -1335,14 +1396,14 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	if wsRoot == "" {
 		log.Printf("[FileChange] Missing workspace context for proposal from %s on channel %s",
 			msg.From.Name, msg.Channel)
-		return
+		return fmt.Errorf("missing workspace context for file change proposal")
 	}
 
 	// Resolve file path against workspace
 	filePath, err := h.resolveWorkspacePath(proposal.FilePath, wsRoot)
 	if err != nil {
 		log.Printf("[FileChange] Failed to resolve file path %q: %v", proposal.FilePath, err)
-		return
+		return fmt.Errorf("resolve file path %q: %w", proposal.FilePath, err)
 	}
 
 	// Map proposal operation string to filechange.FileOperation
@@ -1358,7 +1419,7 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		operation = filechange.FileOperationMove
 	default:
 		log.Printf("[FileChange] Unknown operation: %s", proposal.Operation)
-		return
+		return fmt.Errorf("unknown file change operation: %s", proposal.Operation)
 	}
 
 	// Resolve paths for move operations
@@ -1368,12 +1429,12 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		oldPath, err = h.resolveWorkspacePath(proposal.OldPath, wsRoot)
 		if err != nil {
 			log.Printf("[FileChange] Failed to resolve move old path %q: %v", proposal.OldPath, err)
-			return
+			return fmt.Errorf("resolve move old path %q: %w", proposal.OldPath, err)
 		}
 		newPath, err = h.resolveWorkspacePath(proposal.NewPath, wsRoot)
 		if err != nil {
 			log.Printf("[FileChange] Failed to resolve move new path %q: %v", proposal.NewPath, err)
-			return
+			return fmt.Errorf("resolve move new path %q: %w", proposal.NewPath, err)
 		}
 	}
 
@@ -1389,13 +1450,13 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	}
 	if err := agent.ValidateProposal(wsRoot, proposal.FilePath, propOp, manifest); err != nil {
 		log.Printf("[FileChange] Preflight rejected %q: %v", proposal.FilePath, err)
-		return
+		return fmt.Errorf("preflight rejected %q: %w", proposal.FilePath, err)
 	}
 
 	if looksLikePlaceholderDeliverableContent(proposal.NewContent) {
 		log.Printf("[FileChange] Rejected placeholder deliverable content for %q from %s",
 			proposal.FilePath, msg.From.Name)
-		return
+		return fmt.Errorf("placeholder deliverable content for %q", proposal.FilePath)
 	}
 
 	// Register with FileChangeManager
@@ -1411,7 +1472,7 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 	)
 	if err != nil {
 		log.Printf("[FileChange] Failed to register proposal: %v", err)
-		return
+		return fmt.Errorf("register proposal: %w", err)
 	}
 
 	// Update the message metadata with the registered change ID so the UI can link them
@@ -1429,6 +1490,7 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		}
 		msg.Metadata[protocol.MetaFileChangeAutoApproved] = true
 	}
+	return nil
 }
 
 // resolveWorkspacePath resolves a potentially relative file path against the provided workspace root.

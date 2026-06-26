@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -284,6 +285,32 @@ def step_assert_files_unchanged(ctx: ImplementContext, step: dict) -> tuple[bool
     return True, f"{len(paths)} file(s) unchanged"
 
 
+def step_assert_shell(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
+    root = scenario_repo_root(ctx.scenario)
+    command = (step.get("command") or step.get("shell") or "").strip()
+    if not command:
+        return False, "assert_shell: command required"
+    proc = subprocess.run(
+        command,
+        shell=True,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=float(step.get("timeout_s", 120)),
+    )
+    combined = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode != 0:
+        tail = combined[-800:] if len(combined) > 800 else combined
+        return False, f"exit {proc.returncode}: {tail.strip()}"
+    none_match = step.get("none_match") or []
+    if isinstance(none_match, str):
+        none_match = [none_match]
+    for pattern in none_match:
+        if re.search(pattern, combined, re.IGNORECASE):
+            return False, f"output matched forbidden pattern {pattern!r}"
+    return True, "shell command ok"
+
+
 HANDLERS = {
     "send": step_send,
     "wait_reply": step_wait_reply,
@@ -295,6 +322,7 @@ HANDLERS = {
     "assert_suggested_commands": step_assert_suggested_commands,
     "assert_message_metadata": step_assert_message_metadata,
     "assert_files_unchanged": step_assert_files_unchanged,
+    "assert_shell": step_assert_shell,
 }
 
 
@@ -321,19 +349,93 @@ def ensure_hub_ready(base: str, context: str) -> bool:
     return False
 
 
-def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
+def bootstrap_ci(values: list[float], iterations: int = 1000, ci: float = 0.95) -> tuple[float, float]:
+    """Non-parametric bootstrap CI for the mean of values in [0,1]."""
+    if not values:
+        return 0.0, 0.0
+    import random
+
+    rng = random.Random(42)
+    n = len(values)
+    means: list[float] = []
+    for _ in range(iterations):
+        sample = [values[rng.randrange(n)] for _ in range(n)]
+        means.append(sum(sample) / n)
+    means.sort()
+    lo = means[int((1 - ci) / 2 * iterations)]
+    hi = means[int((1 + ci) / 2 * iterations) - 1]
+    return lo, hi
+
+
+def _outcome_from_last_reply(ctx: ImplementContext, from_name: str) -> dict:
+    msg = _last_agent_message(ctx, from_name)
+    if not msg:
+        return {}
+    meta = msg.get("metadata") or {}
+    outcome = meta.get("implementation_session_outcome")
+    return outcome if isinstance(outcome, dict) else {}
+
+
+def run_scenario_with_stats(base: str, name: str, *, runs: int, best_of_k: int, keep: bool) -> bool:
+    scenario = load_scenario(name)
+    target = (scenario.get("target_agent") or "BackendEngineer").strip().lstrip("@")
+    passes: list[bool] = []
+    failure_types: dict[str, int] = {}
+    repair_attempts: list[int] = []
+
+    for run_idx in range(1, runs + 1):
+        if runs > 1:
+            print(f"\n--- run {run_idx}/{runs} ---")
+        ok, outcome = run_scenario(base, name, keep=keep)
+        passes.append(ok)
+        ft = str(outcome.get("failure_type") or ("pass" if ok else "unknown"))
+        failure_types[ft] = failure_types.get(ft, 0) + 1
+        attempts = outcome.get("repair_attempts")
+        if isinstance(attempts, (int, float)):
+            repair_attempts.append(int(attempts))
+
+    if runs <= 1:
+        return passes[0]
+
+    pass_rate = sum(1 for p in passes if p) / len(passes)
+    ci_lo, ci_hi = bootstrap_ci([1.0 if p else 0.0 for p in passes])
+    print(f"\n=== stats: {name} ({runs} runs) ===")
+    print(f"  pass_rate: {pass_rate:.1%}  bootstrap_95%_CI: [{ci_lo:.1%}, {ci_hi:.1%}]")
+    if repair_attempts:
+        repair_attempts.sort()
+        median_repairs = repair_attempts[len(repair_attempts) // 2]
+        print(f"  median_repair_attempts: {median_repairs}")
+    if failure_types:
+        print("  failure_type_breakdown:")
+        for key in sorted(failure_types):
+            print(f"    {key}: {failure_types[key]}")
+
+    if best_of_k > 1:
+        groups = [passes[i : i + best_of_k] for i in range(0, len(passes), best_of_k)]
+        groups = [g for g in groups if len(g) == best_of_k]
+        if groups:
+            bok_rate = sum(1 for g in groups if any(g)) / len(groups)
+            bok_ci = bootstrap_ci([1.0 if any(g) else 0.0 for g in groups])
+            print(f"  best_of_{best_of_k}_pass_rate: {bok_rate:.1%}  CI: [{bok_ci[0]:.1%}, {bok_ci[1]:.1%}]")
+            return bok_rate > 0
+
+    return pass_rate > 0
+
+
+def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dict]:
     scenario = load_scenario(name)
     ctx = ImplementContext(base, scenario)
+    empty_outcome: dict = {}
     print(f"\n=== implement: {name} ===")
     if not ensure_hub_ready(base, f"implement:{name}"):
-        return False
+        return False, empty_outcome
     required = scenario.get("required_agents") or [ctx.target_agent]
     ok, missing = hub.verify_agents_online(base, required)
     if not ok:
         print(f"  FAIL: offline agents: {missing}", file=sys.stderr)
-        return False
+        return False, empty_outcome
     if not ensure_channel(ctx):
-        return False
+        return False, empty_outcome
     if scenario.get("cleanup", "clear") == "clear" and not keep:
         hub.clear_channel_history(ctx.base, ctx.channel)
     reset_fixture_baseline(scenario, root=ROOT)
@@ -363,11 +465,12 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> bool:
                 all_ok = False
                 break
     finally:
+        outcome = _outcome_from_last_reply(ctx, ctx.target_agent)
         reset_fixture_baseline(scenario, root=ROOT)
         if scenario.get("cleanup", "clear") == "clear" and not keep:
             hub.clear_channel_history(ctx.base, ctx.channel)
     print(f"=== {'PASS' if all_ok else 'FAIL'}: {name} ===\n")
-    return all_ok
+    return all_ok, outcome
 
 
 def main() -> int:
@@ -375,6 +478,8 @@ def main() -> int:
     p.add_argument("--list", action="store_true")
     p.add_argument("--scenario")
     p.add_argument("--all", action="store_true")
+    p.add_argument("--runs", type=int, default=1, help="Repeat each scenario N times and report pass-rate stats")
+    p.add_argument("--best-of-k", type=int, default=0, help="Report best-of-K pass rate across run groups (requires --runs >= K)")
     p.add_argument("--hub", default=hub.DEFAULT_HUB)
     p.add_argument("--keep", action="store_true")
     args = p.parse_args()
@@ -388,7 +493,11 @@ def main() -> int:
         return 1
     if args.all:
         reset_all_fixture_baselines(root=ROOT)
-    failed = sum(1 for n in names if not run_scenario(args.hub, n, keep=args.keep))
+    failed = sum(
+        1
+        for n in names
+        if not run_scenario_with_stats(args.hub, n, runs=max(1, args.runs), best_of_k=args.best_of_k, keep=args.keep)
+    )
     return 1 if failed else 0
 
 

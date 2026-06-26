@@ -168,9 +168,19 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	var implSessionOutcome map[string]interface{}
 	if resp, ok := a.tryImplementationStatusCheckShortcut(msg); ok {
 		response = resp
+	} else if resp, ok := a.tryBootFixImplementerRedirect(msg); ok {
+		response = resp
 	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
-		if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+		if implementationBestOfK(msg) > 1 {
+			if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
+				streamMsgID = uuid.New().String()
+				response, streamMsgID, implSessionProposed, implSessionFiles, implSessionOutcome, err = a.runImplementationSessionBestOfK(genCtx, msg, eff, streamMsgID)
+				reasoningText = ""
+			} else {
+				response, streamMsgID, implSessionProposed, implSessionFiles, implSessionOutcome, err = a.runImplementationSessionBestOfK(genCtx, msg, eff, "")
+			}
+		} else if sp, ok := eff.(ai.StreamingProvider); ok && sp.SupportsStreaming() {
 			streamMsgID = uuid.New().String()
 			response, streamMsgID, implSessionProposed, implSessionFiles, implSessionOutcome, err = a.runImplementationSessionStreaming(genCtx, msg, eff, streamMsgID)
 			reasoningText = ""
@@ -209,7 +219,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	var proposedGitChange bool
 	var proposalErr error
 	if implSessionProposed {
-		proposedFileChange = true
+		proposedFileChange = len(implSessionFiles) > 0
 	} else if isAskModeReadOnly(msg) {
 		response = sanitizeAskModeResponse(response)
 	} else {
@@ -224,7 +234,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if proposalErr != nil {
 		log.Printf("[%s] Failed to submit file change proposal from response: %v", a.Info.Name, proposalErr)
 	}
-	if proposedFileChange {
+	if proposedFileChange && shouldAppendFileChangeApprovalPrompt(msg) {
 		if strings.TrimSpace(response) == "" {
 			response = "I submitted a file change proposal for your approval."
 		} else {

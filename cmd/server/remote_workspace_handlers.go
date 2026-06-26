@@ -62,6 +62,7 @@ func handleConnectRemoteWorkspace(w http.ResponseWriter, r *http.Request) {
 		workspaceBackendResolver.RegisterRemote(ws.ID, remote)
 		ws.IsGitRepo = remoteGitRepo(ctx, remote)
 		_ = workspaceManager.UpdateWorkspace(ws)
+		ensureHiddenRepoAgentForWorkspace(ws)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(ws)

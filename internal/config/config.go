@@ -131,6 +131,7 @@ type Config struct {
 	Collaboration  CollaborationConfig  `json:"collaboration"`
 	Implementation ImplementationConfig `json:"implementation"`
 	Delegation     DelegationConfig     `json:"delegation"`
+	WorkspaceIndex WorkspaceIndexConfig `json:"workspace_index"`
 	Routing           RoutingConfig                        `json:"routing"`
 	SpecialistCompose map[string]SpecialistComposeEntry    `json:"specialist_compose,omitempty"`
 	Features          FeaturesConfig                       `json:"features"`
@@ -179,8 +180,9 @@ func DefaultConfig() *Config {
 			RoutingEnabled:  true,
 			LocalToolModel:  "qwen2.5-coder:14b",
 		},
-		Delegation: DefaultDelegationConfig(),
-		Routing:    DefaultRoutingConfig(),
+		Delegation:     DefaultDelegationConfig(),
+		WorkspaceIndex: DefaultWorkspaceIndexConfig(),
+		Routing:        DefaultRoutingConfig(),
 		Features: FeaturesConfig{PersonalLearningEnabled: false, AgentRuntimeV2: boolPtr(true)},
 		Packs:      DefaultPacksConfig(),
 		MCP:        DefaultMCPConfig(),
@@ -657,9 +659,10 @@ func (c *Config) Redacted() *Config {
 	ollama := c.Ollama
 	hf := c.HF
 	updates := c.Updates
-	collab := c.Collaboration
-	delegation := c.Delegation.Normalized()
-	features := c.Features
+		collab := c.Collaboration
+		delegation := c.Delegation.Normalized()
+		workspaceIndex := c.WorkspaceIndex
+		features := c.Features
 	packs := c.Packs
 	if packs.Enabled == nil {
 		packs.Enabled = make(map[string]bool)
@@ -718,9 +721,10 @@ func (c *Config) Redacted() *Config {
 		Ollama:        ollama,
 		HF:            redactedHF,
 		Updates:       updates,
-		Collaboration: collab,
-		Delegation:    delegation,
-		Features:      features,
+		Collaboration:  collab,
+		Delegation:     delegation,
+		WorkspaceIndex: workspaceIndex,
+		Features:       features,
 		WebSearch:     redactedWebSearch,
 		Performance: performance,
 		filePath:      filePath,

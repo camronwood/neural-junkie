@@ -16,6 +16,7 @@ import {
   isDmChannelVisibleInSidebar,
   isSidebarChannelDeleted,
 } from '../utils/sidebarVisibility';
+import { isUserFacingAgent } from '../utils/agentVisibility';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { useSlackSidebarControls } from '../hooks/useSlackSidebarControls';
 import { SlackSidebarChip } from './SlackSidebarChip';
@@ -270,6 +271,7 @@ export function ChannelSidebar({
   );
 
   const filteredAgentsWithoutDM = agents
+    .filter(isUserFacingAgent)
     .filter(a => isAgentShownInSidebar(a) && !agentsWithDM.has(a.id) && !isShortcutDeleted(a))
     .filter(a => {
       const hidden = settingsLoaded && isShortcutHidden(a);

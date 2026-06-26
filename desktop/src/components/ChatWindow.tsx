@@ -120,6 +120,7 @@ import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationC
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
 import { mirrorAgentCommandInTerminal } from '../utils/mirrorAgentCommandInTerminal';
+import { resolveTerminalCwd } from '../utils/terminalCwd';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
 import {
   ensureRepoAgentWorkspace,
@@ -1649,6 +1650,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           surfaceToolApproval(message, false);
           st.addMessageToCache(message.channel, message);
         }
+        if (message.type === 'command_output') {
+          mirrorAgentCommandInTerminal(message);
+        }
       } else {
         if (message.type === 'tool_approval') {
           surfaceToolApproval(message, true);
@@ -1817,6 +1821,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         api: devPackEnabled ? api : undefined,
         repoPath: devPackEnabled ? ws?.path : undefined,
         devPackEnabled,
+        channel,
+        channelMeta: activeChannelMeta,
       });
       const mergedMetadata = buildHumanOutboundMetadata({
         contextMode: workspaceContextMode,
@@ -1891,6 +1897,8 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         api: devPackEnabled ? api : undefined,
         repoPath: devPackEnabled ? ws?.path : undefined,
         devPackEnabled,
+        channel,
+        channelMeta: activeChannelMeta,
       });
       sendContent = payload.content;
       composerMeta = payload.metadata;

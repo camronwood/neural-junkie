@@ -1,13 +1,9 @@
 :root {
   --bg: #f8fafc;
   --text: #0f172a;
-  --primary: #6366f1;
-  --secondary: #ff7878;
 }
 
 [data-theme="dark"] {
   --bg: #0f172a;
   --text: #f8fafc;
-  --primary: #92a9d1;
-  --secondary: #ff9ccf;
 }

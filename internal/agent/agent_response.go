@@ -45,6 +45,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
+	prompt = a.appendRepoConsultContext(ctx, msg, prompt, intent)
 
 	// Auto-detect and load file paths referenced in the user's message.
 	wsPath := a.resolveWorkspacePath(msg)
@@ -192,6 +193,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
+	prompt = a.appendRepoConsultContext(ctx, msg, prompt, intent)
 
 	includedFiles := collectIncludedFilePaths(msg)
 	collabInfo := a.getCollaborationContext(msg)

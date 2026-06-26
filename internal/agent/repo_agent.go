@@ -12,8 +12,15 @@ import (
 	"github.com/camronwood/neural-junkie/internal/mcp/repomcp"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/repo"
+	"github.com/camronwood/neural-junkie/internal/workspacebackend"
 	"github.com/google/uuid"
 )
+
+// RepoAgentOptions configures optional repo agent creation behavior.
+type RepoAgentOptions struct {
+	SkipPathCheck bool
+	ConsultOnly   bool
+}
 
 // RepoAgent is a specialized agent that is an expert on a specific repository
 type RepoAgent struct {
@@ -23,26 +30,30 @@ type RepoAgent struct {
 	storage         *repo.Storage
 	isIndexing      bool
 	watcher         *repo.Watcher
-	enableAutoWatch bool         // Enable automatic file watching and reindexing
+	enableAutoWatch bool // Enable automatic file watching and reindexing
 	repoMCP         *repomcp.RepoMCP
-	mu              sync.RWMutex // Protects index, isIndexing, watcher, enableAutoWatch
+	indexBackend    workspacebackend.Backend
+	mu              sync.RWMutex // Protects index, isIndexing, watcher, enableAutoWatch, indexBackend
 }
 
 // NewRepoAgent creates a new repository expert agent
 func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient) (*RepoAgent, error) {
-	// Validate repository path
+	return NewRepoAgentWithOptions(name, repoPath, ai, hub, RepoAgentOptions{})
+}
+
+// NewRepoAgentWithOptions creates a repo agent with optional path-skip for remote workspaces.
+func NewRepoAgentWithOptions(name string, repoPath string, ai ai.AIProvider, hub HubClient, opts RepoAgentOptions) (*RepoAgent, error) {
 	if repoPath == "" {
 		return nil, fmt.Errorf("repository path cannot be empty")
 	}
 
-	// Check if path exists
-	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("repository path does not exist: %s", repoPath)
-	}
-
-	// Check if path is a directory
-	if info, err := os.Stat(repoPath); err == nil && !info.IsDir() {
-		return nil, fmt.Errorf("repository path is not a directory: %s", repoPath)
+	if !opts.SkipPathCheck {
+		if _, err := os.Stat(repoPath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("repository path does not exist: %s", repoPath)
+		}
+		if info, err := os.Stat(repoPath); err == nil && !info.IsDir() {
+			return nil, fmt.Errorf("repository path is not a directory: %s", repoPath)
+		}
 	}
 
 	storage, err := repo.NewStorage()
@@ -62,6 +73,7 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 			IndexingStatus: string(protocol.IndexingStatusIndexing),
 			IndexProgress:  0,
 			RepositoryPath: repoPath,
+			ConsultOnly:    opts.ConsultOnly,
 		},
 		AI:  ai,
 		Hub: hub,
@@ -100,6 +112,55 @@ func NewRepoAgent(name string, repoPath string, ai ai.AIProvider, hub HubClient)
 	})
 
 	return repoAgent, nil
+}
+
+// SetIndexBackend configures remote indexing through a workspace backend.
+func (ra *RepoAgent) SetIndexBackend(b workspacebackend.Backend) {
+	ra.mu.Lock()
+	ra.indexBackend = b
+	ra.mu.Unlock()
+}
+
+// StartIndexingOnly begins background indexing without joining any channel.
+func (ra *RepoAgent) StartIndexingOnly(ctx context.Context) error {
+	if _, ok := ra.AI.(*ai.MockProvider); ok {
+		ra.indexRepository(ctx)
+	} else {
+		go ra.indexRepository(ctx)
+	}
+	return nil
+}
+
+// GenerateConsultResponse answers an internal consult using the repo index.
+func (ra *RepoAgent) GenerateConsultResponse(ctx context.Context, subQuestion, channel string) (string, error) {
+	subQuestion = strings.TrimSpace(subQuestion)
+	if subQuestion == "" {
+		return "", fmt.Errorf("empty consult question")
+	}
+	ra.mu.RLock()
+	index := ra.index
+	ra.mu.RUnlock()
+	if index == nil {
+		return "Repository index is still building. Try again shortly.", nil
+	}
+	msg := &protocol.Message{
+		Channel: channel,
+		Content: subQuestion,
+		From: protocol.AgentInfo{
+			ID:   "repo-consult",
+			Name: "RepoConsult",
+			Type: protocol.AgentTypeGeneral,
+		},
+	}
+	if channel == "" {
+		msg.Channel = "repo-consult-internal"
+	}
+	prompt := ra.buildRepoPrompt(msg, index)
+	eff := ra.GetAIProvider()
+	if eff == nil {
+		return "", fmt.Errorf("no AI provider")
+	}
+	return eff.GenerateResponse(ctx, prompt, nil)
 }
 
 // StartWithIndexing starts the agent and begins indexing the repository
@@ -184,7 +245,14 @@ func (ra *RepoAgent) indexRepository(ctx context.Context) {
 	// If no cached index or incremental failed, do full analysis
 	if index == nil {
 		log.Printf("[%s] Performing full repository analysis...", ra.Info.Name)
-		index, err = analyzer.AnalyzeRepository(ctx, ra.repoPath)
+		ra.mu.RLock()
+		backend := ra.indexBackend
+		ra.mu.RUnlock()
+		if backend != nil {
+			index, err = analyzer.AnalyzeViaBackend(ctx, ra.repoPath, backend)
+		} else {
+			index, err = analyzer.AnalyzeRepository(ctx, ra.repoPath)
+		}
 		if err != nil {
 			log.Printf("[%s] Indexing failed: %v", ra.Info.Name, err)
 			ra.setIndexingState(string(protocol.IndexingStatusError), 0)
@@ -426,6 +494,10 @@ func (ra *RepoAgent) handleMessage(ctx context.Context, msg *protocol.Message) {
 
 // shouldRespondToRepo determines if the agent should respond based on repo context
 func (ra *RepoAgent) shouldRespondToRepo(msg *protocol.Message) bool {
+	if ra.Info.ConsultOnly && !msg.IsMentioned(ra.Info.ID) {
+		return false
+	}
+
 	// Never respond to commands - let the command handler process them
 	if len(msg.Content) > 0 && msg.Content[0] == '/' {
 		return false

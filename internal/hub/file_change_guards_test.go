@@ -69,8 +69,8 @@ func TestRegisterFileChangeProposal_rejectsCancelledCollab(t *testing.T) {
 			"new_content": "# Draft\n\nDone.\n",
 		},
 	}
-	if err := h.SendMessage(msg); err != nil {
-		t.Fatalf("SendMessage: %v", err)
+	if err := h.SendMessage(msg); err == nil {
+		t.Fatalf("expected SendMessage error for cancelled collab proposal, got nil")
 	}
 
 	abs := filepath.Join(repoRoot, filepath.FromSlash(rel))
@@ -79,6 +79,32 @@ func TestRegisterFileChangeProposal_rejectsCancelledCollab(t *testing.T) {
 	}
 	if len(h.fileChangeManager.ListPendingFileChanges("a1")) > 0 {
 		t.Fatal("expected no pending file changes after rejected proposal")
+	}
+}
+
+func TestRegisterFileChangeProposal_rejectsAskMode(t *testing.T) {
+	h := newTestHub(t)
+	chName := "ask-mode"
+	_ = h.CreateChannel(chName, "test", "tester")
+
+	a1 := &protocol.AgentInfo{ID: "a1", Name: "BackendEngineer", Type: protocol.AgentTypeBackend, Status: "active"}
+	_ = h.RegisterAgent(a1)
+
+	repoRoot := t.TempDir()
+	msg := protocol.NewMessage(protocol.MessageTypeFileChange, chName, *a1, "Proposing file change")
+	msg.Metadata = map[string]interface{}{
+		protocol.IdeMetaEditorMode: "ask",
+		"workspace_context": map[string]interface{}{
+			"workspace_path": repoRoot,
+		},
+		"file_change_proposal": map[string]interface{}{
+			"operation":   "edit",
+			"file_path":   "core/sample/main.go",
+			"new_content": "package main\n",
+		},
+	}
+	if err := h.registerFileChangeProposal(msg, msg.Metadata["file_change_proposal"]); err == nil {
+		t.Fatal("expected ask-mode proposal rejection")
 	}
 }
 
@@ -121,8 +147,8 @@ func TestRegisterFileChangeProposal_rejectsPlaceholderContent(t *testing.T) {
 			"new_content": "# Findings\n\n- **File:** [Insert File Name]\n",
 		},
 	}
-	if err := h.SendMessage(msg); err != nil {
-		t.Fatalf("SendMessage: %v", err)
+	if err := h.SendMessage(msg); err == nil {
+		t.Fatalf("expected SendMessage error for placeholder proposal, got nil")
 	}
 
 	abs := filepath.Join(repoRoot, filepath.FromSlash(rel))

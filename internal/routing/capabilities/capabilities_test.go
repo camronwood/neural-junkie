@@ -20,6 +20,32 @@ func TestSelectOllamaTagFirstInstalled(t *testing.T) {
 	}
 }
 
+func TestSelectOllamaTagWithFilterSkipsNonToolCapable(t *testing.T) {
+	p := &Profiles{
+		TaskClasses: map[string][]string{
+			"implement": {"deepseek-coder:6.7b", "qwen3.5:9b"},
+		},
+	}
+	installed := map[string]struct{}{
+		"deepseek-coder:6.7b": {},
+		"qwen3.5:9b":          {},
+	}
+	filter := func(tag string) bool { return tag != "deepseek-coder:6.7b" }
+	got := SelectOllamaTagWithFilter(p, TaskImplement, installed, "qwen3.5:9b", filter)
+	if got.Tag != "qwen3.5:9b" {
+		t.Fatalf("tag = %q, want qwen3.5:9b", got.Tag)
+	}
+}
+
+func TestRequiresToolCapableModel(t *testing.T) {
+	if !RequiresToolCapableModel(TaskImplement) {
+		t.Fatal("implement requires tools")
+	}
+	if RequiresToolCapableModel(TaskChat) {
+		t.Fatal("chat should not require tools filter")
+	}
+}
+
 func TestShouldUpgrade(t *testing.T) {
 	p := &Profiles{
 		TaskClasses: map[string][]string{

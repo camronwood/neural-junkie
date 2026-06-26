@@ -155,6 +155,7 @@ type AgentInfo struct {
 	ApprovalMode            string    `json:"approval_mode,omitempty"`   // Tool approval mode for CLI agents: "interactive", "auto_edit", "yolo"
 	CustomRulesMarkdown     string    `json:"custom_rules_markdown,omitempty"`
 	ToolCount               int       `json:"tool_count,omitempty"` // Populated when GET /api/agents?include_tool_counts=true
+	ConsultOnly             bool      `json:"consult_only,omitempty"` // Internal consult target; hidden from user-facing lists
 }
 
 // AgentToolParam describes one tool input field.

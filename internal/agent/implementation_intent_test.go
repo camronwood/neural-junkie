@@ -61,6 +61,58 @@ func TestChannelHasRecentImplementationActivity(t *testing.T) {
 	}
 }
 
+func TestChannelHasRecentImplementationActivity_stopsAtClosure(t *testing.T) {
+	t.Parallel()
+	agentID := "asst"
+	history := []*protocol.Message{
+		{
+			ID:      "u1",
+			Type:    protocol.MessageTypeQuestion,
+			From:    protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+			Content: "how would you add a theme toggle?",
+		},
+		{
+			ID:   "a1",
+			Type: protocol.MessageTypeChat,
+			From: protocol.AgentInfo{ID: agentID, Name: "Assistant", Type: protocol.AgentTypeAssistant},
+			Content: "Put it in the settings header.",
+		},
+		{
+			ID:      "u2",
+			Type:    protocol.MessageTypeQuestion,
+			From:    protocol.AgentInfo{ID: "u", Name: "User", Type: "human"},
+			Content: "ok thanks",
+		},
+		{
+			ID:   "a2",
+			Type: protocol.MessageTypeChat,
+			From: protocol.AgentInfo{ID: agentID, Name: "Assistant", Type: protocol.AgentTypeAssistant},
+			Content: "You're welcome! Let me know if you need anything else.",
+		},
+	}
+	if channelHasRecentImplementationActivity(history, "u3", agentID) {
+		t.Fatal("closure should terminate implementation thread")
+	}
+}
+
+func TestIsAdvisoryImplementationQuestion(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"how would you add a light/dark theme toggle in a React settings page?", true},
+		{"One more thing — where should the theme toggle live in the settings UI?", true},
+		{"please add theme support to settings", false},
+		{"implement the theme toggle now", false},
+	}
+	for _, tc := range cases {
+		if got := isAdvisoryImplementationQuestion(tc.in); got != tc.want {
+			t.Fatalf("isAdvisoryImplementationQuestion(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestUserRequestsImplementationForMessage_afterUIApproval(t *testing.T) {
 	t.Parallel()
 	a := &Agent{

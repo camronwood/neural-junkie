@@ -19,6 +19,14 @@ func phoenixAgents() []CollaborationAgent {
 	}
 }
 
+func TestTaskLineIdentityKey_dedupesSameDeliverable(t *testing.T) {
+	lineA := "- Task 1: @BackendEngineer - Write collabs/x/api_schema.md documenting endpoints"
+	lineB := "- Task 3: @BackendEngineer - Write collabs/x/api_schema.md with REST details"
+	if taskLineIdentityKey(lineA) != taskLineIdentityKey(lineB) {
+		t.Fatalf("expected same identity key for duplicate deliverable paths")
+	}
+}
+
 func TestExtractTasksFromPlan_plainTaskRowsWithoutBullets(t *testing.T) {
 	plan := `## Plan
 

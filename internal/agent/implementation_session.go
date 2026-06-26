@@ -60,6 +60,7 @@ type ImplementationSessionState struct {
 	PreflightErrors []string
 	TrustMode                  string
 	BootFixIntent              bool
+	DiagnosticBootstrapDone    bool
 	CommandHistory             []CommandRunRecord
 	LastReadPaths              []string
 	BootReadPaths              []string
@@ -70,6 +71,15 @@ type ImplementationSessionState struct {
 	LastFailedCommand          string
 	CircuitBreakerFired        bool
 	PlaybookUsedName           string
+	RegisteredFiles            []string
+	RegistrationErrors         []string
+	DiagnosePhaseRequired      bool
+	DiagnosePhaseComplete      bool
+	LastRepairFailureKind      RepairFailureKind
+	LastVerifyFailureKind      RepairFailureKind
+	PrematureStopAttempts      int
+	ToolStepCount              int
+	DialogueSummary            string
 }
 
 func withImplementationSessionState(ctx context.Context, s *ImplementationSessionState) context.Context {
@@ -102,6 +112,11 @@ func implementationSessionRoundFromContext(ctx context.Context) int {
 func assistantAllowsImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if msg == nil {
 		return false
+	}
+	if ConversationModeFromMessage(msg) == ConversationModeChat {
+		if isAdvisoryImplementationQuestion(msg.Content) {
+			return false
+		}
 	}
 	if userRequestsImplementation(msg.Content) || userRequestsFileExport(msg.Content) {
 		return true
@@ -260,6 +275,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	if wsPath != "" {
 		state.StackManifest = DetectStackManifest(wsPath)
 		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
+		state.DiagnosePhaseRequired = requiresDiagnoseGate(msg, state, wsPath)
 	}
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
 	sessionCtx = shared.ContextWithImplementationSession(sessionCtx, true)
@@ -285,16 +301,36 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
 	}
 
-	if a.tryEarlyMissingStartAllMakefileFix(sessionCtx, msg, wsPath, state) {
+	if a.tryEarlyCommandEvidencePlaybook(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
 		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
 		state.VerifyOutput = verifyOut
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
-		summary := a.formatImplementationSessionSummary("", state, true, msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, true)
-		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
+		summary := a.formatImplementationSessionSummary("", state, state.hasRegisteredProposals(), msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, state.hasRegisteredProposals())
+		return summary, streamMsgID, state.hasRegisteredProposals(), state.RegisteredFiles, outcome, nil
 	}
+
+	var repairNote string
+	if state.BootFixIntent && wsPath != "" && !state.DiagnosticBootstrapDone {
+		bootstrapApplied, bootstrapNote := a.runBootFixDiagnosticBootstrap(sessionCtx, msg, state, wsPath)
+		if bootstrapApplied {
+			state.Phase = "verify"
+			verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+			proposed := state.hasRegisteredProposals()
+			summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+			outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+			return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
+		}
+		repairNote = bootstrapNote
+	}
+
+	var lastResponse string
+	proposedAny := false
 
 	if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
@@ -317,10 +353,6 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		outcome := a.buildImplementationSessionOutcome(msg, state, true)
 		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
 	}
-
-	var lastResponse string
-	proposedAny := false
-	var repairNote string
 
 	for fileCycle := 0; fileCycle < maxFiles; fileCycle++ {
 		cycleProposed := false
@@ -350,13 +382,38 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 		lastResponse = response
 
+		if state.diagnoseGateBlocksProposals() && responseContainsDiagnosis(response) {
+			state.DiagnosePhaseComplete = true
+			repairNote = formatDiagnoseCompleteRepairNote()
+			if round < maxEditRounds-1 {
+				continue
+			}
+		}
+		if state.diagnoseGateBlocksProposals() && (fileChangeBlockRegex.MatchString(response) || strings.Contains(response, `"path"`)) {
+			state.recordRepairFailureKind(RepairFailureGrounding)
+			repairNote = formatDiagnoseRequiredRepairNote(state)
+			if round < maxEditRounds-1 {
+				continue
+			}
+		}
+
 		proposalsBefore := state.ProposedCount
 		cleaned, fileChangeProposed, propErr := a.maybeSubmitFileChangeFromResponse(toolCtx, response, msg.Channel, msg)
 		toolProposed := state.ProposedCount > proposalsBefore
 
 		if propErr != nil {
 			log.Printf("[%s] impl session file proposal error: %v", a.Info.Name, propErr)
-			repairNote = formatPreflightRepairNote(state.PreflightErrors, state.StackManifest)
+			state.recordRepairFailureKind(RepairFailurePreflight)
+			repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
+			if round < maxEditRounds-1 {
+				continue
+			}
+		}
+
+		if state.diagnoseGateBlocksProposals() && (toolProposed || fileChangeProposed) {
+			state.ProposedCount = proposalsBefore
+			state.recordRepairFailureKind(RepairFailureGrounding)
+			repairNote = formatDiagnoseRequiredRepairNote(state)
 			if round < maxEditRounds-1 {
 				continue
 			}
@@ -386,12 +443,31 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 
 		if round < maxEditRounds-1 {
-			if len(state.PreflightErrors) > 0 {
-				repairNote = formatPreflightRepairNote(state.PreflightErrors, state.StackManifest)
+			if reject, note := shouldRejectPrematureStop(a, msg, state, cycleProposed, round, maxEditRounds); reject {
+				notePrematureStopAttempt(state)
+				state.recordRepairFailureKind(RepairFailureAdvisory)
+				repairNote = note
+			} else if responseClaimsPrematureDone(response) || responseIsAdvisoryOnly(response) {
+				notePrematureStopAttempt(state)
+				state.recordRepairFailureKind(RepairFailureAdvisory)
+				if state.VerifyFailed {
+					repairNote = formatAntiStopRepairNote("Verification still fails — continue with concrete file edits.")
+				} else if state.diagnoseGateBlocksProposals() {
+					repairNote = formatDiagnoseRequiredRepairNote(state)
+				} else {
+					repairNote = formatAdvisoryOnlyRepairNote()
+				}
+			} else if len(state.PreflightErrors) > 0 {
+				state.recordRepairFailureKind(RepairFailurePreflight)
+				repairNote = formatPreflightTypedRepairNote(state.PreflightErrors, state.StackManifest)
 			} else if !state.groundingSatisfied() {
-				repairNote = "Read the stack manifest and use read_file/glob_file_search on real paths before proposing edits."
+				state.recordRepairFailureKind(RepairFailureGrounding)
+				repairNote = formatGroundingRepairNote("")
+			} else if state.BootFixIntent {
+				repairNote = bootFixPostDiscoverRepairNote(state)
 			} else {
-				repairNote = "You must call search_replace, apply_patch, propose_file_edit, or emit [FILE_CHANGE] blocks with real file paths and content. Advice-only replies do not satisfy this implementation request."
+				state.recordRepairFailureKind(RepairFailureAdvisory)
+				repairNote = formatAdvisoryOnlyRepairNote()
 			}
 		}
 	}
@@ -463,7 +539,10 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			state.RepairAttempts++
 			state.RepairUsed = state.RepairAttempts > 0
 			state.Phase = "repair"
-			repairNote = fmt.Sprintf("Verification failed. Fix the issues and emit corrected [FILE_CHANGE] blocks.\n\nCommand output:\n%s", verifyOut)
+			verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommands(wsPath))
+			state.LastVerifyFailureKind = verifyInfo.Kind
+			state.recordRepairFailureKind(verifyInfo.Kind)
+			repairNote = formatVerifyRepairNote(verifyInfo, verifyOut)
 			roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
 			roundCtx = withRepairNote(roundCtx, repairNote)
 			roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
@@ -493,6 +572,13 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 
 	if !cycleProposed && !proposedAny {
+		if reject, note := shouldRejectPrematureStop(a, msg, state, cycleProposed, state.EditRound, maxEditRounds); reject {
+			notePrematureStopAttempt(state)
+			state.recordRepairFailureKind(RepairFailureAdvisory)
+			repairNote = note
+			state.Phase = "discover"
+			continue
+		}
 		break
 	}
 	if msg != nil && (msg.IdeEditorModeIsExport() || userRequestsFileExportForMessage(msg)) && proposedAny {
@@ -509,12 +595,10 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	persistImplSessionCheckpoint(msg, state, -1)
 
-	if !proposedAny && state != nil && state.ProposedCount > 0 {
-		proposedAny = true
-	}
+	proposedAny = state.hasRegisteredProposals()
 	summary := a.formatImplementationSessionSummary(lastResponse, state, proposedAny, msg)
 	outcome := a.buildImplementationSessionOutcome(msg, state, proposedAny)
-	return summary, streamMsgID, proposedAny, state.FilesChanged, outcome, nil
+	return summary, streamMsgID, proposedAny, state.RegisteredFiles, outcome, nil
 }
 
 func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *ImplementationSessionState, proposed bool) map[string]interface{} {
@@ -529,9 +613,14 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 		return outcome
 	}
 	outcome["repair_used"] = state.RepairUsed
+	if state.RepairAttempts > 0 {
+		outcome["repair_attempts"] = state.RepairAttempts
+	}
 	outcome["verify_failed"] = state.VerifyFailed
 	outcome["verify_skipped"] = state.VerifySkipped
-	if len(state.FilesChanged) > 0 {
+	if len(state.RegisteredFiles) > 0 {
+		outcome["files_changed"] = append([]string(nil), state.RegisteredFiles...)
+	} else if len(state.FilesChanged) > 0 {
 		outcome["files_changed"] = append([]string(nil), state.FilesChanged...)
 	}
 	trust := ""
@@ -541,9 +630,14 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	if state.TrustMode != "" {
 		trust = state.TrustMode
 	}
-	applied := proposed && trust == editorTrustAutoApply && msg != nil &&
-		sessionFilesOnDisk(a.resolveWorkspacePath(msg), state.FilesChanged)
+	applied := len(state.RegisteredFiles) > 0 && trust == editorTrustAutoApply && msg != nil &&
+		sessionFilesOnDisk(a.resolveWorkspacePath(msg), state.RegisteredFiles)
+	attempted := state.ProposedCount > 0 || len(state.FilesChanged) > 0
+	registered := len(state.RegisteredFiles) > 0
 	switch {
+	case attempted && !registered && len(state.RegistrationErrors) > 0:
+		outcome["outcome"] = "proposal_registration_failed"
+		outcome["registration_errors"] = append([]string(nil), state.RegistrationErrors...)
 	case !proposed:
 		outcome["outcome"] = "no_changes"
 	case trust == editorTrustAutoApply && applied && state.VerifyFailed:
@@ -570,6 +664,19 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 		outcome["playbook_used"] = state.PlaybookUsedName
 	}
 	outcome["circuit_breaker_triggered"] = state.CircuitBreakerFired
+	if ft := state.failureTypeForOutcome(); ft != "" {
+		outcome["failure_type"] = ft
+	}
+	if state.PrematureStopAttempts > 0 {
+		outcome["premature_stop_pushes"] = state.PrematureStopAttempts
+	}
+	if state.DiagnosePhaseRequired {
+		outcome["diagnose_gate_required"] = true
+		outcome["diagnose_gate_complete"] = state.DiagnosePhaseComplete
+	}
+	if state.DialogueSummary != "" {
+		outcome["dialogue_summary_used"] = true
+	}
 	return outcome
 }
 
@@ -591,9 +698,16 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	intent := a.classifyTurnIntentForMessage(msg)
 	prompt := a.buildPromptForIntent(msg, intent)
 	prompt = a.appendDelegationContext(ctx, msg, prompt)
+	prompt = a.appendRepoConsultContext(ctx, msg, prompt, intent)
 
 	if note := repairNoteFromContext(ctx); note != "" {
 		prompt += "\n=== REPAIR REQUIRED ===\n" + note + "\n"
+	}
+	if st := implementationSessionStateFromContext(ctx); st != nil {
+		prompt = appendDialogueSummaryPrompt(prompt, st)
+		if st.diagnoseGateBlocksProposals() {
+			prompt += "\n=== DIAGNOSE BEFORE EDIT ===\nProvide Analysis and Planned edits before any file proposals.\n"
+		}
 	}
 	var sessionGuidance strings.Builder
 	appendImplementationSessionToolGuidance(&sessionGuidance, a, msg)
@@ -805,6 +919,15 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 			if line := state.formatCommandFailureSummaryLine(); line != "" {
 				b.WriteString(line)
 				b.WriteString("\n\n")
+			}
+			if len(state.RegistrationErrors) > 0 {
+				b.WriteString("File change proposals were not registered:\n")
+				for _, e := range state.RegistrationErrors {
+					b.WriteString("- ")
+					b.WriteString(e)
+					b.WriteString("\n")
+				}
+				b.WriteString("\n")
 			}
 		}
 	case trust == editorTrustAutoApply && state != nil && applied && state.VerifyFailed:

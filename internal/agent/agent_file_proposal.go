@@ -169,7 +169,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			if err := a.validateProposalForSession(ctx, sourceMsg, namedPath, ProposalOpCreate); err != nil {
 				return response, false, err
 			}
-			if err := a.proposeFileCreateInChannel(channel, namedPath, newContent, sourceMsg); err != nil {
+			if err := a.proposeFileCreateInChannel(ctx, channel, namedPath, newContent, sourceMsg); err != nil {
 				return response, false, err
 			}
 			log.Printf("[%s] fallback_path_used(operation=create,target=%s)", a.Info.Name, namedPath)
@@ -178,7 +178,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 			if err := a.validateProposalForSession(ctx, sourceMsg, activePath, ProposalOpEdit); err != nil {
 				return response, false, err
 			}
-			if err := a.proposeFileEditInChannel(channel, activePath, "", newContent, sourceMsg); err != nil {
+			if err := a.proposeFileEditInChannel(ctx, channel, activePath, "", newContent, sourceMsg); err != nil {
 				return response, false, err
 			}
 			log.Printf("[%s] fallback_path_used(operation=edit,target=%s)", a.Info.Name, activePath)
@@ -193,10 +193,10 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 				return response, false, err
 			}
 			if op == ProposalOpEdit {
-				if err := a.proposeFileEditInChannel(channel, namedPath, "", newContent, sourceMsg); err != nil {
+				if err := a.proposeFileEditInChannel(ctx, channel, namedPath, "", newContent, sourceMsg); err != nil {
 					return response, false, err
 				}
-			} else if err := a.proposeFileCreateInChannel(channel, namedPath, newContent, sourceMsg); err != nil {
+			} else if err := a.proposeFileCreateInChannel(ctx, channel, namedPath, newContent, sourceMsg); err != nil {
 				return response, false, err
 			}
 			log.Printf("[%s] fallback_path_used(operation=%s,target=%s)", a.Info.Name, op, namedPath)
@@ -214,10 +214,10 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 					return response, false, err
 				}
 				if op == ProposalOpCreate {
-					if err := a.proposeFileCreateInChannel(channel, alt, newContent, sourceMsg); err != nil {
+					if err := a.proposeFileCreateInChannel(ctx, channel, alt, newContent, sourceMsg); err != nil {
 						return response, false, err
 					}
-				} else if err := a.proposeFileEditInChannel(channel, alt, "", newContent, sourceMsg); err != nil {
+				} else if err := a.proposeFileEditInChannel(ctx, channel, alt, "", newContent, sourceMsg); err != nil {
 					return response, false, err
 				}
 				log.Printf("[%s] fallback_path_used(operation=%s,target=%s)", a.Info.Name, op, alt)
@@ -233,7 +233,7 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		if alt := preferImplementationTargetPath(a.resolveWorkspacePath(sourceMsg), sourceMsg.Content, ""); alt != "" {
 			if body := stripEditorLineNumberPrefixes(extractAnyCodeFenceContent(match[1])); strings.TrimSpace(body) != "" {
 				if err2 := a.validateProposalForSession(ctx, sourceMsg, alt, ProposalOpEdit); err2 == nil {
-					if err2 = a.proposeFileEditInChannel(channel, alt, "", body, sourceMsg); err2 == nil {
+					if err2 = a.proposeFileEditInChannel(ctx, channel, alt, "", body, sourceMsg); err2 == nil {
 						log.Printf("[%s] implement_path_recovery(edit,target=%s)", a.Info.Name, alt)
 						cleaned := strings.TrimSpace(fileChangeBlockRegex.ReplaceAllString(response, ""))
 						return cleaned, true, nil
@@ -260,11 +260,11 @@ func (a *Agent) maybeSubmitFileChangeFromResponse(ctx context.Context, response,
 		if err := a.validateProposalForSession(ctx, sourceMsg, directive.Path, ProposalOpEdit); err != nil {
 			return response, false, err
 		}
-		if err := a.proposeFileEditInChannel(channel, directive.Path, directive.OldContent, directive.NewContent, sourceMsg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, channel, directive.Path, directive.OldContent, directive.NewContent, sourceMsg); err != nil {
 			return response, false, err
 		}
 	case "delete":
-		if err := a.proposeFileDeleteInChannel(channel, directive.Path, sourceMsg); err != nil {
+		if err := a.proposeFileDeleteInChannel(ctx, channel, directive.Path, sourceMsg); err != nil {
 			return response, false, err
 		}
 	case "move":
@@ -324,7 +324,7 @@ func (a *Agent) submitAllFileChangesFromResponse(ctx context.Context, response, 
 			if err := a.validateProposalForSession(ctx, sourceMsg, directive.Path, ProposalOpEdit); err != nil {
 				return cleaned, proposed, err
 			}
-			if err := a.proposeFileEditInChannel(channel, directive.Path, directive.OldContent, body, sourceMsg); err != nil {
+			if err := a.proposeFileEditInChannel(ctx, channel, directive.Path, directive.OldContent, body, sourceMsg); err != nil {
 				return cleaned, proposed, err
 			}
 		default:
@@ -648,10 +648,10 @@ func extractActiveOpenFilePath(msg *protocol.Message) string {
 
 // ProposeFileEdit proposes an edit to an existing file
 func (a *Agent) ProposeFileEdit(path, oldContent, newContent string) error {
-	return a.proposeFileEditInChannel(a.Context.CurrentChannel, path, oldContent, newContent, nil)
+	return a.proposeFileEditInChannel(context.Background(), a.Context.CurrentChannel, path, oldContent, newContent, nil)
 }
 
-func (a *Agent) proposeFileEditInChannel(channel, path, oldContent, newContent string, sourceMsg *protocol.Message) error {
+func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, oldContent, newContent string, sourceMsg *protocol.Message) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
@@ -685,12 +685,14 @@ func (a *Agent) proposeFileEditInChannel(channel, path, oldContent, newContent s
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
-	return a.Hub.SendMessage(msg)
+	err := a.Hub.SendMessage(msg)
+	a.noteProposalResult(ctx, path, err)
+	return err
 }
 
 // ProposeFileCreate proposes creating a new file
 func (a *Agent) ProposeFileCreate(path, content string) error {
-	return a.proposeFileCreateInChannel(a.Context.CurrentChannel, path, content, nil)
+	return a.proposeFileCreateInChannel(context.Background(), a.Context.CurrentChannel, path, content, nil)
 }
 
 func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel, path, content string, sourceMsg *protocol.Message) error {
@@ -715,13 +717,13 @@ func (a *Agent) proposeFileChangePreferEditOrCreate(ctx context.Context, channel
 	if wsPath != "" {
 		resolved := filepath.Join(wsPath, path)
 		if info, err := os.Stat(resolved); err == nil && !info.IsDir() {
-			return a.proposeFileEditInChannel(channel, path, "", content, sourceMsg)
+			return a.proposeFileEditInChannel(ctx, channel, path, "", content, sourceMsg)
 		}
 	}
-	return a.proposeFileCreateInChannel(channel, path, content, sourceMsg)
+	return a.proposeFileCreateInChannel(ctx, channel, path, content, sourceMsg)
 }
 
-func (a *Agent) proposeFileCreateInChannel(channel, path, content string, sourceMsg *protocol.Message) error {
+func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, content string, sourceMsg *protocol.Message) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
@@ -754,15 +756,17 @@ func (a *Agent) proposeFileCreateInChannel(channel, path, content string, source
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
-	return a.Hub.SendMessage(msg)
+	err := a.Hub.SendMessage(msg)
+	a.noteProposalResult(ctx, path, err)
+	return err
 }
 
 // ProposeFileDelete proposes deleting a file
 func (a *Agent) ProposeFileDelete(path string) error {
-	return a.proposeFileDeleteInChannel(a.Context.CurrentChannel, path, nil)
+	return a.proposeFileDeleteInChannel(context.Background(), a.Context.CurrentChannel, path, nil)
 }
 
-func (a *Agent) proposeFileDeleteInChannel(channel, path string, sourceMsg *protocol.Message) error {
+func (a *Agent) proposeFileDeleteInChannel(ctx context.Context, channel, path string, sourceMsg *protocol.Message) error {
 	if strings.TrimSpace(channel) == "" {
 		channel = "general"
 	}
@@ -786,7 +790,9 @@ func (a *Agent) proposeFileDeleteInChannel(channel, path string, sourceMsg *prot
 	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
-	return a.Hub.SendMessage(msg)
+	err := a.Hub.SendMessage(msg)
+	a.noteProposalResult(ctx, path, err)
+	return err
 }
 
 // ProposeFileMove proposes moving/renaming a file

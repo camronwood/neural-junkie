@@ -74,6 +74,7 @@ type Agent struct {
 	// lastDelegationConsulted holds specialist names consulted on the previous turn (for metadata).
 	delegationMu            sync.Mutex
 	lastDelegationConsulted []string
+	lastRepoConsulted       string
 
 	// routingSnap records provider/model used for the current turn (observability metadata).
 	routingSnap routingSnapshotHolder

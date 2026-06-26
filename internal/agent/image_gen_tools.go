@@ -507,11 +507,7 @@ func (a *Agent) generateWithAgentTools(
 		if err != nil {
 			return "", err
 		}
-		if recovered, ok := a.recoverPlaintextToolResponse(ctx, msg, text); ok {
-			log.Printf("[%s] Recovered plaintext MCP tool call from chat model response", a.Info.Name)
-			return recovered, nil
-		}
-		return text, nil
+		return a.chainPlaintextToolResponse(ctx, msg, eff, prompt, histMsgs, text)
 	}
 
 	text, err := toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools,
@@ -526,11 +522,73 @@ func (a *Agent) generateWithAgentTools(
 	if err != nil {
 		return "", err
 	}
-	if recovered, ok := a.recoverPlaintextToolResponse(ctx, msg, text); ok {
-		log.Printf("[%s] Recovered plaintext MCP tool call from tool-loop model response", a.Info.Name)
-		return recovered, nil
+	return a.chainPlaintextToolResponse(ctx, msg, eff, prompt, histMsgs, text)
+}
+
+func implementationSessionActive(ctx context.Context) bool {
+	if implementationSessionStateFromContext(ctx) != nil {
+		return true
 	}
-	return text, nil
+	return shared.ImplementationSessionFromContext(ctx)
+}
+
+func isImplementationEditTool(name string) bool {
+	switch strings.TrimSpace(name) {
+	case proposeFileEditToolName, searchReplaceToolName, applyPatchToolName:
+		return true
+	default:
+		return false
+	}
+}
+
+// chainPlaintextToolResponse runs discover/diagnostic tools in a loop during implementation
+// sessions instead of ending the round after the first plaintext JSON tool call.
+func (a *Agent) chainPlaintextToolResponse(
+	ctx context.Context,
+	msg *protocol.Message,
+	eff ai.AIProvider,
+	prompt string,
+	histMsgs []protocol.Message,
+	text string,
+) (string, error) {
+	if !implementationSessionActive(ctx) {
+		if recovered, ok := a.recoverPlaintextToolResponse(ctx, msg, text); ok {
+			log.Printf("[%s] Recovered plaintext MCP tool call from chat model response", a.Info.Name)
+			return recovered, nil
+		}
+		return text, nil
+	}
+
+	maxChain := ai.ToolLoopMaxIterationsFromContext(ctx)
+	if maxChain <= 0 {
+		maxChain = 8
+	}
+	lastText := strings.TrimSpace(text)
+	for i := 0; i < maxChain; i++ {
+		name, _, hasTool := parsePlaintextToolCall(lastText)
+		if !hasTool {
+			return lastText, nil
+		}
+		recovered, ok := a.recoverPlaintextToolResponse(ctx, msg, lastText)
+		if !ok {
+			return lastText, nil
+		}
+		log.Printf("[%s] Recovered plaintext MCP tool call from tool-loop model response (chain %d/%d)", a.Info.Name, i+1, maxChain)
+		if isImplementationEditTool(name) {
+			return recovered, nil
+		}
+		followUp := prompt + "\n\n=== TOOL RESULT (" + name + ") ===\n" +
+			truncateImplLog(recovered, 4000) +
+			"\n\nContinue the implementation session: use search_replace, apply_patch, or propose_file_edit to ship file changes. " +
+			"Do not repeat read_file on paths you already read unless fixing a specific compile error.\n"
+		next, err := eff.GenerateResponse(ctx, followUp, histMsgs)
+		if err != nil {
+			return recovered, nil
+		}
+		lastText = strings.TrimSpace(next)
+	}
+	log.Printf("[%s] Plaintext tool chain hit iteration cap", a.Info.Name)
+	return lastText, nil
 }
 
 // parsePlaintextToolCall detects when a model returned a JSON tool invocation in chat text
@@ -705,6 +763,9 @@ func (a *Agent) recoverPlaintextToolResponse(ctx context.Context, msg *protocol.
 		return "", false
 	}
 	result, err := a.executeAgentTool(ctx, msg, name, input)
+	if st := implementationSessionStateFromContext(ctx); st != nil && err == nil {
+		st.recordDiscoverTool(name)
+	}
 	if err != nil {
 		return fmt.Sprintf("Tool `%s` failed: %v", name, err), true
 	}

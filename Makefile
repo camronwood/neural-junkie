@@ -286,11 +286,11 @@ test-parity-full-restart: ## implement + parity scenarios 3× with hub restart b
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable: ## Run implement-scenarios 3x with hub restart between sweeps (stable gate)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 16 \
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 17 \
 		--restart-between --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable-stress: ## Run implement-scenarios 3x back-to-back (may OOM hub on tight memory)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 16 \
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 17 \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable-restart: test-parity-stable ## Alias for stable gate (restart between sweeps)

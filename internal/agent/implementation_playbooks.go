@@ -10,17 +10,15 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-// tryEarlyMissingStartAllMakefileFix wires the Makefile start-all playbook before LLM rounds.
-func (a *Agent) tryEarlyMissingStartAllMakefileFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
+// tryEarlyCommandEvidencePlaybook applies a parity playbook only when the user message
+// already contains pasted command failure output (scenario tests, error-log paste).
+func (a *Agent) tryEarlyCommandEvidencePlaybook(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || state == nil || wsPath == "" {
 		return false
 	}
-	sig := commandOutputMatchesPlaybook(msg.Content)
+	sig := playbookSignatureFromCommandEvidence(msg.Content)
 	if sig == "" {
-		sig = "missing_start_all_target"
-		if !strings.Contains(strings.ToLower(msg.Content), "start-all") {
-			return false
-		}
+		return false
 	}
 	channel := msg.Channel
 	if channel == "" {
@@ -63,7 +61,7 @@ func (a *Agent) attemptPlaybookForSessionState(ctx context.Context, msg *protoco
 	}
 	sig := commandOutputMatchesPlaybook(state.LastCommandOutput())
 	if sig == "" {
-		sig = commandOutputMatchesPlaybook(msg.Content)
+		sig = playbookSignatureFromCommandEvidence(msg.Content)
 	}
 	if sig == "" {
 		return false, nil
@@ -110,11 +108,11 @@ func (a *Agent) attemptMissingStartAllMakefileFix(
 		}
 	}
 	if oldContent == "" {
-		if err := a.proposeFileCreateInChannel(channel, "Makefile", body, msg); err != nil {
+		if err := a.proposeFileCreateInChannel(ctx, msg.Channel, "Makefile", body, msg); err != nil {
 			return false, nil
 		}
 	} else {
-		if err := a.proposeFileEditInChannel(channel, "Makefile", oldContent, body, msg); err != nil {
+		if err := a.proposeFileEditInChannel(ctx, msg.Channel, "Makefile", oldContent, body, msg); err != nil {
 			return false, nil
 		}
 	}

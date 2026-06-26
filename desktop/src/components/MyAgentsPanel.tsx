@@ -13,6 +13,7 @@ import {
   findLiveAgentForCached,
   isCachedAgentAlreadyLoaded,
 } from '../utils/cachedAgentLoaded';
+import { isUserFacingAgent } from '../utils/agentVisibility';
 
 interface MyAgentsPanelProps {
   onClose: () => void;
@@ -156,7 +157,7 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
     resizeStartWidth.current = currentWidthRef.current;
   };
 
-  const activeAgents: AgentInfo[] = agents.filter(agent => agent.status === 'active');
+  const activeAgents: AgentInfo[] = agents.filter(agent => agent.status === 'active' && isUserFacingAgent(agent));
   const loadingAgentsList: AgentInfo[] = Array.from(loadingAgents).map(agentName => ({
     id: `loading-${agentName}`,
     name: agentName,

@@ -15,7 +15,7 @@ import type { ConnectionStatus } from '../hooks/useWebSocket';
 import { ChatAPI } from '../api/chatAPI';
 import { getHubBaseURL, normalizeHubBaseURL } from '../config/hubUrl';
 import { isHumanJoinAnnouncement } from '../utils/joinMessage';
-import { mergeMessageImageMetadata, mergeMessagePreservingImages } from '../utils/mergeMessageImageMetadata';
+import { mergeMessagePreservingImages } from '../utils/mergeMessageImageMetadata';
 import {
   capStreamContent,
   MAX_UI_CHANNEL_MESSAGES,

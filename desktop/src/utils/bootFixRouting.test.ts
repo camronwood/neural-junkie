@@ -11,7 +11,7 @@ describe('hasBootFixRoutingSignals', () => {
 });
 
 describe('buildImplementationSessionMetadata boot-fix routing', () => {
-  it('routes boot-fix to frontend without mention', () => {
+  it('routes boot-fix to frontend on team channels without mention', () => {
     const metadata = buildImplementationSessionMetadata({
       content: 'the app is not booting up can you help?',
       agents: [
@@ -23,5 +23,21 @@ describe('buildImplementationSessionMetadata boot-fix routing', () => {
       editorAgentTrust: 'auto_apply_edits',
     });
     expect(metadata.ide_route_agent_type).toBe('frontend');
+  });
+
+  it('uses DM partner type in specialist DMs (not boot-fix override)', () => {
+    const metadata = buildImplementationSessionMetadata({
+      content: 'the app is not booting up can you help?',
+      agents: [
+        { id: '1', name: 'SoftwareArchitect', type: 'architecture' },
+        { id: '2', name: 'FrontendEngineer', type: 'frontend' },
+      ],
+      activeTab: null,
+      editorAgentMode: 'agent',
+      editorAgentTrust: 'auto_apply_edits',
+      channelType: 'dm',
+      dmPartnerAgentType: 'architecture',
+    });
+    expect(metadata.ide_route_agent_type).toBe('architecture');
   });
 });

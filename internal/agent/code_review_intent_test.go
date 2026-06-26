@@ -114,3 +114,6 @@ func (c *deferRepoCommandHandler) RemovePendingReview(string)                   
 func (c *deferRepoCommandHandler) HasPendingReview(path string) bool {
 	return c.pending[normalizeRepoPath(path)]
 }
+func (c *deferRepoCommandHandler) ConsultRepoForPath(context.Context, string, string, string) (string, string, error) {
+	return "", "", nil
+}

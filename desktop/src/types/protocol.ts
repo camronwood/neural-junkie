@@ -76,6 +76,8 @@ export interface AgentInfo {
   custom_rules_markdown?: string;
   /** Hub MCP + built-in tool count (when fetched with include_tool_counts). */
   tool_count?: number;
+  /** Internal consult-only repo index; hidden from user-facing agent lists. */
+  consult_only?: boolean;
 }
 
 export interface AgentToolParam {

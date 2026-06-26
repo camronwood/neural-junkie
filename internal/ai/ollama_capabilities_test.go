@@ -1,15 +1,41 @@
 package ai
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
-func TestOllamaSmallChatModel(t *testing.T) {
-	if !OllamaSmallChatModel("qwen2.5:7b") {
-		t.Fatal("expected qwen2.5:7b to be small chat model")
+func TestOllamaTagSupportsTools(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/show" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(ollamaShowResponse{Capabilities: []string{"completion", "tools"}})
+	}))
+	defer srv.Close()
+
+	if !OllamaTagSupportsTools(context.Background(), srv.URL, "qwen3.5:9b") {
+		t.Fatal("expected tools support")
 	}
-	if OllamaSmallChatModel("qwen2.5-coder:14b") {
-		t.Fatal("did not expect 14b to be small chat model")
+}
+
+func TestOllamaTagSupportsToolsNoToolsCapability(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(ollamaShowResponse{Capabilities: []string{"completion"}})
+	}))
+	defer srv.Close()
+
+	if OllamaTagSupportsTools(context.Background(), srv.URL, "deepseek-coder:6.7b") {
+		t.Fatal("expected no tools support")
 	}
-	if !OllamaModelPrefersCompactPrompt("nj-bio:8b") {
-		t.Fatal("expected nj-bio compact")
+}
+
+func TestOllamaTagSupportsToolsKnownNoTools(t *testing.T) {
+	if OllamaTagSupportsTools(context.Background(), "http://unused", "nj-bio:8b") {
+		t.Fatal("nj-bio should be treated as non-tool")
 	}
 }

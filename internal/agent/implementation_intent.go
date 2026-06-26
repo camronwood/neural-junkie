@@ -24,6 +24,8 @@ var (
 	contentDeliveryRE      = regexp.MustCompile(`(?i)\b(linkedin|blog post|blog article|article about|write (?:me )?(?:a |an )?article|marketing copy|press release|social media post|whitepaper|writeup|newsletter)\b`)
 	fileExportRE           = regexp.MustCompile(`(?i)\b(store (?:that|it|in|the)|save (?:it|as|in|the)|fill (?:the file|.* with)|create (?:that |the )?file|please create (?:that |the )?file|write (?:it |that ).*(?:file|\.md)|markdown file)\b`)
 	bareWorkspaceWrapperRE = regexp.MustCompile(`(?i)\b(can you|could you|please|for this|for that|to do this|now)\b`)
+	advisoryHypotheticalRE = regexp.MustCompile(`(?i)\b(how would you|how could you|how should i|what would you|in one short paragraph|can you explain how)\b`)
+	advisoryPlacementRE    = regexp.MustCompile(`(?i)\b(where should .{0,80} live|where would you put)\b`)
 )
 
 var workspaceDirectiveDocSeeds = []string{"README.md", "DOCS.md", "docs/README.md"}
@@ -45,11 +47,59 @@ func userRequestsDestructiveCommand(content string) bool {
 	return destructiveCommandRE.MatchString(content)
 }
 
+// isAdvisoryImplementationQuestion reports hypothetical or placement-only asks that should
+// stay conversational in chat mode (no [FILE_CHANGE] / implementation session).
+func isAdvisoryImplementationQuestion(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	if advisoryHypotheticalRE.MatchString(lower) {
+		return true
+	}
+	if advisoryPlacementRE.MatchString(lower) {
+		shipVerbs := []string{"implement", "add ", "build ", "fix ", "go ahead", "please do", "ship ", "wire "}
+		for _, p := range shipVerbs {
+			if strings.Contains(lower, p) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// agentMessageIsConversationalClosure reports canned closure replies that end an impl thread.
+func agentMessageIsConversationalClosure(content string) bool {
+	lower := strings.ToLower(strings.TrimSpace(content))
+	if lower == "" {
+		return false
+	}
+	markers := []string{
+		"you're welcome",
+		"you are welcome",
+		"won't repeat",
+		"will not repeat",
+		"glad that helped",
+		"anything else i can help",
+		"let me know if you need anything else",
+	}
+	for _, m := range markers {
+		if strings.Contains(lower, m) {
+			return true
+		}
+	}
+	return false
+}
+
 // userRequestsImplementation reports coding/build asks (themes, features, fixes) where the
 // user expects [FILE_CHANGE] deliverables, not a codebase overview.
 func userRequestsImplementation(content string) bool {
 	lower := strings.ToLower(strings.TrimSpace(content))
 	if lower == "" {
+		return false
+	}
+	if isAdvisoryImplementationQuestion(content) {
 		return false
 	}
 	if userRequestsCodeReview(content) {
@@ -404,6 +454,9 @@ func channelHasRecentImplementationActivity(history []*protocol.Message, skipMsg
 			if agentID != "" && m.From.ID != agentID {
 				continue
 			}
+			if agentMessageIsConversationalClosure(m.Content) {
+				return false
+			}
 			body := strings.ToLower(m.Content)
 			if strings.Contains(body, "implementation session complete") ||
 				strings.Contains(body, "proposals submitted for approval") ||
@@ -411,8 +464,13 @@ func channelHasRecentImplementationActivity(history []*protocol.Message, skipMsg
 				return true
 			}
 		}
-		if protocol.IsUserLikeSender(m.From) && userRequestsImplementation(m.Content) {
-			return true
+		if protocol.IsUserLikeSender(m.From) {
+			if classifyConversationalClosure(m.Content) != ClosureNone {
+				return false
+			}
+			if userRequestsImplementation(m.Content) {
+				return true
+			}
 		}
 	}
 	return false

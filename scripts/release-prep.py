@@ -22,7 +22,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
 from lib.release_prep_hub import ensure_hub_for_release_prep  # noqa: E402
-from lib.hub_regression import recover_regression_hub, read_recovery_log_text  # noqa: E402
+from lib.hub_regression import recover_regression_hub, read_recovery_log_text, restart_regression_hub, wait_for_hub  # noqa: E402
 
 REVIEW_RE = re.compile(r"^Review:\s+(.+)$", re.MULTILINE)
 LOG_RE = re.compile(r"^Full log:\s+(.+)$", re.MULTILINE)
@@ -318,13 +318,9 @@ def main() -> int:
             _print_final(report)
             return 1
 
-        print("\n>>> [release-prep] recovering hub after test-everything (fresh hub for parity/benchmark)")
-        if not recover_regression_hub(
-            ROOT,
-            hub_url,
-            context="release-prep:post-test-everything",
-            env=release_prep_env(ROOT),
-        ):
+        print("\n>>> [release-prep] restarting hub after test-everything (fresh hub for parity/benchmark)")
+        env = release_prep_env(ROOT)
+        if not restart_regression_hub(ROOT, hub_url, env=env):
             phase = PhaseResult(
                 name="hub-restart-after-everything",
                 status="FAIL",
@@ -335,7 +331,18 @@ def main() -> int:
             write_reports(report, testing_dir)
             _print_final(report)
             return 1
-        time.sleep(3.0)
+        if not wait_for_hub(hub_url, timeout_s=120.0):
+            phase = PhaseResult(
+                name="hub-restart-after-everything",
+                status="FAIL",
+                exit_code=1,
+                note="hub unhealthy after restart before parity/benchmark",
+            )
+            report.phases.append(phase)
+            write_reports(report, testing_dir)
+            _print_final(report)
+            return 1
+        time.sleep(45.0)
         preflight_regression_run(ROOT, hub_url, label="release-prep post-everything preflight")
 
     if not args.skip_live and not args.skip_parity:
@@ -345,7 +352,7 @@ def main() -> int:
             "--runs",
             "3",
             "--min-pass",
-            "7",
+            "17",
             "--restart-between",
             "--hub",
             hub_url,

@@ -18,7 +18,7 @@ PASS_RE = re.compile(r"^=== PASS: (\S+) ===")
 FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
 
 sys.path.insert(0, str(SCRIPTS_DIR))
-from lib.hub_regression import recover_regression_hub, wait_for_hub  # noqa: E402
+from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 
@@ -54,7 +54,7 @@ def run_sweep(hub_url: str, script: Path) -> tuple[int, str, list[str], list[str
 def main() -> int:
     p = argparse.ArgumentParser(description="Stability gate for implement-scenarios")
     p.add_argument("--runs", type=int, default=3, help="Number of full sweeps (default 3)")
-    p.add_argument("--min-pass", type=int, default=16, help="Minimum scenarios that must pass per run")
+    p.add_argument("--min-pass", type=int, default=17, help="Minimum scenarios that must pass per run")
     p.add_argument("--hub", default="http://127.0.0.1:18765")
     p.add_argument("--log-dir", default=str(TESTING_DIR))
     p.add_argument(
@@ -93,18 +93,22 @@ def main() -> int:
     for run in range(1, args.runs + 1):
         lines.append(f"## run {run}/{args.runs}")
         if args.restart_between:
-            lines.append("recovering regression hub...")
-            if not recover_regression_hub(
-                ROOT,
-                args.hub,
-                context=f"parity-stable:run-{run}",
-                env=release_prep_env(ROOT),
-            ):
-                lines.append("hub recovery failed")
+            lines.append("restarting regression hub...")
+            env = release_prep_env(ROOT)
+            if not restart_regression_hub(ROOT, args.hub, env=env):
+                lines.append("hub restart failed")
                 all_ok = False
                 lines.append(f"RESULT run {run}: FAIL (hub restart)")
                 lines.append("")
                 continue
+            if not wait_for_hub(args.hub, timeout_s=120.0):
+                lines.append(f"hub unhealthy after restart: {args.hub}")
+                all_ok = False
+                lines.append(f"RESULT run {run}: FAIL (hub down after restart)")
+                lines.append("")
+                continue
+            preflight_regression_run(ROOT, args.hub, label=f"parity-stable run-{run} preflight")
+            time.sleep(45.0)
         elif not wait_for_hub(args.hub):
             lines.append(f"hub unhealthy before run {run}: {args.hub}")
             all_ok = False

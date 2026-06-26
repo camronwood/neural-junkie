@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import time
 from pathlib import Path
 
 SCENARIO_CHANNELS = (
@@ -52,11 +53,13 @@ def cleanup_scenario_channels(hub_url: str, *, dry_run: bool = False) -> list[st
             print(f"  would clear channel history: {channel}")
             cleared.append(channel)
             continue
-        ok = hub_api.clear_channel_history(hub_url, channel)
+        hub_api.ensure_channel(hub_url, channel, description="Scenario regression channel")
+        ok = hub_api.clear_channel_history(hub_url, channel, max_retries=8)
         if ok:
             cleared.append(channel)
         else:
             print(f"  ⚠ clear-history failed: {channel}", file=sys.stderr)
+        time.sleep(0.5)
     return cleared
 
 

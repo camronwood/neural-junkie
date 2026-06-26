@@ -33,7 +33,7 @@
       "action": "wait_reply",
       "from": "FrontendEngineer",
       "timeout": "420s",
-      "until_any_match": ["applied and verified|implementation session complete|App.tsx"]
+      "until_any_match": ["applied and verified|implementation session complete"]
     },
     {
       "action": "assert_messages",
@@ -46,6 +46,11 @@
       "action": "assert_file_exists",
       "path": "src/App.tsx",
       "none_match": ["not-a-number"]
+    },
+    {
+      "action": "assert_shell",
+      "command": "npx tsc --noEmit -p tsconfig.json",
+      "timeout_s": 120
     }
   ],
   "cleanup": "clear"

@@ -107,11 +107,15 @@ var taskLineIdentityRe = regexp.MustCompile(`(?i)Task\s+(\d+)\s*:?`)
 
 func taskLineIdentityKey(line string) string {
 	trimmed := strings.TrimSpace(line)
+	assignee := ""
+	if mm := agentMentionRe.FindStringSubmatch(trimmed); len(mm) >= 2 {
+		assignee = strings.ToLower(mm[1])
+	}
+	paths := ReferencedDeliverablePaths(CollaborationTask{Description: trimmed})
+	if len(paths) > 0 {
+		return strings.ToLower(paths[0]) + "|" + assignee
+	}
 	if m := taskLineIdentityRe.FindStringSubmatch(trimmed); len(m) >= 2 {
-		assignee := ""
-		if mm := agentMentionRe.FindStringSubmatch(trimmed); len(mm) >= 2 {
-			assignee = strings.ToLower(mm[1])
-		}
 		return m[1] + "|" + assignee
 	}
 	return strings.ToLower(trimmed)

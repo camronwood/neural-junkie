@@ -14,8 +14,19 @@ import { setHubSessionToken } from './config/hubUrl';
 import { ChatAPI } from './api/chatAPI';
 import { getHubBaseURL } from './config/hubUrl';
 import { applyMermaidTheme } from './utils/mermaidConfig';
+import { isTauriRuntime } from './utils/promptAttachments';
+import { DesktopOnlyGate } from './components/DesktopOnlyGate';
 
 type AppPhase = 'loading' | 'setup' | 'login' | 'chat';
+
+function isMarkdownPreviewFromUrl(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('preview') === 'true' &&
+    Boolean(params.get('workspace')?.trim()) &&
+    Boolean(params.get('path')?.trim())
+  );
+}
 
 function App() {
   const [phase, setPhase] = useState<AppPhase>('loading');
@@ -136,6 +147,10 @@ function App() {
     setSettingsInitialTab(undefined);
   };
   const handleLogout = () => setPhase('login');
+
+  if (!isTauriRuntime() && !isMarkdownPreviewFromUrl() && !isPreviewMode) {
+    return <DesktopOnlyGate />;
+  }
 
   // Render preview mode if active
   if (isPreviewMode && previewParams) {

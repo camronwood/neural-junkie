@@ -25,6 +25,16 @@ func handleAgentsRoute(w http.ResponseWriter, r *http.Request) {
 
 func handleGetAgents(w http.ResponseWriter, r *http.Request) {
 	agents := chatHub.ListAgents()
+	includeConsultOnly := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_consult_only")), "true")
+	if !includeConsultOnly {
+		filtered := make([]*protocol.AgentInfo, 0, len(agents))
+		for _, a := range agents {
+			if a != nil && !a.ConsultOnly {
+				filtered = append(filtered, a)
+			}
+		}
+		agents = filtered
+	}
 	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("include_tool_counts")), "true") {
 		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok && ch != nil {
 			for i := range agents {

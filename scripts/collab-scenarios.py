@@ -158,6 +158,12 @@ def apply_flag_overrides(flags: list[str]) -> list[str]:
     return flags
 
 
+def _shell_quote_arg(value: str) -> str:
+    if any(ch.isspace() for ch in value):
+        return "'" + value.replace("'", "'\"'\"'") + "'"
+    return value
+
+
 def build_collaborate_command(scenario: dict, agents: str) -> str:
     collab = scenario.get("collaborate") or {}
     flags = collab.get("flags") or []
@@ -171,7 +177,7 @@ def build_collaborate_command(scenario: dict, agents: str) -> str:
             flags = ["--workspace", *flags]
     repo = resolve_workspace_repo(scenario) if ws else ""
     if repo and "--repo" not in flags:
-        flags = ["--repo", repo, *flags]
+        flags = ["--repo", _shell_quote_arg(repo), *flags]
     parts = ["/collaborate", *flags, agents, goal]
     return " ".join(p for p in parts if p)
 

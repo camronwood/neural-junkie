@@ -133,8 +133,18 @@ export function normalizeProseMarkdownBlocks(raw: string): string {
     .join('');
 }
 
+/** Agent review / report section labels often glued to titles or prior sentences. */
+const REVIEW_SECTION_LABEL =
+  /(?:^|\s)((?:What went wrong|What could have been better|What (?:worked|didn't work|did not work)|Recommendation(?:s)?|Summary|Root cause|Next steps|Key (?:findings|points)|Action items|Follow[- ]up)(?:[^:\n]{0,40})?):\s+/gi;
+
 function normalizeProseText(text: string): string {
   let s = text;
+
+  // "Review of X Response What went wrong:" → title + first section
+  s = s.replace(
+    /^(Review of\s+.+?)\s+(What went wrong):\s*/i,
+    '## $1\n\n### What went wrong\n\n'
+  );
 
   // Horizontal rules on their own line
   s = s.replace(/\s+---\s+/g, '\n\n---\n\n');
@@ -146,18 +156,39 @@ function normalizeProseText(text: string): string {
   // Headings mid-line (e.g. "... manner. --- ### Title")
   s = s.replace(/([^\n#])\s+(#{1,6}\s+\S)/g, '$1\n\n$2');
 
+  // Review section labels ("What could have been better:", "Recommendation:", …)
+  s = s.replace(REVIEW_SECTION_LABEL, (_m, label: string) => `\n\n### ${label.trim()}\n\n`);
+
+  // Sentence-case section labels after period ("Details. Background: The …")
+  s = s.replace(
+    /([.!?])\s+([A-Z][A-Za-z]+(?:\s+[a-z]+){1,6}):\s+(?=[A-Z"'])/g,
+    '$1\n\n### $2\n\n'
+  );
+
+  // Parenthesized inline enumerations: "(1) foo, (2) bar" → markdown ordered list
+  s = s.replace(/\s+\((\d+)\)\s+/g, '\n\n$1. ');
+
   // Numbered list after a heading line
   s = s.replace(/(#{1,6}\s+[^\n]+)\s+(\d+\.\s+)/g, '$1\n\n$2');
 
-  // Numbered list after sentence end
-  s = s.replace(/([.!?])\s+(\d+\.\s+\*\*)/g, '$1\n\n$2');
-  s = s.replace(/([.!?])\s+(\d+\.\s+[A-Z])/g, '$1\n\n$2');
+  // Numbered list after sentence end or colon intro ("Workspace: 1. First step")
+  s = s.replace(/([.!?])\s+(?=\d+\.\s+)/g, '$1\n\n');
+  s = s.replace(/:\s+(?=\d+\.\s+)/g, ':\n\n');
 
-  // Subsequent numbered items glued to prior list text
-  s = s.replace(/(\S)\s+(\d+\.\s+\*\*)/g, '$1\n\n$2');
+  // Numbered list after closing paren ("(admin.google.com) 2. Next item")
+  s = s.replace(/\)\s+(?=\d+\.\s+)/g, ')\n\n');
+
+  // Subsequent numbered items glued to prior list text (2., 3., … — avoids "Section 1. The")
+  s = s.replace(/(\S)\s+(?=[2-9]\d*\.\s+)/g, '$1\n\n');
 
   // Sub-bullets after list-item colons: "1. Foo: - Bar"
   s = s.replace(/:\s+-\s+/g, ':\n\n- ');
+
+  // Sub-bullets after closing paren: "(admin.google.com) - Navigate"
+  s = s.replace(/\)\s+-\s+/g, ')\n\n- ');
+
+  // Inline dash sub-bullets mid paragraph: "… - Log into … - Navigate"
+  s = s.replace(/\s+-\s+(?=[A-Z])/g, '\n\n- ');
 
   // Bold subsection labels inline: "#### Benefits 1. Enhanced"
   s = s.replace(/(#{4,6}\s+[A-Za-z][^\n]*?)\s+(\d+\.\s+)/g, '$1\n\n$2');
@@ -167,7 +198,7 @@ function normalizeProseText(text: string): string {
 
 /** True when inline chat text likely needs full GFM rendering (headings, lists, HR). */
 export function looksLikeBlockMarkdown(text: string): boolean {
-  return /(^|\n)(#{1,6}\s|[-*]\s|\d+\.\s|---\s*$)/m.test(text);
+  return /(^|\n|\s)(#{1,6}\s|[-*]\s|\d+\.\s|\(\d+\)\s|---\s*$)/m.test(text);
 }
 
 export function normalizeAgentMessageMarkdown(raw: string): string {

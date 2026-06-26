@@ -126,6 +126,9 @@ export function buildImplementationSessionMetadata(options: {
   editorAgentMode: EditorAgentMode;
   editorAgentTrust: string;
   composerMetadata?: Record<string, unknown>;
+  /** When set, DM sends use the channel partner type — not tab/boot-fix routing. */
+  channelType?: string;
+  dmPartnerAgentType?: string;
 }): Record<string, unknown> {
   const hasExplicitMention = /@\w/.test(options.content);
   let agentType = pickAgentTypeForImplementation(
@@ -133,7 +136,10 @@ export function buildImplementationSessionMetadata(options: {
     options.activeTab,
     options.agents
   );
-  if (!hasExplicitMention && hasBootFixRoutingSignals(options.content)) {
+  const isDm = options.channelType === 'dm';
+  if (isDm && options.dmPartnerAgentType) {
+    agentType = options.dmPartnerAgentType;
+  } else if (!hasExplicitMention && hasBootFixRoutingSignals(options.content)) {
     agentType = 'frontend';
   }
   const metadata: Record<string, unknown> = {

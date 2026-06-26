@@ -9,6 +9,7 @@ import {
   ChangeEvent,
 } from 'react';
 import { MentionAutocomplete } from './MentionAutocomplete';
+import { isUserFacingAgent } from '../utils/agentVisibility';
 import type { AgentInfo } from '../types/protocol';
 import {
   PROMPT_ATTACHMENTS_METADATA_KEY,
@@ -141,7 +142,9 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
       setShowMentionMenu(false);
     }, [message]);
 
-    const filteredAgents = agents.filter((agent) =>
+    const filteredAgents = agents
+      .filter(isUserFacingAgent)
+      .filter((agent) =>
       agent.name.toLowerCase().includes(mentionQuery.toLowerCase())
     );
 

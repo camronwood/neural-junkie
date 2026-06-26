@@ -19,6 +19,7 @@ export type ShortcutOverlayType =
   | 'workspaceSwitcher'
   | 'learningProposal'
   | 'mermaid'
+  | 'imageLightbox'
   | 'runbookGraph'
   | 'runbookImport'
   | 'hubDataAccess'

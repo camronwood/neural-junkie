@@ -8,6 +8,11 @@ const sortedRegistry = [...SHORTCUT_REGISTRY].sort((a, b) => b.priority - a.prio
 export async function dispatchShortcut(event: KeyboardEvent): Promise<boolean> {
   const ctx = getKeyEventContext(event.target);
 
+  // Let xterm handle Ctrl+C (SIGINT) — never steal it via global shortcuts.
+  if (ctx.inTerminal && event.key.toLowerCase() === 'c' && event.ctrlKey && !event.metaKey) {
+    return false;
+  }
+
   for (const def of sortedRegistry) {
     if (!eventMatchesChord(event, def.chord)) continue;
     if (def.when && !def.when()) continue;

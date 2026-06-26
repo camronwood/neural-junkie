@@ -235,6 +235,7 @@ func main() {
 
 	// Initialize specialist agents from config (replaces standalone processes)
 	initializeConfiguredAgents()
+	reconcileHiddenRepoAgentsOnStartup()
 
 	slackBridgeCtx, stopSlackBridgeCtx = context.WithCancel(context.Background())
 	defer stopSlackBridgeCtx()

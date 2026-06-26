@@ -1,0 +1,14 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+deepseek-coder:6.7b	implement	go-handler	1	338.8	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function.	=== PASS: go-handler ===
+deepseek-coder:6.7b	implement	theme-toggle	0	424.5			=== FAIL: theme-toggle ===
+codegemma:7b	implement	go-handler	0	222.8	0	cloud judge error ollama/qwen2.5-coder:14b: The deliverable contains two main functions, which is incorrect in Go. Only one main function is allowed per package.	=== FAIL: go-handler ===
+qwen3.5:9b	implement	go-handler	1	114.6	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+qwen3.5:9b	implement	theme-toggle	0	424.5			=== FAIL: theme-toggle ===
+gemma3:12b	implement	go-handler	1	119.9	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable correctly implements the HelloWorld function and calls it from the main function.	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	0	424.6			=== FAIL: theme-toggle ===
+qwen2.5-coder:14b	implement	go-handler	1	105.4	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	0	424.6			=== FAIL: theme-toggle ===
+codestral:22b	implement	go-handler	1	132.4	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function.	=== PASS: go-handler ===
+codestral:22b	implement	theme-toggle	0	424.5			=== FAIL: theme-toggle ===
+devstral:24b	implement	go-handler	1	121.7	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+devstral:24b	implement	theme-toggle	0	424.5			=== FAIL: theme-toggle ===

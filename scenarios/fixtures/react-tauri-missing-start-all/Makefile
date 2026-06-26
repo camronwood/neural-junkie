@@ -1,6 +1,7 @@
-.PHONY: help
-help:
-	@echo "Available targets: help, build"
+#!/bin/bash
 
-build:
-	@npm run build
+npm run start-all
+
+.PHONY: start-all
+start-all:
+	@bash scripts/start-all.sh

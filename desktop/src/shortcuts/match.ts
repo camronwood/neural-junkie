@@ -23,10 +23,20 @@ export interface KeyEventContext {
   inTerminal: boolean;
 }
 
+export function isTerminalFocusTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  return Boolean(
+    el.closest?.('.xterm') ||
+      el.closest?.('.xterm-helper-textarea') ||
+      el.classList?.contains('xterm-helper-textarea')
+  );
+}
+
 export function getKeyEventContext(target: EventTarget | null): KeyEventContext {
   const el = target as HTMLElement | null;
   const inMonaco = Boolean(el?.closest?.('.monaco-editor'));
-  const inTerminal = Boolean(el?.closest?.('.xterm'));
+  const inTerminal = isTerminalFocusTarget(target);
   const inInput =
     inMonaco ||
     inTerminal ||

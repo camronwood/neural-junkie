@@ -10,20 +10,43 @@ type SelectResult struct {
 
 // SelectOllamaTag picks the first installed tag from the ranked list for class.
 func SelectOllamaTag(p *Profiles, class TaskClass, installed map[string]struct{}, agentDefault string) SelectResult {
+	return SelectOllamaTagWithFilter(p, class, installed, agentDefault, nil)
+}
+
+// SelectOllamaTagWithFilter picks a ranked tag; tagFilter skips candidates when it returns false.
+func SelectOllamaTagWithFilter(p *Profiles, class TaskClass, installed map[string]struct{}, agentDefault string, tagFilter func(string) bool) SelectResult {
 	if p == nil {
 		return SelectResult{Tag: strings.TrimSpace(agentDefault), Reason: "capability_profiles_missing"}
 	}
 	for _, tag := range p.Tags(class) {
 		tag = strings.TrimSpace(tag)
-		if tag != "" && tagInstalled(installed, tag) {
-			return SelectResult{Tag: tag, Reason: reasonForClass(class)}
+		if tag == "" || !tagInstalled(installed, tag) {
+			continue
 		}
+		if tagFilter != nil && !tagFilter(tag) {
+			continue
+		}
+		return SelectResult{Tag: tag, Reason: reasonForClass(class)}
 	}
 	def := strings.TrimSpace(agentDefault)
-	if def != "" {
+	if def != "" && tagFilterOk(tagFilter, def) {
 		return SelectResult{Tag: def, Reason: "capability_fallback_agent"}
 	}
 	return SelectResult{Reason: "capability_no_model"}
+}
+
+func tagFilterOk(tagFilter func(string) bool, tag string) bool {
+	return tagFilter == nil || tagFilter(tag)
+}
+
+// RequiresToolCapableModel reports whether a task class needs native tool calling.
+func RequiresToolCapableModel(class TaskClass) bool {
+	switch class {
+	case TaskImplement, TaskImplementHeavy:
+		return true
+	default:
+		return false
+	}
 }
 
 // ShouldUpgrade reports whether candidate ranks higher than current for class.

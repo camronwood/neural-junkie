@@ -283,6 +283,9 @@ func (a *Agent) observeImplementationSessionToolStep(
 	if state == nil {
 		return
 	}
+	if ev.Kind == "result" {
+		state.noteToolStep()
+	}
 	if ev.Kind == "result" && isDiscoverTool(ev.Name) {
 		state.recordDiscoverTool(ev.Name)
 	}
@@ -333,7 +336,8 @@ func commandOutputMatchesPlaybook(output string) string {
 	output = strings.ToLower(output)
 	switch {
 	case strings.Contains(output, "no rule to make target 'start-all'"),
-		strings.Contains(output, `no rule to make target "start-all"`):
+		strings.Contains(output, `no rule to make target "start-all"`),
+		strings.Contains(output, "no rule to make target `start-all'"):
 		return "missing_start_all_target"
 	case strings.Contains(output, "devpath") && strings.Contains(output, "port"),
 		strings.Contains(output, "connection refused") && strings.Contains(output, "1420"):

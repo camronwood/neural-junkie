@@ -1,5 +1,20 @@
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 
+/** All directory prefixes along a workspace-relative file path (e.g. src/components/Foo.tsx → src, src/components). */
+export function ancestorPrefixesForPath(relativePath: string): string[] {
+  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
+  const dirParts = normalized.includes('/')
+    ? normalized.split('/').slice(0, -1).filter(Boolean)
+    : [];
+  const prefixes: string[] = [];
+  let acc = '';
+  for (const part of dirParts) {
+    acc = acc ? `${acc}/${part}` : part;
+    prefixes.push(acc);
+  }
+  return prefixes;
+}
+
 /** Refresh file explorer directories that contain the given workspace-relative paths. */
 export async function refreshFileExplorerForPaths(
   workspaceId: string,
@@ -13,17 +28,27 @@ export async function refreshFileExplorerForPaths(
     return;
   }
 
-  const dirs = new Set<string>(['/']);
+  const prefixes = new Set<string>();
   for (const rel of trimmed) {
-    const lastSlash = rel.lastIndexOf('/');
-    dirs.add(lastSlash > -1 ? rel.slice(0, lastSlash) : '/');
+    for (const p of ancestorPrefixesForPath(rel)) {
+      prefixes.add(p);
+    }
   }
 
-  const { loadFiles } = useFileExplorerStore.getState();
+  const { loadFiles, expandedPaths } = useFileExplorerStore.getState();
+  // Reload root + every ancestor dir (same strategy as refreshTreeForPath in fileExplorerStore).
   await loadFiles(workspaceId, '/');
-  for (const dir of dirs) {
-    if (dir !== '/') {
-      await loadFiles(workspaceId, dir);
+  const sorted = [...prefixes].sort((a, b) => a.localeCompare(b));
+  for (const p of sorted) {
+    await loadFiles(workspaceId, p);
+  }
+
+  // Re-hydrate expanded folders along the changed paths that were not in the prefix set.
+  for (const [path, expanded] of Object.entries(expandedPaths)) {
+    if (!expanded || path === '/' || prefixes.has(path)) continue;
+    const touchesChange = trimmed.some((rel) => rel === path || rel.startsWith(`${path}/`));
+    if (touchesChange) {
+      await loadFiles(workspaceId, path);
     }
   }
 }

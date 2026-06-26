@@ -3,11 +3,12 @@ package protocol
 import "strings"
 
 const (
-	MetaFileChangeApproved     = "file_change_approved"
-	MetaFileChangeAutoApproved = "file_change_auto_approved"
-	MetaFileChangeID           = "file_change_id"
-	MetaFileChangePath         = "file_change_path"
-	MetaFileChangeAgentID      = "file_change_agent_id"
+	MetaFileChangeApproved            = "file_change_approved"
+	MetaFileChangeAutoApproved        = "file_change_auto_approved"
+	MetaFileChangeRegistrationError   = "file_change_registration_error"
+	MetaFileChangeID                  = "file_change_id"
+	MetaFileChangePath                = "file_change_path"
+	MetaFileChangeAgentID             = "file_change_agent_id"
 )
 
 // FileChangeApproved reports whether the message records a user-approved file change.
