@@ -124,6 +124,18 @@ type HubClient interface {
 	// Image generation (hub OpenAI Images API when OPENAI_API_KEY is set).
 	ImageGenerationEnabled() bool
 	GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error
+	// Music generation (music-creation pack + ACE-Step sidecar).
+	MusicGenerationEnabled() bool
+	GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req MusicGenerateRequest) error
+}
+
+// MusicGenerateRequest is input for hub music generation.
+type MusicGenerateRequest struct {
+	StyleTags    string
+	Lyrics       string
+	DurationSec  int
+	Instrumental bool
+	Seed         int
 }
 
 // CollaborationClient is the subset of CollaborationManager that agents

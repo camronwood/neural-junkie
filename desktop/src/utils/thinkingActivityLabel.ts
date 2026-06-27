@@ -1,4 +1,5 @@
 export const THINKING_ACTIVITY_GENERATING_IMAGE = 'generating_image';
+export const THINKING_ACTIVITY_GENERATING_MUSIC = 'generating_music';
 export const THINKING_ACTIVITY_USING_TOOL = 'using_tool';
 export const THINKING_ACTIVITY_REASONING = 'reasoning';
 export const THINKING_ACTIVITY_WRITING = 'writing';
@@ -12,10 +13,12 @@ export function formatThinkingActivityLabel(activity?: string, detail?: string):
   switch (activity) {
     case THINKING_ACTIVITY_GENERATING_IMAGE:
       return d ? `is generating an image — ${d}` : 'is generating an image';
+    case THINKING_ACTIVITY_GENERATING_MUSIC:
+      return d ? `is generating music — ${d}` : 'is generating music';
     case THINKING_ACTIVITY_USING_TOOL:
       return d ? `is using ${d}` : 'is using a tool';
     case THINKING_ACTIVITY_REASONING:
-      return 'is reasoning';
+      return d ? `is reasoning — ${d}` : 'is reasoning';
     case THINKING_ACTIVITY_WRITING:
       return 'is writing a response';
     case THINKING_ACTIVITY_VERIFYING:

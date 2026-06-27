@@ -33,6 +33,8 @@ var OfficialDomainCapabilityTokens = []string{
 	"web-browser",
 	"web-preview",
 	"web-browser-workbench",
+	"music-generation",
+	"music-sidecar",
 }
 
 // KnownExtensionKinds are valid capability_defs.kind values.

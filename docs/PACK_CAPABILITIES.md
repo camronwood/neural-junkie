@@ -117,6 +117,15 @@ Requires **software-development** pack.
 
 ---
 
+## Music creation (`music-creation`)
+
+| Token | What it enables |
+|-------|-----------------|
+| `music-generation` | **MusicExpert** agent, `generate_music` tool, `/generate-music`. See [MUSIC_CREATION_PACK.md](./MUSIC_CREATION_PACK.md). |
+| `music-sidecar` | Pack-local hub sidecar; ACE-Step inference at `/api/music/generate`. |
+
+---
+
 ## Capability → UI quick reference
 
 | UI / behavior | Capability token(s) |
@@ -130,6 +139,7 @@ Requires **software-development** pack.
 | Life sciences tools settings (Python path, panel profile) | `secondary-analysis-api` or `secondary-analysis-python` |
 | CAD workbench (`.scad`) | `cad-workbench` |
 | HTML preview workbench | `web-browser-workbench` |
+| Inline song player in chat | `music-generation` |
 | AWS integrations settings | `aws-sso` |
 | Jira integrations settings | `jira-integration` |
 | Memory / LoRA training settings | `personal-learning`, `lora-training` |

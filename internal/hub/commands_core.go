@@ -104,6 +104,13 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 	}
 
 	command := strings.ToLower(parts[0])
+	if command == "/collaborate" || command == "/runbook" {
+		parts = tokenizeSlashCommand(content)
+		if len(parts) == 0 {
+			return nil, nil
+		}
+		command = strings.ToLower(parts[0])
+	}
 	executor, ok := ch.commandExecutors()[command]
 	if !ok {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Unknown command: %s\nUse /help to see available commands.", command)), nil
@@ -208,6 +215,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		},
 		"/analyze-design": ch.handleAnalyzeDesign,
 		"/generate-image": ch.handleGenerateImage,
+		"/generate-music": ch.handleGenerateMusic,
 		"/approve-file":   ch.handleApproveFile,
 		"/reject-file":    ch.handleRejectFile,
 		"/approve-delete": ch.handleApproveDelete,
@@ -1546,6 +1554,15 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Category:    "Design",
 			Arguments: []protocol.CommandArgument{
 				{Name: "prompt", Description: "What to generate", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/generate-music",
+			Description: "Generate a song via the Music creation pack (ACE-Step sidecar). Style tags required; optional lyrics after |",
+			Category:    "Design",
+			Arguments: []protocol.CommandArgument{
+				{Name: "style", Description: "Genre, mood, tempo, instruments", Type: "string", Required: true},
+				{Name: "lyrics", Description: "Optional lyrics after |", Type: "string", Required: false},
 			},
 		},
 

@@ -30,6 +30,7 @@ Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json
 | `aws` | `camronwood/neural-junkie-pack-aws` |
 | `incident-management` | `camronwood/neural-junkie-pack-incident-management` |
 | `web-browser` | `camronwood/neural-junkie-pack-web-browser` |
+| `music-creation` | `camronwood/neural-junkie-pack-music-creation` |
 
 Build and release from each pack repo:
 

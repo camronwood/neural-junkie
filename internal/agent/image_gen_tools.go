@@ -88,7 +88,7 @@ func agentTypeSupportsHubImageGen(t protocol.AgentType) bool {
 
 // tryHubImageGenerationShortcut posts a hub-generated image when the user asked for one.
 func (a *Agent) tryHubImageGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
-	if msg == nil || a.Hub == nil || !UserRequestsGeneratedImage(msg.Content) {
+	if msg == nil || a.Hub == nil || protocol.IsGeneratedImageDelivery(msg) || !UserRequestsGeneratedImage(msg.Content) {
 		return "", false
 	}
 	if !a.imageGenerationToolsEnabledForMessage(msg) {
@@ -148,6 +148,9 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 	if a.imageGenerationToolsEnabledForMessage(msg) {
 		tools = append(tools, generateImageToolDefinition())
 	}
+	if a.musicGenerationToolsEnabledForMessage(msg) {
+		tools = append(tools, generateMusicToolDefinition())
+	}
 	if a.MCPServer != nil {
 		tools = append(tools, claudeToolsFromMCPServer(mcpServerFromInterface(a.MCPServer))...)
 	}
@@ -189,6 +192,9 @@ func (a *Agent) executeGenerateImageTool(ctx context.Context, msg *protocol.Mess
 func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, name string, input json.RawMessage) (string, error) {
 	if name == generateImageToolName {
 		return a.executeGenerateImageTool(ctx, msg, input)
+	}
+	if name == generateMusicToolName {
+		return a.executeGenerateMusicTool(ctx, msg, input)
 	}
 	if name == proposeFileEditToolName {
 		return a.executeProposeFileEditTool(ctx, msg, input)

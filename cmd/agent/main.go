@@ -380,6 +380,14 @@ func (h *httpHubClient) GenerateAndPostImage(ctx context.Context, channel string
 	return fmt.Errorf("image generation requires an in-process hub connection")
 }
 
+func (h *httpHubClient) MusicGenerationEnabled() bool {
+	return false
+}
+
+func (h *httpHubClient) GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req agent.MusicGenerateRequest) error {
+	return fmt.Errorf("music generation requires an in-process hub connection")
+}
+
 func main() {
 	flag.Parse()
 

@@ -4,10 +4,21 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/music"
 	"github.com/camronwood/neural-junkie/internal/packs/sidecar"
 )
 
 var packSidecarMgr = sidecar.NewManager()
+
+func initMusicSidecarGenerator() {
+	music.Default = music.NewSidecarGenerator(func() string {
+		if packSidecarMgr == nil {
+			return ""
+		}
+		return packSidecarMgr.BaseURL(config.PackMusicCreation)
+	})
+}
 
 func syncPackSidecars() {
 	if appConfig == nil || packSidecarMgr == nil {
@@ -48,7 +59,7 @@ func handlePackExtensionRoute(w http.ResponseWriter, r *http.Request) {
 
 func packExtensionRoutePrefix(path string) string {
 	path = strings.TrimSpace(path)
-	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis"} {
+	for _, prefix := range []string{"/api/phoenix", "/api/scan-summary", "/api/secondary-analysis", "/api/music"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return prefix
 		}
@@ -64,6 +75,8 @@ func routeCapabilityForRoute(prefix string) string {
 		return "scan-summary-api"
 	case "/api/secondary-analysis":
 		return "secondary-analysis-api"
+	case "/api/music":
+		return "music-sidecar"
 	default:
 		return ""
 	}

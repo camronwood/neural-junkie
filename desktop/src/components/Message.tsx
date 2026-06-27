@@ -26,7 +26,7 @@ import { useToastStore } from '../stores/toastStore';
 import { useChatStore } from '../stores/chatStore';
 import { USER_IMAGES_METADATA_KEY } from '../constants/promptMetadata';
 import { slackThreadOpenId } from '../utils/slackThread';
-import { generatedImageSrc } from '../utils/chatImageSrc';
+import { generatedAudioSrc, generatedImageSrc } from '../utils/chatImageSrc';
 import { formatToolStepLabel } from '../utils/thinkingActivityLabel';
 import { ChatClickableImage } from './ImageLightboxModal';
 
@@ -131,6 +131,36 @@ function MessageToolStepsBlock({ steps, isStreaming }: { steps: ReturnType<typeo
         ))}
       </ul>
     </details>
+  );
+}
+
+function MessageGeneratedAudio({
+  metadata,
+  messageId,
+  channelName,
+}: {
+  metadata?: Record<string, unknown>;
+  messageId?: string;
+  channelName?: string;
+}) {
+  const src = generatedAudioSrc(metadata, { messageId, channel: channelName });
+  if (!src) {
+    const g = metadata?.generated_audio as Record<string, unknown> | undefined;
+    if (g?.data_redacted === true) {
+      return (
+        <span className="text-xs px-2 py-1 rounded bg-slack-bgHover border border-slack-border text-slack-textMuted mb-2 inline-block">
+          Generated song (redacted in history)
+        </span>
+      );
+    }
+    return null;
+  }
+  return (
+    <div className="mb-2">
+      <audio controls preload="metadata" className="w-full max-w-md" src={src}>
+        Your browser does not support audio playback.
+      </audio>
+    </div>
   );
 }
 
@@ -446,6 +476,11 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
           <>
             <MessageUserImages metadata={message.metadata as Record<string, unknown> | undefined} />
             <MessageGeneratedImage
+              metadata={message.metadata as Record<string, unknown> | undefined}
+              messageId={message.id}
+              channelName={channelName ?? message.channel}
+            />
+            <MessageGeneratedAudio
               metadata={message.metadata as Record<string, unknown> | undefined}
               messageId={message.id}
               channelName={channelName ?? message.channel}

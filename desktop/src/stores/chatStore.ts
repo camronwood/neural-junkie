@@ -264,17 +264,23 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
 
       const existingIdx = state.messages.findIndex(m => m.id === message.id);
+      const streaming = state.streamingMessages[message.id];
+      const { [message.id]: _removedStream, ...restStreams } = state.streamingMessages;
+      const cleanedStreams = streaming ? restStreams : state.streamingMessages;
+
       if (existingIdx !== -1) {
         const updated = [...state.messages];
         updated[existingIdx] = mergeMessagePreservingImages(updated[existingIdx], message);
         return {
           messages: trimMessagesToMax(updated, MAX_UI_CHANNEL_MESSAGES),
+          streamingMessages: cleanedStreams,
           isTyping: false,
         };
       }
 
       return {
         messages: trimMessagesToMax([...state.messages, message], MAX_UI_CHANNEL_MESSAGES),
+        streamingMessages: cleanedStreams,
         isTyping: false,
       };
     }),

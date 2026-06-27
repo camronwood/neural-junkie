@@ -35,6 +35,11 @@ func (h *imageGenTestHub) GenerateAndPostImage(_ context.Context, _ string, _ pr
 	h.prompt = prompt
 	return nil
 }
+func (h *imageGenTestHub) MusicGenerationEnabled() bool { return false }
+func (h *imageGenTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
+	return nil
+}
+
 
 func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
 	hub := &imageGenTestHub{enabled: true}
@@ -80,6 +85,27 @@ func TestImageGenerationToolsEnabledForBackend(t *testing.T) {
 	tools := a.agentToolDefinitions(nil)
 	if len(tools) != 1 || tools[0].Name != generateImageToolName {
 		t.Fatalf("backend agent should get generate_image tool, got %+v", tools)
+	}
+}
+
+func TestTryHubImageGenerationShortcutSkippedForDeliveryMessage(t *testing.T) {
+	hub := &imageGenTestHub{enabled: true}
+	a := &Agent{
+		Info: protocol.AgentInfo{Name: "Assistant", Type: protocol.AgentTypeAssistant},
+		Hub:  hub,
+	}
+	msg := &protocol.Message{
+		Channel: "dm-camron-assistant",
+		Content: protocol.GeneratedImageDeliveryContent,
+		Metadata: map[string]interface{}{
+			"generated_image": map[string]interface{}{"mime": "image/png"},
+		},
+	}
+	if _, ok := a.tryHubImageGenerationShortcut(context.Background(), msg); ok {
+		t.Fatal("shortcut should not run on hub image delivery posts")
+	}
+	if hub.posted {
+		t.Fatal("image should not be posted for delivery message")
 	}
 }
 

@@ -51,6 +51,7 @@ const (
 	AgentTypeAWS          AgentType = "aws"
 	AgentTypeIncident     AgentType = "incident"
 	AgentTypeBrowser      AgentType = "browser"
+	AgentTypeMusic        AgentType = "music"
 	AgentTypeGeneral      AgentType = "general"
 	AgentTypeRepo         AgentType = "repo"
 	AgentTypeExpert       AgentType = "expert"     // Custom domain experts (/create-expert)
@@ -94,6 +95,7 @@ type ThinkingActivity string
 
 const (
 	ThinkingActivityGeneratingImage ThinkingActivity = "generating_image"
+	ThinkingActivityGeneratingMusic ThinkingActivity = "generating_music"
 	ThinkingActivityUsingTool       ThinkingActivity = "using_tool"
 	ThinkingActivityReasoning       ThinkingActivity = "reasoning"
 	ThinkingActivityWriting         ThinkingActivity = "writing"
@@ -145,6 +147,7 @@ type AgentInfo struct {
 	IsPaused                bool      `json:"is_paused"`                 // Whether the agent is paused
 	SupportsVision          bool      `json:"supports_vision"`           // Whether the agent can process images
 	SupportsImageGeneration bool      `json:"supports_image_generation"` // Whether the agent can generate images (provider-dependent)
+	SupportsMusicGeneration bool      `json:"supports_music_generation"` // Whether the agent can generate music (music-creation pack)
 	IndexingStatus          string    `json:"indexing_status"`           // "indexing", "ready", "reindexing", "error" (for repo/confluence agents)
 	IndexProgress           int       `json:"index_progress"`            // 0-100 percentage (for repo/confluence agents)
 	RepositoryPath          string    `json:"repository_path"`           // Path to repository (for repo agents)

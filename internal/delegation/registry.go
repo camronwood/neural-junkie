@@ -82,6 +82,9 @@ func typeKeywords(t protocol.AgentType) []string {
 	case protocol.AgentTypeBrowser:
 		return []string{"html", "css", "website", "webpage", "browser", "preview", "localhost",
 			"dom", "responsive", "iframe", "fetch", "page", "viewport", "layout"}
+	case protocol.AgentTypeMusic:
+		return []string{"music", "song", "lyrics", "melody", "jingle", "soundtrack", "instrumental",
+			"genre", "bpm", "vocals", "chorus", "verse", "ace-step"}
 	default:
 		return nil
 	}

@@ -68,6 +68,36 @@ export function resolveChatImageSrc(raw: string): string {
   return path;
 }
 
+/** Src for hub `generated_audio` metadata (inline base64, Tauri path, or local hub file API). */
+export function generatedAudioSrc(
+  meta: Record<string, unknown> | undefined,
+  opts?: { messageId?: string; channel?: string },
+): string | null {
+  if (!meta) return null;
+  const g = meta.generated_audio as Record<string, unknown> | undefined;
+  if (!g) return null;
+  const mime = String(g.mime || 'audio/wav');
+  const data = String(g.data || '');
+  if (data && g.data_redacted !== true) {
+    return `data:${mime};base64,${data}`;
+  }
+  const path = typeof g.path === 'string' ? g.path.trim() : '';
+  if (path) {
+    if (isTauriShell()) {
+      return resolveChatImageSrc(path);
+    }
+    return `${getHubBaseURL()}/api/local-image?path=${encodeURIComponent(path)}`;
+  }
+  if (g.data_redacted === true && opts?.messageId && opts?.channel) {
+    const params = new URLSearchParams({
+      channel: opts.channel,
+      message_id: opts.messageId,
+    });
+    return `${getHubBaseURL()}/api/generated-audio?${params}`;
+  }
+  return null;
+}
+
 /** Src for hub `generated_image` metadata (inline base64, Tauri path, or local hub file API). */
 export function generatedImageSrc(
   meta: Record<string, unknown> | undefined,

@@ -249,6 +249,7 @@ func main() {
 	}
 
 	registerRoutes()
+	initMusicSidecarGenerator()
 	syncPackSidecars()
 
 	log.Printf("Chat Hub Server starting on %s", *addr)

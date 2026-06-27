@@ -22,6 +22,8 @@ export const PACK_PLATFORM_CAP = {
   WEB_BROWSER: 'web-browser',
   WEB_PREVIEW: 'web-preview',
   WEB_BROWSER_WORKBENCH: 'web-browser-workbench',
+  MUSIC_GENERATION: 'music-generation',
+  MUSIC_SIDECAR: 'music-sidecar',
 } as const;
 
 /**

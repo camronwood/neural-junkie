@@ -1,0 +1,53 @@
+id: music-creation
+version: "1.0.0"
+title: Music creation
+description: MusicExpert — lyrics via Ollama, full songs via local ACE-Step 1.5 sidecar.
+layout_profile: team
+capabilities:
+  - music-generation
+  - music-sidecar
+capability_defs:
+  music-sidecar:
+    kind: hub-sidecar
+    routes:
+      - /api/music
+    sidecar:
+      module: assets/hub/routes/music.py
+    settings:
+      - ace_step_venv
+      - ace_step_project
+      - ace_step_checkpoint
+      - ace_step_model_variant
+      - music_output_dir
+      - python_executable
+agents:
+  - type: music
+    name: MusicExpert
+    implementation: builtin/music
+    ollama_model: qwen2.5:7b
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - music
+        - song
+        - lyrics
+        - melody
+        - jingle
+        - soundtrack
+models_to_ensure:
+  - qwen2.5:7b
+  - qwen3.5:9b
+ollama_model: qwen2.5:7b
+expert_slug: music
+expert_label: Music / songwriting
+mcp_agents:
+  - music
+settings_overlay:
+  ace_step_venv: ~/.neural-junkie/music/acestep-venv
+  ace_step_project: ~/.neural-junkie/music/ACE-Step-1.5
+  ace_step_checkpoint: ~/.neural-junkie/music/checkpoints/acestep-v15-sft
+  ace_step_model_variant: sft
+  music_output_dir: ~/.neural-junkie/music/output
+  python_executable: python3
+assets:
+  workspace_guide: assets/WORKSPACE.md

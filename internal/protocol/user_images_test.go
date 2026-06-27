@@ -27,3 +27,17 @@ func TestRedactImageBinaryMetadataPreservesGeneratedImagePath(t *testing.T) {
 		t.Fatalf("path not preserved: %+v", raw)
 	}
 }
+
+func TestIsGeneratedImageDelivery(t *testing.T) {
+	delivery := NewMessage(MessageTypeChat, "general", AgentInfo{Name: "Assistant"}, GeneratedImageDeliveryContent)
+	delivery.Metadata = map[string]interface{}{
+		"generated_image": map[string]interface{}{"mime": "image/png"},
+	}
+	if !IsGeneratedImageDelivery(delivery) {
+		t.Fatal("expected standard delivery message to be detected")
+	}
+	request := NewMessage(MessageTypeQuestion, "general", AgentInfo{Name: "camron"}, "please generate an image of a logo")
+	if IsGeneratedImageDelivery(request) {
+		t.Fatal("expected user request not to be delivery")
+	}
+}

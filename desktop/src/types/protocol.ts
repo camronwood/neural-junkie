@@ -64,6 +64,7 @@ export interface AgentInfo {
   is_paused: boolean;
   supports_vision?: boolean; // Whether the agent can process images
   supports_image_generation?: boolean;
+  supports_music_generation?: boolean;
   indexing_status?: string;
   index_progress?: number;
   repository_path?: string;
@@ -353,6 +354,7 @@ export interface ThinkingStatusMetadata {
 export const METADATA_CHANNEL_HOLD = 'channel_hold';
 
 export const THINKING_ACTIVITY_GENERATING_IMAGE = 'generating_image';
+export const THINKING_ACTIVITY_GENERATING_MUSIC = 'generating_music';
 export const THINKING_ACTIVITY_USING_TOOL = 'using_tool';
 export const THINKING_ACTIVITY_REASONING = 'reasoning';
 export const THINKING_ACTIVITY_WRITING = 'writing';

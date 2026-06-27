@@ -348,6 +348,15 @@ func NewBrowserAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	return agent
 }
 
+// NewMusicAgent creates a songwriting agent with hub music generation tools.
+func NewMusicAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Songwriting", "Lyrics", "Music production", "Genre and mood",
+		"Instrumental beds", "Jingles", "Soundtracks", "ACE-Step",
+	}
+	return NewAgent(protocol.AgentTypeMusic, name, expertise, ai, hub)
+}
+
 // NewCustomExpertAgent creates a user-defined domain expert (any slug/persona).
 func NewCustomExpertAgent(name string, expertise []string, aiProvider ai.AIProvider, hub HubClient) *Agent {
 	if len(expertise) == 0 {
@@ -395,6 +404,8 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewIncidentAgent(name, ai, hub), nil
 	case protocol.AgentTypeBrowser:
 		return NewBrowserAgent(name, ai, hub), nil
+	case protocol.AgentTypeMusic:
+		return NewMusicAgent(name, ai, hub), nil
 	case protocol.AgentTypeRepo:
 		return NewRepoAgentWrapper(name, ai, hub), nil
 	case protocol.AgentTypeAssistant:

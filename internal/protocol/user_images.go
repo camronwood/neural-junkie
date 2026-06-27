@@ -21,7 +21,50 @@ const (
 	MaxUserImageCount       = 6
 	MaxUserImageBytesEach   = 5 * 1024 * 1024
 	MaxUserImagesTotalBytes = 12 * 1024 * 1024
+
+	// GeneratedImageDeliveryContent is the chat line posted with generated_image metadata.
+	GeneratedImageDeliveryContent = "🖼️ Generated image."
+	// GeneratedAudioDeliveryContent is the chat line posted with generated_audio metadata.
+	GeneratedAudioDeliveryContent = "🎵 Generated song."
 )
+
+// IsGeneratedAudioDelivery reports hub/agent music posts (not user generation requests).
+func IsGeneratedAudioDelivery(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
+	if strings.TrimSpace(msg.Content) == GeneratedAudioDeliveryContent {
+		return true
+	}
+	if msg.Metadata != nil {
+		if _, ok := msg.Metadata["generated_audio"]; ok {
+			c := strings.ToLower(strings.TrimSpace(msg.Content))
+			if strings.Contains(c, "generated song") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsGeneratedImageDelivery reports hub/agent image posts (not user generation requests).
+func IsGeneratedImageDelivery(msg *Message) bool {
+	if msg == nil {
+		return false
+	}
+	if strings.TrimSpace(msg.Content) == GeneratedImageDeliveryContent {
+		return true
+	}
+	if msg.Metadata != nil {
+		if _, ok := msg.Metadata["generated_image"]; ok {
+			c := strings.ToLower(strings.TrimSpace(msg.Content))
+			if strings.Contains(c, "generated image") {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // UserImagePart is decoded image bytes + MIME for provider APIs.
 type UserImagePart struct {
@@ -225,6 +268,22 @@ func RedactImageBinaryMetadata(msg *Message) {
 				m[k] = v
 			}
 			msg.Metadata["generated_image"] = m
+		}
+	}
+	if raw, ok := msg.Metadata["generated_audio"].(map[string]interface{}); ok {
+		if _, has := raw["data"]; has {
+			m := map[string]interface{}{}
+			for k, v := range raw {
+				if k == "data" {
+					m["data_redacted"] = true
+					if s, ok := v.(string); ok {
+						m["approx_bytes"] = len(s)
+					}
+					continue
+				}
+				m[k] = v
+			}
+			msg.Metadata["generated_audio"] = m
 		}
 	}
 }

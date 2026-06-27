@@ -16,6 +16,7 @@ const (
 	PackAWS                 = "aws"
 	PackIncidentManagement  = "incident-management"
 	PackWebBrowser          = "web-browser"
+	PackMusicCreation       = "music-creation"
 )
 
 // DevOllamaCodeModel is the default local model for software-development specialists and live regression.
@@ -895,6 +896,8 @@ func (c *Config) PresetExpertDeniedMessage(slug string) string {
 		return "Incident experts require the **Incident management** pack. Install and enable it in Domain packs."
 	case "browser":
 		return "Web browser experts require the **Web browser** pack. Install and enable it in Domain packs."
+	case "music":
+		return "Music experts require the **Music creation** pack. Install and enable it in Domain packs."
 	default:
 		if isDevPackExpertSlug(slug) {
 			return "Software development specialists require the **Software development** pack. Install and enable it in Settings → Domain packs."
@@ -928,6 +931,9 @@ func (c *Config) PresetExpertAllowed(slug string) bool {
 	}
 	if slug == "browser" {
 		return c.IsPackEnabled(PackWebBrowser)
+	}
+	if slug == "music" {
+		return c.IsPackEnabled(PackMusicCreation)
 	}
 	if isDevPackExpertSlug(slug) {
 		return c.IsPackEnabled(PackSoftwareDevelopment)

@@ -90,6 +90,9 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if includeTooling && a.imageGenerationToolsEnabledForMessage(msg) {
 		appendImageGenerationPrompt(&system)
 	}
+	if includeTooling && a.musicGenerationToolsEnabledForMessage(msg) {
+		appendMusicGenerationPrompt(&system)
+	}
 
 	if isCollab {
 		// Collaboration-specific behavioral rules
@@ -348,6 +351,13 @@ func getAgentTypeInstructions(agentType protocol.AgentType) string {
 Structure your findings by severity: Critical > High > Medium > Low.
 For each finding, cite the specific file, function, and line number.
 Provide a concrete fix or mitigation for each issue.`
+
+	case protocol.AgentTypeMusic:
+		return `You are a music creation assistant powered by local ACE-Step generation.
+- Help users write lyrics, style tags, and song structure before generating audio.
+- Use generate_music with detailed style_tags (genre, mood, tempo, instruments) and lyrics (or [Instrumental]).
+- Offer to iterate: adjust tags, shorten/lengthen duration, or rewrite lyrics between generations.
+- Album art: suggest generate_image when the user wants cover art (requires FLUX image model).`
 
 	case protocol.AgentTypeBiology:
 		return `You are a life-sciences research assistant (not a clinician).

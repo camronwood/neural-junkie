@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/pathutil"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -203,13 +204,52 @@ func (ch *CommandHandler) handleGenerateImage(ctx context.Context, msg *protocol
 	if err := ch.hub.SendMessage(progress); err != nil {
 		log.Printf("generate-image: failed to post progress message: %v", err)
 	}
-	if err := ch.hub.GenerateAndPostImage(ctx, msg.Channel, msg.From, prompt, ""); err != nil {
+	from := ch.hub.resolveImagePostAgent(msg.Channel)
+	if err := ch.hub.GenerateAndPostImage(ctx, msg.Channel, from, prompt, ""); err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Image generation failed: %v", err)), nil
 	}
 	return ch.systemResponse(msg.Channel, "✅ Image generated and posted to the channel."), nil
 }
 
-// handleAnalyzeDesign handles design analysis requests
+func (ch *CommandHandler) handleGenerateMusic(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel,
+			"❌ Usage: `/generate-music <style tags> [| lyrics]`\n\n"+
+				"Example: `/generate-music lo-fi chill hip hop, 90 bpm | [Verse]\\nLate night code...`\n\n"+
+				"Requires the **Music creation** pack and ACE-Step sidecar. Style tags are required; lyrics after `|` are optional (use `[Instrumental]` for no vocals)."), nil
+	}
+	raw := strings.TrimSpace(strings.Join(parts[1:], " "))
+	style := raw
+	lyrics := ""
+	if i := strings.Index(raw, "|"); i >= 0 {
+		style = strings.TrimSpace(raw[:i])
+		lyrics = strings.TrimSpace(raw[i+1:])
+	}
+	if style == "" {
+		return ch.systemResponse(msg.Channel, "❌ Style tags are required."), nil
+	}
+	if !ch.hub.MusicGenerationAvailable() {
+		return ch.systemResponse(msg.Channel,
+			"❌ Music generation is not available. Install and enable the **Music creation** pack, then run the ACE-Step setup script."), nil
+	}
+	progress := ch.systemResponse(msg.Channel, "🎵 Generating song…")
+	if err := ch.hub.SendMessage(progress); err != nil {
+		log.Printf("generate-music: failed to post progress message: %v", err)
+	}
+	from := ch.hub.resolveMusicPostAgent(msg.Channel)
+	req := agent.MusicGenerateRequest{StyleTags: style, Lyrics: lyrics, DurationSec: 30}
+	if lyrics == "" {
+		req.Instrumental = true
+		req.Lyrics = "[Instrumental]"
+	} else if strings.EqualFold(lyrics, "[instrumental]") {
+		req.Instrumental = true
+		req.Lyrics = "[Instrumental]"
+	}
+	if err := ch.hub.GenerateAndPostMusic(ctx, msg.Channel, from, req); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Music generation failed: %v", err)), nil
+	}
+	return ch.systemResponse(msg.Channel, "✅ Song generated and posted to the channel."), nil
+}
 
 // handleAnalyzeDesign handles design analysis requests
 func (ch *CommandHandler) handleAnalyzeDesign(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
