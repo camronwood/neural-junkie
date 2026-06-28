@@ -86,6 +86,8 @@ export interface CustomerPackContextResponse {
 export interface PackCatalogEntry {
   id: string;
   version: string;
+  installed_version?: string;
+  update_available?: boolean;
   title: string;
   description: string;
   icon_key?: string;
@@ -138,6 +140,19 @@ export interface InstallACEStepResponse {
   status: string;
   pack_id: string;
   acestep: ACEStepStatus;
+}
+
+export interface PackUpdateInfo {
+  id: string;
+  title: string;
+  installed_version: string;
+  latest_version: string;
+  enabled: boolean;
+}
+
+export interface PackUpdatesResponse {
+  updates: PackUpdateInfo[];
+  count: number;
 }
 
 export interface LoraTrainingBase {
@@ -2740,6 +2755,26 @@ export class ChatAPI {
     }
     const data = await response.json();
     return (data.packs as PackCatalogEntry[]) ?? [];
+  }
+
+  async fetchPackUpdates(): Promise<PackUpdatesResponse> {
+    const response = await this.hubFetch(`/api/packs/updates`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async upgradePack(packId: string): Promise<PacksAPIResponse> {
+    const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/upgrade`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return this.parsePacksMutationResponse(await response.json());
   }
 
   async installPack(packId: string): Promise<PacksAPIResponse> {

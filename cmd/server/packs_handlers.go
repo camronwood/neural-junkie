@@ -60,6 +60,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handlePackLayoutOwner(w, r)
 		return
 	}
+	if path == "updates" {
+		handlePackUpdates(w, r)
+		return
+	}
 	parts := strings.Split(path, "/")
 	packID := parts[0]
 	if len(parts) == 2 && parts[1] == "install" {
@@ -76,6 +80,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) == 2 && parts[1] == "install-acestep" {
 		handleMusicACEStepInstall(w, r, packID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "upgrade" {
+		handlePackUpgrade(w, r, packID)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "asset" {

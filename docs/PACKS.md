@@ -11,6 +11,15 @@ Official domain packs are listed in [`packs/catalog.json`](../packs/catalog.json
 5. Extracts to `~/.neural-junkie/packs/<pack-id>/` and validates `pack.yaml`
 6. Requires network for first install; already-installed packs work offline
 
+## Updates
+
+When a newer version is published to `packs/catalog.json`, the Pack store shows an **Update** badge and button (or **Update all** banner). Hub compares semver of the installed `pack.yaml` version against the catalog.
+
+- `GET /api/packs/updates` — packs with updates available
+- `POST /api/packs/{id}/upgrade` — re-download catalog zip, preserve enable state, restart sidecars
+
+Dev-linked and custom packs are excluded from automatic update prompts.
+
 ## URLs
 
 | Item | Default |

@@ -978,6 +978,8 @@ type PackStatus struct {
 type PackCatalogStatus struct {
 	ID               string   `json:"id"`
 	Version          string   `json:"version"`
+	InstalledVersion string   `json:"installed_version,omitempty"`
+	UpdateAvailable  bool     `json:"update_available,omitempty"`
 	Title            string   `json:"title"`
 	Description      string   `json:"description"`
 	IconKey          string   `json:"icon_key,omitempty"`
@@ -1070,6 +1072,10 @@ func (c *Config) ListPackCatalogStatus() ([]PackCatalogStatus, error) {
 			RequiresPacks: append([]string(nil), e.RequiresPacks...),
 			Installed:     c.IsPackInstalled(e.ID),
 			Enabled:       c.IsPackEnabled(e.ID),
+		}
+		if row.Installed {
+			row.InstalledVersion = c.installedCatalogVersion(e.ID)
+			row.UpdateAvailable = packs.UpdateAvailable(row.InstalledVersion, e.Version)
 		}
 		if m, err := c.packManifestForCatalog(e.ID); err == nil && m != nil {
 			row.LoRAAdapterCount = len(m.LoRAAdapters)

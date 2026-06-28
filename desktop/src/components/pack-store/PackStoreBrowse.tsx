@@ -13,6 +13,7 @@ export function PackStoreBrowse() {
   const fetchPacks = usePacksStore((s) => s.fetchPacks);
   const installPack = usePacksStore((s) => s.installPack);
   const installPackLoRAs = usePacksStore((s) => s.installPackLoRAs);
+  const upgradePack = usePacksStore((s) => s.upgradePack);
   const uninstallPack = usePacksStore((s) => s.uninstallPack);
   const setPackEnabled = usePacksStore((s) => s.setPackEnabled);
   const hasLoRAAdapters = usePacksStore((s) => s.hasCapability(PACK_CAP.LORA_ADAPTERS));
@@ -107,10 +108,17 @@ export function PackStoreBrowse() {
                 <p className="text-[10px] uppercase tracking-wide text-gray-500 mt-1">{entry.publisher}</p>
               )}
               <p className="text-xs text-gray-400 mt-2 flex-1">{entry.description}</p>
-              <p className="text-[10px] text-gray-500 mt-2 font-mono">v{entry.version}</p>
+              <p className="text-[10px] text-gray-500 mt-2 font-mono">
+                {entry.update_available && entry.installed_version
+                  ? `v${entry.installed_version} → v${entry.version}`
+                  : `v${entry.version}`}
+              </p>
               <div className="flex flex-wrap gap-1 mt-2">
                 {entry.custom && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-900/50 text-teal-200">Custom</span>
+                )}
+                {entry.update_available && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-200">Update</span>
                 )}
                 {entry.installed && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">Installed</span>
@@ -154,6 +162,17 @@ export function PackStoreBrowse() {
                 >
                   {busy ? '…' : primaryLabel}
                 </button>
+                {entry.update_available && entry.installed && !entry.custom && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void run(entry.id, () => upgradePack(entry.id))}
+                    className="flex-1 min-w-[5rem] px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-40"
+                    title={`Update to v${entry.version}`}
+                  >
+                    {busy ? '…' : `Update v${entry.version}`}
+                  </button>
+                )}
                 {entry.installed && loraCount > 0 && entry.id === 'specialist-tuning' && hasLoRAAdapters && (
                   <button
                     type="button"

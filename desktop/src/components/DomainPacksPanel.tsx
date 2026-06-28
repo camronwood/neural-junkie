@@ -3,6 +3,7 @@ import { usePacksStore } from '../stores/packsStore';
 import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI } from '../api/chatAPI';
 import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
+import { PackUpdatesBanner } from './PackUpdatesBanner';
 import { PackDevStudio } from './pack-store/dev/PackDevStudio';
 import { MusicCreationToolsPanel } from './MusicCreationToolsPanel';
 import { mergeSettingsPut } from './settings/settingsShared';
@@ -269,6 +270,7 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
         )}
         {packsLoading && <p className="text-sm text-slack-textMuted">Loading packs…</p>}
         {packsErr && <p className="text-sm text-red-500">{packsErr}</p>}
+        <PackUpdatesBanner active={isActive && section === 'store'} />
         <PackStoreBrowse />
       </div>
     );
