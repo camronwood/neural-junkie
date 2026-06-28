@@ -2241,7 +2241,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   const openCommandPalette = useCallback(() => {
     setCommandPaletteFilter('');
     setCommandPaletteOpen(true);
-    void ensureCommandDefs(false);
+    void ensureCommandDefs(true);
     void loadCollaborations(channel);
     void api
       .fetchAssistantState(channel)
