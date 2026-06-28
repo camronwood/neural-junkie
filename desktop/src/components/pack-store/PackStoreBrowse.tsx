@@ -52,7 +52,7 @@ export function PackStoreBrowse() {
   }, [musicPackEnabled, catalog]);
 
   const run = useCallback(
-    async (packId: string, fn: () => Promise<void>) => {
+    async (packId: string, fn: () => Promise<unknown>) => {
       setBusyId(packId);
       setActionError(null);
       try {
