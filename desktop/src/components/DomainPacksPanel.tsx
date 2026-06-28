@@ -4,6 +4,7 @@ import { PACK_CAP } from '../stores/packCapabilities';
 import { ChatAPI } from '../api/chatAPI';
 import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
 import { PackDevStudio } from './pack-store/dev/PackDevStudio';
+import { MusicCreationToolsPanel } from './MusicCreationToolsPanel';
 import { mergeSettingsPut } from './settings/settingsShared';
 
 export type DomainPacksSection = 'store' | 'tools' | 'develop';
@@ -28,6 +29,9 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
       s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_PYTHON),
   );
   const cadPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.CAD_API));
+  const musicPackTools = usePacksStore((s) =>
+    s.packs.some((p) => p.id === 'music-creation' && p.installed && p.enabled),
+  );
   const [packsErr, setPacksErr] = useState<string | null>(null);
   const [mcpEnabled, setMcpEnabled] = useState(true);
   const [mcpAgents, setMcpAgents] = useState<Record<string, boolean>>({});
@@ -310,6 +314,7 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
               ['aws', 'AWSExpert'],
               ['incident', 'IncidentManager'],
               ['browser', 'WebBrowserExpert'],
+              ['music', 'MusicExpert'],
               ['rust', 'RustExpert'],
             ].map(([key, label]) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
@@ -466,6 +471,10 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
             <p className="mt-2 whitespace-pre-wrap font-mono text-sm text-slack-textMuted">{cadTestResult}</p>
           )}
         </div>
+      )}
+
+      {musicPackTools && (
+        <MusicCreationToolsPanel hubHttp={hubHttp} isActive={isActive && section === 'tools'} />
       )}
     </div>
   );

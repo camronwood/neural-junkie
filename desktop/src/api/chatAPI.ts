@@ -113,6 +113,33 @@ export interface InstallPackLoRAsResponse {
   results: InstallPackLoRAResult[];
 }
 
+export interface ACEStepPaths {
+  music_root: string;
+  venv: string;
+  project: string;
+  checkpoint: string;
+  setup_script?: string;
+}
+
+export interface ACEStepStatus {
+  ready: boolean;
+  demo_mode: boolean;
+  installing: boolean;
+  python_ok: boolean;
+  venv_ready: boolean;
+  project_ready: boolean;
+  checkpoint_ready: boolean;
+  python_version?: string;
+  last_error?: string;
+  paths: ACEStepPaths;
+}
+
+export interface InstallACEStepResponse {
+  status: string;
+  pack_id: string;
+  acestep: ACEStepStatus;
+}
+
 export interface LoraTrainingBase {
   ollama_tag: string;
   hf_model: string;
@@ -2743,6 +2770,29 @@ export class ChatAPI {
     const response = await this.hubFetch(`/api/packs/${encodeURIComponent(packId)}/install-loras`, {
       method: 'POST',
     });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchACEStepStatus(packId = 'music-creation'): Promise<ACEStepStatus> {
+    const response = await this.hubFetch(
+      `/api/packs/${encodeURIComponent(packId)}/acestep-status`,
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async installACEStep(packId = 'music-creation'): Promise<InstallACEStepResponse> {
+    const response = await this.hubFetch(
+      `/api/packs/${encodeURIComponent(packId)}/install-acestep`,
+      { method: 'POST' },
+    );
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

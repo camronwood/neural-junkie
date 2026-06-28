@@ -4,13 +4,14 @@ Official domain pack: **MusicExpert**, Ollama lyrics/style tags, and **ACE-Step 
 
 ## Install
 
-1. Desktop **Settings → Domain packs → Pack store** → **Music creation**
-2. Enable the pack
-3. One-time ACE-Step setup:
+1. Desktop **Settings → Domain packs → Pack store** → **Music creation** → **Install** → **Enable**
+2. **Settings → Domain packs → Tools** → **Install ACE-Step** (or use the same button on the pack card in the store)
+3. Wait for weights download (~several GB, 10–30 min first time)
+
+Or run manually:
 
 ```bash
-cd /Users/camronwood/development/projects/neural-junkie-pack-music-creation
-make setup-acestep
+~/.neural-junkie/packs/music-creation/scripts/setup-acestep.sh
 ```
 
 ## Use in chat

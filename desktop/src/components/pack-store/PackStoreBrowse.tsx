@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { InstallPackLoRAResult } from '../../api/chatAPI';
+import type { ACEStepStatus, InstallPackLoRAResult } from '../../api/chatAPI';
+import { ChatAPI } from '../../api/chatAPI';
 import { usePacksStore } from '../../stores/packsStore';
 import { PACK_CAP } from '../../stores/packCapabilities';
+import { getHubBaseURL } from '../../config/hubUrl';
 
 export function PackStoreBrowse() {
   const catalog = usePacksStore((s) => s.catalog);
@@ -17,11 +19,36 @@ export function PackStoreBrowse() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loraResults, setLoraResults] = useState<Record<string, InstallPackLoRAResult[]>>({});
+  const [aceStepStatus, setAceStepStatus] = useState<ACEStepStatus | null>(null);
 
   useEffect(() => {
     void fetchPackCatalog();
     void fetchPacks();
   }, [fetchPackCatalog, fetchPacks]);
+
+  const musicPackEnabled = useMemo(
+    () => catalog.some((e) => e.id === 'music-creation' && e.installed && e.enabled),
+    [catalog],
+  );
+
+  useEffect(() => {
+    if (!musicPackEnabled) {
+      setAceStepStatus(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const st = await new ChatAPI(getHubBaseURL()).fetchACEStepStatus();
+        if (!cancelled) setAceStepStatus(st);
+      } catch {
+        if (!cancelled) setAceStepStatus(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [musicPackEnabled, catalog]);
 
   const run = useCallback(
     async (packId: string, fn: () => Promise<void>) => {
@@ -145,6 +172,29 @@ export function PackStoreBrowse() {
                     }
                   >
                     {busy ? '…' : 'Install LoRAs'}
+                  </button>
+                )}
+                {entry.id === 'music-creation' && entry.installed && entry.enabled && !aceStepStatus?.ready && !aceStepStatus?.demo_mode && (
+                  <button
+                    type="button"
+                    disabled={busy || aceStepStatus?.installing}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          'Install ACE-Step 1.5? Downloads several GB and may take 10–30 minutes.',
+                        )
+                      ) {
+                        return;
+                      }
+                      void run(entry.id, async () => {
+                        const resp = await new ChatAPI(getHubBaseURL()).installACEStep();
+                        setAceStepStatus(resp.acestep);
+                      });
+                    }}
+                    className="flex-1 min-w-[5rem] px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-700 text-white hover:bg-indigo-600 disabled:opacity-40"
+                    title="Download ACE-Step weights and Python dependencies"
+                  >
+                    {busy || aceStepStatus?.installing ? '…' : 'Install ACE-Step'}
                   </button>
                 )}
                 {entry.installed && (

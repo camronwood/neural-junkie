@@ -88,6 +88,7 @@ func ResolveSettingsOverlay(m *Manifest, packDir string) (map[string]string, err
 		if key == "" {
 			continue
 		}
+		val = expandHomeInOverlay(val)
 		if isPackRelativePathKey(key) && val != "" && !filepath.IsAbs(val) {
 			abs, err := ResolvePackRelativePath(packDir, val)
 			if err != nil {
@@ -99,6 +100,25 @@ func ResolveSettingsOverlay(m *Manifest, packDir string) (map[string]string, err
 		}
 	}
 	return out, nil
+}
+
+func expandHomeInOverlay(val string) string {
+	val = strings.TrimSpace(val)
+	if val == "" {
+		return ""
+	}
+	if strings.HasPrefix(val, "~") {
+		home, err := os.UserHomeDir()
+		if err == nil && home != "" {
+			if val == "~" {
+				return home
+			}
+			if strings.HasPrefix(val, "~/") || strings.HasPrefix(val, "~\\") {
+				return filepath.Join(home, val[2:])
+			}
+		}
+	}
+	return os.ExpandEnv(val)
 }
 
 func isPackRelativePathKey(key string) bool {

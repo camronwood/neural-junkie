@@ -70,6 +70,14 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handlePackInstallLoRAs(w, r, packID)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "acestep-status" {
+		handleMusicACEStepStatus(w, r, packID)
+		return
+	}
+	if len(parts) == 2 && parts[1] == "install-acestep" {
+		handleMusicACEStepInstall(w, r, packID)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "asset" {
 		handlePackAsset(w, r, packID)
 		return
