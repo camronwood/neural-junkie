@@ -111,6 +111,8 @@ export interface LayoutSettings {
   showRoutingOnMessages?: boolean;
   /** Show context compression badge on agent response messages. */
   showCompressOnMessages?: boolean;
+  /** Live turn telemetry drawer above the composer. */
+  showTurnTelemetryDrawer?: boolean;
 }
 
 interface SettingsState {
@@ -212,6 +214,7 @@ const defaultLayoutSettings: LayoutSettings = {
   toolbarChipsPlacement: 'top',
   memoryMonitorEnabled: true,
   showRoutingOnMessages: true,
+  showTurnTelemetryDrawer: false,
   showCompressOnMessages: false,
 };
 

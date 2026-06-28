@@ -115,6 +115,23 @@ export interface ChannelToolsResponse {
   agents: AgentToolCapabilities[];
 }
 
+export interface ImplementationSessionOutcome {
+  outcome?: string;
+  failure_type?: string;
+  verify_failed?: boolean;
+  verify_skipped?: boolean;
+  repair_used?: boolean;
+  repair_attempts?: number;
+  circuit_breaker_triggered?: boolean;
+  playbook_used?: string;
+  suggested_agent?: string;
+  routing_reason?: string;
+  routing_tool_model?: string;
+  repro_command?: string;
+  files_changed?: string[];
+  command_failures?: Array<{ cmd: string; count: number }>;
+}
+
 export interface Message {
   id: string;
   type: MessageType;
@@ -370,7 +387,23 @@ export interface ThinkingAgent {
   activity?: string;
   activityDetail?: string;
   toolSteps?: ToolStepMeta[];
+  /** Unix ms when this agent entered the typing footer. */
+  startedAt?: number;
 }
+
+export const TELEMETRY_KIND_METADATA_KEY = 'telemetry_kind';
+export const TELEMETRY_PAYLOAD_METADATA_KEY = 'telemetry_payload';
+
+export type TurnTelemetryEvent = {
+  id: string;
+  at: number;
+  channel: string;
+  agentId: string;
+  agentName: string;
+  kind: string;
+  detail: string;
+  payload?: Record<string, unknown>;
+};
 
 export interface ThreadMetadata {
   thread_id: string;
@@ -646,6 +679,16 @@ export function showThreadReplyInMainTimeline(channel: string): boolean {
 // Helper to check if a message is a thinking status message
 export function isThinkingStatusMessage(message: Message): boolean {
   return message.type === 'agent_status' && message.metadata?.thinking_status !== undefined;
+}
+
+/** Human slash-command line in channel history (command history, not agent chat). */
+export function isSlashCommandMessage(message: Message): boolean {
+  if (message.metadata?.slash_command === true) return true;
+  const from = message.from;
+  const isHuman =
+    from.type === 'human' ||
+    (from.type === 'general' && from.name !== 'System' && from.id !== 'system');
+  return isHuman && message.content.trimStart().startsWith('/');
 }
 
 // File change types

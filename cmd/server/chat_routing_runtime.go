@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
@@ -39,11 +40,14 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 	})
 	installed := collectInstalledOllamaTags(ctx)
 	tagFilter := ollamaToolCapableTagFilter(ctx)
+	needsTools := capabilities.RequiresToolCapableModel(class) ||
+		agent.UserRequestsGeneratedImage(msg.Content) ||
+		agent.UserRequestsGeneratedMusic(msg.Content)
 	var sel capabilities.SelectResult
-	if capabilities.RequiresToolCapableModel(class) {
-		sel = capabilities.SelectOllamaTagWithFilter(capabilities.Global(), class, installed, ollamaBase.GetModel(), tagFilter)
+	if needsTools {
+		sel = capabilities.SelectOllamaTagRespectingAgent(capabilities.Global(), class, installed, ollamaBase.GetModel(), tagFilter)
 	} else {
-		sel = capabilities.SelectOllamaTag(capabilities.Global(), class, installed, ollamaBase.GetModel())
+		sel = capabilities.SelectOllamaTagRespectingAgent(capabilities.Global(), class, installed, ollamaBase.GetModel(), nil)
 	}
 	tag := strings.TrimSpace(sel.Tag)
 	if tag == "" || tag == strings.TrimSpace(ollamaBase.GetModel()) {

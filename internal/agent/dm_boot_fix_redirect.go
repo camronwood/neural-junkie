@@ -38,29 +38,39 @@ func bootFixImplementerDisplayName(agentType string) string {
 // tryBootFixImplementerRedirect declines boot-fix implementation sessions in specialist DMs
 // when the channel partner is not the stack implementer (e.g. SoftwareArchitect vs FrontendEngineer).
 // ide_route_agent_type only routes on team/IDE channels; DMs always talk to the channel partner.
-func (a *Agent) tryBootFixImplementerRedirect(msg *protocol.Message) (string, bool) {
+func (a *Agent) tryBootFixImplementerRedirect(msg *protocol.Message) (string, map[string]interface{}, bool) {
 	if a == nil || msg == nil || !a.isDMChannel(msg.Channel) {
-		return "", false
+		return "", nil, false
 	}
 	if msg.IdeEditorModeIsAsk() || msg.IdeEditorModeIsPlan() {
-		return "", false
+		return "", nil, false
 	}
 	if !msg.ImplementationSession() && msg.IdeEditorMode() != "agent" && !msg.IdeEditorModeIsExport() {
-		return "", false
+		return "", nil, false
 	}
 	history := a.channelHistorySafe(msg.Channel)
 	if !messageImpliesBootFix(msg.Content, history) && !messageHasBootOrBuildError(msg.Content) {
-		return "", false
+		return "", nil, false
 	}
 	want := bootFixImplementerType(a, msg)
 	if strings.EqualFold(string(a.Info.Type), want) {
-		return "", false
+		return "", nil, false
 	}
 	target := bootFixImplementerDisplayName(want)
-	return fmt.Sprintf(
+	text := fmt.Sprintf(
 		"Boot-fix and build repair run in **Agent** mode with **%s** — they're set up for file edits and verification on this stack.\n\n"+
 			"You're in a DM with **%s**. For boot-fix work, open a DM with **%s**, or use the main IDE channel in Agent mode (boot-fix routes to %s there automatically).\n\n"+
 			"I can still help with architecture, tradeoffs, and design questions here.",
 		target, a.Info.Name, target, target,
-	), true
+	)
+	outcome := map[string]interface{}{
+		"outcome":          "wrong_route",
+		"failure_type":     "wrong_route",
+		"suggested_agent":  target,
+		"repair_used":      false,
+		"verify_failed":    false,
+		"verify_skipped":   false,
+		"files_changed":    []string{},
+	}
+	return text, outcome, true
 }

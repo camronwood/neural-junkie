@@ -6,11 +6,21 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+## [1.2.0-beta.4] - 2026-06-28
+
+Agent Runtime reliability, local image generation, music pack v1.0.2, and turn telemetry.
+
 ### Added
-- **NJ Fix Loop** — platform policy on Agent Runtime v2: command telemetry, circuit breaker on repeated failures, boot-fix grounding gates, deterministic playbooks (e.g. missing `start-all` Makefile target), and mandatory `implementation_session_outcome` summaries. See [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md).
-- **Ollama image generation** — hub-side generated image store, lookup API, and agent tools for local image gen via Ollama.
+- **Agent Runtime Reliability (3-pass program)** — Fix Loop command policy wired into LLM `run_command` tool loop; boot-fix `read_file` grounding; Tauri/Vite port playbook; implement-scenario preflight and required outcome assertions; reliable-tier routing (`reliable_tool_model`, opt-in `reliable_provider_id` on repair round 2+); `implementation_session_outcome` on wrong-route redirects; desktop **Implementation session outcome** card and failure toasts.
+- **Ollama image generation** — hub-side generated image store, lookup API, agent tools, and **Image generation** settings panel for local image gen via Ollama.
+- **Music creation v1.0.2** — ACE-Step model variants (sft/turbo/xl), inference tuning (seed, steps, guidance, ODE/SDE), in-app setup/status, and MusicExpert response cards.
+- **Turn telemetry drawer** — per-turn routing trace, tool activity, and slash-command history in the desktop chat UI.
 - **Editor agent trust** — expanded trust modes and boot-fix routing in the IDE composer.
 - **Thinking activity labels** — hub and desktop show structured in-progress labels during agent tool loops.
+
+### Changed
+- **Capability profiles** — refreshed model benchmarks and reliable-tier routing metadata.
+- **Implement scenarios** — stronger preflight checks and required outcome assertions across boot-fix and verify-failure fixtures.
 
 ## [1.2.0-beta.3] - 2026-06-24
 

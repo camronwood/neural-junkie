@@ -17,6 +17,7 @@ var allowedCommandPrefixes = []string{
 	"npm exec -- tsc",
 	"./node_modules/.bin/tsc",
 	"go test",
+	"go build",
 	"go vet",
 	"cargo test",
 	"pytest",

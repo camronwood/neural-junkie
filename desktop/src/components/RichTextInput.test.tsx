@@ -25,6 +25,20 @@ describe('RichTextInput command text', () => {
     expect(textbox).toHaveValue('');
   });
 
+  it('keeps composer text when onSend returns false', async () => {
+    const onSend = vi.fn().mockResolvedValue(false);
+    render(<RichTextInput onSend={onSend} />);
+
+    const textbox = screen.getByRole('textbox');
+    fireEvent.change(textbox, { target: { value: '/collaborate test' } });
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' });
+
+    await waitFor(() => {
+      expect(onSend).toHaveBeenCalled();
+    });
+    expect(textbox).toHaveValue('/collaborate test');
+  });
+
   it('keeps absolute paths as normal composer text', () => {
     const onSend = vi.fn();
     render(<RichTextInput onSend={onSend} />);

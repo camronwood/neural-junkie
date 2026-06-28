@@ -21,12 +21,15 @@ func TestTryBootFixImplementerRedirect_architectureDM(t *testing.T) {
 			"workspace_path": t.TempDir(),
 		},
 	}
-	resp, ok := ag.tryBootFixImplementerRedirect(msg)
+	resp, outcome, ok := ag.tryBootFixImplementerRedirect(msg)
 	if !ok {
 		t.Fatal("expected redirect for architecture DM boot-fix")
 	}
 	if resp == "" || !strings.Contains(resp, "FrontendEngineer") || !strings.Contains(resp, "SoftwareArchitect") {
 		t.Fatalf("unexpected redirect: %q", resp)
+	}
+	if outcome == nil || outcome["outcome"] != "wrong_route" {
+		t.Fatalf("expected wrong_route outcome, got %v", outcome)
 	}
 }
 
@@ -40,7 +43,7 @@ func TestTryBootFixImplementerRedirect_frontendDM(t *testing.T) {
 		"implementation_session": true,
 		"editor_mode":            "agent",
 	}
-	resp, ok := ag.tryBootFixImplementerRedirect(msg)
+	resp, _, ok := ag.tryBootFixImplementerRedirect(msg)
 	if ok {
 		t.Fatalf("frontend DM should not redirect: %q", resp)
 	}

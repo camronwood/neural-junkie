@@ -106,22 +106,27 @@ func (h *Hub) SendMessage(msg *protocol.Message) error {
 		h.normalizeDMMentionRouting(msg, mentionStrings, msg.Mentions)
 	}
 
-	// Check if it's a command - process commands from both chat and question types
+	// Slash commands: persist the human command line, then the system response (if any).
 	if h.commandHandler != nil && len(msg.Content) > 0 && msg.Content[0] == '/' {
-		// Process command (unlock mutex for command processing)
+		commandMsg, cloneErr := protocol.CloneMessage(msg)
+		if cloneErr != nil {
+			return fmt.Errorf("slash command clone: %w", cloneErr)
+		}
+		if commandMsg.Metadata == nil {
+			commandMsg.Metadata = make(map[string]interface{})
+		}
+		commandMsg.Metadata[protocol.MetadataSlashCommand] = true
+
 		ctx := context.Background()
 		response, err := h.commandHandler.ProcessCommand(ctx, msg)
 		if err != nil {
 			return fmt.Errorf("command processing error: %w", err)
 		}
-
-		// If command was processed, send the response instead
 		if response != nil {
-			msg = response
-			// Re-attach collaboration snapshot when the handler returns a new message
-			// (e.g. /cancel-plan) so metadata includes collaboration_data for the UI.
-			h.attachCollaborationData(msg)
+			h.attachCollaborationData(response)
 		}
+		defer h.noteChannelActivity(commandMsg)
+		return h.persistSlashCommandExchange(commandMsg, response)
 	}
 
 	// Check for automatic repository agent creation
@@ -1229,6 +1234,10 @@ func (a *collabClientAdapter) AgentOutOfTurnMentionAllowed(collabID string) bool
 
 func (a *collabClientAdapter) PlanningSpeakerCooldownBlocked(collabID, agentID string) bool {
 	return a.cm.PlanningSpeakerCooldownBlocked(collabID, agentID)
+}
+
+func (a *collabClientAdapter) ParticipantTurnCount(collabID, agentID string) int {
+	return a.cm.ParticipantTurnCount(collabID, agentID)
 }
 
 func (a *collabClientAdapter) GetCurrentTurnAgent(collabID string) (string, error) {

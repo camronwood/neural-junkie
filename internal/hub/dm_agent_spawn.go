@@ -279,6 +279,8 @@ func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, pro
 		return nil, fmt.Errorf("agent %q already exists; use a different name or delete the existing agent first", name)
 	}
 
+	modelOverride = ch.resolveExpertModelOverride(spec.AgentType, modelOverride)
+
 	aiProvider, err := ch.buildExpertAIProvider(providerID, providerName, modelOverride)
 	if err != nil {
 		return nil, err
@@ -311,6 +313,17 @@ func (ch *CommandHandler) prepareExpertAgent(spec ExpertResolveResult, name, pro
 	}
 
 	return agentInstance, nil
+}
+
+// resolveExpertModelOverride picks a pack-appropriate chat model when the user did not specify one.
+func (ch *CommandHandler) resolveExpertModelOverride(agentType protocol.AgentType, modelOverride string) string {
+	if strings.TrimSpace(modelOverride) != "" {
+		return strings.TrimSpace(modelOverride)
+	}
+	if ch.appConfig == nil {
+		return ""
+	}
+	return ch.appConfig.ChatModelForAgent(string(agentType), "")
 }
 
 // startExpertInDMOnly starts a prepared expert agent in a private DM with createdBy only

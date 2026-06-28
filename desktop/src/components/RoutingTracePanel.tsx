@@ -38,6 +38,9 @@ export function RoutingTracePanel({ channel, messageId, query, enabled }: Routin
   return (
     <div className="mx-3 mb-2 rounded border border-slate-700 bg-slate-900/80 p-2 text-xs text-slate-200" data-testid="routing-trace-panel">
       <div className="font-semibold mb-1">Routing trace</div>
+      <p className="text-slate-400 mb-1">
+        Post-hoc snapshot for the highlighted message. Enable Settings → Turn telemetry drawer for live events.
+      </p>
       {error && <div className="text-red-300">{error}</div>}
       {trace && (
         <pre className="whitespace-pre-wrap break-all">{JSON.stringify(trace, null, 2)}</pre>

@@ -82,6 +82,10 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 		handleMusicACEStepInstall(w, r, packID)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "restart-sidecar" {
+		handleMusicSidecarRestart(w, r, packID)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "upgrade" {
 		handlePackUpgrade(w, r, packID)
 		return

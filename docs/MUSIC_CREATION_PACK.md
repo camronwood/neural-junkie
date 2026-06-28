@@ -5,8 +5,19 @@ Official domain pack: **MusicExpert**, Ollama lyrics/style tags, and **ACE-Step 
 ## Install
 
 1. Desktop **Settings → Domain packs → Pack store** → **Music creation** → **Install** → **Enable**
-2. **Settings → Domain packs → Tools** → **Install ACE-Step** (or use the same button on the pack card in the store)
+2. **Settings → Domain packs → Tools** → pick model variant (SFT / Turbo / XL), tune inference settings, **Save**, then **Install** weights
 3. Wait for weights download (~several GB, 10–30 min first time)
+
+### Model variants
+
+| Variant | Steps | Best for |
+|---------|-------|----------|
+| **sft** | ~50 | Balanced default |
+| **turbo** | 8 | Fast previews |
+| **xl-sft** | ~50 | Highest quality (more VRAM) |
+| **xl-turbo** | 8 | Fast XL |
+
+Inference settings (steps, guidance, ODE/SDE, default seed) are in **Domain packs → Tools**.
 
 Or run manually:
 

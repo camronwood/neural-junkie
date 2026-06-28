@@ -69,6 +69,11 @@ See also **Settings → Keyboard** in the app for the live list from the shortcu
 |----------|--------|
 | `mod+shift+]` | Close thread panel |
 
+## Slash commands and telemetry
+
+- **Slash command history:** When you send a `/command`, your typed line stays in channel history (styled as a command) and the hub posts the system response separately. Agents do not reply to slash lines.
+- **Turn telemetry drawer:** Settings → Models & performance → **Turn telemetry drawer** shows live routing, tool, and activity events above the composer. Routing badges on completed messages remain available via **Routing badges on messages**.
+
 ## Manual QA matrix
 
 | Area | macOS | Windows/Linux |

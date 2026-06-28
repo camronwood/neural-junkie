@@ -17,11 +17,16 @@ type Input struct {
 	ModelCapabilityRoutingEnabled bool
 	LocalProviderID               string
 	LocalToolModel                string
+	ReliableToolModel             string
+	ReliableProviderID            string
 	FallbackProviderIDs           []string
 	Providers                     []config.ProviderConfig
 	DefaultProviderID             string
 	TaskText                      string
 	AgentType                     string
+	RepairAttempts                int
+	VerifyFailed                  bool
+	BootFixIntent                 bool
 	InstalledOllamaTags           map[string]struct{}
 	OllamaTagToolFilter           func(tag string) bool
 }
@@ -29,6 +34,12 @@ type Input struct {
 // SelectProviderID returns provider id, tool-loop model tag, and reason code.
 func SelectProviderID(in Input) (id string, toolModel string, reason string) {
 	toolModel = resolveToolModel(in)
+	if in.RepairAttempts >= 2 {
+		rid := strings.TrimSpace(in.ReliableProviderID)
+		if rid != "" && providerExists(in.Providers, rid) {
+			return rid, toolModel, "reliable_repair_tier"
+		}
+	}
 	if !in.RoutingEnabled || len(in.Providers) == 0 {
 		if in.DefaultProviderID != "" {
 			return in.DefaultProviderID, toolModel, "routing_disabled_default"
@@ -64,11 +75,19 @@ func SelectMainModel(in Input) (model string, reason string) {
 
 func resolveToolModel(in Input) string {
 	fallback := toolModelFallback(in)
+	if in.RepairAttempts >= 1 {
+		if m := strings.TrimSpace(in.ReliableToolModel); m != "" {
+			return pickToolCapableModel(in, m)
+		}
+	}
 	if in.ModelCapabilityRoutingEnabled {
 		if p := capabilities.Global(); p != nil {
 			_, toolClass := capabilities.ClassifyImpl(capabilities.ImplInput{
-				TaskText:  in.TaskText,
-				AgentType: in.AgentType,
+				TaskText:       in.TaskText,
+				AgentType:      in.AgentType,
+				RepairAttempts: in.RepairAttempts,
+				VerifyFailed:   in.VerifyFailed,
+				BootFixIntent:  in.BootFixIntent,
 			})
 			if sel := capabilities.SelectOllamaTagWithFilter(p, toolClass, in.InstalledOllamaTags, fallback, implTagFilter(in, toolClass)); sel.Tag != "" {
 				return sel.Tag
@@ -89,8 +108,11 @@ func resolveMainModel(in Input) (string, string) {
 	if in.ModelCapabilityRoutingEnabled {
 		if p := capabilities.Global(); p != nil {
 			mainClass, _ := capabilities.ClassifyImpl(capabilities.ImplInput{
-				TaskText:  in.TaskText,
-				AgentType: in.AgentType,
+				TaskText:       in.TaskText,
+				AgentType:      in.AgentType,
+				RepairAttempts: in.RepairAttempts,
+				VerifyFailed:   in.VerifyFailed,
+				BootFixIntent:  in.BootFixIntent,
 			})
 			if sel := capabilities.SelectOllamaTagWithFilter(p, mainClass, in.InstalledOllamaTags, fallback, implTagFilter(in, mainClass)); sel.Tag != "" {
 				return sel.Tag, sel.Reason

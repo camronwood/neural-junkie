@@ -46,6 +46,28 @@ func normalizeFileChangeRelPath(path string) string {
 	return path
 }
 
+// RelativizeFileChangePath maps absolute paths under workspaceRoot to repo-relative form.
+func RelativizeFileChangePath(path, workspaceRoot string) string {
+	path = strings.TrimSpace(path)
+	path = strings.Trim(path, `"'`)
+	if path == "" {
+		return ""
+	}
+	ws := strings.TrimSpace(workspaceRoot)
+	if ws != "" && (filepath.IsAbs(path) || strings.HasPrefix(path, "/") || strings.HasPrefix(path, "\\")) {
+		wsClean := filepath.Clean(ws)
+		abs := filepath.Clean(path)
+		if rel, err := filepath.Rel(wsClean, abs); err == nil {
+			rel = filepath.ToSlash(rel)
+			if rel != ".." && !strings.HasPrefix(rel, "../") {
+				return normalizeFileChangeRelPath(rel)
+			}
+		}
+		return ""
+	}
+	return normalizeFileChangeRelPath(path)
+}
+
 // longestValidPathIn prefers the most specific user-mentioned path (e.g. tailwind.config.js over tailwind.config).
 func longestValidPathIn(paths []string) string {
 	best := ""

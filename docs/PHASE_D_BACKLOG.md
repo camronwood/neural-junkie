@@ -48,9 +48,19 @@ Sequence follows dependency order in [PLATFORM_ROADMAP.md](PLATFORM_ROADMAP.md).
 
 ## Explicitly deferred
 
-- Marketing rewrites for historical beta ads (`docs/marketing/BETA*.md`)
-- Dropping Windows EXE from release artifacts
-- macOS notarization (track as v1.2.1 when Apple creds ready)
+| Area | Status | Notes |
+|------|--------|-------|
+| Marketing rewrites for historical beta ads (`docs/marketing/BETA*.md`) | Deferred | |
+| Dropping Windows EXE from release artifacts | Deferred | |
+| macOS notarization (track as v1.2.1 when Apple creds ready) | Deferred | |
+
+## D5 — Specialist simplification (deferred)
+
+| Item | Detail |
+|------|--------|
+| Goal | MCP dedup + QualityReviewer roll-up after `test-parity-stable` 3/3 at 20/20 |
+| Gate | Agent Runtime Reliability program complete |
+| Files | `internal/mcp/`, `neural-junkie-pack-software-development/pack.yaml` |
 
 ## Suggested tags after stable
 

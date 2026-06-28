@@ -58,6 +58,67 @@ func TestShouldUpgrade(t *testing.T) {
 	if ShouldUpgrade(p, TaskImplement, "qwen2.5-coder:14b", "qwen3.5:9b") {
 		t.Fatal("should not downgrade")
 	}
+	if ShouldUpgrade(p, TaskImplement, "qwen2.5:7b", "deepseek-coder:6.7b") {
+		t.Fatal("should not replace agent-specific models missing from profile")
+	}
+}
+
+func TestSelectOllamaTagRespectingAgentKeepsConfiguredModel(t *testing.T) {
+	p := &Profiles{
+		TaskClasses: map[string][]string{
+			"chat": {"deepseek-coder:6.7b", "qwen3.5:9b", "qwen2.5:7b"},
+		},
+	}
+	installed := map[string]struct{}{
+		"deepseek-coder:6.7b": {},
+		"qwen2.5:7b":          {},
+	}
+	got := SelectOllamaTagRespectingAgent(p, TaskChat, installed, "qwen2.5:7b", nil)
+	if got.Tag != "qwen2.5:7b" {
+		t.Fatalf("tag = %q, want qwen2.5:7b", got.Tag)
+	}
+	if got.Reason != "capability_keep_agent" {
+		t.Fatalf("reason = %q", got.Reason)
+	}
+}
+
+func TestSelectOllamaTagRespectingAgentKeepsRankedModel(t *testing.T) {
+	p := &Profiles{
+		TaskClasses: map[string][]string{
+			"implement": {"qwen2.5-coder:14b", "qwen3.5:9b"},
+		},
+	}
+	installed := map[string]struct{}{
+		"qwen2.5-coder:14b": {},
+		"qwen3.5:9b":        {},
+	}
+	got := SelectOllamaTagRespectingAgent(p, TaskImplement, installed, "qwen3.5:9b", nil)
+	if got.Tag != "qwen3.5:9b" {
+		t.Fatalf("tag = %q, want qwen3.5:9b", got.Tag)
+	}
+	if got.Reason != "capability_keep_agent" {
+		t.Fatalf("reason = %q", got.Reason)
+	}
+}
+
+func TestSelectOllamaTagRespectingAgentToolUpgrade(t *testing.T) {
+	p := &Profiles{
+		TaskClasses: map[string][]string{
+			"chat": {"deepseek-coder:6.7b", "qwen3.5:9b"},
+		},
+	}
+	installed := map[string]struct{}{
+		"deepseek-coder:6.7b": {},
+		"qwen3.5:9b":          {},
+	}
+	filter := func(tag string) bool { return tag != "deepseek-coder:6.7b" }
+	got := SelectOllamaTagRespectingAgent(p, TaskChat, installed, "deepseek-coder:6.7b", filter)
+	if got.Tag != "qwen3.5:9b" {
+		t.Fatalf("tag = %q, want qwen3.5:9b", got.Tag)
+	}
+	if got.Reason != "capability_tool_upgrade" {
+		t.Fatalf("reason = %q", got.Reason)
+	}
 }
 
 func TestLoadEmbedded(t *testing.T) {

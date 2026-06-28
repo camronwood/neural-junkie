@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/packs"
 	"github.com/camronwood/neural-junkie/internal/packs/sidecar"
@@ -40,6 +41,13 @@ func (c *Config) CollectPackSidecarEnvs() []sidecar.SidecarEnv {
 		manifests = append(manifests, m)
 		packDirs[m.ID] = dir
 		resolved, _ := packs.ResolveSettingsOverlay(m, dir)
+		if id == PackMusicCreation {
+			for k, v := range c.musicSidecarSettingsLocked() {
+				if strings.TrimSpace(v) != "" {
+					resolved[k] = v
+				}
+			}
+		}
 		settings[m.ID] = resolved
 	}
 	return sidecar.CollectSidecarEnvs(manifests, packDirs, settings)

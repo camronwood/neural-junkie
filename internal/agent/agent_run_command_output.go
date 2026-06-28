@@ -13,6 +13,21 @@ import (
 const metadataAgentRunCommand = "agent_run_command"
 const metadataMirrorTerminal = "mirror_terminal"
 
+func parseReadFileToolInput(input json.RawMessage) string {
+	var args map[string]interface{}
+	if len(input) > 0 {
+		_ = json.Unmarshal(input, &args)
+	}
+	for _, key := range []string{"path", "file_path", "target_path"} {
+		if v, ok := args[key].(string); ok {
+			if p := strings.TrimSpace(v); p != "" {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
 func parseRunCommandToolInput(input json.RawMessage) string {
 	var args struct {
 		Command string `json:"command"`

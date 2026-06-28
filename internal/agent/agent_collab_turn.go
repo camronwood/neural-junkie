@@ -9,6 +9,11 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+const (
+	collabTurnHandoffRetryDelay = 45 * time.Second
+	collabTurnHandoffMaxRetries = 2
+)
+
 func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID string) {
 	if source == nil || a.Collab == nil || !a.Collab.IsActive(collabID) {
 		return
@@ -32,9 +37,19 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 		return
 	}
 
-	handoffBody := collaborationTurnHandoffBody(collabInfo.Phase)
+	turnCount := a.Collab.ParticipantTurnCount(collabID, nextAgentID)
+	if a.sendCollaborationTurnHandoff(source, collabID, nextAgentID, collabInfo.Phase) {
+		a.scheduleCollaborationTurnHandoffRetry(source, collabID, nextAgentID, turnCount)
+	}
+}
+
+func (a *Agent) sendCollaborationTurnHandoff(source *protocol.Message, collabID, nextAgentID, phase string) bool {
+	if source == nil || a.Hub == nil || a.Collab == nil {
+		return false
+	}
+	handoffBody := collaborationTurnHandoffBody(phase)
 	if handoffBody == "" {
-		return
+		return false
 	}
 
 	turnMsg := protocol.NewMessage(
@@ -44,7 +59,6 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 		handoffBody,
 	)
 	turnMsg.SetCollaborationID(collabID)
-	phase := collabInfo.Phase
 	if phase == "" {
 		phase = source.GetCollaborationPhase()
 	}
@@ -69,7 +83,50 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 
 	if err := a.Hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[%s] Warning: failed to send collaboration turn handoff: %v", a.Info.Name, err)
+		return false
 	}
+	return true
+}
+
+func (a *Agent) scheduleCollaborationTurnHandoffRetry(source *protocol.Message, collabID, targetAgentID string, turnCountAtHandoff int) {
+	if source == nil || a.Collab == nil {
+		return
+	}
+	channel := source.Channel
+	go func() {
+		for attempt := 1; attempt <= collabTurnHandoffMaxRetries; attempt++ {
+			time.Sleep(collabTurnHandoffRetryDelay)
+			if a.Collab == nil || !a.Collab.IsActive(collabID) {
+				return
+			}
+			if a.Hub != nil && a.Hub.IsChannelHeld(channel) {
+				return
+			}
+			info := a.Collab.GetCollaboration(collabID, a.Info.ID)
+			switch info.Phase {
+			case "reviewing", "approved", "executing", "completed", "cancelled":
+				return
+			}
+			if a.Collab.ParticipantTurnCount(collabID, targetAgentID) > turnCountAtHandoff {
+				return
+			}
+			if !a.Collab.IsAgentTurn(collabID, targetAgentID) {
+				return
+			}
+			log.Printf("[%s] Collaboration turn handoff retry %d/%d for agent %s (collab %s)",
+				a.Info.Name, attempt, collabTurnHandoffMaxRetries, targetAgentID, collabID[:8])
+			retrySource := source
+			if retrySource.Channel != channel {
+				if work, err := protocol.CloneMessage(source); err == nil && work != nil {
+					work.Channel = channel
+					retrySource = work
+				}
+			}
+			if !a.sendCollaborationTurnHandoff(retrySource, collabID, targetAgentID, info.Phase) {
+				return
+			}
+		}
+	}()
 }
 
 // SetMessageInterceptor sets an optional message pre-processing hook.

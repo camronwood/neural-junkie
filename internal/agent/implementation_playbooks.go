@@ -2,9 +2,12 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -158,28 +161,114 @@ func (a *Agent) attemptTauriVitePortPlaybook(
 	wsPath, channel string,
 	state *ImplementationSessionState,
 ) (bool, []string) {
-	_ = ctx
-	_ = msg
 	_ = channel
-	_ = state
 	tauriConf := filepath.Join(wsPath, "src-tauri", "tauri.conf.json")
 	viteConfigs := []string{"vite.config.ts", "vite.config.js", "vite.config.mjs"}
 	if _, err := os.Stat(tauriConf); err != nil {
 		return false, nil
 	}
-	var vitePath string
+	var viteRel string
 	for _, p := range viteConfigs {
 		if _, err := os.Stat(filepath.Join(wsPath, p)); err == nil {
-			vitePath = p
+			viteRel = p
 			break
 		}
 	}
-	if vitePath == "" {
+	if viteRel == "" {
 		return false, nil
 	}
-	// Port alignment is stack-specific; leave to model after reads — playbook marks intent only.
+	tauriData, err := os.ReadFile(tauriConf)
+	if err != nil {
+		return false, nil
+	}
+	tauriPort := extractLocalhostPort(string(tauriData))
+	if tauriPort <= 0 {
+		return false, nil
+	}
+	vitePath := filepath.Join(wsPath, viteRel)
+	viteData, err := os.ReadFile(vitePath)
+	if err != nil {
+		return false, nil
+	}
+	vitePort := extractViteServerPort(string(viteData))
+	if vitePort <= 0 || vitePort == tauriPort {
+		if state != nil {
+			state.SetPlaybookUsed("tauri_vite_port_mismatch")
+		}
+		return false, nil
+	}
+	newBody := replaceViteServerPort(string(viteData), tauriPort)
+	if newBody == string(viteData) {
+		return false, nil
+	}
+	oldContent := string(viteData)
+	if err := a.validateProposalForSession(ctx, msg, viteRel, inferProposalOp(wsPath, viteRel, oldContent)); err != nil {
+		return false, nil
+	}
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, viteRel, oldContent, newBody, msg); err != nil {
+		return false, nil
+	}
 	if state != nil {
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{viteRel})
+		state.RecordEdit(viteRel)
 		state.SetPlaybookUsed("tauri_vite_port_mismatch")
 	}
-	return false, nil
+	log.Printf("[%s] playbook_tauri_vite_port_mismatch vite=%d tauri=%d", a.Info.Name, vitePort, tauriPort)
+	return true, []string{viteRel}
+}
+
+func extractLocalhostPort(text string) int {
+	lower := strings.ToLower(text)
+	idx := strings.Index(lower, "http://localhost:")
+	if idx < 0 {
+		idx = strings.Index(lower, "https://localhost:")
+	}
+	if idx < 0 {
+		return 0
+	}
+	rest := text[idx:]
+	end := strings.IndexAny(rest, "\"' \t\n\r,}")
+	if end < 0 {
+		end = len(rest)
+	}
+	host := rest[:end]
+	colon := strings.LastIndex(host, ":")
+	if colon < 0 {
+		return 0
+	}
+	portStr := strings.TrimRight(host[colon+1:], "/")
+	n, err := strconv.Atoi(portStr)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
+}
+
+func extractViteServerPort(content string) int {
+	re := regexp.MustCompile(`(?i)server\s*:\s*\{[^}]*port\s*:\s*(\d+)`)
+	if m := re.FindStringSubmatch(content); len(m) >= 2 {
+		n, _ := strconv.Atoi(m[1])
+		return n
+	}
+	re2 := regexp.MustCompile(`(?i)port\s*:\s*(\d+)`)
+	if m := re2.FindStringSubmatch(content); len(m) >= 2 {
+		n, _ := strconv.Atoi(m[1])
+		return n
+	}
+	return 0
+}
+
+func replaceViteServerPort(content string, port int) string {
+	re := regexp.MustCompile(`(?i)(server\s*:\s*\{[^}]*port\s*:\s*)(\d+)`)
+	if re.MatchString(content) {
+		return re.ReplaceAllString(content, fmt.Sprintf("${1}%d", port))
+	}
+	if strings.Contains(content, "defineConfig") && strings.Contains(content, "server:") {
+		return content
+	}
+	if strings.Contains(content, "defineConfig({") {
+		return strings.Replace(content, "defineConfig({", fmt.Sprintf("defineConfig({\n  server: { port: %d, strictPort: true },", port), 1)
+	}
+	return content
 }

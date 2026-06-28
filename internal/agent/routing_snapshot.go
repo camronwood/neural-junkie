@@ -96,6 +96,16 @@ func providerIDFromAI(p ai.AIProvider) string {
 	return ""
 }
 
+// LastRoutingSnapshot returns a copy of routing metadata for the current turn.
+func (a *Agent) LastRoutingSnapshot() RoutingSnapshot {
+	if a == nil {
+		return RoutingSnapshot{}
+	}
+	a.routingSnap.mu.Lock()
+	defer a.routingSnap.mu.Unlock()
+	return a.routingSnap.snap
+}
+
 // ApplyRoutingMetadataToResponse stamps routing_* keys on the response message.
 func (a *Agent) ApplyRoutingMetadataToResponse(msg *protocol.Message) {
 	if a == nil || msg == nil {

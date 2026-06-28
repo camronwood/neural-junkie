@@ -314,6 +314,13 @@ func attachImplSessionCommandPolicy(ctx context.Context, state *ImplementationSe
 	return shared.ContextWithCommandPolicy(ctx, state)
 }
 
+func commandPolicyFromContext(ctx context.Context) shared.CommandPolicy {
+	if st := implementationSessionStateFromContext(ctx); st != nil {
+		return st
+	}
+	return shared.CommandPolicyFromContext(ctx)
+}
+
 func shouldSkipDuplicateCommandBroadcast(channel, agentID, cmd, mcpResult string) bool {
 	exitCode, _, _ := parseRunCommandMCPResult(mcpResult)
 	fp := fingerprintCommandOutput(mcpResult)

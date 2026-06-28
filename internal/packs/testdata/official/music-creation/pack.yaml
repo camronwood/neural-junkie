@@ -18,6 +18,10 @@ capability_defs:
       - ace_step_project
       - ace_step_checkpoint
       - ace_step_model_variant
+      - ace_step_inference_steps
+      - ace_step_guidance_scale
+      - ace_step_infer_method
+      - ace_step_default_seed
       - music_output_dir
       - python_executable
 agents:

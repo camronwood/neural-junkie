@@ -79,8 +79,8 @@ func (m *mockHubClientIntegration) ImageGenerationEnabled() bool                
 func (m *mockHubClientIntegration) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
-func (m) MusicGenerationEnabled() bool { return false }
-func (m) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
+func (m *mockHubClientIntegration) MusicGenerationEnabled() bool { return false }
+func (m *mockHubClientIntegration) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
 	return nil
 }
 

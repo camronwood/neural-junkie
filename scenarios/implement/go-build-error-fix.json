@@ -1,6 +1,6 @@
 {
   "name": "go-build-error-fix",
-  "description": "Fix-like flow: Go compile error fixed via repro-first session.",
+  "description": "Fix-like flow: Go test failure fixed via repro-first session (Multiply bug in math.go).",
   "tags": ["implement", "fix-like", "go"],
   "channel": "implement-scenarios",
   "channel_type": "public",
@@ -11,14 +11,15 @@
     {
       "path": "core/sample/math.go",
       "for_question": {
-        "any_match": ["func Add", "return a + b"]
+        "any_match": ["func Multiply", "\\*"],
+        "none_match": ["return a \\+ b[^*]"]
       }
     }
   ],
   "steps": [
     {
       "action": "send",
-      "content": "go test ./... is failing in this workspace — please fix the compile error so tests pass.",
+      "content": "go test ./... is failing in this workspace — please fix the bug in core/sample/math.go so tests pass.",
       "metadata": {
         "editor_mode": "agent",
         "ide_route_agent_type": "backend",
@@ -31,14 +32,19 @@
       "action": "wait_reply",
       "from": "BackendEngineer",
       "timeout": "600s",
-      "until_any_match": ["fix session complete|implementation session complete|applied and verified|go test"]
+      "until_any_match": ["fix session complete|implementation session complete|applied and verified|go test|Multiply"]
     },
     {
       "action": "assert_messages",
       "from": "BackendEngineer",
       "last_reply_only": true,
-      "any_match": ["session complete|math.go|go test"],
+      "any_match": ["session complete|math.go|go test|Multiply"],
       "none_match": ["finished without file changes"]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "require_keys": ["implementation_session_outcome"]
     }
   ],
   "cleanup": "clear"

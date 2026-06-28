@@ -215,6 +215,17 @@ input {
   color: white;
 }
 
+/* Command palette — Tailwind opacity on var(--nj-accent) is invisible in most themes */
+.nj-cmd-palette-item--selected {
+  background: color-mix(in srgb, var(--nj-accent) 32%, var(--nj-bg-hover));
+  box-shadow: inset 3px 0 0 var(--nj-accent);
+}
+
+[data-theme='roving'] .nj-cmd-palette-item--selected {
+  background: color-mix(in srgb, var(--nj-accent) 22%, var(--nj-bg-hover));
+  box-shadow: inset 3px 0 0 var(--nj-accent);
+}
+
 /* Chat list scroll — contain wheel/trackpad so nested code blocks don't steal scroll */
 .nj-chat-scroller {
   overscroll-behavior-y: contain;

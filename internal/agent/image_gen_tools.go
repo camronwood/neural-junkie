@@ -108,7 +108,7 @@ func (a *Agent) generateAndPostImageWithProgress(
 	broadcastToolStart bool,
 ) error {
 	a.sendThinkingActivity(msg, protocol.ThinkingActivityGeneratingImage, imageGenToolPreview(prompt))
-	defer a.sendThinkingActivity(msg, "")
+	defer a.clearThinkingActivity(msg)
 
 	if broadcastToolStart && streamMsgID != "" {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
@@ -224,11 +224,30 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 			toolCtx = attachImplSessionCommandPolicy(toolCtx, st)
 		}
 	}
-	result, err := executeMCPTool(toolCtx, mcpServer, name, input)
-	if name == "run_command" && err == nil {
+	policy := commandPolicyFromContext(toolCtx)
+	if name == "run_command" && policy != nil {
 		cmd := parseRunCommandToolInput(input)
-		if !shouldSkipDuplicateCommandBroadcast(msg.Channel, a.Info.ID, cmd, result) {
-			a.broadcastAgentRunCommandOutput(msg, cmd, result)
+		if blockErr := policy.ShouldBlockRunCommand(cmd); blockErr != nil {
+			return "ERROR: " + blockErr.Error(), nil
+		}
+	}
+	result, err := executeMCPTool(toolCtx, mcpServer, name, input)
+	if name == "run_command" {
+		if policy != nil {
+			cmd := parseRunCommandToolInput(input)
+			exitCode, _, _ := parseRunCommandMCPResult(result)
+			policy.RecordCommandRun(cmd, exitCode, result)
+		}
+		if err == nil {
+			cmd := parseRunCommandToolInput(input)
+			if !shouldSkipDuplicateCommandBroadcast(msg.Channel, a.Info.ID, cmd, result) {
+				a.broadcastAgentRunCommandOutput(msg, cmd, result)
+			}
+		}
+	}
+	if name == "read_file" && err == nil && policy != nil {
+		if path := parseReadFileToolInput(input); path != "" {
+			policy.RecordReadPath(path)
 		}
 	}
 	if err == nil && writtenPath != "" {
@@ -506,6 +525,7 @@ func (a *Agent) generateWithAgentTools(
 	}
 
 	toolEff := a.toolCapableProvider(ctx, eff)
+	a.broadcastRoutingTelemetry(msg)
 	toolProvider, ok := toolEff.(ai.ToolCapableProvider)
 	if !ok || !toolProvider.SupportsTools() {
 		log.Printf("[%s] Tools requested but provider does not support tool calling; using standard response", a.Info.Name)

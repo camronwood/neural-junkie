@@ -112,3 +112,11 @@ func TestConversationHistoryForIntent_biologyOllamaUserOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyTurnIntentMusicGenerationIsTask(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "music", protocol.AgentInfo{Name: "Camron"}, "Can you generate me a song?")
+	msg.Metadata = map[string]interface{}{MetadataConversationMode: ConversationModeChat}
+	if got := classifyTurnIntent(msg, protocol.ChannelTypePublic, "music-1", nil); got != IntentTask {
+		t.Fatalf("music generation should be IntentTask, got %v", got)
+	}
+}

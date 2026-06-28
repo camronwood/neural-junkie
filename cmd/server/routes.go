@@ -170,6 +170,7 @@ func registerRoutes() {
 	http.HandleFunc("/api/ollama/library/tags", corsMiddleware(handleOllamaLibraryTags))
 	http.HandleFunc("/api/ollama/library/lookup", corsMiddleware(handleOllamaLibraryLookup))
 	http.HandleFunc("/api/ollama/delete", corsMiddleware(localOnly(handleOllamaDelete)))
+	http.HandleFunc("/api/image-gen/status", corsMiddleware(localOnly(handleImageGenStatus)))
 	http.HandleFunc("/api/system/hardware", corsMiddleware(handleSystemHardware))
 	http.HandleFunc("/api/system/memory", corsMiddleware(handleSystemMemory))
 	http.HandleFunc("/api/system/security", corsMiddleware(handleSystemSecurity))

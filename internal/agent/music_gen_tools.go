@@ -17,19 +17,23 @@ var generateMusicToolSchema = json.RawMessage(`{
   "properties": {
     "style_tags": {
       "type": "string",
-      "description": "Genre, mood, tempo, and instrumentation (ACE-Step caption/tags)"
+      "description": "ACE-Step caption: genre, mood, BPM, key instruments, vocal style, production era (comma-separated tags)"
     },
     "lyrics": {
       "type": "string",
-      "description": "Song lyrics with optional section markers, or [Instrumental] for no vocals"
+      "description": "Song lyrics with [Verse]/[Chorus]/[Bridge] markers, or [Instrumental] for no vocals"
     },
     "duration_sec": {
       "type": "integer",
-      "description": "Target length in seconds (10-240, default 30)"
+      "description": "Target length in seconds (10-240, default 30; shorter clips often sound cleaner)"
     },
     "instrumental": {
       "type": "boolean",
       "description": "When true, generate instrumental track without vocals"
+    },
+    "seed": {
+      "type": "integer",
+      "description": "Optional random seed for reproducible output (-1 or omit for random)"
     }
   },
   "required": ["style_tags"]
@@ -65,10 +69,54 @@ func agentTypeSupportsHubMusicGen(t protocol.AgentType) bool {
 	}
 }
 
+// tryHubMusicGenerationShortcut posts hub-generated audio when the user asked for a song.
+func (a *Agent) tryHubMusicGenerationShortcut(ctx context.Context, msg *protocol.Message) (string, bool) {
+	if msg == nil || a.Hub == nil || protocol.IsGeneratedAudioDelivery(msg) || !UserRequestsGeneratedMusic(msg.Content) {
+		return "", false
+	}
+	if !a.musicGenerationToolsEnabledForMessage(msg) {
+		if !agentTypeSupportsHubMusicGen(a.Info.Type) {
+			return "", false
+		}
+		if a.Hub == nil || a.Hub.MusicGenerationEnabled() {
+			return "", false
+		}
+		reason := "Music generation isn't available — open the **Domain packs** sidebar and enable **Music creation**."
+		if hr, ok := a.Hub.(interface{ MusicGenerationUnavailableReason() string }); ok {
+			if r := strings.TrimSpace(hr.MusicGenerationUnavailableReason()); r != "" {
+				reason = r
+			}
+		}
+		return reason, true
+	}
+	style := MusicStyleTagsFromMessage(msg.Content)
+	if style == "" {
+		style = DefaultMusicStyleTags()
+	}
+	req := MusicGenerateRequest{
+		StyleTags:   style,
+		DurationSec: 30,
+	}
+	if musicRequestWantsVocals(msg.Content) {
+		req.Lyrics = "[Verse]\nStarting something new tonight\nFinding rhythm in the light\n\n[Chorus]\nSing it loud, sing it clear\nThis is our song right here"
+	} else {
+		req.Instrumental = true
+		req.Lyrics = "[Instrumental]"
+	}
+	if err := a.generateAndPostMusicWithProgress(ctx, msg, StreamMessageIDFromContext(ctx), req, true); err != nil {
+		return fmt.Sprintf("I couldn't generate that song: %v", err), true
+	}
+	return "Done — I've posted the generated song to the channel.", true
+}
+
 func appendMusicGenerationPrompt(system *strings.Builder) {
-	system.WriteString("MUSIC GENERATION:\n")
+	system.WriteString("MUSIC GENERATION (ACE-Step):\n")
 	system.WriteString("When the user asks you to compose, generate, or produce a song or instrumental, call generate_music with detailed style_tags and lyrics.\n")
-	system.WriteString("Draft or refine lyrics in chat first when helpful; then call the tool. After success, briefly confirm — audio is posted automatically.\n\n")
+	system.WriteString("style_tags must read like an ACE-Step caption: genre, subgenre, mood, tempo (BPM), key instruments, vocal type, production era — e.g. \"upbeat indie pop, 118 bpm, female vocal, acoustic guitar, bright drums, 2010s radio\".\n")
+	system.WriteString("For vocals, use section markers in lyrics: [Verse], [Chorus], [Bridge], [Outro]. Keep lines rhythmic (roughly 4–8 syllables per line).\n")
+	system.WriteString("For instrumentals set instrumental=true and lyrics=\"[Instrumental]\"; emphasize instrumentation and mood in style_tags.\n")
+	system.WriteString("Draft or refine lyrics in chat first when helpful; default duration_sec=30 unless the user asks longer. Offer to iterate with a new seed or revised tags.\n")
+	system.WriteString("After success, briefly confirm — audio is posted automatically.\n\n")
 }
 
 func (a *Agent) generateAndPostMusicWithProgress(
@@ -79,7 +127,7 @@ func (a *Agent) generateAndPostMusicWithProgress(
 	broadcastToolStart bool,
 ) error {
 	a.sendThinkingActivity(msg, protocol.ThinkingActivityGeneratingMusic, musicGenToolPreview(req.StyleTags))
-	defer a.sendThinkingActivity(msg, "")
+	defer a.clearThinkingActivity(msg)
 
 	if broadcastToolStart && streamMsgID != "" {
 		a.broadcastToolStep(ctx, msg, streamMsgID, ai.ToolStepEvent{
@@ -123,6 +171,7 @@ func (a *Agent) executeGenerateMusicTool(ctx context.Context, msg *protocol.Mess
 		Lyrics       string `json:"lyrics"`
 		DurationSec  int    `json:"duration_sec"`
 		Instrumental bool   `json:"instrumental"`
+		Seed         int    `json:"seed"`
 	}
 	if len(input) > 0 {
 		if err := json.Unmarshal(input, &args); err != nil {
@@ -138,6 +187,7 @@ func (a *Agent) executeGenerateMusicTool(ctx context.Context, msg *protocol.Mess
 		Lyrics:       strings.TrimSpace(args.Lyrics),
 		DurationSec:  args.DurationSec,
 		Instrumental: args.Instrumental,
+		Seed:         args.Seed,
 	}
 	if err := a.generateAndPostMusicWithProgress(ctx, msg, StreamMessageIDFromContext(ctx), req, false); err != nil {
 		return "", err

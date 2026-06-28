@@ -40,6 +40,40 @@ func TestIsTrustedAutoApplyPath(t *testing.T) {
 	}
 }
 
+func TestShouldAutoApproveFileChange_absoluteUnderWorkspace(t *testing.T) {
+	ws := "/Users/dev/proj/scenarios/fixtures/minimal-repo"
+	abs := ws + "/core/sample/main.go"
+	if !ShouldAutoApproveFileChange(abs, ws) {
+		t.Fatal("absolute path under workspace should auto-approve")
+	}
+	if ShouldAutoApproveFileChange(abs) {
+		t.Fatal("absolute path without workspace root should not auto-approve")
+	}
+}
+
+func TestShouldAutoApproveFileChange_rootMakefile(t *testing.T) {
+	ws := "/tmp/fixture"
+	if !ShouldAutoApproveFileChange("Makefile", ws) {
+		t.Fatal("root Makefile should auto-approve in implementation fixtures")
+	}
+	if !ShouldAutoApproveFileChange(ws+"/Makefile", ws) {
+		t.Fatal("absolute root Makefile should auto-approve")
+	}
+	if ShouldAutoApproveFileChange("scripts/Makefile", ws) {
+		t.Fatal("nested Makefile should stay protected")
+	}
+}
+
+func TestRelativizeFileChangePath(t *testing.T) {
+	ws := "/data/minimal-repo"
+	got := RelativizeFileChangePath(ws+"/core/sample/main.go", ws)
+	if got != "core/sample/main.go" {
+		t.Fatalf("got %q", got)
+	}
+	if RelativizeFileChangePath("/outside/other.go", ws) != "" {
+		t.Fatal("path outside workspace should not relativize")
+	}
+}
 func TestValidateConfigJSONContent_rejectsNull(t *testing.T) {
 	if err := validateConfigJSONContent("tauri.conf.json", "null"); err == nil {
 		t.Fatal("expected error for null literal")

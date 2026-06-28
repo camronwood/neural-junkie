@@ -131,6 +131,7 @@ export interface ACEStepStatus {
   venv_ready: boolean;
   project_ready: boolean;
   checkpoint_ready: boolean;
+  model_variant?: string;
   python_version?: string;
   last_error?: string;
   paths: ACEStepPaths;
@@ -140,6 +141,18 @@ export interface InstallACEStepResponse {
   status: string;
   pack_id: string;
   acestep: ACEStepStatus;
+}
+
+export interface ImageGenStatus {
+  ready: boolean;
+  provider: string;
+  model: string;
+  endpoint?: string;
+  disabled: boolean;
+  ollama_running: boolean;
+  model_pulled: boolean;
+  openai_key_set: boolean;
+  pull_command?: string;
 }
 
 export interface PackUpdateInfo {
@@ -2823,11 +2836,39 @@ export class ChatAPI {
     return response.json();
   }
 
-  async installACEStep(packId = 'music-creation'): Promise<InstallACEStepResponse> {
+  async installACEStep(
+    packId = 'music-creation',
+    modelVariant?: string,
+  ): Promise<InstallACEStepResponse> {
     const response = await this.hubFetch(
       `/api/packs/${encodeURIComponent(packId)}/install-acestep`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_variant: modelVariant ?? 'sft' }),
+      },
+    );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async restartMusicSidecar(packId = 'music-creation'): Promise<{ status: string; acestep: ACEStepStatus }> {
+    const response = await this.hubFetch(
+      `/api/packs/${encodeURIComponent(packId)}/restart-sidecar`,
       { method: 'POST' },
     );
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async fetchImageGenStatus(): Promise<ImageGenStatus> {
+    const response = await this.hubFetch('/api/image-gen/status');
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

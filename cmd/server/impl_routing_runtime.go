@@ -32,16 +32,22 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 	if msg != nil {
 		taskText = msg.Content
 	}
+	hints := agent.ImplementationRoutingHintsFromContext(ctx)
 	selID, toolModel, reason := implrouting.SelectProviderID(implrouting.Input{
 		RoutingEnabled:                cfg.RoutingEnabled,
 		ModelCapabilityRoutingEnabled: appConfig.Routing.ModelCapabilityRoutingEnabled && capabilityProfilesLoaded(),
 		LocalProviderID:               cfg.LocalProviderID,
 		LocalToolModel:                cfg.LocalToolModelOrDefault(),
+		ReliableToolModel:             cfg.ReliableToolModelOrDefault(),
+		ReliableProviderID:            cfg.ReliableProviderID,
 		FallbackProviderIDs:           cfg.FallbackProviderIDs,
 		Providers:                     appConfig.ListProvidersSnapshot(),
 		DefaultProviderID:             defaultID,
 		TaskText:                      taskText,
 		AgentType:                     string(info.Type),
+		RepairAttempts:                hints.RepairAttempts,
+		VerifyFailed:                  hints.VerifyFailed,
+		BootFixIntent:                 hints.BootFixIntent,
 		InstalledOllamaTags:           collectInstalledOllamaTags(ctx),
 		OllamaTagToolFilter:           ollamaToolCapableTagFilter(ctx),
 	})
@@ -49,8 +55,13 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		RoutingEnabled:                cfg.RoutingEnabled,
 		ModelCapabilityRoutingEnabled: appConfig.Routing.ModelCapabilityRoutingEnabled && capabilityProfilesLoaded(),
 		LocalToolModel:                cfg.LocalToolModelOrDefault(),
+		ReliableToolModel:             cfg.ReliableToolModelOrDefault(),
+		ReliableProviderID:            cfg.ReliableProviderID,
 		TaskText:                      taskText,
 		AgentType:                     string(info.Type),
+		RepairAttempts:                hints.RepairAttempts,
+		VerifyFailed:                  hints.VerifyFailed,
+		BootFixIntent:                 hints.BootFixIntent,
 		InstalledOllamaTags:           collectInstalledOllamaTags(ctx),
 		OllamaTagToolFilter:           ollamaToolCapableTagFilter(ctx),
 	})

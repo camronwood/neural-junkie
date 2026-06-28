@@ -1350,6 +1350,18 @@ func (cm *CollaborationManager) PlanningSpeakerCooldownBlocked(collabID, agentID
 	return false
 }
 
+// ParticipantTurnCount returns discussion messages the agent sent in the current round.
+func (cm *CollaborationManager) ParticipantTurnCount(collabID, agentID string) int {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil || c.Discussion == nil || c.Discussion.TurnsThisRound == nil {
+		return 0
+	}
+	return c.Discussion.TurnsThisRound[agentID]
+}
+
 // GetCollaborationForAgent returns the active collaboration a given agent
 // is participating in (if any). Returns nil if the agent has no active collab.
 func (cm *CollaborationManager) GetCollaborationForAgent(agentID string) *Collaboration {

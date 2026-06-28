@@ -1,5 +1,5 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
-import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel } from '../types/protocol';
+import type { Message, AgentInfo, ThinkingAgent, AgentType, ThreadMetadata, CachedAgentInfo, Channel, TurnTelemetryEvent } from '../types/protocol';
 import {
   channelTimelineAllowsEmptyContent,
   getReasoningText,
@@ -70,6 +70,9 @@ export interface ChatState {
 
   /** User Stop / interject — agents paused until next human message. */
   channelHeld: Map<string, boolean>;
+
+  /** Per-channel ring buffer of live turn telemetry (routing, tools, activity). */
+  turnTelemetryByChannel: Map<string, TurnTelemetryEvent[]>;
   
   // Actions
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -104,6 +107,8 @@ export interface ChatState {
   removeThinkingAgent: (channelName: string, agentId: string) => void;
   clearThinkingAgents: (channelName?: string) => void;
   cleanupStaleThinking: (channelName: string, messages: Message[]) => void;
+  appendTurnTelemetryEvent: (channelName: string, event: Omit<TurnTelemetryEvent, 'id' | 'at' | 'channel'>) => void;
+  clearTurnTelemetry: (channelName?: string) => void;
   updateAgentStatus: (agentId: string, updates: Partial<AgentInfo>) => void;
   
   // Channel actions
@@ -200,6 +205,7 @@ const initialState = {
   loadingAgents: new Set<string>(),
   streamingMessages: {} as Record<string, Message>,
   channelHeld: new Map<string, boolean>(),
+  turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>(),
 };
 
 export const useChatStore = create<ChatState>((set, get) => {
@@ -374,6 +380,7 @@ export const useChatStore = create<ChatState>((set, get) => {
         activity,
         activityDetail,
         toolSteps: prev?.toolSteps,
+        startedAt: prev?.startedAt ?? Date.now(),
       });
       outer.set(channelName, inner);
       return { channelThinkingAgents: outer };
@@ -432,6 +439,32 @@ export const useChatStore = create<ChatState>((set, get) => {
         return { channelThinkingAgents: outer };
       }
       return { channelThinkingAgents: new Map<string, Map<string, ThinkingAgent>>() };
+    }),
+
+  appendTurnTelemetryEvent: (channelName, event) =>
+    set((state) => {
+      const prev = state.turnTelemetryByChannel.get(channelName) ?? [];
+      const row: TurnTelemetryEvent = {
+        ...event,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        at: Date.now(),
+        channel: channelName,
+      };
+      const next = [...prev, row].slice(-100);
+      const outer = new Map(state.turnTelemetryByChannel);
+      outer.set(channelName, next);
+      return { turnTelemetryByChannel: outer };
+    }),
+
+  clearTurnTelemetry: (channelName) =>
+    set((state) => {
+      if (!channelName) {
+        return { turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>() };
+      }
+      if (!state.turnTelemetryByChannel.has(channelName)) return state;
+      const outer = new Map(state.turnTelemetryByChannel);
+      outer.delete(channelName);
+      return { turnTelemetryByChannel: outer };
     }),
 
   cleanupStaleThinking: (channelName, messages) =>
@@ -851,6 +884,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       highlightMessageId: null,
       streamingMessages: {},
       channelHeld: new Map<string, boolean>(),
+      turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>(),
     });
   },
   
@@ -868,6 +902,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     highlightMessageId: null,
     streamingMessages: {},
     channelHeld: new Map<string, boolean>(),
+    turnTelemetryByChannel: new Map<string, TurnTelemetryEvent[]>(),
   });
   },
 };

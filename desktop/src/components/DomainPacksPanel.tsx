@@ -6,6 +6,7 @@ import { PackStoreBrowse } from './pack-store/PackStoreBrowse';
 import { PackUpdatesBanner } from './PackUpdatesBanner';
 import { PackDevStudio } from './pack-store/dev/PackDevStudio';
 import { MusicCreationToolsPanel } from './MusicCreationToolsPanel';
+import { ImageGenerationToolsPanel } from './ImageGenerationToolsPanel';
 import { mergeSettingsPut } from './settings/settingsShared';
 
 export type DomainPacksSection = 'store' | 'tools' | 'develop';
@@ -30,8 +31,11 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
       s.hasCapability(PACK_CAP.SECONDARY_ANALYSIS_PYTHON),
   );
   const cadPackTools = usePacksStore((s) => s.hasCapability(PACK_CAP.CAD_API));
-  const musicPackTools = usePacksStore((s) =>
-    s.packs.some((p) => p.id === 'music-creation' && p.installed && p.enabled),
+  const musicPackInstalled = usePacksStore((s) =>
+    s.packs.some((p) => p.id === 'music-creation' && p.installed),
+  );
+  const musicPackEnabled = usePacksStore((s) =>
+    s.packs.some((p) => p.id === 'music-creation' && p.enabled),
   );
   const [packsErr, setPacksErr] = useState<string | null>(null);
   const [mcpEnabled, setMcpEnabled] = useState(true);
@@ -475,9 +479,22 @@ export function DomainPacksPanel({ hubHttp, isActive, section }: DomainPacksPane
         </div>
       )}
 
-      {musicPackTools && (
-        <MusicCreationToolsPanel hubHttp={hubHttp} isActive={isActive && section === 'tools'} />
+      {musicPackInstalled && (
+        <>
+          {!musicPackEnabled && (
+            <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Music creation is installed but disabled. Enable it from the Store tab to generate songs.
+            </p>
+          )}
+          <MusicCreationToolsPanel
+            hubHttp={hubHttp}
+            isActive={isActive && section === 'tools' && musicPackEnabled}
+            packEnabled={musicPackEnabled}
+          />
+        </>
       )}
+
+      <ImageGenerationToolsPanel hubHttp={hubHttp} isActive={isActive && section === 'tools'} />
     </div>
   );
 }

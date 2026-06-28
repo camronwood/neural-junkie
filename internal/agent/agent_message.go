@@ -161,6 +161,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			}
 		}
 		a.RecordRoutingFromProvider(eff, reason, source)
+		a.broadcastRoutingTelemetry(msg)
 	}
 
 	var implSessionProposed bool
@@ -168,8 +169,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	var implSessionOutcome map[string]interface{}
 	if resp, ok := a.tryImplementationStatusCheckShortcut(msg); ok {
 		response = resp
-	} else if resp, ok := a.tryBootFixImplementerRedirect(msg); ok {
+	} else if resp, redirectOutcome, ok := a.tryBootFixImplementerRedirect(msg); ok {
 		response = resp
+		implSessionOutcome = redirectOutcome
 	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		if implementationBestOfK(msg) > 1 {
@@ -281,11 +283,11 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		}
 		responseMsg.Metadata["delegation_consulted"] = consulted
 	}
-	if shouldRunImplementationSession(a, msg) {
+	if shouldRunImplementationSession(a, msg) && (implSessionProposed || implSessionOutcome != nil) {
 		if responseMsg.Metadata == nil {
 			responseMsg.Metadata = make(map[string]interface{})
 		}
-		responseMsg.Metadata[protocol.IdeMetaImplementationComplete] = true
+		responseMsg.Metadata[protocol.IdeMetaImplementationComplete] = implSessionProposed || implSessionOutcome != nil
 		if len(implSessionFiles) > 0 {
 			responseMsg.Metadata[protocol.IdeMetaImplementationFiles] = implSessionFiles
 		}

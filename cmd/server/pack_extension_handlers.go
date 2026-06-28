@@ -12,12 +12,14 @@ import (
 var packSidecarMgr = sidecar.NewManager()
 
 func initMusicSidecarGenerator() {
-	music.Default = music.NewSidecarGenerator(func() string {
+	baseURL := func() string {
 		if packSidecarMgr == nil {
 			return ""
 		}
 		return packSidecarMgr.BaseURL(config.PackMusicCreation)
-	})
+	}
+	music.SidecarBaseURL = baseURL
+	music.Default = music.NewSidecarGenerator(baseURL)
 }
 
 func syncPackSidecars() {

@@ -12,12 +12,17 @@ import {
   getToolSteps,
   isSystemMessage,
   isCollaborationMessage,
+  isSlashCommandMessage,
 } from '../types/protocol';
 import { useSettingsStore } from '../stores/settingsStore';
 import { MessageContent } from './MessageContent';
 import { CommandOutput } from './CommandOutput';
 import { DesignOutput } from './DesignOutput';
 import { ToolApprovalCard } from './ToolApprovalCard';
+import {
+  ImplementationSessionOutcomeCard,
+  parseImplementationSessionOutcome,
+} from './ImplementationSessionOutcomeCard';
 import { ChatAPI } from '../api/chatAPI';
 import { useEditorStore } from '../stores/editorStore';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
@@ -105,31 +110,48 @@ function MessageReasoningBlock({
   );
 }
 
-function MessageToolStepsBlock({ steps, isStreaming }: { steps: ReturnType<typeof getToolSteps>; isStreaming?: boolean }) {
-  if (!steps.length) return null;
+function MessageToolStepsBlock({
+  steps,
+  isStreaming,
+  routingLabel,
+}: {
+  steps: ReturnType<typeof getToolSteps>;
+  isStreaming?: boolean;
+  routingLabel?: string;
+}) {
+  if (!steps.length && !routingLabel) return null;
   const last = steps[steps.length - 1];
   const imageGenActive =
     !!isStreaming && last?.name === 'generate_image' && last?.kind === 'start';
+  const musicGenActive =
+    !!isStreaming && last?.name === 'generate_music' && last?.kind === 'start';
   return (
     <details
-      open={isStreaming || imageGenActive || undefined}
+      open={isStreaming || imageGenActive || musicGenActive || undefined}
       className="mb-2 rounded border border-slack-border/70 bg-slack-bgHover/40 text-xs text-slack-textMuted"
     >
       <summary className="cursor-pointer px-3 py-2">
         {imageGenActive
           ? 'Generating image…'
-          : isStreaming && last
-            ? `Agent activity — ${formatToolStepLabel(last)}`
-            : `Agent activity (${steps.length})`}
+          : musicGenActive
+            ? 'Generating music…'
+            : isStreaming && last
+              ? `Agent activity — ${formatToolStepLabel(last)}`
+              : `Agent activity (${steps.length})`}
       </summary>
-      <ul className="px-3 pb-2 space-y-1">
-        {steps.map((step, i) => (
-          <li key={i}>
-            <span className="font-medium text-slack-text">{step.name}</span>
-            {step.preview ? `: ${step.preview}` : ''}
-          </li>
-        ))}
-      </ul>
+      {routingLabel ? (
+        <div className="px-3 pb-1 font-mono text-cyan-300/90">{routingLabel}</div>
+      ) : null}
+      {steps.length > 0 ? (
+        <ul className="px-3 pb-2 space-y-1">
+          {steps.map((step, i) => (
+            <li key={i}>
+              <span className="font-medium text-slack-text">{step.name}</span>
+              {step.preview ? `: ${step.preview}` : ''}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </details>
   );
 }
@@ -255,6 +277,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const isDesignOutput = message.type === 'design_output';
   const isToolApproval = message.type === 'tool_approval';
   const isCollab = isCollaborationMessage(message);
+  const isSlashCommand = isSlashCommandMessage(message);
   const agentColor = getAgentColor(message.from.type);
   const timestamp = new Date(message.timestamp).toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -283,6 +306,9 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
     (s) => s.layoutSettings.showCompressOnMessages === true,
   );
   const routingMeta = getRoutingMeta(message.metadata as Record<string, unknown> | undefined);
+  const implOutcome = parseImplementationSessionOutcome(
+    message.metadata as Record<string, unknown> | undefined,
+  );
   const routingBadgeLabel =
     showRoutingOnMessages && routingMeta ? formatRoutingBadgeLabel(routingMeta) : '';
   const routingTooltip =
@@ -410,6 +436,14 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
             🤝 collab
           </span>
         )}
+        {isSlashCommand && (
+          <span
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-slate-500/15 text-slate-300 font-mono"
+            title="Slash command (not sent to agents)"
+          >
+            command
+          </span>
+        )}
         {hasErrorMeta && (
           <span
             className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-500/15 text-amber-400"
@@ -466,7 +500,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
       <div
         className={`text-slack-text ${
           isSystem ? 'text-sm' : ''
-        }`}
+        } ${isSlashCommand ? 'font-mono text-sm bg-slack-bgHover/60 border border-slack-border/50 rounded px-2 py-1 inline-block' : ''}`}
       >
         {isToolApproval ? (
           <ToolApprovalCard message={message} />
@@ -486,8 +520,15 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
               channelName={channelName ?? message.channel}
             />
             <MessageReasoningBlock reasoningText={reasoningText} isStreaming={isStreaming} />
-            <MessageToolStepsBlock steps={toolSteps} isStreaming={isStreaming} />
+            <MessageToolStepsBlock
+              steps={toolSteps}
+              isStreaming={isStreaming}
+              routingLabel={routingBadgeLabel || undefined}
+            />
             <MessageContent content={slackMessageBody(message)} isStreaming={isStreaming} />
+            {implOutcome && !isStreaming && (
+              <ImplementationSessionOutcomeCard outcome={implOutcome} />
+            )}
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-0.5 bg-slack-text animate-pulse rounded-sm align-text-bottom" />
             )}

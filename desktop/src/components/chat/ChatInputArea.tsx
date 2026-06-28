@@ -2,10 +2,13 @@ import type { RefObject } from 'react';
 import type { AgentInfo, ThinkingAgent } from '../../types/protocol';
 import type { ComposerMode } from '../../constants/composerMode';
 import { TypingIndicator } from '../TypingIndicator';
+import { TurnTelemetryDrawer } from '../TurnTelemetryDrawer';
 import { ComposerModeControl } from '../ComposerModeControl';
 import { RichTextInput } from '../RichTextInput';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface ChatInputAreaProps {
+  channel: string;
   channelHeld: boolean;
   thinkingAgentsForChannel: ThinkingAgent[];
   showAgentStop: boolean;
@@ -13,7 +16,7 @@ interface ChatInputAreaProps {
   composerMode: ComposerMode;
   composerModeDisabled: boolean;
   onComposerModeChange: (mode: ComposerMode) => void;
-  onSend: (content: string, metadata?: Record<string, unknown>) => void | Promise<void>;
+  onSend: (content: string, metadata?: Record<string, unknown>) => void | Promise<void | boolean>;
   inputDisabled: boolean;
   inputPlaceholder: string;
   agents: AgentInfo[];
@@ -27,6 +30,7 @@ interface ChatInputAreaProps {
 }
 
 export function ChatInputArea({
+  channel,
   channelHeld,
   thinkingAgentsForChannel,
   showAgentStop,
@@ -46,8 +50,14 @@ export function ChatInputArea({
   contextScopeReason,
   ideRoutingLabel,
 }: ChatInputAreaProps) {
+  const showTurnTelemetryDrawer = useSettingsStore(
+    (s) => s.layoutSettings.showTurnTelemetryDrawer === true,
+  );
+
   return (
     <>
+      <TurnTelemetryDrawer channel={channel} enabled={showTurnTelemetryDrawer} />
+
       <div className="flex-shrink-0">
         <TypingIndicator
           agents={thinkingAgentsForChannel}

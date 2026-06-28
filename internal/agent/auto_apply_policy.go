@@ -73,11 +73,28 @@ func isProtectedConfigPath(path string) bool {
 }
 
 // ShouldAutoApproveFileChange gates hub auto-approve for protected config paths and non-source paths.
-func ShouldAutoApproveFileChange(path string) bool {
-	if isProtectedConfigPath(path) {
+// workspaceRoot relativizes absolute change paths before policy checks (hub passes absolute paths).
+func ShouldAutoApproveFileChange(path string, workspaceRoot ...string) bool {
+	ws := ""
+	if len(workspaceRoot) > 0 {
+		ws = workspaceRoot[0]
+	}
+	path = RelativizeFileChangePath(path, ws)
+	if path == "" {
 		return false
 	}
-	return isTrustedAutoApplyPath(path)
+	if isProtectedConfigPath(path) && !isRootMakefile(path) {
+		return false
+	}
+	return isTrustedAutoApplyPath(path) || isRootMakefile(path)
+}
+
+func isRootMakefile(path string) bool {
+	parts := strings.Split(filepath.ToSlash(strings.TrimSpace(path)), "/")
+	if len(parts) != 1 {
+		return false
+	}
+	return strings.EqualFold(parts[0], "makefile")
 }
 
 func validateConfigJSONContent(path, content string) error {

@@ -15,7 +15,7 @@ Living list of what we know is wrong, flaky, or intentionally limited. **Remove 
 | ID | Status | Summary |
 |----|--------|---------|
 | `collab-chat-not-disk` | **Limitation** | Chat markdown does **not** write to disk. Execution needs `[FILE_CHANGE]` proposals and your approval in **Pending changes**. |
-| `collab-model-variance` | **Limitation** | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. **Mitigation:** Settings → **Collaboration planning provider** (optional cloud/larger model for planning turns). |
+| `collab-model-variance` | **Limitation** | Local models (Ollama) vary in discussion quality, silence, and timeouts; hub enforces phase caps and fallbacks but cannot guarantee plan shape. **Mitigation:** Settings → **Collaboration planning provider** (optional cloud/larger model for planning turns). Implementation sessions: use **reliable tool model** / optional **reliable provider** (repair round 2+) in Settings → Implementation sessions; outcome card shows failure reason. |
 | `collab-smart-routing-scope` | **Limitation** | Smart routing applies to **execution tasks only**, not normal channel chat. Planning can use optional `planning_provider_id` in Settings (separate from smart routing). |
 
 **Workarounds:** Upgrade hub after each beta; run `make collab-preflight` before scenarios; use `make debug-collab` / discussion diagnosis in [COLLABORATION.md](COLLABORATION.md). For zero-task plans, revise plan or re-run with fewer agents.

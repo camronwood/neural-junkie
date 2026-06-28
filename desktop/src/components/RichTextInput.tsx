@@ -41,7 +41,7 @@ import { getHubBaseURL } from '../config/hubUrl';
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
 
 interface RichTextInputProps {
-  onSend: (message: string, metadata?: Record<string, unknown>) => void;
+  onSend: (message: string, metadata?: Record<string, unknown>) => void | Promise<void | boolean>;
   disabled?: boolean;
   placeholder?: string;
   agents?: AgentInfo[];
@@ -430,12 +430,14 @@ export const RichTextInput = forwardRef<HTMLTextAreaElement, RichTextInputProps>
               textOut = '(see attached files)';
             }
           }
-          await Promise.resolve(
+          const sent = await Promise.resolve(
             onSend(textOut, Object.keys(composerMeta).length > 0 ? composerMeta : undefined)
           );
-          updateMessage('');
-          setPendingAttachments([]);
-          clearPendingImages();
+          if (sent !== false) {
+            updateMessage('');
+            setPendingAttachments([]);
+            clearPendingImages();
+          }
           setShowMentionMenu(false);
         } finally {
           sendingRef.current = false;

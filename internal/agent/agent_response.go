@@ -124,6 +124,9 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	if resp, ok := a.tryHubImageGenerationShortcut(approvalCtx, msg); ok {
 		return resp, nil
 	}
+	if resp, ok := a.tryHubMusicGenerationShortcut(approvalCtx, msg); ok {
+		return resp, nil
+	}
 	if len(a.agentToolDefinitions(msg)) > 0 {
 		response, err := a.generateWithAgentTools(approvalCtx, msg, prompt, history, eff)
 		if err != nil {
@@ -287,6 +290,13 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
 	}
 	if resp, ok := a.tryHubImageGenerationShortcut(approvalCtx, msg); ok {
+		tokenCh := make(chan ai.StreamToken, 2)
+		tokenCh <- ai.StreamToken{Content: resp}
+		tokenCh <- ai.StreamToken{Done: true}
+		close(tokenCh)
+		return a.collectStreamTokens(approvalCtx, msg, streamMsgID, tokenCh)
+	}
+	if resp, ok := a.tryHubMusicGenerationShortcut(approvalCtx, msg); ok {
 		tokenCh := make(chan ai.StreamToken, 2)
 		tokenCh <- ai.StreamToken{Content: resp}
 		tokenCh <- ai.StreamToken{Done: true}

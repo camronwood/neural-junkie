@@ -17,6 +17,718 @@
   },
   "runs": [
     {
+      "id": "quick-2026-06-28-1413",
+      "suite": "quick",
+      "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
+      "generated_at": "2026-06-28T14:13:37.287569+00:00",
+      "hub": "http://127.0.0.1:18765",
+      "hardware": {
+        "total_memory_gb": 24,
+        "total_memory_bytes": 25769803776,
+        "tier": "recommended"
+      },
+      "hardware_note": "24 GB RAM (recommended tier)",
+      "judge_provider": "gemini/qwen2.5-coder:14b",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "go",
+            "verify"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "description": "Fix TypeScript compile error in src/App.tsx.",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "react",
+            "typescript"
+          ],
+          "llm_judge": false,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ],
+      "implement_scenarios": [
+        "go-handler",
+        "theme-toggle",
+        "ask-mode-no-write",
+        "go-test-failure-repair",
+        "typescript-compile-error-fix"
+      ],
+      "chat_scenarios": [
+        "dm-backend-workspace",
+        "dm-backend-echo-followup"
+      ],
+      "results": [
+        {
+          "model_id": "deepseek-coder-6.7b",
+          "model_tag": "deepseek-coder:6.7b",
+          "title": "DeepSeek Coder 6.7B",
+          "size_hint_gb": 3.8,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 435.51428041700274,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 606.7333094170317,
+              "detail": "=== FAIL: theme-toggle ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 303.86634804098867,
+              "detail": "=== FAIL: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 904.2233093749965,
+              "detail": "=== FAIL: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 8.158183166990057,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 98.71699770900887,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": false,
+              "duration_s": 120.87719008303247,
+              "detail": "=== FAIL: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.002900291932746768,
+          "total_duration_s": 2488.15273291606,
+          "passed_count": 1,
+          "total_count": 7,
+          "pass_rate": 0.1429
+        },
+        {
+          "model_id": "codegemma-7b",
+          "model_tag": "codegemma:7b",
+          "title": "CodeGemma 7B",
+          "size_hint_gb": 5,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 427.19369495799765,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 622.6267167499755,
+              "detail": "=== FAIL: theme-toggle ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 132.67752695805393,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 7.202448124997318,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 7.8942786660045385,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 114.65626287506893,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 142.82200566702522,
+              "detail": "=== PASS: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.017997666029259562,
+          "total_duration_s": 1483.1665739580058,
+          "passed_count": 4,
+          "total_count": 7,
+          "pass_rate": 0.5714
+        },
+        {
+          "model_id": "qwen3.5-9b",
+          "model_tag": "qwen3.5:9b",
+          "title": "Qwen 3.5 9B",
+          "size_hint_gb": 6.6,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.1904731669929,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 606.6988177921157,
+              "detail": "=== FAIL: theme-toggle ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 87.38500875001773,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 5.172460291069001,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 7.8258795000147074,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 108.65306062507443,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 157.913684249972,
+              "detail": "=== PASS: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.007109666941687465,
+          "total_duration_s": 1407.8897733340273,
+          "passed_count": 4,
+          "total_count": 7,
+          "pass_rate": 0.5714
+        },
+        {
+          "model_id": "gemma3-12b",
+          "model_tag": "gemma3:12b",
+          "title": "Gemma 3 12B",
+          "size_hint_gb": 8.1,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 115.49015908304136,
+              "detail": "=== PASS: go-handler ===",
+              "judge_passed": true,
+              "judge_reason": "Gemini@http://127.0.0.1:18765: Line 2: The deliverable file contains the correct implementation of the HelloWorld function in the specified location and is properly called from the main function.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 332.52969724999275,
+              "detail": "=== PASS: theme-toggle ===",
+              "judge_passed": true,
+              "judge_reason": "cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css file with light and dark variables as requested.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 121.47520883299876,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 5.1769847080577165,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 5.914388915989548,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 103.6201807919424,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": false,
+              "duration_s": 120.67548566590995,
+              "detail": "=== FAIL: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.014893542043864727,
+          "total_duration_s": 814.9437387089711,
+          "passed_count": 5,
+          "total_count": 7,
+          "pass_rate": 0.7143
+        },
+        {
+          "model_id": "qwen2.5-coder-14b",
+          "model_tag": "qwen2.5-coder:14b",
+          "title": "Qwen 2.5 Coder 14B",
+          "size_hint_gb": 9,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 408.0855009170482,
+              "detail": "=== PASS: go-handler ===",
+              "judge_passed": true,
+              "judge_reason": "Gemini@http://127.0.0.1:18765: File content correctly implemented.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 115.50173808296677,
+              "detail": "=== PASS: theme-toggle ===",
+              "judge_passed": true,
+              "judge_reason": "Gemini@http://127.0.0.1:18765: File content is as per requirement. It defines light and dark themes using CSS variables and applies those variables in styles.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 89.47001079202164,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 5.23817766609136,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 5.969983458984643,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 118.87920591700822,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": false,
+              "duration_s": 120.70281579194125,
+              "detail": "=== FAIL: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.00842291594017297,
+          "total_duration_s": 873.9005207499722,
+          "passed_count": 5,
+          "total_count": 7,
+          "pass_rate": 0.7143
+        },
+        {
+          "model_id": "codestral-22b",
+          "model_tag": "codestral:22b",
+          "title": "Codestral 22B",
+          "size_hint_gb": 13,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 402.1007738750195,
+              "detail": "=== PASS: go-handler ===",
+              "judge_passed": true,
+              "judge_reason": "Gemini@http://127.0.0.1:18765: Reason: The function `HelloWorld` and `main` are correctly implemented as per the user's request. It correctly prints \"Hello, World!\" to the console when invoked.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 279.8690194590017,
+              "detail": "=== FAIL: theme-toggle ===",
+              "judge_passed": false,
+              "judge_reason": "Gemini@http://127.0.0.1:18765: File does not follow the requested structure and doesn't contain the required CSS variables.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 25.21784291707445,
+              "detail": "=== PASS: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 903.6396025830181,
+              "detail": "=== FAIL: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 8.009122457937337,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 119.69941820797976,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": false,
+              "duration_s": 120.66243854095228,
+              "detail": "=== FAIL: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.01101387501694262,
+          "total_duration_s": 1869.254744832986,
+          "passed_count": 3,
+          "total_count": 7,
+          "pass_rate": 0.4286
+        },
+        {
+          "model_id": "devstral-24b",
+          "model_tag": "devstral:24b",
+          "title": "Devstral 24B",
+          "size_hint_gb": 14,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 546.6929360420909,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "theme-toggle",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 99.45438449992798,
+              "detail": "=== PASS: theme-toggle ===",
+              "judge_passed": true,
+              "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable correctly implements light and dark theme variables in `src/theme.css`.",
+              "uses_llm_judge": true
+            },
+            {
+              "name": "ask-mode-no-write",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 305.8644863340305,
+              "detail": "=== FAIL: ask-mode-no-write ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "go-test-failure-repair",
+              "kind": "implement",
+              "passed": true,
+              "duration_s": 7.221619249903597,
+              "detail": "=== PASS: go-test-failure-repair ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "typescript-compile-error-fix",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 7.779762374935672,
+              "detail": "=== FAIL: typescript-compile-error-fix ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-workspace",
+              "kind": "chat",
+              "passed": true,
+              "duration_s": 117.69712395896204,
+              "detail": "=== PASS: dm-backend-workspace ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            },
+            {
+              "name": "dm-backend-echo-followup",
+              "kind": "chat",
+              "passed": false,
+              "duration_s": 216.1788763749646,
+              "detail": "=== FAIL: dm-backend-echo-followup ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": false
+            }
+          ],
+          "switch_duration_s": 0.013253415934741497,
+          "total_duration_s": 1310.937716250075,
+          "passed_count": 3,
+          "total_count": 7,
+          "pass_rate": 0.4286
+        }
+      ],
+      "source_file": "testing/model-benchmark-quick-2026-06-28-1413.json"
+    },
+    {
       "id": "quick-2026-06-27-1125",
       "suite": "quick",
       "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
@@ -4407,7 +5119,7 @@
       "judge_provider": "gemini"
     }
   ],
-  "updated_at": "2026-06-27T11:25:45.951619+00:00",
+  "updated_at": "2026-06-28T14:13:37.381237+00:00",
   "scenario_index": {
     "implement/app-wont-boot-fix-like": {
       "name": "app-wont-boot-fix-like",
@@ -4485,7 +5197,7 @@
     "implement/go-build-error-fix": {
       "name": "go-build-error-fix",
       "kind": "implement",
-      "description": "Fix-like flow: Go compile error fixed via repro-first session.",
+      "description": "Fix-like flow: Go test failure fixed via repro-first session (Multiply bug in math.go).",
       "tags": [
         "implement",
         "fix-like",

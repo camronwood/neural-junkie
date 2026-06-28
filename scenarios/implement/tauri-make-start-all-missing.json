@@ -39,6 +39,13 @@
       "last_reply_only": true,
       "any_match": ["implementation session|start-all|Makefile"],
       "none_match": ["finished without file changes"]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "match": {
+        "implementation_session_outcome.playbook_used": "missing_start_all_target"
+      }
     }
   ],
   "cleanup": "clear"

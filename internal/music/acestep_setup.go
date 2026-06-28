@@ -43,6 +43,7 @@ type ACEStepStatus struct {
 	VenvReady       bool   `json:"venv_ready"`
 	ProjectReady    bool   `json:"project_ready"`
 	CheckpointReady bool   `json:"checkpoint_ready"`
+	ModelVariant    string `json:"model_variant,omitempty"`
 	PythonVersion   string `json:"python_version,omitempty"`
 	LastError       string `json:"last_error,omitempty"`
 	Paths           ACEStepPaths `json:"paths"`
@@ -126,6 +127,10 @@ func ACEStepStatusFromSettings(settings map[string]string, packDir string) ACESt
 	st.VenvReady = fileExists(filepath.Join(paths.Venv, "bin", "python"))
 	st.ProjectReady = dirExists(paths.Project)
 	st.CheckpointReady = dirExists(paths.Checkpoint)
+	st.ModelVariant = ResolveVariantFromCheckpoint(paths.Checkpoint)
+	if v := strings.TrimSpace(settings["ace_step_model_variant"]); v != "" {
+		st.ModelVariant = NormalizeModelVariant(v)
+	}
 	if st.VenvReady {
 		st.PythonOK = true
 		st.PythonVersion = pythonVersion(filepath.Join(paths.Venv, "bin", "python"))
@@ -137,7 +142,7 @@ func ACEStepStatusFromSettings(settings map[string]string, packDir string) ACESt
 }
 
 // InstallACEStep runs the pack setup script (clone, venv, weights download).
-func InstallACEStep(ctx context.Context, packDir string) error {
+func InstallACEStep(ctx context.Context, packDir, modelVariant string) error {
 	if packDir == "" {
 		return fmt.Errorf("music pack not installed")
 	}
@@ -145,6 +150,7 @@ func InstallACEStep(ctx context.Context, packDir string) error {
 	if !fileExists(script) {
 		return fmt.Errorf("setup script missing: %s", script)
 	}
+	modelVariant = NormalizeModelVariant(modelVariant)
 
 	installMu.Lock()
 	defer installMu.Unlock()
@@ -157,7 +163,10 @@ func InstallACEStep(ctx context.Context, packDir string) error {
 
 	cmd := exec.CommandContext(ctx, "bash", script)
 	cmd.Dir = packDir
-	cmd.Env = append(os.Environ(), "NJ_MUSIC_ROOT="+DefaultACEStepPaths().MusicRoot)
+	cmd.Env = append(os.Environ(),
+		"NJ_MUSIC_ROOT="+DefaultACEStepPaths().MusicRoot,
+		"NJ_MUSIC_MODEL="+modelVariant,
+	)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Stdout = os.Stdout

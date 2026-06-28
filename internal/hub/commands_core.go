@@ -87,9 +87,7 @@ func (ch *CommandHandler) TakeDMRedirect() (channelName string, ok bool) {
 	return channelName, true
 }
 
-// ProcessCommand processes a command from a message
-
-// ProcessCommand processes a command from a message
+// ProcessCommand processes a command from a message.
 func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Message) (*protocol.Message, error) {
 	content := strings.TrimSpace(msg.Content)
 

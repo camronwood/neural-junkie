@@ -421,6 +421,7 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 	}
 	if st := implementationSessionStateFromContext(ctx); st != nil {
 		st.ProposedCount++
+		st.DeterministicFallbackUsed = true
 	}
 	log.Printf("[%s] deterministic_impl_fallback(paths=%v)", a.Info.Name, paths)
 	return true, paths

@@ -57,7 +57,9 @@ Implementation session replies include `implementation_session_outcome` metadata
 Settings → **AI Providers → Implementation sessions**
 
 - **Local Ollama first** (`implementation.routing_enabled`) — default tool-loop model: `qwen3.5:9b` (`ollama pull qwen3.5:9b`)
-- **`implementation.fallback_provider_ids`** — used only when the configured **local Ollama provider is missing or unavailable**, not when a local model returns weak output. There is no automatic cloud escalation on implementation failure.
+- **`implementation.reliable_tool_model`** — heavier local tag used on repair round 1+ (default `qwen2.5-coder:14b`)
+- **`implementation.reliable_provider_id`** — optional cloud provider used **only on repair round 2+** when configured; local-first otherwise
+- **`implementation.fallback_provider_ids`** — used only when the configured **local Ollama provider is missing or unavailable**, not when a local model returns weak output. There is no automatic cloud escalation on implementation failure unless `reliable_provider_id` is set and repair round ≥ 2.
 - **Cloud-grade work** — use an explicit CLI agent (e.g. `@Cursor` in chat) when you choose; see [CLI_AGENTS.md](CLI_AGENTS.md).
 
 Restart the hub after changing implementation routing or agent code (`make server-regression`, not `make start-all` for scenario sweeps).
@@ -74,7 +76,7 @@ make implement-scenarios
 make test-parity-stable   # 3× sweeps, 20/20 per run
 ```
 
-Requires live hub + configured agents. **20 scenarios** under `scenarios/implement/*.json` (including Fix Loop: `app-wont-boot-fix-like`, `go-build-error-fix`).
+Requires live hub + configured agents. **20 scenarios** under `scenarios/implement/*.json` (including Fix Loop: `app-wont-boot-fix-like`, `go-build-error-fix`). `make implement-scenarios` preflights required agents when `--all` is used.
 
 ## Related
 

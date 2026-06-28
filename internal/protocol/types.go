@@ -107,6 +107,15 @@ const (
 // MetadataThinkingActivityDetail is a short human-readable line for the typing indicator.
 const MetadataThinkingActivityDetail = "thinking_activity_detail"
 
+// MetadataSlashCommand marks a persisted human slash-command line in channel history.
+const MetadataSlashCommand = "slash_command"
+
+// Telemetry metadata on agent_status broadcasts (turn debug drawer).
+const (
+	MetadataTelemetryKind    = "telemetry_kind"
+	MetadataTelemetryPayload = "telemetry_payload"
+)
+
 // Channel control metadata keys (agent_status broadcasts).
 const (
 	MetadataChannelHold           = "channel_hold"

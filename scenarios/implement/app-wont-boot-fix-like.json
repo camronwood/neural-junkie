@@ -39,6 +39,11 @@
       "last_reply_only": true,
       "any_match": ["session complete|start-all|Makefile|repro"],
       "none_match": ["finished without file changes"]
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "FrontendEngineer",
+      "require_keys": ["implementation_session_outcome"]
     }
   ],
   "cleanup": "clear"

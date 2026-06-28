@@ -46,6 +46,7 @@ func (a *Agent) broadcastToolStep(ctx context.Context, msg *protocol.Message, st
 	a.Hub.BroadcastDirect(msg.Channel, delta)
 	if ev.Kind == "start" || ev.Kind == "result" || ev.Kind == "error" || ev.Kind == "done" {
 		a.sendThinkingActivity(msg, protocol.ThinkingActivityUsingTool, toolActivityDetail(ev))
+		a.sendToolTelemetryEvent(msg, ev)
 	}
 }
 

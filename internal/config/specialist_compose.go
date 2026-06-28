@@ -48,6 +48,15 @@ func (c *Config) ChatModelForAgent(agentType string, agentModel string) string {
 		if c.IsPackEnabled(PackCAD) {
 			return c.CadMCPSettings().ChatModelOrDefault()
 		}
+	case "music":
+		if c.IsPackEnabled(PackMusicCreation) {
+			if entry, ok := c.SpecialistCompose[agentType]; ok {
+				if m := strings.TrimSpace(entry.ChatModel); m != "" {
+					return m
+				}
+			}
+			return "qwen2.5:7b"
+		}
 	}
 	return ""
 }

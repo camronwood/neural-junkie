@@ -1,112 +1,154 @@
 {
-  "updated_at": "2026-06-27T11:25:45.952539+00:00",
-  "source_run_id": "quick-2026-06-27-1125",
+  "updated_at": "2026-06-28T14:13:37.382506+00:00",
+  "source_run_id": "quick-2026-06-28-1413",
   "source_suite": "quick",
   "task_classes": {
     "implement": [
-      "deepseek-coder:6.7b",
-      "codegemma:7b",
-      "qwen3.5:9b",
       "gemma3:12b",
       "qwen2.5-coder:14b",
+      "devstral:24b",
+      "qwen3.5:9b",
+      "codegemma:7b",
       "codestral:22b",
-      "devstral:24b"
+      "deepseek-coder:6.7b"
     ],
     "chat": [
-      "deepseek-coder:6.7b",
-      "codegemma:7b",
       "qwen3.5:9b",
+      "codegemma:7b",
       "gemma3:12b",
       "qwen2.5-coder:14b",
+      "devstral:24b",
       "codestral:22b",
-      "devstral:24b"
+      "deepseek-coder:6.7b"
     ],
     "collab_light": [
-      "deepseek-coder:6.7b",
+      "qwen3.5:9b",
       "codegemma:7b",
-      "qwen3.5:9b"
+      "deepseek-coder:6.7b"
     ],
     "utility": [
-      "deepseek-coder:6.7b",
+      "qwen3.5:9b",
       "codegemma:7b",
-      "qwen3.5:9b"
+      "deepseek-coder:6.7b"
     ],
     "ask_mode": [
-      "deepseek-coder:6.7b",
-      "codegemma:7b",
-      "qwen3.5:9b",
       "gemma3:12b",
       "qwen2.5-coder:14b",
+      "qwen3.5:9b",
+      "codegemma:7b",
       "codestral:22b",
-      "devstral:24b"
+      "devstral:24b",
+      "deepseek-coder:6.7b"
     ],
     "implement_heavy": [
-      "codestral:22b",
-      "devstral:24b"
+      "devstral:24b",
+      "codestral:22b"
     ]
   },
   "model_scores": {
     "deepseek-coder:6.7b": {
       "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "chat_pass_rate": 0.5,
+      "overall_pass_rate": 0.1429,
       "params_b": 6.7,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": false,
+        "implement/theme-toggle": false,
+        "implement/ask-mode-no-write": false,
+        "implement/go-test-failure-repair": false,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": false
       }
     },
     "codegemma:7b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "implement_pass_rate": 0.4,
+      "chat_pass_rate": 1.0,
+      "overall_pass_rate": 0.5714,
       "params_b": 7.0,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": false,
+        "implement/theme-toggle": false,
+        "implement/ask-mode-no-write": true,
+        "implement/go-test-failure-repair": true,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": true
       }
     },
     "qwen3.5:9b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "implement_pass_rate": 0.4,
+      "chat_pass_rate": 1.0,
+      "overall_pass_rate": 0.5714,
       "params_b": 9.0,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": false,
+        "implement/theme-toggle": false,
+        "implement/ask-mode-no-write": true,
+        "implement/go-test-failure-repair": true,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": true
       }
     },
     "gemma3:12b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "implement_pass_rate": 0.8,
+      "chat_pass_rate": 0.5,
+      "overall_pass_rate": 0.7143,
       "params_b": 12.0,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": true,
+        "implement/theme-toggle": true,
+        "implement/ask-mode-no-write": true,
+        "implement/go-test-failure-repair": true,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": false
       }
     },
     "qwen2.5-coder:14b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "implement_pass_rate": 0.8,
+      "chat_pass_rate": 0.5,
+      "overall_pass_rate": 0.7143,
       "params_b": 14.0,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": true,
+        "implement/theme-toggle": true,
+        "implement/ask-mode-no-write": true,
+        "implement/go-test-failure-repair": true,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": false
       }
     },
     "codestral:22b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "implement_pass_rate": 0.4,
+      "chat_pass_rate": 0.5,
+      "overall_pass_rate": 0.4286,
       "params_b": 22.0,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": true,
+        "implement/theme-toggle": false,
+        "implement/ask-mode-no-write": true,
+        "implement/go-test-failure-repair": false,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": false
       }
     },
     "devstral:24b": {
-      "implement_pass_rate": 0.0,
-      "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.0,
+      "implement_pass_rate": 0.4,
+      "chat_pass_rate": 0.5,
+      "overall_pass_rate": 0.4286,
       "params_b": 24.0,
       "scenarios": {
-        "implement/go-handler": false
+        "implement/go-handler": false,
+        "implement/theme-toggle": true,
+        "implement/ask-mode-no-write": false,
+        "implement/go-test-failure-repair": true,
+        "implement/typescript-compile-error-fix": false,
+        "chat/dm-backend-workspace": true,
+        "chat/dm-backend-echo-followup": false
       }
     }
   }

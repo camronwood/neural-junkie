@@ -60,6 +60,7 @@ func (shouldRespondTestCollab) RecordMessage(string, *protocol.Message) error   
 func (shouldRespondTestCollab) AnalyzeConsensus(string, *protocol.Message) string { return "" }
 func (shouldRespondTestCollab) AgentOutOfTurnMentionAllowed(string) bool           { return true }
 func (shouldRespondTestCollab) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (shouldRespondTestCollab) ParticipantTurnCount(string, string) int { return 0 }
 
 type dmSlugHubStub struct{ shouldRespondTestHub }
 
@@ -108,6 +109,7 @@ func (collabSystemTurnStub) AnalyzeConsensus(string, *protocol.Message) string {
 }
 func (collabSystemTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 func (collabSystemTurnStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (collabSystemTurnStub) ParticipantTurnCount(string, string) int { return 0 }
 
 func TestShouldRespond_CollabInternalHandoffWakesMentionedAgent(t *testing.T) {
 	const agentID = "gemini-cli-id"
@@ -280,6 +282,7 @@ func (collabTaskAssigneeStub) AnalyzeConsensus(string, *protocol.Message) string
 }
 func (collabTaskAssigneeStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 func (collabTaskAssigneeStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (collabTaskAssigneeStub) ParticipantTurnCount(string, string) int { return 0 }
 
 type collabMultiActiveStub struct {
 	agentID string
@@ -314,6 +317,7 @@ func (collabMultiActiveStub) AnalyzeConsensus(string, *protocol.Message) string 
 }
 func (collabMultiActiveStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 func (collabMultiActiveStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (collabMultiActiveStub) ParticipantTurnCount(string, string) int { return 0 }
 
 type collabPlanningTurnStub struct{}
 
@@ -336,6 +340,7 @@ func (collabPlanningTurnStub) AnalyzeConsensus(string, *protocol.Message) string
 }
 func (collabPlanningTurnStub) AgentOutOfTurnMentionAllowed(string) bool { return true }
 func (collabPlanningTurnStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (collabPlanningTurnStub) ParticipantTurnCount(string, string) int { return 0 }
 
 func TestShouldRespond_PlanningCollabIgnoresOtherExecutingCollab(t *testing.T) {
 	const agentID = "agent-multi"
@@ -410,6 +415,7 @@ func (collabExhaustedMentionStub) AnalyzeConsensus(string, *protocol.Message) st
 }
 func (collabExhaustedMentionStub) AgentOutOfTurnMentionAllowed(string) bool { return false }
 func (collabExhaustedMentionStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (collabExhaustedMentionStub) ParticipantTurnCount(string, string) int { return 0 }
 
 func TestShouldRespond_CollaborationMentionIgnoredWhenDiscussionExhausted(t *testing.T) {
 	const agentID = "agent-xyz"

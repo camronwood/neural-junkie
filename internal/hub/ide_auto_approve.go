@@ -46,7 +46,7 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 		operation != filechange.FileOperationDelete {
 		return
 	}
-	if !agent.ShouldAutoApproveFileChange(change.FilePath) {
+	if !agent.ShouldAutoApproveFileChange(change.FilePath, wsRoot) {
 		log.Printf("[IDE] Skipping auto-approve for path: %s", change.FilePath)
 		return
 	}

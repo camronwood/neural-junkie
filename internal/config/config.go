@@ -67,10 +67,12 @@ type UpdateConfig struct {
 }
 
 type ImplementationConfig struct {
-	RoutingEnabled      bool     `json:"routing_enabled"`
-	LocalProviderID     string   `json:"local_provider_id,omitempty"`
-	LocalToolModel      string   `json:"local_tool_model,omitempty"`
-	FallbackProviderIDs []string `json:"fallback_provider_ids,omitempty"`
+	RoutingEnabled       bool     `json:"routing_enabled"`
+	LocalProviderID      string   `json:"local_provider_id,omitempty"`
+	LocalToolModel       string   `json:"local_tool_model,omitempty"`
+	ReliableToolModel    string   `json:"reliable_tool_model,omitempty"`
+	ReliableProviderID   string   `json:"reliable_provider_id,omitempty"`
+	FallbackProviderIDs  []string `json:"fallback_provider_ids,omitempty"`
 }
 
 // LocalToolModel returns the configured implementation tool-loop model or default.
@@ -79,6 +81,14 @@ func (c ImplementationConfig) LocalToolModelOrDefault() string {
 		return m
 	}
 	return "qwen3.5:9b"
+}
+
+// ReliableToolModelOrDefault returns the heavier local tool model for repair/boot-fix tiers.
+func (c ImplementationConfig) ReliableToolModelOrDefault() string {
+	if m := strings.TrimSpace(c.ReliableToolModel); m != "" {
+		return m
+	}
+	return "qwen2.5-coder:14b"
 }
 
 type CollaborationConfig struct {

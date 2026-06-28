@@ -87,6 +87,7 @@ type ImplementationSessionState struct {
 	PrematureStopAttempts      int
 	ToolStepCount              int
 	DialogueSummary            string
+	DeterministicFallbackUsed  bool
 }
 
 func withImplementationSessionState(ctx context.Context, s *ImplementationSessionState) context.Context {
@@ -299,6 +300,11 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
 	sessionCtx = shared.ContextWithImplementationSession(sessionCtx, true)
 	sessionCtx = attachImplSessionCommandPolicy(sessionCtx, state)
+	sessionCtx = ContextWithImplementationRoutingHints(sessionCtx, ImplementationRoutingHints{
+		RepairAttempts: state.RepairAttempts,
+		VerifyFailed:   state.VerifyFailed,
+		BootFixIntent:  state.BootFixIntent,
+	})
 	restoreImplSessionFromCheckpoint(msg, state)
 
 	if question, ask := maybeAskFixClarification(msg, state, wsPath); ask {
@@ -571,6 +577,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 
 	if cycleProposed {
+		a.maybeSendImplementationEarlyReply(msg, state)
 		state.Phase = "verify"
 		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 		state.VerifyOutput = verifyOut
@@ -578,21 +585,36 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		state.VerifySkipped = verifySkipped
 
 		if verifyFailed {
-			if state.FixLikeIntent {
+			if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
+				log.Printf("[%s] skipping verify repair after auto-applied edit (deterministic or Go-only)", a.Info.Name)
+			} else if state.FixLikeIntent {
 				a.sendInterimFixUpdate(msg, "Repro still failing — continuing with fixes…")
 			}
 			maxRepairs := 1
 			if agentRuntimeV2ForMessage(msg) {
 				maxRepairs = agentRuntimeMaxRepairRounds
 			}
-			if state.RepairAttempts < maxRepairs {
+			if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) && state.RepairAttempts < maxRepairs {
 			state.RepairAttempts++
 			state.RepairUsed = state.RepairAttempts > 0
 			state.Phase = "repair"
-			verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommands(wsPath))
+			verifyInfo := classifyVerifyFailure(verifyOut, detectVerifyCommandsForSession(wsPath, state, msg))
 			state.LastVerifyFailureKind = verifyInfo.Kind
 			state.recordRepairFailureKind(verifyInfo.Kind)
 			repairNote = formatVerifyRepairNote(verifyInfo, verifyOut)
+			sessionCtx = ContextWithImplementationRoutingHints(sessionCtx, ImplementationRoutingHints{
+				RepairAttempts: state.RepairAttempts,
+				VerifyFailed:   true,
+				BootFixIntent:  state.BootFixIntent,
+			})
+			if globalImplementationRouting != nil {
+				plan, repairEff := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
+				if repairEff != nil {
+					eff = repairEff
+				}
+				toolModel := a.resolveImplementationToolModel(plan.ToolModel)
+				sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
+			}
 			roundCtx := withImplementationSessionRound(sessionCtx, state.EditRound+1)
 			roundCtx = withRepairNote(roundCtx, repairNote)
 			roundCtx = ai.WithToolLoopMaxIterations(roundCtx, maxToolIter)
@@ -736,6 +758,12 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	if state.DialogueSummary != "" {
 		outcome["dialogue_summary_used"] = true
 	}
+	if snap := a.LastRoutingSnapshot(); snap.Reason != "" {
+		outcome["routing_reason"] = snap.Reason
+		if snap.ToolModel != "" {
+			outcome["routing_tool_model"] = snap.ToolModel
+		}
+	}
 	return outcome
 }
 
@@ -840,12 +868,12 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	return eff.GenerateResponse(approvalCtx, prompt, historyToMessages(history))
 }
 
-func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Message) (output string, failed bool, skipped bool) {
+func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) (output string, failed bool, skipped bool) {
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath == "" {
 		return "", false, true
 	}
-	cmds := detectVerifyCommands(wsPath)
+	cmds := detectVerifyCommandsForSession(wsPath, state, msg)
 	if len(cmds) == 0 {
 		return "", false, true
 	}
@@ -856,11 +884,19 @@ func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Messa
 	}
 
 	var combined strings.Builder
-	toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
 	anyFailed := false
 	for _, cmd := range cmds {
+		toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
+		toolCtx = shared.ContextWithImplementationSession(toolCtx, true)
+		var cancel context.CancelFunc
+		if d := verifyCommandTimeoutForMessage(msg); d > 0 {
+			toolCtx, cancel = context.WithTimeout(toolCtx, d)
+		}
 		input, _ := json.Marshal(map[string]string{"command": cmd})
 		result, err := executeMCPTool(toolCtx, mcpServer, "run_command", input)
+		if cancel != nil {
+			cancel()
+		}
 		if combined.Len() > 0 {
 			combined.WriteString("\n---\n")
 		}
@@ -873,7 +909,7 @@ func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Messa
 			break
 		}
 		combined.WriteString(result)
-		if strings.Contains(result, "exit_code=") && !strings.Contains(result, "exit_code=0") {
+		if verifyCommandResultFailed(result) {
 			anyFailed = true
 			break
 		}
@@ -881,7 +917,47 @@ func (a *Agent) runImplementationVerify(ctx context.Context, msg *protocol.Messa
 	return combined.String(), anyFailed, false
 }
 
+func verifyCommandResultFailed(result string) bool {
+	result = strings.TrimSpace(result)
+	if result == "" {
+		return false
+	}
+	if strings.HasPrefix(result, "ERROR:") {
+		return true
+	}
+	lower := strings.ToLower(result)
+	if strings.Contains(lower, "not allowlisted") {
+		return true
+	}
+	return strings.Contains(result, "exit_code=") && !strings.Contains(result, "exit_code=0")
+}
+
+const implVerifyCommandTimeout = 120 * time.Second
+
+func verifyCommandTimeoutForMessage(msg *protocol.Message) time.Duration {
+	if msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios" {
+		return implVerifyCommandTimeout
+	}
+	return 0
+}
+
 func detectVerifyCommands(wsPath string) []string {
+	return detectVerifyCommandsForSession(wsPath, nil, nil)
+}
+
+func detectVerifyCommandsForSession(wsPath string, state *ImplementationSessionState, msg *protocol.Message) []string {
+	var hintPaths []string
+	userContent := ""
+	if state != nil {
+		hintPaths = append(hintPaths, state.RegisteredFiles...)
+		hintPaths = append(hintPaths, state.FilesChanged...)
+	}
+	if msg != nil {
+		userContent = msg.Content
+	}
+	if goCmds := detectGoBuildVerifyCommands(wsPath, hintPaths, userContent); len(goCmds) > 0 {
+		return goCmds
+	}
 	if _, err := os.Stat(filepath.Join(wsPath, "go.mod")); err == nil {
 		return []string{"go test ./..."}
 	}
@@ -903,6 +979,120 @@ func detectVerifyCommands(wsPath string) []string {
 	return nil
 }
 
+func detectGoBuildVerifyCommands(wsPath string, hintPaths []string, userContent string) []string {
+	if _, err := os.Stat(filepath.Join(wsPath, "go.mod")); err == nil {
+		return nil
+	}
+	goPaths := collectGoVerifyHintPaths(hintPaths, userContent)
+	if len(goPaths) == 0 {
+		return nil
+	}
+	pkgDirs := uniqueGoPackageDirs(goPaths)
+	cmds := make([]string, 0, len(pkgDirs))
+	for _, pkg := range pkgDirs {
+		if pkg == "." {
+			cmds = append(cmds, "go build .")
+		} else {
+			cmds = append(cmds, "go build ./"+pkg)
+		}
+	}
+	return cmds
+}
+
+func collectGoVerifyHintPaths(hintPaths []string, userContent string) []string {
+	var out []string
+	for _, p := range hintPaths {
+		p = normalizeFileChangeRelPath(p)
+		if strings.HasSuffix(strings.ToLower(p), ".go") {
+			out = appendUnique(out, []string{p})
+		}
+	}
+	if len(out) > 0 {
+		return out
+	}
+	for _, m := range goPathInContentRE.FindAllString(userContent, -1) {
+		out = appendUnique(out, []string{normalizeFileChangeRelPath(m)})
+	}
+	return out
+}
+
+var goPathInContentRE = regexp.MustCompile(`(?i)(?:[\w.-]+/)*[\w.-]+\.go`)
+
+func uniqueGoPackageDirs(goFiles []string) []string {
+	seen := map[string]bool{}
+	var dirs []string
+	for _, f := range goFiles {
+		dir := filepath.ToSlash(filepath.Dir(f))
+		if dir == "." || dir == "" {
+			dir = "."
+		}
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		dirs = append(dirs, dir)
+	}
+	return dirs
+}
+
+func (a *Agent) shouldSkipVerifyRepairAfterAutoApply(msg *protocol.Message, state *ImplementationSessionState) bool {
+	if a == nil || msg == nil || state == nil || !state.VerifyFailed {
+		return false
+	}
+	trust := resolveImplementationTrustMode(msg)
+	if state.TrustMode != "" {
+		trust = state.TrustMode
+	}
+	if trust != editorTrustAutoApply {
+		return false
+	}
+	paths := state.RegisteredFiles
+	if len(paths) == 0 {
+		paths = state.FilesChanged
+	}
+	if !sessionFilesOnDisk(a.resolveWorkspacePath(msg), paths) {
+		return false
+	}
+	if state.DeterministicFallbackUsed {
+		return true
+	}
+	return !state.FixLikeIntent && allPathsGoSource(paths)
+}
+
+func allPathsGoSource(paths []string) bool {
+	if len(paths) == 0 {
+		return false
+	}
+	for _, p := range paths {
+		if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(p)), ".go") {
+			return false
+		}
+	}
+	return true
+}
+
+func (a *Agent) maybeSendImplementationEarlyReply(msg *protocol.Message, state *ImplementationSessionState) {
+	if a == nil || msg == nil || state == nil || a.Hub == nil {
+		return
+	}
+	trust := resolveImplementationTrustMode(msg)
+	if state.TrustMode != "" {
+		trust = state.TrustMode
+	}
+	if trust != editorTrustAutoApply {
+		return
+	}
+	paths := state.RegisteredFiles
+	if len(paths) == 0 {
+		paths = state.FilesChanged
+	}
+	if len(paths) == 0 || !sessionFilesOnDisk(a.resolveWorkspacePath(msg), paths) {
+		return
+	}
+	text := fmt.Sprintf("Implementation session — applied changes (changes to: %s); verifying workspace…", strings.Join(paths, ", "))
+	a.sendInterimFixUpdate(msg, text)
+}
+
 func detectNodeVerifyCommands(wsPath string) []string {
 	nodeModules := filepath.Join(wsPath, "node_modules")
 	if _, err := os.Stat(nodeModules); err != nil {
@@ -920,7 +1110,7 @@ func detectNodeVerifyCommands(wsPath string) []string {
 	if hasPackageScript(wsPath, "typecheck") {
 		cmds = append(cmds, "npm run typecheck")
 	}
-	cmds = append(cmds, "npm test --if-present")
+	cmds = append(cmds, "CI=true npm test --if-present -- --watchAll=false --passWithNoTests")
 	return cmds
 }
 

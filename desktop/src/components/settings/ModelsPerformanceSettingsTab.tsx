@@ -218,6 +218,24 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
 
     <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
       <div className="flex-1">
+        <div className="font-medium text-slack-text">Turn telemetry drawer</div>
+        <div className="text-sm text-slack-textMuted">
+          Live routing, tool, and activity events above the composer (power-user debug)
+        </div>
+      </div>
+      <label className="relative inline-flex items-center cursor-pointer">
+        <input
+          type="checkbox"
+          checked={layoutSettings.showTurnTelemetryDrawer === true}
+          onChange={(e) => updateLayoutSettings({ showTurnTelemetryDrawer: e.target.checked })}
+          className="sr-only peer"
+        />
+        <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+      </label>
+    </div>
+
+    <div className="flex items-center justify-between p-4 bg-slack-bgHover rounded-lg border border-slack-border">
+      <div className="flex-1">
         <div className="font-medium text-slack-text">Compression badges on messages</div>
         <div className="text-sm text-slack-textMuted">
           Show when tool output was compressed (strategy and byte savings)

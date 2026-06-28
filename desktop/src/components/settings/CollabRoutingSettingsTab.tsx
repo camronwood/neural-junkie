@@ -16,6 +16,10 @@ export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps
   const [implRoutingEnabledPersisted, setImplRoutingEnabledPersisted] = useState(true);
   const [implLocalToolModel, setImplLocalToolModel] = useState('qwen2.5-coder:7b');
   const [implLocalToolModelPersisted, setImplLocalToolModelPersisted] = useState('qwen2.5-coder:7b');
+  const [implReliableToolModel, setImplReliableToolModel] = useState('qwen2.5-coder:14b');
+  const [implReliableToolModelPersisted, setImplReliableToolModelPersisted] = useState('qwen2.5-coder:14b');
+  const [implReliableProviderId, setImplReliableProviderId] = useState('');
+  const [implReliableProviderIdPersisted, setImplReliableProviderIdPersisted] = useState('');
   const [collabAutoApproveDeliverables, setCollabAutoApproveDeliverables] = useState(true);
   const [collabRoutingSaving, setCollabRoutingSaving] = useState(false);
   const [collabRoutingErr, setCollabRoutingErr] = useState<string | null>(null);
@@ -71,6 +75,19 @@ export function CollabRoutingSettingsTab({ hubHttp, isActive }: SettingsTabProps
               : 'qwen2.5-coder:7b';
           setImplLocalToolModel(toolModel);
           setImplLocalToolModelPersisted(toolModel);
+          const reliableTool =
+            typeof cfg.implementation?.reliable_tool_model === 'string' &&
+            cfg.implementation.reliable_tool_model.trim()
+              ? cfg.implementation.reliable_tool_model.trim()
+              : 'qwen2.5-coder:14b';
+          setImplReliableToolModel(reliableTool);
+          setImplReliableToolModelPersisted(reliableTool);
+          const reliableProv =
+            typeof cfg.implementation?.reliable_provider_id === 'string'
+              ? cfg.implementation.reliable_provider_id
+              : '';
+          setImplReliableProviderId(reliableProv);
+          setImplReliableProviderIdPersisted(reliableProv);
           setCollabAutoApproveDeliverables(cfg.collaboration?.auto_approve_deliverables !== false);
           setDelegationEnabled(!!cfg.delegation?.enabled);
           const root =
@@ -135,6 +152,8 @@ const handleDelegationToggle = async (enabled: boolean) => {
             ...(cfg.implementation ?? {}),
             routing_enabled: implRoutingEnabled,
             local_tool_model: implLocalToolModel.trim() || 'qwen2.5-coder:7b',
+            reliable_tool_model: implReliableToolModel.trim() || 'qwen2.5-coder:14b',
+            reliable_provider_id: implReliableProviderId.trim() || undefined,
           },
         };
         const put = await fetch(`${hubHttp}/api/settings`, {
@@ -146,6 +165,8 @@ const handleDelegationToggle = async (enabled: boolean) => {
           throw new Error(await put.text());
         }
         setImplLocalToolModelPersisted(implLocalToolModel.trim() || 'qwen2.5-coder:7b');
+        setImplReliableToolModelPersisted(implReliableToolModel.trim() || 'qwen2.5-coder:14b');
+        setImplReliableProviderIdPersisted(implReliableProviderId.trim());
         setImplRoutingEnabledPersisted(implRoutingEnabled);
       } catch (e) {
         setCollabRoutingErr(e instanceof Error ? e.message : String(e));
@@ -542,12 +563,46 @@ const handleDelegationToggle = async (enabled: boolean) => {
           placeholder="qwen2.5-coder:7b"
         />
       </div>
+      <div className="mt-4">
+        <label className="block text-sm text-slack-textMuted mb-1">Reliable tool model (repair round 1+)</label>
+        <input
+          type="text"
+          value={implReliableToolModel}
+          disabled={collabRoutingSaving}
+          onChange={(e) => setImplReliableToolModel(e.target.value)}
+          className="w-full max-w-md px-3 py-2 rounded border border-slack-border bg-slack-bg text-slack-text text-sm"
+          placeholder="qwen2.5-coder:14b"
+        />
+      </div>
+      <div className="mt-4">
+        <label className="block text-sm text-slack-textMuted mb-1">
+          Reliable provider (optional, repair round 2+ only)
+        </label>
+        <select
+          value={implReliableProviderId}
+          disabled={collabRoutingSaving}
+          onChange={(e) => setImplReliableProviderId(e.target.value)}
+          className="w-full max-w-md px-3 py-2 rounded border border-slack-border bg-slack-bg text-slack-text text-sm"
+        >
+          <option value="">Local only (no cloud escalation)</option>
+          {configuredProviders.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name} ({p.id})
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-slack-textMuted mt-1">
+          Used only when verify/repair reaches round 2+. Local-first otherwise.
+        </p>
+      </div>
       <button
         type="button"
         disabled={
           collabRoutingSaving ||
           (implRoutingEnabled === implRoutingEnabledPersisted &&
-            (implLocalToolModel.trim() || 'qwen2.5-coder:7b') === implLocalToolModelPersisted)
+            (implLocalToolModel.trim() || 'qwen2.5-coder:7b') === implLocalToolModelPersisted &&
+            (implReliableToolModel.trim() || 'qwen2.5-coder:14b') === implReliableToolModelPersisted &&
+            implReliableProviderId.trim() === implReliableProviderIdPersisted)
         }
         onClick={() => void saveImplementationSettings()}
         className="mt-4 px-4 py-2 text-sm rounded bg-slack-accent text-white disabled:opacity-50"

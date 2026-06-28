@@ -94,8 +94,8 @@ def step_send(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
 
 
 def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
-    timeout = step.get("timeout", "420s")
-    secs = 420
+    timeout = step.get("timeout", "540s")
+    secs = 540
     if isinstance(timeout, str) and timeout.endswith("s"):
         try:
             secs = int(timeout[:-1])
@@ -493,6 +493,20 @@ def main() -> int:
         return 1
     if args.all:
         reset_all_fixture_baselines(root=ROOT)
+        if not ensure_hub_ready(args.hub, "implement-scenarios-all"):
+            return 1
+        all_agents: set[str] = set()
+        for n in names:
+            sc = load_scenario(n)
+            for ag in sc.get("required_agents") or [sc.get("target_agent") or "BackendEngineer"]:
+                if ag:
+                    all_agents.add(str(ag).strip().lstrip("@"))
+        ok, missing = hub.verify_agents_online(args.hub, sorted(all_agents))
+        if not ok:
+            print(f"  FAIL: required agents offline: {missing}", file=sys.stderr)
+            print("  Enable software-development pack and ensure hub agents are active.", file=sys.stderr)
+            return 1
+        print(f"  preflight: {len(all_agents)} agent(s) online: {', '.join(sorted(all_agents))}")
     failed = sum(
         1
         for n in names

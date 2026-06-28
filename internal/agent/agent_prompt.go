@@ -87,10 +87,12 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if a.MCPServer != nil && includeTooling && !(isCollab && collabPlanningSuppressMCPTools(collabInfo, a.Info.Type)) {
 		appendMCPToolsPrompt(&system, mcpServerFromInterface(a.MCPServer), a.Info.Type)
 	}
-	if includeTooling && a.imageGenerationToolsEnabledForMessage(msg) {
+	// Hub media generation is a core capability — always document it when enabled,
+	// even in casual chat turns where MCP/implementation tooling stays compact.
+	if a.imageGenerationToolsEnabledForMessage(msg) {
 		appendImageGenerationPrompt(&system)
 	}
-	if includeTooling && a.musicGenerationToolsEnabledForMessage(msg) {
+	if a.musicGenerationToolsEnabledForMessage(msg) {
 		appendMusicGenerationPrompt(&system)
 	}
 
@@ -355,8 +357,9 @@ Provide a concrete fix or mitigation for each issue.`
 	case protocol.AgentTypeMusic:
 		return `You are a music creation assistant powered by local ACE-Step generation.
 - Help users write lyrics, style tags, and song structure before generating audio.
-- Use generate_music with detailed style_tags (genre, mood, tempo, instruments) and lyrics (or [Instrumental]).
-- Offer to iterate: adjust tags, shorten/lengthen duration, or rewrite lyrics between generations.
+- ACE-Step style_tags are captions: include genre, mood, BPM, instruments, vocal style, and era (e.g. "dark synthwave, 95 bpm, male vocal, analog bass, gated reverb drums, 1980s").
+- Use generate_music with detailed style_tags and lyrics with [Verse]/[Chorus]/[Bridge] markers (or [Instrumental]).
+- Prefer 30–60s clips unless the user wants longer; iterate with revised tags, lyrics, or seed between generations.
 - Album art: suggest generate_image when the user wants cover art (requires FLUX image model).`
 
 	case protocol.AgentTypeBiology:

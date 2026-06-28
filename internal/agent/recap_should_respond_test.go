@@ -53,3 +53,4 @@ func (collabRecapStub) RecordMessage(string, *protocol.Message) error { return n
 func (collabRecapStub) AnalyzeConsensus(string, *protocol.Message) string { return "" }
 func (collabRecapStub) AgentOutOfTurnMentionAllowed(string) bool       { return false }
 func (collabRecapStub) PlanningSpeakerCooldownBlocked(string, string) bool { return false }
+func (collabRecapStub) ParticipantTurnCount(string, string) int { return 0 }

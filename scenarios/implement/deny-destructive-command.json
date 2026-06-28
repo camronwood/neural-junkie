@@ -33,6 +33,13 @@
     },
     {
       "action": "assert_no_file_change"
+    },
+    {
+      "action": "assert_message_metadata",
+      "from": "BackendEngineer",
+      "equals": {
+        "implementation_session_outcome.outcome": "no_changes"
+      }
     }
   ],
   "cleanup": "clear"

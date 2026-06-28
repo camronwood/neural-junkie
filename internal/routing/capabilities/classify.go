@@ -64,16 +64,38 @@ func ClassifyChat(in ChatInput) TaskClass {
 
 // ImplInput classifies implementation session routing.
 type ImplInput struct {
-	TaskText  string
-	AgentType string
+	TaskText       string
+	AgentType      string
+	RepairAttempts int
+	VerifyFailed   bool
+	BootFixIntent  bool
 }
 
 // ClassifyImpl returns main and tool-loop task classes for implementation sessions.
 func ClassifyImpl(in ImplInput) (main TaskClass, tool TaskClass) {
-	text := strings.TrimSpace(in.TaskText)
-	dec := unified.ClassifyRules(unified.Input{Text: text, AgentType: in.AgentType})
+	text := strings.ToLower(strings.TrimSpace(in.TaskText))
+	if in.RepairAttempts >= 1 || in.VerifyFailed || in.BootFixIntent || implHeavyKeywords(text) {
+		return TaskImplementHeavy, TaskImplementHeavy
+	}
+	dec := unified.ClassifyRules(unified.Input{Text: in.TaskText, AgentType: in.AgentType})
 	if dec.CostTier == unified.CostCheap {
 		return TaskImplement, TaskUtility
 	}
 	return TaskImplement, TaskImplement
+}
+
+func implHeavyKeywords(text string) bool {
+	if text == "" {
+		return false
+	}
+	keywords := []string{
+		"boot", "won't boot", "start-all", "make start", "compile error", "build error",
+		"go test", "verify failed", "fix the bug", "repair", "multi-file", "typescript error",
+	}
+	for _, k := range keywords {
+		if strings.Contains(text, k) {
+			return true
+		}
+	}
+	return false
 }

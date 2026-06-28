@@ -63,6 +63,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			incoming.Jira.APIToken = appConfig.Jira.APIToken
 		}
 
+		prevMusic := appConfig.MCP.Music
 		appConfig.Server = incoming.Server
 		appConfig.AI = incoming.AI
 		appConfig.Agents = incoming.Agents
@@ -76,7 +77,18 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Features = incoming.Features
 		appConfig.Performance = incoming.Performance
 		if incoming.Packs.Enabled != nil {
-			appConfig.Packs = incoming.Packs
+			if appConfig.Packs.Enabled == nil {
+				appConfig.Packs.Enabled = make(map[string]bool)
+			}
+			for id, enabled := range incoming.Packs.Enabled {
+				appConfig.Packs.Enabled[id] = enabled
+			}
+			if len(incoming.Packs.Installed) > 0 {
+				appConfig.Packs.Installed = incoming.Packs.Installed
+			}
+			if incoming.Packs.LayoutOwner != "" {
+				appConfig.Packs.LayoutOwner = incoming.Packs.LayoutOwner
+			}
 		}
 		appConfig.MCP = incoming.MCP
 		appConfig.AWS = incoming.AWS
@@ -96,6 +108,9 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 
 		syncMCPFromConfig()
+		if musicSettingsChanged(prevMusic, appConfig.MCP.Music) {
+			syncPackSidecars()
+		}
 		reconcileConfiguredSpecialists()
 
 		w.Header().Set("Content-Type", "application/json")
@@ -139,4 +154,8 @@ func handleRestartAgents(w http.ResponseWriter, r *http.Request) {
 	initializeConfiguredAgents()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "restarted"})
+}
+
+func musicSettingsChanged(before, after config.MusicMCPConfig) bool {
+	return before.Normalized() != after.Normalized()
 }

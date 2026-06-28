@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/config"
@@ -23,7 +24,7 @@ func handleMusicACEStepStatus(w http.ResponseWriter, r *http.Request, packID str
 	if !requireMusicPackInstalled(w, packID) {
 		return
 	}
-	st := musicACEStepStatus(packID)
+	st := chatHub.ACEStepStatus()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(st)
 }
@@ -48,9 +49,20 @@ func handleMusicACEStepInstall(w http.ResponseWriter, r *http.Request, packID st
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	var body struct {
+		ModelVariant string `json:"model_variant"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	variant := music.NormalizeModelVariant(body.ModelVariant)
+	if appConfig != nil {
+		cfgVariant := appConfig.MusicMCPSettings().ModelVariant
+		if variant == "sft" && strings.TrimSpace(body.ModelVariant) == "" && cfgVariant != "" {
+			variant = music.NormalizeModelVariant(cfgVariant)
+		}
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Minute)
 	defer cancel()
-	if err := music.InstallACEStep(ctx, dir); err != nil {
+	if err := music.InstallACEStep(ctx, dir, variant); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -59,7 +71,39 @@ func handleMusicACEStepInstall(w http.ResponseWriter, r *http.Request, packID st
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"status": "ok",
 		"pack_id": packID,
-		"acestep": musicACEStepStatus(packID),
+		"acestep": chatHub.ACEStepStatus(),
+	})
+}
+
+func musicACEStepStatus(packID string) music.ACEStepStatus {
+	if chatHub != nil {
+		return chatHub.ACEStepStatus()
+	}
+	return music.ACEStepStatus{}
+}
+
+func handleMusicSidecarRestart(w http.ResponseWriter, r *http.Request, packID string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+	if packID != config.PackMusicCreation {
+		http.Error(w, "sidecar restart is only available for the Music creation pack", http.StatusBadRequest)
+		return
+	}
+	if appConfig == nil || !appConfig.IsPackEnabled(packID) {
+		http.Error(w, "enable the Music creation pack first", http.StatusBadRequest)
+		return
+	}
+	syncPackSidecars()
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":  "ok",
+		"pack_id": packID,
+		"acestep": chatHub.ACEStepStatus(),
 	})
 }
 
@@ -69,18 +113,4 @@ func requireMusicPackInstalled(w http.ResponseWriter, packID string) bool {
 		return false
 	}
 	return true
-}
-
-func musicACEStepStatus(packID string) music.ACEStepStatus {
-	dir, err := packs.InstalledPackDir(packID)
-	if err != nil {
-		return music.ACEStepStatusFromSettings(nil, "")
-	}
-	settings := map[string]string{}
-	if m, err := appConfig.InstalledPackManifestByID(packID); err == nil && m != nil {
-		if resolved, err := packs.ResolveSettingsOverlay(m, dir); err == nil {
-			settings = resolved
-		}
-	}
-	return music.ACEStepStatusFromSettings(settings, dir)
 }

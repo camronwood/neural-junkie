@@ -17,6 +17,8 @@ type MCPConfig struct {
 	Biology BiologyMCPConfig `json:"biology"`
 	// CAD holds OpenSCAD render settings for the CAD pack.
 	CAD CadMCPConfig `json:"cad"`
+	// Music holds ACE-Step generation settings for the Music creation pack.
+	Music MusicMCPConfig `json:"music"`
 }
 
 // BiologyMCPConfig is persisted in config.json and edited in Settings.
@@ -45,6 +47,7 @@ func DefaultMCPConfig() MCPConfig {
 		Enabled: true,
 		Biology: BiologyMCPConfig{},
 		CAD:     CadMCPConfig{},
+		Music:   MusicMCPConfig{ModelVariant: "sft"},
 	}
 }
 

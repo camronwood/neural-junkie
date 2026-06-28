@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/music"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -21,7 +22,39 @@ func (h *Hub) MusicGenerationAvailable() bool {
 	if !h.commandHandler.appConfig.AnyPackCapability(capMusicGeneration) {
 		return false
 	}
-	return music.Default != nil
+	return true
+}
+
+// MusicGenerationUnavailableReason explains why generation is disabled for user-facing errors.
+func (h *Hub) MusicGenerationUnavailableReason() string {
+	if h == nil || h.commandHandler == nil || h.commandHandler.appConfig == nil {
+		return "Music generation is unavailable — hub configuration is not loaded."
+	}
+	cfg := h.commandHandler.appConfig
+	const sidebar = "the **Domain packs** button in the sidebar"
+	if !cfg.IsPackInstalled(config.PackMusicCreation) {
+		return "Install the **Music creation** pack from " + sidebar + " (Store tab)."
+	}
+	if !cfg.IsPackEnabled(config.PackMusicCreation) {
+		return "Enable **Music creation** from " + sidebar + " (Store tab), then try again."
+	}
+	if !cfg.AnyPackCapability(capMusicGeneration) {
+		return "Music generation capability is inactive — toggle **Music creation** off and on in " + sidebar + ", then restart the hub."
+	}
+	if music.ResolveGenerator() == nil {
+		return "Music generator is not wired — restart the hub."
+	}
+	st := h.ACEStepStatus()
+	if st.DemoMode || st.Ready {
+		return "Music generation hit an unexpected error — try again or restart the hub."
+	}
+	if st.Installing {
+		return "ACE-Step is still installing — open " + sidebar + " → **Tools** tab to watch progress."
+	}
+	if msg := strings.TrimSpace(st.LastError); msg != "" {
+		return "ACE-Step is not ready: " + msg + " Open " + sidebar + " → **Tools** to fix it."
+	}
+	return "ACE-Step weights are not installed for the selected model — open " + sidebar + " → **Tools** and install weights."
 }
 
 func agentTypeSupportsMusicGeneration(t protocol.AgentType) bool {
@@ -78,7 +111,7 @@ func (h *Hub) GenerateAndPostMusic(ctx context.Context, channel string, from pro
 	if !h.MusicGenerationAvailable() {
 		return fmt.Errorf("music generation disabled (install and enable the Music creation pack)")
 	}
-	gen := music.Default
+	gen := music.ResolveGenerator()
 	if gen == nil {
 		return fmt.Errorf("music generator not configured")
 	}
@@ -96,13 +129,31 @@ func (h *Hub) GenerateAndPostMusic(ctx context.Context, channel string, from pro
 	if req.Instrumental && req.Lyrics == "" {
 		req.Lyrics = "[Instrumental]"
 	}
+	if h.commandHandler != nil && h.commandHandler.appConfig != nil {
+		def := h.commandHandler.appConfig.MusicMCPSettings().Normalized()
+		if req.InferenceSteps <= 0 {
+			req.InferenceSteps = def.InferenceSteps
+		}
+		if req.GuidanceScale <= 0 {
+			req.GuidanceScale = def.GuidanceScale
+		}
+		if strings.TrimSpace(req.InferMethod) == "" {
+			req.InferMethod = def.InferMethod
+		}
+		if req.Seed == 0 && def.DefaultSeed != 0 {
+			req.Seed = def.DefaultSeed
+		}
+	}
 
 	mime, b64, err := gen.Generate(ctx, music.Request{
-		StyleTags:    req.StyleTags,
-		Lyrics:       req.Lyrics,
-		DurationSec:  req.DurationSec,
-		Instrumental: req.Instrumental,
-		Seed:         req.Seed,
+		StyleTags:      req.StyleTags,
+		Lyrics:         req.Lyrics,
+		DurationSec:    req.DurationSec,
+		Instrumental:   req.Instrumental,
+		Seed:           req.Seed,
+		InferenceSteps: req.InferenceSteps,
+		GuidanceScale:  req.GuidanceScale,
+		InferMethod:    req.InferMethod,
 	})
 	if err != nil {
 		return err

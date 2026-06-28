@@ -36,7 +36,7 @@ import {
 import { channelNameToKind, resolveContextScope } from '../utils/inferContextScope';
 import type { ConversationModeSetting, WorkspaceContextMode } from '../constants/promptMetadata';
 import { METADATA_CHANNEL_HOLD } from '../types/protocol';
-import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_COMPLETE_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
+import { GRANTED_HUB_DATA_ACCESS_KEY, IMPLEMENTATION_FILES_CHANGED_KEY, IMPLEMENTATION_SESSION_COMPLETE_KEY, IMPLEMENTATION_SESSION_OUTCOME_KEY, CAD_FILES_WRITTEN_KEY } from '../constants/promptMetadata';
 import {
   detectHubDataAccessNeeds,
   hasGrantedHubDataAccess,
@@ -119,6 +119,10 @@ import { isSlackMirrorChannelName, showSlackHubChannelIdInHeader, slackChannelDi
 import { confirmStartCollaborationWhileExecuting } from '../utils/collaborationConfirm';
 import { ensureCollaborationExecutionWorkspace } from '../utils/collaborationExecutionWorkspace';
 import { syncCollabTurnThinking } from '../utils/collabThinking';
+import {
+  appendTurnTelemetryFromAgentStatus,
+  appendTurnTelemetryFromToolStep,
+} from '../utils/turnTelemetry';
 import { mirrorAgentCommandInTerminal } from '../utils/mirrorAgentCommandInTerminal';
 import { resolveTerminalCwd } from '../utils/terminalCwd';
 import { useSuggestedCommands } from '../hooks/useSuggestedCommands';
@@ -321,6 +325,26 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
   const handleImplementationSessionComplete = useCallback(
     async (metadata?: Record<string, unknown>) => {
+      const outcomeRaw = metadata?.[IMPLEMENTATION_SESSION_OUTCOME_KEY];
+      if (outcomeRaw && typeof outcomeRaw === 'object') {
+        const outcome = outcomeRaw as Record<string, unknown>;
+        if (outcome.verify_failed === true || outcome.circuit_breaker_triggered === true) {
+          const reason =
+            (typeof outcome.failure_type === 'string' && outcome.failure_type) ||
+            (outcome.circuit_breaker_triggered ? 'circuit breaker' : 'verify failed');
+          addToast({
+            type: 'warning',
+            title: 'Implementation session issue',
+            message: `Session finished with ${reason}. Expand the outcome card in chat for details.`,
+          });
+        } else if (outcome.outcome === 'wrong_route' && typeof outcome.suggested_agent === 'string') {
+          addToast({
+            type: 'info',
+            title: 'Wrong specialist for this task',
+            message: `Try ${outcome.suggested_agent} in Agent mode for boot-fix work.`,
+          });
+        }
+      }
       const raw = metadata?.[IMPLEMENTATION_FILES_CHANGED_KEY];
       const paths = Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string' && p.trim() !== '') : [];
       if (paths.length === 0) return;
@@ -358,6 +382,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       openFileInEditor,
       revealLineInEditor,
       username,
+      addToast,
     ]
   );
 
@@ -1436,6 +1461,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 activityDetail
               );
             }
+            appendTurnTelemetryFromAgentStatus(msgChannel, message);
           } else if (
             thinkingStatus === 'completed' ||
             thinkingStatus === 'error' ||
@@ -1501,6 +1527,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
                 typeof streamMeta.tool_preview === 'string' ? streamMeta.tool_preview : undefined,
             },
           });
+          appendTurnTelemetryFromToolStep(agentChannel, message);
         } else if (isReasoningStreamDelta(streamMeta)) {
           st.updateThinkingAgentActivity(agentChannel, message.from.id, {
             activity: THINKING_ACTIVITY_REASONING,
@@ -1879,7 +1906,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   }, [api, channel, username, addToast]);
 
   const dispatchMessage = useCallback(
-    async (content: string, metadata?: Record<string, unknown>) => {
+    async (content: string, metadata?: Record<string, unknown>): Promise<boolean> => {
       useChatStore.getState().setChannelHold(channel, false);
 
       let sendContent = content;
@@ -1919,7 +1946,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         const trimmed = sendContent.trimStart();
         if (trimmed.startsWith('/collaborate')) {
           if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
-            return;
+            return false;
           }
         }
         const sendResult = await api.sendMessage(
@@ -1990,6 +2017,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             console.error('[dispatchMessage] post-command refresh failed:', e);
           }
         }
+        return true;
       } catch (error) {
         console.error('Failed to send message:', error);
         addToast({
@@ -1997,6 +2025,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           title: 'Message not sent',
           message: error instanceof Error ? error.message : 'Failed to send message.',
         });
+        return false;
       } finally {
         useChatStore.getState().setIsTyping(false);
       }
@@ -2054,10 +2083,27 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [api, addToast],
   );
 
-  const handleSendMessage = async (content: string, metadata?: Record<string, unknown>) => {
+  const appendLocalSlashCommand = useCallback(
+    (commandText: string) => {
+      const now = new Date().toISOString();
+      useChatStore.getState().addMessage({
+        id: `local-cmd-${Date.now()}`,
+        type: 'question',
+        channel,
+        from: { id: username || 'user', name: username || 'You', type: 'human' },
+        content: commandText,
+        timestamp: now,
+        metadata: { slash_command: true, client_only: true },
+      });
+    },
+    [channel, username],
+  );
+
+  const handleSendMessage = async (content: string, metadata?: Record<string, unknown>): Promise<boolean> => {
     if (content.trim() === '/nj-open-model-library') {
       setModelLibraryOpen(true);
-      return;
+      appendLocalSlashCommand('/nj-open-model-library');
+      return true;
     }
 
     const trimmed = content.trimStart();
@@ -2074,7 +2120,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             ? 'This session was cancelled. Chat is read-only; use /commands or start a new /collaborate or /runbook.'
             : 'This session is complete. Chat is read-only; use /commands or start a new /collaborate or /runbook.',
       });
-      return;
+      return false;
     }
 
     const needs = detectHubDataAccessNeeds(content);
@@ -2082,10 +2128,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     if (needs.length > 0 && !hasGrantedHubDataAccess(composerMeta)) {
       setHubAccessError(null);
       setHubAccessPending({ mode: 'main', content, metadata: composerMeta, options: needs });
-      return;
+      return false;
     }
 
-    await dispatchMessage(content, composerMeta);
+    return dispatchMessage(content, composerMeta);
   };
 
   const handleThreadSend = useCallback(
@@ -2183,9 +2229,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   };
 
-  // Open command palette from toolbar button
-  const openCommandPalette = useCallback(async () => {
-    await ensureCommandDefs(true);
+  // Open command palette from toolbar button or Cmd/Ctrl+Shift+P
+  const openCommandPalette = useCallback(() => {
+    setCommandPaletteFilter('');
+    setCommandPaletteOpen(true);
+    void ensureCommandDefs(false);
     void loadCollaborations(channel);
     void api
       .fetchAssistantState(channel)
@@ -2197,8 +2245,6 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     void fetchPendingChanges(username || 'default').catch((error) =>
       console.error('Failed to load pending file changes:', error)
     );
-    setCommandPaletteFilter('');
-    setCommandPaletteOpen(true);
   }, [api, channel, ensureCommandDefs, fetchPendingChanges, loadCollaborations, username]);
 
   useShortcutDispatcher(true);
@@ -2701,6 +2747,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         />
 
         <ChatInputArea
+          channel={channel}
           channelHeld={channelHeld}
           thinkingAgentsForChannel={thinkingAgentsForChannel}
           showAgentStop={showAgentStop}

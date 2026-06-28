@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { CommandForm } from './CommandForm';
 import type { ChatAPI } from '../api/chatAPI';
 import type {
@@ -44,13 +44,28 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Reset state when opened/closed
+  // Focus search when opened (layout + rAF retries beat async parent re-renders)
+  useLayoutEffect(() => {
+    if (!isOpen || activeCommand) return;
+    const focusInput = () => inputRef.current?.focus({ preventScroll: true });
+    focusInput();
+    const raf1 = requestAnimationFrame(() => {
+      focusInput();
+      requestAnimationFrame(focusInput);
+    });
+    const t = window.setTimeout(focusInput, 50);
+    return () => {
+      cancelAnimationFrame(raf1);
+      window.clearTimeout(t);
+    };
+  }, [isOpen, activeCommand]);
+
+  // Reset query when opened
   useEffect(() => {
     if (isOpen) {
       setQuery(initialFilter);
       setSelectedIndex(0);
       setActiveCommand(null);
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [isOpen, initialFilter]);
 
@@ -191,15 +206,17 @@ export function CommandPalette({
                 type="text"
                 value={query}
                 onChange={e => { setQuery(e.target.value); setSelectedIndex(0); }}
+                onKeyDown={handleKeyDown}
                 placeholder="Search actions and commands..."
                 className="w-full bg-transparent text-sm text-slack-text placeholder-slack-textMuted focus:outline-none"
                 autoComplete="off"
                 spellCheck={false}
+                autoFocus
               />
             </div>
 
             {/* Results */}
-            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" role="listbox">
               {flatList.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm text-slack-textMuted">
                   <p className="font-medium text-slack-text">No matching commands</p>
@@ -219,15 +236,30 @@ export function CommandPalette({
                       return (
                         <button
                           key={cmd.name}
+                          type="button"
                           data-index={idx}
+                          role="option"
+                          aria-selected={isSelected}
                           onClick={() => selectCommand(cmd)}
                           onMouseEnter={() => setSelectedIndex(idx)}
-                          className={`w-full text-left px-4 py-2 flex items-center gap-3 transition-colors ${
-                            isSelected ? 'bg-slack-accent/10' : 'hover:bg-slack-bgHover'
+                          className={`nj-cmd-palette-item w-full text-left px-4 py-2 flex items-center gap-3 transition-colors ${
+                            isSelected ? 'nj-cmd-palette-item--selected' : 'hover:bg-slack-bgHover'
                           }`}
                         >
-                          <span className="font-mono text-sm text-slack-accent shrink-0">{cmd.name}</span>
-                          <span className="text-xs text-slack-textMuted truncate">{cmd.description}</span>
+                          <span
+                            className={`font-mono text-sm shrink-0 ${
+                              isSelected ? 'text-slack-text font-semibold' : 'text-slack-accent'
+                            }`}
+                          >
+                            {cmd.name}
+                          </span>
+                          <span
+                            className={`text-xs truncate ${
+                              isSelected ? 'text-slack-text' : 'text-slack-textMuted'
+                            }`}
+                          >
+                            {cmd.description}
+                          </span>
                           {cmd.arguments.length > 0 && (
                             <span className="ml-auto text-xs text-slack-textMuted shrink-0 opacity-60">
                               {cmd.arguments.filter(a => a.required).length} arg{cmd.arguments.filter(a => a.required).length !== 1 ? 's' : ''}

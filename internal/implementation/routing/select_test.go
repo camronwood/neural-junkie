@@ -43,3 +43,36 @@ func TestSelectProviderIDFallback(t *testing.T) {
 		t.Fatalf("id=%q reason=%q", id, reason)
 	}
 }
+
+func TestSelectProviderIDReliableRepairTier(t *testing.T) {
+	in := Input{
+		RoutingEnabled:       true,
+		LocalProviderID:      "ollama-local",
+		ReliableProviderID:   "claude",
+		ReliableToolModel:    "qwen2.5-coder:14b",
+		RepairAttempts:       2,
+		Providers: []config.ProviderConfig{
+			{ID: "ollama-local", Type: "ollama"},
+			{ID: "claude", Type: "anthropic"},
+		},
+	}
+	id, model, reason := SelectProviderID(in)
+	if id != "claude" || reason != "reliable_repair_tier" {
+		t.Fatalf("id=%q reason=%q", id, reason)
+	}
+	if model != "qwen2.5-coder:14b" {
+		t.Fatalf("model=%q", model)
+	}
+}
+
+func TestResolveToolModelRepairUsesReliable(t *testing.T) {
+	in := Input{
+		LocalToolModel:    "qwen3.5:9b",
+		ReliableToolModel: "qwen2.5-coder:14b",
+		RepairAttempts:    1,
+	}
+	got := resolveToolModel(in)
+	if got != "qwen2.5-coder:14b" {
+		t.Fatalf("got %q", got)
+	}
+}

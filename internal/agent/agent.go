@@ -131,11 +131,14 @@ type HubClient interface {
 
 // MusicGenerateRequest is input for hub music generation.
 type MusicGenerateRequest struct {
-	StyleTags    string
-	Lyrics       string
-	DurationSec  int
+	StyleTags      string
+	Lyrics         string
+	DurationSec    int
 	Instrumental bool
-	Seed         int
+	Seed           int
+	InferenceSteps int
+	GuidanceScale  float64
+	InferMethod    string
 }
 
 // CollaborationClient is the subset of CollaborationManager that agents
@@ -159,6 +162,8 @@ type CollaborationClient interface {
 	// PlanningSpeakerCooldownBlocked is true when this agent already spoke in the
 	// current planning round and another participant has not spoken yet.
 	PlanningSpeakerCooldownBlocked(collabID, agentID string) bool
+	// ParticipantTurnCount is how many discussion messages the agent sent this round.
+	ParticipantTurnCount(collabID, agentID string) int
 }
 
 // CollaborationInfo carries the subset of collaboration state an agent

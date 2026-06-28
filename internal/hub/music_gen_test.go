@@ -16,6 +16,27 @@ func (stubMusicGen) Generate(_ context.Context, req music.Request) (string, stri
 	return "audio/wav", "UklGRg==", nil
 }
 
+func TestMusicGenerationAvailableRequiresPackCapabilityOnly(t *testing.T) {
+	cfg := config.DefaultConfig()
+	config.InstallTestPack(t, cfg, config.PackMusicCreation)
+	cfg.Packs.Enabled[config.PackMusicCreation] = true
+
+	oldDefault := music.Default
+	oldSidecar := music.SidecarBaseURL
+	music.Default = nil
+	music.SidecarBaseURL = nil
+	t.Cleanup(func() {
+		music.Default = oldDefault
+		music.SidecarBaseURL = oldSidecar
+	})
+
+	h := NewHub()
+	h.commandHandler = &CommandHandler{hub: h, appConfig: cfg}
+	if !h.MusicGenerationAvailable() {
+		t.Fatal("expected music generation available when pack capability is enabled")
+	}
+}
+
 func TestGenerateAndPostMusic(t *testing.T) {
 	cfg := config.DefaultConfig()
 	config.InstallTestPack(t, cfg, config.PackMusicCreation)

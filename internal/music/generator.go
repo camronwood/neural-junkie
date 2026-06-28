@@ -13,11 +13,14 @@ import (
 
 // Request is passed to the music generation backend (ACE-Step sidecar).
 type Request struct {
-	StyleTags    string `json:"style_tags"`
-	Lyrics       string `json:"lyrics"`
-	DurationSec  int    `json:"duration_sec"`
-	Instrumental bool   `json:"instrumental"`
-	Seed         int    `json:"seed,omitempty"`
+	StyleTags      string  `json:"style_tags"`
+	Lyrics         string  `json:"lyrics"`
+	DurationSec    int     `json:"duration_sec"`
+	Instrumental   bool    `json:"instrumental"`
+	Seed           int     `json:"seed,omitempty"`
+	InferenceSteps int     `json:"inference_steps,omitempty"`
+	GuidanceScale  float64 `json:"guidance_scale,omitempty"`
+	InferMethod    string  `json:"infer_method,omitempty"`
 }
 
 // Generator produces audio from style tags and lyrics.
@@ -27,6 +30,20 @@ type Generator interface {
 
 // Default is wired by the hub at startup (pack sidecar).
 var Default Generator
+
+// SidecarBaseURL resolves the music pack sidecar base URL when wired by the hub server.
+var SidecarBaseURL func() string
+
+// ResolveGenerator returns the configured generator or a lazy sidecar client when SidecarBaseURL is set.
+func ResolveGenerator() Generator {
+	if Default != nil {
+		return Default
+	}
+	if SidecarBaseURL != nil {
+		return NewSidecarGenerator(SidecarBaseURL)
+	}
+	return nil
+}
 
 // SidecarGenerator calls POST /api/music/generate on a pack sidecar.
 type SidecarGenerator struct {

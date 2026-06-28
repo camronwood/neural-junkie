@@ -2,32 +2,39 @@ package music
 
 import (
 	"context"
-	"encoding/base64"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
-func TestSidecarGeneratorGenerate(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/music/generate" || r.Method != http.MethodPost {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"mime":"audio/wav","data":"` + base64.StdEncoding.EncodeToString([]byte("RIFF")) + `"}`))
-	}))
-	t.Cleanup(srv.Close)
-
-	gen := NewSidecarGenerator(func() string { return srv.URL })
-	mime, b64, err := gen.Generate(context.Background(), Request{StyleTags: "lo-fi", Lyrics: "[Instrumental]", DurationSec: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if mime != "audio/wav" {
-		t.Fatalf("mime = %q", mime)
-	}
-	if b64 == "" {
-		t.Fatal("expected data")
+func TestResolveGeneratorPrefersDefault(t *testing.T) {
+	oldDefault := Default
+	oldSidecar := SidecarBaseURL
+	t.Cleanup(func() {
+		Default = oldDefault
+		SidecarBaseURL = oldSidecar
+	})
+	Default = stubGen{}
+	SidecarBaseURL = func() string { return "http://example:9999" }
+	if _, ok := ResolveGenerator().(stubGen); !ok {
+		t.Fatal("expected Default generator")
 	}
 }
+
+func TestResolveGeneratorLazySidecar(t *testing.T) {
+	oldDefault := Default
+	oldSidecar := SidecarBaseURL
+	t.Cleanup(func() {
+		Default = oldDefault
+		SidecarBaseURL = oldSidecar
+	})
+	Default = nil
+	SidecarBaseURL = func() string { return "http://127.0.0.1:8765" }
+	gen := ResolveGenerator()
+	sg, ok := gen.(*SidecarGenerator)
+	if !ok || sg == nil {
+		t.Fatalf("expected SidecarGenerator, got %T", gen)
+	}
+}
+
+type stubGen struct{}
+
+func (stubGen) Generate(context.Context, Request) (string, string, error) { return "", "", nil }

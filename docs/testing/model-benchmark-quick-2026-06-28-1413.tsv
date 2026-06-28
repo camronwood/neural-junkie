@@ -1,0 +1,50 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+deepseek-coder:6.7b	implement	go-handler	0	435.5			=== FAIL: go-handler ===
+deepseek-coder:6.7b	implement	theme-toggle	0	606.7			=== FAIL: theme-toggle ===
+deepseek-coder:6.7b	implement	ask-mode-no-write	0	303.9			=== FAIL: ask-mode-no-write ===
+deepseek-coder:6.7b	implement	go-test-failure-repair	0	904.2			=== FAIL: go-test-failure-repair ===
+deepseek-coder:6.7b	implement	typescript-compile-error-fix	0	8.2			=== FAIL: typescript-compile-error-fix ===
+deepseek-coder:6.7b	chat	dm-backend-workspace	1	98.7			=== PASS: dm-backend-workspace ===
+deepseek-coder:6.7b	chat	dm-backend-echo-followup	0	120.9			=== FAIL: dm-backend-echo-followup ===
+codegemma:7b	implement	go-handler	0	427.2			=== FAIL: go-handler ===
+codegemma:7b	implement	theme-toggle	0	622.6			=== FAIL: theme-toggle ===
+codegemma:7b	implement	ask-mode-no-write	1	132.7			=== PASS: ask-mode-no-write ===
+codegemma:7b	implement	go-test-failure-repair	1	7.2			=== PASS: go-test-failure-repair ===
+codegemma:7b	implement	typescript-compile-error-fix	0	7.9			=== FAIL: typescript-compile-error-fix ===
+codegemma:7b	chat	dm-backend-workspace	1	114.7			=== PASS: dm-backend-workspace ===
+codegemma:7b	chat	dm-backend-echo-followup	1	142.8			=== PASS: dm-backend-echo-followup ===
+qwen3.5:9b	implement	go-handler	0	424.2			=== FAIL: go-handler ===
+qwen3.5:9b	implement	theme-toggle	0	606.7			=== FAIL: theme-toggle ===
+qwen3.5:9b	implement	ask-mode-no-write	1	87.4			=== PASS: ask-mode-no-write ===
+qwen3.5:9b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+qwen3.5:9b	implement	typescript-compile-error-fix	0	7.8			=== FAIL: typescript-compile-error-fix ===
+qwen3.5:9b	chat	dm-backend-workspace	1	108.7			=== PASS: dm-backend-workspace ===
+qwen3.5:9b	chat	dm-backend-echo-followup	1	157.9			=== PASS: dm-backend-echo-followup ===
+gemma3:12b	implement	go-handler	1	115.5	1	Gemini@http://127.0.0.1:18765: Line 2: The deliverable file contains the correct implementation of the HelloWorld function in the specified location and is properly called from the main function.	=== PASS: go-handler ===
+gemma3:12b	implement	theme-toggle	1	332.5	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements a simple theme.css file with light and dark variables as requested.	=== PASS: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	1	121.5			=== PASS: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+gemma3:12b	implement	typescript-compile-error-fix	0	5.9			=== FAIL: typescript-compile-error-fix ===
+gemma3:12b	chat	dm-backend-workspace	1	103.6			=== PASS: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	0	120.7			=== FAIL: dm-backend-echo-followup ===
+qwen2.5-coder:14b	implement	go-handler	1	408.1	1	Gemini@http://127.0.0.1:18765: File content correctly implemented.	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	1	115.5	1	Gemini@http://127.0.0.1:18765: File content is as per requirement. It defines light and dark themes using CSS variables and applies those variables in styles.	=== PASS: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	1	89.5			=== PASS: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+qwen2.5-coder:14b	implement	typescript-compile-error-fix	0	6.0			=== FAIL: typescript-compile-error-fix ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	1	118.9			=== PASS: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	0	120.7			=== FAIL: dm-backend-echo-followup ===
+codestral:22b	implement	go-handler	1	402.1	1	Gemini@http://127.0.0.1:18765: Reason: The function `HelloWorld` and `main` are correctly implemented as per the user's request. It correctly prints "Hello, World!" to the console when invoked.	=== PASS: go-handler ===
+codestral:22b	implement	theme-toggle	0	279.9	0	Gemini@http://127.0.0.1:18765: File does not follow the requested structure and doesn't contain the required CSS variables.	=== FAIL: theme-toggle ===
+codestral:22b	implement	ask-mode-no-write	1	25.2			=== PASS: ask-mode-no-write ===
+codestral:22b	implement	go-test-failure-repair	0	903.6			=== FAIL: go-test-failure-repair ===
+codestral:22b	implement	typescript-compile-error-fix	0	8.0			=== FAIL: typescript-compile-error-fix ===
+codestral:22b	chat	dm-backend-workspace	1	119.7			=== PASS: dm-backend-workspace ===
+codestral:22b	chat	dm-backend-echo-followup	0	120.7			=== FAIL: dm-backend-echo-followup ===
+devstral:24b	implement	go-handler	0	546.7			=== FAIL: go-handler ===
+devstral:24b	implement	theme-toggle	1	99.5	1	Gemini@http://127.0.0.1:18765: The deliverable correctly implements light and dark theme variables in `src/theme.css`.	=== PASS: theme-toggle ===
+devstral:24b	implement	ask-mode-no-write	0	305.9			=== FAIL: ask-mode-no-write ===
+devstral:24b	implement	go-test-failure-repair	1	7.2			=== PASS: go-test-failure-repair ===
+devstral:24b	implement	typescript-compile-error-fix	0	7.8			=== FAIL: typescript-compile-error-fix ===
+devstral:24b	chat	dm-backend-workspace	1	117.7			=== PASS: dm-backend-workspace ===
+devstral:24b	chat	dm-backend-echo-followup	0	216.2			=== FAIL: dm-backend-echo-followup ===

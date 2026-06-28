@@ -268,6 +268,68 @@ func TestDetectVerifyCommands_nodeWithoutModules(t *testing.T) {
 	}
 }
 
+func TestDetectVerifyCommands_hybridGoWithoutMod(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts":{"build":"react-scripts build","test":"react-scripts test"}}`)
+	writeFile(t, dir, "core/sample/main.go", "package main\nfunc main() {}\n")
+	writeFile(t, dir, "core/server/main.go", "package main\nfunc main() {}\n")
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	state := &ImplementationSessionState{FilesChanged: []string{"core/sample/main.go"}, RegisteredFiles: []string{"core/sample/main.go"}}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios", protocol.AgentInfo{}, "please implement a HelloWorld function in core/sample/main.go and call it from main")
+	cmds := detectVerifyCommandsForSession(dir, state, msg)
+	if len(cmds) != 1 || cmds[0] != "go build ./core/sample" {
+		t.Fatalf("expected go build for edited package only, got %v", cmds)
+	}
+}
+
+func TestDetectVerifyCommands_nodeSafeTestFlags(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"scripts":{"build":"vite build","test":"node test.js"}}`)
+	if err := os.Mkdir(filepath.Join(dir, "node_modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmds := detectVerifyCommands(dir)
+	foundTest := false
+	for _, c := range cmds {
+		if strings.Contains(c, "npm test") {
+			foundTest = true
+			if !strings.Contains(c, "CI=true") || !strings.Contains(c, "watchAll=false") || !strings.Contains(c, "passWithNoTests") {
+				t.Fatalf("npm test should use CI-safe flags, got %q", c)
+			}
+		}
+	}
+	if !foundTest {
+		t.Fatalf("expected npm test command, got %v", cmds)
+	}
+}
+
+func TestShouldSkipVerifyRepairAfterAutoApply(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "core/sample/main.go", "package main\nfunc main() {}\n")
+	a := &Agent{WorkspacePath: dir}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios", protocol.AgentInfo{ID: "be", Name: "BackendEngineer"}, "edit go")
+	msg.Metadata = map[string]interface{}{"editor_agent_trust": editorTrustAutoApply}
+	state := &ImplementationSessionState{
+		VerifyFailed:              true,
+		FilesChanged:              []string{"core/sample/main.go"},
+		DeterministicFallbackUsed: true,
+		TrustMode:                 editorTrustAutoApply,
+	}
+	if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
+		t.Fatal("expected skip after deterministic auto-apply")
+	}
+	state.DeterministicFallbackUsed = false
+	if !a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
+		t.Fatal("expected skip for Go-only auto-apply without fix-like intent")
+	}
+	state.FixLikeIntent = true
+	if a.shouldSkipVerifyRepairAfterAutoApply(msg, state) {
+		t.Fatal("fix-like intent should not skip repair")
+	}
+}
+
 func TestGroundingSatisfied(t *testing.T) {
 	t.Parallel()
 	st := &ImplementationSessionState{StackManifest: &StackManifest{EntryPoint: "src/App.tsx"}}

@@ -169,7 +169,7 @@ func (a *Agent) runReproCommand(ctx context.Context, msg *protocol.Message, stat
 
 func (a *Agent) runReproVerify(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) (output string, failed bool, skipped bool) {
 	if state == nil || strings.TrimSpace(state.ReproCommand) == "" {
-		return a.runImplementationVerify(ctx, msg)
+		return a.runImplementationVerify(ctx, msg, state)
 	}
 	wsPath := a.resolveWorkspacePath(msg)
 	if wsPath == "" {
@@ -339,7 +339,7 @@ func (a *Agent) runVerifyForState(ctx context.Context, msg *protocol.Message, st
 	if state != nil && state.FixLikeIntent && strings.TrimSpace(state.ReproCommand) != "" {
 		return a.runReproVerify(ctx, msg, state)
 	}
-	return a.runImplementationVerify(ctx, msg)
+	return a.runImplementationVerify(ctx, msg, state)
 }
 
 func fixLikeSessionSucceeded(state *ImplementationSessionState) bool {

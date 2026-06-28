@@ -35,6 +35,37 @@ func SelectOllamaTagWithFilter(p *Profiles, class TaskClass, installed map[strin
 	return SelectResult{Reason: "capability_no_model"}
 }
 
+// SelectOllamaTagRespectingAgent keeps the agent's configured model when it is installed.
+// It only substitutes when the default is missing, fails tagFilter, or a strictly
+// higher-ranked profile tag should upgrade it.
+func SelectOllamaTagRespectingAgent(p *Profiles, class TaskClass, installed map[string]struct{}, agentDefault string, tagFilter func(string) bool) SelectResult {
+	agentDefault = strings.TrimSpace(agentDefault)
+	if agentDefault == "" {
+		return SelectOllamaTagWithFilter(p, class, installed, agentDefault, tagFilter)
+	}
+
+	agentInstalled := tagInstalled(installed, agentDefault)
+	agentPassesFilter := tagFilterOk(tagFilter, agentDefault)
+
+	if agentInstalled && agentPassesFilter {
+		return SelectResult{Tag: agentDefault, Reason: "capability_keep_agent"}
+	}
+
+	if agentInstalled && !agentPassesFilter && tagFilter != nil {
+		if pick := SelectOllamaTagWithFilter(p, class, installed, "", tagFilter); pick.Tag != "" {
+			return SelectResult{Tag: pick.Tag, Reason: "capability_tool_upgrade"}
+		}
+	}
+
+	if !agentInstalled {
+		if pick := SelectOllamaTagWithFilter(p, class, installed, agentDefault, tagFilter); pick.Tag != "" {
+			return pick
+		}
+	}
+
+	return SelectResult{Tag: agentDefault, Reason: "capability_fallback_agent"}
+}
+
 func tagFilterOk(tagFilter func(string) bool, tag string) bool {
 	return tagFilter == nil || tagFilter(tag)
 }
@@ -65,7 +96,8 @@ func ShouldUpgrade(p *Profiles, class TaskClass, current, candidate string) bool
 		return false
 	}
 	if curRank < 0 {
-		return true
+		// Agent-specific models not in benchmark profiles stay on their configured tag.
+		return false
 	}
 	return candRank < curRank
 }

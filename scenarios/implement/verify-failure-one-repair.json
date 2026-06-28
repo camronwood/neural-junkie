@@ -52,8 +52,7 @@
       "from": "BackendEngineer",
       "equals": {
         "implementation_session_outcome.verify_failed": false
-      },
-      "optional": true
+      }
     }
   ],
   "cleanup": "clear"
