@@ -1,16 +1,16 @@
 {
-  "updated_at": "2026-06-26T11:09:03.454050+00:00",
-  "source_run_id": "quick-2026-06-26-1109",
+  "updated_at": "2026-06-27T11:25:45.952539+00:00",
+  "source_run_id": "quick-2026-06-27-1125",
   "source_suite": "quick",
   "task_classes": {
     "implement": [
       "deepseek-coder:6.7b",
+      "codegemma:7b",
       "qwen3.5:9b",
       "gemma3:12b",
       "qwen2.5-coder:14b",
       "codestral:22b",
-      "devstral:24b",
-      "codegemma:7b"
+      "devstral:24b"
     ],
     "chat": [
       "deepseek-coder:6.7b",
@@ -23,22 +23,22 @@
     ],
     "collab_light": [
       "deepseek-coder:6.7b",
-      "qwen3.5:9b",
-      "codegemma:7b"
+      "codegemma:7b",
+      "qwen3.5:9b"
     ],
     "utility": [
       "deepseek-coder:6.7b",
-      "qwen3.5:9b",
-      "codegemma:7b"
+      "codegemma:7b",
+      "qwen3.5:9b"
     ],
     "ask_mode": [
       "deepseek-coder:6.7b",
+      "codegemma:7b",
       "qwen3.5:9b",
       "gemma3:12b",
       "qwen2.5-coder:14b",
       "codestral:22b",
-      "devstral:24b",
-      "codegemma:7b"
+      "devstral:24b"
     ],
     "implement_heavy": [
       "codestral:22b",
@@ -47,13 +47,12 @@
   },
   "model_scores": {
     "deepseek-coder:6.7b": {
-      "implement_pass_rate": 0.5,
+      "implement_pass_rate": 0.0,
       "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.5,
+      "overall_pass_rate": 0.0,
       "params_b": 6.7,
       "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false
+        "implement/go-handler": false
       }
     },
     "codegemma:7b": {
@@ -66,53 +65,48 @@
       }
     },
     "qwen3.5:9b": {
-      "implement_pass_rate": 0.5,
+      "implement_pass_rate": 0.0,
       "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.5,
+      "overall_pass_rate": 0.0,
       "params_b": 9.0,
       "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false
+        "implement/go-handler": false
       }
     },
     "gemma3:12b": {
-      "implement_pass_rate": 0.5,
+      "implement_pass_rate": 0.0,
       "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.5,
+      "overall_pass_rate": 0.0,
       "params_b": 12.0,
       "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false
+        "implement/go-handler": false
       }
     },
     "qwen2.5-coder:14b": {
-      "implement_pass_rate": 0.5,
+      "implement_pass_rate": 0.0,
       "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.5,
+      "overall_pass_rate": 0.0,
       "params_b": 14.0,
       "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false
+        "implement/go-handler": false
       }
     },
     "codestral:22b": {
-      "implement_pass_rate": 0.5,
+      "implement_pass_rate": 0.0,
       "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.5,
+      "overall_pass_rate": 0.0,
       "params_b": 22.0,
       "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false
+        "implement/go-handler": false
       }
     },
     "devstral:24b": {
-      "implement_pass_rate": 0.5,
+      "implement_pass_rate": 0.0,
       "chat_pass_rate": 0.0,
-      "overall_pass_rate": 0.5,
+      "overall_pass_rate": 0.0,
       "params_b": 24.0,
       "scenarios": {
-        "implement/go-handler": true,
-        "implement/theme-toggle": false
+        "implement/go-handler": false
       }
     }
   }

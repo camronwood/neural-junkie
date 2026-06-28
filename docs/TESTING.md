@@ -25,7 +25,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Verify/repair loop | `implementation_session_outcome` metadata | `verify-failure-one-repair` |
 | Destructive command denial | `assert_suggested_commands` + no writes | `deny-destructive-command` |
 | Plan mode no-write | Plan composer + read-only gates | `plan-mode-no-write` |
-| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (16/16 PASS) |
+| **Phase 1 implement in repo** | [IMPLEMENTATION_SESSION.md](IMPLEMENTATION_SESSION.md) | `make implement-scenarios` (20/20 PASS) |
 | **Agent Runtime v2 (open loop)** | [CURSOR_PARITY.md](CURSOR_PARITY.md), `features.agent_runtime_v2` | `make parity-scenarios`; model-aware budgets |
 | **Large-repo semantic discovery** | `internal/codeindex` + SQLite store | `large-repo-semantic-find` parity scenario |
 | **Multi-file + repair without nudge** | Agent Runtime v2 verify/repair | `multi-file-refactor-10`, `long-agent-loop-repair` |
@@ -43,10 +43,10 @@ ollama serve
 ollama pull qwen3.5:9b    # specialists, tool loop, and utility (OLLAMA_CODE_MODEL / OLLAMA_MODEL)
 make server-regression         # terminal 1
 make agents                    # terminal 1b — picks up env.local models
-make implement-scenarios       # terminal 2 — need 16/16 PASS
+make implement-scenarios       # terminal 2 — need 20/20 PASS
 make parity-scenarios          # Cursor parity contract (scenarios/parity/)
 make test-parity-full-restart  # implement + parity, 3× with hub restart
-make test-parity-stable        # optional — 3× sweeps at 16/16 under server-regression
+make test-parity-stable        # optional — 3× sweeps at 20/20 under server-regression
 ```
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
@@ -148,7 +148,7 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 2. `ollama serve` and `ollama pull qwen3.5:9b` (specialists + tool loop; set `OLLAMA_CODE_MODEL=qwen3.5:9b` in `env.local`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
-5. **`make test-regression-bundle`** — implement (16/16) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`
+5. **`make test-regression-bundle`** — implement (20/20) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`
 6. Optional: **`make test-parity-stable-restart`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)
 7. `make chat-scenarios-debug`
 8. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.

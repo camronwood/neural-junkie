@@ -186,6 +186,35 @@ Without these secrets, CI falls back to ad-hoc signing (`signingIdentity: "-"`).
 
 **Verify on a beta tag before v1.0.0 stable:** install the `.dmg` on a clean Mac without Right-click → Open.
 
+## Marketing assets and static site
+
+Canonical art lives under `assets/`; published copies are generated — do not edit PNGs under `docs/media/` by hand.
+
+```text
+assets/neural-junkie-*.png          # source ads + article covers
+docs/marketing/*-LINKEDIN.md        # long-form article source (paste copy)
+scripts/compose-*-article.sh        # regenerate cover PNG + optional body tweaks
+make gallery-sync                   # assets → docs/media/gallery/ads/ + manifest
+make articles-sync                  # marketing MD → docs/articles/*.html + manifest.json
+```
+
+Article covers also sync to `docs/media/articles/covers/` during `articles-sync`. After changing source PNGs or LinkedIn markdown, run both sync targets before committing.
+
+## Maintainer scripts (manual / optional)
+
+These are not wired into `Makefile` or CI but are kept for local dogfood:
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/smoke-hidden-repo-agent.sh` | Quick repo-agent visibility smoke |
+| `scripts/smoke-secondary-analysis.sh` | Secondary analysis pipeline smoke |
+| `scripts/run-phoenix-resource-api-collab.sh` | Phoenix resource API collab regression |
+| `scripts/run-resource-api-schema-regression.sh` | Resource API schema checks |
+
+Thin shell wrappers (`collab-scenarios.sh`, `collab-smoke.sh`, `analyze-last-session.sh`) delegate to the `.py` entry points — prefer calling Python directly or via `make` targets.
+
+Trim old regression logs with `python3 scripts/archive-testing-reports.py --keep 5` (moves extras to `docs/archive/testing/`).
+
 ## macOS notarization (local / deferred notes)
 
 Release CI currently produces **ad-hoc signed** `.dmg` files (`tauri.conf.json` `signingIdentity: "-"`). Gatekeeper may require **Right-click → Open** on first launch.

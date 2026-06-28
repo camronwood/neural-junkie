@@ -97,11 +97,29 @@ func TestCADPackCapabilities(t *testing.T) {
 	}
 }
 
+func TestMusicCreationPackCapabilities(t *testing.T) {
+	m := officialTestManifest(t, "music-creation")
+	for _, cap := range []string{"music-generation", "music-sidecar"} {
+		if !m.HasCapability(cap) {
+			t.Fatalf("expected capability %s", cap)
+		}
+	}
+	if _, ok := m.CapabilityDefs["music-sidecar"]; !ok {
+		t.Fatal("expected music-sidecar capability_defs")
+	}
+	if m.ExpertSlug != "music" {
+		t.Fatalf("expected expert_slug music, got %s", m.ExpertSlug)
+	}
+}
+
 func TestPackIDForAgentType(t *testing.T) {
 	if got := PackIDForAgentType("backend"); got != "software-development" {
 		t.Fatalf("got %q", got)
 	}
 	if got := PackIDForAgentType("biology"); got != "life-sciences" {
+		t.Fatalf("got %q", got)
+	}
+	if got := PackIDForAgentType("music"); got != "music-creation" {
 		t.Fatalf("got %q", got)
 	}
 	if got := PackIDForAgentType("unknown"); got != "" {

@@ -482,6 +482,11 @@ func (m *MockHub) ImageGenerationEnabled() bool { return false }
 func (m *MockHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (m) MusicGenerationEnabled() bool { return false }
+func (m) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
+	return nil
+}
+
 
 // TestAssistantStoragePersistence tests that data persists across restarts
 func TestAssistantStoragePersistence(t *testing.T) {

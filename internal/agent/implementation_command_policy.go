@@ -143,9 +143,11 @@ func (s *ImplementationSessionState) RecordCommandRun(cmd string, exitCode int, 
 	}
 	s.CommandHistory = append(s.CommandHistory, rec)
 	s.LastCommandOutputText = output
-	if exitCode != 0 {
+	if exitCode != 0 && !s.ReproBootstrapActive {
 		s.LastFailedCommand = cmd
 		s.bumpCommandFailure(cmd)
+	} else if exitCode != 0 {
+		s.LastFailedCommand = cmd
 	}
 	if s.SinceLastCommandReadOrEdit {
 		s.SinceLastCommandReadOrEdit = false
@@ -168,6 +170,14 @@ func (s *ImplementationSessionState) ShouldBlockRunCommand(cmd string) error {
 		return shared.RepeatedCommandFailureError(cmd)
 	}
 	return nil
+}
+
+func (s *ImplementationSessionState) clearReproBootstrapFailures() {
+	if s == nil {
+		return
+	}
+	s.clearCommandFailuresSinceEdit()
+	s.CircuitBreakerFired = false
 }
 
 func (s *ImplementationSessionState) LastCommandOutput() string {
@@ -339,9 +349,37 @@ func commandOutputMatchesPlaybook(output string) string {
 		strings.Contains(output, `no rule to make target "start-all"`),
 		strings.Contains(output, "no rule to make target `start-all'"):
 		return "missing_start_all_target"
+	case strings.Contains(output, "bootfix_hint=dev_server_timeout"),
+		strings.Contains(output, "dev server command timed out"):
+		return "dev_server_timeout"
+	case strings.Contains(output, "cannot find module"),
+		strings.Contains(output, "can't resolve"),
+		strings.Contains(output, "could not be resolved"),
+		strings.Contains(output, "are they installed"),
+		strings.Contains(output, "module not found"),
+		strings.Contains(output, "failed to resolve import"):
+		return "missing_npm_module"
+	case strings.Contains(output, "strictport"),
+		strings.Contains(output, "eaddrinuse"),
+		strings.Contains(output, "address already in use"),
+		strings.Contains(output, "port 5177") && strings.Contains(output, "use"),
+		strings.Contains(output, "port 5177") && strings.Contains(output, "instead"):
+		return "vite_strict_port_conflict"
 	case strings.Contains(output, "devpath") && strings.Contains(output, "port"),
 		strings.Contains(output, "connection refused") && strings.Contains(output, "1420"):
 		return "tauri_vite_port_mismatch"
+	case strings.Contains(output, "modulenotfounderror"),
+		strings.Contains(output, "no module named"):
+		return "python_module_not_found"
+	case strings.Contains(output, "undefined:") && strings.Contains(output, ".go:"):
+		return "go_undefined_symbol"
+	case strings.Contains(output, "cannot find crate"),
+		strings.Contains(output, "could not find `"):
+		return "rust_cannot_find_crate"
+	case strings.Contains(output, "assertionerror"),
+		strings.Contains(output, "assertion failed"),
+		strings.Contains(output, "--- fail:"):
+		return "test_assertion_failed"
 	default:
 		return ""
 	}

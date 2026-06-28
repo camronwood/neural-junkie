@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep overnight-release-prep slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep overnight-release-prep ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -286,11 +286,11 @@ test-parity-full-restart: ## implement + parity scenarios 3× with hub restart b
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable: ## Run implement-scenarios 3x with hub restart between sweeps (stable gate)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 17 \
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 20 \
 		--restart-between --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable-stress: ## Run implement-scenarios 3x back-to-back (may OOM hub on tight memory)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 17 \
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/implement-scenarios-stable.py --runs 3 --min-pass 20 \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
 test-parity-stable-restart: test-parity-stable ## Alias for stable gate (restart between sweeps)
@@ -329,16 +329,27 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + quic
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(STOP_ON_FAIL),--stop-on-fail,)'
 
-overnight-release-prep: ## Walk-away gate: ensure Ollama + tmux + caffeinate + release-prep → ~/nj-overnight-*.log (IN_TMUX=0 foreground; PULL=1 pre-pull; NJ_OVERNIGHT_TARGET=test-everything-full for lighter run)
-	@chmod +x scripts/overnight-release-prep.sh
+overnight-release-prep: ## Walk-away gate: ensure Ollama + tmux + caffeinate + release-prep → ~/nj-overnight-*.log (IN_TMUX=0 foreground; NO_PULL=1 skip pulls; NJ_OVERNIGHT_TARGET=test-everything-full for lighter run)
+	@chmod +x scripts/overnight-release-prep.sh scripts/ensure-ollama-models-ready.py
 	@SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
 	 NO_FULL='$(NO_FULL)' SKIP_EVERYTHING='$(SKIP_EVERYTHING)' BENCHMARK_SUITE='$(BENCHMARK_SUITE)' \
 	 BENCHMARK_MODELS='$(BENCHMARK_MODELS)' NO_PULL='$(NO_PULL)' BENCHMARK_ALLOW_LARGE='$(BENCHMARK_ALLOW_LARGE)' \
 	 NO_RESTART_HUB='$(NO_RESTART_HUB)' VERBOSE='$(VERBOSE)' STOP_ON_FAIL='$(STOP_ON_FAIL)' \
-	 IN_TMUX='$(IN_TMUX)' PULL='$(PULL)' NJ_OVERNIGHT_TARGET='$(NJ_OVERNIGHT_TARGET)' \
+	 IN_TMUX='$(IN_TMUX)' NJ_OVERNIGHT_TARGET='$(NJ_OVERNIGHT_TARGET)' \
+	 NJ_OVERNIGHT_KEEP_ALIVE='$(NJ_OVERNIGHT_KEEP_ALIVE)' \
 	 NJ_OVERNIGHT_LOG_DIR='$(NJ_OVERNIGHT_LOG_DIR)' NJ_OVERNIGHT_SESSION='$(NJ_OVERNIGHT_SESSION)' \
 	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' \
 	 ./scripts/overnight-release-prep.sh
+
+ensure-ollama-models-ready: ## Pull/warm/smoke Ollama models before release prep (SUITE=quick; NO_PULL=1 to skip pulls)
+	@chmod +x scripts/ensure-ollama-models-ready.py
+	@python3 scripts/ensure-ollama-models-ready.py \
+		$(if $(NO_PULL),,--pull-missing) --warm --smoke \
+		--keep-alive $(or $(NJ_OVERNIGHT_KEEP_ALIVE),24h) \
+		--suite $(or $(SUITE),quick) \
+		$(if $(SKIP_BENCHMARK),--skip-benchmark,) \
+		$(if $(BENCHMARK_ALLOW_LARGE),--allow-large-models,) \
+		$(if $(MODELS),--models "$(MODELS)",)
 
 model-benchmark: ## Benchmark ≤24B coder models (SUITE=quick; pulls by default; NO_PULL=1 to skip; BENCHMARK_ALLOW_LARGE=1 to bypass cap)
 	@chmod +x scripts/model-benchmark-suite.py

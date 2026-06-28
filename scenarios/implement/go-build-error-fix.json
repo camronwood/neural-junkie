@@ -1,0 +1,45 @@
+{
+  "name": "go-build-error-fix",
+  "description": "Fix-like flow: Go compile error fixed via repro-first session.",
+  "tags": ["implement", "fix-like", "go"],
+  "channel": "implement-scenarios",
+  "channel_type": "public",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": { "fixture": "go-verify-repair" },
+  "expect_deliverables": [
+    {
+      "path": "core/sample/math.go",
+      "for_question": {
+        "any_match": ["func Add", "return a + b"]
+      }
+    }
+  ],
+  "steps": [
+    {
+      "action": "send",
+      "content": "go test ./... is failing in this workspace — please fix the compile error so tests pass.",
+      "metadata": {
+        "editor_mode": "agent",
+        "ide_route_agent_type": "backend",
+        "implementation_session": true,
+        "editor_agent_trust": "auto_apply_edits",
+        "conversation_mode": "code"
+      }
+    },
+    {
+      "action": "wait_reply",
+      "from": "BackendEngineer",
+      "timeout": "600s",
+      "until_any_match": ["fix session complete|implementation session complete|applied and verified|go test"]
+    },
+    {
+      "action": "assert_messages",
+      "from": "BackendEngineer",
+      "last_reply_only": true,
+      "any_match": ["session complete|math.go|go test"],
+      "none_match": ["finished without file changes"]
+    }
+  ],
+  "cleanup": "clear"
+}

@@ -173,6 +173,7 @@ def benchmark_model(
         print(f"    {mark} in {format_duration(elapsed)} — {step_detail}")
         if verbose and not passed:
             return result
+        _recover_implement_channel(hub_url)
 
     for name in chat:
         print(f"\n  [chat] {name}")
@@ -200,6 +201,30 @@ def benchmark_model(
         f"\n  Model total: {result.passed}/{result.total} pass in {format_duration(result.total_duration_s)}"
     )
     return result
+
+
+def _recover_hub_between_models(hub_url: str) -> None:
+    """Light reset between model switches so implement/chat scenarios do not inherit stale state."""
+    try:
+        from lib.fixture_cleanup import preflight_regression_run  # noqa: WPS433
+
+        preflight_regression_run(ROOT, hub_url, label="model-benchmark between models")
+    except Exception as exc:  # pragma: no cover - best effort
+        print(f"  WARN: hub preflight between models: {exc}", file=sys.stderr)
+
+
+def _recover_implement_channel(hub_url: str) -> None:
+    """Reset implement-scenarios between heavy benchmark scenarios (e.g. go-handler → theme-toggle)."""
+    try:
+        from lib import collab_hub as hub  # noqa: WPS433
+        from lib.fixture_baseline import reset_fixture_baseline  # noqa: WPS433
+
+        hub.ensure_channel(hub_url, "implement-scenarios", description="Scenario regression channel")
+        hub.clear_channel_history(hub_url, "implement-scenarios")
+        reset_fixture_baseline({"workspace": {"fixture": "minimal-repo"}}, root=ROOT)
+        time.sleep(2.0)
+    except Exception as exc:  # pragma: no cover - best effort
+        print(f"  WARN: implement channel reset: {exc}", file=sys.stderr)
 
 
 def main() -> int:
@@ -303,8 +328,10 @@ def main() -> int:
         print(f"  hardware: {hardware.get('total_memory_gb')} GB RAM ({hardware.get('tier')} tier)")
     print(f"  deliverable judge: {judge_provider}")
 
+    _recover_hub_between_models(hub_url)
+
     results: list[ModelBenchmarkResult] = []
-    for model in models:
+    for i, model in enumerate(models):
         results.append(
             benchmark_model(
                 hub_url,
@@ -317,6 +344,8 @@ def main() -> int:
                 verbose=args.verbose,
             )
         )
+        if i+1 < len(models):
+            _recover_hub_between_models(hub_url)
 
     md_path, json_path, tsv_path = write_reports(
         args.out_dir,

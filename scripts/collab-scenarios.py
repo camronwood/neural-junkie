@@ -171,6 +171,7 @@ def build_collaborate_command(scenario: dict, agents: str) -> str:
         flags = flags.split()
     flags = apply_flag_overrides(list(flags))
     goal = (collab.get("goal") or "").strip()
+    agent_part = (agents or "").strip()
     ws = scenario_workspace(scenario)
     if ws and ws.get("workspace_flag"):
         if "--workspace" not in flags:
@@ -178,7 +179,13 @@ def build_collaborate_command(scenario: dict, agents: str) -> str:
     repo = resolve_workspace_repo(scenario) if ws else ""
     if repo and "--repo" not in flags:
         flags = ["--repo", _shell_quote_arg(repo), *flags]
-    parts = ["/collaborate", *flags, agents, goal]
+    # Keep @mentions in the goal tail so hub mention parsing survives --repo paths/flags.
+    if agent_part:
+        if not hub.parse_agent_mentions(goal):
+            goal = f"{agent_part} {goal}".strip() if goal else agent_part
+        elif not goal.lower().startswith(agent_part.lower().split()[0]):
+            goal = f"{agent_part} {goal}".strip()
+    parts = ["/collaborate", *flags, goal]
     return " ".join(p for p in parts if p)
 
 
@@ -911,7 +918,8 @@ def run_setup_blocker(ctx: ScenarioContext, setup: dict, agents: str) -> bool:
     mini = {
         "collaborate": {
             "flags": setup.get("flags") or ["--rounds", "1", "--messages", "1"],
-            "goal": setup.get("goal") or "hold executing slot for isolation probe",
+            "goal": setup.get("goal")
+            or f"{agents.strip()} hold executing slot for isolation probe",
         },
         "channel": ch,
     }

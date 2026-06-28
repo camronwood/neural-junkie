@@ -73,6 +73,9 @@ yarn.lock
 # Local Go module cache (sandbox / CI)
 .gomodcache/
 
+# Agent-created junk at repo root (not desktop/src)
+/src/
+
 # Local scratch / dev artifacts
 assets/.logo-tmp/
 dist/

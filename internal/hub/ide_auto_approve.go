@@ -38,9 +38,16 @@ func (h *Hub) maybeAutoApproveIDEFileChange(msg *protocol.Message, change *filec
 	if msg.IdeEditorMode() == "ask" {
 		return
 	}
+	if !hubChannelAllowsIDEAutoApprove(msg.Channel, msg) {
+		return
+	}
 	if operation != filechange.FileOperationCreate &&
 		operation != filechange.FileOperationEdit &&
 		operation != filechange.FileOperationDelete {
+		return
+	}
+	if !agent.ShouldAutoApproveFileChange(change.FilePath) {
+		log.Printf("[IDE] Skipping auto-approve for path: %s", change.FilePath)
 		return
 	}
 	approvedBy := "system"

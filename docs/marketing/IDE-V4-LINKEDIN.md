@@ -69,6 +69,10 @@ If the IDE you loved now has a new owner, you don't have to wait for their roadm
 
 https://github.com/camronwood/neural-junkie
 
+**Download CTA:** https://camronwood.github.io/neural-junkie/download.html
+
+**Suggested post date:** After `v1.2.0-beta.2` tag (CI + remote LSP dogfood).
+
 ---
 
 Related: [IDE_V4.md](../IDE_V4.md) · [REMOTE_WORKSPACES.md](../REMOTE_WORKSPACES.md) · [assets/marketing/ide-v4-open-source-ad.md](../../assets/marketing/ide-v4-open-source-ad.md)

@@ -83,6 +83,11 @@ func (m *mockHubClientReview) ImageGenerationEnabled() bool { return false }
 func (m *mockHubClientReview) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (m) MusicGenerationEnabled() bool { return false }
+func (m) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
+	return nil
+}
+
 
 // Helper function to broadcast a message to all subscribers
 func (m *mockHubClientReview) BroadcastMessage(msg *protocol.Message) {

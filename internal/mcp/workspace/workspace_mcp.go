@@ -411,13 +411,14 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		if relCwd == "" {
 			relCwd = "."
 		}
-		runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		cmdTimeout := shared.RunCommandTimeoutFromContext(ctx)
+		runCtx, cancel := context.WithTimeout(ctx, cmdTimeout)
 		defer cancel()
 		res, err := b.Exec(runCtx, workspacebackend.ExecRequest{
 			Command: "sh",
 			Args:    []string{"-c", cmdStr},
 			RelCwd:  strings.TrimPrefix(relCwd, "/"),
-			Timeout: 60 * time.Second,
+			Timeout: cmdTimeout,
 		})
 		text := res.Stdout
 		if res.Stderr != "" {
@@ -447,22 +448,12 @@ func (w *tools) handleRunCommand(ctx context.Context, request mcpgo.CallToolRequ
 		}
 		cwd = resolved
 	}
-	runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(runCtx, "sh", "-c", cmdStr)
-	cmd.Dir = cwd
-	out, err := cmd.CombinedOutput()
-	text := string(out)
+	shellRes, err := shared.RunShellCommand(ctx, cwd, cmdStr)
+	text := shellRes.Output
 	if len(text) > maxReadBytes {
 		text = text[:maxReadBytes] + "\n...(truncated)"
 	}
-	exitCode := 0
-	if err != nil {
-		exitCode = 1
-		if ee, ok := err.(*exec.ExitError); ok {
-			exitCode = ee.ExitCode()
-		}
-	}
+	exitCode := shellRes.ExitCode
 	summary := fmt.Sprintf("exit_code=%d\n%s", exitCode, text)
 	if p := shared.CommandPolicyFromContext(ctx); p != nil {
 		p.RecordCommandRun(cmdStr, exitCode, summary)

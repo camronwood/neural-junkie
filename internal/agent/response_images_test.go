@@ -47,4 +47,13 @@ func TestUserRequestsGeneratedImage(t *testing.T) {
 	if UserRequestsGeneratedImage("what time is it?") {
 		t.Fatal("expected false")
 	}
+	if UserRequestsGeneratedImage("🖼️ Generated image.") {
+		t.Fatal("delivery boilerplate should not count as a request")
+	}
+	if UserRequestsGeneratedImage("generated image attached for review") {
+		t.Fatal("past-tense generated should not match generate verb")
+	}
+	if !UserRequestsGeneratedImage("can you generate an image of a logo?") {
+		t.Fatal("expected generate request to match")
+	}
 }

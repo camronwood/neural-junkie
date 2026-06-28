@@ -1,28 +1,76 @@
 {
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "",
     "devPath": "http://localhost:5173",
     "distDir": "../dist"
   },
-  "package": {
-    "productName": "react-tauri-missing-start-all",
-    "version": "1.0.0",
-    "name": "react-tauri-missing-start-all",
-    "binaries": [
-      {
-        "target": "x86_64-apple-darwin",
-        "path": "src-tauri/target/release/react-tauri-missing-start-all.app"
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "identifier": "com.example.react-tauri",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ]
+  },
+  "packages": {
+    "default": {
+      "identifier": "com.example.packages.default",
+      "externalDependencies": []
+    }
+  },
+  "plugins": {},
+  "tauri": {
+    "allowlist": {
+      "all": false
+    },
+    "bundle": {
+      "active": true,
+      "category": "DeveloperTool",
+      "copyright": "",
+      "deb": {
+        "depends": []
       },
-      {
-        "target": "x86_64-pc-windows-msvc",
-        "path": "src-tauri/target/release/react-tauri-missing-start-all.exe"
+      "externalBin": [],
+      "files": null,
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.png"
+      ],
+      "identifier": "com.example.react-tauri",
+      "longDescription": "",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
       },
-      {
-        "target": "x86_64-unknown-linux-gnu",
-        "path": "src-tauri/target/release/react-tauri-missing-start-all"
+      "shortDescription": "",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
       }
-    ],
-    "active": true
+    },
+    "security": {
+      "csp": null
+    },
+    "systemTray": {
+      "iconPath": "icons/32x32.png",
+      "menu": true,
+      "singleInstance": false
+    },
+    "window": {
+      "fullscreen": false,
+      "height": 600,
+      "resizable": true,
+      "title": "React + Tauri App",
+      "width": 800
+    }
   }
 }

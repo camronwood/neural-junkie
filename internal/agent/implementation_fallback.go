@@ -48,6 +48,9 @@ func extractCodeFenceForPath(response, targetPath string) string {
 }
 
 func validateProposalContent(path, content string) error {
+	if err := validateConfigJSONContent(path, content); err != nil {
+		return err
+	}
 	if looksLikePlaceholderProposalContent(content) {
 		return fmt.Errorf("proposal content looks like a placeholder template, not real deliverable text")
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
 	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/google/uuid"
 )
 
 var assistantExportContinuationRE = regexp.MustCompile(`(?i)\b(save|store|export|write)\s+(it|that|this)\b`)
@@ -60,6 +61,12 @@ type ImplementationSessionState struct {
 	PreflightErrors []string
 	TrustMode                  string
 	BootFixIntent              bool
+	FixLikeIntent              bool
+	ReproCommand               string
+	ReproExitCode              int
+	ReproOutput                string
+	ClarifyQuestionsAsked      int
+	ReproBootstrapActive       bool
 	DiagnosticBootstrapDone    bool
 	CommandHistory             []CommandRunRecord
 	LastReadPaths              []string
@@ -140,6 +147,9 @@ func assistantAllowsImplementationSession(a *Agent, msg *protocol.Message) bool 
 // shouldRunImplementationSession reports whether to use the bounded implementation loop.
 func shouldRunImplementationSession(a *Agent, msg *protocol.Message) bool {
 	if a == nil || msg == nil {
+		return false
+	}
+	if !channelAllowsImplementationSession(msg.Channel, msg) {
 		return false
 	}
 	if msg.GetCollaborationID() != "" && !collaborationAllowsImplementationSession(msg) {
@@ -234,6 +244,9 @@ func (a *Agent) runImplementationSession(ctx context.Context, msg *protocol.Mess
 }
 
 func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *protocol.Message, eff ai.AIProvider, streamMsgID string) (string, string, bool, []string, map[string]interface{}, error) {
+	if streamMsgID == "" {
+		streamMsgID = uuid.New().String()
+	}
 	frontend := false
 	wsPathEarly := a.resolveWorkspacePath(msg)
 	if wsPathEarly != "" {
@@ -242,7 +255,6 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		}
 	}
 	sessionTimeout := implSessionTimeoutForMessage(msg, frontend)
-	maxToolIter, maxEditRounds, maxFiles := implSessionLimits(msg)
 
 	sessionCtx, cancel := context.WithTimeout(ctx, sessionTimeout)
 	defer cancel()
@@ -260,11 +272,6 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		toolModel = a.resolveImplementationToolModel(plan.ToolModel)
 	}
 	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
-	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, maxToolIter)
-	perf := performanceFromHub()
-	sessionCtx = contextcompress.WithAgentRetrieveBudget(sessionCtx, perf.AgentRuntimeMaxRetrievePerTurnOrDefault())
-
-	a.sendThinkingActivity(msg, protocol.ThinkingActivityImplementation, "exploring workspace and applying fixes")
 
 	history := a.channelHistory(msg.Channel)
 	state := &ImplementationSessionState{
@@ -275,12 +282,29 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	if wsPath != "" {
 		state.StackManifest = DetectStackManifest(wsPath)
 		state.BootFixIntent = messageImpliesBootFix(msg.Content, history)
+		state.FixLikeIntent = messageImpliesFixLikeIntent(msg.Content, history)
+		if state.FixLikeIntent && !state.BootFixIntent {
+			state.BootFixIntent = state.FixLikeIntent
+		}
+		state.ReproCommand = inferReproCommand(wsPath, state.StackManifest, msg.Content)
 		state.DiagnosePhaseRequired = requiresDiagnoseGate(msg, state, wsPath)
 	}
+	maxToolIter, maxEditRounds, maxFiles := implSessionLimitsForState(msg, state)
+	sessionCtx = ai.WithToolLoopMaxIterations(sessionCtx, maxToolIter)
+	perf := performanceFromHub()
+	sessionCtx = contextcompress.WithAgentRetrieveBudget(sessionCtx, perf.AgentRuntimeMaxRetrievePerTurnOrDefault())
+
+	a.sendThinkingActivity(msg, protocol.ThinkingActivityImplementation, "exploring workspace and applying fixes")
+
 	sessionCtx = withImplementationSessionState(sessionCtx, state)
 	sessionCtx = shared.ContextWithImplementationSession(sessionCtx, true)
 	sessionCtx = attachImplSessionCommandPolicy(sessionCtx, state)
 	restoreImplSessionFromCheckpoint(msg, state)
+
+	if question, ask := maybeAskFixClarification(msg, state, wsPath); ask {
+		outcome := a.buildImplementationSessionOutcome(msg, state, false)
+		return question, streamMsgID, false, nil, outcome, nil
+	}
 
 	if userRequestsDestructiveCommand(msg.Content) {
 		state.FilesChanged = nil
@@ -292,7 +316,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	if a.tryEarlyCorruptAppJSBootFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 		state.VerifyOutput = verifyOut
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
@@ -303,7 +327,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	if a.tryEarlyCommandEvidencePlaybook(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 		state.VerifyOutput = verifyOut
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
@@ -313,11 +337,11 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 	}
 
 	var repairNote string
-	if state.BootFixIntent && wsPath != "" && !state.DiagnosticBootstrapDone {
-		bootstrapApplied, bootstrapNote := a.runBootFixDiagnosticBootstrap(sessionCtx, msg, state, wsPath)
+	if state.FixLikeIntent && wsPath != "" && !state.DiagnosticBootstrapDone {
+		bootstrapApplied, bootstrapNote := a.runReproBootstrap(sessionCtx, msg, state, wsPath)
 		if bootstrapApplied {
 			state.Phase = "verify"
-			verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+			verifyOut, verifyFailed, verifySkipped := a.runReproVerify(sessionCtx, msg, state)
 			state.VerifyOutput = verifyOut
 			state.VerifyFailed = verifyFailed
 			state.VerifySkipped = verifySkipped
@@ -327,6 +351,25 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
 		}
 		repairNote = bootstrapNote
+		a.sendInterimFixUpdate(msg, formatFixInterimProgress(state))
+	}
+
+	completeFixDiagnoseFromRepro(state)
+	if state.FixLikeIntent && strings.TrimSpace(state.LastCommandOutput()) != "" {
+		a.broadcastImplementationProgress(msg, streamMsgID, formatFixInterimProgress(state))
+	}
+
+	if a.tryEarlyMissingNpmModuleFix(sessionCtx, msg, wsPath, state) {
+		a.runBootFixNpmInstallAfterDepProposal(sessionCtx, msg, state, wsPath)
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runReproVerify(sessionCtx, msg, state)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		proposed := state.hasRegisteredProposals()
+		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+		return summary, streamMsgID, proposed, state.RegisteredFiles, outcome, nil
 	}
 
 	var lastResponse string
@@ -334,7 +377,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	if a.tryEarlyGoMathFixtureFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 		state.VerifyOutput = verifyOut
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
@@ -345,7 +388,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	if a.tryEarlyTypeScriptCompileFix(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 		state.VerifyOutput = verifyOut
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
@@ -369,6 +412,10 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			a.observeImplementationSessionToolStep(roundCtx, msg, state, streamMsgID, ev)
 		})
 		toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+
+		if round == 0 && repairNote != "" {
+			a.sendThinkingActivity(msg, protocol.ThinkingActivityReasoning, "planning fix from build output")
+		}
 
 		response, err := a.generateImplementationRound(toolCtx, msg, eff)
 		if err != nil {
@@ -463,8 +510,8 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 			} else if !state.groundingSatisfied() {
 				state.recordRepairFailureKind(RepairFailureGrounding)
 				repairNote = formatGroundingRepairNote("")
-			} else if state.BootFixIntent {
-				repairNote = bootFixPostDiscoverRepairNote(state)
+			} else if state.FixLikeIntent {
+				repairNote = fixLikePostDiscoverRepairNote(state)
 			} else {
 				state.recordRepairFailureKind(RepairFailureAdvisory)
 				repairNote = formatAdvisoryOnlyRepairNote()
@@ -525,12 +572,15 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	if cycleProposed {
 		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runImplementationVerify(sessionCtx, msg)
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
 		state.VerifyOutput = verifyOut
 		state.VerifyFailed = verifyFailed
 		state.VerifySkipped = verifySkipped
 
 		if verifyFailed {
+			if state.FixLikeIntent {
+				a.sendInterimFixUpdate(msg, "Repro still failing — continuing with fixes…")
+			}
 			maxRepairs := 1
 			if agentRuntimeV2ForMessage(msg) {
 				maxRepairs = agentRuntimeMaxRepairRounds
@@ -560,7 +610,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 				if proposed || state.ProposedCount > proposalsBefore {
 					proposedAny = true
 					lastResponse = cleaned
-					verifyOut2, verifyFailed2, _ := a.runImplementationVerify(sessionCtx, msg)
+					verifyOut2, verifyFailed2, _ := a.runVerifyForState(sessionCtx, msg, state)
 					state.VerifyOutput = verifyOut2
 					state.VerifyFailed = verifyFailed2
 				} else {
@@ -632,6 +682,7 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 	}
 	applied := len(state.RegisteredFiles) > 0 && trust == editorTrustAutoApply && msg != nil &&
 		sessionFilesOnDisk(a.resolveWorkspacePath(msg), state.RegisteredFiles)
+	reproVerified := fixLikeSessionSucceeded(state)
 	attempted := state.ProposedCount > 0 || len(state.FilesChanged) > 0
 	registered := len(state.RegisteredFiles) > 0
 	switch {
@@ -640,12 +691,20 @@ func (a *Agent) buildImplementationSessionOutcome(msg *protocol.Message, state *
 		outcome["registration_errors"] = append([]string(nil), state.RegistrationErrors...)
 	case !proposed:
 		outcome["outcome"] = "no_changes"
+	case trust == editorTrustAutoApply && applied && state.FixLikeIntent && strings.TrimSpace(state.ReproCommand) != "" && !reproVerified:
+		outcome["outcome"] = "applied_verify_failed"
 	case trust == editorTrustAutoApply && applied && state.VerifyFailed:
 		outcome["outcome"] = "applied_verify_failed"
+	case trust == editorTrustAutoApply && applied && state.FixLikeIntent && strings.TrimSpace(state.ReproCommand) != "" && reproVerified:
+		outcome["outcome"] = "applied_and_verified"
 	case trust == editorTrustAutoApply && applied && !state.VerifyFailed && !state.VerifySkipped:
 		outcome["outcome"] = "applied_and_verified"
 	case proposed:
 		outcome["outcome"] = "proposals_submitted"
+	}
+	if state.FixLikeIntent && strings.TrimSpace(state.ReproCommand) != "" {
+		outcome["repro_command"] = state.ReproCommand
+		outcome["repro_exit_code"] = state.ReproExitCode
 	}
 	if len(state.CommandHistory) > 0 {
 		failures := state.CommandFailureSummary()
@@ -909,8 +968,14 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 	}
 	applied := false
 	if proposed && msg != nil && trust == editorTrustAutoApply {
-		applied = sessionFilesOnDisk(a.resolveWorkspacePath(msg), state.FilesChanged)
+		paths := state.RegisteredFiles
+		if len(paths) == 0 {
+			paths = state.FilesChanged
+		}
+		applied = sessionFilesOnDisk(a.resolveWorkspacePath(msg), paths)
 	}
+	reproVerified := fixLikeSessionSucceeded(state)
+	fixLikeRepro := state != nil && state.FixLikeIntent && strings.TrimSpace(state.ReproCommand) != ""
 
 	switch {
 	case !proposed:
@@ -929,6 +994,18 @@ func (a *Agent) formatImplementationSessionSummary(lastResponse string, state *I
 				}
 				b.WriteString("\n")
 			}
+		}
+	case trust == editorTrustAutoApply && state != nil && applied && fixLikeRepro && !reproVerified:
+		if len(state.FilesChanged) > 0 {
+			b.WriteString(fmt.Sprintf("Fix session complete — applied changes but repro `%s` still fails (changes to: %s).\n\n", state.ReproCommand, strings.Join(state.FilesChanged, ", ")))
+		} else {
+			b.WriteString(fmt.Sprintf("Fix session complete — applied changes but repro `%s` still fails.\n\n", state.ReproCommand))
+		}
+	case trust == editorTrustAutoApply && state != nil && applied && fixLikeRepro && reproVerified:
+		if len(state.FilesChanged) > 0 {
+			b.WriteString(fmt.Sprintf("Fix session complete — repro `%s` passes (changes to: %s).\n\n", state.ReproCommand, strings.Join(state.FilesChanged, ", ")))
+		} else {
+			b.WriteString(fmt.Sprintf("Fix session complete — repro `%s` passes.\n\n", state.ReproCommand))
 		}
 	case trust == editorTrustAutoApply && state != nil && applied && state.VerifyFailed:
 		if len(state.FilesChanged) > 0 {

@@ -103,6 +103,11 @@ func (h *deferRepoTestHub) ImageGenerationEnabled() bool { return false }
 func (h *deferRepoTestHub) GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error {
 	return nil
 }
+func (h *deferRepoTestHub) MusicGenerationEnabled() bool { return false }
+func (h *deferRepoTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
+	return nil
+}
+
 
 type deferRepoCommandHandler struct {
 	pending map[string]bool

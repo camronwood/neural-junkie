@@ -1,8 +1,10 @@
+import "./index.css";
+
 export default function App() {
+  const brokenCount: number = 42;
   return (
-    <div className="p-4 text-center">
-      <h1 className="text-2xl font-bold">Tauri Fixture App</h1>
-      <p>Boot via make start-all once Makefile is repaired.</p>
+    <div className="min-h-screen bg-slate-900 text-slate-100 p-4">
+      <p className="text-sm">{brokenCount}</p>
     </div>
   );
 }

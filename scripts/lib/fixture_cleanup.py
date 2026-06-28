@@ -54,7 +54,30 @@ def cleanup_scenario_channels(hub_url: str, *, dry_run: bool = False) -> list[st
             cleared.append(channel)
             continue
         hub_api.ensure_channel(hub_url, channel, description="Scenario regression channel")
+        # Drop stale collabs that hold channel state and block clear-history.
+        for collab in hub_api.list_active_collaborations(hub_url):
+            if not isinstance(collab, dict):
+                continue
+            collab_ch = (collab.get("channel") or "").strip()
+            starter = (collab.get("starter_channel") or collab.get("source_channel") or "").strip()
+            if collab_ch == channel or starter == channel:
+                cid = (collab.get("id") or "").strip()
+                if cid:
+                    hub_api.cancel_collab(hub_url, {"id": cid, "channel": collab_ch or channel})
+                    time.sleep(0.25)
         ok = hub_api.clear_channel_history(hub_url, channel, max_retries=8)
+        if not ok:
+            # Last resort: drop any remaining active collabs then retry once.
+            for collab in hub_api.list_active_collaborations(hub_url):
+                if not isinstance(collab, dict):
+                    continue
+                cid = (collab.get("id") or "").strip()
+                if not cid:
+                    continue
+                collab_ch = (collab.get("channel") or "").strip()
+                hub_api.cancel_collab(hub_url, {"id": cid, "channel": collab_ch or channel})
+                time.sleep(0.25)
+            ok = hub_api.clear_channel_history(hub_url, channel, max_retries=4)
         if ok:
             cleared.append(channel)
         else:

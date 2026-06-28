@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-21T11:32:45Z",
-  "count": 10,
+  "updated": "2026-06-28T11:04:29Z",
+  "count": 11,
   "items": [
     {
       "slug": "hardware",
@@ -81,6 +81,25 @@
       "sourceFile": "INFERENCE-LAYER-LINKEDIN.md",
       "sourcePath": "docs/marketing/INFERENCE-LAYER-LINKEDIN.md",
       "href": "inference-layer.html"
+    },
+    {
+      "slug": "loop-stack",
+      "title": "We Didn't Build One Agent Loop. We Built a Stack.",
+      "teaser": "My agent could run `make start-all` eight times and never touch the Makefile. That's not a model problem \u2014 it's a missing closed loop. Here's the stack of loops we built in Neural Junkie, and why each one exists.",
+      "cover": "assets/neural-junkie-loop-stack-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-loop-stack-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "developertools",
+        "opensource",
+        "localfirst",
+        "agenticcoding",
+        "multiagent"
+      ],
+      "sourceFile": "LOOP-STACK-LINKEDIN.md",
+      "sourcePath": "docs/marketing/LOOP-STACK-LINKEDIN.md",
+      "href": "loop-stack.html"
     },
     {
       "slug": "conversation-memory",

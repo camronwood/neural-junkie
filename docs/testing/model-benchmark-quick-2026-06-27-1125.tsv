@@ -1,0 +1,8 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+deepseek-coder:6.7b	implement	go-handler	0	424.4			=== FAIL: go-handler ===
+codegemma:7b	implement	go-handler	0	424.4			=== FAIL: go-handler ===
+qwen3.5:9b	implement	go-handler	0	424.3			=== FAIL: go-handler ===
+gemma3:12b	implement	go-handler	0	424.3			=== FAIL: go-handler ===
+qwen2.5-coder:14b	implement	go-handler	0	424.3			=== FAIL: go-handler ===
+codestral:22b	implement	go-handler	0	424.3			=== FAIL: go-handler ===
+devstral:24b	implement	go-handler	0	424.3			=== FAIL: go-handler ===

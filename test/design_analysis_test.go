@@ -49,6 +49,11 @@ func (m *MockHubClient) ImageGenerationEnabled() bool                           
 func (m *MockHubClient) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (m) MusicGenerationEnabled() bool { return false }
+func (m) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
+	return nil
+}
+
 
 func TestDesignAnalysis(t *testing.T) {
 	// Create mock AI provider

@@ -49,6 +49,34 @@ func (a *Agent) broadcastToolStep(ctx context.Context, msg *protocol.Message, st
 	}
 }
 
+// broadcastImplementationProgress updates the typing indicator during long implementation sessions.
+// Does not emit stream_delta — interim deltas shared the final streamMsgID and left a stuck partial bubble in the UI.
+func (a *Agent) broadcastImplementationProgress(msg *protocol.Message, _streamMsgID, text string) {
+	if a == nil || msg == nil {
+		return
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	a.sendThinkingActivity(msg, protocol.ThinkingActivityImplementation, text)
+}
+
+// broadcastStreamEnd finalizes an in-progress stream so the desktop removes streamingMessages[id].
+func (a *Agent) broadcastStreamEnd(msg *protocol.Message, streamMsgID string) {
+	if a == nil || a.Hub == nil || msg == nil || streamMsgID == "" {
+		return
+	}
+	endMsg := protocol.NewMessage(protocol.MessageTypeStreamEnd, msg.Channel, a.Info, "")
+	endMsg.ID = streamMsgID
+	endMsg.ReplyTo = msg.ID
+	if msg.IsInThread() {
+		endMsg.ThreadID = msg.ThreadID
+		endMsg.IsThreadReply = true
+	}
+	a.Hub.BroadcastDirect(msg.Channel, endMsg)
+}
+
 func (a *Agent) streamTextAsTokens(ctx context.Context, msg *protocol.Message, streamMsgID, text string) (string, string, string, error) {
 	tokenCh := make(chan ai.StreamToken, 32)
 	go func() {

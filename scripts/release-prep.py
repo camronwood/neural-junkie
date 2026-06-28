@@ -71,21 +71,30 @@ def run_phase(name: str, cmd: list[str], *, env: dict | None = None) -> PhaseRes
     merged = release_prep_env(ROOT)
     if env:
         merged.update(env)
+    merged["PYTHONUNBUFFERED"] = "1"
     t0 = time.monotonic()
-    print(f"\n>>> [{name}] {' '.join(cmd)}")
-    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, env=merged)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    if out.strip():
-        tail = out.rstrip()
-        if len(tail) > 12000:
-            print("...(truncated in terminal)...")
-            print(tail[-12000:])
-        else:
-            print(tail)
+    print(f"\n>>> [{name}] {' '.join(cmd)}", flush=True)
+    proc = subprocess.Popen(
+        cmd,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=merged,
+        bufsize=1,
+    )
+    chunks: list[str] = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        chunks.append(line)
+    rc = proc.wait()
+    out = "".join(chunks)
     return PhaseResult(
         name=name,
-        status="OK" if proc.returncode == 0 else "FAIL",
-        exit_code=proc.returncode,
+        status="OK" if rc == 0 else "FAIL",
+        exit_code=rc,
         duration_s=time.monotonic() - t0,
         output=out,
     )
@@ -106,7 +115,7 @@ def parity_scorecard_section(report: ReleasePrepReport) -> list[str]:
         "",
         "| Dimension | Release gate | Status |",
         "|-----------|--------------|--------|",
-        f"| Implement regression (16 scenarios) | `make implement-scenarios` | {impl.status if impl else '—'} |",
+        f"| Implement regression (20 scenarios) | `make implement-scenarios` | {impl.status if impl else '—'} |",
         f"| Stability (3× restart) | `make test-parity-stable-restart` | {impl.status if impl else '—'} |",
         "| Parity contract | `make parity-scenarios` | run via `make test-parity-full-restart` |",
         "| Agent Runtime v2 | `features.agent_runtime_v2` default on | config |",
@@ -352,7 +361,7 @@ def main() -> int:
             "--runs",
             "3",
             "--min-pass",
-            "17",
+            "20",
             "--restart-between",
             "--hub",
             hub_url,

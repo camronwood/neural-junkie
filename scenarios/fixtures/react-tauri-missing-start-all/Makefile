@@ -1,7 +1,14 @@
-#!/bin/bash
+# Existing content + new target at end
+.PHONY: dev build start-all clean
 
-npm run start-all
+dev:
+	npm run dev
 
-.PHONY: start-all
+build:
+	npm run build
+
 start-all:
-	@bash scripts/start-all.sh
+	./scripts/start-all.sh
+
+clean:
+	rm -rf dist

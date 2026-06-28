@@ -205,3 +205,8 @@ func (h *scanShortcutHistoryHub) ImageGenerationEnabled() bool         { return 
 func (h *scanShortcutHistoryHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (h *scanShortcutHistoryHub) MusicGenerationEnabled() bool { return false }
+func (h *scanShortcutHistoryHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
+	return nil
+}
+

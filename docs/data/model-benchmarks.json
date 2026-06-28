@@ -17,6 +17,298 @@
   },
   "runs": [
     {
+      "id": "quick-2026-06-27-1125",
+      "suite": "quick",
+      "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
+      "generated_at": "2026-06-27T11:25:45.884483+00:00",
+      "hub": "http://127.0.0.1:18765",
+      "hardware": {
+        "total_memory_gb": 24,
+        "total_memory_bytes": 25769803776,
+        "tier": "recommended"
+      },
+      "hardware_note": "24 GB RAM (recommended tier)",
+      "judge_provider": "gemini/qwen2.5-coder:14b",
+      "scenario_catalog": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "description": "IDE Agent implementation session on minimal Go fixture.",
+          "tags": [
+            "implement",
+            "backend",
+            "go"
+          ],
+          "llm_judge": true,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "description": "Frontend implementation session asks for theme-related deliverable.",
+          "tags": [
+            "implement",
+            "frontend"
+          ],
+          "llm_judge": true,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "description": "IDE Ask mode must not run implementation session or propose edits.",
+          "tags": [
+            "implement",
+            "ask"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "go",
+            "verify"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "description": "Fix TypeScript compile error in src/App.tsx.",
+          "tags": [
+            "implement",
+            "cursor-parity",
+            "react",
+            "typescript"
+          ],
+          "llm_judge": false,
+          "target_agent": "FrontendEngineer"
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+          "tags": [
+            "dm",
+            "backend",
+            "workspace",
+            "regression",
+            "debug"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+          "tags": [
+            "dm",
+            "backend",
+            "echo",
+            "regression"
+          ],
+          "llm_judge": false,
+          "target_agent": "BackendEngineer"
+        }
+      ],
+      "implement_scenarios": [
+        "go-handler",
+        "theme-toggle",
+        "ask-mode-no-write",
+        "go-test-failure-repair",
+        "typescript-compile-error-fix"
+      ],
+      "chat_scenarios": [
+        "dm-backend-workspace",
+        "dm-backend-echo-followup"
+      ],
+      "results": [
+        {
+          "model_id": "deepseek-coder-6.7b",
+          "model_tag": "deepseek-coder:6.7b",
+          "title": "DeepSeek Coder 6.7B",
+          "size_hint_gb": 3.8,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.43888179201167,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.0044455419993028045,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        },
+        {
+          "model_id": "codegemma-7b",
+          "model_tag": "codegemma:7b",
+          "title": "CodeGemma 7B",
+          "size_hint_gb": 5,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.43693029193673,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.004367499961517751,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        },
+        {
+          "model_id": "qwen3.5-9b",
+          "model_tag": "qwen3.5:9b",
+          "title": "Qwen 3.5 9B",
+          "size_hint_gb": 6.6,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.2913087500492,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.004947124980390072,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        },
+        {
+          "model_id": "gemma3-12b",
+          "model_tag": "gemma3:12b",
+          "title": "Gemma 3 12B",
+          "size_hint_gb": 8.1,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.2967267499771,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.004188708029687405,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        },
+        {
+          "model_id": "qwen2.5-coder-14b",
+          "model_tag": "qwen2.5-coder:14b",
+          "title": "Qwen 2.5 Coder 14B",
+          "size_hint_gb": 9,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.2811535410583,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.004794000065885484,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        },
+        {
+          "model_id": "codestral-22b",
+          "model_tag": "codestral:22b",
+          "title": "Codestral 22B",
+          "size_hint_gb": 13,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.2731022919761,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.004263750044628978,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        },
+        {
+          "model_id": "devstral-24b",
+          "model_tag": "devstral:24b",
+          "title": "Devstral 24B",
+          "size_hint_gb": 14,
+          "skipped": false,
+          "skip_reason": "",
+          "scenarios": [
+            {
+              "name": "go-handler",
+              "kind": "implement",
+              "passed": false,
+              "duration_s": 424.33181370806415,
+              "detail": "=== FAIL: go-handler ===",
+              "judge_passed": null,
+              "judge_reason": "",
+              "uses_llm_judge": true
+            }
+          ],
+          "switch_duration_s": 0.004369957954622805,
+          "total_duration_s": 0.0,
+          "passed_count": 0,
+          "total_count": 1,
+          "pass_rate": 0.0
+        }
+      ],
+      "source_file": "testing/model-benchmark-quick-2026-06-27-1125.json"
+    },
+    {
       "id": "quick-2026-06-26-1109",
       "suite": "quick",
       "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
@@ -4115,8 +4407,21 @@
       "judge_provider": "gemini"
     }
   ],
-  "updated_at": "2026-06-26T11:09:03.452921+00:00",
+  "updated_at": "2026-06-27T11:25:45.951619+00:00",
   "scenario_index": {
+    "implement/app-wont-boot-fix-like": {
+      "name": "app-wont-boot-fix-like",
+      "kind": "implement",
+      "description": "Fix-like flow: vague boot failure triggers repro-first bootstrap and Makefile repair.",
+      "tags": [
+        "implement",
+        "fix-like",
+        "boot-fix",
+        "tauri"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
     "implement/ask-mode-no-write": {
       "name": "ask-mode-no-write",
       "kind": "implement",
@@ -4176,6 +4481,18 @@
       ],
       "llm_judge": true,
       "target_agent": "FrontendEngineer"
+    },
+    "implement/go-build-error-fix": {
+      "name": "go-build-error-fix",
+      "kind": "implement",
+      "description": "Fix-like flow: Go compile error fixed via repro-first session.",
+      "tags": [
+        "implement",
+        "fix-like",
+        "go"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
     },
     "implement/go-handler": {
       "name": "go-handler",
@@ -4260,6 +4577,20 @@
         "cursor-parity",
         "react",
         "selection"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    "implement/tauri-make-start-all-best-of-k": {
+      "name": "tauri-make-start-all-best-of-k",
+      "kind": "implement",
+      "description": "Boot-fix with best-of-K exploration (ComPilot-style multi-run) for Makefile start-all repair.",
+      "tags": [
+        "implement",
+        "boot-fix",
+        "tauri",
+        "fix-loop",
+        "best-of-k"
       ],
       "llm_judge": false,
       "target_agent": "FrontendEngineer"

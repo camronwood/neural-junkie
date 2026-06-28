@@ -142,3 +142,8 @@ func (c countingHub) ImageGenerationEnabled() bool      { return c.inner.ImageGe
 func (c countingHub) GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error {
 	return c.inner.GenerateAndPostImage(ctx, channel, from, prompt, size)
 }
+func (c countingHub) MusicGenerationEnabled() bool { return c.inner.MusicGenerationEnabled() }
+func (c countingHub) GenerateAndPostMusic(ctx context.Context, channel string, from protocol.AgentInfo, req MusicGenerateRequest) error {
+	return c.inner.GenerateAndPostMusic(ctx, channel, from, req)
+}
+

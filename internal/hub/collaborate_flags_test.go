@@ -7,6 +7,20 @@ import (
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 )
 
+func TestTokenizeSlashCommand_QuotedRepoPath(t *testing.T) {
+	cmd := `/collaborate --repo '/Users/me/my project/repo' --workspace @A @B goal here`
+	parts := tokenizeSlashCommand(cmd)
+	if len(parts) < 8 {
+		t.Fatalf("parts: %#v", parts)
+	}
+	if parts[2] != "/Users/me/my project/repo" {
+		t.Fatalf("repo path: got %q", parts[2])
+	}
+	if parts[4] != "@A" || parts[5] != "@B" {
+		t.Fatalf("mentions: %#v", parts[4:6])
+	}
+}
+
 func TestParseCollaborateLeadFlags_None(t *testing.T) {
 	parts := []string{"/collaborate", "@a", "@b", "do", "thing"}
 	parsed, tail, err := parseCollaborateLeadFlags(parts)

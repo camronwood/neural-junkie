@@ -79,6 +79,11 @@ func (m *mockHubClientIntegration) ImageGenerationEnabled() bool                
 func (m *mockHubClientIntegration) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (m) MusicGenerationEnabled() bool { return false }
+func (m) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
+	return nil
+}
+
 
 // TestEndToEndMessageFlow tests complete message flow from user to agent response
 func TestEndToEndMessageFlow(t *testing.T) {

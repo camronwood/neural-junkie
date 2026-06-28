@@ -6,57 +6,37 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-func TestEnrichAgentImageGeneration(t *testing.T) {
-	t.Setenv("NEURAL_JUNKIE_IMAGE_PROVIDER", "")
-	t.Setenv("OPENAI_API_KEY", "")
-
-	frontend := &protocol.AgentInfo{Type: protocol.AgentTypeFrontend}
-	enrichAgentImageGeneration(frontend)
-	if !frontend.SupportsImageGeneration {
-		t.Fatal("frontend agent should support local image generation by default")
+func TestResolveImagePostAgent_DMPrefersPartner(t *testing.T) {
+	h := NewHub()
+	agent := protocol.AgentInfo{
+		ID:                      "assistant-1",
+		Name:                    "Assistant",
+		Type:                    protocol.AgentTypeAssistant,
+		SupportsImageGeneration: true,
 	}
+	h.RegisterAgent(&agent)
+	ch := h.CreateChannelWithType("dm-camron-assistant", "Direct message with Assistant", "", protocol.ChannelTypeDM, "camron")
+	_ = h.JoinChannel(agent.ID, ch.Name)
 
-	biology := &protocol.AgentInfo{Type: protocol.AgentTypeBiology}
-	enrichAgentImageGeneration(biology)
-	if !biology.SupportsImageGeneration {
-		t.Fatal("biology agent should support image generation")
-	}
-
-	cli := &protocol.AgentInfo{Type: protocol.AgentTypeCLI}
-	enrichAgentImageGeneration(cli)
-	if cli.SupportsImageGeneration {
-		t.Fatal("CLI agent should not support hub image generation")
+	got := h.resolveImagePostAgent(ch.Name)
+	if got.ID != agent.ID {
+		t.Fatalf("expected DM partner %q, got %+v", agent.ID, got)
 	}
 }
 
-func TestEnrichAgentImageGenerationDisabled(t *testing.T) {
-	t.Setenv("NEURAL_JUNKIE_IMAGE_PROVIDER", "none")
-
-	frontend := &protocol.AgentInfo{Type: protocol.AgentTypeFrontend}
-	enrichAgentImageGeneration(frontend)
-	if frontend.SupportsImageGeneration {
-		t.Fatal("should not enable image generation when provider is none")
+func TestResolveImagePostAgent_FallsBackToAssistant(t *testing.T) {
+	h := NewHub()
+	agent := protocol.AgentInfo{
+		ID:                      "assistant-1",
+		Name:                    "Assistant",
+		Type:                    protocol.AgentTypeAssistant,
+		SupportsImageGeneration: true,
 	}
-}
+	h.RegisterAgent(&agent)
+	ch := h.CreateChannel("general", "General", "")
 
-func TestEnrichAgentImageGenerationOpenAIProvider(t *testing.T) {
-	t.Setenv("NEURAL_JUNKIE_IMAGE_PROVIDER", "openai")
-	t.Setenv("OPENAI_API_KEY", "test-key")
-
-	frontend := &protocol.AgentInfo{Type: protocol.AgentTypeFrontend}
-	enrichAgentImageGeneration(frontend)
-	if !frontend.SupportsImageGeneration {
-		t.Fatal("frontend agent should support image generation when OpenAI is configured")
-	}
-}
-
-func TestEnrichAgentImageGenerationOpenAIWithoutKey(t *testing.T) {
-	t.Setenv("NEURAL_JUNKIE_IMAGE_PROVIDER", "openai")
-	t.Setenv("OPENAI_API_KEY", "")
-
-	frontend := &protocol.AgentInfo{Type: protocol.AgentTypeFrontend}
-	enrichAgentImageGeneration(frontend)
-	if frontend.SupportsImageGeneration {
-		t.Fatal("should not enable image generation without OPENAI_API_KEY when provider is openai")
+	got := h.resolveImagePostAgent(ch.Name)
+	if got.ID != agent.ID {
+		t.Fatalf("expected Assistant %q, got %+v", agent.ID, got)
 	}
 }

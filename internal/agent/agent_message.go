@@ -397,6 +397,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	}
 
 	log.Printf("[%s] 📤 Sending response msg ID %s (replying to %s)...", a.Info.Name, responseMsg.ID[:8], msg.ID[:8])
+	if streamMsgID != "" {
+		a.broadcastStreamEnd(msg, streamMsgID)
+	}
 	if err := a.Hub.SendMessage(responseMsg); err != nil {
 		log.Printf("[%s] Error sending message: %v", a.Info.Name, err)
 		a.sendThinkingStatus(msg, protocol.ThinkingStatusError)
@@ -501,6 +504,10 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 		return false
 	}
 
+	if protocol.IsGeneratedImageDelivery(msg) {
+		return false
+	}
+
 	if shouldSkipAgentResponseOnFileExportApproval(a, msg) {
 		return false
 	}
@@ -586,6 +593,11 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 				}
 			}
 			if a.Collab.IsAgentTurn(collabID, a.Info.ID) {
+				if collabPhase == "planning" && a.Collab.PlanningSpeakerCooldownBlocked(collabID, a.Info.ID) &&
+					!isHumanCollabSpeaker(msg) {
+					log.Printf("[%s] ⏸ planning cooldown (turn held for other participants) (collab %s)", a.Info.Name, collabID[:8])
+					return false
+				}
 				log.Printf("[%s] ✅ COLLABORATION TURN - will respond (collab %s)", a.Info.Name, collabID[:8])
 				return true
 			}

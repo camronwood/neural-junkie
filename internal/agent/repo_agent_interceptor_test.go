@@ -58,6 +58,11 @@ func (h *captureHub) ImageGenerationEnabled() bool {
 func (h *captureHub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (h *captureHub) MusicGenerationEnabled() bool { return false }
+func (h *captureHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
+	return nil
+}
+
 
 func TestRepoAgentInterceptorInjectsIndexIntoPrompt(t *testing.T) {
 	testutil.IsolateNeuralJunkieHome(t)

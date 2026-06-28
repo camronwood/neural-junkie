@@ -73,22 +73,31 @@ def run_cmd(
     merged = release_prep_env(ROOT)
     if env:
         merged.update(env)
+    merged["PYTHONUNBUFFERED"] = "1"
     t0 = time.monotonic()
-    print(f"\n>>> [{name}] {' '.join(cmd)}")
-    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=merged)
-    out = (proc.stdout or "") + (proc.stderr or "")
-    if out.strip():
-        tail = out.rstrip()
-        if len(tail) > 8000:
-            print("...(truncated in terminal)...")
-            print(tail[-8000:])
-        else:
-            print(tail)
+    print(f"\n>>> [{name}] {' '.join(cmd)}", flush=True)
+    proc = subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=merged,
+        bufsize=1,
+    )
+    chunks: list[str] = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        chunks.append(line)
+    rc = proc.wait()
+    out = "".join(chunks)
     dur = time.monotonic() - t0
     return StageResult(
         name=name,
-        status="OK" if proc.returncode == 0 else "FAIL",
-        exit_code=proc.returncode,
+        status="OK" if rc == 0 else "FAIL",
+        exit_code=rc,
         duration_s=dur,
         output=out,
     )

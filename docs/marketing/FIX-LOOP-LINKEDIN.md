@@ -13,7 +13,10 @@
 
 **Hashtags (optional):** `#AI #DeveloperTools #OpenSource #LocalFirst #AgenticCoding`
 
-**Link:** https://github.com/camronwood/neural-junkie/releases/latest  
+**Download CTA:** https://camronwood.github.io/neural-junkie/download.html
+
+**Suggested post date:** After hub restart with NJ Fix Loop changes validated via `make implement-scenario SCENARIO=tauri-make-start-all-missing`
+
 **Docs:** https://github.com/camronwood/neural-junkie/blob/main/docs/IMPLEMENTATION_SESSION.md
 
 ---

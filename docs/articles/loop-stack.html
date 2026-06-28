@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>We Didn&#x27;t Build One Agent Loop. We Built a Stack. — Neural Junkie</title>
+  <meta name="description" content="My agent could run `make start-all` eight times and never touch the Makefile. That&#x27;s not a model problem — it&#x27;s a missing closed loop. Here&#x27;s the stack of loops we built in Neural Junkie, and why each one exists." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · We Didn&#x27;t Build One Agent Loop. We Built a Stack.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>We Didn&#x27;t Build One Agent Loop. We Built a Stack.</h1>
+      <p class="article-lead">My agent could run `make start-all` eight times and never touch the Makefile. That&#x27;s not a model problem — it&#x27;s a missing closed loop. Here&#x27;s the stack of loops we built in Neural Junkie, and why each one exists.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">localfirst</span><span class="article-tag">agenticcoding</span><span class="article-tag">multiagent</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-loop-stack-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>If you've shipped an agent that can <strong>run shell commands</strong>, you've probably hit this wall:</p>
+<p>The agent runs <code>make start-all</code>. It fails. It runs it again. And again. Chat fills with <code>command_output</code> messages, but <strong>nothing on disk changes</strong> and sometimes there's <strong>no final summary</strong> at all.</p>
+<p>That's not a model intelligence problem alone. It's a <strong>missing closed loop</strong>.</p>
+<p>I've been building <strong>Neural Junkie</strong> as a local-first open-source agent hub — specialists in chat, IDE Agent mode, and multi-agent collaboration. Agent Runtime v2 gives specialists long native tool loops. Great for reach. Dangerous without platform policy.</p>
+<p>This article is the map: <strong>the loop stack</strong> — every named loop in the product, what problem it solves, and why we didn't try to solve everything with one monolithic planner.</p>
+<h2>The bet in one sentence</h2>
+<p><strong>Platform loops beat bigger models for reliability.</strong></p>
+<p>Models improvise. Loops enforce outcomes: read before you run, edit before you retry, verify before you claim success, and always report what happened.</p>
+<h2>The stack at a glance</h2>
+<p>Not every "loop" in Neural Junkie is the same kind of thing. Some are <strong>user-facing workflows</strong>. Some are <strong>policy layers</strong>. Some are <strong>inference mechanics</strong>. Some are <strong>guardrails</strong>.</p>
+<pre><code class="language-mermaid">flowchart TB
+    subgraph Collab[&quot;Collaboration loops&quot;]
+        CP[&quot;Planning loop&quot;]
+        CE[&quot;Execution loop&quot;]
+        CD[&quot;Discussion loop&quot;]
+    end
+
+    subgraph Product[&quot;Product loops&quot;]
+        IS[&quot;Implementation session&quot;]
+        ARv2[&quot;Agent Runtime v2 open loop&quot;]
+        MF[&quot;Multi-file continue&quot;]
+    end
+
+    subgraph Fix[&quot;Fix Loop policy&quot;]
+        FL[&quot;Fix-like / repro&quot;]
+        BF[&quot;Boot-fix&quot;]
+        VR[&quot;Verify / repair&quot;]
+    end
+
+    subgraph Inference[&quot;Per-turn inference&quot;]
+        TL[&quot;MCP tool loop&quot;]
+        DC[&quot;Delegation consult&quot;]
+    end
+
+    subgraph Guard[&quot;Guardrails&quot;]
+        AL[&quot;Anti-loop guard&quot;]
+    end
+
+    CP --&gt; CE --&gt; IS
+    IS --&gt; FL
+    FL --&gt; BF
+    IS --&gt; VR
+    IS --&gt; MF
+    IS --&gt; TL
+    TL --&gt; DC
+    CD --&gt; AL
+</code></pre>
+<p>Same hub. Same desktop. Different loops for different failure modes.</p>
+<hr />
+<h2>Layer 1 — Implementation session loop</h2>
+<p><strong>Problem:</strong> A single tool-call turn isn't enough to implement a feature. The model needs to explore the repo, propose edits, and confirm the workspace still builds — without the user saying "go ahead" after every file.</p>
+<p><strong>What we built:</strong> A bounded <strong>implementation session</strong>: discover → edit → apply → verify → repair.</p>
+<p><strong>Why bounded:</strong> Unbounded agent loops look impressive in demos and expensive in production. Phase 1 caps (~20 tool iterations, 3 edit rounds) gave us a testable contract. Agent Runtime v2 raises those caps for Cursor parity, but the <strong>shape</strong> stays the same.</p>
+<p><strong>Triggers:</strong> IDE Agent mode, <code>implementation_session: true</code>, or team-channel implement metadata when the dev pack and workspace are active.</p>
+<p><strong>Outcome metadata:</strong> Every session posts <code>implementation_session_outcome</code> — files changed, verify status, repair used — so scenario harnesses and users get a definitive answer, not silence.</p>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IMPLEMENTATION_SESSION.md">IMPLEMENTATION_SESSION.md</a></p>
+<hr />
+<h2>Layer 2 — Agent Runtime v2 (open loop)</h2>
+<p><strong>Problem:</strong> Cursor-like parity needs coordinated multi-file refactors and long repair chains without the user nudging between files. Bounded Phase 1 caps were right for acceptance testing; they were too tight for real refactors.</p>
+<p><strong>What we built:</strong> Agent Runtime v2 — same discover → edit → verify → repair phases, but with open-loop guardrails: up to 100 tool steps, 5 repair rounds, 50 files per cycle, 60-minute wall clock.</p>
+<p><strong>Why separate from Phase 1:</strong> We wanted a <strong>feature flag</strong> (<code>features.agent_runtime_v2</code>) and parity scenarios (<code>long-agent-loop-repair</code>, <code>multi-file-refactor-10</code>) without breaking the 20/20 implement gate that ships releases.</p>
+<p><strong>Key insight:</strong> Open loop is not "no policy." It's "higher caps with the same phase machine."</p>
+<hr />
+<h2>Layer 3 — NJ Fix Loop (platform policy)</h2>
+<p><strong>Problem:</strong> In a real boot-fix session we saw <code>make start-all</code> fail <strong>8×</strong>, <strong>11 command_output posts</strong>, <strong>zero file edits</strong>, and <strong>no session wrap-up</strong>. The outer implementation session only advanced on file proposals and verify. Tool-step observers tracked discover tools, not <code>run_command</code> failures.</p>
+<p><strong>My agent can execute</strong> ≠ <strong>my agent can fix my app</strong>.</p>
+<p><strong>What we built:</strong> Fix Loop — platform-owned policy on top of the tool loop:</p>
+<table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Command telemetry</strong></td>
+<td>Every <code>run_command</code> recorded in session state</td>
+</tr>
+<tr>
+<td><strong>Circuit breaker</strong></td>
+<td>Same failing command twice without read/edit → third run blocked at MCP layer</td>
+</tr>
+<tr>
+<td><strong>Boot-fix grounding</strong></td>
+<td><code>make start-all</code> / <code>npm run dev</code> blocked until Makefile, package.json, or startup scripts were read</td>
+</tr>
+<tr>
+<td><strong>Deterministic playbooks</strong></td>
+<td>Known signatures (e.g. missing <code>start-all</code> target) trigger Makefile repairs before model guessing</td>
+</tr>
+<tr>
+<td><strong>Session finale</strong></td>
+<td>Every session ends with summary + outcome metadata — command thrashing can't exit silently</td>
+</tr>
+<tr>
+<td><strong>Routing</strong></td>
+<td>Boot-fix signals route to <strong>FrontendEngineer</strong>, not SoftwareArchitect</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why a policy layer, not a new runtime:</strong> The phase machine was already correct. What was missing was <strong>forcing</strong> read → edit → re-run when commands failed. That's hub policy, not a bigger model.</p>
+<p>Proof scenario: <code>make implement-scenario SCENARIO=tauri-make-start-all-missing</code></p>
+<hr />
+<h2>Layer 4 — Fix-like and repro loops</h2>
+<p><strong>Problem:</strong> "Something's broken" and "add dark mode" both look like implementation requests. Feature builds need discovery and multi-file edits. Bug fixes need <strong>reproduction first</strong> — run the failing command, capture output, fix the root cause, re-run.</p>
+<p><strong>What we built:</strong> <code>FixLikeIntent</code> detection. When the message looks like repair (errors pasted, "won't boot", "not working") rather than greenfield feature work:</p>
+<ol>
+<li>Infer a <strong>repro command</strong> (<code>go test ./...</code>, <code>npm run build</code>, <code>make start-all</code>, …)</li>
+<li>Run it once in <strong>repro bootstrap</strong></li>
+<li>Apply playbooks if output matches known signatures</li>
+<li><strong>Repro verify</strong> — re-run the same command after edits</li>
+</ol>
+<p><strong>Why separate from generic implement:</strong> Without repro targeting, agents optimize for plausible edits instead of <strong>closing the failure you actually reported</strong>. The verify loop for a theme toggle is <code>npm run build</code>. The verify loop for a failing test is that exact test command.</p>
+<p><strong>Clarification gate:</strong> Vague reports ("it's broken") get one short question — "What command fails, or paste the error?" — before we burn a full session.</p>
+<hr />
+<h2>Layer 5 — Boot-fix loop</h2>
+<p><strong>Problem:</strong> Boot and build failures are a subset of fix-like work with extra failure modes: agents run dev servers without reading startup scripts, spam long-running commands, and route to the wrong specialist (architect vs implementer).</p>
+<p><strong>What we built:</strong> <code>BootFixIntent</code> — boot-fix diagnostic bootstrap, mandatory reads of startup files, dev-server timeout hints, optional <strong>best-of-K</strong> (2 candidates) for boot-fix sessions, and DM redirect when you're talking to SoftwareArchitect but need FrontendEngineer.</p>
+<p><strong>Why not fold into generic fix-like:</strong> Boot failures have predictable artifacts (Makefile, <code>package.json</code>, <code>scripts/start-all.sh</code>) and predictable bad behavior (command spam, no grounding). Specialized policy is cheaper than hoping the model generalizes.</p>
+<hr />
+<h2>Layer 6 — Verify / repair loop</h2>
+<p><strong>Problem:</strong> Auto-applied edits without verification is how agents confidently ship broken code. But verify-everything on interactive trust (manual approval) wastes time and annoys users who want to review diffs first.</p>
+<p><strong>What we built:</strong> Stack-aware verify after auto-apply (<code>go test ./...</code>, <code>npm run build</code>, <code>tsc --noEmit</code>, …). If verify fails → <strong>one typed repair round</strong> with structured feedback (build error vs test failure vs partial success). Interactive trust skips verify; proposals await manual approval.</p>
+<p><strong>Why one repair round in Phase 1:</strong> Diminishing returns. If verify still fails after one guided repair, the session should report failure honestly — not loop until timeout.</p>
+<p>Scenarios: <code>verify-failure-one-repair</code>, <code>go-test-failure-repair</code></p>
+<hr />
+<h2>Layer 7 — Multi-file continue loop</h2>
+<p><strong>Problem:</strong> "Add dark mode" in a React + Tailwind repo isn't one file. If the session stops after <code>tailwind.config.js</code> and waits for "go ahead" to touch <code>App.tsx</code>, the UX feels broken and the harness flakes.</p>
+<p><strong>What we built:</strong> When the stack manifest still has targets, the session <strong>continues in the same user turn</strong> — up to 5 files — without re-prompting.</p>
+<p><strong>Why same turn:</strong> Continuation prompts are where users abandon agent UIs. The platform should carry intent forward when the manifest already knows what's left.</p>
+<p>Scenario: <code>react-theme-multi-file</code></p>
+<hr />
+<h2>Layer 8 — MCP tool loop</h2>
+<p><strong>Problem:</strong> Chat models answer from weights. Coding agents need <strong>tools</strong> — read, grep, edit, run commands. Native tool calling iterates until the model stops or hits a cap.</p>
+<p><strong>What we built:</strong> MCP tool loop through Ollama or Claude's tool API. Separate <strong>tool-loop model</strong> when the chat model lacks native tools (e.g. OpenBio chat + <code>qwen3.5:9b</code> for biology MCP tools).</p>
+<p><strong>Why split chat and tool models:</strong> Domain chat models (OpenBio, security LoRA tags) often can't call tools. Running a small Qwen for tools while keeping the specialist voice on chat is cheaper and more reliable than forcing one tag to do both.</p>
+<p><strong>Caps:</strong> 20 iterations in bounded implementation sessions; 100 in Runtime v2. Plaintext tool-call recovery chains malformed tool output during implementation.</p>
+<p>This is the <strong>inner loop</strong> — it runs inside almost every outer loop above.</p>
+<hr />
+<h2>Layer 9 — Delegation consult loop</h2>
+<p><strong>Problem:</strong> Users DM one specialist but ask cross-domain questions. "Review this API change" to BackendEngineer might need SecurityReviewer. Handing off in chat breaks UX; ignoring domain fit produces wrong answers.</p>
+<p><strong>What we built:</strong> In-process consult — responding agent queries up to 2 other specialists, merges <code>DELEGATE_RESULTS</code> into one reply. Skipped for closure/casual intents and during collaboration (collab orchestration owns multi-agent flow).</p>
+<p><strong>Why in-process, not public handoff:</strong> One synthesized answer. No "I'll ask SecurityReviewer" theater unless you want visibility.</p>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/DELEGATION.md">DELEGATION.md</a></p>
+<hr />
+<h2>Layer 10 — Collaboration loops</h2>
+<p><strong>Problem:</strong> Multi-agent collaboration is easy to demo and hard to ship. <code>/collaborate</code> is one command; underneath it's phases, task dependencies, workspace gates, and file approvals — while real models improvise.</p>
+<p><strong>What we built:</strong> Three named loops:</p>
+<table>
+<thead>
+<tr>
+<th>Loop</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Planning loop</strong></td>
+<td>Agents discuss → plan parsed → <code>reviewing</code> phase</td>
+</tr>
+<tr>
+<td><strong>Execution loop</strong></td>
+<td>Approve plan → workspace ack → tasks → file approval → deliverables on disk</td>
+</tr>
+<tr>
+<td><strong>Discussion loop</strong></td>
+<td>Turn-taking and @mention replies within a collab</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why three, not one:</strong> Planning without execution is a writing exercise. Execution without planning is chaos. Discussion without turn rules is infinite agent-to-agent chatter.</p>
+<p>Scenarios: <code>planning-two-agent</code>, <code>execute-deliverable</code></p>
+<hr />
+<h2>Layer 11 — Anti-loop guard</h2>
+<p><strong>Problem:</strong> Agents replying to agents creates infinite chatter — impressive in a screenshot, unusable in a channel.</p>
+<p><strong>What we built:</strong> Default <strong>anti-loop guard</strong> — agents skip messages from other agents unless collaboration mode explicitly allows participant replies on their turn or when @mentioned.</p>
+<p><strong>Why explicit allow in collab:</strong> Multi-agent work <em>requires</em> agent-to-agent messages. Everywhere else, it's a bug.</p>
+<hr />
+<h2>How the layers compose</h2>
+<p>A typical boot-fix in IDE Agent mode might traverse:</p>
+<ol>
+<li><strong>Implementation session</strong> opens (Layer 1)</li>
+<li><strong>Fix-like intent</strong> sets repro command (Layer 4)</li>
+<li><strong>Boot-fix policy</strong> enforces grounding + circuit breaker (Layer 3/5)</li>
+<li><strong>MCP tool loop</strong> runs reads and edits (Layer 8)</li>
+<li><strong>Playbook</strong> patches Makefile if signature matches (Layer 3)</li>
+<li><strong>Repro verify</strong> re-runs <code>make start-all</code> (Layer 4)</li>
+<li><strong>Verify/repair</strong> runs <code>npm run build</code> if auto-applied (Layer 6)</li>
+<li><strong>Session finale</strong> posts outcome metadata (Layer 3)</li>
+</ol>
+<p>A biology tool question in a DM might only hit <strong>delegation consult</strong> (Layer 9) and <strong>MCP tool loop</strong> (Layer 8) — no implementation session at all.</p>
+<p>That's the point: <strong>different jobs, different loops</strong>. The inference layer decides whether to infer; the loop stack decides how work <strong>closes</strong>.</p>
+<hr />
+<h2>What we didn't try to solve</h2>
+<ul>
+<li>Rewriting Agent Runtime v2 into a single monolithic planner</li>
+<li>Fixing individual user repos by hand in agent sessions</li>
+<li>One loop to rule them all</li>
+</ul>
+<p>We added loops when we saw a <strong>specific failure mode</strong> in scenario harnesses or real sessions — command spam, silent exits, wrong specialist, verify skipped, multi-file stall.</p>
+<hr />
+<h2>Try it</h2>
+<pre><code class="language-bash">make implement-scenario SCENARIO=tauri-make-start-all-missing   # Fix Loop playbook
+make implement-scenario SCENARIO=verify-failure-one-repair       # verify/repair
+make implement-scenario SCENARIO=react-theme-multi-file          # multi-file continue
+make parity-scenario SCENARIO=long-agent-loop-repair             # Runtime v2 open loop
+</code></pre>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IMPLEMENTATION_SESSION.md">IMPLEMENTATION_SESSION.md</a> · <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CURSOR_PARITY.md">CURSOR_PARITY.md</a></p>
+<p>Download: https://camronwood.github.io/neural-junkie/download.html</p>
+<p>Restart hub + desktop after pulling agent changes, then send a boot-fix request in <strong>Agent mode</strong> with <strong>auto-apply</strong> enabled.</p>
+<hr />
+<p><em>Neural Junkie is a personal open-source project. Feedback and scenario failures welcome on GitHub.</em></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/LOOP-STACK-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="loop-stack.html">We Didn&#x27;t Build One Agent Loop. We Built a Stack.</a></p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -37,6 +37,31 @@ func (h *Hub) ImageGenerationEnabled() bool {
 	return ImageGenerationAvailable()
 }
 
+// resolveImagePostAgent picks the agent that should appear as the sender of a generated image.
+func (h *Hub) resolveImagePostAgent(channel string) protocol.AgentInfo {
+	if h.isChannelDM(channel) {
+		if id := h.primaryAgentIDForDM(channel); id != "" {
+			if ag, err := h.GetAgent(id); err == nil && ag != nil {
+				return *ag
+			}
+		}
+	}
+	if agents, err := h.GetChannelAgents(channel); err == nil {
+		for _, ag := range agents {
+			if ag.SupportsImageGeneration {
+				return ag
+			}
+		}
+		if len(agents) > 0 {
+			return agents[0]
+		}
+	}
+	if ag := h.FindLiveAgentByDisplayName("Assistant", protocol.AgentTypeAssistant); ag != nil {
+		return *ag
+	}
+	return protocol.AgentInfo{ID: "system", Name: "System", Type: protocol.AgentTypeGeneral}
+}
+
 // GenerateAndPostImage generates an image and posts it to a channel.
 func (h *Hub) GenerateAndPostImage(ctx context.Context, channel string, from protocol.AgentInfo, prompt, size string) error {
 	gen := ai.ImageGeneratorFromEnv()
@@ -51,7 +76,7 @@ func (h *Hub) GenerateAndPostImage(ctx context.Context, channel string, from pro
 	if err != nil {
 		return err
 	}
-	out := protocol.NewMessage(protocol.MessageTypeChat, channel, from, "🖼️ Generated image.")
+	out := protocol.NewMessage(protocol.MessageTypeChat, channel, from, protocol.GeneratedImageDeliveryContent)
 	meta := map[string]interface{}{
 		"mime": mime,
 		"data": b64,

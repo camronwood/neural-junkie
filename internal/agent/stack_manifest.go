@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/mcp/shared"
 )
 
 const stackManifestMaxWalkFiles = 200
@@ -18,6 +21,9 @@ type StackManifest struct {
 	HasVite         bool
 	HasTauri        bool
 	HasTailwind     bool
+	HasGo           bool
+	HasRust         bool
+	HasPython       bool
 	TailwindConfig  string // relative path, e.g. tailwind.config.js
 	EntryPoint      string // relative path, e.g. src/App.tsx
 	TsConfig        bool
@@ -38,6 +44,18 @@ func DetectStackManifest(workspaceRoot string) *StackManifest {
 		return nil
 	}
 	m := &StackManifest{WorkspaceRoot: workspaceRoot}
+	if _, err := os.Stat(filepath.Join(workspaceRoot, "go.mod")); err == nil {
+		m.HasGo = true
+	}
+	if _, err := os.Stat(filepath.Join(workspaceRoot, "Cargo.toml")); err == nil {
+		m.HasRust = true
+	}
+	for _, pyMarker := range []string{"pyproject.toml", "setup.py", "requirements.txt"} {
+		if _, err := os.Stat(filepath.Join(workspaceRoot, pyMarker)); err == nil {
+			m.HasPython = true
+			break
+		}
+	}
 	m.readPackageJSON(workspaceRoot)
 	m.locateTailwindConfig(workspaceRoot)
 	m.locateEntryPoint(workspaceRoot)
@@ -262,6 +280,71 @@ func (m *StackManifest) ImplementationSeedPaths() []string {
 		}
 	}
 	return out
+}
+
+// DefaultReproCommands returns stack-appropriate non-interactive repro commands (fastest first).
+func (m *StackManifest) DefaultReproCommands(userText string) []string {
+	if m == nil {
+		return nil
+	}
+	root := strings.TrimSpace(m.WorkspaceRoot)
+	if root == "" {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(userText))
+	mentionTest := strings.Contains(lower, "test") || strings.Contains(lower, "pytest")
+
+	if m.HasGo || fileExists(filepath.Join(root, "go.mod")) {
+		if mentionTest {
+			return []string{"go test ./..."}
+		}
+		return []string{"go build ./..."}
+	}
+	if m.HasRust || fileExists(filepath.Join(root, "Cargo.toml")) {
+		if mentionTest {
+			return []string{"cargo test"}
+		}
+		return []string{"cargo build"}
+	}
+	if m.HasPython {
+		return []string{"python -m pytest -q"}
+	}
+	if fileExists(filepath.Join(root, "package.json")) {
+		return nodeDefaultReproCommands(root)
+	}
+	if fileExists(filepath.Join(root, "Makefile")) {
+		if makefileHasTarget(root, "test") && mentionTest {
+			return []string{"make test"}
+		}
+		if makefileHasTarget(root, "build") {
+			return []string{"make build"}
+		}
+	}
+	return nil
+}
+
+func nodeDefaultReproCommands(wsPath string) []string {
+	var cmds []string
+	if npmScriptExists(wsPath, "build") {
+		cmds = append(cmds, "npm run build")
+	} else if cmd := shared.TypeScriptCheckShellCommand(wsPath); cmd != "" {
+		cmds = append(cmds, cmd)
+	} else if npmScriptExists(wsPath, "typecheck") {
+		cmds = append(cmds, "npm run typecheck")
+	}
+	if npmScriptExists(wsPath, "test") {
+		cmds = append(cmds, "npm test")
+	}
+	return cmds
+}
+
+func makefileHasTarget(wsPath, target string) bool {
+	b, err := os.ReadFile(filepath.Join(wsPath, "Makefile"))
+	if err != nil {
+		return false
+	}
+	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(target) + `\s*:`)
+	return re.Match(b)
 }
 
 // DetectEntryConflicts reports App.js/App.tsx (or similar) resolution issues for the prompt.

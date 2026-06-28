@@ -146,10 +146,15 @@ func readLocalImage(path string) ([]byte, string, error) {
 	}
 }
 
+var imageGenerationVerbRE = regexp.MustCompile(`\b(make|generate|create|draw|show)\b`)
+
 // UserRequestsGeneratedImage is a lightweight heuristic for image-generation asks.
 func UserRequestsGeneratedImage(content string) bool {
 	c := strings.ToLower(strings.TrimSpace(content))
 	if c == "" {
+		return false
+	}
+	if c == strings.ToLower(protocol.GeneratedImageDeliveryContent) {
 		return false
 	}
 	phrases := []string{
@@ -163,9 +168,7 @@ func UserRequestsGeneratedImage(content string) bool {
 		}
 	}
 	hasNoun := strings.Contains(c, "image") || strings.Contains(c, "diagram") || strings.Contains(c, "png")
-	hasVerb := strings.Contains(c, "make") || strings.Contains(c, "generate") || strings.Contains(c, "create") ||
-		strings.Contains(c, "draw") || strings.Contains(c, "show")
-	return hasNoun && hasVerb
+	return hasNoun && imageGenerationVerbRE.MatchString(c)
 }
 
 // ImagePromptFromMessage strips mentions and returns a prompt suitable for hub image generation.

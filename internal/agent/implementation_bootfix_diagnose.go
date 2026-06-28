@@ -30,6 +30,7 @@ func (a *Agent) runBootFixDiagnosticBootstrap(
 	a.bootstrapBootFixReads(ctx, msg, state, wsPath)
 
 	for _, cmd := range bootFixDiagnosticCommands(wsPath, state.StackManifest) {
+		a.sendThinkingActivity(msg, protocol.ThinkingActivityVerifying, "boot diagnostic: "+cmd)
 		result, err := a.runBootFixDiagnosticCommand(ctx, msg, state, cmd)
 		if err != nil {
 			continue
@@ -82,13 +83,34 @@ func bootFixBootstrapReadPaths(wsPath string, manifest *StackManifest) []string 
 
 func bootFixDiagnosticCommands(wsPath string, manifest *StackManifest) []string {
 	var cmds []string
-	if fileExists(filepath.Join(wsPath, "scripts", "start-all.sh")) && fileExists(filepath.Join(wsPath, "Makefile")) {
-		cmds = append(cmds, "make start-all")
+	if manifest != nil && fileExists(filepath.Join(wsPath, "package.json")) {
+		if npmScriptExists(wsPath, "build") {
+			cmds = append(cmds, "npm run build")
+		} else if cmd := shared.TypeScriptCheckShellCommand(wsPath); cmd != "" {
+			cmds = append(cmds, cmd)
+		} else if npmScriptExists(wsPath, "typecheck") {
+			cmds = append(cmds, "npm run typecheck")
+		}
 	}
-	if manifest != nil && manifest.HasReact && fileExists(filepath.Join(wsPath, "package.json")) {
-		cmds = append(cmds, "npm run build")
+	if fileExists(filepath.Join(wsPath, "go.mod")) {
+		cmds = append(cmds, "go build ./...")
 	}
 	return cmds
+}
+
+func npmScriptExists(wsPath, script string) bool {
+	b, err := os.ReadFile(filepath.Join(wsPath, "package.json"))
+	if err != nil {
+		return false
+	}
+	var pkg struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	if json.Unmarshal(b, &pkg) != nil {
+		return false
+	}
+	_, ok := pkg.Scripts[script]
+	return ok
 }
 
 func (a *Agent) bootstrapReadWorkspaceFile(state *ImplementationSessionState, wsPath, rel string) {
@@ -114,7 +136,22 @@ func (a *Agent) runBootFixDiagnosticCommand(ctx context.Context, msg *protocol.M
 	}
 	toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
 	toolCtx = shared.ContextWithImplementationSession(toolCtx, true)
+	toolCtx = shared.ContextWithBootFixDiagnostic(toolCtx, true)
+	toolCtx = shared.ContextWithRunCommandTimeout(toolCtx, shared.BootFixRunCommandTimeout)
 	toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+	toolCtx = shared.ContextWithRunCommandProgress(toolCtx, func(line string) {
+		if a == nil || msg == nil {
+			return
+		}
+		detail := strings.TrimSpace(line)
+		if detail == "" {
+			return
+		}
+		if len(detail) > 100 {
+			detail = detail[:100] + "…"
+		}
+		a.sendThinkingActivity(msg, protocol.ThinkingActivityVerifying, "boot diagnostic: "+detail)
+	})
 	input, _ := json.Marshal(map[string]string{"command": cmd})
 	return executeMCPTool(toolCtx, mcpServer, "run_command", input)
 }
@@ -138,18 +175,37 @@ func formatBootFixDiagnosticNote(state *ImplementationSessionState) string {
 	if sig := commandOutputMatchesPlaybook(state.LastCommandOutput()); sig != "" {
 		b.WriteString("Failure class: ")
 		b.WriteString(sig)
-		b.WriteString(" — ship the repair with search_replace or propose_file_edit.\n")
+		b.WriteString(" — ")
+		b.WriteString(bootFixFailureClassHint(sig))
+		b.WriteString("\n")
 	} else {
 		b.WriteString("Use the output above to propose concrete file edits. Advice-only replies do not complete this session.\n")
 	}
 	return b.String()
 }
 
+func bootFixFailureClassHint(sig string) string {
+	switch sig {
+	case "missing_start_all_target":
+		return "ship the repair with search_replace or propose_file_edit"
+	case "missing_npm_module":
+		return "add the missing dependency to package.json and run npm install, or remove the import"
+	case "vite_strict_port_conflict":
+		return "align vite strictPort/devServer.port with tauri devPath or free the port"
+	case "dev_server_timeout":
+		return "do not run long-lived dev servers for diagnostics — fix compile/build errors first"
+	case "tauri_vite_port_mismatch":
+		return "align Tauri devPath with the Vite dev server port"
+	default:
+		return "ship the repair with search_replace or propose_file_edit"
+	}
+}
+
 func bootFixPostDiscoverRepairNote(state *ImplementationSessionState) string {
 	if state != nil && strings.TrimSpace(state.LastCommandOutput()) != "" {
 		return formatBootFixDiagnosticNote(state)
 	}
-	return "Boot-fix: run run_command (make start-all or npm run build) if needed, then propose_file_edit or search_replace to fix the root cause."
+	return "Boot-fix: run run_command (npm run build or tsc --noEmit) to capture compile errors, then propose_file_edit or search_replace to fix the root cause."
 }
 
 func logBootFixDiagnostic(a *Agent, event, sig, cmd string) {
@@ -165,4 +221,23 @@ func logBootFixDiagnostic(a *Agent, event, sig, cmd string) {
 
 func playbookSignatureFromCommandEvidence(content string) string {
 	return commandOutputMatchesPlaybook(content)
+}
+
+func formatBootFixInterimProgress(state *ImplementationSessionState) string {
+	if state == nil {
+		return "Boot diagnostics finished — analyzing build output…"
+	}
+	var b strings.Builder
+	b.WriteString("Boot diagnostics finished")
+	if cmd := strings.TrimSpace(state.LastFailedCommand); cmd != "" {
+		b.WriteString(" (`")
+		b.WriteString(cmd)
+		b.WriteString("`)")
+	}
+	if sig := commandOutputMatchesPlaybook(state.LastCommandOutput()); sig != "" {
+		b.WriteString(" — detected ")
+		b.WriteString(sig)
+	}
+	b.WriteString(". Analyzing output and preparing a fix…")
+	return b.String()
 }

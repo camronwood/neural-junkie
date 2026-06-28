@@ -1,6 +1,6 @@
-import React from "react";
+import "./index.css";
 
-function SidebarFooter() {
+function renderSidebarFooter() {
   return (
     <footer className="text-xs text-slate-600 border-t border-slate-800 pt-3">
       <p>Neural Junkie fixture</p>
@@ -11,4 +11,4 @@ function SidebarFooter() {
   );
 }
 
-export default SidebarFooter;
+export default renderSidebarFooter;

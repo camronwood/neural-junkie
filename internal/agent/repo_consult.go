@@ -75,6 +75,9 @@ func (a *Agent) shouldRunRepoConsult(ctx context.Context, msg *protocol.Message,
 		return false
 	}
 	if st := implementationSessionStateFromContext(ctx); st != nil {
+		if st.BootFixIntent && strings.TrimSpace(st.LastCommandOutput()) != "" {
+			return false
+		}
 		if !st.groundingSatisfied() {
 			return true
 		}

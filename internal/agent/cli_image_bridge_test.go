@@ -146,3 +146,8 @@ func (hubStub) ImageGenerationEnabled() bool                          { return f
 func (hubStub) GenerateAndPostImage(context.Context, string, protocol.AgentInfo, string, string) error {
 	return nil
 }
+func (hubStub) MusicGenerationEnabled() bool { return false }
+func (hubStub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
+	return nil
+}
+

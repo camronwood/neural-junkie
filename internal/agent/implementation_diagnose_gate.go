@@ -16,6 +16,9 @@ func requiresDiagnoseGate(msg *protocol.Message, state *ImplementationSessionSta
 	if state == nil || state.DiagnosePhaseComplete {
 		return false
 	}
+	if state.FixLikeIntent {
+		return false
+	}
 	if state.BootFixIntent {
 		return true
 	}

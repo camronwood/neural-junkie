@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -85,6 +86,46 @@ func stripCollaborateFlagPrefix(s string) string {
 	s = strings.TrimPrefix(s, "--")
 	s = strings.TrimPrefix(s, "-")
 	return s
+}
+
+// tokenizeSlashCommand splits a slash command on whitespace while respecting single/double quotes.
+func tokenizeSlashCommand(content string) []string {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil
+	}
+	var parts []string
+	var b strings.Builder
+	inSingle := false
+	inDouble := false
+	flush := func() {
+		if b.Len() == 0 {
+			return
+		}
+		parts = append(parts, b.String())
+		b.Reset()
+	}
+	for _, r := range content {
+		switch r {
+		case '\'':
+			if !inDouble {
+				inSingle = !inSingle
+				continue
+			}
+		case '"':
+			if !inSingle {
+				inDouble = !inDouble
+				continue
+			}
+		}
+		if !inSingle && !inDouble && unicode.IsSpace(r) {
+			flush()
+			continue
+		}
+		b.WriteRune(r)
+	}
+	flush()
+	return parts
 }
 
 // workspacePathFromMessageMetadata returns workspace_path from outbound message metadata.

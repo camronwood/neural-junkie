@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-21T11:21:41Z",
-  "count": 57,
+  "updated": "2026-06-28T11:04:28Z",
+  "count": 59,
   "items": [
     {
       "id": "ide-v4-carousel-01",
@@ -55,6 +55,15 @@
       "category": "ads",
       "tags": [],
       "filename": "ide-v4-hero-banner.png"
+    },
+    {
+      "id": "ide-v4-social-square-elon",
+      "src": "../media/gallery/ads/ide-v4-social-square-elon.png",
+      "title": "Ide V4 Social Square Elon",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "ide-v4-social-square-elon.png"
     },
     {
       "id": "ide-v4-social-square",
@@ -279,6 +288,15 @@
       "category": "ads",
       "tags": [],
       "filename": "neural-junkie-local-ai-tokens-ad-1080.png"
+    },
+    {
+      "id": "neural-junkie-loop-stack-1200",
+      "src": "../media/gallery/ads/neural-junkie-loop-stack-1200.png",
+      "title": "Loop Stack 1200",
+      "caption": "",
+      "category": "ads",
+      "tags": [],
+      "filename": "neural-junkie-loop-stack-1200.png"
     },
     {
       "id": "neural-junkie-lora-ad-1200",

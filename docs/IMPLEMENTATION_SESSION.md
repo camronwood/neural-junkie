@@ -71,10 +71,10 @@ make implement-scenario SCENARIO=react-theme-toggle
 make implement-scenario SCENARIO=react-theme-multi-file
 make implement-scenario SCENARIO=tauri-make-start-all-missing
 make implement-scenarios
-make test-parity-stable
+make test-parity-stable   # 3× sweeps, 20/20 per run
 ```
 
-Requires live hub + configured agents (see `scenarios/implement/*.json`).
+Requires live hub + configured agents. **20 scenarios** under `scenarios/implement/*.json` (including Fix Loop: `app-wont-boot-fix-like`, `go-build-error-fix`).
 
 ## Related
 
