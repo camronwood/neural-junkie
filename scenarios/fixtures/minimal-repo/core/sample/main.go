@@ -1,12 +1,12 @@
 package main
 
-import (
-	"fmt"
-	"core/sample/math"
-)
+import "fmt"
+
+// HelloWorld prints "Hello, World!" to the console.
+func HelloWorld() {
+    fmt.Println("Hello, World!")
+}
 
 func main() {
-	HelloWorld()
-	result := math.Add(2, 3)
-	fmt.Println("2 + 3 =", result)
+    HelloWorld()
 }

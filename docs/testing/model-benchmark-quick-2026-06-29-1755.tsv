@@ -1,0 +1,8 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+nj-ornith:9b	implement	go-handler	1	363.9	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+nj-ornith:9b	implement	theme-toggle	0	1217.6			=== FAIL: theme-toggle ===
+nj-ornith:9b	implement	ask-mode-no-write	1	105.5			=== PASS: ask-mode-no-write ===
+nj-ornith:9b	implement	go-test-failure-repair	0	153.6			=== FAIL: go-test-failure-repair ===
+nj-ornith:9b	implement	typescript-compile-error-fix	0	858.4			=== FAIL: typescript-compile-error-fix ===
+nj-ornith:9b	chat	dm-backend-workspace	1	89.7			=== PASS: dm-backend-workspace ===
+nj-ornith:9b	chat	dm-backend-echo-followup	0	120.8			=== FAIL: dm-backend-echo-followup ===

@@ -91,6 +91,8 @@ debug_normalize.go
 nj-article-1.md
 /nj-artical-1.md
 scenarios/fixtures/minimal-repo/collabs/
+scenarios/fixtures/minimal-repo/sample
+scenarios/fixtures/minimal-repo/server
 
 # Generated at repo root by release scripts (committed copies live in updater/beta/)
 /update-*.json
