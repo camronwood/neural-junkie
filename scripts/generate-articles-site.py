@@ -27,6 +27,8 @@ ARTICLE_ORDER = [
     "modular-ai-composition",
     "inference-layer",
     "loop-stack",
+    "fix-loop",
+    "ide-v4",
     "conversation-memory",
     "lora",
     "two-tier-lora",
@@ -41,6 +43,8 @@ SOURCE_BY_SLUG = {
     "modular-ai-composition": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
     "inference-layer": "INFERENCE-LAYER-LINKEDIN.md",
     "loop-stack": "LOOP-STACK-LINKEDIN.md",
+    "fix-loop": "FIX-LOOP-LINKEDIN.md",
+    "ide-v4": "IDE-V4-LINKEDIN.md",
     "conversation-memory": "CONVERSATION-MEMORY-LINKEDIN.md",
     "lora": "LORA-LINKEDIN.md",
     "two-tier-lora": "TWO-TIER-LORA-LINKEDIN.md",
@@ -51,6 +55,19 @@ SOURCE_BY_SLUG = {
 
 COVER_OVERRIDES = {
     "collaboration": "assets/neural-junkie-collaboration-ad-1080.png",
+    "fix-loop": "docs/media/articles/covers/neural-junkie-fix-loop-1200.png",
+    "ide-v4": "assets/marketing/ide-v4-hero-banner.png",
+}
+
+META_OVERRIDES: dict[str, dict[str, object]] = {
+    "ide-v4": {
+        "title": "Build the IDE You Actually Own",
+        "teaser": (
+            "IDE v4 adds Monaco LSP, remote SSH via nj-remote, dev containers, and tree-sitter "
+            "symbols — local-first and open source, for when the IDE you loved has a new owner."
+        ),
+        "tags": ["ai", "developertools", "opensource", "localfirst", "ide"],
+    },
 }
 
 TOPIC_BY_SLUG = {
@@ -59,6 +76,8 @@ TOPIC_BY_SLUG = {
     "modular-ai-composition": "architecture",
     "inference-layer": "architecture",
     "loop-stack": "architecture",
+    "fix-loop": "architecture",
+    "ide-v4": "architecture",
     "conversation-memory": "chat",
     "lora": "lora",
     "two-tier-lora": "lora",
@@ -114,6 +133,7 @@ def parse_title(text: str) -> str:
 def parse_teaser(text: str) -> str:
     for pattern in (
         r"\*\*Feed post teaser:\*\*\s*\n>\s*(.+)",
+        r"\*\*Feed teaser:\*\*\s*\n\n>\s*(.+)",
         r"\*\*Feed teaser\*\*[^\n]*\n\n>\s*(.+)",
         r"\*\*Optional feed post\*\*[^\n]*\n\n>\s*(.+)",
     ):
@@ -181,7 +201,8 @@ def publish_cover(cover: str) -> tuple[str, str]:
         return "", ""
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
     dest = COVERS_DIR / src.name
-    shutil.copy2(src, dest)
+    if src.resolve() != dest.resolve():
+        shutil.copy2(src, dest)
     return cover, f"../media/articles/covers/{src.name}"
 
 
@@ -297,15 +318,18 @@ def write_index_page(items: list[dict], updated: str) -> None:
     grid_html = "\n      ".join(article_card_html(item) for item in items)
     text = index_path.read_text(encoding="utf-8")
     text = re.sub(
-        r'(<div class="articles-grid" id="articles-grid" aria-live="polite">).*?(</div>)',
+        r'(<div class="articles-grid" id="articles-grid" aria-live="polite">).*?(</div>\n\n    <aside class="articles-how")',
         rf"\1\n      {grid_html}\n    \2",
         text,
         count=1,
         flags=re.DOTALL,
     )
+    def replace_count(m: re.Match[str]) -> str:
+        return f"{m.group(1)}{len(items)} articles{m.group(2)}"
+
     text = re.sub(
-        r'(<span class="articles-meta" id="articles-count">).*?(</span>)',
-        rf"\1{len(items)} articles\2",
+        r'(<span class="articles-count" id="articles-count">).*?(</span>)',
+        replace_count,
         text,
         count=1,
     )
@@ -334,14 +358,15 @@ def load_article(slug: str) -> dict | None:
     cover_src = parse_cover(text, slug)
     cover, cover_web = publish_cover(cover_src)
 
+    overrides = META_OVERRIDES.get(slug, {})
     return {
         "slug": slug,
-        "title": parse_title(text),
-        "teaser": parse_teaser(text),
+        "title": str(overrides.get("title") or parse_title(text)),
+        "teaser": str(overrides.get("teaser") or parse_teaser(text)),
         "cover": cover,
         "coverWeb": cover_web,
         "topic": TOPIC_BY_SLUG.get(slug, "general"),
-        "tags": parse_tags(text),
+        "tags": list(overrides.get("tags") or parse_tags(text)),
         "sourceFile": source_name,
         "sourcePath": f"docs/marketing/{source_name}",
         "href": f"{slug}.html",

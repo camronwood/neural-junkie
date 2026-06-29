@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Execution Is Not Repair: Building the NJ Fix Loop — Neural Junkie</title>
+  <meta name="description" content="My agent could run `make start-all` eight times and never touch the Makefile. Execution worked; repair didn&#x27;t. Here&#x27;s the platform policy we added so boot-fix sessions read, edit, verify, and always report an outcome." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Execution Is Not Repair: Building the NJ Fix Loop
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Execution Is Not Repair: Building the NJ Fix Loop</h1>
+      <p class="article-lead">My agent could run `make start-all` eight times and never touch the Makefile. Execution worked; repair didn&#x27;t. Here&#x27;s the platform policy we added so boot-fix sessions read, edit, verify, and always report an outcome.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">localfirst</span><span class="article-tag">agenticcoding</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-fix-loop-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>(paste below the line)</p>
+<hr />
+<h1>Execution Is Not Repair: Building the NJ Fix Loop</h1>
+<p>If you've shipped an agent that can <strong>run shell commands</strong>, you've probably hit this wall:</p>
+<p>The agent runs <code>make start-all</code>. It fails. It runs it again. And again. Chat fills with <code>command_output</code> messages, but <strong>nothing on disk changes</strong> and sometimes there's <strong>no final summary</strong> at all.</p>
+<p>That's not a model intelligence problem alone. It's a <strong>missing closed loop</strong>.</p>
+<p>I've been building <strong>Neural Junkie</strong> as a local-first open-source agent hub. Agent Runtime v2 gives specialists long native tool loops — great for reach, dangerous without platform policy. This article is what we shipped as the <strong>NJ Fix Loop</strong>.</p>
+<hr />
+<h2>The gap: execution without repair</h2>
+<p>In a real boot-fix session we saw:</p>
+<ul>
+<li><code>make start-all</code> failed <strong>8×</strong> with <code>No rule to make target 'start-all'</code></li>
+<li><strong>11 command_output posts</strong> in chat</li>
+<li><strong>Zero file edits</strong>, no <code>implementation_session_outcome</code>, no user-visible wrap-up</li>
+</ul>
+<p>The outer implementation session only advanced on <strong>file proposals</strong> and <strong>verify</strong>. Tool-step observers tracked discover tools, not <code>run_command</code> failures. Failures were <strong>broadcast</strong> to the channel (and mirrored in the terminal panel) but never forced <strong>read → edit → re-run</strong>.</p>
+<p>"My agent can execute" ≠ "my agent can fix my app."</p>
+<hr />
+<h2>What the NJ Fix Loop adds</h2>
+<p>Platform-owned policy on top of the tool loop:</p>
+<h3>1. Command telemetry + circuit breaker</h3>
+<p>Every <code>run_command</code> in an implementation session is recorded. If the <strong>same command fails twice</strong> without an intervening <code>read_file</code> or edit, the <strong>third run is blocked</strong> at the MCP layer — even if the model keeps trying.</p>
+<h3>2. Boot-fix grounding gates</h3>
+<p>For boot/build intent, agents must <strong>read</strong> <code>Makefile</code>, <code>package.json</code>, or <code>scripts/start-all.sh</code> before <code>make start-all</code> or <code>npm run dev</code>. The gate is enforced in tools, not just prompts.</p>
+<h3>3. Deterministic playbooks</h3>
+<p>Known error signatures trigger platform repairs before (or instead of) model guessing. Example: <code>No rule to make target 'start-all'</code> when <code>scripts/start-all.sh</code> exists → propose a <code>start-all:</code> Makefile target wiring to that script.</p>
+<h3>4. Guaranteed session finale</h3>
+<p>Every implementation session ends with a chat summary and <code>implementation_session_outcome</code> metadata — including <code>command_failures</code>, <code>playbook_used</code>, and <code>circuit_breaker_triggered</code> when relevant. Command-only thrashing can't exit silently.</p>
+<h3>5. Routing boot-fix to implementers</h3>
+<p>Boot-fix signals route to <strong>FrontendEngineer</strong> (<code>ide_route_agent_type: frontend</code>), not SoftwareArchitect — design questions still go to architects; "my app won't boot" goes to implementers.</p>
+<hr />
+<h2>Architecture (state machine)</h2>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; Discover
+    Discover --&gt; Edit: groundingSatisfied
+    Edit --&gt; Verify: fileProposalApplied
+    Verify --&gt; Repair: verifyFailed
+    Repair --&gt; Edit: repairNote
+    Discover --&gt; Playbook: repeatedCommandFailure
+    Edit --&gt; Playbook: repeatedCommandFailure
+    Playbook --&gt; Verify: deterministicFixApplied
+    Verify --&gt; Outcome: successOrExhausted
+    Repair --&gt; Outcome: maxRepairs
+    Discover --&gt; Outcome: commandThrashingLimit
+    Outcome --&gt; [*]
+</code></pre>
+<hr />
+<h2>Proof in the repo</h2>
+<p>Parity scenario: <code>tauri-make-start-all-missing</code></p>
+<pre><code class="language-bash">make implement-scenario SCENARIO=tauri-make-start-all-missing
+</code></pre>
+<p>Fixture: React + Tauri workspace with a valid <code>scripts/start-all.sh</code> but a <strong>broken Makefile</strong> (no <code>start-all</code> target). Expect Makefile repair, session summary, and no unbounded command spam.</p>
+<p>Key code paths:</p>
+<ul>
+<li><code>internal/agent/implementation_command_policy.go</code> — telemetry, circuit breaker</li>
+<li><code>internal/agent/implementation_playbooks.go</code> — Makefile <code>start-all</code> playbook</li>
+<li><code>internal/mcp/workspace/workspace_mcp.go</code> — MCP guards on <code>run_command</code></li>
+<li><code>desktop/src/utils/bootFixRouting.ts</code> — boot-fix routing to frontend</li>
+</ul>
+<hr />
+<h2>What we didn't try to solve (yet)</h2>
+<ul>
+<li>Rewriting Agent Runtime v2 into a single monolithic planner</li>
+<li>Fixing individual user repos by hand in agent sessions</li>
+<li>Unified timeline UI correlating tool steps, commands, and edits (tracked separately)</li>
+</ul>
+<p>The bet: <strong>platform policy</strong> beats bigger models for reliability on boot-fix loops.</p>
+<hr />
+<h2>Try it</h2>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/IMPLEMENTATION_SESSION.md">IMPLEMENTATION_SESSION.md</a><br />
+Cursor parity: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/CURSOR_PARITY.md">CURSOR_PARITY.md</a><br />
+Download: https://camronwood.github.io/neural-junkie/download.html</p>
+<p>Restart hub + desktop after pulling agent changes, then send a boot-fix request in <strong>Agent mode</strong> with <strong>auto-apply</strong> enabled.</p>
+<hr />
+<p><em>Neural Junkie is a personal open-source project. Feedback and scenario failures welcome on GitHub.</em></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/FIX-LOOP-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="fix-loop.html">Execution Is Not Repair: Building the NJ Fix Loop</a></p>
+    </div>
+  </footer>
+</body>
+</html>

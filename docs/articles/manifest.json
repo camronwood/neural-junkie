@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-28T11:04:29Z",
-  "count": 11,
+  "updated": "2026-06-29T14:45:31Z",
+  "count": 13,
   "items": [
     {
       "slug": "hardware",
@@ -100,6 +100,42 @@
       "sourceFile": "LOOP-STACK-LINKEDIN.md",
       "sourcePath": "docs/marketing/LOOP-STACK-LINKEDIN.md",
       "href": "loop-stack.html"
+    },
+    {
+      "slug": "fix-loop",
+      "title": "Execution Is Not Repair: Building the NJ Fix Loop",
+      "teaser": "My agent could run `make start-all` eight times and never touch the Makefile. Execution worked; repair didn't. Here's the platform policy we added so boot-fix sessions read, edit, verify, and always report an outcome.",
+      "cover": "docs/media/articles/covers/neural-junkie-fix-loop-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-fix-loop-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "developertools",
+        "opensource",
+        "localfirst",
+        "agenticcoding"
+      ],
+      "sourceFile": "FIX-LOOP-LINKEDIN.md",
+      "sourcePath": "docs/marketing/FIX-LOOP-LINKEDIN.md",
+      "href": "fix-loop.html"
+    },
+    {
+      "slug": "ide-v4",
+      "title": "Build the IDE You Actually Own",
+      "teaser": "IDE v4 adds Monaco LSP, remote SSH via nj-remote, dev containers, and tree-sitter symbols \u2014 local-first and open source, for when the IDE you loved has a new owner.",
+      "cover": "assets/marketing/ide-v4-hero-banner.png",
+      "coverWeb": "../media/articles/covers/ide-v4-hero-banner.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "developertools",
+        "opensource",
+        "localfirst",
+        "ide"
+      ],
+      "sourceFile": "IDE-V4-LINKEDIN.md",
+      "sourcePath": "docs/marketing/IDE-V4-LINKEDIN.md",
+      "href": "ide-v4.html"
     },
     {
       "slug": "conversation-memory",

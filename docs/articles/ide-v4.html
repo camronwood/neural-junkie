@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Build the IDE You Actually Own — Neural Junkie</title>
+  <meta name="description" content="IDE v4 adds Monaco LSP, remote SSH via nj-remote, dev containers, and tree-sitter symbols — local-first and open source, for when the IDE you loved has a new owner." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Build the IDE You Actually Own
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Build the IDE You Actually Own</h1>
+      <p class="article-lead">IDE v4 adds Monaco LSP, remote SSH via nj-remote, dev containers, and tree-sitter symbols — local-first and open source, for when the IDE you loved has a new owner.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">localfirst</span><span class="article-tag">ide</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/ide-v4-hero-banner.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<h1>IDE v4 — build the IDE you actually own</h1>
+<blockquote>
+<p>If Elon Musk bought your favorite IDE, come join our open-source effort to build a better one.</p>
+</blockquote>
+<p>I'm shipping <strong>Neural Junkie IDE v4</strong> — not as a reaction tweet, but as years of local-first, multi-agent workspace work reaching the depth developers expect from a serious editor.</p>
+<h2>Why this moment matters</h2>
+<p>AI coding tools are consolidating fast. When a beloved IDE becomes an acquisition target, developers rightly ask:</p>
+<ul>
+<li>Who controls the roadmap?</li>
+<li>Where does my code go by default?</li>
+<li>Can I still run models locally?</li>
+<li>What happens to the workflow I built my team around?</li>
+</ul>
+<p>Open source doesn't solve everything — but it answers the ownership question clearly.</p>
+<h2>What v4 adds</h2>
+<h3>Full Monaco LSP (local workspaces)</h3>
+<p>We moved from <strong>LSP-lite</strong> (one-shot <code>gopls check</code>) to <strong>persistent language servers</strong> behind a hub WebSocket:</p>
+<ul>
+<li>Hover in the editor (live in Monaco)</li>
+<li>Foundation for completion, go-to-definition, rename</li>
+<li>Go, Rust, Python via <code>gopls</code>, <code>rust-analyzer</code>, <code>pyright-langserver</code></li>
+</ul>
+<p>Your hub spawns and owns the language server process. The desktop speaks JSON-RPC over WebSocket — same pattern as VS Code, without sending your repo to our cloud (there is no our cloud).</p>
+<h3>Remote SSH via <code>nj-remote</code></h3>
+<p>Workspaces are no longer "a path on the laptop only."</p>
+<p>We added <strong><code>WorkspaceBackend</code></strong> — a pluggable FS/exec layer — and a small <strong><code>nj-remote</code> sidecar</strong> you run on EC2, a dev box, or anywhere SSH reaches:</p>
+<pre><code class="language-bash">nj-remote -root ~/myapp -addr :19876 -token &quot;$SECRET&quot;
+</code></pre>
+<p>The desktop hub routes file operations, git, LSP, and implementation-session verify steps through the backend. Agents stay local; <strong>your code stays where you put it</strong>.</p>
+<h3>Dev containers</h3>
+<p>Repos with <code>.devcontainer/devcontainer.json</code> get an attach plan from the hub. Run <code>nj-remote</code> inside the container after <code>devcontainer up</code> — same sidecar protocol, container as the host.</p>
+<h3>tree-sitter symbols</h3>
+<p>Symbol search upgrades from regex to <strong>tree-sitter</strong> when the CLI is on PATH, with regex fallback. ⌘⇧O keeps working; nested methods stop hiding.</p>
+<h2>What didn't change (on purpose)</h2>
+<ul>
+<li><strong>Human approval on file changes</strong> — proposals and diffs, not silent writes</li>
+<li><strong>Multi-agent specialists</strong> — not one overworked chatbot</li>
+<li><strong>BYOM</strong> — Ollama, Claude, GPT, LM Studio, Hugging Face — your keys, your machine</li>
+<li><strong>Local-first hub</strong> — loopback by default</li>
+</ul>
+<h2>Join the build</h2>
+<p>Neural Junkie is <strong>open source</strong> (see the repo license). v4 is the invitation:</p>
+<ol>
+<li><strong>Download</strong> the beta — macOS, Windows, Linux</li>
+<li><strong>Try IDE layout</strong> + Software development pack</li>
+<li><strong>Open an issue</strong> if remote/LSP breaks on your stack</li>
+<li><strong>Send a PR</strong> — <code>WorkspaceBackend</code>, LSP, sidecar, scenarios</li>
+</ol>
+<p>If the IDE you loved now has a new owner, you don't have to wait for their roadmap.</p>
+<p><strong>Come build the next one with us.</strong></p>
+<p>https://github.com/camronwood/neural-junkie</p>
+<p><strong>Download CTA:</strong> https://camronwood.github.io/neural-junkie/download.html</p>
+<p><strong>Suggested post date:</strong> After <code>v1.2.0-beta.2</code> tag (CI + remote LSP dogfood).</p>
+<hr />
+<p>Related: <a href="../IDE_V4.md">IDE_V4.md</a> · <a href="../REMOTE_WORKSPACES.md">REMOTE_WORKSPACES.md</a> · <a href="../../assets/marketing/ide-v4-open-source-ad.md">assets/marketing/ide-v4-open-source-ad.md</a></p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/IDE-V4-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="ide-v4.html">Build the IDE You Actually Own</a></p>
+    </div>
+  </footer>
+</body>
+</html>
