@@ -87,7 +87,7 @@
     </section>
 
     <section aria-labelledby="leaderboard-heading">
-      <h2 id="leaderboard-heading">Leaderboard</h2>
+      <h2 id="leaderboard-heading">Leaderboard — this run</h2>
       <p class="benchmarks-section-lead" id="leaderboard-judge-note" hidden></p>
       <div class="benchmarks-table-wrap">
         <table class="benchmarks-table" id="leaderboard-table">
@@ -104,6 +104,27 @@
             </tr>
           </thead>
           <tbody id="leaderboard-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="benchmarks-alltime" id="alltime-section" hidden aria-labelledby="alltime-leaderboard-heading">
+      <h2 id="alltime-leaderboard-heading">Leaderboard — all time</h2>
+      <p class="benchmarks-section-lead" id="alltime-leaderboard-lead"></p>
+      <div class="benchmarks-table-wrap">
+        <table class="benchmarks-table" id="alltime-leaderboard-table">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Model</th>
+              <th>Runs</th>
+              <th title="Top model in a run (pass rate, then pass count, then fastest total time)">Wins</th>
+              <th>Avg rate</th>
+              <th>Best rate</th>
+              <th title="Pass rate from the most recent run this model appeared in">Latest</th>
+            </tr>
+          </thead>
+          <tbody id="alltime-leaderboard-body"></tbody>
         </table>
       </div>
     </section>
@@ -203,16 +224,22 @@
       return (run.results || []).filter((r) => !r.skipped && (r.scenarios || []).length);
     }
 
+    function passRate(result) {
+      return result.pass_rate ?? (result.passed_count / Math.max(result.total_count, 1));
+    }
+
+    function compareResults(a, b) {
+      const ar = passRate(a);
+      const br = passRate(b);
+      if (br !== ar) return br - ar;
+      if ((b.passed_count || 0) !== (a.passed_count || 0)) return (b.passed_count || 0) - (a.passed_count || 0);
+      return (a.total_duration_s || 0) - (b.total_duration_s || 0);
+    }
+
     function winnerForRun(run) {
       const active = activeResults(run);
       if (!active.length) return null;
-      return active.sort((a, b) => {
-        const ar = a.pass_rate ?? (a.passed_count / Math.max(a.total_count, 1));
-        const br = b.pass_rate ?? (b.passed_count / Math.max(b.total_count, 1));
-        if (br !== ar) return br - ar;
-        if ((b.passed_count || 0) !== (a.passed_count || 0)) return (b.passed_count || 0) - (a.passed_count || 0);
-        return (a.total_duration_s || 0) - (b.total_duration_s || 0);
-      })[0];
+      return [...active].sort(compareResults)[0];
     }
 
     function scenarioRows(run) {
@@ -402,12 +429,7 @@
       }
       const tbody = document.getElementById('leaderboard-body');
       tbody.innerHTML = '';
-      const active = activeResults(run).sort((a, b) => {
-        const ar = a.pass_rate ?? 0;
-        const br = b.pass_rate ?? 0;
-        if (br !== ar) return br - ar;
-        return (b.passed_count || 0) - (a.passed_count || 0);
-      });
+      const active = [...activeResults(run)].sort(compareResults);
       const win = winnerForRun(run);
       active.forEach((r, i) => {
         const impl = (r.scenarios || []).filter((s) => s.kind === 'implement');
@@ -496,6 +518,83 @@
       renderMatrix(run);
     }
 
+    function buildAllTimeLeaderboard(runs) {
+      const byModel = new Map();
+      for (const run of runs) {
+        const win = winnerForRun(run);
+        const runAt = run.generated_at || "";
+        for (const r of activeResults(run)) {
+          const tag = r.model_tag;
+          if (!tag) continue;
+          let entry = byModel.get(tag);
+          if (!entry) {
+            entry = {
+              model_tag: tag,
+              runs: 0,
+              wins: 0,
+              rates: [],
+              best_rate: 0,
+              latest_rate: 0,
+              latest_at: "",
+            };
+            byModel.set(tag, entry);
+          }
+          entry.runs += 1;
+          const rate = passRate(r);
+          entry.rates.push(rate);
+          if (rate > entry.best_rate) entry.best_rate = rate;
+          if (!entry.latest_at || runAt >= entry.latest_at) {
+            entry.latest_at = runAt;
+            entry.latest_rate = rate;
+          }
+          if (win && win.model_tag === tag) entry.wins += 1;
+        }
+      }
+      return Array.from(byModel.values())
+        .map((e) => ({
+          ...e,
+          avg_rate: e.rates.length ? e.rates.reduce((sum, n) => sum + n, 0) / e.rates.length : 0,
+        }))
+        .sort((a, b) => {
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          if (b.avg_rate !== a.avg_rate) return b.avg_rate - a.avg_rate;
+          return b.best_rate - a.best_rate;
+        });
+    }
+
+    function renderAllTimeLeaderboard(runs) {
+      const section = document.getElementById("alltime-section");
+      const lead = document.getElementById("alltime-leaderboard-lead");
+      const tbody = document.getElementById("alltime-leaderboard-body");
+      if (runs.length < 2) {
+        section.hidden = true;
+        return;
+      }
+      const rows = buildAllTimeLeaderboard(runs);
+      lead.textContent =
+        `Across ${runs.length} published runs. ` +
+        "A win is the top model in a run (pass rate, then pass count, then fastest total time).";
+      tbody.innerHTML = "";
+      rows.forEach((row, i) => {
+        const avg = Math.round(row.avg_rate * 100);
+        const best = Math.round(row.best_rate * 100);
+        const latest = Math.round(row.latest_rate * 100);
+        const rankClass = i === 0 && row.wins > 0 ? "rank-1" : "";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="${rankClass}">${i + 1}</td>
+          <td class="mono">${escapeHtml(row.model_tag)}</td>
+          <td>${row.runs}</td>
+          <td>${row.wins}</td>
+          <td><span class="rate-bar" aria-hidden="true"><span style="width:${avg}%"></span></span>${avg}%</td>
+          <td>${best}%</td>
+          <td>${latest}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      section.hidden = false;
+    }
+
     function renderHistory(runs) {
       if (runs.length < 2) return;
       document.getElementById('history-section').hidden = false;
@@ -536,6 +635,7 @@
         const show = (idx) => renderRun(runs[Number(idx)], catalog);
         select.addEventListener('change', () => show(select.value));
         show(0);
+        renderAllTimeLeaderboard(runs);
         renderHistory(runs);
       } catch (err) {
         const el = document.getElementById('benchmarks-error');

@@ -154,13 +154,18 @@
   border-radius: 3px;
 }
 
-.benchmarks-history {
-  margin-top: 2rem;
-}
-
+.benchmarks-alltime h2,
 .benchmarks-history h2 {
   font-size: 1.25rem;
-  margin-bottom: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.benchmarks-alltime {
+  margin-bottom: 2.5rem;
+}
+
+.benchmarks-history {
+  margin-top: 2rem;
 }
 
 .benchmarks-how {
