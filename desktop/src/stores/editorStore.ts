@@ -7,6 +7,7 @@ import type { ScanAnalysisData } from '../utils/scanAnalysis';
 import { isScanAnalysisResultsPath, SCAN_ANALYSIS_RESULTS_FILE } from '../utils/scanAnalysis';
 import type { PanelQCReport } from '../utils/secondaryAnalysis';
 import { getLanguageFromPath } from '../utils/editorLanguage';
+import { isMarkdownPath } from '../utils/markdownFile';
 
 const api = new ChatAPI(getHubBaseURL());
 
@@ -163,7 +164,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   
   openFile: (workspaceId, path, content, language, options) => {
     const state = get();
-    const viewMode = options?.viewMode ?? 'text';
+    const viewMode =
+      options?.viewMode ?? (isMarkdownPath(path) ? 'markdown-preview' : 'text');
     const imageSrc = options?.imageSrc;
 
     // Check if file is already open

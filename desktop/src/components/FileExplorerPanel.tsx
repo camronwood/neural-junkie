@@ -1297,7 +1297,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       </div>
 
       {/* File Tree */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-none">
         {error ? (
           <div className="p-4 text-center">
             <div className="text-4xl mb-2">⚠️</div>

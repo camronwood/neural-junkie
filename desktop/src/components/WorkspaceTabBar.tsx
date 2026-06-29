@@ -27,7 +27,7 @@ export function WorkspaceTabBar({
   }
 
   return (
-    <div className="flex items-center gap-1 min-w-0 overflow-x-auto">
+    <div className="flex items-center gap-1 min-w-0 overflow-x-auto scrollbar-none">
       {visible.map((workspace) => {
         const isActive = activeWorkspaceId === workspace.id;
         return (

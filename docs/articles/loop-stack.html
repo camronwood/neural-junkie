@@ -65,43 +65,42 @@
 <p>Models improvise. Loops enforce outcomes: read before you run, edit before you retry, verify before you claim success, and always report what happened.</p>
 <h2>The stack at a glance</h2>
 <p>Not every "loop" in Neural Junkie is the same kind of thing. Some are <strong>user-facing workflows</strong>. Some are <strong>policy layers</strong>. Some are <strong>inference mechanics</strong>. Some are <strong>guardrails</strong>.</p>
-<pre><code class="language-mermaid">flowchart TB
-    subgraph Collab[&quot;Collaboration loops&quot;]
-        CP[&quot;Planning loop&quot;]
-        CE[&quot;Execution loop&quot;]
-        CD[&quot;Discussion loop&quot;]
+<pre class="mermaid">flowchart TB
+    subgraph Collab["Collaboration loops"]
+        CP["Planning loop"]
+        CE["Execution loop"]
+        CD["Discussion loop"]
     end
 
-    subgraph Product[&quot;Product loops&quot;]
-        IS[&quot;Implementation session&quot;]
-        ARv2[&quot;Agent Runtime v2 open loop&quot;]
-        MF[&quot;Multi-file continue&quot;]
+    subgraph Product["Product loops"]
+        IS["Implementation session"]
+        ARv2["Agent Runtime v2 open loop"]
+        MF["Multi-file continue"]
     end
 
-    subgraph Fix[&quot;Fix Loop policy&quot;]
-        FL[&quot;Fix-like / repro&quot;]
-        BF[&quot;Boot-fix&quot;]
-        VR[&quot;Verify / repair&quot;]
+    subgraph Fix["Fix Loop policy"]
+        FL["Fix-like / repro"]
+        BF["Boot-fix"]
+        VR["Verify / repair"]
     end
 
-    subgraph Inference[&quot;Per-turn inference&quot;]
-        TL[&quot;MCP tool loop&quot;]
-        DC[&quot;Delegation consult&quot;]
+    subgraph Inference["Per-turn inference"]
+        TL["MCP tool loop"]
+        DC["Delegation consult"]
     end
 
-    subgraph Guard[&quot;Guardrails&quot;]
-        AL[&quot;Anti-loop guard&quot;]
+    subgraph Guard["Guardrails"]
+        AL["Anti-loop guard"]
     end
 
-    CP --&gt; CE --&gt; IS
-    IS --&gt; FL
-    FL --&gt; BF
-    IS --&gt; VR
-    IS --&gt; MF
-    IS --&gt; TL
-    TL --&gt; DC
-    CD --&gt; AL
-</code></pre>
+    CP --> CE --> IS
+    IS --> FL
+    FL --> BF
+    IS --> VR
+    IS --> MF
+    IS --> TL
+    TL --> DC
+    CD --> AL</pre>
 <p>Same hub. Same desktop. Different loops for different failure modes.</p>
 <hr />
 <h2>Layer 1 — Implementation session loop</h2>
@@ -294,5 +293,9 @@ make parity-scenario SCENARIO=long-agent-loop-repair             # Runtime v2 op
       <p><a href="../index.html">Neural Junkie</a> — articles · <a href="loop-stack.html">We Didn&#x27;t Build One Agent Loop. We Built a Stack.</a></p>
     </div>
   </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
 </body>
 </html>

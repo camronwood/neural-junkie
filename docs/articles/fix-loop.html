@@ -87,20 +87,19 @@
 <p>Boot-fix signals route to <strong>FrontendEngineer</strong> (<code>ide_route_agent_type: frontend</code>), not SoftwareArchitect — design questions still go to architects; "my app won't boot" goes to implementers.</p>
 <hr />
 <h2>Architecture (state machine)</h2>
-<pre><code class="language-mermaid">stateDiagram-v2
-    [*] --&gt; Discover
-    Discover --&gt; Edit: groundingSatisfied
-    Edit --&gt; Verify: fileProposalApplied
-    Verify --&gt; Repair: verifyFailed
-    Repair --&gt; Edit: repairNote
-    Discover --&gt; Playbook: repeatedCommandFailure
-    Edit --&gt; Playbook: repeatedCommandFailure
-    Playbook --&gt; Verify: deterministicFixApplied
-    Verify --&gt; Outcome: successOrExhausted
-    Repair --&gt; Outcome: maxRepairs
-    Discover --&gt; Outcome: commandThrashingLimit
-    Outcome --&gt; [*]
-</code></pre>
+<pre class="mermaid">stateDiagram-v2
+    [*] --> Discover
+    Discover --> Edit: groundingSatisfied
+    Edit --> Verify: fileProposalApplied
+    Verify --> Repair: verifyFailed
+    Repair --> Edit: repairNote
+    Discover --> Playbook: repeatedCommandFailure
+    Edit --> Playbook: repeatedCommandFailure
+    Playbook --> Verify: deterministicFixApplied
+    Verify --> Outcome: successOrExhausted
+    Repair --> Outcome: maxRepairs
+    Discover --> Outcome: commandThrashingLimit
+    Outcome --> [*]</pre>
 <hr />
 <h2>Proof in the repo</h2>
 <p>Parity scenario: <code>tauri-make-start-all-missing</code></p>
@@ -156,5 +155,9 @@ Download: https://camronwood.github.io/neural-junkie/download.html</p>
       <p><a href="../index.html">Neural Junkie</a> — articles · <a href="fix-loop.html">Execution Is Not Repair: Building the NJ Fix Loop</a></p>
     </div>
   </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
 </body>
 </html>

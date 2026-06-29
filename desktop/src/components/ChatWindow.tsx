@@ -1905,6 +1905,30 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     }
   }, [api, channel, username, addToast]);
 
+  const appendLocalSlashCommand = useCallback(
+    (commandText: string) => {
+      const now = new Date().toISOString();
+      useChatStore.getState().addMessage({
+        id: `local-cmd-${Date.now()}`,
+        type: 'question',
+        channel,
+        from: {
+          id: username || 'user',
+          name: username || 'You',
+          type: 'human',
+          expertise: [],
+          status: 'active',
+          model: '',
+          is_paused: false,
+        },
+        content: commandText,
+        timestamp: now,
+        metadata: { slash_command: true, client_only: true },
+      });
+    },
+    [channel, username],
+  );
+
   const dispatchMessage = useCallback(
     async (content: string, metadata?: Record<string, unknown>): Promise<boolean> => {
       useChatStore.getState().setChannelHold(channel, false);
@@ -1944,10 +1968,14 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       useChatStore.getState().setIsTyping(true);
       try {
         const trimmed = sendContent.trimStart();
+        const slashCommand = trimmed.startsWith('/');
         if (trimmed.startsWith('/collaborate')) {
           if (!confirmStartCollaborationWhileExecuting(executingCollaborationForChannel)) {
             return false;
           }
+        }
+        if (slashCommand) {
+          appendLocalSlashCommand(sendContent.trim());
         }
         const sendResult = await api.sendMessage(
           channel,
@@ -2034,6 +2062,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       api,
       channel,
       username,
+      appendLocalSlashCommand,
       workspaceContextMode,
       conversationModeSetting,
       activeChannelMeta?.type,
@@ -2083,38 +2112,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     [api, addToast],
   );
 
-  const appendLocalSlashCommand = useCallback(
-    (commandText: string) => {
-      const now = new Date().toISOString();
-      useChatStore.getState().addMessage({
-        id: `local-cmd-${Date.now()}`,
-        type: 'question',
-        channel,
-        from: {
-          id: username || 'user',
-          name: username || 'You',
-          type: 'human',
-          expertise: [],
-          status: 'active',
-          model: '',
-          is_paused: false,
-        },
-        content: commandText,
-        timestamp: now,
-        metadata: { slash_command: true, client_only: true },
-      });
-    },
-    [channel, username],
-  );
-
   const handleSendMessage = async (content: string, metadata?: Record<string, unknown>): Promise<boolean> => {
+    const trimmed = content.trimStart();
     if (content.trim() === '/nj-open-model-library') {
       setModelLibraryOpen(true);
       appendLocalSlashCommand('/nj-open-model-library');
       return true;
     }
-
-    const trimmed = content.trimStart();
     if (
       isClosedCollaborationChannel &&
       trimmed.length > 0 &&
@@ -2214,17 +2218,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     commandString: string,
     metadata?: Record<string, unknown>
   ) => {
-    if (inputRef.current && (inputRef.current as any).clearInput) {
-      (inputRef.current as any).clearInput();
-    }
     const trimmed = commandString.trim();
     if (trimmed === '/nj-open-model-library') {
+      appendLocalSlashCommand(trimmed);
       setModelLibraryOpen(true);
+      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
       return;
     }
     const repoAgentCmd = parseCreateRepoAgentCommand(trimmed);
-    await handleSendMessage(commandString, metadata);
-    if (repoAgentCmd) {
+    const sent = await handleSendMessage(commandString, metadata);
+    if (sent !== false) {
+      (inputRef.current as (HTMLTextAreaElement & { clearInput?: () => void }) | null)?.clearInput?.();
+    }
+    if (repoAgentCmd && sent !== false) {
       window.setTimeout(() => {
         void ensureRepoAgentWorkspace(repoAgentCmd.repoPath, {
           preferredName: repoAgentCmd.agentName,

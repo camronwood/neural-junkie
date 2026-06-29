@@ -23,6 +23,71 @@ import {
   trimMessagesToMax,
 } from '../config/messageLimits';
 
+function isPendingLocalSlashCommand(message: Message): boolean {
+  return (
+    message.metadata?.slash_command === true &&
+    message.metadata?.client_only === true
+  );
+}
+
+function slashCommandContentKey(content: string): string {
+  return content.trim();
+}
+
+/** Keep optimistic slash-command lines until the hub echoes them in a refresh. */
+function mergePendingLocalSlashCommands(
+  incoming: Message[],
+  previous: Message[],
+): Message[] {
+  const echoed = new Set(
+    incoming
+      .filter((m) => m.metadata?.slash_command === true)
+      .map((m) => slashCommandContentKey(m.content)),
+  );
+  const pending = previous.filter(
+    (m) =>
+      isPendingLocalSlashCommand(m) &&
+      !echoed.has(slashCommandContentKey(m.content)),
+  );
+  if (!pending.length) {
+    return incoming;
+  }
+  const merged = [...incoming];
+  for (const local of pending) {
+    if (
+      merged.some(
+        (m) =>
+          m.metadata?.slash_command === true &&
+          slashCommandContentKey(m.content) === slashCommandContentKey(local.content),
+      )
+    ) {
+      continue;
+    }
+    merged.push(local);
+  }
+  merged.sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+  );
+  return merged;
+}
+
+function stripLocalSlashDuplicates(
+  messages: Message[],
+  incoming: Message,
+): Message[] {
+  if (incoming.metadata?.slash_command !== true || incoming.metadata?.client_only === true) {
+    return messages;
+  }
+  const key = slashCommandContentKey(incoming.content);
+  return messages.filter(
+    (m) =>
+      !(
+        isPendingLocalSlashCommand(m) &&
+        slashCommandContentKey(m.content) === key
+      ),
+  );
+}
+
 export interface ChatState {
   // Connection
   connectionStatus: ConnectionStatus;
@@ -269,13 +334,15 @@ export const useChatStore = create<ChatState>((set, get) => {
         }
       }
 
-      const existingIdx = state.messages.findIndex(m => m.id === message.id);
+      let baseMessages = stripLocalSlashDuplicates(state.messages, message);
+
+      const existingIdx = baseMessages.findIndex(m => m.id === message.id);
       const streaming = state.streamingMessages[message.id];
       const { [message.id]: _removedStream, ...restStreams } = state.streamingMessages;
       const cleanedStreams = streaming ? restStreams : state.streamingMessages;
 
       if (existingIdx !== -1) {
-        const updated = [...state.messages];
+        const updated = [...baseMessages];
         updated[existingIdx] = mergeMessagePreservingImages(updated[existingIdx], message);
         return {
           messages: trimMessagesToMax(updated, MAX_UI_CHANNEL_MESSAGES),
@@ -285,7 +352,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
 
       return {
-        messages: trimMessagesToMax([...state.messages, message], MAX_UI_CHANNEL_MESSAGES),
+        messages: trimMessagesToMax([...baseMessages, message], MAX_UI_CHANNEL_MESSAGES),
         streamingMessages: cleanedStreams,
         isTyping: false,
       };
@@ -319,13 +386,13 @@ export const useChatStore = create<ChatState>((set, get) => {
   setMessages: (messages) =>
     set((state) => {
       const byId = new Map(state.messages.map((m) => [m.id, m]));
-      const merged = messages.map((m) => {
+      const mergedIncoming = mergePendingLocalSlashCommands(messages, state.messages).map((m) => {
         const prev = byId.get(m.id);
         return prev ? mergeMessagePreservingImages(prev, m) : m;
       });
       return {
         messages: trimMessagesToMax(
-          merged.filter(
+          mergedIncoming.filter(
             (m) => !!m.content?.trim() || channelTimelineAllowsEmptyContent(m.type)
           ),
           MAX_UI_CHANNEL_MESSAGES

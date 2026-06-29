@@ -185,10 +185,28 @@ def extract_body(text: str) -> str:
 def md_to_html(body: str) -> str:
     import markdown
 
-    return markdown.markdown(
-        body,
-        extensions=["tables", "fenced_code", "sane_lists", "nl2br"],
+    return prepare_article_body_html(
+        markdown.markdown(
+            body,
+            extensions=["tables", "fenced_code", "sane_lists", "nl2br"],
+        )
     )
+
+
+MERMAID_BLOCK_RE = re.compile(
+    r'<pre><code class="language-mermaid">(.*?)</code></pre>',
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def prepare_article_body_html(body_html: str) -> str:
+    """Turn fenced mermaid code blocks into renderable diagrams on the static site."""
+
+    def repl(match: re.Match[str]) -> str:
+        src = html.unescape(match.group(1)).strip()
+        return f'<pre class="mermaid">{src}</pre>'
+
+    return MERMAID_BLOCK_RE.sub(repl, body_html)
 
 
 def publish_cover(cover: str) -> tuple[str, str]:
@@ -269,6 +287,10 @@ def article_html_page(meta: dict, body_html: str) -> str:
       <p><a href="../index.html">Neural Junkie</a> — articles · <a href="{slug}.html">{title}</a></p>
     </div>
   </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({{ startOnLoad: true, theme: 'dark', securityLevel: 'loose' }});
+  </script>
 </body>
 </html>
 """

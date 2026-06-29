@@ -179,6 +179,16 @@ body {
   background: var(--nj-scrollbar-thumb-hover);
 }
 
+/* Hide scrollbars while keeping scroll (file tabs, etc.) */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* For Firefox */
 * {
   scrollbar-width: thin;

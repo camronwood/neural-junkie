@@ -262,6 +262,23 @@
   padding: 0;
 }
 
+.article-body pre.mermaid {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.article-body pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .article-body hr {
   border: none;
   border-top: 1px solid var(--border);

@@ -9,6 +9,21 @@ interface CsvTableViewerProps {
 export function CsvTableViewer({ content, onContentChange }: CsvTableViewerProps) {
   const rows = useMemo(() => parseCsvTable(content), [content]);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(() => new Set());
+  const [expandAll, setExpandAll] = useState(false);
+
+  const rowExpanded = useCallback(
+    (rowIdx: number) => expandAll || expandedRows.has(rowIdx),
+    [expandAll, expandedRows],
+  );
+
+  const toggleExpandAll = useCallback(() => {
+    setExpandAll((prev) => {
+      if (prev) {
+        setExpandedRows(new Set());
+      }
+      return !prev;
+    });
+  }, []);
 
   const toggleRowExpanded = useCallback((rowIdx: number) => {
     setExpandedRows((prev) => {
@@ -63,6 +78,13 @@ export function CsvTableViewer({ content, onContentChange }: CsvTableViewerProps
         </span>
         <button
           type="button"
+          onClick={toggleExpandAll}
+          className="px-2 py-1 text-xs rounded border border-slack-border text-slack-text hover:bg-slack-bgHover"
+        >
+          {expandAll ? 'Collapse all' : 'Expand all'}
+        </button>
+        <button
+          type="button"
           onClick={addRow}
           className="px-2 py-1 text-xs rounded border border-slack-border text-slack-text hover:bg-slack-bgHover"
         >
@@ -80,7 +102,7 @@ export function CsvTableViewer({ content, onContentChange }: CsvTableViewerProps
         <table className="w-full border-collapse text-sm">
           <tbody>
             {rows.map((row, rowIdx) => {
-              const expanded = expandedRows.has(rowIdx);
+              const expanded = rowExpanded(rowIdx);
               return (
                 <tr key={rowIdx} className="border-b border-slack-border/60 hover:bg-slack-bgHover/30">
                   <td className="w-10 px-1 py-0.5 text-[10px] text-slack-textMuted text-right align-top sticky left-0 bg-slack-bg border-r border-slack-border/40">
