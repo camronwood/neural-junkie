@@ -152,6 +152,23 @@ func TestBioGGUFDefaultFilename(t *testing.T) {
 	}
 }
 
+func TestOrnithGGUFDefaultFilename(t *testing.T) {
+	entry, err := FindCatalogEntry("deepreinforce-ai/Ornith-1.0-9B")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveDownloadRepoID(entry); got != "deepreinforce-ai/Ornith-1.0-9B-GGUF" {
+		t.Fatalf("download repo = %q", got)
+	}
+	fn, err := ResolveDownloadFilename(entry, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fn != "ornith-1.0-9b-Q4_K_M.gguf" {
+		t.Fatalf("filename = %q (must match Hub repo paths)", fn)
+	}
+}
+
 func TestResolveDownloadFilenameLoRACompanion(t *testing.T) {
 	entry, err := FindCatalogEntry("scthornton/llama-3.2-3b-securecode")
 	if err != nil {

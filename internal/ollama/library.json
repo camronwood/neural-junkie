@@ -18,6 +18,15 @@
     "publisher": "Qwen"
   },
   {
+    "name": "nj-ornith:9b",
+    "title": "Ornith 1.0 9B (GGUF import)",
+    "description": "DeepReinforce agentic coding model. Install via Model Library → Hugging Face → Import to Ollama.",
+    "tags": ["code", "reasoning", "recommended"],
+    "size_hint": "~5.6 GB (Q4)",
+    "icon_key": "qwen",
+    "publisher": "DeepReinforce"
+  },
+  {
     "name": "qwen2.5-coder:14b",
     "title": "Qwen 2.5 Coder 14B",
     "description": "Strong coding and tool use; default for Neural Junkie specialists.",

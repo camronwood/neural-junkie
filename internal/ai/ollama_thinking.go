@@ -60,7 +60,7 @@ func ollamaHTTPTimeout(model string) time.Duration {
 func ollamaModelNeedsCollabTimeout(model string) bool {
 	m := strings.ToLower(strings.TrimSpace(model))
 	prefixes := []string{
-		"qwen3.5:", "qwen2.5-coder:", "gemma3:", "devstral:", "codestral:", "deepseek-coder:",
+		"qwen3.5:", "qwen2.5-coder:", "gemma3:", "devstral:", "codestral:", "deepseek-coder:", "ornith", "nj-ornith:",
 	}
 	for _, p := range prefixes {
 		if strings.Contains(m, p) {

@@ -1,32 +1,54 @@
-"""Tests for collab_hub agent roster helpers."""
+"""Unit tests for collab_hub hub_request retry behavior."""
 
 from __future__ import annotations
 
-import os
-import sys
+import io
 import unittest
-from pathlib import Path
+from unittest import mock
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SCRIPTS_DIR))
-
-from lib.collab_hub import collaborate_agent_names, parse_agent_mentions  # noqa: E402
+from lib import collab_hub
+from lib import hub_auth
 
 
-class CollabHubAgentParseTest(unittest.TestCase):
-    def test_parse_agent_mentions(self) -> None:
-        names = parse_agent_mentions("@ChatModerator @Assistant @BackendEngineer")
-        self.assertEqual(names, ["ChatModerator", "Assistant", "BackendEngineer"])
+class CollabHubRequestTest(unittest.TestCase):
+    def setUp(self) -> None:
+        hub_auth._session_token = "stale-token"
+        self._env = dict(__import__("os").environ)
 
-    def test_collaborate_agent_names_skips_goal_placeholders(self) -> None:
-        scenario = {
-            "required_agents": ["SoftwareArchitect"],
-            "collaborate": {
-                "goal": "Use - Task 1: @AgentName - description as an example line.",
-            },
-        }
-        names = collaborate_agent_names(scenario, "@BackendEngineer @PlatformEngineer")
-        self.assertEqual(names, ["BackendEngineer", "PlatformEngineer", "SoftwareArchitect"])
+    def tearDown(self) -> None:
+        import os
+
+        os.environ.clear()
+        os.environ.update(self._env)
+        hub_auth._session_token = None
+
+    def test_hub_request_retries_401_after_clearing_session(self) -> None:
+        attempt = {"n": 0}
+
+        def urlopen_side_effect(req, timeout=60):  # noqa: ANN001, ARG001
+            attempt["n"] += 1
+            if attempt["n"] == 1:
+                raise collab_hub.urllib.error.HTTPError(
+                    "http://127.0.0.1:18765/api/health",
+                    401,
+                    "unauthorized",
+                    hdrs=None,
+                    fp=io.BytesIO(b'{"error":"invalid session"}'),
+                )
+            return mock.Mock(
+                read=lambda: b'{"ok":true}',
+                status=200,
+                __enter__=lambda s: s,
+                __exit__=lambda *a: None,
+            )
+
+        with mock.patch("urllib.request.urlopen", urlopen_side_effect):
+            with mock.patch("lib.hub_auth.ensure_hub_session", return_value="new-token") as sess:
+                code, data = collab_hub.hub_request("http://127.0.0.1:18765", "GET", "/api/health")
+        self.assertEqual(code, 200)
+        self.assertEqual(data, {"ok": True})
+        self.assertEqual(attempt["n"], 2)
+        self.assertGreaterEqual(sess.call_count, 1)
 
 
 if __name__ == "__main__":

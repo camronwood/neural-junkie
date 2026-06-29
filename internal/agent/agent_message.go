@@ -172,6 +172,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	} else if resp, redirectOutcome, ok := a.tryBootFixImplementerRedirect(msg); ok {
 		response = resp
 		implSessionOutcome = redirectOutcome
+	} else if resp, destructiveOutcome, ok := a.tryDenyDestructiveImplementationSession(msg); ok {
+		response = resp
+		implSessionOutcome = destructiveOutcome
 	} else if shouldRunImplementationSession(a, msg) {
 		log.Printf("[%s] 🔧 Implementation session...", a.Info.Name)
 		if implementationBestOfK(msg) > 1 {
@@ -283,7 +286,7 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 		}
 		responseMsg.Metadata["delegation_consulted"] = consulted
 	}
-	if shouldRunImplementationSession(a, msg) && (implSessionProposed || implSessionOutcome != nil) {
+	if implSessionOutcome != nil || (shouldRunImplementationSession(a, msg) && implSessionProposed) {
 		if responseMsg.Metadata == nil {
 			responseMsg.Metadata = make(map[string]interface{})
 		}

@@ -86,7 +86,7 @@ ensure_models_ready() {
     --warm
     --smoke
     --keep-alive "${NJ_OVERNIGHT_KEEP_ALIVE:-24h}"
-    --suite "${BENCHMARK_SUITE:-quick}"
+    --suite "${BENCHMARK_SUITE:-release}"
   )
   if [[ "${NO_PULL:-}" != "1" ]]; then
     ready_args=(--pull-missing "${ready_args[@]}")

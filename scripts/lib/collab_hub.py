@@ -49,6 +49,7 @@ def hub_request(
         data = json.dumps(body).encode()
         headers["Content-Type"] = "application/json"
     last_err: Exception | None = None
+    auth_refreshed = False
     for attempt in range(max_retries):
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
@@ -63,6 +64,15 @@ def hub_request(
                 parsed = json.loads(raw) if raw.strip() else raw
             except json.JSONDecodeError:
                 parsed = raw
+            if e.code == 401 and not auth_refreshed:
+                from lib.hub_auth import clear_hub_session, ensure_hub_auth_headers
+
+                clear_hub_session()
+                headers = {"Accept": "application/json", **ensure_hub_auth_headers(base)}
+                if body is not None:
+                    headers["Content-Type"] = "application/json"
+                auth_refreshed = True
+                continue
             if e.code in (429, 500, 502, 503, 504) and attempt + 1 < max_retries:
                 time.sleep(2.0 * (attempt + 1))
                 continue

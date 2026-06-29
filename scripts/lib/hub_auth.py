@@ -14,6 +14,12 @@ _DEFAULT_BOOTSTRAP_FILE = Path.home() / ".neural-junkie" / "bootstrap.token"
 _session_token: str | None = None
 
 
+def clear_hub_session() -> None:
+    """Drop cached X-NJ-Session token (e.g. after hub restart invalidates sessions)."""
+    global _session_token
+    _session_token = None
+
+
 def bootstrap_token() -> str:
     tok = (os.environ.get("NEURAL_JUNKIE_BOOTSTRAP_TOKEN") or "").strip()
     if tok:
@@ -53,11 +59,13 @@ def hub_auth_headers() -> dict[str, str]:
     return headers
 
 
-def ensure_hub_session(base: str, username: str = "automation") -> str:
+def ensure_hub_session(base: str, username: str = "automation", *, force: bool = False) -> str:
     """POST /api/auth/session once per process; returns token (empty when API key is set)."""
     global _session_token
     if load_automation_api_key():
         return ""
+    if force:
+        clear_hub_session()
     if _session_token:
         return _session_token
     url = f"{base.rstrip('/')}/api/auth/session"
@@ -118,4 +126,30 @@ def ensure_automation_api_key(base: str, name: str = "release-prep") -> str:
     AUTOMATION_KEY_PATH.write_text(raw + "\n", encoding="utf-8")
     AUTOMATION_KEY_PATH.chmod(0o600)
     os.environ["NEURAL_JUNKIE_API_KEY"] = raw
+    clear_hub_session()
     return raw
+
+
+def refresh_hub_auth_after_restart(base: str) -> None:
+    """Re-establish credentials after hub restart (stale session tokens are common)."""
+    clear_hub_session()
+    if load_automation_api_key():
+        return
+    try:
+        ensure_automation_api_key(base)
+    except RuntimeError:
+        try:
+            ensure_hub_session(base, force=True)
+        except RuntimeError:
+            pass
+
+
+def try_provision_automation_api_key(base: str, name: str = "release-prep") -> str:
+    """Best-effort API key provisioning when bootstrap token is available."""
+    existing = load_automation_api_key()
+    if existing:
+        return existing
+    try:
+        return ensure_automation_api_key(base, name=name)
+    except RuntimeError:
+        return ""

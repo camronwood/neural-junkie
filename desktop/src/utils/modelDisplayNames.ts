@@ -21,6 +21,9 @@ export function formatModelDisplayName(tag: string): string {
   if (t.includes('qwen3.5:9b') || t === 'qwen3.5:latest' || t.startsWith('qwen3.5:9b')) {
     return 'Qwen 3.5 9B';
   }
+  if (t === 'nj-ornith:9b' || t.startsWith('nj-ornith:') || t.includes('ornith-1.0-9b')) {
+    return 'Ornith 1.0 9B';
+  }
   if (t.includes('codegemma:7b') || t.startsWith('codegemma:')) {
     return 'CodeGemma 7B';
   }

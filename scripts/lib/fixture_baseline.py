@@ -1,7 +1,24 @@
 """Restore scenario fixture files from per-fixture .scenario-baseline snapshots."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+
+def _looks_like_json_package(path: Path) -> bool:
+    if not path.is_file():
+        return True
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    if not text.startswith("{"):
+        return False
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        return False
+    return True
 
 
 def reset_fixture_baseline(scenario: dict, *, root: Path) -> None:
@@ -21,6 +38,11 @@ def reset_fixture_baseline(scenario: dict, *, root: Path) -> None:
         dest = fixture_root / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(src.read_bytes())
+    pkg = fixture_root / "package.json"
+    if pkg.is_file() and not _looks_like_json_package(pkg):
+        baseline_pkg = baseline / "package.json"
+        if baseline_pkg.is_file():
+            pkg.write_bytes(baseline_pkg.read_bytes())
 
 
 def reset_all_fixture_baselines(*, root: Path) -> None:

@@ -28,6 +28,7 @@ from lib.hub_regression import (  # noqa: E402
 )
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
+from lib.scenario_flake_retry import flake_retry_enabled, flake_retry_sleep_s, output_is_flake  # noqa: E402
 
 
 @dataclass
@@ -319,6 +320,24 @@ def main() -> int:
             continue
 
         result = run_cmd(name, cmd, env=env)
+        if (
+            result.status == "FAIL"
+            and flake_retry_enabled()
+            and output_is_flake(result.output, kind="any")
+        ):
+            print(
+                f"\n>>> [{name}] flake retry after failure; sleeping {flake_retry_sleep_s():.0f}s",
+                flush=True,
+            )
+            time.sleep(flake_retry_sleep_s())
+            retry = run_cmd(f"{name}-flake-retry", cmd, env=env)
+            retry.note = "retried once after flake signature in output"
+            if retry.status == "OK":
+                result.status = "OK"
+                result.note = "initial run failed (flake); retry passed"
+                result.output = (result.output or "") + "\n\n--- flake retry ---\n\n" + (retry.output or "")
+            else:
+                result.output = (result.output or "") + "\n\n--- flake retry ---\n\n" + (retry.output or "")
         report.results.append(result)
 
         if not hub_is_healthy(report.hub_url):

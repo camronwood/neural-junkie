@@ -18,6 +18,7 @@ PASS_RE = re.compile(r"^=== PASS: (\S+) ===")
 FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
 
 sys.path.insert(0, str(SCRIPTS_DIR))
+from lib.hub_auth import refresh_hub_auth_after_restart  # noqa: E402
 from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
@@ -108,6 +109,7 @@ def main() -> int:
                 lines.append("")
                 continue
             preflight_regression_run(ROOT, args.hub, label=f"parity-stable run-{run} preflight")
+            refresh_hub_auth_after_restart(args.hub)
             time.sleep(45.0)
         elif not wait_for_hub(args.hub):
             lines.append(f"hub unhealthy before run {run}: {args.hub}")
@@ -119,7 +121,12 @@ def main() -> int:
             time.sleep(45.0)
         code, output, passed, failed = run_sweep(args.hub, script)
         pass_count = len(passed)
+        reported = pass_count + len(failed)
         lines.append(f"exit_code={code} pass={pass_count} fail={len(failed)}")
+        if code != 0 and reported < args.min_pass:
+            lines.append(
+                f"WARNING: sweep aborted early ({reported} scenarios reported, expected>={args.min_pass})"
+            )
         if failed:
             lines.append(f"failed: {', '.join(failed)}")
         lines.append("")

@@ -1,0 +1,710 @@
+{
+  "suite": "quick",
+  "description": "Smoke benchmark \u2014 5 implement + 2 chat scenarios (~15\u201345 min per model on \u226424B class).",
+  "hub": "http://127.0.0.1:18765",
+  "generated_at": "2026-06-29T06:15:29.808516+00:00",
+  "hardware": {
+    "total_memory_gb": 24,
+    "total_memory_bytes": 25769803776,
+    "tier": "recommended"
+  },
+  "hardware_note": "24 GB RAM (recommended tier)",
+  "judge_provider": "gemini/qwen2.5-coder:14b",
+  "scenario_catalog": [
+    {
+      "name": "go-handler",
+      "kind": "implement",
+      "description": "IDE Agent implementation session on minimal Go fixture.",
+      "tags": [
+        "implement",
+        "backend",
+        "go"
+      ],
+      "llm_judge": true,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "theme-toggle",
+      "kind": "implement",
+      "description": "Frontend implementation session asks for theme-related deliverable.",
+      "tags": [
+        "implement",
+        "frontend"
+      ],
+      "llm_judge": true,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "ask-mode-no-write",
+      "kind": "implement",
+      "description": "IDE Ask mode must not run implementation session or propose edits.",
+      "tags": [
+        "implement",
+        "ask"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "go-test-failure-repair",
+      "kind": "implement",
+      "description": "Fix failing Go unit test in core/sample/math.go (verify loop).",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "go",
+        "verify"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "typescript-compile-error-fix",
+      "kind": "implement",
+      "description": "Fix TypeScript compile error in src/App.tsx.",
+      "tags": [
+        "implement",
+        "cursor-parity",
+        "react",
+        "typescript"
+      ],
+      "llm_judge": false,
+      "target_agent": "FrontendEngineer"
+    },
+    {
+      "name": "dm-backend-workspace",
+      "kind": "chat",
+      "description": "BackendEngineer DM: theme ask then workspace visibility \u2014 no fake Go packages or echo.",
+      "tags": [
+        "dm",
+        "backend",
+        "workspace",
+        "regression",
+        "debug"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    },
+    {
+      "name": "dm-backend-echo-followup",
+      "kind": "chat",
+      "description": "BackendEngineer DM: after a reply, confused follow-ups must not quote the first user message.",
+      "tags": [
+        "dm",
+        "backend",
+        "echo",
+        "regression"
+      ],
+      "llm_judge": false,
+      "target_agent": "BackendEngineer"
+    }
+  ],
+  "implement_scenarios": [
+    "go-handler",
+    "theme-toggle",
+    "ask-mode-no-write",
+    "go-test-failure-repair",
+    "typescript-compile-error-fix"
+  ],
+  "chat_scenarios": [
+    "dm-backend-workspace",
+    "dm-backend-echo-followup"
+  ],
+  "results": [
+    {
+      "model_id": "deepseek-coder-6.7b",
+      "model_tag": "deepseek-coder:6.7b",
+      "title": "DeepSeek Coder 6.7B",
+      "size_hint_gb": 3.8,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 193.58493087510578,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: Function HelloWorld is correctly implemented in main.go",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.6376150830183,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 135.46649329084903,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 105.4040463748388,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.3046693750657,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 160.8621863750741,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.70513608399779,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.009397916961461306,
+      "total_duration_s": 1755.014208999928,
+      "passed_count": 3,
+      "total_count": 7,
+      "pass_rate": 0.4286
+    },
+    {
+      "model_id": "codegemma-7b",
+      "model_tag": "codegemma:7b",
+      "title": "CodeGemma 7B",
+      "size_hint_gb": 5,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 113.41726250015199,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file includes a working `HelloWorld()` function and a call to it from `main()`. It is free of stubs, placeholders, unrelated boilerplate, and wrong-stack artifacts.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.9860747500788,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 15.189645417034626,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 61.28648812510073,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.2952255420387,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 181.07362487493083,
+          "detail": "=== FAIL: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.69081220892258,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.011292499955743551,
+      "total_duration_s": 1530.9884016248398,
+      "passed_count": 2,
+      "total_count": 7,
+      "pass_rate": 0.2857
+    },
+    {
+      "model_id": "qwen3.5-9b",
+      "model_tag": "qwen3.5:9b",
+      "title": "Qwen 3.5 9B",
+      "size_hint_gb": 6.6,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 301.91649441607296,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: Correctly implements HelloWorld and invokes it in main.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.6991594161373,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 133.4342765000183,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 295.8437253748998,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.18102970789187,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 155.91493400000036,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 139.79133425001055,
+          "detail": "=== PASS: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.010072290897369385,
+      "total_duration_s": 2065.8222468751483,
+      "passed_count": 4,
+      "total_count": 7,
+      "pass_rate": 0.5714
+    },
+    {
+      "model_id": "gemma3-12b",
+      "model_tag": "gemma3:12b",
+      "title": "Gemma 3 12B",
+      "size_hint_gb": 8.1,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 89.33328941697255,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The file implements the requested function and calls it from main.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.8985160000157,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 81.37572541693226,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 73.35275754099712,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.2290272919927,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 114.69577670819126,
+          "detail": "=== PASS: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.67498858319595,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.009192791068926454,
+      "total_duration_s": 1518.6070529581048,
+      "passed_count": 3,
+      "total_count": 7,
+      "pass_rate": 0.4286
+    },
+    {
+      "model_id": "qwen2.5-coder-14b",
+      "model_tag": "qwen2.5-coder:14b",
+      "title": "Qwen 2.5 Coder 14B",
+      "size_hint_gb": 9,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 544.5483171669766,
+          "detail": "=== FAIL: go-handler ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.9083912910428,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 13.152337166946381,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 125.44639937509783,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.35135458386503,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 0.11296624992974102,
+          "detail": "=== FAIL: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": true,
+          "duration_s": 53.34078583307564,
+          "detail": "=== PASS: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.010862333932891488,
+      "total_duration_s": 1775.9013649171684,
+      "passed_count": 2,
+      "total_count": 7,
+      "pass_rate": 0.2857
+    },
+    {
+      "model_id": "codestral-22b",
+      "model_tag": "codestral:22b",
+      "title": "Codestral 22B",
+      "size_hint_gb": 13,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 165.52769750007428,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file \"core/sample/main.go\" correctly implements a HelloWorld function and calls it from the main function, meeting the user's requirements.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.8095772080123,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 109.43707620794885,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 123.44514245796017,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.2993685831316,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 181.01775899995118,
+          "detail": "=== FAIL: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.675530458102,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.01229162490926683,
+      "total_duration_s": 1739.2520331658889,
+      "passed_count": 2,
+      "total_count": 7,
+      "pass_rate": 0.2857
+    },
+    {
+      "model_id": "devstral-24b",
+      "model_tag": "devstral:24b",
+      "title": "Devstral 24B",
+      "size_hint_gb": 14,
+      "skipped": false,
+      "skip_reason": "",
+      "scenarios": [
+        {
+          "name": "go-handler",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 161.57021295791492,
+          "detail": "=== PASS: go-handler ===",
+          "judge_passed": true,
+          "judge_reason": "Gemini@http://127.0.0.1:18765: The deliverable file contains a working `HelloWorld` function and correctly calls it from `main`.",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "theme-toggle",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 604.8575172920246,
+          "detail": "=== FAIL: theme-toggle ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": true
+        },
+        {
+          "name": "ask-mode-no-write",
+          "kind": "implement",
+          "passed": true,
+          "duration_s": 27.218128082808107,
+          "detail": "=== PASS: ask-mode-no-write ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "go-test-failure-repair",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 135.4720325418748,
+          "detail": "=== FAIL: go-test-failure-repair ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "typescript-compile-error-fix",
+          "kind": "implement",
+          "passed": false,
+          "duration_s": 424.2200227919966,
+          "detail": "=== FAIL: typescript-compile-error-fix ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-workspace",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 180.97513883304782,
+          "detail": "=== FAIL: dm-backend-workspace ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        },
+        {
+          "name": "dm-backend-echo-followup",
+          "kind": "chat",
+          "passed": false,
+          "duration_s": 120.70478058303706,
+          "detail": "=== FAIL: dm-backend-echo-followup ===",
+          "judge_passed": null,
+          "judge_reason": "",
+          "uses_llm_judge": false
+        }
+      ],
+      "switch_duration_s": 0.009089791914448142,
+      "total_duration_s": 1665.0595931250136,
+      "passed_count": 2,
+      "total_count": 7,
+      "pass_rate": 0.2857
+    }
+  ]
+}

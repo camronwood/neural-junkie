@@ -229,7 +229,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py scenario_flake_retry_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
@@ -311,6 +311,39 @@ test-everything: ## CI smoke + live harness; writes docs/testing/test-everything
 
 test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-all, ~1-3h)
 	@$(MAKE) test-everything FULL=1 $(if $(VERBOSE),VERBOSE=1,) $(if $(CONTINUE),CONTINUE=1,)
+
+release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_RUN=1 SKIP_BENCHMARK=1 MAX_ITER=3 NO_COMMIT=1)
+	@chmod +x scripts/release-prep-fix-loop.py scripts/release-prep.py scripts/overnight-release-prep-fix-loop.sh
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/release-prep-fix-loop.py \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		--max-iterations $${MAX_ITER:-3} \
+		$(if $(REPORT),--report "$(REPORT)",) \
+		$(if $(SKIP_RELEASE_PREP),--skip-release-prep,) \
+		$(if $(SKIP_AGENT),--skip-agent,) \
+		$(if $(SKIP_VERIFY),--skip-verify,) \
+		$(if $(DRY_RUN),--dry-run,) \
+		$(if $(SKIP_BENCHMARK),--skip-benchmark,) \
+		$(if $(NO_FULL),--no-full,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(MODEL),--model "$(MODEL)",) \
+		$(if $(PREFER_SDK),--prefer-sdk,) \
+		$(if $(AGENT_TIMEOUT),--agent-timeout $(AGENT_TIMEOUT),) \
+		$(if $(NO_COMMIT),--no-commit,) \
+		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
+		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",)'
+
+overnight-release-prep-fix-loop: ## Walk-away fix loop: Ollama + tmux + caffeinate → ~/nj-overnight-fix-loop-*.log
+	@chmod +x scripts/overnight-release-prep-fix-loop.sh scripts/release-prep-fix-loop.py scripts/ensure-ollama-models-ready.py
+	@SKIP_BENCHMARK='$(SKIP_BENCHMARK)' NO_FULL='$(NO_FULL)' VERBOSE='$(VERBOSE)' \
+	 MAX_ITER='$(MAX_ITER)' REPORT='$(REPORT)' SKIP_RELEASE_PREP='$(SKIP_RELEASE_PREP)' \
+	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
+	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
+	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
+	 NO_PULL='$(NO_PULL)' PULL='$(PULL)' BENCHMARK_SUITE='$(BENCHMARK_SUITE)' \
+	 BENCHMARK_MODELS='$(BENCHMARK_MODELS)' BENCHMARK_ALLOW_LARGE='$(BENCHMARK_ALLOW_LARGE)' \
+	 NJ_OVERNIGHT_KEEP_ALIVE='$(NJ_OVERNIGHT_KEEP_ALIVE)' IN_TMUX='$(IN_TMUX)' \
+	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' \
+	 ./scripts/overnight-release-prep-fix-loop.sh
 
 release-prep: ## Full release gate: test-everything-full + parity-restart + quick benchmark (7 models) → docs/testing/release-prep-*.md
 	@chmod +x scripts/release-prep.py scripts/test-everything.py

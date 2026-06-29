@@ -103,6 +103,14 @@ def apply_release_prep_env(root: Path = ROOT) -> dict[str, str]:
     """Load release-prep env into os.environ and return the merged dict."""
     env = release_prep_env(root)
     os.environ.update(env)
+    if env.get("NEURAL_JUNKIE_AUTH_REQUIRED") == "1":
+        from lib.hub_auth import try_provision_automation_api_key
+
+        base = (env.get("NEURAL_JUNKIE_HUB_URL") or "http://127.0.0.1:18765").rstrip("/")
+        key = try_provision_automation_api_key(base)
+        if key:
+            env["NEURAL_JUNKIE_API_KEY"] = key
+            os.environ["NEURAL_JUNKIE_API_KEY"] = key
     return env
 
 

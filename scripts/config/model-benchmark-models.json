@@ -35,6 +35,15 @@
       "notes": "Fast modern baseline; also used as NJ utility/tool tier"
     },
     {
+      "id": "ornith-9b",
+      "tag": "nj-ornith:9b",
+      "pull_tag": "hf.co/deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M",
+      "title": "Ornith 1.0 9B",
+      "params_b": 9,
+      "size_hint_gb": 5.6,
+      "notes": "DeepReinforce agentic coding model; reasoning + tool-calling (GGUF via HF)"
+    },
+    {
       "id": "deepseek-coder-6.7b",
       "tag": "deepseek-coder:6.7b",
       "title": "DeepSeek Coder 6.7B",

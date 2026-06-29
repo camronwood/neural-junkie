@@ -28,6 +28,12 @@ from lib import collab_hub as hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
+from lib.scenario_flake_retry import (  # noqa: E402
+    detail_is_flake,
+    flake_retry_enabled,
+    flake_retry_sleep_s,
+    output_is_flake,
+)
 from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
     check_text_patterns,
@@ -52,6 +58,7 @@ class ScenarioContext:
         self.collab_channel = ""
         self.workspace_root = ""
         self.extra_collabs: list[dict] = []
+        self.last_failure = ""
 
     def log(self, msg: str) -> None:
         if self.verbose:
@@ -895,18 +902,18 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
     mark = "✓" if ok else "✗"
     print(f"  {mark} [{label}] {action}: {detail}")
     if not ok:
+        ctx.last_failure = detail
         dump_transcript(ctx)
         if action == "wait_discussion":
             required = step.get("required_agents") or ctx.scenario.get("required_agents") or []
-            print(
-                hub.discussion_diagnosis(
-                    ctx.base,
-                    ctx.collab_channel,
-                    required_agents=required,
-                    collab_id=ctx.collab_id,
-                ),
-                file=sys.stderr,
+            diag = hub.discussion_diagnosis(
+                ctx.base,
+                ctx.collab_channel,
+                required_agents=required,
+                collab_id=ctx.collab_id,
             )
+            ctx.last_failure = f"{detail}\n{diag}"
+            print(diag, file=sys.stderr)
     return ok
 
 
@@ -1251,6 +1258,7 @@ def run_scenario(
     agents_override: str | None = None,
     verbose: bool = False,
     keep: bool = False,
+    flake_retry: bool = True,
 ) -> bool:
     scenario = load_scenario(name)
     ctx = ScenarioContext(base, scenario, verbose)
@@ -1335,6 +1343,27 @@ def run_scenario(
             print(f"=== PASS: {name} ===\n")
         else:
             print(f"=== FAIL: {name} ===\n", file=sys.stderr)
+        if (
+            not all_ok
+            and flake_retry
+            and flake_retry_enabled()
+            and output_is_flake(ctx.last_failure, kind="collab")
+        ):
+            print(
+                f"  flake retry ({ctx.last_failure.splitlines()[0]}); "
+                f"sleeping {flake_retry_sleep_s():.0f}s",
+                file=sys.stderr,
+            )
+            time.sleep(flake_retry_sleep_s())
+            return run_scenario(
+                base,
+                name,
+                profile=profile,
+                agents_override=agents_override,
+                verbose=verbose,
+                keep=keep,
+                flake_retry=False,
+            )
         return all_ok
     finally:
         cleanup = scenario.get("cleanup", "cancel")

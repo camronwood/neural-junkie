@@ -84,6 +84,25 @@ def load_models(config_path: Path | None = None) -> list[dict[str, Any]]:
     return [m for m in models if isinstance(m, dict) and (m.get("tag") or "").strip()]
 
 
+def model_pull_tag(model: dict[str, Any]) -> str:
+    """Ollama pull target; defaults to benchmark tag when pull_tag is omitted."""
+    pull = str(model.get("pull_tag") or "").strip()
+    if pull:
+        return pull
+    return str(model.get("tag") or "").strip()
+
+
+def model_runtime_tag(model: dict[str, Any], installed: set[str]) -> str:
+    """Tag to pass to Ollama for inference; prefers catalog tag when installed."""
+    tag = str(model.get("tag") or "").strip()
+    pull = model_pull_tag(model)
+    if model_is_installed(installed, tag):
+        return tag
+    if pull and model_is_installed(installed, pull):
+        return pull
+    return tag or pull
+
+
 def model_params_b(model: dict[str, Any]) -> float | None:
     raw = model.get("params_b")
     if raw is not None:
@@ -220,14 +239,19 @@ def ollama_installed_tags(hub_url: str) -> set[str]:
     return out
 
 
-def model_is_installed(installed: set[str], tag: str) -> bool:
+def model_is_installed(installed: set[str], tag: str, *, pull_tag: str = "") -> bool:
     tag = tag.strip()
     if not tag:
         return False
     if tag in installed:
         return True
     base = tag.split(":", 1)[0]
-    return any(name == tag or name.startswith(f"{base}:") for name in installed)
+    if any(name == tag or name.startswith(f"{base}:") for name in installed):
+        return True
+    pull_tag = pull_tag.strip()
+    if pull_tag and pull_tag != tag:
+        return model_is_installed(installed, pull_tag)
+    return False
 
 
 def switch_all_ollama(hub_url: str, model_tag: str) -> tuple[bool, str]:

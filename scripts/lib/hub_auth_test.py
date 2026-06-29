@@ -55,6 +55,28 @@ class HubAuthTest(unittest.TestCase):
             self.assertEqual(tok, "sess-123")
             self.assertEqual(hub_auth.ensure_hub_session("http://127.0.0.1:18765"), "sess-123")
 
+    def test_clear_hub_session_drops_cache(self) -> None:
+        hub_auth._session_token = "stale"
+        hub_auth.clear_hub_session()
+        self.assertIsNone(hub_auth._session_token)
+
+    def test_ensure_hub_session_force_refreshes(self) -> None:
+        hub_auth._session_token = "stale"
+        calls: list[str] = []
+
+        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ARG001
+            calls.append("session")
+            return mock.Mock(
+                read=lambda: b'{"token":"fresh-456"}',
+                __enter__=lambda s: s,
+                __exit__=lambda *a: None,
+            )
+
+        with mock.patch("urllib.request.urlopen", fake_urlopen):
+            tok = hub_auth.ensure_hub_session("http://127.0.0.1:18765", force=True)
+            self.assertEqual(tok, "fresh-456")
+            self.assertEqual(calls, ["session"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,7 @@ from lib.model_benchmark import (  # noqa: E402
     SUITES_CONFIG,
     load_suite,
     model_params_b,
+    model_pull_tag,
     resolve_benchmark_models,
     resolve_suite_max_params_b,
 )
@@ -68,9 +69,10 @@ def main() -> int:
         tag = str(model.get("tag") or "").strip()
         if not tag:
             continue
+        pull = model_pull_tag(model)
         params = model_params_b(model)
         label = f"{tag} ({params}B)" if params is not None else tag
-        if not pull_tag(tag):
+        if not pull_tag(pull):
             failed.append(label)
 
     if failed:

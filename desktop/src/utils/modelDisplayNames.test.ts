@@ -10,6 +10,10 @@ describe('formatModelDisplayName', () => {
     expect(formatModelDisplayName('qwen2.5:7b')).toBe('Qwen 2.5 7B');
   });
 
+  it('labels Ornith import tag', () => {
+    expect(formatModelDisplayName('nj-ornith:9b')).toBe('Ornith 1.0 9B');
+  });
+
   it('falls back to raw tag', () => {
     expect(formatModelDisplayName('custom-model:1b')).toBe('custom-model:1b');
   });

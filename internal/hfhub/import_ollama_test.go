@@ -35,6 +35,13 @@ func TestDefaultOllamaTagOpenBio(t *testing.T) {
 	}
 }
 
+func TestDefaultOllamaTagOrnith(t *testing.T) {
+	tag := DefaultOllamaTag("deepreinforce-ai/Ornith-1.0-9B-GGUF", "ornith-1.0-9b-Q4_K_M.gguf")
+	if tag != "nj-ornith:9b" {
+		t.Fatalf("tag = %q", tag)
+	}
+}
+
 func TestDefaultAdapterOllamaTag(t *testing.T) {
 	entry := &LibraryModel{
 		DefaultOllamaTag: "nj-security:14b",

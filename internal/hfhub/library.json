@@ -275,6 +275,24 @@
     ]
   },
   {
+    "repo_id": "deepreinforce-ai/Ornith-1.0-9B",
+    "title": "Ornith 1.0 9B",
+    "description": "DeepReinforce agentic coding model (9B, qwen35). Reasoning + tool-calling; strong on Terminal-Bench and SWE-bench. Import GGUF as nj-ornith:9b for local Ollama.",
+    "tags": ["code", "reasoning", "recommended"],
+    "size_hint": "~5.6 GB (Q4)",
+    "icon_key": "qwen",
+    "publisher": "DeepReinforce",
+    "modes": ["hosted", "local"],
+    "download_repo_id": "deepreinforce-ai/Ornith-1.0-9B-GGUF",
+    "files": [
+      {
+        "filename": "ornith-1.0-9b-Q4_K_M.gguf",
+        "quant": "Q4_K_M",
+        "size_hint": "~5.6 GB"
+      }
+    ]
+  },
+  {
     "kind": "adapter",
     "repo_id": "Pk3112/medmcqa-lora-llama3-8b-instruct",
     "title": "MedMCQA LoRA (Llama 3 8B)",

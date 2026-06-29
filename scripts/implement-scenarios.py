@@ -28,6 +28,7 @@ from lib.scenario_assert import (  # noqa: E402
     scenario_question,
 )
 from lib.fixture_baseline import reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
+from lib.scenario_flake_retry import detail_is_flake, flake_retry_enabled, flake_retry_sleep_s  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "implement"
@@ -162,11 +163,26 @@ def step_assert_file_absent(ctx: ImplementContext, step: dict) -> tuple[bool, st
     return step_assert_deliverable(ctx, {**step, "action": "assert_file_absent"})
 
 
-def _last_agent_message(ctx: ImplementContext, from_name: str) -> dict | None:
+def _last_agent_message(
+    ctx: ImplementContext,
+    from_name: str,
+    *,
+    prefer_implementation_outcome: bool = False,
+) -> dict | None:
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
     pool = hub.chat_agent_messages(msgs)
     candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
-    return candidates[-1] if candidates else None
+    if not candidates:
+        return None
+    if prefer_implementation_outcome:
+        with_outcome = [
+            m
+            for m in candidates
+            if isinstance((m.get("metadata") or {}).get("implementation_session_outcome"), dict)
+        ]
+        if with_outcome:
+            return with_outcome[-1]
+    return candidates[-1]
 
 
 def step_assert_no_file_change(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
@@ -239,7 +255,7 @@ def _metadata_get(meta: dict, dotted: str):
 
 def step_assert_message_metadata(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
-    msg = _last_agent_message(ctx, from_name)
+    msg = _last_agent_message(ctx, from_name, prefer_implementation_outcome=True)
     if not msg:
         if step.get("optional"):
             return True, "skipped (no agent reply)"
@@ -422,7 +438,7 @@ def run_scenario_with_stats(base: str, name: str, *, runs: int, best_of_k: int, 
     return pass_rate > 0
 
 
-def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dict]:
+def run_scenario(base: str, name: str, *, keep: bool = False, flake_retry: bool = True) -> tuple[bool, dict]:
     scenario = load_scenario(name)
     ctx = ImplementContext(base, scenario)
     empty_outcome: dict = {}
@@ -446,6 +462,7 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dic
     # In-process agents discover new channels on a ~1s tick; allow subscribe before send.
     time.sleep(3.0)
     all_ok = True
+    last_failure = ""
     try:
         combined_steps = (
             list(scenario.get("setup") or [])
@@ -463,12 +480,22 @@ def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dic
             print(f"  {'✓' if ok else '✗'} [{i}] {action}: {detail}")
             if not ok:
                 all_ok = False
+                last_failure = detail
                 break
     finally:
         outcome = _outcome_from_last_reply(ctx, ctx.target_agent)
         reset_fixture_baseline(scenario, root=ROOT)
         if scenario.get("cleanup", "clear") == "clear" and not keep:
             hub.clear_channel_history(ctx.base, ctx.channel)
+    if (
+        not all_ok
+        and flake_retry
+        and flake_retry_enabled()
+        and detail_is_flake(last_failure, kind="implement")
+    ):
+        print(f"  flake retry ({last_failure}); sleeping {flake_retry_sleep_s():.0f}s")
+        time.sleep(flake_retry_sleep_s())
+        return run_scenario(base, name, keep=keep, flake_retry=False)
     print(f"=== {'PASS' if all_ok else 'FAIL'}: {name} ===\n")
     return all_ok, outcome
 

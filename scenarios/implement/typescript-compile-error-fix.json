@@ -6,7 +6,18 @@
   "channel_type": "public",
   "target_agent": "FrontendEngineer",
   "required_agents": ["FrontendEngineer"],
-  "workspace": { "fixture": "react-ts-type-error" },
+  "workspace": {
+    "fixture": "react-ts-type-error",
+    "open_files": ["src/App.tsx"],
+    "active_file": "src/App.tsx"
+  },
+  "setup": [
+    {
+      "action": "assert_shell",
+      "command": "npm install --no-audit --no-fund --prefer-offline",
+      "timeout_s": 180
+    }
+  ],
   "expect_deliverables": [
     {
       "path": "src/App.tsx",
@@ -49,7 +60,7 @@
     },
     {
       "action": "assert_shell",
-      "command": "npx tsc --noEmit -p tsconfig.json",
+      "command": "npm run typecheck",
       "timeout_s": 120
     }
   ],

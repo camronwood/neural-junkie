@@ -1,0 +1,50 @@
+model_tag	scenario_kind	scenario	passed	duration_s	judge_passed	judge_reason	detail
+deepseek-coder:6.7b	implement	go-handler	1	101.4	1	Gemini@http://127.0.0.1:18765: Deliverable substantively answers the user's request. The function HelloWorld is implemented correctly and is callable from the main function.	=== PASS: go-handler ===
+deepseek-coder:6.7b	implement	theme-toggle	0	1216.1			=== FAIL: theme-toggle ===
+deepseek-coder:6.7b	implement	ask-mode-no-write	1	81.4			=== PASS: ask-mode-no-write ===
+deepseek-coder:6.7b	implement	go-test-failure-repair	0	793.3			=== FAIL: go-test-failure-repair ===
+deepseek-coder:6.7b	implement	typescript-compile-error-fix	0	858.0			=== FAIL: typescript-compile-error-fix ===
+deepseek-coder:6.7b	chat	dm-backend-workspace	0	180.2			=== FAIL: dm-backend-workspace ===
+deepseek-coder:6.7b	chat	dm-backend-echo-followup	0	120.8			=== FAIL: dm-backend-echo-followup ===
+codegemma:7b	implement	go-handler	1	51.4	1	Gemini@http://127.0.0.1:18765: **Reason:** The deliverable file contains a HelloWorld function and calls it from the main function, correctly implementing the user's request.	=== PASS: go-handler ===
+codegemma:7b	implement	theme-toggle	0	1215.9			=== FAIL: theme-toggle ===
+codegemma:7b	implement	ask-mode-no-write	1	71.3			=== PASS: ask-mode-no-write ===
+codegemma:7b	implement	go-test-failure-repair	1	5.2			=== PASS: go-test-failure-repair ===
+codegemma:7b	implement	typescript-compile-error-fix	0	857.4			=== FAIL: typescript-compile-error-fix ===
+codegemma:7b	chat	dm-backend-workspace	0	181.1			=== FAIL: dm-backend-workspace ===
+codegemma:7b	chat	dm-backend-echo-followup	1	110.7			=== PASS: dm-backend-echo-followup ===
+qwen3.5:9b	implement	go-handler	1	1007.0	1	cloud judge error ollama/qwen2.5-coder:14b: The deliverable file correctly implements the HelloWorld function and calls it from the main function as requested.	=== PASS: go-handler ===
+qwen3.5:9b	implement	theme-toggle	0	603.4			=== FAIL: theme-toggle ===
+qwen3.5:9b	implement	ask-mode-no-write	0	303.9			=== FAIL: ask-mode-no-write ===
+qwen3.5:9b	implement	go-test-failure-repair	0	904.1			=== FAIL: go-test-failure-repair ===
+qwen3.5:9b	implement	typescript-compile-error-fix	0	424.3			=== FAIL: typescript-compile-error-fix ===
+qwen3.5:9b	chat	dm-backend-workspace	1	157.9			=== PASS: dm-backend-workspace ===
+qwen3.5:9b	chat	dm-backend-echo-followup	0	120.7			=== FAIL: dm-backend-echo-followup ===
+gemma3:12b	implement	go-handler	0	65.3			=== FAIL: go-handler ===
+gemma3:12b	implement	theme-toggle	0	605.2			=== FAIL: theme-toggle ===
+gemma3:12b	implement	ask-mode-no-write	0	174.1			=== FAIL: ask-mode-no-write ===
+gemma3:12b	implement	go-test-failure-repair	0	81.6			=== FAIL: go-test-failure-repair ===
+gemma3:12b	implement	typescript-compile-error-fix	0	425.3			=== FAIL: typescript-compile-error-fix ===
+gemma3:12b	chat	dm-backend-workspace	0	0.5			=== FAIL: dm-backend-workspace ===
+gemma3:12b	chat	dm-backend-echo-followup	0	121.2			=== FAIL: dm-backend-echo-followup ===
+qwen2.5-coder:14b	implement	go-handler	1	73.6	1	Gemini@http://127.0.0.1:18765: The deliverable file correctly implements the `HelloWorld` function and calls it from the `main` function as requested.	=== PASS: go-handler ===
+qwen2.5-coder:14b	implement	theme-toggle	0	603.9			=== FAIL: theme-toggle ===
+qwen2.5-coder:14b	implement	ask-mode-no-write	0	211.9			=== FAIL: ask-mode-no-write ===
+qwen2.5-coder:14b	implement	go-test-failure-repair	1	142.1			=== PASS: go-test-failure-repair ===
+qwen2.5-coder:14b	implement	typescript-compile-error-fix	0	425.0			=== FAIL: typescript-compile-error-fix ===
+qwen2.5-coder:14b	chat	dm-backend-workspace	0	0.2			=== FAIL: dm-backend-workspace ===
+qwen2.5-coder:14b	chat	dm-backend-echo-followup	1	51.5			=== PASS: dm-backend-echo-followup ===
+codestral:22b	implement	go-handler	1	368.2	1	Gemini@http://127.0.0.1:18765: The file correctly defines a HelloWorld function and calls it three times in the main function, thereby meeting the user's request.	=== PASS: go-handler ===
+codestral:22b	implement	theme-toggle	0	605.1			=== FAIL: theme-toggle ===
+codestral:22b	implement	ask-mode-no-write	1	161.5			=== PASS: ask-mode-no-write ===
+codestral:22b	implement	go-test-failure-repair	0	366.3			=== FAIL: go-test-failure-repair ===
+codestral:22b	implement	typescript-compile-error-fix	0	424.6			=== FAIL: typescript-compile-error-fix ===
+codestral:22b	chat	dm-backend-workspace	1	166.3			=== PASS: dm-backend-workspace ===
+codestral:22b	chat	dm-backend-echo-followup	0	120.9			=== FAIL: dm-backend-echo-followup ===
+devstral:24b	implement	go-handler	1	141.6	1	Gemini@http://127.0.0.1:18765: The deliverable contains a working HelloWorld function and calls it from the main function, matching the user's request.	=== PASS: go-handler ===
+devstral:24b	implement	theme-toggle	0	603.4			=== FAIL: theme-toggle ===
+devstral:24b	implement	ask-mode-no-write	1	137.5			=== PASS: ask-mode-no-write ===
+devstral:24b	implement	go-test-failure-repair	0	279.9			=== FAIL: go-test-failure-repair ===
+devstral:24b	implement	typescript-compile-error-fix	0	424.6			=== FAIL: typescript-compile-error-fix ===
+devstral:24b	chat	dm-backend-workspace	1	77.8			=== PASS: dm-backend-workspace ===
+devstral:24b	chat	dm-backend-echo-followup	0	120.9			=== FAIL: dm-backend-echo-followup ===

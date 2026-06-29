@@ -30,6 +30,8 @@ from lib.model_benchmark import (  # noqa: E402
     load_suite,
     model_is_installed,
     model_params_b,
+    model_pull_tag,
+    model_runtime_tag,
     ollama_installed_tags,
     pull_ollama_model,
     resolve_judge_provider_note,
@@ -111,6 +113,7 @@ def benchmark_model(
     verbose: bool,
 ) -> ModelBenchmarkResult:
     tag = (model.get("tag") or "").strip()
+    pull_target = model_pull_tag(model)
     result = ModelBenchmarkResult(
         model_id=str(model.get("id") or tag),
         model_tag=tag,
@@ -119,33 +122,34 @@ def benchmark_model(
     )
 
     installed = ollama_installed_tags(hub_url)
-    if not model_is_installed(installed, tag):
+    if not model_is_installed(installed, tag, pull_tag=pull_target):
         if pull:
-            print(f"  pulling {tag}…")
-            ok, detail = pull_ollama_model(hub_url, tag)
+            print(f"  pulling {pull_target}…")
+            ok, detail = pull_ollama_model(hub_url, pull_target)
             print(f"  pull: {detail}")
             if not ok:
                 result.skipped = True
                 result.skip_reason = f"pull failed: {detail}"
                 return result
             installed = ollama_installed_tags(hub_url)
-        if not model_is_installed(installed, tag):
+        if not model_is_installed(installed, tag, pull_tag=pull_target):
             if skip_missing:
                 result.skipped = True
                 result.skip_reason = "model not installed (use --pull or ollama pull)"
                 return result
             print(f"  WARN: {tag} not in ollama list; continuing anyway", file=sys.stderr)
 
-    print(f"\n{'=' * 60}\nModel: {result.title} ({tag})\n{'=' * 60}")
+    runtime_tag = model_runtime_tag(model, installed)
+    print(f"\n{'=' * 60}\nModel: {result.title} ({runtime_tag})\n{'=' * 60}")
     t_switch = time.monotonic()
-    ok, detail = switch_all_ollama(hub_url, tag)
+    ok, detail = switch_all_ollama(hub_url, runtime_tag)
     result.switch_duration_s = time.monotonic() - t_switch
     if not ok:
         result.skipped = True
         result.skip_reason = detail
         print(f"  SKIP: {detail}", file=sys.stderr)
         return result
-    print(f"  switched agents → {tag} ({detail})")
+    print(f"  switched agents → {runtime_tag} ({detail})")
     if cooldown_s > 0:
         print(f"  cooldown {cooldown_s:.0f}s for agents to reload…")
         time.sleep(cooldown_s)

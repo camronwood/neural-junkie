@@ -190,6 +190,9 @@ func DefaultOllamaTag(repoID, filename string) string {
 	if strings.Contains(repoLower, "openbiollm") {
 		return "nj-bio:8b"
 	}
+	if strings.Contains(repoLower, "ornith") {
+		return "nj-ornith:9b"
+	}
 	base := strings.TrimSuffix(filename, filepath.Ext(filename))
 	base = strings.ToLower(base)
 	if len(base) > 48 {

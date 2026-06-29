@@ -17,6 +17,8 @@ from lib.model_benchmark import (  # noqa: E402
     derive_capability_profiles,
     format_duration,
     model_is_installed,
+    model_pull_tag,
+    model_runtime_tag,
     render_markdown_report,
     resolve_suite_scenarios,
 )
@@ -31,6 +33,21 @@ class TestModelBenchmark(unittest.TestCase):
         installed = {"qwen2.5-coder:14b", "qwen3.5:9b"}
         self.assertTrue(model_is_installed(installed, "qwen2.5-coder:14b"))
         self.assertFalse(model_is_installed(installed, "codestral:22b"))
+
+    def test_model_pull_and_runtime_tags(self) -> None:
+        ornith = {
+            "tag": "nj-ornith:9b",
+            "pull_tag": "hf.co/deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M",
+        }
+        self.assertEqual(
+            model_pull_tag(ornith),
+            "hf.co/deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M",
+        )
+        installed = {"hf.co/deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M"}
+        self.assertTrue(model_is_installed(installed, ornith["tag"], pull_tag=ornith["pull_tag"]))
+        self.assertEqual(model_runtime_tag(ornith, installed), ornith["pull_tag"])
+        installed_with_brand = {"nj-ornith:9b"}
+        self.assertEqual(model_runtime_tag(ornith, installed_with_brand), "nj-ornith:9b")
 
     def test_ollama_installed_tags_from_object(self) -> None:
         from lib.model_benchmark import ollama_installed_tags
