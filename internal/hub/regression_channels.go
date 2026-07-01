@@ -6,6 +6,27 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+// ChannelMaintainsSessionSummary reports whether the hub should maintain a rolling session summary.
+// Regression harness channels are excluded to avoid Ollama contention during live scenario sweeps.
+func ChannelMaintainsSessionSummary(channel string) bool {
+	ch := strings.TrimSpace(channel)
+	if ch == "" {
+		return false
+	}
+	switch ch {
+	case "implement-scenarios", "chat-scenarios", "learning-scenarios",
+		"collab-scenarios", "collab-scenarios-solo", "parity-scenarios":
+		return false
+	}
+	if strings.HasPrefix(ch, "dm-chatscenario-") {
+		return false
+	}
+	if strings.HasSuffix(ch, "-scenarios-solo") {
+		return false
+	}
+	return true
+}
+
 // isRegressionHarnessChatChannel reports scenario chat/DM channels where agents must stay advisory
 // unless an implement scenario explicitly opts into implementation_session metadata.
 func isRegressionHarnessChatChannel(channel string) bool {

@@ -126,6 +126,36 @@ func TestNoteChannelActivity_publicChannelEligible(t *testing.T) {
 	}
 }
 
+func TestNoteChannelActivity_regressionChannelSkipped(t *testing.T) {
+	h := NewHub()
+	name := "implement-scenarios"
+	h.CreateChannelWithType(name, "Implement regression", "", protocol.ChannelTypePublic, "system")
+	called := make(chan struct{}, 1)
+	h.SetChannelSummaryGenerator(func(transcript string) (string, error) {
+		called <- struct{}{}
+		return "should not run", nil
+	}, "test-model")
+
+	user := protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}
+	agent := protocol.AgentInfo{ID: "a1", Name: "Assistant", Type: protocol.AgentTypeAssistant}
+	for i := 0; i < 4; i++ {
+		_ = h.SendMessage(protocol.NewMessage(protocol.MessageTypeChat, name, user, "implement feature please"))
+	}
+	_ = h.SendMessage(protocol.NewMessage(protocol.MessageTypeAnswer, name, agent, "Implementation session complete."))
+
+	select {
+	case <-called:
+		t.Fatal("regression harness channel should not schedule session summary")
+	case <-time.After(200 * time.Millisecond):
+	}
+	h.mu.RLock()
+	st := h.channelContext[name]
+	h.mu.RUnlock()
+	if st != nil && st.UserTurns > 0 {
+		t.Fatalf("expected no user turn tracking on regression channel, got %+v", st)
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

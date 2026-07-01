@@ -8,16 +8,19 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/chatcontext"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 const (
 	summaryRefreshUserTurns   = 3
 	summaryTranscriptMessages = 12
-	summaryLLMTimeout         = 30 * time.Second
 )
 
 func channelMaintainsSessionSummary(chType protocol.ChannelType, channel string) bool {
+	if !ChannelMaintainsSessionSummary(channel) {
+		return false
+	}
 	if chType == protocol.ChannelTypeDM || chType == protocol.ChannelTypeCustom || chType == protocol.ChannelTypePublic {
 		return true
 	}
@@ -110,7 +113,7 @@ func (h *Hub) runSummaryRefresh(channel string, gen uint64, transcript string, g
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), summaryLLMTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.SessionSummaryTimeout())
 	defer cancel()
 
 	type result struct {

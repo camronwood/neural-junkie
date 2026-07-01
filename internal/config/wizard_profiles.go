@@ -25,8 +25,10 @@ const (
 	BioOllamaChatModel = "koesn/llama3-openbiollm-8b:latest"
 	// BioOllamaToolModel runs MCP biology tools when the chat model lacks native tool calling.
 	BioOllamaToolModel = "qwen3.5:9b"
-	// UtilityOllamaModel is the hub utility tier for session summaries and similar background tasks.
+	// UtilityOllamaModel is the hub utility tier for routing classifier and similar background tasks.
 	UtilityOllamaModel = "qwen3.5:9b"
+	// SessionSummaryOllamaModel is the dedicated local model for async channel session summaries.
+	SessionSummaryOllamaModel = "qwen2.5:3b"
 	// BioOllamaTag is the canonical Ollama model name for OpenBioLLM (import via HF GGUF).
 	BioOllamaTag = "nj-bio:8b"
 	// BioHFRepo is the Hugging Face instruct model for hosted inference.

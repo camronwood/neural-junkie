@@ -102,8 +102,9 @@ When [delegation](DELEGATION.md) is enabled, after intent classification the hub
 
 The hub maintains a rolling **session summary** per eligible channel:
 
-- Updated asynchronously with `qwen2.5:7b` (`config.UtilityOllamaModel`) after every 3 user turns (or sooner when empty and enough transcript exists)
-- **Eligible channels:** DM, custom, public (`#general`, etc.), and `dm-*` specialist slugs
+- Updated asynchronously with `qwen2.5:3b` (`config.SessionSummaryOllamaModel`) after every 3 user turns (or sooner when empty and enough transcript exists)
+- **90s** LLM timeout (`NJ_SESSION_SUMMARY_TIMEOUT`); override model via `NJ_SESSION_SUMMARY_MODEL`
+- **Eligible channels:** DM, custom, public (`#general`, etc.), and `dm-*` specialist slugs — **not** regression harness channels (`implement-scenarios`, `chat-scenarios`, etc.)
 - Persisted in `last-session.json` as `session_summary` / `session_summary_at`
 - Cleared with **Clear message history**
 - Injected into agent prompts as `=== SESSION SUMMARY ===`
@@ -196,7 +197,7 @@ Response includes: `session_summary`, `conversation_mode`, resolved intent (when
 
 ## Preconditions
 
-- Ollama running with `qwen2.5:7b` for session summaries
+- Ollama running with `qwen2.5:3b` for session summaries (`ollama pull qwen2.5:3b`)
 - Rebuild hub: `make stop && make start-all`
 
 ## Related

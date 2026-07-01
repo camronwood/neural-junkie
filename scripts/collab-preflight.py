@@ -80,6 +80,10 @@ def load_expected_ollama_models() -> list[str]:
     for default in ("qwen3.5:9b",):
         if default not in models:
             models.append(default)
+
+    summary_model = (os.environ.get("NJ_SESSION_SUMMARY_MODEL") or "qwen2.5:3b").strip()
+    if summary_model and summary_model not in models:
+        models.append(summary_model)
     return models
 
 

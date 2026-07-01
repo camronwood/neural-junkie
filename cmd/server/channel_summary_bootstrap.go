@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
@@ -34,23 +33,25 @@ func initChannelSummaryGenerator(cfg *config.Config, h *hub.Hub) {
 		return
 	}
 	util := *pcfg
-	util.Model = config.UtilityOllamaModel
+	util.Model = config.SessionSummaryModel()
 	prov, err := ai.ProviderFromConfig(&util)
 	if err != nil {
 		log.Printf("[Hub] session summary disabled: %v", err)
 		return
 	}
 
+	timeout := config.SessionSummaryTimeout()
 	gen := func(transcript string) (string, error) {
 		transcript = strings.TrimSpace(transcript)
 		if transcript == "" {
 			return "", fmt.Errorf("empty transcript")
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		prompt := sessionSummarySystemPrompt + "\n\n=== TRANSCRIPT ===\n" + transcript
 		return prov.GenerateResponse(ctx, prompt, nil)
 	}
-	h.SetChannelSummaryGenerator(gen, config.UtilityOllamaModel)
-	log.Printf("[Hub] session summary generator wired (model=%s)", config.UtilityOllamaModel)
+	model := config.SessionSummaryModel()
+	h.SetChannelSummaryGenerator(gen, model)
+	log.Printf("[Hub] session summary generator wired (model=%s timeout=%s)", model, timeout)
 }
