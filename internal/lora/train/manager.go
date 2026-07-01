@@ -52,6 +52,7 @@ type StartRequest struct {
 	AgentID            string               `json:"agent_id,omitempty"`
 	IncludeLearnings   bool                 `json:"include_learnings,omitempty"`
 	LearningRows       []lorexport.Row      `json:"-"`
+	ExtraRows          []lorexport.Row      `json:"extra_rows,omitempty"`
 	BaseOllamaTag      string               `json:"base_ollama_tag"`
 	OllamaTag          string               `json:"ollama_tag"`
 	HyperParams        HyperParams          `json:"hyperparams,omitempty"`
@@ -371,7 +372,7 @@ func (m *Manager) buildExportRequest(req StartRequest) lorexport.Request {
 		SourceID:          req.SourceID,
 		ThreadID:          req.ThreadID,
 		AgentName:         req.AgentName,
-		ExtraRows:         req.LearningRows,
+		ExtraRows:         lorexport.AppendExtraRows(req.LearningRows, req.ExtraRows),
 		RowIDs:            req.RowIDs,
 		ApprovedTasksOnly: req.ApprovedTasksOnly,
 	}

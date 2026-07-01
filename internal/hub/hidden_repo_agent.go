@@ -91,6 +91,17 @@ func (ch *CommandHandler) RepoAgentForPath(repoPath string) (*agent.RepoAgent, b
 	return ra, ra != nil
 }
 
+// RepoAgentByID returns an in-process repo agent by hub agent ID.
+func (ch *CommandHandler) RepoAgentByID(agentID string) (*agent.RepoAgent, bool) {
+	if ch == nil || strings.TrimSpace(agentID) == "" {
+		return nil, false
+	}
+	ch.agentsMu.RLock()
+	defer ch.agentsMu.RUnlock()
+	ra, ok := ch.repoAgents[agentID]
+	return ra, ok && ra != nil
+}
+
 // ConsultRepoForPath runs an internal repo consult for a workspace path.
 func (ch *CommandHandler) ConsultRepoForPath(ctx context.Context, repoPath, subQuestion, channel string) (text, agentName string, err error) {
 	ra, ok := ch.RepoAgentForPath(repoPath)

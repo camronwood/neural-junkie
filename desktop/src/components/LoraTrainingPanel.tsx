@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChatAPI, type LoraTrainJob, type LoraTrainStartRequest, type LoraTrainingBase } from '../api/chatAPI';
+import {
+  ChatAPI,
+  type LoraTrainDatasetRow,
+  type LoraTrainExtraRow,
+  type LoraTrainJob,
+  type LoraTrainStartRequest,
+  type LoraTrainingBase,
+} from '../api/chatAPI';
 import type { Channel, Collaboration, Message } from '../types/protocol';
+import {
+  parseJSONLFile,
+  parsePastedTrainingRows,
+  sourceKindLabel,
+  truncateTrainingText,
+} from '../utils/loraTrainImport';
 
 interface SelectOption {
   id: string;
@@ -148,6 +161,16 @@ export function LoraTrainingPanel({
   const [learningRate, setLearningRate] = useState(2e-4);
   const [maxSeqLen, setMaxSeqLen] = useState(2048);
   const [previewCount, setPreviewCount] = useState<number | null>(prefill?.previewRows ?? null);
+  const [previewRows, setPreviewRows] = useState<LoraTrainDatasetRow[]>([]);
+  const [minRows, setMinRows] = useState(10);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [showReviewRows, setShowReviewRows] = useState(false);
+  const [excludedRowIds, setExcludedRowIds] = useState<Set<string>>(() => new Set());
+  const [importedRows, setImportedRows] = useState<LoraTrainExtraRow[]>([]);
+  const [bootstrapRows, setBootstrapRows] = useState<LoraTrainExtraRow[]>([]);
+  const [pasteText, setPasteText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [bootstrapBusy, setBootstrapBusy] = useState(false);
   const [job, setJob] = useState<LoraTrainJob | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -258,25 +281,64 @@ export function LoraTrainingPanel({
     return trainingBases.some((b) => b.ollama_tag === baseTag);
   }, [trainingBases, baseTag]);
 
+  const extraRows = useMemo(
+    () => [...importedRows, ...bootstrapRows],
+    [importedRows, bootstrapRows],
+  );
+
+  const buildDatasetBody = useCallback(
+    (): Omit<LoraTrainStartRequest, 'base_ollama_tag' | 'ollama_tag' | 'hyperparams'> => ({
+      source,
+      source_id: sourceId.trim(),
+      thread_id: threadId.trim() || undefined,
+      agent_name: agentName.trim() || undefined,
+      agent_id: prefill?.agentId,
+      include_learnings: includeLearnings,
+      incremental,
+      prior_adapter_id: prefill?.prior_adapter_id,
+      extra_rows: extraRows.length > 0 ? extraRows : undefined,
+    }),
+    [
+      source,
+      sourceId,
+      threadId,
+      agentName,
+      prefill?.agentId,
+      prefill?.prior_adapter_id,
+      includeLearnings,
+      incremental,
+      extraRows,
+    ],
+  );
+
+  const includedCount = useMemo(() => {
+    if (previewRows.length === 0) return previewCount ?? 0;
+    return previewRows.filter((row) => {
+      const id = row.row_id?.trim();
+      return !id || !excludedRowIds.has(id);
+    }).length;
+  }, [previewRows, excludedRowIds, previewCount]);
+
   const refreshPreview = useCallback(async () => {
     if (!sourceId.trim()) return;
+    setPreviewLoading(true);
     try {
-      const n = await api().previewLoraTrain({
-        source,
-        source_id: sourceId.trim(),
-        thread_id: threadId.trim() || undefined,
-        agent_name: agentName.trim() || undefined,
-        agent_id: prefill?.agentId,
-        include_learnings: includeLearnings,
-        incremental,
-      });
-      setPreviewCount(n);
+      const result = await api().previewLoraTrainDataset(buildDatasetBody());
+      setPreviewRows(result.rows);
+      setPreviewCount(result.count);
+      setMinRows(result.min_rows);
       setError(null);
+      if (result.count < result.min_rows) {
+        setShowReviewRows(true);
+      }
     } catch (e) {
+      setPreviewRows([]);
       setPreviewCount(null);
       setError(e instanceof Error ? e.message : 'Preview failed');
+    } finally {
+      setPreviewLoading(false);
     }
-  }, [api, source, sourceId, threadId, agentName, includeLearnings, incremental, prefill?.agentId]);
+  }, [api, buildDatasetBody]);
 
   useEffect(() => {
     void refreshPreview();
@@ -301,15 +363,13 @@ export function LoraTrainingPanel({
     setBusy(true);
     setError(null);
     try {
+      const activeIds = previewRows
+        .map((row) => row.row_id?.trim())
+        .filter((id): id is string => Boolean(id && !excludedRowIds.has(id)));
+      const curated = excludedRowIds.size > 0 && activeIds.length > 0;
       const body: LoraTrainStartRequest = {
-        source,
-        source_id: sourceId.trim(),
-        thread_id: threadId.trim() || undefined,
-        agent_name: agentName.trim() || undefined,
-        agent_id: prefill?.agentId,
-        include_learnings: includeLearnings,
-        incremental,
-        prior_adapter_id: prefill?.prior_adapter_id,
+        ...buildDatasetBody(),
+        row_ids: curated ? activeIds : undefined,
         base_ollama_tag: baseTag.trim(),
         ollama_tag: ollamaTag.trim(),
         hyperparams: { rank, epochs, learning_rate: learningRate, max_seq_len: maxSeqLen },
@@ -323,16 +383,83 @@ export function LoraTrainingPanel({
     }
   };
 
+  const toggleRowIncluded = (rowId: string, included: boolean) => {
+    setExcludedRowIds((prev) => {
+      const next = new Set(prev);
+      if (included) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  };
+
+  const removeExtraRow = (row: LoraTrainExtraRow) => {
+    const match = (candidate: LoraTrainExtraRow) =>
+      candidate.instruction === row.instruction &&
+      candidate.output === row.output &&
+      (candidate.source_kind ?? '') === (row.source_kind ?? '');
+    setImportedRows((rows) => rows.filter((r) => !match(r)));
+    setBootstrapRows((rows) => rows.filter((r) => !match(r)));
+    setExcludedRowIds(new Set());
+  };
+
+  const handlePasteRows = () => {
+    setImportError(null);
+    try {
+      const rows = parsePastedTrainingRows(pasteText);
+      setImportedRows((prev) => [...prev, ...rows]);
+      setPasteText('');
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : 'Failed to parse pasted rows');
+    }
+  };
+
+  const handleImportFile = async (file: File | null) => {
+    if (!file) return;
+    setImportError(null);
+    try {
+      const rows = await parseJSONLFile(file);
+      setImportedRows((prev) => [...prev, ...rows]);
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : 'Failed to import JSONL');
+    }
+  };
+
+  const handleBootstrapFromIndex = async () => {
+    if (!prefill?.agentId) return;
+    setBootstrapBusy(true);
+    setError(null);
+    try {
+      const result = await api().bootstrapLoraTrainFromIndex(prefill.agentId);
+      setBootstrapRows((prev) => [...prev, ...result.rows]);
+      setExcludedRowIds(new Set());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Index bootstrap failed');
+    } finally {
+      setBootstrapBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    setExcludedRowIds(new Set());
+  }, [source, sourceId, threadId, agentName, includeLearnings, incremental, importedRows, bootstrapRows]);
+
   const assignToAgent = async (agentId: string) => {
     if (!switchAgentProvider || !ollamaTag.trim()) return;
     await switchAgentProvider(agentId, 'ollama-local', ollamaTag.trim());
   };
 
-  const minRows = 10;
+  const effectiveCount = previewRows.length > 0 ? includedCount : (previewCount ?? 0);
   const canStart =
-    sourceId.trim() !== '' &&
-    baseSupported &&
-    (previewCount == null || previewCount >= minRows);
+    sourceId.trim() !== '' && baseSupported && effectiveCount >= minRows;
+
+  const showBootstrapCallout =
+    Boolean(prefill?.agentId) &&
+    source === 'repo' &&
+    includedCount < minRows &&
+    bootstrapRows.length === 0;
 
   const assignAgents =
     prefill?.agentId && runtimeAgents.some((a) => a.id === prefill.agentId)
@@ -532,35 +659,156 @@ export function LoraTrainingPanel({
         {showAdvanced ? 'Hide advanced' : 'Advanced training options'}
       </button>
       {showAdvanced && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">Learning rate</span>
-            <input
-              type="number"
-              step={0.0001}
-              value={learningRate}
-              onChange={(e) => setLearningRate(Number(e.target.value))}
-              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">Max sequence length</span>
-            <input
-              type="number"
-              min={512}
-              max={8192}
-              value={maxSeqLen}
-              onChange={(e) => setMaxSeqLen(Number(e.target.value))}
-              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
-            />
-          </label>
+        <div className="space-y-3 rounded-lg border border-slack-border bg-slack-bg/40 p-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Learning rate</span>
+              <input
+                type="number"
+                step={0.0001}
+                value={learningRate}
+                onChange={(e) => setLearningRate(Number(e.target.value))}
+                className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Max sequence length</span>
+              <input
+                type="number"
+                min={512}
+                max={8192}
+                value={maxSeqLen}
+                onChange={(e) => setMaxSeqLen(Number(e.target.value))}
+                className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
+              />
+            </label>
+          </div>
+          <div className="space-y-2 border-t border-slack-border/60 pt-3">
+            <p className="text-xs text-gray-400">
+              Add your own instruction → answer examples (Alpaca JSONL). They merge with chat and
+              collaboration data above.
+            </p>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Import JSONL file</span>
+              <input
+                type="file"
+                accept=".jsonl,.json,application/json"
+                onChange={(e) => void handleImportFile(e.target.files?.[0] ?? null)}
+                className="text-xs text-gray-400"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">Paste rows</span>
+              <textarea
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={4}
+                placeholder={'{"instruction":"...","output":"..."}\nOr instruction<TAB>output'}
+                className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 font-mono text-[11px]"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={!pasteText.trim()}
+              onClick={handlePasteRows}
+              className="px-3 py-1.5 rounded border border-slack-border text-xs text-gray-300 hover:bg-slack-bgHover disabled:opacity-40"
+            >
+              Add pasted rows
+            </button>
+            {importError && <p className="text-xs text-red-400">{importError}</p>}
+            {extraRows.length > 0 && (
+              <p className="text-[10px] text-gray-500">
+                {extraRows.length} imported/bootstrap row{extraRows.length === 1 ? '' : 's'} queued for preview.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
       {previewCount != null && (
-        <p className={`text-xs ${previewCount >= minRows ? 'text-gray-500' : 'text-amber-400'}`}>
-          Preview: {previewCount} training rows (minimum {minRows} required)
+        <p className={`text-xs ${includedCount >= minRows ? 'text-gray-500' : 'text-amber-400'}`}>
+          Preview: {includedCount} training row{includedCount === 1 ? '' : 's'} selected (minimum {minRows}{' '}
+          required)
+          {previewLoading ? ' — refreshing…' : ''}
         </p>
+      )}
+
+      {showBootstrapCallout && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
+          Only {includedCount} row{includedCount === 1 ? '' : 's'} from chat so far.{' '}
+          <button
+            type="button"
+            disabled={bootstrapBusy}
+            onClick={() => void handleBootstrapFromIndex()}
+            className="underline text-amber-200 hover:text-amber-100 disabled:opacity-50"
+          >
+            {bootstrapBusy ? 'Generating…' : 'Generate rows from repo index'}
+          </button>{' '}
+          to reach the minimum.
+        </div>
+      )}
+
+      {previewRows.length > 0 && (
+        <div className="rounded-lg border border-slack-border bg-slack-bgHover/30 p-3 space-y-2">
+          <button
+            type="button"
+            className="text-xs text-gray-400 underline"
+            onClick={() => setShowReviewRows((v) => !v)}
+          >
+            {showReviewRows ? 'Hide training row review' : 'Review training rows'}
+          </button>
+          {showReviewRows && (
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              {previewRows.map((row) => {
+                const rowId = row.row_id?.trim() ?? `${row.instruction}:${row.output}`;
+                const included = !row.row_id || !excludedRowIds.has(row.row_id);
+                const removable = row.source_kind === 'import' || row.source_kind === 'index';
+                return (
+                  <label
+                    key={rowId}
+                    className="flex items-start gap-2 rounded border border-slack-border/60 bg-slack-bg/50 p-2 text-[11px]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={included}
+                      onChange={(e) => row.row_id && toggleRowIncluded(row.row_id, e.target.checked)}
+                      className="mt-0.5 rounded border-slack-border"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="inline-flex items-center gap-2 text-[10px] text-gray-500">
+                        <span className="rounded bg-slack-bgHover px-1.5 py-0.5 uppercase tracking-wide">
+                          {sourceKindLabel(row.source_kind)}
+                        </span>
+                        {row.source_ref ? <span className="truncate">{row.source_ref}</span> : null}
+                      </span>
+                      <span className="block text-gray-300">
+                        {truncateTrainingText(row.instruction)}
+                      </span>
+                      <span className="block text-gray-500">
+                        → {truncateTrainingText(row.output)}
+                      </span>
+                    </span>
+                    {removable && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeExtraRow({
+                            instruction: row.instruction,
+                            output: row.output,
+                            source_kind: row.source_kind,
+                          })
+                        }
+                        className="text-[10px] text-red-300 hover:text-red-200"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
 

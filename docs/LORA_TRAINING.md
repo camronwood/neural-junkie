@@ -19,12 +19,16 @@ Open **Model library** (⇧⌘M) → **Train LoRA** tab (visible when Specialist
 **Repo expert shortcut:** open agent info (ℹ️) on a repo expert → **Train LoRA** — fields are prefilled from session history.
 
 1. **Source** — pick one:
-   - **Channel** — DM or channel ID (current channel prefilled when opened from chat).
-   - **Collaboration** — collaboration UUID; uses completed task description + output pairs.
-   - **Repo** — channel ID plus optional agent name filter for repo experts.
-2. **Base & tag** — e.g. base `llama3.1:8b` (default; Qwen bases are rejected), output tag `nj-repo-myapp:14b`.
-3. **Hyperparameters** — rank (default 16), epochs (default 1), learning rate (default 2e-4).
-4. **Start** — exports JSONL to `~/.neural-junkie/lora-training/{job-id}/`, runs `scripts/lora_train.py`, then `ollama create` via the existing compose pipeline.
+   - **Channel** — channel or DM from the dropdown (current channel prefilled when opened from chat). Optionally limit to one conversation thread.
+   - **Collaboration** — pick a collaboration by title; uses completed task description + output pairs.
+   - **Repo** — channel with a repo expert, plus optional agent name filter.
+2. **Review training rows** — expand to preview each instruction → answer pair, toggle rows off, or see source badges (`chat`, `collab`, `learning`, `import`, `index`).
+3. **Base & tag** — e.g. base `llama3.1:8b` (default; Qwen bases are rejected), output tag `nj-repo-myapp:14b`.
+4. **Advanced** (optional):
+   - Import Alpaca **JSONL** or paste rows (`instruction` / `output`).
+   - Hyperparameters — rank (default 16), epochs (default 1), learning rate (default 2e-4).
+5. **Repo index bootstrap** — when a repo expert has fewer than 10 chat rows, use **Generate rows from repo index** to add template pairs from the indexed README, architecture overview, and key files.
+6. **Start** — exports JSONL to `~/.neural-junkie/lora-training/{job-id}/`, runs training, then `ollama create` via the compose pipeline.
 
 Minimum **10** training rows required.
 
@@ -33,8 +37,11 @@ Minimum **10** training rows required.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/lora/train/expert-context?agent_id=…` | Prefill for repo/pack expert training |
-| `GET` | `/api/lora/train/preview?source=channel&source_id=general` | Row count estimate |
-| `POST` | `/api/lora/train` | Start job |
+| `GET` | `/api/lora/train/preview?source=channel&source_id=general` | Lightweight row count estimate |
+| `GET` | `/api/lora/train/dataset-preview?…` | Row list for curation (simple sources) |
+| `POST` | `/api/lora/train/dataset-preview` | Row list with `extra_rows` / learnings merged |
+| `POST` | `/api/lora/train/index-bootstrap` | Template rows from repo index (`agent_id`) |
+| `POST` | `/api/lora/train` | Start job (`row_ids`, `extra_rows`, incremental, …) |
 | `GET` | `/api/lora/train/{id}` | Status + log tail |
 | `DELETE` | `/api/lora/train/{id}` | Cancel |
 

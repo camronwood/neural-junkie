@@ -33,6 +33,7 @@ func ExportLearningsRows(entries []learning.Entry) []Row {
 			Instruction: "Apply this user-confirmed preference when relevant.",
 			Input:       fmt.Sprintf("category=%s context=%s", e.Category, ctx),
 			Output:      e.Content,
+			SourceKind:  "learning",
 		})
 	}
 	return out

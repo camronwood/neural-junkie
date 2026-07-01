@@ -32,8 +32,10 @@ Path: `~/.neural-junkie/lora-adapters.json`
 |-----|---------|
 | `GET /api/lora/train` | List jobs |
 | `GET /api/lora/train/active` | Running job |
-| `GET /api/lora/train/dataset-preview` | Rows with `row_id` for curation |
-| `POST /api/lora/train` | Start (supports `incremental`, `prior_adapter_id`, `row_ids`) |
+| `GET /api/lora/train/dataset-preview` | Rows with `row_id` for curation (query params) |
+| `POST /api/lora/train/dataset-preview` | Same, with `extra_rows` in body |
+| `POST /api/lora/train/index-bootstrap` | Template rows from repo index when chat history is thin |
+| `POST /api/lora/train` | Start (supports `incremental`, `prior_adapter_id`, `row_ids`, `extra_rows`) |
 | `DELETE /api/lora/train/{id}` | Cancel |
 
 Readiness: `ready_for_lora = chat_rows + learning_rows >= 10`. `refresh_suggested` when a prior adapter exists and delta rows ≥ 20.

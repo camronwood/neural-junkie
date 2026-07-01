@@ -1028,6 +1028,13 @@ func codeReviewResponseGuidance(reviewAsk bool) string {
 - End with prioritized findings (critical / moderate / nit), not generic "add CI/CD" filler unless the index shows a gap.`
 }
 
+// RepositoryIndex returns the loaded index snapshot (may be nil while indexing).
+func (ra *RepoAgent) RepositoryIndex() *repo.RepositoryIndex {
+	ra.mu.RLock()
+	defer ra.mu.RUnlock()
+	return ra.index
+}
+
 // buildRepositoryContext creates a summary of the repository for AI context
 func (ra *RepoAgent) buildRepositoryContext() string {
 	ra.mu.RLock()

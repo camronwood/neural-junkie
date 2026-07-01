@@ -272,10 +272,35 @@ export interface LoraTrainStartRequest {
   incremental?: boolean;
   prior_adapter_id?: string;
   row_ids?: string[];
+  extra_rows?: Array<{
+    row_id?: string;
+    instruction: string;
+    input?: string;
+    output: string;
+    source_kind?: string;
+    source_ref?: string;
+  }>;
   approved_tasks_only?: boolean;
   base_ollama_tag: string;
   ollama_tag: string;
   hyperparams?: { rank?: number; epochs?: number; learning_rate?: number; max_seq_len?: number };
+}
+
+export interface LoraTrainDatasetRow {
+  row_id?: string;
+  instruction: string;
+  input?: string;
+  output: string;
+  source_kind?: string;
+  source_ref?: string;
+  included?: boolean;
+  message_at?: string;
+}
+
+export interface LoraTrainDatasetPreview {
+  rows: LoraTrainDatasetRow[];
+  count: number;
+  min_rows: number;
 }
 
 export interface ResolvedCapability {
@@ -3186,6 +3211,47 @@ export class ChatAPI {
     }
     const data = await response.json();
     return Number(data.row_count ?? 0);
+  }
+
+  async previewLoraTrainDataset(
+    body: Omit<LoraTrainStartRequest, 'base_ollama_tag' | 'ollama_tag' | 'hyperparams'> & {
+      base_ollama_tag?: string;
+      ollama_tag?: string;
+    },
+  ): Promise<LoraTrainDatasetPreview> {
+    const response = await this.hubFetch('/api/lora/train/dataset-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = await response.json();
+    return {
+      rows: Array.isArray(data.rows) ? data.rows : [],
+      count: Number(data.count ?? 0),
+      min_rows: Number(data.min_rows ?? 10),
+    };
+  }
+
+  async bootstrapLoraTrainFromIndex(agentId: string): Promise<LoraTrainDatasetPreview> {
+    const response = await this.hubFetch('/api/lora/train/index-bootstrap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    const data = await response.json();
+    return {
+      rows: Array.isArray(data.rows) ? data.rows : [],
+      count: Number(data.count ?? 0),
+      min_rows: 10,
+    };
   }
 
   async startLoraTrain(body: LoraTrainStartRequest): Promise<LoraTrainJob> {

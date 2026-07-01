@@ -1,27 +1,29 @@
 package main
 
 import (
-    "testing"
-    "bytes"
-    "os"
+	"io"
+	"os"
+	"testing"
 )
 
 func TestHelloWorld(t *testing.T) {
-    // Capture standard output
-    stdout := os.Stdout
-    r, w, _ := os.Pipe()
-    os.Stdout = w
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
 
-    // Call the HelloWorld function
-    HelloWorld()
+	HelloWorld()
 
-    // Restore standard output
-    w.Close()
-    os.Stdout = stdout
+	w.Close()
+	os.Stdout = stdout
 
-    // Read the output
-    out, _ := bytes.ReadAll(r)
-    if string(out) != "Hello, World!\n" {
-        t.Errorf("Expected 'Hello, World!\\n', got '%s'", out)
-    }
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	if string(out) != "Hello, World!\n" {
+		t.Errorf("expected %q, got %q", "Hello, World!\n", out)
+	}
 }

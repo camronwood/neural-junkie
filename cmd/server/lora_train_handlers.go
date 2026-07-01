@@ -74,6 +74,10 @@ func handleLoraTrainRoute(w http.ResponseWriter, r *http.Request) {
 		handleLoraTrainDatasetPreview(w, r)
 		return
 	}
+	if path == "index-bootstrap" {
+		handleLoraTrainIndexBootstrap(w, r)
+		return
+	}
 	if path == "" {
 		switch r.Method {
 		case http.MethodGet:
@@ -114,30 +118,75 @@ func handleLoraTrainActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLoraTrainDatasetPreview(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
+		q := r.URL.Query()
+		req := exportRequestFromQuery(q)
+		if q.Get("include_learnings") == "1" && learningStore != nil && personalLearningActive() {
+			agentID := strings.TrimSpace(q.Get("agent_id"))
+			if agentID != "" {
+				req.ExtraRows = export.AppendExtraRows(export.ExportLearningsRows(learningStore.List(agentID)), nil)
+			}
+		}
+		if q.Get("incremental") == "1" && loraAdapterRegistry != nil {
+			agentID := strings.TrimSpace(q.Get("agent_id"))
+			if e, ok := loraAdapterRegistry.ActiveForAgent(agentID); ok {
+				req.SinceJobExportedAt = e.ExportedAt
+			}
+		}
+		rows, err := loraTrainMgr.PreviewDataset(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"rows": rows, "count": len(rows), "min_rows": export.MinRows})
+	case http.MethodPost:
+		var body train.StartRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		attachLearningRows(&body)
+		req := enrichLoraTrainRequest(&body)
+		rows, err := loraTrainMgr.PreviewDataset(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"rows": rows, "count": len(rows), "min_rows": export.MinRows})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func handleLoraTrainIndexBootstrap(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	q := r.URL.Query()
-	req := exportRequestFromQuery(q)
-	if q.Get("include_learnings") == "1" && learningStore != nil && personalLearningActive() {
-		agentID := strings.TrimSpace(q.Get("agent_id"))
-		if agentID != "" {
-			req.ExtraRows = export.ExportLearningsRows(learningStore.List(agentID))
-		}
+	var body struct {
+		AgentID string `json:"agent_id"`
 	}
-	if q.Get("incremental") == "1" && loraAdapterRegistry != nil {
-		agentID := strings.TrimSpace(q.Get("agent_id"))
-		if e, ok := loraAdapterRegistry.ActiveForAgent(agentID); ok {
-			req.SinceJobExportedAt = e.ExportedAt
-		}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
 	}
-	rows, err := loraTrainMgr.PreviewDataset(req)
+	agentID := strings.TrimSpace(body.AgentID)
+	if agentID == "" {
+		http.Error(w, "agent_id required", http.StatusBadRequest)
+		return
+	}
+	index, err := loadRepoIndexForAgent(agentID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"rows": rows, "count": len(rows), "min_rows": export.MinRows})
+	rows := export.BootstrapFromIndex(index)
+	if len(rows) == 0 {
+		http.Error(w, "no bootstrap rows could be generated from the index", http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rows": rows, "count": len(rows)})
 }
 
 func exportRequestFromQuery(q map[string][]string) export.Request {
@@ -200,10 +249,7 @@ func handleLoraTrainStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.IncludeLearnings && learningStore != nil && personalLearningActive() {
-		agentID := strings.TrimSpace(body.AgentID)
-		if agentID != "" {
-			body.LearningRows = export.ExportLearningsRows(learningStore.List(agentID))
-		}
+		attachLearningRows(&body)
 	}
 	job, err := loraTrainMgr.Start(r.Context(), body)
 	if err != nil {

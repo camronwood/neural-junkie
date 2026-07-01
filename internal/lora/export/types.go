@@ -177,17 +177,44 @@ func mergeExtraRows(rows []PreviewRow, extra []Row) []PreviewRow {
 	}
 	merged := make([]PreviewRow, 0, len(extra)+len(rows))
 	for _, e := range extra {
+		sk := strings.TrimSpace(e.SourceKind)
+		if sk == "" {
+			sk = "import"
+		}
+		ref := strings.TrimSpace(e.SourceRef)
+		rid := strings.TrimSpace(e.RowID)
+		if rid == "" {
+			rid = rowID(sk, ref, e.Instruction, e.Output)
+		}
 		merged = append(merged, PreviewRow{Row: Row{
-			RowID:       rowID("learning", e.Instruction, e.Output),
+			RowID:       rid,
 			Instruction: e.Instruction,
 			Input:       e.Input,
 			Output:      e.Output,
-			SourceKind:  "learning",
+			SourceKind:  sk,
+			SourceRef:   ref,
 			Included:    true,
 		}})
 	}
 	merged = append(merged, rows...)
 	return merged
+}
+
+// AppendExtraRows merges learning rows and user-supplied rows for export.
+func AppendExtraRows(learning []Row, extra []Row) []Row {
+	if len(learning) == 0 && len(extra) == 0 {
+		return nil
+	}
+	out := make([]Row, 0, len(learning)+len(extra))
+	for _, e := range learning {
+		r := e
+		if strings.TrimSpace(r.SourceKind) == "" {
+			r.SourceKind = "learning"
+		}
+		out = append(out, r)
+	}
+	out = append(out, extra...)
+	return out
 }
 
 func validateMinRows(n int) error {
