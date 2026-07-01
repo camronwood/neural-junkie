@@ -1,5 +1,98 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChatAPI, type LoraTrainJob, type LoraTrainStartRequest, type LoraTrainingBase } from '../api/chatAPI';
+import type { Channel, Collaboration, Message } from '../types/protocol';
+
+interface SelectOption {
+  id: string;
+  label: string;
+}
+
+function channelLabel(name: string, displayName?: string): string {
+  const display = displayName?.trim();
+  if (display && display !== name) return `${display} (${name})`;
+  return name;
+}
+
+function buildChannelSourceOptions(channels: Channel[]): SelectOption[] {
+  return channels
+    .filter((c) => c.type !== 'collaboration')
+    .map((c) => ({ id: c.name, label: channelLabel(c.name, c.display_name) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function buildCollaborationSourceOptions(collabs: Collaboration[]): SelectOption[] {
+  return collabs
+    .map((c) => ({
+      id: c.id,
+      label: c.title?.trim() ? `${c.title.trim()} (${c.id.slice(0, 8)})` : c.id,
+      updated: c.updated_at,
+    }))
+    .sort((a, b) => b.updated.localeCompare(a.updated))
+    .map(({ id, label }) => ({ id, label }));
+}
+
+function buildRepoSourceOptions(channels: Channel[]): SelectOption[] {
+  const options: SelectOption[] = [];
+  for (const c of channels) {
+    const repoAgents = (c.agents ?? []).filter((a) => a.type === 'repo');
+    if (repoAgents.length === 0) continue;
+    const names = repoAgents.map((a) => a.name).join(', ');
+    options.push({
+      id: c.name,
+      label: `${channelLabel(c.name, c.display_name)} — ${names}`,
+    });
+  }
+  return options.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function sourceFieldLabel(source: SourceKind): string {
+  switch (source) {
+    case 'channel':
+      return 'Channel';
+    case 'collaboration':
+      return 'Collaboration';
+    case 'repo':
+      return 'Repo expert channel';
+  }
+}
+
+function pickSourceId(options: SelectOption[], current: string, fallback?: string): string {
+  const cur = current.trim();
+  if (cur && options.some((o) => o.id === cur)) return cur;
+  const fb = fallback?.trim();
+  if (fb && options.some((o) => o.id === fb)) return fb;
+  return options[0]?.id ?? '';
+}
+
+function threadPreview(content: string, maxLen = 56): string {
+  const oneLine = content.replace(/\s+/g, ' ').trim();
+  if (!oneLine) return 'Thread';
+  return oneLine.length <= maxLen ? oneLine : `${oneLine.slice(0, maxLen - 1)}…`;
+}
+
+function buildThreadOptions(messages: Message[]): SelectOption[] {
+  const byId = new Map(messages.map((m) => [m.id, m]));
+  const replyCounts = new Map<string, number>();
+  for (const m of messages) {
+    const tid = m.thread_id?.trim();
+    if (tid) {
+      replyCounts.set(tid, (replyCounts.get(tid) ?? 0) + 1);
+    }
+  }
+  const options: SelectOption[] = [];
+  for (const [tid, count] of replyCounts) {
+    const parent = byId.get(tid);
+    const preview = parent ? threadPreview(parent.content) : `Thread ${tid.slice(0, 8)}`;
+    const replies = count === 1 ? '1 reply' : `${count} replies`;
+    options.push({ id: tid, label: `${preview} (${replies})` });
+  }
+  options.sort((a, b) => {
+    const ta = byId.get(a.id)?.timestamp ?? '';
+    const tb = byId.get(b.id)?.timestamp ?? '';
+    return tb.localeCompare(ta);
+  });
+  return options;
+}
 
 const DEFAULT_CODE_BASE = 'llama3.1:8b';
 
@@ -39,6 +132,10 @@ export function LoraTrainingPanel({
   const [source, setSource] = useState<SourceKind>(prefill?.source ?? 'channel');
   const [sourceId, setSourceId] = useState(prefill?.sourceId ?? defaultChannel);
   const [threadId, setThreadId] = useState('');
+  const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([]);
+  const [sourcesLoading, setSourcesLoading] = useState(false);
+  const [threadOptions, setThreadOptions] = useState<SelectOption[]>([]);
+  const [threadsLoading, setThreadsLoading] = useState(false);
   const [agentName, setAgentName] = useState(prefill?.agentName ?? '');
   const [baseTag, setBaseTag] = useState(prefill?.baseTag ?? DEFAULT_CODE_BASE);
   const [ollamaTag, setOllamaTag] = useState(prefill?.ollamaTag ?? 'nj-repo-custom:14b');
@@ -65,13 +162,72 @@ export function LoraTrainingPanel({
     if (prefill.previewRows != null) setPreviewCount(prefill.previewRows);
   }, [prefill]);
 
-  useEffect(() => {
-    if (defaultChannel && !sourceId) {
-      setSourceId(defaultChannel);
-    }
-  }, [defaultChannel, sourceId]);
-
   const api = useCallback(() => new ChatAPI(serverAddr), [serverAddr]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSourcesLoading(true);
+    void (async () => {
+      try {
+        let options: SelectOption[] = [];
+        if (source === 'channel' || source === 'repo') {
+          const channels = await api().fetchChannels();
+          if (cancelled) return;
+          options =
+            source === 'channel'
+              ? buildChannelSourceOptions(channels)
+              : buildRepoSourceOptions(channels);
+        } else {
+          const collabs = await api().fetchCollaborations(undefined, true);
+          if (cancelled) return;
+          options = buildCollaborationSourceOptions(collabs);
+        }
+        setSourceOptions(options);
+        setSourceId((current) => pickSourceId(options, current, defaultChannel));
+      } catch {
+        if (!cancelled) {
+          setSourceOptions([]);
+          setSourceId('');
+        }
+      } finally {
+        if (!cancelled) setSourcesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, source, defaultChannel]);
+
+  useEffect(() => {
+    if (source !== 'channel') {
+      setThreadOptions([]);
+      setThreadId('');
+      return;
+    }
+    const channel = sourceId.trim();
+    if (!channel) {
+      setThreadOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setThreadsLoading(true);
+    void (async () => {
+      try {
+        const messages = await api().fetchMessages(channel, 500);
+        if (cancelled) return;
+        const options = buildThreadOptions(messages);
+        setThreadOptions(options);
+        setThreadId((current) => (current && options.some((o) => o.id === current) ? current : ''));
+      } catch {
+        if (!cancelled) setThreadOptions([]);
+      } finally {
+        if (!cancelled) setThreadsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, source, sourceId]);
 
   useEffect(() => {
     void (async () => {
@@ -191,10 +347,10 @@ export function LoraTrainingPanel({
         </p>
       )}
       <p className="text-xs text-gray-400">
-        Export chat or collaboration data, fine-tune with Unsloth, then compose into Ollama. LoRA training
-        requires a <strong className="text-gray-300">Llama / Mistral / Gemma</strong> base —{' '}
-        <span className="text-amber-300/90">Qwen bases are not supported</span> for compose yet. Python deps
-        install automatically on first <span className="font-mono text-gray-500">make start-all</span>.
+        Export chat or collaboration data, fine-tune a specialist adapter, then compose it into Ollama. LoRA
+        training requires a <strong className="text-gray-300">Llama / Mistral / Gemma</strong> base —{' '}
+        <span className="text-amber-300/90">Qwen bases are not supported</span> for compose yet. Training
+        dependencies install automatically the first time you start a job.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -202,7 +358,10 @@ export function LoraTrainingPanel({
           <span className="text-xs text-gray-500">Source</span>
           <select
             value={source}
-            onChange={(e) => setSource(e.target.value as SourceKind)}
+            onChange={(e) => {
+              setSource(e.target.value as SourceKind);
+              setThreadId('');
+            }}
             className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
           >
             <option value="channel">Channel / DM</option>
@@ -211,22 +370,59 @@ export function LoraTrainingPanel({
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-gray-500">Source ID</span>
-          <input
+          <span className="text-xs text-gray-500">{sourceFieldLabel(source)}</span>
+          <select
             value={sourceId}
-            onChange={(e) => setSourceId(e.target.value)}
-            placeholder="channel name or collaboration id"
-            className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 font-mono text-xs"
-          />
+            onChange={(e) => {
+              setSourceId(e.target.value);
+              setThreadId('');
+            }}
+            disabled={sourcesLoading || sourceOptions.length === 0}
+            className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 text-xs disabled:opacity-50"
+          >
+            {sourcesLoading && <option value="">Loading…</option>}
+            {!sourcesLoading && sourceOptions.length === 0 && (
+              <option value="">No options available</option>
+            )}
+            {sourceOptions.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {!sourcesLoading && sourceOptions.length === 0 && (
+            <span className="text-[10px] text-gray-500">
+              {source === 'repo'
+                ? 'Add a repo expert to a channel first.'
+                : source === 'collaboration'
+                  ? 'Start a collaboration to train from its completed tasks.'
+                  : 'Open or create a channel to train from chat history.'}
+            </span>
+          )}
         </label>
         {source === 'channel' && (
           <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="text-xs text-gray-500">Thread ID (optional)</span>
-            <input
+            <span className="text-xs text-gray-500">Conversation thread (optional)</span>
+            <select
               value={threadId}
               onChange={(e) => setThreadId(e.target.value)}
-              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 font-mono text-xs"
-            />
+              disabled={threadsLoading || threadOptions.length === 0}
+              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5 text-xs disabled:opacity-50"
+            >
+              <option value="">Entire channel</option>
+              {threadOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-[10px] text-gray-500">
+              {threadsLoading
+                ? 'Loading threads…'
+                : threadOptions.length === 0
+                  ? 'No threaded conversations in recent channel history — training uses the full channel.'
+                  : 'Train on one thread instead of all messages in the channel.'}
+            </span>
           </label>
         )}
         {source === 'repo' && (
