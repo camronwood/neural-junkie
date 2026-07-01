@@ -1,6 +1,6 @@
 {
-  "updated": "2026-06-29T15:20:13Z",
-  "count": 13,
+  "updated": "2026-07-01T10:51:22Z",
+  "count": 14,
   "items": [
     {
       "slug": "hardware",
@@ -156,6 +156,25 @@
       "sourceFile": "CONVERSATION-MEMORY-LINKEDIN.md",
       "sourcePath": "docs/marketing/CONVERSATION-MEMORY-LINKEDIN.md",
       "href": "conversation-memory.html"
+    },
+    {
+      "slug": "personal-learning",
+      "title": "Nothing Gets Remembered Until You Say So: Personal Learning in Neural Junkie",
+      "teaser": "Your agents shouldn't silently learn from every typo and half-formed thought. Neural Junkie personal learning stores only what you confirm \u2014 scoped per expert, globally, or per collaboration \u2014 retrieved by local embeddings and optionally exported into LoRA training rows.",
+      "cover": "assets/neural-junkie-personal-learning-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-personal-learning-1200.png",
+      "topic": "learning",
+      "tags": [
+        "ai",
+        "localai",
+        "developertools",
+        "opensource",
+        "finetuning",
+        "multiagent"
+      ],
+      "sourceFile": "PERSONAL-LEARNING-LINKEDIN.md",
+      "sourcePath": "docs/marketing/PERSONAL-LEARNING-LINKEDIN.md",
+      "href": "personal-learning.html"
     },
     {
       "slug": "lora",

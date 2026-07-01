@@ -30,6 +30,7 @@ ARTICLE_ORDER = [
     "fix-loop",
     "ide-v4",
     "conversation-memory",
+    "personal-learning",
     "lora",
     "two-tier-lora",
     "mcp-lora",
@@ -46,6 +47,7 @@ SOURCE_BY_SLUG = {
     "fix-loop": "FIX-LOOP-LINKEDIN.md",
     "ide-v4": "IDE-V4-LINKEDIN.md",
     "conversation-memory": "CONVERSATION-MEMORY-LINKEDIN.md",
+    "personal-learning": "PERSONAL-LEARNING-LINKEDIN.md",
     "lora": "LORA-LINKEDIN.md",
     "two-tier-lora": "TWO-TIER-LORA-LINKEDIN.md",
     "mcp-lora": "MCP-LORA-LINKEDIN.md",
@@ -79,6 +81,7 @@ TOPIC_BY_SLUG = {
     "fix-loop": "architecture",
     "ide-v4": "architecture",
     "conversation-memory": "chat",
+    "personal-learning": "learning",
     "lora": "lora",
     "two-tier-lora": "lora",
     "mcp-lora": "lora",
@@ -339,16 +342,26 @@ def write_index_page(items: list[dict], updated: str) -> None:
 
     grid_html = "\n      ".join(article_card_html(item) for item in items)
     text = index_path.read_text(encoding="utf-8")
-    text = re.sub(
-        r'(<div class="articles-grid" id="articles-grid" aria-live="polite">).*?(</div>\n\n    <aside class="articles-how")',
-        rf"\1\n      {grid_html}\n    \2",
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
+
     def replace_count(m: re.Match[str]) -> str:
         return f"{m.group(1)}{len(items)} articles{m.group(2)}"
 
+    if "<!-- NJ-ARTICLES-GRID:START -->" in text:
+        text = re.sub(
+            r"(<!-- NJ-ARTICLES-GRID:START -->).*?(<!-- NJ-ARTICLES-GRID:END -->)",
+            rf"\1\n      {grid_html}\n      \2",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+    else:
+        text = re.sub(
+            r'(<div class="articles-grid" id="articles-grid" aria-live="polite">).*?(</div>\n\n    <aside class="articles-how")',
+            rf"\1\n      {grid_html}\n    \2",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
     text = re.sub(
         r'(<span class="articles-count" id="articles-count">).*?(</span>)',
         replace_count,

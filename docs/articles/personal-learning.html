@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nothing Gets Remembered Until You Say So: Personal Learning in Neural Junkie — Neural Junkie</title>
+  <meta name="description" content="Your agents shouldn&#x27;t silently learn from every typo and half-formed thought. Neural Junkie personal learning stores only what you confirm — scoped per expert, globally, or per collaboration — retrieved by local embeddings and optionally exported into LoRA training rows." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Nothing Gets Remembered Until You Say So: Personal Learning in Neural Junkie
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Nothing Gets Remembered Until You Say So: Personal Learning in Neural Junkie</h1>
+      <p class="article-lead">Your agents shouldn&#x27;t silently learn from every typo and half-formed thought. Neural Junkie personal learning stores only what you confirm — scoped per expert, globally, or per collaboration — retrieved by local embeddings and optionally exported into LoRA training rows.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">finetuning</span><span class="article-tag">multiagent</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-personal-learning-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>You tell your backend expert: <em>"We always use <code>context.Context</code> as the first parameter."</em></p>
+<p>Two weeks later it writes a function with <code>ctx</code> buried in the middle.</p>
+<p>That isn't always a model failure. Often the preference was never <strong>stored as a durable fact</strong> — it lived in chat, got summarized away, or drowned in tail history.</p>
+<p><strong>Neural Junkie</strong> already has <a href="https://camronwood.github.io/neural-junkie/articles/conversation-memory.html">conversation memory</a>: retrieve relevant <em>past messages</em> when you ask a follow-up. Personal learning is the other half of the memory story: <strong>user-confirmed facts</strong> that shape how experts behave going forward.</p>
+<p>Nothing is saved without your explicit approval.</p>
+<h2>Memory that recalls vs memory that teaches</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Conversation memory</th>
+<th>Personal learning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>What it stores</strong></td>
+<td>Indexed chat + collab artifacts</td>
+<td>Short user-confirmed notes</td>
+</tr>
+<tr>
+<td><strong>Default</strong></td>
+<td>On when embed model available</td>
+<td>Off until you opt in</td>
+</tr>
+<tr>
+<td><strong>Who writes it</strong></td>
+<td>Hub indexes on message write</td>
+<td>You approve every entry</td>
+</tr>
+<tr>
+<td><strong>Retrieval query</strong></td>
+<td>Your latest question</td>
+<td>Your latest question</td>
+</tr>
+<tr>
+<td><strong>Typical use</strong></td>
+<td>"What did we decide about auth?"</td>
+<td>"Always use pnpm, not npm"</td>
+</tr>
+</tbody>
+</table>
+<p>Both use local Ollama embeddings (<code>nomic-embed-text</code>) and stay on your machine. Neither sends your history to a cloud vector DB.</p>
+<p>Conversation memory answers <strong>what happened</strong>. Personal learning encodes <strong>how you want work done</strong>.</p>
+<h2>Opt-in by design</h2>
+<p>Personal learning has three gates:</p>
+<ol>
+<li><strong>Specialist tuning</strong> pack installed (capability <code>personal-learning</code> — no Python/CUDA required)</li>
+<li><strong>Settings → AI &amp; providers → Enable personal learning for experts</strong> (default off)</li>
+<li><strong>Your confirmation</strong> on every save — modal, <code>/learn</code>, or Settings</li>
+</ol>
+<p>Natural phrases like "remember that" or "I prefer" may open a <strong>proposal</strong> dialog. They do not auto-persist. Agent-suggested learnings are a separate toggle, rate-limited, and still need your click.</p>
+<p>That is intentional. Silent training on chat is convenient until it memorizes a joke, a typo, or something you said once under deadline pressure.</p>
+<h2>Three scopes</h2>
+<p>When you save a learning, you choose where it applies:</p>
+<p><strong>This expert</strong> — injected only when that agent responds (e.g. SecurityReviewer always flags <code>eval()</code> in review comments).</p>
+<p><strong>All experts</strong> — global preferences every specialist sees (e.g. "Our API errors use <code>{code, message}</code> JSON").</p>
+<p><strong>This collaboration</strong> — scoped to an active <code>/collaborate</code> channel so a multi-agent session shares conventions without polluting unrelated DMs.</p>
+<p>At prompt time the hub retrieves top matches per section and appends:</p>
+<pre><code>=== LEARNINGS FOR ALL EXPERTS (user-confirmed) ===
+=== LEARNINGS FOR THIS EXPERT (user-confirmed) ===
+=== LEARNINGS FOR THIS COLLABORATION (user-confirmed) ===
+</code></pre>
+<p>Budget caps keep injection small (~2 KB agent, smaller global/collab slices). If Ollama embed is unreachable, keyword overlap fallback kicks in within ~200ms.</p>
+<p>Storage: <code>~/.neural-junkie/learnings.json</code> plus a sidecar embedding index. Export/import bundles for portability. Edit or forget any entry in Settings.</p>
+<h2>How to use it</h2>
+<p><strong>Quick capture:</strong> <code>/learn we use conventional commits</code> in a DM or channel — opens the approval dialog with a draft.</p>
+<p><strong>From agent info:</strong> <strong>Add learning</strong> on any expert's profile card.</p>
+<p><strong>Bulk management:</strong> Settings → <strong>Saved learnings</strong> — grouped by global, expert, and collaboration.</p>
+<p><strong>Categories:</strong> preference, fact, workflow, communication — for your own organization, not model routing.</p>
+<p>Categories do not change which agent runs. Scopes do.</p>
+<h2>Bridge to LoRA</h2>
+<p>Prompt injection is fast and reversible. Sometimes you want the preference <strong>baked into weights</strong>.</p>
+<p>Confirmed learnings can feed LoRA training:</p>
+<ul>
+<li>LoRA train panel → <strong>Include confirmed personal learnings</strong></li>
+<li><code>GET /api/lora/train/preview?include_learnings=1</code> shows the row count</li>
+<li>Training prepends Alpaca-format rows from approved notes (capped)</li>
+</ul>
+<p>Same Specialist tuning pack, same local workflow as training from chat or collab history — but only rows you explicitly confirmed. See our <a href="https://camronwood.github.io/neural-junkie/articles/lora.html">LoRA article</a> for compose and train details.</p>
+<h2>What we deliberately exclude</h2>
+<p>Personal learnings are <strong>not</strong> injected into CLI agents or the Moderator — those paths stay lightweight and policy-driven.</p>
+<p>They complement conversation memory and session summaries; they do not replace repo indexes or MCP tool context.</p>
+<p>If you disable the feature, existing entries remain on disk but stop injecting until you turn it back on.</p>
+<h2>Try it</h2>
+<pre><code class="language-bash">make pull-models   # includes nomic-embed-text
+make start-all
+</code></pre>
+<ol>
+<li>Install <strong>Specialist tuning</strong> from Settings → Domain packs</li>
+<li>Enable personal learning under Settings → AI &amp; providers</li>
+<li>DM BackendEngineer: <code>/learn prefer table-driven tests in internal/</code></li>
+<li>Approve in the modal → ask a new task → preference should surface in retrieved learnings</li>
+</ol>
+<p>Debug: <code>GET /api/learnings/query?q=...</code> previews retrieval without sending a chat message.</p>
+<p>Download: https://github.com/camronwood/neural-junkie/releases/latest</p>
+<p>If a scope feels wrong (global note leaking into the wrong collab, embed fallback too noisy) — GitHub issues welcome.</p>
+<p>Camron Wood — Neural Junkie (personal project)</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/PERSONAL-LEARNING-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="personal-learning.html">Nothing Gets Remembered Until You Say So: Personal Learning in Neural Junkie</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>
