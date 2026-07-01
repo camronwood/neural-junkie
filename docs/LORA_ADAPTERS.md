@@ -120,6 +120,7 @@ Train on `llama3.1:8b` (not Qwen). See [LORA_TRAINING.md](LORA_TRAINING.md).
 
 - [LORA_TRAINING.md](LORA_TRAINING.md) — in-app training wizard
 - [TWO-TIER-LORA-LINKEDIN.md](marketing/TWO-TIER-LORA-LINKEDIN.md) — LinkedIn article (cover: `assets/neural-junkie-two-tier-lora-1200.png`)
+- [LORA_V2.md](LORA_V2.md) — LoRA v2 compound specialist lifecycle
 - [LORA-LINKEDIN.md](marketing/LORA-LINKEDIN.md) — LoRA feature article
 - [SPECIALIST_TUNING_PACK.md](SPECIALIST_TUNING_PACK.md)
 - [GETTING_STARTED.md](GETTING_STARTED.md)

@@ -190,6 +190,12 @@ export interface LoraExpertContext {
   preview_rows: number;
   min_rows: number;
   ready: boolean;
+  refresh_suggested?: boolean;
+  active_adapter_version?: number;
+  prior_adapter_id?: string;
+  chat_rows?: number;
+  learning_rows?: number;
+  delta_rows?: number;
 }
 
 export interface LoraTrainJob {
@@ -200,6 +206,9 @@ export interface LoraTrainJob {
   base_ollama_tag: string;
   ollama_tag: string;
   row_count?: number;
+  queue_position?: number;
+  adapter_id?: string;
+  eval_score?: number;
   log_tail?: string[];
   error?: string;
 }
@@ -235,6 +244,8 @@ export interface LearningStats {
   preview_rows: number;
   min_rows: number;
   ready_for_lora: boolean;
+  refresh_suggested?: boolean;
+  active_adapter_version?: number;
 }
 
 export interface LearningProposalAction {
@@ -258,6 +269,10 @@ export interface LoraTrainStartRequest {
   agent_name?: string;
   agent_id?: string;
   include_learnings?: boolean;
+  incremental?: boolean;
+  prior_adapter_id?: string;
+  row_ids?: string[];
+  approved_tasks_only?: boolean;
   base_ollama_tag: string;
   ollama_tag: string;
   hyperparams?: { rank?: number; epochs?: number; learning_rate?: number; max_seq_len?: number };
@@ -3153,6 +3168,7 @@ export class ChatAPI {
     agent_name?: string;
     agent_id?: string;
     include_learnings?: boolean;
+    incremental?: boolean;
   }): Promise<number> {
     const q = new URLSearchParams({
       source: params.source,
@@ -3162,6 +3178,7 @@ export class ChatAPI {
     if (params.agent_name) q.set('agent_name', params.agent_name);
     if (params.agent_id) q.set('agent_id', params.agent_id);
     if (params.include_learnings) q.set('include_learnings', '1');
+    if (params.incremental) q.set('incremental', '1');
     const response = await this.hubFetch(`/api/lora/train/preview?${q.toString()}`);
     if (!response.ok) {
       const t = await response.text();
@@ -3186,6 +3203,17 @@ export class ChatAPI {
 
   async fetchLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
     const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`);
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t.trim() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async cancelLoraTrainJob(jobId: string): Promise<LoraTrainJob> {
+    const response = await this.hubFetch(`/api/lora/train/${encodeURIComponent(jobId)}`, {
+      method: 'DELETE',
+    });
     if (!response.ok) {
       const t = await response.text();
       throw new Error(t.trim() || response.statusText);

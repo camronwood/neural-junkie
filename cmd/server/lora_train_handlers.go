@@ -32,15 +32,6 @@ func (collabSnapshotAdapter) GetCollaborationSnapshot(id string) (*collaboration
 	return chatHub.GetCollaborationManager().GetCollaborationSnapshot(id)
 }
 
-func initLoraTrainManager() {
-	if loraTrainMgr != nil {
-		return
-	}
-	root := repoRoot()
-	script := filepath.Join(root, "scripts", "lora_train.py")
-	loraTrainMgr = train.NewManager("", script, train.ResolvePython(root), hubMessageAdapter{}, collabSnapshotAdapter{})
-}
-
 func repoRoot() string {
 	if root := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_ROOT")); root != "" {
 		return root
@@ -79,11 +70,90 @@ func handleLoraTrainRoute(w http.ResponseWriter, r *http.Request) {
 		handleLoraTrainPreview(w, r)
 		return
 	}
+	if path == "dataset-preview" {
+		handleLoraTrainDatasetPreview(w, r)
+		return
+	}
 	if path == "" {
-		handleLoraTrainStart(w, r)
+		switch r.Method {
+		case http.MethodGet:
+			handleLoraTrainList(w, r)
+		case http.MethodPost:
+			handleLoraTrainStart(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
+	}
+	if path == "active" {
+		handleLoraTrainActive(w, r)
 		return
 	}
 	handleLoraTrainByID(w, r, path)
+}
+
+func handleLoraTrainList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": loraTrainMgr.List(50)})
+}
+
+func handleLoraTrainActive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	job, ok := loraTrainMgr.Active()
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"active": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"active": true, "job": job})
+}
+
+func handleLoraTrainDatasetPreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	q := r.URL.Query()
+	req := exportRequestFromQuery(q)
+	if q.Get("include_learnings") == "1" && learningStore != nil && personalLearningActive() {
+		agentID := strings.TrimSpace(q.Get("agent_id"))
+		if agentID != "" {
+			req.ExtraRows = export.ExportLearningsRows(learningStore.List(agentID))
+		}
+	}
+	if q.Get("incremental") == "1" && loraAdapterRegistry != nil {
+		agentID := strings.TrimSpace(q.Get("agent_id"))
+		if e, ok := loraAdapterRegistry.ActiveForAgent(agentID); ok {
+			req.SinceJobExportedAt = e.ExportedAt
+		}
+	}
+	rows, err := loraTrainMgr.PreviewDataset(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rows": rows, "count": len(rows), "min_rows": export.MinRows})
+}
+
+func exportRequestFromQuery(q map[string][]string) export.Request {
+	get := func(k string) string {
+		if v, ok := q[k]; ok && len(v) > 0 {
+			return strings.TrimSpace(v[0])
+		}
+		return ""
+	}
+	return export.Request{
+		Source:            export.SourceKind(get("source")),
+		SourceID:          get("source_id"),
+		ThreadID:          get("thread_id"),
+		AgentName:         get("agent_name"),
+		ApprovedTasksOnly: get("approved_tasks_only") == "1",
+	}
 }
 
 func handleLoraTrainPreview(w http.ResponseWriter, r *http.Request) {
@@ -254,10 +324,38 @@ func buildExpertTrainContext(info *protocol.AgentInfo) map[string]any {
 	}
 
 	if channelID != "" && loraTrainMgr != nil {
+		chatRows := 0
 		if n, err := loraTrainMgr.Preview(expReq); err == nil {
-			result["preview_rows"] = n
-			result["ready"] = n >= export.MinRows
+			chatRows = n
 		}
+		learningRows := 0
+		if learningStore != nil && personalLearningActive() {
+			learningRows = len(export.ExportLearningsRows(learningStore.List(info.ID)))
+		}
+		total := chatRows + learningRows
+		result["chat_rows"] = chatRows
+		result["learning_rows"] = learningRows
+		result["preview_rows"] = total
+		result["ready"] = total >= export.MinRows
+
+		deltaRows := 0
+		if loraAdapterRegistry != nil {
+			if active, ok := loraAdapterRegistry.ActiveForAgent(info.ID); ok {
+				result["active_adapter_version"] = active.Version
+				result["active_adapter_id"] = active.ID
+				result["prior_adapter_id"] = active.ID
+				if rows, err := loraTrainMgr.PreviewDataset(export.Request{
+					Source:             expReq.Source,
+					SourceID:           expReq.SourceID,
+					AgentName:          expReq.AgentName,
+					SinceJobExportedAt: active.ExportedAt,
+				}); err == nil {
+					deltaRows = len(rows)
+				}
+			}
+		}
+		result["delta_rows"] = deltaRows
+		result["refresh_suggested"] = deltaRows >= export.DefaultRefreshDelta
 	}
 	return result
 }

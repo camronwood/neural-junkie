@@ -82,8 +82,17 @@ func (implementationRoutingRuntime) Plan(ctx context.Context, base ai.AIProvider
 		return plan, base
 	}
 	log.Printf("[impl-routing] %s: provider_id=%s tool_model=%s reason=%s", info.Name, selID, toolModel, reason)
-	if ollamaBase, ok := p.(*ai.OllamaProvider); ok && strings.TrimSpace(mainModel) != "" {
-		if tag := strings.TrimSpace(mainModel); tag != "" && tag != strings.TrimSpace(ollamaBase.GetModel()) {
+	if ollamaBase, ok := p.(*ai.OllamaProvider); ok {
+		tag := strings.TrimSpace(mainModel)
+		if hasLoRACapability(capLoRAAdapters) && tag == "" {
+			loraTags := collectInstalledLoRATags(ctx)
+			dec := classifyTask(ctx, appConfig, taskText, string(info.Type), agentModelForName(info.Name), false, loraTags)
+			if t := strings.TrimSpace(dec.LoRATag); t != "" {
+				tag = t
+				mainReason = dec.Reason
+			}
+		}
+		if tag != "" && tag != strings.TrimSpace(ollamaBase.GetModel()) {
 			log.Printf("[impl-routing] %s: chat_model=%s reason=%s", info.Name, tag, mainReason)
 			p = ai.OllamaWithModel(ollamaBase, tag)
 		}

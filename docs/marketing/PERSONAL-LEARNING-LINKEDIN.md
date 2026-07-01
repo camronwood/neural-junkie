@@ -24,7 +24,7 @@
 
 **Website:** https://camronwood.github.io/neural-junkie/articles/personal-learning.html
 
-**Related articles:** [Conversation memory](CONVERSATION-MEMORY-LINKEDIN.md) · [LoRA](LORA-LINKEDIN.md) · [Two-tier LoRA](TWO-TIER-LORA-LINKEDIN.md)
+**Related articles:** [Conversation memory](CONVERSATION-MEMORY-LINKEDIN.md) · [LoRA](LORA-LINKEDIN.md) · [LoRA v2](LORA-V2-LINKEDIN.md) · [Two-tier LoRA](TWO-TIER-LORA-LINKEDIN.md)
 
 ---
 

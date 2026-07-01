@@ -45,7 +45,7 @@ Neural Junkie is a working multi-agent workspace — local-first desktop app, Sl
 - **Software development** — IDE v2/v3/v4, Git in app, implementation sessions, nj-remote sidecar
 - **Life sciences** — OpenBioLLM, sequence tools, scan summary viewer
 - **CAD** — OpenSCAD workbench, CADExpert, STL preview
-- **Specialist tuning** — LoRA training, personal learning v2
+- **Specialist tuning** — LoRA v2 (compound adapters), personal learning v2
 - **Pack store** — Install from GitHub; **Pack Dev Studio** for custom/customer packs
 
 ### Integrations

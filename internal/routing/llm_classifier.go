@@ -12,7 +12,7 @@ import (
 
 const routingClassifierSystemPrompt = `You classify user tasks for an AI routing system.
 Respond with JSON only (no markdown fences) using this schema:
-{"domain":"general|security|biology|frontend|backend|devops|architecture|code_review|database|rust|cad","tool_need":true|false,"cost_tier":"cheap|standard|premium","confidence":0.0-1.0,"reason":"short_snake_case_reason"}
+{"domain":"general|security|biology|frontend|backend|devops|architecture|code_review|database|rust|cad","tool_need":true|false,"cost_tier":"cheap|standard|premium","confidence":0.0-1.0,"reason":"short_snake_case_reason","lora_tag":"optional nj-* tag when domain-specific adapter applies"}
 
 Rules:
 - security/auth/CVE/compliance tasks -> domain security, cost_tier premium
@@ -63,9 +63,14 @@ func (c LLMClassifier) Classify(ctx context.Context, in Input) (RoutingDecision,
 		CostTier   string  `json:"cost_tier"`
 		Confidence float64 `json:"confidence"`
 		Reason     string  `json:"reason"`
+		LoRATag    string  `json:"lora_tag"`
 	}
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return RoutingDecision{}, fmt.Errorf("parse routing json: %w (raw=%q)", err, truncate(raw, 200))
+	}
+	tag := strings.TrimSpace(parsed.LoRATag)
+	if tag != "" && !tagInstalled(in.InstalledTags, tag) {
+		tag = ""
 	}
 	return RoutingDecision{
 		Domain:     parsed.Domain,
@@ -73,6 +78,7 @@ func (c LLMClassifier) Classify(ctx context.Context, in Input) (RoutingDecision,
 		CostTier:   parsed.CostTier,
 		Confidence: parsed.Confidence,
 		Reason:     parsed.Reason,
+		LoRATag:    tag,
 		Source:     SourceLLM,
 	}.Normalized(), nil
 }

@@ -200,6 +200,11 @@ func isComposedNJTag(tag string) bool {
 }
 
 func selectLoRATag(in Input) (tag, reason string) {
+	return SelectLoRATag(in)
+}
+
+// SelectLoRATag picks an nj-* Ollama tag when installed.
+func SelectLoRATag(in Input) (tag, reason string) {
 	text := normText(in.Text)
 	type rule struct {
 		match  func(string) bool
@@ -219,6 +224,17 @@ func selectLoRATag(in Input) (tag, reason string) {
 		if r.match(text) && tagInstalled(in.InstalledTags, r.tag) {
 			return r.tag, r.reason
 		}
+	}
+	for _, trigger := range in.ConsultTriggers {
+		t := strings.ToLower(strings.TrimSpace(trigger))
+		if t != "" && strings.Contains(text, t) {
+			if tag := loraTagForConsultTrigger(t, in.InstalledTags); tag != "" {
+				return tag, "consult_trigger_lora"
+			}
+		}
+	}
+	if repoTag := selectRepoLoRATag(in); repoTag != "" {
+		return repoTag, "repo_lora_tag"
 	}
 	agentModel := strings.TrimSpace(in.AgentModel)
 	if isComposedNJTag(agentModel) && tagInstalled(in.InstalledTags, agentModel) {
@@ -279,4 +295,33 @@ func detectCostTier(text string, hasImages bool) (tier, reason string) {
 		return CostPremium, "security_task"
 	}
 	return CostStandard, "standard_task"
+}
+
+func selectRepoLoRATag(in Input) string {
+	text := normText(in.Text)
+	repo := strings.ToLower(strings.TrimSpace(in.RepoPath))
+	for tag := range in.InstalledTags {
+		if !strings.HasPrefix(tag, "nj-repo-") {
+			continue
+		}
+		slug := strings.TrimPrefix(tag, "nj-repo-")
+		slug = strings.TrimSuffix(slug, ":14b")
+		if slug != "" && (strings.Contains(text, slug) || (repo != "" && strings.Contains(repo, slug))) {
+			return tag
+		}
+	}
+	return ""
+}
+
+func loraTagForConsultTrigger(trigger string, installed map[string]struct{}) string {
+	candidates := []string{
+		"nj-security:14b", "nj-biology:8b", "nj-frontend:14b",
+		"nj-backend:14b", "nj-devops:14b", "nj-architecture:14b", "nj-code-review:14b",
+	}
+	for _, tag := range candidates {
+		if strings.Contains(tag, trigger) && tagInstalled(installed, tag) {
+			return tag
+		}
+	}
+	return ""
 }

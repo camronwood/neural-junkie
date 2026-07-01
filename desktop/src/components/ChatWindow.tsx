@@ -2098,6 +2098,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           previewRows: ctx.preview_rows,
           ready: ctx.ready,
           supported_bases: ctx.supported_bases,
+          prior_adapter_id: ctx.prior_adapter_id,
+          active_adapter_version: ctx.active_adapter_version,
+          refresh_suggested: ctx.refresh_suggested,
         });
         setModelLibraryInitialTab('train');
         setModelLibraryOpen(true);

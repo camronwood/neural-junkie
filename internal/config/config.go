@@ -30,12 +30,20 @@ type ProviderConfig struct {
 	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
 }
 
+type AgentModelProfile struct {
+	InferenceModel     string `json:"inference_model,omitempty"`
+	LoRAComposeBase    string `json:"lora_compose_base,omitempty"`
+	ComposedTag        string `json:"composed_tag,omitempty"`
+	UseComposedForChat bool   `json:"use_composed_for_chat,omitempty"`
+}
+
 type AgentConfig struct {
-	Type       string `json:"type"`
-	Name       string `json:"name"`
-	Enabled    bool   `json:"enabled"`
-	ProviderID string `json:"provider_id,omitempty"`
-	Model      string `json:"model,omitempty"` // overrides provider row model for this agent
+	Type          string             `json:"type"`
+	Name          string             `json:"name"`
+	Enabled       bool               `json:"enabled"`
+	ProviderID    string             `json:"provider_id,omitempty"`
+	Model         string             `json:"model,omitempty"` // overrides provider row model for this agent
+	ModelProfile  *AgentModelProfile `json:"model_profile,omitempty"`
 }
 
 type AIConfig struct {

@@ -14,6 +14,23 @@ type AgentExport struct {
 	Prompts      []MCPPrompt   `json:"prompts"`
 	SystemPrompt string        `json:"systemPrompt"`
 	ExportedAt   time.Time     `json:"exportedAt"`
+	LoRA         *LoRAMetadata `json:"lora,omitempty"`
+}
+
+// LoRAMetadata describes composed adapter metadata (v2).
+type LoRAMetadata struct {
+	ComposedTag      string            `json:"composed_tag,omitempty"`
+	BaseOllamaTag    string            `json:"base_ollama_tag,omitempty"`
+	HFRepoID         string            `json:"hf_repo_id,omitempty"`
+	TrainingManifest *TrainingManifest `json:"training_manifest,omitempty"`
+}
+
+// TrainingManifest is portable training stats without weights.
+type TrainingManifest struct {
+	RowCount     int    `json:"row_count,omitempty"`
+	DatasetHash  string `json:"dataset_hash,omitempty"`
+	LastTrained  string `json:"last_trained_at,omitempty"`
+	AdapterVersion int  `json:"adapter_version,omitempty"`
 }
 
 // AgentMetadata contains agent configuration and metadata

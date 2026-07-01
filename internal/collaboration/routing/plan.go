@@ -84,8 +84,8 @@ func PlanTask(in PlanInput) PlanResult {
 		})
 		tag, tagReason := dec.LoRATag, dec.Reason
 		if tag == "" {
-			tag, tagReason = SelectComposedTag(LoRAInput{
-				TaskText:      in.TaskText,
+			tag, tagReason = unified.SelectLoRATag(unified.Input{
+				Text:          in.TaskText,
 				AgentType:     in.AgentType,
 				AgentModel:    in.AgentModel,
 				InstalledTags: in.InstalledLoRATags,

@@ -8,6 +8,8 @@
 
 **Two-tier story (inference vs LoRA):** [TWO-TIER-LORA-LINKEDIN.md](TWO-TIER-LORA-LINKEDIN.md) — cover `assets/neural-junkie-two-tier-lora-1200.png`
 
+**LoRA v2 upgrade:** [LORA-V2-LINKEDIN.md](LORA-V2-LINKEDIN.md) — cover `assets/neural-junkie-lora-v2-1200.png`
+
 **Regenerate cover:** `./scripts/compose-lora-article.sh`
 
 **Suggested title (pick one):**

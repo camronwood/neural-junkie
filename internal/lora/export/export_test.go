@@ -44,7 +44,10 @@ func TestExportCollaborationTasks(t *testing.T) {
 	// pad to meet minimum
 	for i := 0; i < MinRows; i++ {
 		collab.Tasks = append(collab.Tasks, collaboration.CollaborationTask{
-			Title: "T", Description: "prompt", Output: "answer",
+			Title:       "T",
+			Description: "prompt unique " + string(rune('a'+i%26)),
+			Output:      "answer unique " + string(rune('A'+i%26)),
+			Status:      collaboration.TaskCompleted,
 		})
 	}
 	dir := t.TempDir()

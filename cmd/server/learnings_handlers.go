@@ -317,6 +317,8 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 	}
 	ready := false
 	previewRows := 0
+	refreshSuggested := false
+	activeVersion := 0
 	if info, err := chatHub.GetAgent(agentID); err == nil {
 		ctx := buildExpertTrainContext(info)
 		if v, ok := ctx["ready"].(bool); ok {
@@ -325,16 +327,24 @@ func handleLearningsStats(w http.ResponseWriter, r *http.Request) {
 		if v, ok := ctx["preview_rows"].(int); ok {
 			previewRows = v
 		}
+		if v, ok := ctx["refresh_suggested"].(bool); ok {
+			refreshSuggested = v
+		}
+		if v, ok := ctx["active_adapter_version"].(int); ok {
+			activeVersion = v
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"agent_id":              agentID,
-		"learning_count":        count,
-		"global_count":          globalCount,
-		"collab_count":          collabCount,
-		"embedding_index_ready": learning.IndexReady(),
-		"preview_rows":          previewRows,
-		"min_rows":              export.MinRows,
-		"ready_for_lora":        ready,
+		"agent_id":               agentID,
+		"learning_count":         count,
+		"global_count":           globalCount,
+		"collab_count":           collabCount,
+		"embedding_index_ready":  learning.IndexReady(),
+		"preview_rows":           previewRows,
+		"min_rows":               export.MinRows,
+		"ready_for_lora":         ready,
+		"refresh_suggested":      refreshSuggested,
+		"active_adapter_version": activeVersion,
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -62,10 +63,21 @@ func handleImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return success response
 	responseData := map[string]interface{}{
 		"success": true,
 		"message": response.Content,
+	}
+
+	if raw, err := os.ReadFile(request.FilePath); err == nil {
+		var bundle mcp_export.AgentExport
+		if json.Unmarshal(raw, &bundle) == nil && bundle.LoRA != nil {
+			responseData["lora_train_suggestion"] = map[string]any{
+				"composed_tag":      bundle.LoRA.ComposedTag,
+				"base_ollama_tag":   bundle.LoRA.BaseOllamaTag,
+				"hf_repo_id":        bundle.LoRA.HFRepoID,
+				"training_manifest": bundle.LoRA.TrainingManifest,
+			}
+		}
 	}
 
 	// Try to extract agent info from the response

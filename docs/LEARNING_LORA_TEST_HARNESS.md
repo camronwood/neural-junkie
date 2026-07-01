@@ -9,7 +9,9 @@ Three-layer pattern (same as chat/collab): **orchestrator logic in Go; end-to-en
 | Storage CRUD + scope/migration | `internal/learning/storage_test.go`, `prompt_test.go` |
 | Embeddings + keyword fallback | `internal/learning/embeddings_test.go` |
 | Prompt scoping | `internal/learning/prompt_test.go` |
-| LoRA learning rows | `internal/lora/export/learnings_test.go` |
+| Registry CRUD + rollback | `internal/lora/registry/registry_test.go` |
+| Incremental export filter | `internal/lora/export/export_test.go` |
+| Adapter API smoke | `cmd/server/lora_train_handlers_test.go` |
 | API gates + CRUD + PUT/query | `cmd/server/learnings_handlers_test.go` |
 | Expert-context tags | `cmd/server/lora_train_handlers_test.go` |
 | Pack capability | `internal/packs/packs_test.go` |

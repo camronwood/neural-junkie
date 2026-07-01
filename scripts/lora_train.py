@@ -47,29 +47,41 @@ def train_unsloth(args: argparse.Namespace) -> None:
         ) from exc
 
     emit("loading_model", base=args.base_model)
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=args.base_model,
-        max_seq_length=args.max_seq_len,
-        dtype=None,
-        load_in_4bit=True,
-    )
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=args.rank,
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
-        lora_alpha=args.rank * 2,
-        lora_dropout=0,
-        bias="none",
-        use_gradient_checkpointing="unsloth",
-    )
+    resume = (args.resume_adapter or "").strip()
+    if resume:
+        emit("loading_model", resume=resume)
+        from peft import PeftModel  # type: ignore
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=args.base_model,
+            max_seq_length=args.max_seq_len,
+            dtype=None,
+            load_in_4bit=True,
+        )
+        model = PeftModel.from_pretrained(model, resume, is_trainable=True)
+    else:
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=args.base_model,
+            max_seq_length=args.max_seq_len,
+            dtype=None,
+            load_in_4bit=True,
+        )
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=args.rank,
+            target_modules=[
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+            lora_alpha=args.rank * 2,
+            lora_dropout=0,
+            bias="none",
+            use_gradient_checkpointing="unsloth",
+        )
 
     rows = load_rows(Path(args.dataset))
     texts = [format_example(r) for r in rows]
@@ -125,6 +137,8 @@ def main() -> int:
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--max-seq-len", type=int, default=2048)
+    parser.add_argument("--resume-adapter", default="")
+    parser.add_argument("--backend", default="unsloth")
     args = parser.parse_args()
 
     if not Path(args.dataset).is_file():
@@ -137,6 +151,24 @@ def main() -> int:
             out.mkdir(parents=True, exist_ok=True)
             (out / "adapter_model.safetensors").write_bytes(b"dry-run")
             emit("done", dry_run=True)
+            return 0
+        if args.backend == "mlx":
+            from pathlib import Path as _P
+            mlx_script = _P(__file__).with_name("lora_train_mlx.py")
+            import runpy
+            sys.argv = [
+                str(mlx_script),
+                "--dataset", args.dataset,
+                "--output-dir", args.output_dir,
+                "--base-model", args.base_model,
+                "--rank", str(args.rank),
+                "--epochs", str(args.epochs),
+                "--learning-rate", str(args.learning_rate),
+                "--max-seq-len", str(args.max_seq_len),
+            ]
+            if args.resume_adapter:
+                sys.argv.extend(["--resume-adapter", args.resume_adapter])
+            runpy.run_path(str(mlx_script), run_name="__main__")
             return 0
         train_unsloth(args)
         return 0

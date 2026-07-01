@@ -43,11 +43,13 @@ type RoutingDecision struct {
 
 // Input is the feature context for routing classification.
 type Input struct {
-	Text          string
-	AgentType     string
-	AgentModel    string
-	HasUserImages bool
-	InstalledTags map[string]struct{}
+	Text            string
+	AgentType       string
+	AgentModel      string
+	HasUserImages   bool
+	InstalledTags   map[string]struct{}
+	ConsultTriggers []string
+	RepoPath        string
 }
 
 // Normalized returns a decision with defaults filled in.

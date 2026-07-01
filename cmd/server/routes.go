@@ -188,6 +188,8 @@ func registerRoutes() {
 	http.HandleFunc("/api/hf/import-ollama", corsMiddleware(localOnly(handleHfImportOllama)))
 	http.HandleFunc("/api/lora/train", corsMiddleware(localOnly(handleLoraTrainRoute)))
 	http.HandleFunc("/api/lora/train/", corsMiddleware(localOnly(handleLoraTrainRoute)))
+	http.HandleFunc("/api/lora/adapters", corsMiddleware(localOnly(handleLoraAdaptersRoute)))
+	http.HandleFunc("/api/lora/adapters/", corsMiddleware(localOnly(handleLoraAdaptersRoute)))
 	http.HandleFunc("/api/learnings", corsMiddleware(localOnly(handleLearningsRoute)))
 	http.HandleFunc("/api/learnings/", corsMiddleware(localOnly(handleLearningsRoute)))
 	http.HandleFunc("/api/memory", corsMiddleware(localOnly(handleMemoryRoute)))

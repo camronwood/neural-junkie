@@ -15,6 +15,9 @@ export interface LoraTrainPrefill {
   agentId?: string;
   previewRows?: number;
   ready?: boolean;
+  prior_adapter_id?: string;
+  active_adapter_version?: number;
+  refresh_suggested?: boolean;
   supported_bases?: LoraTrainingBase[];
 }
 
@@ -43,6 +46,10 @@ export function LoraTrainingPanel({
   const [rank, setRank] = useState(16);
   const [epochs, setEpochs] = useState(1);
   const [includeLearnings, setIncludeLearnings] = useState(true);
+  const [incremental, setIncremental] = useState(Boolean(prefill?.prior_adapter_id));
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [learningRate, setLearningRate] = useState(2e-4);
+  const [maxSeqLen, setMaxSeqLen] = useState(2048);
   const [previewCount, setPreviewCount] = useState<number | null>(prefill?.previewRows ?? null);
   const [job, setJob] = useState<LoraTrainJob | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,6 +112,7 @@ export function LoraTrainingPanel({
         agent_name: agentName.trim() || undefined,
         agent_id: prefill?.agentId,
         include_learnings: includeLearnings,
+        incremental,
       });
       setPreviewCount(n);
       setError(null);
@@ -112,7 +120,7 @@ export function LoraTrainingPanel({
       setPreviewCount(null);
       setError(e instanceof Error ? e.message : 'Preview failed');
     }
-  }, [api, source, sourceId, threadId, agentName, includeLearnings, prefill?.agentId]);
+  }, [api, source, sourceId, threadId, agentName, includeLearnings, incremental, prefill?.agentId]);
 
   useEffect(() => {
     void refreshPreview();
@@ -144,9 +152,11 @@ export function LoraTrainingPanel({
         agent_name: agentName.trim() || undefined,
         agent_id: prefill?.agentId,
         include_learnings: includeLearnings,
+        incremental,
+        prior_adapter_id: prefill?.prior_adapter_id,
         base_ollama_tag: baseTag.trim(),
         ollama_tag: ollamaTag.trim(),
-        hyperparams: { rank, epochs, learning_rate: 2e-4 },
+        hyperparams: { rank, epochs, learning_rate: learningRate, max_seq_len: maxSeqLen },
       };
       const started = await api().startLoraTrain(body);
       setJob(started);
@@ -305,6 +315,52 @@ export function LoraTrainingPanel({
         </label>
       )}
 
+      {prefill?.prior_adapter_id && (
+        <label className="flex items-center gap-2 text-xs text-gray-400">
+          <input
+            type="checkbox"
+            checked={incremental}
+            onChange={(e) => setIncremental(e.target.checked)}
+            className="rounded border-slack-border"
+          />
+          Refresh adapter incrementally
+          {prefill.active_adapter_version ? ` (current v${prefill.active_adapter_version})` : ''}
+        </label>
+      )}
+
+      <button
+        type="button"
+        className="text-xs text-gray-500 underline"
+        onClick={() => setShowAdvanced((v) => !v)}
+      >
+        {showAdvanced ? 'Hide advanced' : 'Advanced training options'}
+      </button>
+      {showAdvanced && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500">Learning rate</span>
+            <input
+              type="number"
+              step={0.0001}
+              value={learningRate}
+              onChange={(e) => setLearningRate(Number(e.target.value))}
+              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500">Max sequence length</span>
+            <input
+              type="number"
+              min={512}
+              max={8192}
+              value={maxSeqLen}
+              onChange={(e) => setMaxSeqLen(Number(e.target.value))}
+              className="rounded border border-slack-border bg-slack-bg px-2 py-1.5"
+            />
+          </label>
+        </div>
+      )}
+
       {previewCount != null && (
         <p className={`text-xs ${previewCount >= minRows ? 'text-gray-500' : 'text-amber-400'}`}>
           Preview: {previewCount} training rows (minimum {minRows} required)
@@ -328,6 +384,15 @@ export function LoraTrainingPanel({
             {job.row_count ? ` (${job.row_count} rows)` : ''}
           </p>
           {job.error && <p className="text-xs text-red-400">{job.error}</p>}
+          {job.status !== 'done' && job.status !== 'failed' && job.status !== 'cancelled' && (
+            <button
+              type="button"
+              onClick={() => void api().cancelLoraTrainJob(job.id).then(setJob)}
+              className="px-2 py-1 text-[10px] rounded border border-red-500/40 text-red-300"
+            >
+              Cancel job
+            </button>
+          )}
           {job.log_tail && job.log_tail.length > 0 && (
             <pre className="text-[10px] font-mono text-gray-500 max-h-32 overflow-y-auto whitespace-pre-wrap">
               {job.log_tail.slice(-12).join('\n')}

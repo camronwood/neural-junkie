@@ -645,6 +645,10 @@ deps-lora: ## Install LoRA training Python stack (.venv-lora)
 	@chmod +x ./scripts/setup-lora-deps.sh
 	@./scripts/setup-lora-deps.sh
 
+deps-lora-mlx: ## Install MLX LoRA training stack (.venv-lora-mlx, Apple Silicon)
+	@python3 -m venv .venv-lora-mlx
+	@.venv-lora-mlx/bin/pip install -q -r requirements-lora-mlx.txt
+
 ensure-lora-deps: ## Ensure LoRA training venv exists (install once)
 	@if [ ! -x .venv-lora/bin/python ]; then \
 		echo "📦 LoRA training deps missing — installing (.venv-lora)..."; \

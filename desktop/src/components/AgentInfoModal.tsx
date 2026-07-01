@@ -79,6 +79,17 @@ export function AgentInfoModal({
   const [learningsError, setLearningsError] = useState<string | null>(null);
   const [addLearningOpen, setAddLearningOpen] = useState(false);
   const [editLearning, setEditLearning] = useState<UserLearning | null>(null);
+  const [loraReady, setLoraReady] = useState(false);
+  const [loraRefresh, setLoraRefresh] = useState(false);
+  const [loraAdapterVersion, setLoraAdapterVersion] = useState(0);
+
+  const loraLifecycleLabel = loraAdapterVersion > 0
+    ? loraRefresh
+      ? `Refresh LoRA (v${loraAdapterVersion})`
+      : `Train LoRA (v${loraAdapterVersion})`
+    : loraReady
+      ? 'Train LoRA (ready)'
+      : 'Train LoRA';
 
   const isExpertAgent =
     !!agent &&
@@ -154,6 +165,32 @@ export function AgentInfoModal({
       cancelled = true;
     };
   }, [isOpen, agent?.id, hasPersonalLearning, isExpertAgent, serverAddr]);
+
+  useEffect(() => {
+    if (!isOpen || !agent || !hasLoRATraining || !isExpertAgent) {
+      setLoraReady(false);
+      setLoraRefresh(false);
+      setLoraAdapterVersion(0);
+      return;
+    }
+    let cancelled = false;
+    const api = new ChatAPI(serverAddr);
+    void api.fetchLearningStats(agent.id).then((stats) => {
+      if (cancelled) return;
+      setLoraReady(stats.ready_for_lora);
+      setLoraRefresh(Boolean(stats.refresh_suggested));
+      setLoraAdapterVersion(stats.active_adapter_version ?? 0);
+    }).catch(() => {
+      if (!cancelled) {
+        setLoraReady(false);
+        setLoraRefresh(false);
+        setLoraAdapterVersion(0);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, agent?.id, hasLoRATraining, isExpertAgent, serverAddr]);
 
   useEffect(() => {
     if (!isOpen || !agent || agent.type === 'loading' || isCLIAgent) {
@@ -775,10 +812,10 @@ export function AgentInfoModal({
                   title={
                     offlineMode
                       ? 'Load agent and chat (10+ turns) before training LoRA'
-                      : `Train a LoRA adapter from ${agent.name} sessions`
+                      : `Train or refresh a LoRA adapter from ${agent.name} sessions`
                   }
                 >
-                  🎯 Train LoRA
+                  🎯 {loraLifecycleLabel}
                 </button>
               )}
               {/* Export Button - repo agents only */}

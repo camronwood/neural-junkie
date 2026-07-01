@@ -11,6 +11,20 @@ import (
 	"github.com/camronwood/neural-junkie/internal/routing/capabilities"
 )
 
+func applyChatLoRATag(ctx context.Context, base *ai.OllamaProvider, info protocol.AgentInfo, msg *protocol.Message) ai.AIProvider {
+	if !hasLoRACapability(capLoRAAdapters) || appConfig == nil {
+		return base
+	}
+	loraTags := collectInstalledLoRATags(ctx)
+	dec := classifyTask(ctx, appConfig, msg.Content, string(info.Type), agentModelForName(info.Name), false, loraTags)
+	tag := strings.TrimSpace(dec.LoRATag)
+	if tag == "" {
+		return base
+	}
+	log.Printf("[chat-routing] %s: lora_model=%s reason=%s", info.Name, tag, dec.Reason)
+	return ai.OllamaWithModel(base, tag)
+}
+
 type chatRoutingRuntime struct{}
 
 func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, info protocol.AgentInfo, msg *protocol.Message) ai.AIProvider {
@@ -29,6 +43,9 @@ func (chatRoutingRuntime) EffectiveAI(ctx context.Context, base ai.AIProvider, i
 	ollamaBase, ok := base.(*ai.OllamaProvider)
 	if !ok {
 		return base
+	}
+	if routed := applyChatLoRATag(ctx, ollamaBase, info, msg); routed != ollamaBase {
+		return routed
 	}
 
 	caps := protocol.ResolveTurnCapabilities(msg)

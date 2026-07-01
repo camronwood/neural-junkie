@@ -54,7 +54,7 @@ func Classify(ctx context.Context, in Input, opts Options) RoutingDecision {
 		dec.Source = SourceLLM
 	}
 	if dec.LoRATag == "" {
-		dec.LoRATag, _ = selectLoRATag(in)
+		dec.LoRATag, _ = SelectLoRATag(in)
 	}
 	if dec.Reason == "" {
 		dec.Reason = "llm_classified"
