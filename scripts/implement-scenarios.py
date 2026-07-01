@@ -18,6 +18,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
+from lib.regression_boot import maybe_boot_regression, restart_hub_for_live_run  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
@@ -28,7 +29,6 @@ from lib.scenario_assert import (  # noqa: E402
     scenario_question,
 )
 from lib.fixture_baseline import reset_all_fixture_baselines, reset_fixture_baseline  # noqa: E402
-from lib.scenario_flake_retry import detail_is_flake, flake_retry_enabled, flake_retry_sleep_s  # noqa: E402
 from lib.workspace_context import enrich_send_metadata  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "implement"
@@ -119,6 +119,7 @@ def step_wait_reply(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
             else:
                 return True, f"reply from {from_name}"
         time.sleep(2)
+    hub.abort_channel_agents(ctx.base, ctx.channel, held_by="ImplementScenario")
     return False, f"timeout waiting for {from_name}"
 
 
@@ -163,25 +164,16 @@ def step_assert_file_absent(ctx: ImplementContext, step: dict) -> tuple[bool, st
     return step_assert_deliverable(ctx, {**step, "action": "assert_file_absent"})
 
 
-def _last_agent_message(
-    ctx: ImplementContext,
-    from_name: str,
-    *,
-    prefer_implementation_outcome: bool = False,
-) -> dict | None:
+def _last_agent_message(ctx: ImplementContext, from_name: str) -> dict | None:
     msgs = hub.list_messages(ctx.base, ctx.channel, 200)
     pool = hub.chat_agent_messages(msgs)
     candidates = [m for m in pool if m.get("from", {}).get("name") == from_name]
     if not candidates:
         return None
-    if prefer_implementation_outcome:
-        with_outcome = [
-            m
-            for m in candidates
-            if isinstance((m.get("metadata") or {}).get("implementation_session_outcome"), dict)
-        ]
-        if with_outcome:
-            return with_outcome[-1]
+    for msg in reversed(candidates):
+        meta = msg.get("metadata") or {}
+        if isinstance(meta.get("implementation_session_outcome"), dict):
+            return msg
     return candidates[-1]
 
 
@@ -255,7 +247,7 @@ def _metadata_get(meta: dict, dotted: str):
 
 def step_assert_message_metadata(ctx: ImplementContext, step: dict) -> tuple[bool, str]:
     from_name = (step.get("from") or ctx.target_agent).strip().lstrip("@")
-    msg = _last_agent_message(ctx, from_name, prefer_implementation_outcome=True)
+    msg = _last_agent_message(ctx, from_name)
     if not msg:
         if step.get("optional"):
             return True, "skipped (no agent reply)"
@@ -438,7 +430,21 @@ def run_scenario_with_stats(base: str, name: str, *, runs: int, best_of_k: int, 
     return pass_rate > 0
 
 
-def run_scenario(base: str, name: str, *, keep: bool = False, flake_retry: bool = True) -> tuple[bool, dict]:
+def run_scenario(base: str, name: str, *, keep: bool = False) -> tuple[bool, dict]:
+    from lib.scenario_flake_retry import maybe_retry_after_failure
+
+    outcome: dict = {}
+    last_detail = ""
+    for attempt in range(1, 3):
+        ok, outcome, last_detail = _run_scenario_once(base, name, keep=keep)
+        if ok:
+            return ok, outcome
+        if not maybe_retry_after_failure(base, name, last_detail, attempt):
+            break
+    return False, outcome
+
+
+def _run_scenario_once(base: str, name: str, *, keep: bool = False) -> tuple[bool, dict, str]:
     scenario = load_scenario(name)
     ctx = ImplementContext(base, scenario)
     empty_outcome: dict = {}
@@ -452,6 +458,7 @@ def run_scenario(base: str, name: str, *, keep: bool = False, flake_retry: bool 
         return False, empty_outcome
     if not ensure_channel(ctx):
         return False, empty_outcome
+    hub.abort_channel_agents(ctx.base, ctx.channel, held_by="ImplementScenario")
     if scenario.get("cleanup", "clear") == "clear" and not keep:
         hub.clear_channel_history(ctx.base, ctx.channel)
     reset_fixture_baseline(scenario, root=ROOT)
@@ -462,7 +469,7 @@ def run_scenario(base: str, name: str, *, keep: bool = False, flake_retry: bool 
     # In-process agents discover new channels on a ~1s tick; allow subscribe before send.
     time.sleep(3.0)
     all_ok = True
-    last_failure = ""
+    last_detail = ""
     try:
         combined_steps = (
             list(scenario.get("setup") or [])
@@ -473,31 +480,23 @@ def run_scenario(base: str, name: str, *, keep: bool = False, flake_retry: bool 
             action = (step.get("action") or "").strip()
             fn = HANDLERS.get(action)
             if not fn:
-                print(f"  FAIL unknown action {action}", file=sys.stderr)
+                last_detail = f"unknown action {action}"
+                print(f"  FAIL {last_detail}", file=sys.stderr)
                 all_ok = False
                 break
             ok, detail = fn(ctx, step)
             print(f"  {'✓' if ok else '✗'} [{i}] {action}: {detail}")
             if not ok:
+                last_detail = detail
                 all_ok = False
-                last_failure = detail
                 break
     finally:
         outcome = _outcome_from_last_reply(ctx, ctx.target_agent)
         reset_fixture_baseline(scenario, root=ROOT)
         if scenario.get("cleanup", "clear") == "clear" and not keep:
             hub.clear_channel_history(ctx.base, ctx.channel)
-    if (
-        not all_ok
-        and flake_retry
-        and flake_retry_enabled()
-        and detail_is_flake(last_failure, kind="implement")
-    ):
-        print(f"  flake retry ({last_failure}); sleeping {flake_retry_sleep_s():.0f}s")
-        time.sleep(flake_retry_sleep_s())
-        return run_scenario(base, name, keep=keep, flake_retry=False)
     print(f"=== {'PASS' if all_ok else 'FAIL'}: {name} ===\n")
-    return all_ok, outcome
+    return all_ok, outcome, last_detail
 
 
 def main() -> int:
@@ -514,14 +513,18 @@ def main() -> int:
         for f in sorted(SCENARIOS_DIR.glob("*.json")):
             print(f.stem)
         return 0
+    if not maybe_boot_regression(args.hub, root=ROOT, label="implement-scenarios"):
+        return 1
     names = [f.stem for f in sorted(SCENARIOS_DIR.glob("*.json"))] if args.all else ([args.scenario] if args.scenario else [])
     if not names:
         p.print_help()
         return 1
     if args.all:
+        no_restart = os.environ.get("NO_RESTART_HUB", "").strip().lower() in ("1", "true", "yes")
+        if not args.keep and not no_restart:
+            if not restart_hub_for_live_run(ROOT, args.hub, label="implement-scenarios"):
+                return 1
         reset_all_fixture_baselines(root=ROOT)
-        if not ensure_hub_ready(args.hub, "implement-scenarios-all"):
-            return 1
         all_agents: set[str] = set()
         for n in names:
             sc = load_scenario(n)

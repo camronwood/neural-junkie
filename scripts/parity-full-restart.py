@@ -19,6 +19,7 @@ FAIL_RE = re.compile(r"^=== FAIL: (\S+) ===")
 sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.hub_regression import restart_regression_hub, wait_for_hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.regression_boot import maybe_boot_regression  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
 
 
@@ -38,6 +39,7 @@ def parse_results(output: str) -> tuple[list[str], list[str]]:
 
 def run_script(script: str, hub_url: str) -> tuple[int, str, list[str], list[str]]:
     env = release_prep_env(ROOT)
+    env["SKIP_BOOT"] = "1"
     proc = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / script), "--all", "--hub", hub_url],
         cwd=ROOT,
@@ -62,10 +64,9 @@ def main() -> int:
     log_path = args.log_dir / f"parity-full-restart-{stamp}.log"
     args.log_dir.mkdir(parents=True, exist_ok=True)
 
-    if not wait_for_hub(args.hub, timeout_s=5):
-        print(f"Hub not reachable at {args.hub}", file=sys.stderr)
+    if not maybe_boot_regression(args.hub, root=ROOT, label="parity-full-restart"):
         return 1
-    preflight_regression_run(ROOT)
+    preflight_regression_run(ROOT, args.hub, label="parity-full-restart preflight")
 
     sweeps_ok = 0
     lines: list[str] = [f"# parity-full-restart — {stamp} UTC", f"hub={args.hub}", ""]

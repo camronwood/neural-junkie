@@ -51,6 +51,9 @@ def hub_request(
     last_err: Exception | None = None
     auth_refreshed = False
     for attempt in range(max_retries):
+        headers = {"Accept": "application/json", **ensure_hub_auth_headers(base)}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -65,12 +68,9 @@ def hub_request(
             except json.JSONDecodeError:
                 parsed = raw
             if e.code == 401 and not auth_refreshed:
-                from lib.hub_auth import clear_hub_session, ensure_hub_auth_headers
+                from lib.hub_auth import refresh_hub_auth_after_restart
 
-                clear_hub_session()
-                headers = {"Accept": "application/json", **ensure_hub_auth_headers(base)}
-                if body is not None:
-                    headers["Content-Type"] = "application/json"
+                refresh_hub_auth_after_restart(base)
                 auth_refreshed = True
                 continue
             if e.code in (429, 500, 502, 503, 504) and attempt + 1 < max_retries:
@@ -197,9 +197,15 @@ def send_message(
     if metadata:
         payload["metadata"] = metadata
     for attempt in range(max_retries):
-        code, data = hub_request(base, "POST", "/api/send", payload)
+        code, data = hub_request(base, "POST", "/api/send", payload, max_retries=1)
         if code == 429 and attempt + 1 < max_retries:
             time.sleep(2.0 * (attempt + 1))
+            continue
+        if code == 401 and attempt + 1 < max_retries:
+            from lib.hub_auth import refresh_hub_auth_after_restart
+
+            refresh_hub_auth_after_restart(base)
+            time.sleep(1.0)
             continue
         if code == 200 and isinstance(data, dict):
             return code, data
@@ -504,6 +510,16 @@ def channel_interject(
         detail = data if isinstance(data, str) else json.dumps(data)
         return False, f"interject HTTP {code}: {detail}"
     return True, f"channel {channel!r} held"
+
+
+def abort_channel_agents(
+    base: str,
+    channel: str,
+    *,
+    held_by: str = "ScenarioHarness",
+) -> tuple[bool, str]:
+    """Abort in-flight agent generations on a channel (interject + hold; cleared on next user send)."""
+    return channel_interject(base, channel, held_by=held_by)
 
 
 def wait_no_new_chat_replies(

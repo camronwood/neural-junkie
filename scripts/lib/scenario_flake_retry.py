@@ -1,74 +1,69 @@
-"""Detect live scenario flakes and optionally retry once."""
+"""One automatic retry for known-flaky live scenario outcomes (timeouts, 401, silence)."""
 
 from __future__ import annotations
 
 import os
-import re
+import time
 
-# Implement harness: wait_reply timeouts on loaded Ollama / frontend sessions.
-IMPLEMENT_FLAKE_MARKERS = (
+RETRY_MARKERS = (
     "timeout waiting for",
-    "encountered an error while generating",
-    "timed out before completion",
-    "provider_error",
-)
-
-# Collab harness: silent agents and generation failures during planning discussion.
-COLLAB_FLAKE_MARKERS = (
+    "send failed (401)",
+    "send failed (0)",
     "no collaboration_discussion",
     "silent or shouldrespond blocked",
-    "generation_error",
-    "wait_discussion attempt",
     "could not complete this turn",
+    "generation_error",
+    "hub not healthy",
 )
 
-SHARED_FLAKE_MARKERS = (
-    "sorry, i encountered an error",
-    "remote disconnected",
-    "connection reset",
-    "quota",
-    "rate limit",
-    "429",
-)
-
-
-def _normalized(text: str) -> str:
-    return (text or "").lower()
-
-
-def detail_is_flake(detail: str, *, kind: str = "any") -> bool:
-    """True when a single-step failure detail looks like load/model variance."""
-    lower = _normalized(detail)
-    pools: list[tuple[str, ...]] = [SHARED_FLAKE_MARKERS]
-    if kind in ("any", "implement"):
-        pools.append(IMPLEMENT_FLAKE_MARKERS)
-    if kind in ("any", "collab"):
-        pools.append(COLLAB_FLAKE_MARKERS)
-    markers = tuple(m for pool in pools for m in pool)
-    return any(m in lower for m in markers)
-
-
-def output_is_flake(output: str, *, kind: str = "any") -> bool:
-    """True when combined stage output contains flake signatures."""
-    if detail_is_flake(output, kind=kind):
-        return True
-    lower = _normalized(output)
-    if kind in ("any", "implement") and re.search(
-        r"wait_reply:\s*timeout waiting for", lower
-    ):
-        return True
-    if kind in ("any", "collab") and "fail: @" in lower and "no collaboration_discussion" in lower:
-        return True
-    return False
+DEFAULT_PAUSE_S = 5.0
 
 
 def flake_retry_enabled() -> bool:
-    raw = (os.environ.get("NJ_SCENARIO_FLAKE_RETRY") or "1").strip().lower()
-    return raw not in ("0", "false", "no", "off")
+    return os.environ.get("NJ_SCENARIO_FLAKE_RETRY", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
 
 
-def flake_retry_sleep_s() -> float:
-    try:
-        return float(os.environ.get("NJ_SCENARIO_FLAKE_RETRY_SLEEP_S", "8"))
-    except ValueError:
-        return 8.0
+def is_retryable_failure(detail: str) -> bool:
+    if not detail.strip():
+        return False
+    lower = detail.lower()
+    return any(marker.lower() in lower for marker in RETRY_MARKERS)
+
+
+def pause_before_retry(pause_s: float = DEFAULT_PAUSE_S) -> None:
+    time.sleep(max(0.0, pause_s))
+
+
+def refresh_auth_for_retry(hub_url: str) -> None:
+    from lib.hub_auth import refresh_hub_auth_after_restart
+
+    refresh_hub_auth_after_restart(hub_url.rstrip("/"))
+
+
+def maybe_retry_after_failure(
+    hub_url: str,
+    scenario_name: str,
+    detail: str,
+    attempt: int,
+    *,
+    max_attempts: int = 2,
+) -> bool:
+    """Return True when the caller should run the scenario again."""
+    if attempt >= max_attempts:
+        return False
+    if not flake_retry_enabled():
+        return False
+    if not is_retryable_failure(detail):
+        return False
+    print(
+        f"\n>>> flake retry {attempt + 1}/{max_attempts - 1} for {scenario_name}: {detail[:160]}",
+        flush=True,
+    )
+    refresh_auth_for_retry(hub_url)
+    pause_before_retry()
+    return True

@@ -27,13 +27,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from lib import collab_hub as hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
+from lib.regression_boot import maybe_boot_regression  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
-from lib.scenario_flake_retry import (  # noqa: E402
-    detail_is_flake,
-    flake_retry_enabled,
-    flake_retry_sleep_s,
-    output_is_flake,
-)
 from lib.scenario_assert import (  # noqa: E402
     check_file_deliverable,
     check_text_patterns,
@@ -906,14 +901,15 @@ def run_step(ctx: ScenarioContext, step: dict, label: str) -> bool:
         dump_transcript(ctx)
         if action == "wait_discussion":
             required = step.get("required_agents") or ctx.scenario.get("required_agents") or []
-            diag = hub.discussion_diagnosis(
-                ctx.base,
-                ctx.collab_channel,
-                required_agents=required,
-                collab_id=ctx.collab_id,
+            print(
+                hub.discussion_diagnosis(
+                    ctx.base,
+                    ctx.collab_channel,
+                    required_agents=required,
+                    collab_id=ctx.collab_id,
+                ),
+                file=sys.stderr,
             )
-            ctx.last_failure = f"{detail}\n{diag}"
-            print(diag, file=sys.stderr)
     return ok
 
 
@@ -1258,8 +1254,40 @@ def run_scenario(
     agents_override: str | None = None,
     verbose: bool = False,
     keep: bool = False,
-    flake_retry: bool = True,
 ) -> bool:
+    from lib.scenario_flake_retry import maybe_retry_after_failure
+
+    last_detail = ""
+    for attempt in range(1, 3):
+        ok, last_detail = _run_scenario_once(
+            base,
+            name,
+            profile=profile,
+            agents_override=agents_override,
+            verbose=verbose,
+            keep=keep,
+        )
+        if ok:
+            return True
+        if not maybe_retry_after_failure(
+            base,
+            name,
+            last_detail or f"collab scenario {name} failed",
+            attempt,
+        ):
+            break
+    return False
+
+
+def _run_scenario_once(
+    base: str,
+    name: str,
+    *,
+    profile: str | None = None,
+    agents_override: str | None = None,
+    verbose: bool = False,
+    keep: bool = False,
+) -> tuple[bool, str]:
     scenario = load_scenario(name)
     ctx = ScenarioContext(base, scenario, verbose)
     channel = ctx.channel
@@ -1270,11 +1298,11 @@ def run_scenario(
 
     try:
         if not ensure_hub_ready(base, f"collab:{name}"):
-            return False
+            return False, "hub not healthy"
 
         if not hub.ensure_channel(base, channel):
             print(f"  FAIL: could not ensure channel {channel!r}", file=sys.stderr)
-            return False
+            return False, f"could not ensure channel {channel!r}"
 
         collab_roster = hub.collaborate_agent_names(scenario, agents)
         if collab_roster:
@@ -1286,7 +1314,7 @@ def run_scenario(
                     f"  FAIL: could not join agents to {channel!r}: {', '.join(failed_join)}",
                     file=sys.stderr,
                 )
-                return False
+                return False, f"could not join agents: {', '.join(failed_join)}"
 
         required = scenario.get("required_agents") or []
         if required:
@@ -1294,10 +1322,10 @@ def run_scenario(
             if not ok_agents:
                 if scenario.get("optional"):
                     print(f"  SKIP (optional): required agents offline: {', '.join(missing)}")
-                    return True
+                    return True, "optional skip"
                 print(f"  FAIL: required agents offline: {', '.join(missing)}", file=sys.stderr)
                 print("  Start hub with CLI agents or set NJ_COLLAB_SCENARIO_AGENTS", file=sys.stderr)
-                return False
+                return False, f"required agents offline: {', '.join(missing)}"
 
         collab_agents = hub.collaborate_agent_names(scenario, agents)
         if collab_agents:
@@ -1305,30 +1333,30 @@ def run_scenario(
             if not ok_collab:
                 if scenario.get("optional"):
                     print(f"  SKIP (optional): collaborate agents offline: {', '.join(missing_collab)}")
-                    return True
+                    return True, "optional skip"
                 print(
                     f"  FAIL: collaborate agents offline: {', '.join(missing_collab)}",
                     file=sys.stderr,
                 )
                 print(f"  collaborate roster: {', '.join(collab_agents)}", file=sys.stderr)
-                return False
+                return False, f"collaborate agents offline: {', '.join(missing_collab)}"
 
         if not hub.free_scenario_capacity(base, channel):
             print("  FAIL: collab capacity full", file=sys.stderr)
-            return False
+            return False, "collab capacity full"
 
         if not run_solo_parity_leg(ctx, scenario):
             print(f"=== FAIL: {name} (solo leg) ===\n", file=sys.stderr)
-            return False
+            return False, f"{name} solo leg failed"
 
         setup = scenario.get("setup")
         if isinstance(setup, dict) and setup.get("action") == "executing_blocker":
             if not run_setup_blocker(ctx, setup, agents):
-                return False
+                return False, "executing_blocker setup failed"
 
         started = start_collaboration(ctx, channel, scenario, agents)
         if not started:
-            return False
+            return False, "start_collaboration failed"
         ctx.collab_id, ctx.collab_channel = started
         print(f"  started collab {ctx.collab_id[:8]} → {ctx.collab_channel}")
 
@@ -1341,30 +1369,9 @@ def run_scenario(
 
         if all_ok:
             print(f"=== PASS: {name} ===\n")
-        else:
-            print(f"=== FAIL: {name} ===\n", file=sys.stderr)
-        if (
-            not all_ok
-            and flake_retry
-            and flake_retry_enabled()
-            and output_is_flake(ctx.last_failure, kind="collab")
-        ):
-            print(
-                f"  flake retry ({ctx.last_failure.splitlines()[0]}); "
-                f"sleeping {flake_retry_sleep_s():.0f}s",
-                file=sys.stderr,
-            )
-            time.sleep(flake_retry_sleep_s())
-            return run_scenario(
-                base,
-                name,
-                profile=profile,
-                agents_override=agents_override,
-                verbose=verbose,
-                keep=keep,
-                flake_retry=False,
-            )
-        return all_ok
+            return True, ""
+        print(f"=== FAIL: {name} ===\n", file=sys.stderr)
+        return False, ctx.last_failure or f"scenario {name} failed"
     finally:
         cleanup = scenario.get("cleanup", "cancel")
         if cleanup == "cancel":
@@ -1392,6 +1399,8 @@ def main() -> int:
         return 0
 
     base = args.hub.rstrip("/")
+    if not maybe_boot_regression(base, root=ROOT, label="collab-scenarios"):
+        return 1
     if args.all:
         preflight_regression_run(ROOT, base, label="collab-scenarios preflight")
         names = list_scenarios()

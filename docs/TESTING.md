@@ -1,5 +1,36 @@
 # Testing
 
+**Start here:** `make release-help` — canonical list of release/testing commands (layers, overnight, full gate).
+
+## Layered release workflow (beta.27+)
+
+Test and fix **one layer at a time** before running the full ~30h `release-prep` gate:
+
+```bash
+make layer-list                         # layers in order + time estimates
+make layer-gate LAYER=ci                # fast CI smoke (no hub)
+make layer-gate LAYER=implement         # implement-scenarios (20/20)
+make layer-gate LAYER=chat              # chat + conversation regression
+make layer-gate LAYER=collab            # collab edge-case regression (~11)
+make layer-gate LAYER=collab-full       # full collab sweep (~15, 1–3h)
+make layer-gate LAYER=bundle            # implement + chat + conversation
+make layer-gate LAYER=parity            # 3× implement with hub restart
+make layer-climb                        # run layers in order until first failure
+```
+
+**Automated fix loop** (layer test → Cursor agent → commit → targeted verify):
+
+```bash
+make layer-fix-loop LAYER=chat          # DRY_RUN=1 MAX_ITER=3 NO_COMMIT=1 …
+make layer-overnight LAYER=implement    # walk-away layer fix loop (tmux)
+```
+
+Reports: `docs/testing/layer-gate-<layer>-*.md` and `layer-fix-loop-*.md`.
+
+**Breaking change:** `make chat-scenarios-regression` and `make conversation-scenarios-regression` are removed — use `make layer-gate LAYER=chat` (scripts still run internally).
+
+**One command:** Live test targets (`layer-gate`, `layer-fix-loop`, `implement-scenarios`, `release-prep`, etc.) automatically start Ollama, warm models, and boot the regression hub. No separate `ollama serve` / `make server-regression` required. Set `SKIP_BOOT=1` to skip when the stack is already up.
+
 ## North star: Cursor-like agent behavior
 
 Neural Junkie tests are the contract for **Cursor-like parity** on this platform: workspace-aware replies, substantive coding answers, every collab participant contributing when invited, deliverables on real paths, and the same agent stack in chat, IDE layout, collab, and Slack.
@@ -9,7 +40,7 @@ When a live scenario fails, triage **product/hub/agent behavior first**, harness
 | Behavior | Implementation | Verified by |
 |----------|----------------|-------------|
 | Workspace / open-file awareness | [CONTEXT_MODEL.md](CONTEXT_MODEL.md), [IDE_V3.md](IDE_V3.md) | `make chat-scenarios-debug` (`assert_debug_context`); `dm-backend-workspace`, `public-backend-theme-workspace` |
-| Substantive coding replies | Intent routing, specialist prompts | `make chat-scenarios-regression`, DM task scenarios |
+| Substantive coding replies | Intent routing, specialist prompts | `make layer-gate LAYER=chat`, DM task scenarios |
 | `@codebase` semantic search | `internal/codeindex`, `POST /api/repo/search/semantic` | `dm-backend-codebase-semantic` |
 | IDE routing from open file | `ide_route_agent_type` metadata | `dm-ide-route-backend` |
 | Workspace MCP tools (read/grep/glob) | `internal/mcp/workspace` | manual IDE Agent mode |
@@ -39,14 +70,11 @@ See also [CHAT_SCENARIOS.md](CHAT_SCENARIOS.md) and [COLLABORATION.md](COLLABORA
 **Gate:** `make implement-scenarios` with a regression hub and Ollama tool model (`qwen3.5:9b` or Settings → Implementation tool model).
 
 ```bash
-ollama serve
+ollama serve   # optional — live targets boot Ollama automatically
 ollama pull qwen3.5:9b    # specialists, tool loop, and utility (OLLAMA_CODE_MODEL / OLLAMA_MODEL)
-make server-regression         # terminal 1
-make agents                    # terminal 1b — picks up env.local models
-make implement-scenarios       # terminal 2 — need 20/20 PASS
+make layer-gate LAYER=implement         # boots stack + runs implement-scenarios (20/20)
 make parity-scenarios          # Cursor parity contract (scenarios/parity/)
-make test-parity-full-restart  # implement + parity, 3× with hub restart
-make test-parity-stable        # optional — 3× sweeps at 20/20 under server-regression
+make layer-gate LAYER=parity   # 3× implement with hub restart
 ```
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
@@ -61,12 +89,13 @@ make test-parity-stable              # 3× back-to-back (may OOM hub)
 make test-parity-stable-restart      # 3× with hub restart between sweeps
 ```
 
-**Regression bundle (beta.25+):** implement + chat + conversation in one run:
+**Regression bundle (beta.25+):** implement + chat + conversation in one run — prefer the **chat** or **bundle** layer:
 
 ```bash
 make server-regression
-make test-regression-bundle
-# log: docs/testing/regression-bundle-*.log
+make layer-gate LAYER=bundle
+# report: docs/testing/layer-gate-bundle-*.md
+# legacy alias (hidden from make help): make test-regression-bundle
 ```
 
 **Full test sweep (beta.26+):** CI smoke + live harness in one run; reviewable summary + full log:
@@ -89,12 +118,19 @@ make release-prep VERBOSE=1
 **Overnight (walk away):** one command before bed — starts Ollama if needed, detaches in tmux, keeps the Mac awake, tees a log, and runs the full release gate:
 
 ```bash
-make overnight-release-prep
-# tmux session: nj-release-prep  |  log: ~/nj-overnight-YYYYMMDD-HHMM.log
-# attach: tmux attach -t nj-release-prep
-# lighter weeknight: make overnight-release-prep NJ_OVERNIGHT_TARGET=test-everything-full SKIP_PARITY=1 SKIP_BENCHMARK=1
-# foreground (already in tmux): make overnight-release-prep IN_TMUX=0
-# pre-pull models first: make overnight-release-prep PULL=1
+make overnight
+# tmux session: nj-overnight  |  log: ~/nj-overnight-YYYYMMDD-HHMM.log
+# attach: tmux attach -t nj-overnight
+# lighter weeknight: make overnight NJ_OVERNIGHT_TARGET=test-everything-full SKIP_PARITY=1 SKIP_BENCHMARK=1
+# full fix loop: make overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop
+# foreground (already in tmux): make overnight IN_TMUX=0
+# pre-pull models first: make overnight PULL=1
+```
+
+**Layer overnight** (fix one layer while you sleep):
+
+```bash
+make layer-overnight LAYER=chat
 ```
 
 `make release-prep` automatically:
@@ -104,7 +140,7 @@ make overnight-release-prep
 - Verifies hub health + judge smoke (restarts regression hub once if needed)
 - Runs `collab-preflight --require-gemini` before the long phases
 
-Prerequisites: Ollama (started automatically by `make overnight-release-prep`; otherwise `ollama serve`) + `ollama pull qwen2.5-coder:14b` (fallback judge). Optional: `.gemini-api-key` for cloud judge when quota allows. Hub and in-process specialists are started by `release-prep` — no separate `make server-regression` / `make agents` required.
+Prerequisites: Ollama (started automatically by live test commands and `make overnight`). `ollama pull qwen2.5-coder:14b` recommended (fallback judge). Optional: `.gemini-api-key` for cloud judge when quota allows.
 
 **Deliverable judge:** tries hub Gemini first; on quota/API errors falls back to local Ollama so sweeps keep running.
 
@@ -134,7 +170,7 @@ make model-benchmark SUITE=quick MODELS='qwen2.5-coder:14b,qwen3.5:9b'
 |-------------------------------|--------------------------------|
 | Go + desktop unit tests | Multi-agent LLM discussion quality |
 | Hub wiring, plan parser, collab API smoke | Full 15-scenario `collab-scenarios-all` sweep |
-| Slack handler mocks (`slack-smoke`) | `chat-scenarios-regression` / `chat-scenarios-debug` |
+| Slack handler mocks (`slack-smoke`) | `make layer-gate LAYER=chat`, `chat-scenarios-debug` |
 | `collab-smoke`, `learning-lora-smoke` | `learning-scenarios`, file deliverables on disk |
 | No Ollama, no 1–3h serial LLM work | Phoenix repo paths (`NEURAL_JUNKIE_SCENARIO_REPO`) |
 
@@ -148,18 +184,19 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 2. `ollama serve` and `ollama pull qwen3.5:9b` (specialists + tool loop; set `OLLAMA_CODE_MODEL=qwen3.5:9b` in `env.local`).
 3. **Hub:** `make server-regression` — sets `NEURAL_JUNKIE_RATE_LIMIT=0` and `NEURAL_JUNKIE_DEBUG=1` on the **server process** (not only scenario clients). Never use `make start-all` for sweeps.
 4. `make collab-preflight` — hub, Ollama, default agents; add `REQUIRE_GEMINI=1` when running `resource-api-schema-planning`.
-5. **`make test-regression-bundle`** — implement (20/20) + `chat-scenarios-regression` + `conversation-scenarios-regression` (18 chat + 6 collab conversation scenarios); log under `docs/testing/regression-bundle-*.log`
-6. Optional: **`make test-parity-stable-restart`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)
+5. **`make layer-climb`** — runs `ci` → `implement` → `chat` → `collab` → … until first failure; or gate individually: `make layer-gate LAYER=bundle` (implement + chat + conversation)
+6. Optional: **`make layer-gate LAYER=parity`** — 3× implement with hub restart between sweeps (avoids OOM on memory-limited hosts)
 7. `make chat-scenarios-debug`
-8. `make collab-scenarios-all` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
+8. `make layer-gate LAYER=collab-full` — 15 scenarios, serial, ~1–3h; archive log under `docs/testing/`.
 9. `make learning-scenarios`
 10. Optional: `collab-scenario-matrix`, `collab-routing-matrix`, Phoenix with `NEURAL_JUNKIE_SCENARIO_REPO=/path/to/clone`
 11. Optional: `LIVE=1 make slack-smoke` (runs `scripts/slack-live-smoke.sh`)
 12. Optional: `@Cursor` smoke when `agent` binary on PATH
+13. **Full gate** (only after layers pass): `make release-prep` or `make overnight`
 
-Individual gates (same hub): `make implement-scenarios`, `make chat-scenarios-regression`, `make conversation-scenarios-regression`.
+Individual gates (same hub): `make implement-scenarios`, `make layer-gate LAYER=chat`.
 
-Quick reference: `make test-regression-live` prints the live steps.
+Quick reference: `make release-help` prints the live workflow.
 
 ### Hub vs client rate limit
 

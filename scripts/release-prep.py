@@ -21,7 +21,7 @@ PY = sys.executable
 sys.path.insert(0, str(SCRIPTS_DIR))
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
-from lib.release_prep_hub import ensure_hub_for_release_prep  # noqa: E402
+from lib.regression_boot import maybe_boot_regression  # noqa: E402
 from lib.hub_regression import recover_regression_hub, read_recovery_log_text, restart_regression_hub, wait_for_hub  # noqa: E402
 
 REVIEW_RE = re.compile(r"^Review:\s+(.+)$", re.MULTILINE)
@@ -268,15 +268,16 @@ def main() -> int:
     print(f"release-prep → {testing_dir}/release-prep-{stamp}.{{md,log}}")
 
     if not args.skip_live:
-        print("\n>>> [release-prep setup] env + hub + Gemini judge")
-        if not ensure_hub_for_release_prep(
+        print("\n>>> [release-prep setup] full regression boot")
+        if not maybe_boot_regression(
             hub_url,
             root=ROOT,
-            allow_restart=not args.no_restart_hub,
-            verbose=args.verbose,
+            label="release-prep",
+            ready_smoke=True,
+            no_restart_hub=args.no_restart_hub,
         ):
             write_reports(report, testing_dir)
-            print("Release prep aborted: hub/Gemini judge not ready.", file=sys.stderr)
+            print("Release prep aborted: regression boot failed.", file=sys.stderr)
             return 1
         preflight_regression_run(ROOT, hub_url, label="release-prep preflight")
         preflight_cmd = [
@@ -312,7 +313,7 @@ def main() -> int:
             te_cmd.append("--skip-live")
         if args.verbose:
             te_cmd.append("--verbose")
-        phase = run_phase("test-everything", te_cmd, env=hub_recovery_env)
+        phase = run_phase("test-everything", te_cmd, env={**hub_recovery_env, "SKIP_BOOT": "1"})
         review = first_match(REVIEW_RE, phase.output)
         log_file = first_match(LOG_RE, phase.output)
         if review:

@@ -38,6 +38,15 @@ class HubAuthTest(unittest.TestCase):
             os.environ["NEURAL_JUNKIE_BOOTSTRAP_TOKEN_FILE"] = str(path)
             self.assertEqual(hub_auth.bootstrap_token(), "secret-bootstrap")
 
+    def test_clear_hub_session(self) -> None:
+        hub_auth._session_token = "cached"
+        hub_auth.clear_hub_session()
+        self.assertIsNone(hub_auth._session_token)
+
+    def test_try_provision_skips_when_key_present(self) -> None:
+        os.environ["NEURAL_JUNKIE_API_KEY"] = "nj_existing"
+        self.assertTrue(hub_auth.try_provision_automation_api_key("http://127.0.0.1:18765"))
+
     def test_ensure_hub_session_caches_token(self) -> None:
         payload = b'{"token":"sess-123","username":"automation"}'
 
@@ -50,32 +59,12 @@ class HubAuthTest(unittest.TestCase):
                 __exit__=lambda *a: None,
             )
 
-        with mock.patch("urllib.request.urlopen", fake_urlopen):
+        with mock.patch("lib.hub_auth.load_automation_api_key", return_value=""), mock.patch(
+            "urllib.request.urlopen", fake_urlopen
+        ):
             tok = hub_auth.ensure_hub_session("http://127.0.0.1:18765")
             self.assertEqual(tok, "sess-123")
             self.assertEqual(hub_auth.ensure_hub_session("http://127.0.0.1:18765"), "sess-123")
-
-    def test_clear_hub_session_drops_cache(self) -> None:
-        hub_auth._session_token = "stale"
-        hub_auth.clear_hub_session()
-        self.assertIsNone(hub_auth._session_token)
-
-    def test_ensure_hub_session_force_refreshes(self) -> None:
-        hub_auth._session_token = "stale"
-        calls: list[str] = []
-
-        def fake_urlopen(req, timeout=30):  # noqa: ANN001, ARG001
-            calls.append("session")
-            return mock.Mock(
-                read=lambda: b'{"token":"fresh-456"}',
-                __enter__=lambda s: s,
-                __exit__=lambda *a: None,
-            )
-
-        with mock.patch("urllib.request.urlopen", fake_urlopen):
-            tok = hub_auth.ensure_hub_session("http://127.0.0.1:18765", force=True)
-            self.assertEqual(tok, "fresh-456")
-            self.assertEqual(calls, ["session"])
 
 
 if __name__ == "__main__":

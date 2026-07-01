@@ -69,7 +69,7 @@ Main workspace — files, editor, multi-agent collaboration, and chat (same as t
 
 ## Install (download)
 
-**Beta:** [GitHub Releases — v1.2.0-beta.4](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.4) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
+**Beta:** [GitHub Releases — v1.2.0-beta.3](https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.3) or the [downloads page](https://camronwood.github.io/neural-junkie/download.html) — pick the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -258,7 +258,7 @@ Full index: **[DOCS.md](DOCS.md)** (`make docs` prints the same file).
 | **[Architecture](docs/ARCHITECTURE.md)** | System design, data flow, patterns |
 | **[Repo Agents](docs/REPO_AGENTS.md)** | Repository indexing and analysis |
 | **[CLI Agents](docs/CLI_AGENTS.md)** | Cursor CLI and custom CLI integrations |
-| **[Testing](docs/TESTING.md)** | Scenario gates and parity contract |
+| **[Testing](docs/TESTING.md)** | Layered scenario gates — start with `make release-help` |
 | **[Contributing](CONTRIBUTING.md)** | How to contribute and run test gates |
 | **[Changelog](docs/CHANGELOG.md)** | Version history |
 | **[Known issues](docs/KNOWN_ISSUES.md)** | Beta limitations and workarounds |

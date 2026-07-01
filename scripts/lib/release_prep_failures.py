@@ -25,6 +25,8 @@ FLAKE_MARKERS = (
     "could not complete this turn",
     "timeout waiting for phase",
     "timeout waiting for",
+    "send failed (401)",
+    "send failed (0)",
     "Sorry, I encountered an error",
     "wait_discussion attempt",
     "RemoteDisconnected",
@@ -33,9 +35,6 @@ FLAKE_MARKERS = (
     "rate limit",
     "no collaboration_discussion",
     "silent or shouldrespond blocked",
-    "generation_error",
-    "encountered an error while generating",
-    "timed out before completion",
 )
 
 INFRA_MARKERS = (
@@ -43,12 +42,10 @@ INFRA_MARKERS = (
     "hub unhealthy",
     "hub recovery exhausted",
     "hub restart failed",
+    "send failed (401)",
     "panic:",
     "OOM",
     "out of memory",
-    "401",
-    "unauthorized",
-    "send failed",
 )
 
 CI_STAGES = {

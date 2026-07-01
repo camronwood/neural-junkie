@@ -1,4 +1,4 @@
-.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep overnight-release-prep ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
+.PHONY: help build run-server run-agents run-all demo clean docs stop refresh test test-go test-all test-messages slack-vendor-check slack-vendor-json gallery-sync articles-sync site-nav-sync deps-lora server-regression server-debug collab-scenarios-all collab-preflight slack-smoke release-help test-regression-live chat-scenarios-debug test-parity-stable test-parity-stable-restart test-parity-full-restart parity-scenarios parity-scenarios-list test-regression-bundle test-conversation-contract test-everything test-everything-full release-prep release-prep-fix-loop layer-gate layer-fix-loop layer-list layer-climb layer-overnight overnight overnight-release-prep overnight-release-prep-fix-loop ensure-ollama-models-ready slack-oauth-relay-deploy-cf slack-oauth-relay-deploy
 
 # Bundled Neural Junkie Slack app (maintainer: ../../sandbox/scripts/slack-creds-to-vendor.sh)
 SLACK_VENDOR_JSON := internal/integrations/slack/vendor/oauth.json
@@ -20,10 +20,54 @@ help: ## Show this help
 	@echo "Neural Junkie - Multi-Agent Collaboration System"
 	@echo ""
 	@echo "Quick Start: make gui  (first time: make gui-install)"
+	@echo "Release/testing workflow: make release-help"
 	@echo "Documentation: make docs"
 	@echo ""
 	@echo "Available targets:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		grep -Ev '^(overnight-release-prep|overnight-release-prep-fix-loop|test-regression-live|test-regression-bundle|chat-scenarios-regression|conversation-scenarios-regression):' | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-22s %s\n", $$1, $$2}'
+
+release-help: ## Release & testing workflow — start here (layers, overnight, full gate)
+	@echo "Neural Junkie — release & testing commands"
+	@echo "=========================================="
+	@echo ""
+	@echo "PRIMARY (use these day-to-day — each boots Ollama + hub automatically)"
+	@echo "  make layer-list                         # layers in order + time estimates"
+	@echo "  make layer-gate LAYER=implement         # test ONE layer (~15m–3h)"
+	@echo "  make layer-fix-loop LAYER=chat          # layer test → Cursor fix → verify"
+	@echo "  make layer-climb                        # run layers until first failure"
+	@echo "  make overnight                          # walk-away full release-prep (tmux)"
+	@echo "  make layer-overnight LAYER=implement    # walk-away layer fix loop"
+	@echo ""
+	@echo "FULL GATE (only after layers pass)"
+	@echo "  make release-prep                       # test-everything-full + parity + benchmark"
+	@echo "  make release-prep-fix-loop              # full gate + Cursor agent fix loop"
+	@echo "  make overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop"
+	@echo ""
+	@echo "CI (fast, no hub)"
+	@echo "  make test-all                           # vet + Go + desktop tsc + Vitest"
+	@echo "  make test-conversation-contract         # agent/hub/desktop wiring"
+	@echo "  make test-scenario-assert               # scenario contract unit tests"
+	@echo ""
+	@echo "LAYERS (make layer-gate LAYER=<name>)"
+	@echo "  ci            test-all + conversation-contract"
+	@echo "  implement     implement-scenarios (20/20)"
+	@echo "  chat          chat + conversation regression"
+	@echo "  collab        collab edge-case regression (~11)"
+	@echo "  collab-full   all collab scenarios (~15)"
+	@echo "  bundle        implement + chat + conversation"
+	@echo "  parity        3x implement with hub restart"
+	@echo ""
+	@echo "DEBUG (single scenario)"
+	@echo "  make implement-scenario SCENARIO=go-handler"
+	@echo "  make chat-scenario SCENARIO=thanks-closure"
+	@echo "  make collab-scenario SCENARIO=planning-two-agent"
+	@echo "  make *-scenarios-list                   # list scenario names"
+	@echo ""
+	@echo "Details: docs/TESTING.md"
+
+test-regression-live: release-help
 
 docs: ## Show documentation guide
 	@cat DOCS.md
@@ -115,25 +159,6 @@ slack-smoke: ## Slack integration + hub /api/slack handler smoke (CI-safe; LIVE=
 collab-preflight: ## Fail-fast checks before collab-scenarios-all (hub, Ollama, agents, scenario list)
 	@bash -c 'source load-env.sh && python3 scripts/collab-preflight.py $(if $(REQUIRE_GEMINI),--require-gemini,)'
 
-test-regression-live: ## Print pre-release live regression checklist (does not start hub)
-	@echo "Pre-release live regression (see docs/TESTING.md):"
-	@echo ""
-	@echo "  make release-prep                 # one-shot: env+Gemini judge + test-everything-full + parity + benchmark"
-	@echo "  make overnight-release-prep       # walk-away: Ollama + tmux + caffeinate + release-prep"
-	@echo "  make test-everything              # CI + live harness; review docs/testing/test-everything-*.md"
-	@echo "  make test-everything-full         # above + all collab scenarios (~1-3h extra)"
-	@echo ""
-	@echo "  0. ollama serve  &&  make pull-benchmark-models   # quick suite, ≤24B models"
-	@echo "  0b. make release-prep             # auto-loads .gemini-api-key, verifies hub judge, runs full gate"
-	@echo "  1. make server-regression     # hub: RATE_LIMIT=0 + DEBUG=1"
-	@echo "  2. Agents online (specialists + Gemini for resource-api-schema-planning)"
-	@echo "  3. make test-regression-bundle   # implement + chat + conversation (~30-60m)"
-	@echo "  4. make test-parity-stable-restart  # optional: 3x implement with hub restart"
-	@echo "  5. make chat-scenarios-debug"
-	@echo "  6. make collab-scenarios-all  # ~1-3h serial"
-	@echo "  7. make learning-scenarios"
-	@echo "  Optional: LIVE=1 make slack-smoke, collab matrices, NEURAL_JUNKIE_SCENARIO_REPO=..."
-
 learning-lora-smoke: ## Personal learning + LoRA expert-context smoke (CI, no GPU)
 	@go test ./cmd/server/ -run TestLearningLoRASmoke -count=1
 	@go test ./internal/learning/... -count=1
@@ -184,7 +209,7 @@ collab-parity: ## Solo vs collab deliverable parity on minimal-repo fixture
 		$(if $(PROFILE),--profile $(PROFILE),--profile fast,) \
 		$(if $(VERBOSE),--verbose,)
 
-collab-scenario-regression: ## Run collab edge-case regression scenarios (plan parser + execution guards)
+collab-scenario-regression: ## Collab edge-case regression (~11 scenarios; prefer: make layer-gate LAYER=collab)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-dependency-prose-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-findings-task-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-distinct-deliverables-same-agent $(if $(VERBOSE),--verbose,)
@@ -196,9 +221,9 @@ collab-scenario-regression: ## Run collab edge-case regression scenarios (plan p
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collaboration-station-website-sa $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario make-me-a-website $(if $(VERBOSE),--verbose,)
 
-conversation-scenarios-regression: ## Chat workspace + collab conversation quality (session-issue guards)
-	@chmod +x scripts/conversation-scenarios-regression.py
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/conversation-scenarios-regression.py $(if $(VERBOSE),--verbose,)
+conversation-scenarios-regression:
+	@echo "Use: make layer-gate LAYER=chat  (chat + conversation regression are the chat layer)" >&2
+	@exit 1
 
 test-collab-plan: ## Deterministic Go tests for collab plan parsing regressions (CI-safe)
 	@go test ./internal/collaboration/... ./internal/hub/... -count=1 -run 'Regression|DependencyProse|Findings|4ea36409|f7518f88|DocumentFindings|DistinctDeliverable|StackTool|FilterCollab|SuppressMCP'
@@ -229,7 +254,7 @@ test-conversation-contract: ## CI-safe conversation + collab wiring contract (ag
 	  src/components/CollaborationPanel.test.tsx
 
 test-scenario-assert: ## Python unit tests for scenario assertion + deliverable contracts
-	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py scenario_flake_retry_test.py
+	@cd scripts/lib && PYTHONPATH=.. python3 -m unittest scenario_assert_test.py scenario_contract_test.py collab_hub_test.py hub_regression_test.py hub_auth_test.py release_prep_failures_test.py fix_loop_git_test.py hub_cleanup_test.py scenario_flake_retry_test.py release_prep_layers_test.py
 	@PYTHONPATH=scripts python3 scripts/lib/scenario_contract.py
 
 chat-scenario: ## Run one live chat scenario (SCENARIO=greeting-chat-mode, KEEP=1)
@@ -246,9 +271,9 @@ chat-scenarios-dm: ## Run DM chat scenarios only (--tag dm)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag dm \
 		$(if $(VERBOSE),--verbose,)
 
-chat-scenarios-regression: ## Run regression-tagged chat scenarios (workspace, echo, closure)
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag regression \
-		$(if $(VERBOSE),--verbose,)
+chat-scenarios-regression:
+	@echo "Use: make layer-gate LAYER=chat  (chat + conversation regression are the chat layer)" >&2
+	@exit 1
 
 chat-scenarios-debug: ## Run debug-tagged chat scenarios (requires hub: make server-regression)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/chat-scenarios.py --all --tag debug --require-debug \
@@ -295,10 +320,8 @@ test-parity-stable-stress: ## Run implement-scenarios 3x back-to-back (may OOM h
 
 test-parity-stable-restart: test-parity-stable ## Alias for stable gate (restart between sweeps)
 
-test-regression-bundle: ## Live bundle: implement + chat-regression + conversation-regression
-	@chmod +x scripts/regression-bundle.py
-	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/regression-bundle.py \
-		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" $(if $(VERBOSE),--verbose,)
+test-regression-bundle:
+	@$(MAKE) layer-gate LAYER=bundle VERBOSE=$(VERBOSE) NO_RESTART_HUB=$(NO_RESTART_HUB)
 
 test-everything: ## CI smoke + live harness; writes docs/testing/test-everything-*.md (SKIP_LIVE=1 CI-only; FULL=1 all collab)
 	@chmod +x scripts/test-everything.py
@@ -312,8 +335,77 @@ test-everything: ## CI smoke + live harness; writes docs/testing/test-everything
 test-everything-full: ## test-everything with FULL=1 (includes collab-scenarios-all, ~1-3h)
 	@$(MAKE) test-everything FULL=1 $(if $(VERBOSE),VERBOSE=1,) $(if $(CONTINUE),CONTINUE=1,)
 
+overnight: ## Walk-away clean gate: reset + hub + preflight + release-prep in tmux (see scripts/overnight.sh)
+	@chmod +x scripts/overnight.sh scripts/ensure-ollama-models-ready.py
+	@NJ_OVERNIGHT_TARGET='$(or $(NJ_OVERNIGHT_TARGET),release-prep)' \
+	 BENCHMARK_SUITE='$(or $(BENCHMARK_SUITE),release)' \
+	 NO_PULL='$(or $(NO_PULL),1)' \
+	 SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
+	 NO_FULL='$(NO_FULL)' SKIP_EVERYTHING='$(SKIP_EVERYTHING)' \
+	 BENCHMARK_MODELS='$(BENCHMARK_MODELS)' BENCHMARK_ALLOW_LARGE='$(BENCHMARK_ALLOW_LARGE)' \
+	 NO_RESTART_HUB='$(NO_RESTART_HUB)' VERBOSE='$(VERBOSE)' STOP_ON_FAIL='$(STOP_ON_FAIL)' \
+	 PULL='$(PULL)' NJ_OVERNIGHT_KEEP_ALIVE='$(NJ_OVERNIGHT_KEEP_ALIVE)' \
+	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' IN_TMUX='$(IN_TMUX)' \
+	 NJ_OVERNIGHT_SESSION='$(NJ_OVERNIGHT_SESSION)' NJ_OVERNIGHT_LOG='$(NJ_OVERNIGHT_LOG)' \
+	 MAX_ITER='$(MAX_ITER)' REPORT='$(REPORT)' SKIP_RELEASE_PREP='$(SKIP_RELEASE_PREP)' \
+	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
+	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
+	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
+	 LAYER='$(LAYER)' SKIP_GATE='$(SKIP_GATE)' \
+	 ./scripts/overnight.sh
+
+layer-list: ## List release-prep layers in recommended order (ci → implement → … → parity)
+	@chmod +x scripts/layer-gate.py
+	@python3 scripts/layer-gate.py --layer ci --list
+
+layer-climb: ## Run layers in order until one fails (ci → implement → chat → collab → collab-full → bundle → parity)
+	@set -e; for layer in ci implement chat collab collab-full bundle parity; do \
+	  echo "=== layer-climb: $$layer ==="; \
+	  $(MAKE) layer-gate LAYER=$$layer VERBOSE=$(VERBOSE) NO_RESTART_HUB=$(NO_RESTART_HUB) || exit $$?; \
+	done; \
+	echo "=== layer-climb: all layers PASS ==="
+
+layer-gate: ## Run one layer gate (LAYER=ci|implement|chat|collab|collab-full|bundle|parity)
+	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-gate LAYER=implement [VERBOSE=1] [NO_RESTART_HUB=1]"; $(MAKE) layer-list; exit 1; fi
+	@chmod +x scripts/layer-gate.py
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/layer-gate.py \
+		--layer "$(LAYER)" \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(NO_RESTART_HUB),--no-restart-hub,)'
+
+layer-fix-loop: ## Layer gate + Cursor agent fix loop (LAYER=implement MAX_ITER=3 DRY_RUN=1)
+	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-fix-loop LAYER=implement [MAX_ITER=3] [DRY_RUN=1] [NO_COMMIT=1]"; $(MAKE) layer-list; exit 1; fi
+	@chmod +x scripts/layer-fix-loop.py scripts/layer-gate.py
+	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/layer-fix-loop.py \
+		--layer "$(LAYER)" \
+		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
+		--max-iterations $${MAX_ITER:-3} \
+		$(if $(REPORT),--report "$(REPORT)",) \
+		$(if $(SKIP_GATE),--skip-gate,) \
+		$(if $(SKIP_AGENT),--skip-agent,) \
+		$(if $(SKIP_VERIFY),--skip-verify,) \
+		$(if $(DRY_RUN),--dry-run,) \
+		$(if $(NO_RESTART_HUB),--no-restart-hub,) \
+		$(if $(VERBOSE),--verbose,) \
+		$(if $(MODEL),--model "$(MODEL)",) \
+		$(if $(PREFER_SDK),--prefer-sdk,) \
+		$(if $(AGENT_TIMEOUT),--agent-timeout $(AGENT_TIMEOUT),) \
+		$(if $(NO_COMMIT),--no-commit,) \
+		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
+		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",)'
+
+layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
+	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-overnight LAYER=implement"; $(MAKE) layer-list; exit 1; fi
+	@$(MAKE) overnight NJ_OVERNIGHT_TARGET=layer-fix-loop LAYER='$(LAYER)' \
+	 MAX_ITER='$(MAX_ITER)' NO_COMMIT='$(NO_COMMIT)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
+	 REPORT='$(REPORT)' SKIP_GATE='$(SKIP_GATE)' SKIP_AGENT='$(SKIP_AGENT)' \
+	 SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' MODEL='$(MODEL)' \
+	 PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
+	 VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
+
 release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_RUN=1 SKIP_BENCHMARK=1 MAX_ITER=3 NO_COMMIT=1)
-	@chmod +x scripts/release-prep-fix-loop.py scripts/release-prep.py scripts/overnight-release-prep-fix-loop.sh
+	@chmod +x scripts/release-prep-fix-loop.py scripts/release-prep.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/release-prep-fix-loop.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
 		--max-iterations $${MAX_ITER:-3} \
@@ -324,6 +416,8 @@ release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_
 		$(if $(DRY_RUN),--dry-run,) \
 		$(if $(SKIP_BENCHMARK),--skip-benchmark,) \
 		$(if $(NO_FULL),--no-full,) \
+		$(if $(SKIP_PARITY),--skip-parity,) \
+		$(if $(SKIP_LIVE),--skip-live,) \
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(MODEL),--model "$(MODEL)",) \
 		$(if $(PREFER_SDK),--prefer-sdk,) \
@@ -332,20 +426,16 @@ release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_
 		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
 		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",)'
 
-overnight-release-prep-fix-loop: ## Walk-away fix loop: Ollama + tmux + caffeinate → ~/nj-overnight-fix-loop-*.log
-	@chmod +x scripts/overnight-release-prep-fix-loop.sh scripts/release-prep-fix-loop.py scripts/ensure-ollama-models-ready.py
-	@SKIP_BENCHMARK='$(SKIP_BENCHMARK)' NO_FULL='$(NO_FULL)' VERBOSE='$(VERBOSE)' \
+overnight-release-prep-fix-loop:
+	@$(MAKE) overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop \
 	 MAX_ITER='$(MAX_ITER)' REPORT='$(REPORT)' SKIP_RELEASE_PREP='$(SKIP_RELEASE_PREP)' \
 	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
 	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
 	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
-	 NO_PULL='$(NO_PULL)' PULL='$(PULL)' BENCHMARK_SUITE='$(BENCHMARK_SUITE)' \
-	 BENCHMARK_MODELS='$(BENCHMARK_MODELS)' BENCHMARK_ALLOW_LARGE='$(BENCHMARK_ALLOW_LARGE)' \
-	 NJ_OVERNIGHT_KEEP_ALIVE='$(NJ_OVERNIGHT_KEEP_ALIVE)' IN_TMUX='$(IN_TMUX)' \
-	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' \
-	 ./scripts/overnight-release-prep-fix-loop.sh
+	 SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
+	 NO_FULL='$(NO_FULL)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 
-release-prep: ## Full release gate: test-everything-full + parity-restart + quick benchmark (7 models) → docs/testing/release-prep-*.md
+release-prep: ## Full release gate: test-everything-full + parity-restart + release benchmark (2 models) → docs/testing/release-prep-*.md
 	@chmod +x scripts/release-prep.py scripts/test-everything.py
 	@bash -c 'source load-env.sh && NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/release-prep.py \
 		--hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}" \
@@ -362,19 +452,9 @@ release-prep: ## Full release gate: test-everything-full + parity-restart + quic
 		$(if $(VERBOSE),--verbose,) \
 		$(if $(STOP_ON_FAIL),--stop-on-fail,)'
 
-overnight-release-prep: ## Walk-away gate: ensure Ollama + tmux + caffeinate + release-prep → ~/nj-overnight-*.log (IN_TMUX=0 foreground; NO_PULL=1 skip pulls; NJ_OVERNIGHT_TARGET=test-everything-full for lighter run)
-	@chmod +x scripts/overnight-release-prep.sh scripts/ensure-ollama-models-ready.py
-	@SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
-	 NO_FULL='$(NO_FULL)' SKIP_EVERYTHING='$(SKIP_EVERYTHING)' BENCHMARK_SUITE='$(BENCHMARK_SUITE)' \
-	 BENCHMARK_MODELS='$(BENCHMARK_MODELS)' NO_PULL='$(NO_PULL)' BENCHMARK_ALLOW_LARGE='$(BENCHMARK_ALLOW_LARGE)' \
-	 NO_RESTART_HUB='$(NO_RESTART_HUB)' VERBOSE='$(VERBOSE)' STOP_ON_FAIL='$(STOP_ON_FAIL)' \
-	 IN_TMUX='$(IN_TMUX)' NJ_OVERNIGHT_TARGET='$(NJ_OVERNIGHT_TARGET)' \
-	 NJ_OVERNIGHT_KEEP_ALIVE='$(NJ_OVERNIGHT_KEEP_ALIVE)' \
-	 NJ_OVERNIGHT_LOG_DIR='$(NJ_OVERNIGHT_LOG_DIR)' NJ_OVERNIGHT_SESSION='$(NJ_OVERNIGHT_SESSION)' \
-	 NEURAL_JUNKIE_HUB_URL='$(NEURAL_JUNKIE_HUB_URL)' \
-	 ./scripts/overnight-release-prep.sh
+overnight-release-prep: overnight
 
-ensure-ollama-models-ready: ## Pull/warm/smoke Ollama models before release prep (SUITE=quick; NO_PULL=1 to skip pulls)
+ensure-ollama-models-ready: ## Pull/warm/smoke Ollama models before release prep (SUITE=release; NO_PULL=1 to skip pulls)
 	@chmod +x scripts/ensure-ollama-models-ready.py
 	@python3 scripts/ensure-ollama-models-ready.py \
 		$(if $(NO_PULL),,--pull-missing) --warm --smoke \
@@ -634,7 +714,7 @@ cleanup-test-artifacts-dry: ## Preview test artifact cleanup without deleting
 	@chmod +x ./scripts/cleanup-test-artifacts.py
 	@./scripts/cleanup-test-artifacts.py --dry-run --hub "$${NEURAL_JUNKIE_HUB_URL:-http://127.0.0.1:18765}"
 
-test: test-go ## Run Go unit tests (alias for test-go)
+test: test-all ## Run full CI suite (prefer test-all; test-go is Go-only)
 
 deps: ## Download dependencies (LoRA stack: make deps-lora when Specialist tuning pack is enabled)
 	@echo "📦 Downloading dependencies..."

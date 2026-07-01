@@ -23,6 +23,7 @@ ROOT = SCRIPTS_DIR.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
+from lib.regression_boot import maybe_boot_regression  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "learning"
 DEFAULT_HUB = os.environ.get("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765").rstrip("/")
@@ -338,6 +339,9 @@ def main() -> None:
     names = list_scenarios() if args.all else ([args.scenario] if args.scenario else [])
     if not names:
         parser.error("pass --scenario NAME or --all")
+
+    if not maybe_boot_regression(args.hub, root=ROOT, label="learning-scenarios"):
+        raise SystemExit(1)
 
     failed = 0
     for name in names:

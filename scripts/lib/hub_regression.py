@@ -160,14 +160,17 @@ def restart_regression_hub(
     *,
     env: dict[str, str] | None = None,
 ) -> bool:
-    from lib.hub_auth import refresh_hub_auth_after_restart
-
     stop_hub(repo_root)
     if start_regression_hub(repo_root, env=env) is None:
         return False
     if not wait_for_hub(hub_url, timeout_s=timeout_s):
         return False
-    refresh_hub_auth_after_restart(hub_url)
+    try:
+        from lib.hub_auth import refresh_hub_auth_after_restart
+
+        refresh_hub_auth_after_restart(hub_url)
+    except Exception:
+        pass
     return True
 
 

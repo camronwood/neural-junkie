@@ -28,7 +28,7 @@ from lib.hub_regression import (  # noqa: E402
 )
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, release_prep_env  # noqa: E402
-from lib.scenario_flake_retry import flake_retry_enabled, flake_retry_sleep_s, output_is_flake  # noqa: E402
+from lib.regression_boot import maybe_boot_regression  # noqa: E402
 
 
 @dataclass
@@ -267,34 +267,19 @@ def main() -> int:
         _print_final(report)
         return 0 if not report.failed else 1
 
-    print(f"\nWaiting for hub at {report.hub_url}...")
-    if not wait_for_hub(report.hub_url, timeout_s=30.0):
+    print(f"\n>>> Live regression boot")
+    if not maybe_boot_regression(report.hub_url, root=ROOT, label="test-everything"):
         report.results.append(
             StageResult(
-                name="hub-health",
+                name="regression-boot",
                 status="FAIL",
                 exit_code=1,
-                note="start: make server-regression && make agents",
+                note="Ollama/hub boot failed — see log above",
             )
         )
         write_reports(report, testing_dir)
         _print_final(report)
         return 1
-
-    print("Restarting regression hub before live scenario harness...")
-    if not restart_regression_hub(ROOT, report.hub_url, env=live_env):
-        report.results.append(
-            StageResult(
-                name="hub-restart",
-                status="FAIL",
-                exit_code=1,
-                note="make server-regression failed before live stages",
-            )
-        )
-        write_reports(report, testing_dir)
-        _print_final(report)
-        return 1
-    time.sleep(3.0)
 
     preflight_regression_run(ROOT, report.hub_url, label="test-everything preflight")
 
@@ -320,24 +305,6 @@ def main() -> int:
             continue
 
         result = run_cmd(name, cmd, env=env)
-        if (
-            result.status == "FAIL"
-            and flake_retry_enabled()
-            and output_is_flake(result.output, kind="any")
-        ):
-            print(
-                f"\n>>> [{name}] flake retry after failure; sleeping {flake_retry_sleep_s():.0f}s",
-                flush=True,
-            )
-            time.sleep(flake_retry_sleep_s())
-            retry = run_cmd(f"{name}-flake-retry", cmd, env=env)
-            retry.note = "retried once after flake signature in output"
-            if retry.status == "OK":
-                result.status = "OK"
-                result.note = "initial run failed (flake); retry passed"
-                result.output = (result.output or "") + "\n\n--- flake retry ---\n\n" + (retry.output or "")
-            else:
-                result.output = (result.output or "") + "\n\n--- flake retry ---\n\n" + (retry.output or "")
         report.results.append(result)
 
         if not hub_is_healthy(report.hub_url):

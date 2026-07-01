@@ -15,6 +15,8 @@ HEADLESS_GEMINI_HOME = ROOT / "scripts" / "gemini-headless-home"
 DEFAULT_OLLAMA_JUDGE_MODEL = "qwen2.5-coder:14b"
 # Free-tier Gemini: 5 RPM → ~12s between calls; release-prep probes fast → pro → fast-light.
 DEFAULT_GEMINI_JUDGE_MIN_INTERVAL_S = "13"
+# Cap impl-session wall clock during live regression (aligns with 600–900s scenario wait_reply).
+DEFAULT_AGENT_TIMEOUT_MINUTES = "10"
 
 _ENV_LINE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 
@@ -96,6 +98,8 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     if not env.get("NJ_DELIVERABLE_JUDGE_MODEL"):
         env["NJ_DELIVERABLE_JUDGE_MODEL"] = DEFAULT_OLLAMA_JUDGE_MODEL
 
+    env.setdefault("NJ_AGENT_TIMEOUT_MINUTES", DEFAULT_AGENT_TIMEOUT_MINUTES)
+
     return env
 
 
@@ -103,15 +107,16 @@ def apply_release_prep_env(root: Path = ROOT) -> dict[str, str]:
     """Load release-prep env into os.environ and return the merged dict."""
     env = release_prep_env(root)
     os.environ.update(env)
-    if env.get("NEURAL_JUNKIE_AUTH_REQUIRED") == "1":
-        from lib.hub_auth import try_provision_automation_api_key
-
-        base = (env.get("NEURAL_JUNKIE_HUB_URL") or "http://127.0.0.1:18765").rstrip("/")
-        key = try_provision_automation_api_key(base)
-        if key:
-            env["NEURAL_JUNKIE_API_KEY"] = key
-            os.environ["NEURAL_JUNKIE_API_KEY"] = key
     return env
+
+
+def provision_hub_automation_key(root: Path = ROOT) -> bool:
+    """Ensure ~/.neural-junkie/automation.key exists when bootstrap token is configured."""
+    from lib.hub_auth import try_provision_automation_api_key
+
+    merged = apply_release_prep_env(root)
+    hub = (merged.get("NEURAL_JUNKIE_HUB_URL") or "http://127.0.0.1:18765").strip()
+    return try_provision_automation_api_key(hub.rstrip("/"))
 
 
 def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
@@ -139,4 +144,6 @@ def summarize_release_prep_env(env: dict[str, str]) -> list[str]:
         lines.append("GEMINI_API_KEY missing — cloud judge will use Ollama fallback only")
     if env.get("NEURAL_JUNKIE_AUTH_REQUIRED") == "1":
         lines.append("NEURAL_JUNKIE_AUTH_REQUIRED=1 (scripts use API key or hub_auth session)")
+    if env.get("NJ_AGENT_TIMEOUT_MINUTES"):
+        lines.append(f"NJ_AGENT_TIMEOUT_MINUTES={env['NJ_AGENT_TIMEOUT_MINUTES']}")
     return lines
