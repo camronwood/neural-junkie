@@ -27,7 +27,7 @@ function agentInfoFromCollabParticipant(p: CollaborationAgent): Pick<AgentInfo, 
 }
 
 /**
- * Shows the typing indicator for whoever holds the current collab turn during planning/review/executing.
+ * Shows the typing indicator for whoever holds the current collab turn during planning/executing.
  */
 export function syncCollabTurnThinking(
   collab: Collaboration | null | undefined,
@@ -35,7 +35,7 @@ export function syncCollabTurnThinking(
 ): void {
   if (!collab?.id || !channelName) return;
   const phase = collab.phase;
-  if (phase !== 'planning' && phase !== 'reviewing' && phase !== 'executing') {
+  if (phase !== 'planning' && phase !== 'executing') {
     return;
   }
   if (collab.channel && collab.channel !== channelName) {

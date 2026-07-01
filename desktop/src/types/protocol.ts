@@ -15,6 +15,7 @@ export type MessageType =
   | 'design_output'
   | 'file_change'
   | 'tool_approval'
+  | 'user_question'
   | 'stream_delta'
   | 'stream_end'
   | 'collaboration_plan'

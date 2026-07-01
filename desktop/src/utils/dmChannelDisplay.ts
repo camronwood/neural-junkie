@@ -6,6 +6,9 @@ export function agentSidebarHideKey(agent: Pick<AgentInfo, 'type' | 'name'>): st
 }
 
 export function parseDMDisplayName(dmChannel: Channel): string {
+  const displayName = dmChannel.display_name?.trim();
+  if (displayName) return displayName;
+
   const directAgent = dmChannel.agents?.[0]?.name;
   if (directAgent) return directAgent;
 

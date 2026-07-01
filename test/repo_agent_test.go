@@ -83,6 +83,10 @@ func (m *mockHubClientRepo) MusicGenerationEnabled() bool { return false }
 func (m *mockHubClientRepo) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
 	return nil
 }
+func (m *mockHubClientRepo) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 
 
 // TestRepoAgentCreation tests repository agent creation

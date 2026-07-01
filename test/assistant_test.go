@@ -486,6 +486,10 @@ func (m *MockHub) MusicGenerationEnabled() bool { return false }
 func (m *MockHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
 	return nil
 }
+func (m *MockHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 
 
 // TestAssistantStoragePersistence tests that data persists across restarts

@@ -4,8 +4,8 @@ import {
   hasCombinedContentDeliveryExport,
 } from '../utils/implementationContinuation';
 
-/** Cursor-style composer behavior: read-only, plan-only, implement, or export-to-file. */
-export type ComposerMode = 'ask' | 'plan' | 'agent' | 'export';
+/** Cursor-style composer behavior: read-only, plan-only, or implement (export is auto-detected). */
+export type ComposerMode = 'ask' | 'plan' | 'agent';
 
 export const COMPOSER_MODE_STORAGE_KEY = 'composer-mode';
 
@@ -13,8 +13,11 @@ export function loadComposerMode(): ComposerMode {
   try {
     if (typeof localStorage === 'undefined') return 'agent';
     const stored = localStorage.getItem(COMPOSER_MODE_STORAGE_KEY);
-    if (stored === 'ask' || stored === 'plan' || stored === 'agent' || stored === 'export') {
+    if (stored === 'ask' || stored === 'plan' || stored === 'agent') {
       return stored;
+    }
+    if (stored === 'export') {
+      return 'agent';
     }
   } catch {
     /* ignore */
@@ -30,8 +33,6 @@ export function composerModeLabel(mode: ComposerMode): string {
       return 'Plan';
     case 'agent':
       return 'Agent';
-    case 'export':
-      return 'Export';
   }
 }
 
@@ -43,8 +44,6 @@ export function composerModePlaceholder(mode: ComposerMode): string {
       return 'Outline an approach and steps (no file edits yet)…';
     case 'agent':
       return 'Describe code changes to implement…';
-    case 'export':
-      return 'Describe what to write to a file (uses prior replies + workspace)…';
   }
 }
 
@@ -56,8 +55,6 @@ export function composerModeTitle(mode: ComposerMode): string {
       return 'Structured plan only — no file edits or implementation session';
     case 'agent':
       return 'May propose file changes for your approval';
-    case 'export':
-      return 'Export content to a workspace file (.md, etc.)';
   }
 }
 
@@ -73,7 +70,7 @@ export function resolveEffectiveComposerMode(
   if (composerMode === 'ask') return 'ask';
   if (composerMode === 'plan') return 'plan';
   if (hasCombinedContentDeliveryExport(message)) {
-    return composerMode === 'export' ? 'agent' : composerMode;
+    return composerMode;
   }
   if (hasFileExportSignals(message) || hasPriorReferenceExportSignals(message)) {
     return 'export';

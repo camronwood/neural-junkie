@@ -388,6 +388,34 @@ func (h *httpHubClient) GenerateAndPostMusic(ctx context.Context, channel string
 	return fmt.Errorf("music generation requires an in-process hub connection")
 }
 
+func (h *httpHubClient) AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error) {
+	body, err := json.Marshal(map[string]interface{}{
+		"agent_id":   agentID,
+		"agent_name": agentName,
+		"channel":    channel,
+		"question":   question,
+		"options":    options,
+	})
+	if err != nil {
+		return "", err
+	}
+	resp, err := h.doPost(h.baseURL+"/api/user-questions", "application/json", body)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("user question request failed: %s", resp.Status)
+	}
+	var out struct {
+		Answer string `json:"answer"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	return out.Answer, nil
+}
+
 func main() {
 	flag.Parse()
 

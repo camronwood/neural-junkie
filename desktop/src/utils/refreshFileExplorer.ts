@@ -36,7 +36,7 @@ export async function refreshFileExplorerForPaths(
   }
 
   const { loadFiles, expandedPaths } = useFileExplorerStore.getState();
-  // Reload root + every ancestor dir (same strategy as refreshTreeForPath in fileExplorerStore).
+  // Reload root + every ancestor dir.
   await loadFiles(workspaceId, '/');
   const sorted = [...prefixes].sort((a, b) => a.localeCompare(b));
   for (const p of sorted) {
@@ -50,6 +50,17 @@ export async function refreshFileExplorerForPaths(
     if (touchesChange) {
       await loadFiles(workspaceId, path);
     }
+  }
+
+  // Refresh all other expanded folders (cap to avoid hub call storms).
+  const expandedList = Object.entries(expandedPaths)
+    .filter(([, open]) => open)
+    .map(([path]) => path)
+    .filter((path) => path && path !== '/' && !prefixes.has(path))
+    .sort((a, b) => a.localeCompare(b));
+  const maxExpanded = 24;
+  for (let i = 0; i < expandedList.length && i < maxExpanded; i++) {
+    await loadFiles(workspaceId, expandedList[i]);
   }
 }
 

@@ -80,6 +80,7 @@ interface FileExplorerState {
   fileTree: Record<string, FileNode[]>;
   expandedPaths: Record<string, boolean>;
   selectedPath: string | null;
+  selectedPaths: string[];
   
   // Loading and error states
   loadingWorkspaces: boolean;
@@ -106,6 +107,9 @@ interface FileExplorerState {
   refreshTreeForPath: (workspaceId: string, writtenPath: string) => Promise<void>;
   toggleExpanded: (path: string) => void;
   setSelectedPath: (path: string | null) => void;
+  toggleSelectedPath: (path: string, extend?: boolean) => void;
+  clearSelectedPaths: () => void;
+  isPathSelected: (path: string) => boolean;
   
   // File operations
   createFile: (workspaceId: string, path: string, content?: string) => Promise<void>;
@@ -135,6 +139,7 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   fileTree: {},
   expandedPaths: {},
   selectedPath: null,
+  selectedPaths: [],
   loadingWorkspaces: false,
   loadingFiles: false,
   error: null,
@@ -251,12 +256,22 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
       prefixes.push(acc);
     }
 
-    const { loadFiles } = get();
-    // Only reload root + ancestors of the new file. Reloading every expanded folder
-    // can issue dozens of hub calls and freeze or crash the Tauri webview.
+    const { loadFiles, expandedPaths } = get();
     await loadFiles(workspaceId, '/');
     for (const p of prefixes) {
       await loadFiles(workspaceId, p);
+    }
+    // Re-hydrate expanded folders so new files appear without manual collapse/reopen.
+    const expanded = Object.entries(expandedPaths)
+      .filter(([, open]) => open)
+      .map(([path]) => path)
+      .filter((path) => path && path !== '/')
+      .sort((a, b) => a.localeCompare(b));
+    const maxExpanded = 24;
+    for (let i = 0; i < expanded.length && i < maxExpanded; i++) {
+      const path = expanded[i];
+      if (prefixes.includes(path)) continue;
+      await loadFiles(workspaceId, path);
     }
   },
 
@@ -317,7 +332,31 @@ export const useFileExplorerStore = create<FileExplorerState>((set, get) => ({
   },
   
   setSelectedPath: (path) => {
-    set({ selectedPath: path });
+    set({ selectedPath: path, selectedPaths: path ? [path] : [] });
+  },
+
+  toggleSelectedPath: (path, extend = false) => {
+    set((state) => {
+      if (!extend) {
+        return { selectedPath: path, selectedPaths: [path] };
+      }
+      const has = state.selectedPaths.includes(path);
+      const selectedPaths = has
+        ? state.selectedPaths.filter((p) => p !== path)
+        : [...state.selectedPaths, path];
+      return {
+        selectedPaths,
+        selectedPath: selectedPaths.length ? selectedPaths[selectedPaths.length - 1] : null,
+      };
+    });
+  },
+
+  clearSelectedPaths: () => {
+    set({ selectedPath: null, selectedPaths: [] });
+  },
+
+  isPathSelected: (path) => {
+    return get().selectedPaths.includes(path);
   },
   
   createFile: async (workspaceId, path, content = '') => {

@@ -144,9 +144,10 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 		}
 	}
 	if len(setupFailures) > 0 {
+		ch.setCollaborateRedirect(collabChannelName, collab.ID)
 		return ch.systemResponse(msg.Channel, fmt.Sprintf(
-			"❌ Collaboration `%s` created but some participants could not join the room: %s",
-			collab.ID[:8], strings.Join(setupFailures, "; "),
+			"⚠️ Collaboration `%s` created in **#%s** but some participants could not join: %s\n\nSwitching you to the collaboration channel.",
+			collab.ID[:8], collabChannelName, strings.Join(setupFailures, "; "),
 		)), nil
 	}
 
@@ -205,7 +206,8 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	if err := ch.hub.SendMessage(seedMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send seed message: %v", err)
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration created but failed to start discussion: %v", err)), nil
+		ch.setCollaborateRedirect(collabChannelName, collab.ID)
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("⚠️ Collaboration created in **#%s** but failed to start discussion: %v", collabChannelName, err)), nil
 	}
 
 	// Set the Collab field on participating agents so they can check collaboration state
@@ -240,7 +242,8 @@ func (ch *CommandHandler) handleCollaborate(ctx context.Context, msg *protocol.M
 
 	if err := ch.hub.SendMessage(turnMsg); err != nil {
 		log.Printf("[Collaboration] Failed to send first turn message: %v", err)
-		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Collaboration started but failed to prompt first agent: %v", err)), nil
+		ch.setCollaborateRedirect(collabChannelName, collab.ID)
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("⚠️ Collaboration created in **#%s** but failed to prompt first agent: %v", collabChannelName, err)), nil
 	}
 
 	ch.setCollaborateRedirect(collabChannelName, collab.ID)

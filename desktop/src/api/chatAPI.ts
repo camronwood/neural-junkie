@@ -2622,6 +2622,17 @@ export class ChatAPI {
     }
   }
 
+  async answerUserQuestion(questionId: string, answer: string): Promise<void> {
+    const response = await this.hubFetch(`/api/user-questions/answer/${questionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to answer question: ${response.statusText}`);
+    }
+  }
+
   async setAgentApprovalMode(agentId: string, mode: 'interactive' | 'auto_edit' | 'yolo'): Promise<void> {
     const response = await this.hubFetch(`/api/agents/${agentId}/approval-mode`, {
       method: 'PUT',

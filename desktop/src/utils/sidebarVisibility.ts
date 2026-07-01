@@ -33,7 +33,8 @@ export function isSidebarChannelDeleted(settings: Settings, ch: Channel): boolea
 /** Agents eligible for DM shortcut rows (matches hub runbook pool: active or idle, not paused/removed). */
 export function isAgentShownInSidebar(agent: AgentInfo): boolean {
   if (agent.is_paused || agent.status === 'removed') return false;
-  return agent.status === 'active' || agent.status === 'idle';
+  const status = agent.status?.trim() ?? '';
+  return status === '' || status === 'active' || status === 'idle';
 }
 
 /** DM rows stay hidden when the linked specialist is not in the live agent list (pack off, stopped). */

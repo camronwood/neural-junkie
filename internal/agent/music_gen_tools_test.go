@@ -38,6 +38,10 @@ func (h *musicGenTestHub) GenerateAndPostMusic(_ context.Context, _ string, _ pr
 	h.style = req.StyleTags
 	return nil
 }
+func (h *musicGenTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 
 func TestAgentToolDefinitionsIncludesGenerateMusic(t *testing.T) {
 	hub := &musicGenTestHub{enabled: true}

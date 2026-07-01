@@ -1,7 +1,7 @@
 import type { ComposerMode } from '../constants/composerMode';
 import { composerModeTitle } from '../constants/composerMode';
 
-const MODES: ComposerMode[] = ['ask', 'plan', 'agent', 'export'];
+const MODES: ComposerMode[] = ['ask', 'plan', 'agent'];
 
 export function ComposerModeControl({
   mode,

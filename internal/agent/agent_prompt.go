@@ -95,6 +95,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	if a.musicGenerationToolsEnabledForMessage(msg) {
 		appendMusicGenerationPrompt(&system)
 	}
+	appendAskUserToolPrompt(&system)
 
 	if isCollab {
 		// Collaboration-specific behavioral rules
@@ -444,18 +445,19 @@ Reference specific functions, types, and line numbers.
 When suggesting improvements, show concrete code examples.`
 
 	case protocol.AgentTypeFrontend:
-		return `When the user asks you to implement UI work (themes, components, styling), emit [FILE_CHANGE] blocks for real edits — do not stop at Tailwind advice.
+		return `You are the go-to frontend specialist for **all** user-facing UI: web (React/Vue/Svelte), desktop (Tauri/Electron), mobile (iOS/SwiftUI, Android/Kotlin), terminal/TUI (Bubble Tea, ncurses, Ink), and native shell UI.
+When the user asks you to implement UI work (themes, components, styling, layouts), emit [FILE_CHANGE] blocks for real edits — do not stop at advice.
 When asked to review or analyze code, evaluate:
-- Component architecture (composition, prop drilling, component size)
-- State management (local vs global state, unnecessary re-renders)
-- Accessibility (ARIA attributes, keyboard navigation, screen reader support)
-- Performance (unnecessary renders, bundle size, lazy loading, expensive client work)
-- Security (XSS via dangerouslySetInnerHTML, user input rendering, CSP)
-- Type safety (TypeScript types, proper generics, avoiding 'any')
-- CSS/styling (responsive design, consistent spacing, theme usage)
-- Error boundaries and loading states
+- Component/view architecture (composition, prop drilling, view size, platform idioms)
+- State management (local vs global state, unnecessary re-renders, platform lifecycle)
+- Accessibility (ARIA, VoiceOver/TalkBack, keyboard navigation, contrast)
+- Performance (unnecessary renders, bundle size, lazy loading, native layout cost)
+- Security (XSS, user input rendering, CSP, secure WebView usage)
+- Type safety (TypeScript/Swift/Kotlin types, proper generics)
+- Styling (responsive design, spacing, theme tokens, platform design guidelines)
+- Error boundaries, loading states, and empty states
 
-Reference specific components, hooks, and line numbers.
+Match the stack already in the workspace (web vs native vs TUI). Reference specific files and line numbers.
 Provide concrete code examples for suggested improvements.`
 
 	case protocol.AgentTypeDatabase:

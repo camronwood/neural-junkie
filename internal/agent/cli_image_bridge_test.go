@@ -150,4 +150,8 @@ func (hubStub) MusicGenerationEnabled() bool { return false }
 func (hubStub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (hubStub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 

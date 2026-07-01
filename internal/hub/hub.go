@@ -50,6 +50,9 @@ type Hub struct {
 	// Tool approval manager for CLI agent tool call approvals
 	toolApprovalManager *ToolApprovalManager
 
+	// User question manager for agent-to-user prompts
+	userQuestionManager *UserQuestionManager
+
 	// Collaboration manager for multi-agent collaboration sessions
 	collabManager *collaboration.CollaborationManager
 
@@ -131,6 +134,7 @@ func NewHub() *Hub {
 
 	// Initialize tool approval manager
 	hub.toolApprovalManager = NewToolApprovalManager(hub)
+	hub.userQuestionManager = NewUserQuestionManager(hub)
 
 	// Initialize collaboration manager
 	hub.collabManager = collaboration.NewCollaborationManager(hub)
@@ -447,6 +451,19 @@ func (h *Hub) GetGitChangeManager() *gitchange.Manager {
 // GetToolApprovalManager returns the tool approval manager for external access
 func (h *Hub) GetToolApprovalManager() *ToolApprovalManager {
 	return h.toolApprovalManager
+}
+
+// GetUserQuestionManager returns the user question manager for agent prompts.
+func (h *Hub) GetUserQuestionManager() *UserQuestionManager {
+	return h.userQuestionManager
+}
+
+// AskUserQuestion blocks until the user answers or the question times out.
+func (h *Hub) AskUserQuestion(agentID, agentName, channel, question string, options []string) (string, error) {
+	if h == nil || h.userQuestionManager == nil {
+		return "", fmt.Errorf("user question manager unavailable")
+	}
+	return h.userQuestionManager.Ask(agentID, agentName, channel, question, options, UserQuestionTTL)
 }
 
 // GetCollaborationManager returns the collaboration manager

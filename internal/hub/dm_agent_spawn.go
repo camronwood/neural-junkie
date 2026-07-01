@@ -378,7 +378,12 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 	if err != nil {
 		return nil, err
 	}
-	return ch.startExpertInDMOnly(agentInstance, createdBy)
+	dmCh, err := ch.startExpertInDMOnly(agentInstance, createdBy)
+	if err != nil {
+		return nil, err
+	}
+	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, persona, providerID, providerName, modelOverride, dmCh)
+	return dmCh, nil
 }
 
 // SpawnCLIAgentForDM creates a CLI-backed agent and a DM; agent only joins the DM.
@@ -450,7 +455,7 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 	ch.cliAgents[agentInstance.Info.ID] = agentInstance
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 	ch.agentsMu.Unlock()
-	agent.SaveCLIAgent(cliType, name, workDir)
+	agent.SaveCLIAgent(cliType, name, workDir, createdBy)
 
 	joinMsg := protocol.NewMessage(
 		protocol.MessageTypeAgentJoin,
@@ -475,4 +480,25 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 	}
 
 	return dmCh, nil
+}
+
+func (ch *CommandHandler) persistExpertAgentRecord(
+	agentInstance *agent.Agent,
+	createdBy, expertSlug, persona, providerID, providerName, modelOverride string,
+	dmCh *protocol.Channel,
+) {
+	if agentInstance == nil || dmCh == nil {
+		return
+	}
+	agent.SaveExpertAgent(agent.ExpertAgentRecord{
+		AgentID:      agentInstance.Info.ID,
+		Name:         agentInstance.Info.Name,
+		ExpertSlug:   strings.TrimSpace(expertSlug),
+		Persona:      strings.TrimSpace(persona),
+		ProviderID:   strings.TrimSpace(providerID),
+		ProviderName: strings.TrimSpace(providerName),
+		Model:        strings.TrimSpace(modelOverride),
+		CreatedBy:    strings.TrimSpace(createdBy),
+		DMChannel:    dmCh.Name,
+	})
 }

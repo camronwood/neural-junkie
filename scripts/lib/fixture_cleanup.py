@@ -102,6 +102,19 @@ def preflight_regression_run(
     else:
         print("  fixture collabs: already clean")
 
+    if not dry_run and hub_url:
+        try:
+            from lib import collab_hub as hub_api  # type: ignore
+
+            n = hub_api.cancel_all_active_collabs(hub_url)
+            if n:
+                print(f"  cancelled {n} active collaboration(s)")
+            removed_agents = hub_api.cleanup_test_agents(hub_url)
+            if removed_agents:
+                print(f"  deleted test agents: {', '.join(removed_agents)}")
+        except ImportError:
+            print("  skip hub collab/agent cleanup (collab_hub import failed)", file=sys.stderr)
+
     cleared = cleanup_scenario_channels(hub_url, dry_run=dry_run)
     if cleared:
         action = "would clear" if dry_run else "cleared"

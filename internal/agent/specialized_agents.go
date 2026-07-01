@@ -68,8 +68,10 @@ func startAgentMCPWithOptions(agent *Agent, label string, srv MCPServerInterface
 // NewFrontendAgent creates a frontend development agent
 func NewFrontendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	expertise := []string{
-		"Web UI", "Desktop UI", "TypeScript",
-		"JavaScript", "CSS", "HTML",
+		"Web UI", "Desktop UI", "Mobile UI", "Terminal/TUI",
+		"TypeScript", "JavaScript", "Swift", "Kotlin",
+		"CSS", "HTML", "React", "Vue", "Svelte",
+		"Tauri", "Electron", "iOS", "Android",
 		"UI/UX Design", "Accessibility",
 		"Performance Optimization", "State Management",
 		"Design Systems", "Component Architecture",

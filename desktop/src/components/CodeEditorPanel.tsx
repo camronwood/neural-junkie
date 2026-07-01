@@ -692,11 +692,13 @@ export function CodeEditorPanel({ onClose, variant = 'overlay' }: CodeEditorPane
             />
           )
         ) : (
-          <div className="flex items-center justify-center h-full text-slack-textMuted">
-            <div className="text-center">
+          <div className="flex items-center justify-center h-full min-w-0 overflow-hidden px-4 text-slack-textMuted">
+            <div className="text-center max-w-xs sm:max-w-sm">
               <div className="text-4xl mb-3">📝</div>
               <div className="text-lg font-medium mb-2">No file open</div>
-              <div className="text-sm">Open a file from the file explorer to start editing</div>
+              <div className="text-sm break-words">
+                Open a file from the file explorer to start editing
+              </div>
             </div>
           </div>
         )}

@@ -87,6 +87,10 @@ func (m *mockHubClientReview) MusicGenerationEnabled() bool { return false }
 func (m *mockHubClientReview) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, agent.MusicGenerateRequest) error {
 	return nil
 }
+func (m *mockHubClientReview) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 
 
 // Helper function to broadcast a message to all subscribers

@@ -60,12 +60,12 @@ func WriteReviewAssets(baseDir string, c *Collaboration) (*ReviewAssetPaths, err
 
 	var errs []string
 	if c.Plan != nil && strings.TrimSpace(c.Plan.Content) != "" {
-		if err := writeMarkdownAsset(paths.Plan, c.Plan.Content); err != nil {
+		if err := writeMarkdownAsset(paths.Plan, formatPlanMarkdown(c)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", ReviewAssetsPlanFileName, err))
 		}
 	}
 	if strings.TrimSpace(c.PlanningRecap) != "" {
-		if err := writeMarkdownAsset(paths.PlanningSummary, c.PlanningRecap); err != nil {
+		if err := writeMarkdownAsset(paths.PlanningSummary, formatPlanningSummaryMarkdown(c)); err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", ReviewAssetsPlanningSummaryName, err))
 		}
 	}
@@ -169,4 +169,104 @@ func renderReviewAssetsIndex(c *Collaboration, paths ReviewAssetPaths) string {
 		}
 	}
 	return b.String()
+}
+
+// formatPlanMarkdown renders plan content as a readable markdown document.
+func formatPlanMarkdown(c *Collaboration) string {
+	if c == nil || c.Plan == nil {
+		return ""
+	}
+	body := strings.TrimSpace(c.Plan.Content)
+	if body == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("# Plan\n\n")
+	if strings.TrimSpace(c.Title) != "" {
+		b.WriteString(fmt.Sprintf("**Collaboration:** %s\n\n", c.Title))
+	}
+	if strings.TrimSpace(c.Description) != "" {
+		b.WriteString(fmt.Sprintf("**Goal:** %s\n\n", c.Description))
+	}
+	if !strings.HasPrefix(body, "#") {
+		b.WriteString("## Tasks\n\n")
+	}
+	// Normalize task lines: ensure bullet formatting for Task N: lines.
+	for _, line := range strings.Split(body, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			b.WriteString("\n")
+			continue
+		}
+		if strings.HasPrefix(trimmed, "#") {
+			b.WriteString(trimmed)
+			b.WriteString("\n")
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(trimmed), "task ") || strings.HasPrefix(trimmed, "- Task ") {
+			if !strings.HasPrefix(trimmed, "-") {
+				b.WriteString("- ")
+			}
+			b.WriteString(trimmed)
+			b.WriteString("\n")
+			continue
+		}
+		if !strings.HasPrefix(trimmed, "-") && !strings.HasPrefix(trimmed, "*") {
+			b.WriteString("- ")
+		}
+		b.WriteString(trimmed)
+		b.WriteString("\n")
+	}
+	if len(c.Tasks) > 0 {
+		b.WriteString("\n## Task Summary\n\n")
+		for i, task := range c.Tasks {
+			assignee := strings.TrimSpace(task.AssignedName)
+			if assignee == "" {
+				assignee = "unassigned"
+			}
+			status := task.Status
+			if status == "" {
+				status = TaskPending
+			}
+			b.WriteString(fmt.Sprintf("%d. **%s** — `@%s` (`%s`)\n", i+1, task.Title, assignee, status))
+		}
+	}
+	return b.String()
+}
+
+// formatPlanningSummaryMarkdown renders the pre-approval planning recap.
+func formatPlanningSummaryMarkdown(c *Collaboration) string {
+	if c == nil {
+		return ""
+	}
+	body := strings.TrimSpace(c.PlanningRecap)
+	if body == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("# Planning Summary\n\n")
+	if strings.TrimSpace(c.Title) != "" {
+		b.WriteString(fmt.Sprintf("**Collaboration:** %s\n\n", c.Title))
+	}
+	if strings.TrimSpace(c.Description) != "" {
+		b.WriteString(fmt.Sprintf("**Goal:** %s\n\n", c.Description))
+	}
+	if strings.HasPrefix(body, "#") {
+		b.WriteString(body)
+	} else {
+		b.WriteString("## Discussion Recap\n\n")
+		for _, para := range strings.Split(body, "\n\n") {
+			para = strings.TrimSpace(para)
+			if para == "" {
+				continue
+			}
+			if strings.HasPrefix(para, "#") || strings.HasPrefix(para, "-") || strings.HasPrefix(para, "*") {
+				b.WriteString(para)
+			} else {
+				b.WriteString(para)
+			}
+			b.WriteString("\n\n")
+		}
+	}
+	return strings.TrimSpace(b.String())
 }

@@ -186,6 +186,9 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 			return nil, fmt.Errorf("failed to join agent to existing DM %s: %w", dmName, err)
 		}
 		h.ensureAgentSubscribed(agentID, dmName)
+		if existing.DisplayName == "" {
+			_ = h.SetChannelDisplay(dmName, agent.Name, existing.Description)
+		}
 		return existing, nil
 	}
 	h.mu.RUnlock()
@@ -197,6 +200,7 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 		protocol.ChannelTypeDM,
 		username,
 	)
+	ch.DisplayName = agent.Name
 
 	// Auto-join the agent to the DM channel
 	if err := h.JoinChannel(agentID, dmName); err != nil {

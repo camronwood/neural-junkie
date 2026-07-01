@@ -25,6 +25,7 @@ const (
 	MessageTypeDesignOutput      MessageType = "design_output"
 	MessageTypeFileChange        MessageType = "file_change"
 	MessageTypeToolApproval      MessageType = "tool_approval"
+	MessageTypeUserQuestion      MessageType = "user_question"
 	MessageTypeStreamDelta       MessageType = "stream_delta"
 	MessageTypeStreamEnd         MessageType = "stream_end"
 	MessageTypeCollabPlan        MessageType = "collaboration_plan"

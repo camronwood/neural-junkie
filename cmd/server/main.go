@@ -237,6 +237,8 @@ func main() {
 	initializeConfiguredAgents()
 	reconcileHiddenRepoAgentsOnStartup()
 
+	restorePersistedDMAgents()
+
 	slackBridgeCtx, stopSlackBridgeCtx = context.WithCancel(context.Background())
 	defer stopSlackBridgeCtx()
 

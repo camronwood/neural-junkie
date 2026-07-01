@@ -143,20 +143,24 @@ export function CommandPalette({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
+        e.stopPropagation();
         setSelectedIndex(prev => Math.min(prev + 1, flatList.length - 1));
         break;
       case 'ArrowUp':
         e.preventDefault();
+        e.stopPropagation();
         setSelectedIndex(prev => Math.max(prev - 1, 0));
         break;
       case 'Enter':
         e.preventDefault();
+        e.stopPropagation();
         if (flatList[selectedIndex]) {
           selectCommand(flatList[selectedIndex]);
         }
         break;
       case 'Escape':
         e.preventDefault();
+        e.stopPropagation();
         onClose();
         break;
     }

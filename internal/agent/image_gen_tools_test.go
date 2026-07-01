@@ -39,6 +39,10 @@ func (h *imageGenTestHub) MusicGenerationEnabled() bool { return false }
 func (h *imageGenTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (h *imageGenTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 
 
 func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
@@ -51,7 +55,11 @@ func TestAgentToolDefinitionsIncludesGenerateImage(t *testing.T) {
 		Hub: hub,
 	}
 	tools := a.agentToolDefinitions(nil)
-	if len(tools) != 1 || tools[0].Name != generateImageToolName {
+	names := map[string]bool{}
+	for _, td := range tools {
+		names[td.Name] = true
+	}
+	if !names[generateImageToolName] {
 		t.Fatalf("expected generate_image tool, got %+v", tools)
 	}
 }
@@ -83,9 +91,12 @@ func TestImageGenerationToolsEnabledForBackend(t *testing.T) {
 		Hub:  hub,
 	}
 	tools := a.agentToolDefinitions(nil)
-	if len(tools) != 1 || tools[0].Name != generateImageToolName {
-		t.Fatalf("backend agent should get generate_image tool, got %+v", tools)
+	for _, td := range tools {
+		if td.Name == generateImageToolName {
+			return
+		}
 	}
+	t.Fatalf("backend agent should get generate_image tool, got %+v", tools)
 }
 
 func TestTryHubImageGenerationShortcutSkippedForDeliveryMessage(t *testing.T) {
@@ -203,8 +214,11 @@ func TestImageGenerationToolsDisabledForCLI(t *testing.T) {
 		},
 		Hub: hub,
 	}
-	if len(a.agentToolDefinitions(nil)) != 0 {
-		t.Fatalf("CLI agent should not get hub image tools")
+	tools := a.agentToolDefinitions(nil)
+	for _, td := range tools {
+		if td.Name == generateImageToolName {
+			t.Fatalf("CLI agent should not get hub image tools, got %+v", tools)
+		}
 	}
 }
 

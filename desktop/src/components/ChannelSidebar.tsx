@@ -5,7 +5,7 @@ import { getAgentColor } from '../types/protocol';
 import { shallow } from 'zustand/shallow';
 import { useChatStore } from '../stores/chatStore';
 import { useSettingsStore } from '../stores/settingsStore';
-import { parseDMDisplayName } from '../utils/dmChannelDisplay';
+import { parseDMDisplayName, dmChannelNamesForAgent } from '../utils/dmChannelDisplay';
 import { buildSidebarDMRows } from '../utils/sidebarDmRows';
 import { channelSidebarLabel, isSlackHubChannelName, isSlackMirrorChannelName } from '../utils/slackChannelDisplay';
 import {
@@ -579,10 +579,14 @@ export function ChannelSidebar({
   };
 
   const AgentDMEntry = ({ agent }: { agent: AgentInfo }) => {
-    const hasDM = agentsWithDM.has(agent.id);
-    const dmChannel = dmChannels.find(c =>
-      c.agents?.some(a => a.id === agent.id) || c.members?.includes(agent.id)
-    );
+    const dmNames = dmChannelNamesForAgent(dmChannels, agent);
+    const dmChannel =
+      dmChannels.find((c) => dmNames.includes(c.name)) ??
+      dmChannels.find(
+        (c) =>
+          c.agents?.some((a) => a.id === agent.id) || c.members?.includes(agent.id)
+      );
+    const hasDM = dmNames.length > 0 || agentsWithDM.has(agent.id);
     const isHiddenShortcut = isShortcutHidden(agent) && normalizedQuery.length > 0;
 
     return (

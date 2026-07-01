@@ -157,6 +157,7 @@ func (a *Agent) agentToolDefinitions(msg *protocol.Message) []ai.ClaudeToolDefin
 	if a.hasWorkspaceTools() && !isAskModeReadOnly(msg) {
 		tools = append(tools, fileEditToolDefinitions()...)
 	}
+	tools = append(tools, askUserToolDefinition())
 	return tools
 }
 
@@ -204,6 +205,9 @@ func (a *Agent) executeAgentTool(ctx context.Context, msg *protocol.Message, nam
 	}
 	if name == applyPatchToolName {
 		return a.executeApplyPatchTool(ctx, msg, input)
+	}
+	if name == askUserToolName {
+		return a.executeAskUserTool(ctx, msg, input)
 	}
 	mcpServer := mcpServerFromInterface(a.MCPServer)
 	if mcpServer == nil {

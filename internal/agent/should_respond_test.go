@@ -30,6 +30,9 @@ func (shouldRespondTestHub) MusicGenerationEnabled() bool { return false }
 func (shouldRespondTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (shouldRespondTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
 func (shouldRespondTestHub) GetAgentChannels(string) []string                      { return nil }
 func (h shouldRespondTestHub) GetChannelType(channel string) protocol.ChannelType {
 	if channel == h.dmChannel {

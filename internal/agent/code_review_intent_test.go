@@ -107,6 +107,10 @@ func (h *deferRepoTestHub) MusicGenerationEnabled() bool { return false }
 func (h *deferRepoTestHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (h *deferRepoTestHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 
 
 type deferRepoCommandHandler struct {

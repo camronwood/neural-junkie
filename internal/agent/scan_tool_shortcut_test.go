@@ -209,4 +209,8 @@ func (h *scanShortcutHistoryHub) MusicGenerationEnabled() bool { return false }
 func (h *scanShortcutHistoryHub) GenerateAndPostMusic(context.Context, string, protocol.AgentInfo, MusicGenerateRequest) error {
 	return nil
 }
+func (h *scanShortcutHistoryHub) AskUserQuestion(string, string, string, string, []string) (string, error) {
+	return "", nil
+}
+
 

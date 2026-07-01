@@ -19,6 +19,7 @@ import { MessageContent } from './MessageContent';
 import { CommandOutput } from './CommandOutput';
 import { DesignOutput } from './DesignOutput';
 import { ToolApprovalCard } from './ToolApprovalCard';
+import { UserQuestionCard } from './UserQuestionCard';
 import {
   ImplementationSessionOutcomeCard,
   parseImplementationSessionOutcome,
@@ -276,6 +277,7 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
   const isCommandOutput = message.type === 'command_output';
   const isDesignOutput = message.type === 'design_output';
   const isToolApproval = message.type === 'tool_approval';
+  const isUserQuestion = message.type === 'user_question';
   const isCollab = isCollaborationMessage(message);
   const isSlashCommand = isSlashCommandMessage(message);
   const agentColor = getAgentColor(message.from.type);
@@ -504,6 +506,8 @@ function MessageImpl({ message, threadMetadata, onOpenThread, channelName, isStr
       >
         {isToolApproval ? (
           <ToolApprovalCard message={message} />
+        ) : isUserQuestion ? (
+          <UserQuestionCard message={message} />
         ) : isDesignOutput ? (
           <DesignOutput message={message} />
         ) : (

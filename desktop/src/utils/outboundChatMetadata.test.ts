@@ -22,6 +22,12 @@ describe('isCollabSandboxPath', () => {
     ).toBe(true);
   });
 
+  it('detects project collabs deliverable folders', () => {
+    expect(
+      isCollabSandboxPath('/Users/me/myproject/collabs/19a9e849-2c26-4591-af05-aca853cf8054')
+    ).toBe(true);
+  });
+
   it('allows normal project paths', () => {
     expect(isCollabSandboxPath('/Users/me/development/sandbox')).toBe(false);
   });

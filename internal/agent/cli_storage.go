@@ -11,10 +11,11 @@ import (
 
 // CLIAgentRecord is a persisted record of a user-created CLI agent.
 type CLIAgentRecord struct {
-	Type    string `json:"type"`     // Registry key (e.g. "cursor", "gemini")
-	Name    string `json:"name"`     // Display name
-	WorkDir string `json:"work_dir"` // Working directory
-	Created string `json:"created"`  // ISO timestamp
+	Type      string `json:"type"`       // Registry key (e.g. "cursor", "gemini")
+	Name      string `json:"name"`       // Display name
+	WorkDir   string `json:"work_dir"`   // Working directory
+	CreatedBy string `json:"created_by"` // User who owns the DM
+	Created   string `json:"created"`    // ISO timestamp
 }
 
 // CLIAgentStorage manages persistence of CLI agent records.
@@ -83,6 +84,13 @@ func (s *CLIAgentStorage) Save(record CLIAgentRecord) error {
 	return s.save(records)
 }
 
+// ListRecords returns all persisted CLI agent records.
+func (s *CLIAgentStorage) ListRecords() ([]CLIAgentRecord, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.load()
+}
+
 // ListWithMetadata returns CLI agent records formatted for the cached agents API.
 func (s *CLIAgentStorage) ListWithMetadata() ([]map[string]interface{}, error) {
 	s.mu.Lock()
@@ -135,15 +143,16 @@ func (s *CLIAgentStorage) DeleteByName(name string) (bool, error) {
 }
 
 // SaveCLIAgent is a convenience function for saving from the command handler.
-func SaveCLIAgent(cliType, name, workDir string) {
+func SaveCLIAgent(cliType, name, workDir, createdBy string) {
 	storage, err := NewCLIAgentStorage()
 	if err != nil {
 		return
 	}
 	_ = storage.Save(CLIAgentRecord{
-		Type:    cliType,
-		Name:    name,
-		WorkDir: workDir,
-		Created: time.Now().UTC().Format(time.RFC3339),
+		Type:      cliType,
+		Name:      name,
+		WorkDir:   workDir,
+		CreatedBy: strings.TrimSpace(createdBy),
+		Created:   time.Now().UTC().Format(time.RFC3339),
 	})
 }

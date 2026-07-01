@@ -260,6 +260,11 @@ func (ch *CommandHandler) handleDeleteAgent(ctx context.Context, msg *protocol.M
 	delete(ch.runtimeAgents, agentID)
 	delete(ch.cliAgents, agentID)
 
+	agent.DeleteExpertAgent(agentName)
+	if cliStorage, err := agent.NewCLIAgentStorage(); err == nil {
+		_, _ = cliStorage.DeleteByName(agentName)
+	}
+
 	return ch.systemResponse(msg.Channel, fmt.Sprintf("✅ Agent '%s' has been deleted", agentName)), nil
 }
 
@@ -657,7 +662,7 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
-	ch.setDMRedirect(dmCh.Name)
+	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, "", "", providerName, modelOverride, dmCh)
 
 	expertiseStr := strings.Join(agentInstance.Info.Expertise, ", ")
 	if len(agentInstance.Info.Expertise) > 5 {
@@ -685,7 +690,8 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 			"**Type:** %s\n"+
 			"**Provider:** %s\n"+
 			"**Expertise:** %s\n\n"+
-			"**DM:** `%s` — chat there with `@%s`. To use them in this channel, invite **%s** from the member list.",
+			"**DM:** `%s` — chat there with `@%s` once setup finishes. To use them in this channel, invite **%s** from the member list.\n\n"+
+			"_The agent is starting in the background — watch this channel for status, or open the DM from the sidebar when ready._",
 			spec.Label, name, typeLabel, providerDisplay, expertiseStr, dmCh.Name, name, name)), nil
 }
 
@@ -1126,7 +1132,8 @@ func (ch *CommandHandler) handleCreateCLIAgent(ctx context.Context, msg *protoco
 	ch.runtimeAgents[agentInstance.Info.ID] = agentInstance
 
 	// Persist for My Agents panel
-	agent.SaveCLIAgent(cliType, name, workDir)
+	createdBy := strings.TrimSpace(msg.From.Name)
+	agent.SaveCLIAgent(cliType, name, workDir, createdBy)
 
 	// Send join message
 	joinMsg := protocol.NewMessage(

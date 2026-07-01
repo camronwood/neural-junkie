@@ -23,10 +23,9 @@ export function buildCollabChannelOutboundMetadata(
   if (repoPath) {
     composerMetadata[COLLAB_SOURCE_MODE_KEY] = 'path';
     composerMetadata[COLLAB_SOURCE_PATH_KEY] = repoPath;
-  } else if (collaboration.working_directory?.trim()) {
-    composerMetadata[COLLAB_SOURCE_MODE_KEY] = 'path';
-    composerMetadata[COLLAB_SOURCE_PATH_KEY] = collaboration.working_directory.trim();
   }
+  // Do not fall back to working_directory — that is the collab execution sandbox,
+  // not the project repository root, and binding it causes nested collabs/ folders.
 
   return buildHumanOutboundMetadata({
     contextMode,

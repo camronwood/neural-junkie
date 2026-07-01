@@ -53,11 +53,17 @@ import {
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
 
-/** True when the path is a Neural Junkie collaboration sandbox or review folder. */
+/** True when the path is a Neural Junkie collaboration sandbox, review folder, or project deliverables dir. */
 export function isCollabSandboxPath(workspacePath: string): boolean {
   const normalized = (workspacePath ?? '').replace(/\\/g, '/').trim();
   if (!normalized) return false;
-  return /\/\.neural-junkie\/collaborations(\/|$)/.test(normalized);
+  if (/\/\.neural-junkie\/collaborations(\/|$)/.test(normalized)) {
+    return true;
+  }
+  // Reject project collabs/<uuid>/ deliverable folders (not the repo root).
+  return /\/collabs\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(\/|$)/i.test(
+    normalized
+  );
 }
 
 /** True for /collaborate slash commands (with optional flags before @mentions). */

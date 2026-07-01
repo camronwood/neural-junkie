@@ -995,3 +995,38 @@ def discover_agents(base: str, min_count: int = 2) -> str:
         if len(picks) >= min_count:
             break
     return " ".join(picks) if len(picks) >= min_count else AGENT_PROFILES["fast"]
+
+
+def cancel_all_active_collabs(base: str) -> int:
+    """Cancel every active collaboration on the hub (test teardown)."""
+    cancelled = 0
+    for collab in list_active_collaborations(base):
+        if cancel_collab(base, collab):
+            cancelled += 1
+            time.sleep(0.25)
+    return cancelled
+
+
+def cleanup_test_agents(base: str) -> list[str]:
+    """Delete agents whose names look like test fixtures (test*, widget-expert, etc.)."""
+    code, data = hub_request(base, "GET", "/api/agents")
+    if code != 200 or not isinstance(data, list):
+        return []
+    removed: list[str] = []
+    for agent in data:
+        if not isinstance(agent, dict):
+            continue
+        name = (agent.get("name") or "").strip()
+        if not name:
+            continue
+        lower = name.lower()
+        if lower in {"widget-expert", "testrepoagent", "testrepoagent1", "testrepoagent2", "dmrepoagent"}:
+            pass
+        elif not lower.startswith("test"):
+            continue
+        code, _ = send_message(base, "general", f"/delete-agent {name}")
+        if code == 200:
+            removed.append(name)
+            time.sleep(0.15)
+    return removed
+

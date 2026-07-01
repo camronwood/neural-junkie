@@ -87,6 +87,8 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     refreshTreeForPath,
     toggleExpanded,
     setSelectedPath,
+    toggleSelectedPath,
+    isPathSelected,
     createFile,
     createFolder,
     renameFile,
@@ -520,11 +522,17 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     return true;
   };
 
-  const handleFileClick = async (file: FileNode) => {
+  const handleFileClick = async (file: FileNode, e?: React.MouseEvent) => {
+    const multi = !!(e?.metaKey || e?.ctrlKey);
     // Add null check for file.path to prevent crashes
     if (!file.path) {
       console.error('File path is undefined:', file);
       setError('File path is undefined');
+      return;
+    }
+
+    if (multi && !file.is_dir) {
+      toggleSelectedPath(file.path, true);
       return;
     }
     
@@ -1153,13 +1161,13 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
       <div key={file.path}>
         <div
           className={`flex items-center gap-2 py-1 px-2 cursor-pointer hover:bg-slack-bgHover rounded ${
-            selectedPath === file.path ? 'bg-slack-accent text-white' : 'text-slack-text'
+            isPathSelected(file.path) ? 'bg-slack-accent text-white' : 'text-slack-text'
           } ${!file.is_dir ? 'cursor-grab active:cursor-grabbing' : ''}`}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           draggable={!file.is_dir}
           onDragStart={(e) => handleFileDragStart(e, file)}
           onDragEnd={handleFileDragEnd}
-          onClick={() => handleFileClick(file)}
+          onClick={(e) => void handleFileClick(file, e)}
           onContextMenu={(e) => handleContextMenu(e, file)}
           title={file.is_dir ? undefined : 'Drag to chat to attach as context'}
         >

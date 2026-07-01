@@ -147,6 +147,11 @@ func registerRoutes() {
 	http.HandleFunc("/api/tool-approvals/reject/", corsMiddleware(localOnly(handleRejectToolCall)))
 	http.HandleFunc("/api/tool-approvals/pending", corsMiddleware(localOnly(handlePendingToolApprovals)))
 
+	// Agent user-question prompts (human-in-the-loop)
+	http.HandleFunc("/api/user-questions", corsMiddleware(localOnly(handleUserQuestions)))
+	http.HandleFunc("/api/user-questions/answer/", corsMiddleware(localOnly(handleAnswerUserQuestion)))
+	http.HandleFunc("/api/user-questions/pending", corsMiddleware(localOnly(handlePendingUserQuestions)))
+
 	// Application config and health endpoints
 	http.HandleFunc("/api/health", corsMiddleware(handleHealth))
 	http.HandleFunc("/api/settings", corsMiddleware(localOnly(handleSettings)))

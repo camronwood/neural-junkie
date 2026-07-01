@@ -859,7 +859,11 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
 
     const ch = snapshot.channel || useChatStore.getState().channel;
     if (ch && !isTerminal) {
-      syncCollabTurnThinking(snapshot, ch);
+      if (snapshot.phase === 'reviewing') {
+        useChatStore.getState().clearThinkingAgents(ch);
+      } else {
+        syncCollabTurnThinking(snapshot, ch);
+      }
     }
   }, []);
 
@@ -1227,8 +1231,13 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       await handleSwitchChannel(ch.name);
     } catch (error) {
       console.error('Failed to create DM channel:', error);
+      addToast({
+        type: 'error',
+        title: 'Could not open direct message',
+        message: error instanceof Error ? error.message : 'Failed to create DM channel.',
+      });
     }
-  }, [api, username, loadChannels, handleSwitchChannel, updateSettings]);
+  }, [api, username, loadChannels, handleSwitchChannel, updateSettings, addToast]);
 
   const handleNewDmCreated = useCallback(
     async (ch: Channel) => {
@@ -1293,6 +1302,19 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       }
     },
     [activeWorkspaceId, explorerWorkspaces]
+  );
+
+  const explorerRefreshTimeoutRef = useRef<number | null>(null);
+  const debouncedRefreshExplorer = useCallback(
+    (message: Message) => {
+      if (explorerRefreshTimeoutRef.current) {
+        clearTimeout(explorerRefreshTimeoutRef.current);
+      }
+      explorerRefreshTimeoutRef.current = window.setTimeout(() => {
+        refreshExplorerForFileChange(message);
+      }, 200);
+    },
+    [refreshExplorerForFileChange]
   );
 
   const promptFileChangeApproval = useCallback(
@@ -1670,7 +1692,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           });
         }
         if (message.type === 'file_change') {
-          refreshExplorerForFileChange(message);
+          debouncedRefreshExplorer(message);
           await promptFileChangeApproval(message);
         }
         if (message.type === 'tool_approval') {
@@ -1748,7 +1770,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         }
 
         if (message.type === 'file_change') {
-          refreshExplorerForFileChange(message);
+          debouncedRefreshExplorer(message);
           await promptFileChangeApproval(message);
         }
       }
@@ -2776,7 +2798,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             localStorage.setItem(COMPOSER_MODE_STORAGE_KEY, mode);
             if (devPackEnabled) {
               void updateLayoutSettings({
-                editorAgentMode: mode === 'export' ? 'agent' : mode,
+                editorAgentMode: mode,
               });
             }
           }}
