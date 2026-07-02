@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ChatAPI,
   type LoraTrainDatasetRow,
-  type LoraTrainExtraRow,
   type LoraTrainJob,
   type LoraTrainStartRequest,
   type LoraTrainingBase,
 } from '../api/chatAPI';
+import type { LoraTrainExtraRow } from '../utils/loraTrainImport';
 import type { Channel, Collaboration, Message } from '../types/protocol';
 import {
   parseJSONLFile,

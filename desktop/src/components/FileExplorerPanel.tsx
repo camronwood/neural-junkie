@@ -76,7 +76,6 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
     activeWorkspaceId,
     fileTree,
     expandedPaths,
-    selectedPath,
     loadingFiles,
     error,
     loadWorkspaces,

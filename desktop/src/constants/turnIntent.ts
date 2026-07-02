@@ -1,9 +1,9 @@
-import type { ComposerMode } from './composerMode';
+import type { EffectiveComposerMode } from './composerMode';
 import type { ContextScope } from './promptMetadata';
 
 /** Mirrors internal/protocol/turn_intent.go — UI sets metadata; agent resolves capabilities. */
 export type TurnCapabilities = {
-  composerMode: ComposerMode;
+  composerMode: EffectiveComposerMode;
   contextTier: ContextScope;
   canProposeFiles: boolean;
   canRunImplSession: boolean;
@@ -17,7 +17,7 @@ export const TURN_META_CAN_RUN_IMPL_SESSION = 'can_run_impl_session';
 export const TURN_META_REQUIRES_WORKSPACE = 'requires_workspace';
 
 export function resolveTurnCapabilities(options: {
-  composerMode: ComposerMode;
+  composerMode: EffectiveComposerMode;
   contextScope: ContextScope;
   implementationSession?: boolean;
 }): TurnCapabilities {

@@ -7,6 +7,9 @@ import {
 /** Cursor-style composer behavior: read-only, plan-only, or implement (export is auto-detected). */
 export type ComposerMode = 'ask' | 'plan' | 'agent';
 
+/** Hub metadata mode — includes auto-detected export (not a UI chip). */
+export type EffectiveComposerMode = ComposerMode | 'export';
+
 export const COMPOSER_MODE_STORAGE_KEY = 'composer-mode';
 
 export function loadComposerMode(): ComposerMode {
@@ -66,7 +69,7 @@ export function composerModeTitle(mode: ComposerMode): string {
 export function resolveEffectiveComposerMode(
   message: string,
   composerMode: ComposerMode
-): ComposerMode {
+): EffectiveComposerMode {
   if (composerMode === 'ask') return 'ask';
   if (composerMode === 'plan') return 'plan';
   if (hasCombinedContentDeliveryExport(message)) {
