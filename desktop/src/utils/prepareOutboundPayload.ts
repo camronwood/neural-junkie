@@ -22,6 +22,10 @@ import { hasCodeReviewSignals } from './codeReviewSignals';
 import { resolveDmPartnerAgent } from './dmChannelDisplay';
 import type { Channel } from '../types/protocol';
 
+export function isSlashCommandContent(content: string): boolean {
+  return content.trimStart().startsWith('/');
+}
+
 export type PrepareOutboundPayloadOptions = {
   content: string;
   composerMode: ComposerMode;
@@ -55,11 +59,13 @@ export async function prepareOutboundPayload(
     devPackEnabled = false,
   } = options;
 
+  const slashCommand = isSlashCommandContent(content);
+
   let sendContent = content;
-  const effectiveMode = resolveEffectiveComposerMode(content, composerMode);
-  if (effectiveMode === 'ask') {
+  const effectiveMode = slashCommand ? 'agent' : resolveEffectiveComposerMode(content, composerMode);
+  if (!slashCommand && effectiveMode === 'ask') {
     sendContent = applyIdeAskPrefix(content, 'ask');
-  } else if (effectiveMode === 'plan') {
+  } else if (!slashCommand && effectiveMode === 'plan') {
     sendContent = applyIdePlanPrefix(content, 'plan');
   }
 
@@ -73,15 +79,27 @@ export async function prepareOutboundPayload(
     agentType = 'frontend';
   }
 
-  const metadata: Record<string, unknown> = {
-    ...(composerMetadata ?? {}),
-    ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
-    [EDITOR_MODE_KEY]: effectiveMode,
-    [EDITOR_AGENT_TRUST_KEY]:
-      effectiveMode === 'ask' || effectiveMode === 'plan'
-        ? 'interactive'
-        : 'auto_apply_edits',
-  };
+  const metadata: Record<string, unknown> = slashCommand
+    ? { ...(composerMetadata ?? {}) }
+    : {
+        ...(composerMetadata ?? {}),
+        ...(hasExplicitMention ? {} : { [IDE_ROUTE_AGENT_TYPE_KEY]: agentType }),
+        [EDITOR_MODE_KEY]: effectiveMode,
+        [EDITOR_AGENT_TRUST_KEY]:
+          effectiveMode === 'ask' || effectiveMode === 'plan'
+            ? 'interactive'
+            : 'auto_apply_edits',
+      };
+
+  if (slashCommand) {
+    if (api && repoPath?.trim()) {
+      return {
+        content: sendContent,
+        metadata: await mergeCodebaseAttachments(api, sendContent, repoPath, metadata),
+      };
+    }
+    return { content: sendContent, metadata };
+  }
 
   if (effectiveMode === 'export') {
     metadata[CONVERSATION_MODE_METADATA_KEY] = 'code';

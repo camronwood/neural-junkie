@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/config"
@@ -27,12 +28,40 @@ func domainToolFallbackModel(agentType protocol.AgentType) string {
 	}
 }
 
-// toolCapableProvider returns eff when it supports native tool calling; otherwise an Ollama
-// fallback on the same endpoint (implementation tool model, domain pack default, or biology default).
+func reactToolsEnabledForModel(model string) bool {
+	cfg := mcp.AppConfig()
+	if cfg == nil {
+		return config.DefaultConfig().Ollama.ModelUsesReactTools(model)
+	}
+	return cfg.Ollama.ModelUsesReactTools(model)
+}
+
+// toolCapableProvider returns eff when it supports native tool calling; otherwise ReAct or Qwen swap.
 func (a *Agent) toolCapableProvider(ctx context.Context, eff ai.AIProvider) ai.AIProvider {
 	if tc, ok := eff.(ai.ToolCapableProvider); ok && tc.SupportsTools() {
 		return eff
 	}
+	chatModel := strings.TrimSpace(eff.GetModel())
+	if reactToolsEnabledForModel(chatModel) {
+		react := ai.NewReActToolProvider(eff)
+		if react != nil && react.SupportsTools() {
+			log.Printf("[%s] Primary model lacks native tools; using ReAct wrapper on %q", a.Info.Name, chatModel)
+			a.RecordRoutingSnapshot(RoutingSnapshot{
+				ToolModel: chatModel,
+				Reason:    "react_tools",
+				Source:    "rules",
+			})
+			return react
+		}
+	}
+	if fb := a.ollamaToolSwapProvider(ctx, eff); fb != nil {
+		return fb
+	}
+	return eff
+}
+
+// ollamaToolSwapProvider returns an Ollama provider with native tools when the chat model lacks them.
+func (a *Agent) ollamaToolSwapProvider(ctx context.Context, eff ai.AIProvider) ai.AIProvider {
 	fallbackModel := ai.ImplementationToolModelFromContext(ctx)
 	if fallbackModel == "" {
 		fallbackModel = domainToolFallbackModel(a.Info.Type)
@@ -48,5 +77,5 @@ func (a *Agent) toolCapableProvider(ctx context.Context, eff ai.AIProvider) ai.A
 			return fb
 		}
 	}
-	return eff
+	return nil
 }

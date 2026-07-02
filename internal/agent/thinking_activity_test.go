@@ -25,3 +25,14 @@ func TestFormatRoutingThinkingDetailChatOnly(t *testing.T) {
 		t.Fatalf("detail = %q, want %q", detail, want)
 	}
 }
+
+func TestFormatRoutingThinkingDetailReactTools(t *testing.T) {
+	detail := formatRoutingThinkingDetailForTest(RoutingSnapshot{
+		ChatModel: "gemma3:12b",
+		ToolModel: "gemma3:12b",
+		Reason:    "react_tools",
+	})
+	if want := "chat: gemma3:12b (react_tools)"; detail != want {
+		t.Fatalf("detail = %q, want %q", detail, want)
+	}
+}

@@ -56,4 +56,19 @@ describe('prepareOutboundPayload', () => {
     expect(metadata.editor_mode).toBe('ask');
     expect(metadata.implementation_session).toBeUndefined();
   });
+
+  it('slash commands skip ask/plan prefixes and IDE routing metadata', async () => {
+    const { content, metadata } = await prepareOutboundPayload({
+      content: '/create-expert ios MyExpert ollama gemma3:12b',
+      composerMode: 'ask',
+      agents: [],
+      activeTab: null,
+      editorAgentTrust: 'interactive',
+      devPackEnabled: true,
+    });
+    expect(content).toBe('/create-expert ios MyExpert ollama gemma3:12b');
+    expect(metadata.editor_mode).toBeUndefined();
+    expect(metadata.ide_route_agent_type).toBeUndefined();
+    expect(metadata.implementation_session).toBeUndefined();
+  });
 });

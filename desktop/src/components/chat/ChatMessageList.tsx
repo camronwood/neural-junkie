@@ -1,4 +1,5 @@
 import type { Collaboration } from '../../types/protocol';
+import { markdownPreviewLine } from '../../utils/markdownPreview';
 import { ChatFindBar } from '../ChatFindBar';
 import { MessageList } from '../MessageList';
 import { RoutingTracePanel } from '../RoutingTracePanel';
@@ -54,8 +55,7 @@ export function ChatMessageList({
               {collaborationForChannel.session_recap?.trim() ? (
                 <>
                   {' '}
-                  {collaborationForChannel.session_recap.trim().split('\n')[0].slice(0, 120)}
-                  {collaborationForChannel.session_recap.trim().length > 120 ? '…' : ''}
+                  {markdownPreviewLine(collaborationForChannel.session_recap, 160)}
                 </>
               ) : null}{' '}
               This channel is read-only.

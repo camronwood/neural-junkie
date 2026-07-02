@@ -104,6 +104,7 @@ func normalizeDeliverableRelPath(c *Collaboration, rel string) string {
 		return ""
 	}
 	if UsesProjectCollabDir(c) {
+		rel = stripNestedCollabPrefixes(rel)
 		prefix := ProjectCollabRelPath(c.ID) + "/"
 		if strings.HasPrefix(rel, prefix) {
 			return strings.TrimPrefix(rel, prefix)
@@ -115,6 +116,9 @@ func normalizeDeliverableRelPath(c *Collaboration, rel string) string {
 		altPrefix := ProjectCollabsDirName + "/" + shortID + "/"
 		if strings.HasPrefix(rel, altPrefix) {
 			return strings.TrimPrefix(rel, altPrefix)
+		}
+		if strings.HasPrefix(rel, ProjectCollabsDirName+"/") {
+			return strings.TrimPrefix(rel, ProjectCollabsDirName+"/")
 		}
 		return rel
 	}
@@ -129,6 +133,15 @@ func normalizeDeliverableRelPath(c *Collaboration, rel string) string {
 	altPrefix := ProjectCollabsDirName + "/" + shortID + "/"
 	if strings.HasPrefix(rel, altPrefix) {
 		return strings.TrimPrefix(rel, altPrefix)
+	}
+	return stripNestedCollabPrefixes(rel)
+}
+
+func stripNestedCollabPrefixes(rel string) string {
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	prefix := ProjectCollabsDirName + "/"
+	for strings.HasPrefix(rel, prefix+prefix) {
+		rel = strings.TrimPrefix(rel, prefix)
 	}
 	return rel
 }

@@ -540,6 +540,9 @@ export function AgentInfoModal({
                         {toolCaps.tool_loop_uses_fallback && (
                           <span className="text-xs text-amber-500">fallback</span>
                         )}
+                        {toolCaps.tool_loop_mode === 'react' && (
+                          <span className="text-xs text-teal-400">react</span>
+                        )}
                       </div>
                     )}
                     {toolCaps.mcp_enabled && toolCaps.mcp_port ? (

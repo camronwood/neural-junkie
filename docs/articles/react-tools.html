@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gemma Can&#x27;t Call Tools. We Taught It Anyway. — Neural Junkie</title>
+  <meta name="description" content="Strong local models like Gemma 3 12B reason well but lack native function calling. Neural Junkie&#x27;s ReAct wrapper runs MCP tools on the same model — with Qwen swap as a safety net when parsing fails." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · Gemma Can&#x27;t Call Tools. We Taught It Anyway.
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>Gemma Can&#x27;t Call Tools. We Taught It Anyway.</h1>
+      <p class="article-lead">Strong local models like Gemma 3 12B reason well but lack native function calling. Neural Junkie&#x27;s ReAct wrapper runs MCP tools on the same model — with Qwen swap as a safety net when parsing fails.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">ollama</span><span class="article-tag">developertools</span><span class="article-tag">opensource</span><span class="article-tag">multiagent</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-react-tools-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p>You've found a local model that's great at chat — clear reasoning, solid code explanations, maybe even vision — and then you ask it to <strong>read a file</strong> or <strong>run an MCP tool</strong>.</p>
+<p>Nothing happens. Or worse: the hub silently swaps in a second model for the tool loop, and you lose the persona you picked.</p>
+<p><strong>Gemma 3 12B</strong> is in that bucket for many Ollama installs: strong mid-tier model, no native <code>tools</code> capability in <code>/api/show</code>. Until now, Neural Junkie handled that the same way we handle biology chat models — route the tool loop through <strong>Qwen</strong>.</p>
+<p>That works. It also means <strong>two models in RAM</strong>, split reasoning, and routing telemetry that says <code>tool_fallback</code> instead of one coherent brain.</p>
+<h2>The problem in one sentence</h2>
+<p><strong>Good chat model + no native tool calling = either no tools, or a different model runs the loop.</strong></p>
+<h2>What we shipped: three-tier tool routing</h2>
+<p>Neural Junkie now picks a tool path in order:</p>
+<ol>
+<li><strong>Native tools</strong> — Ollama <code>tool_calls</code> or Claude <code>tool_use</code> when the model supports it (Qwen, coder models).</li>
+<li><strong>ReAct on the same model</strong> — for allowlisted tags like <code>gemma3:12b</code>, the hub wraps the chat provider and runs an MCP loop via structured text.</li>
+<li><strong>Qwen swap fallback</strong> — if ReAct hits the iteration cap or can't parse a tool call, we fall back to the existing tool-loop model.</li>
+</ol>
+<p>You see which path ran on the typing indicator: <code>chat: gemma3:12b (react_tools)</code> or <code>(react_fallback_swap)</code> when the safety net kicks in.</p>
+<h2>The contract: tagged JSON, not free-form Yao ReAct</h2>
+<p>We tried to keep parsing reliable. The model emits <strong>one block per tool step</strong>:</p>
+<pre><code>&lt;tool_call&gt;{&quot;name&quot;:&quot;read_file&quot;,&quot;arguments&quot;:{&quot;path&quot;:&quot;src/App.tsx&quot;}}&lt;/tool_call&gt;
+</code></pre>
+<p>When it's done gathering data, it replies normally — no <code>&lt;tool_call&gt;</code> block.</p>
+<p>The hub executes the MCP tool, feeds the observation back into the loop, and continues until the model answers or hits the configured iteration cap (same guardrails as native tool loops).</p>
+<h2>Why Gemma 3 12B first</h2>
+<ul>
+<li><strong>Single ~8 GB model</strong> for chat + light MCP (read, grep, list) without pulling Qwen.</li>
+<li><strong>Benchmarked well for Assistant chat</strong> in our release profiles — it was already the optional upgrade; now it can <em>act</em>, not just talk.</li>
+<li><strong>Honest limits:</strong> heavy implementation loops (<code>search_replace</code>, multi-file edits) are still harder than native Qwen tool calling. That's why tier 3 exists.</li>
+</ul>
+<p>Biology and CAD domain LoRAs stay on the Qwen swap by default — different use case, different default list.</p>
+<h2>Configuration</h2>
+<p>In <code>config.json</code> under <code>ollama</code>:</p>
+<pre><code class="language-json">&quot;react_tools_enabled&quot;: true,
+&quot;react_tool_models&quot;: [&quot;gemma3:12b&quot;]
+</code></pre>
+<p>Add other non-native tags when you've validated them. Turn off <code>react_tools_enabled</code> to restore swap-only behavior.</p>
+<p>Agent info in the desktop app shows <strong>react</strong> on the tool loop badge when this path is active.</p>
+<h2>What this is not</h2>
+<ul>
+<li>Not a replacement for native tool calling when your model already supports it.</li>
+<li>Not LM Studio / OpenAI-compat yet — same <code>ReActToolProvider</code> pattern, follow-up PR.</li>
+<li>Not magic: smaller models will still drift format under pressure. The fallback exists because production agents need a floor.</li>
+</ul>
+<h2>Try it</h2>
+<ol>
+<li>Pull <code>gemma3:12b</code> in Ollama.</li>
+<li>Point an agent or Assistant at that tag.</li>
+<li>Ask it to read a file in a shared workspace.</li>
+<li>Watch routing show <code>(react_tools)</code> and the tool execute without loading Qwen.</li>
+</ol>
+<p><strong>Neural Junkie</strong> is local-first, open source, and built for specialists that share tools, approvals, and routing policy — not one monolithic planner guessing in a vacuum.</p>
+<p>Repo: https://github.com/camronwood/neural-junkie</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/REACT-TOOLS-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="react-tools.html">Gemma Can&#x27;t Call Tools. We Taught It Anyway.</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

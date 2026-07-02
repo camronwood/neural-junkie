@@ -35,6 +35,29 @@ describe('isCachedAgentAlreadyLoaded', () => {
   it('returns false when no matching live agent', () => {
     expect(isCachedAgentAlreadyLoaded(cached, [], [])).toBe(false);
   });
+
+  it('returns true when a live expert shares the same name', () => {
+    const expertCached: CachedAgentInfo = {
+      type: 'expert',
+      name: 'SwiftExpert',
+      path: 'dm-user-swiftexpert',
+      last_used: '',
+      cache_size: 0,
+      metadata: { expert_slug: 'ios' },
+    };
+    const agents: AgentInfo[] = [
+      {
+        id: 'live-expert',
+        name: 'SwiftExpert',
+        type: 'expert',
+        expertise: [],
+        status: 'active',
+        model: 'gemma3:12b',
+        is_paused: false,
+      } as AgentInfo,
+    ];
+    expect(isCachedAgentAlreadyLoaded(expertCached, agents, [])).toBe(true);
+  });
 });
 
 describe('findLiveAgentForCached', () => {

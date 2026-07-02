@@ -471,6 +471,31 @@ func TestShouldRespond_ExplicitMentionOverridesIdeRoute(t *testing.T) {
 	}
 }
 
+func TestShouldRespond_SlashCommandIgnoresIdeRoute(t *testing.T) {
+	hubStub := shouldRespondTestHub{}
+	mockAI := ai.NewMockProvider()
+
+	frontend := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", []string{"ui"}, mockAI, hubStub)
+	frontend.SetCollabClient(shouldRespondTestCollab{})
+
+	msg := protocol.NewMessage(
+		protocol.MessageTypeQuestion,
+		"general",
+		protocol.AgentInfo{ID: "human-user", Name: "camron", Type: "human"},
+		"/create-expert ios SwiftExpert ollama gemma3:12b",
+	)
+	msg.Metadata = map[string]interface{}{
+		protocol.IdeMetaRouteAgentType:     "frontend",
+		protocol.MetadataSlashCommand:      true,
+		"implementation_session":           true,
+		protocol.IdeMetaEditorMode:         "agent",
+	}
+
+	if frontend.shouldRespond(msg) {
+		t.Fatal("FrontendEngineer must not respond to slash commands even with IDE route metadata")
+	}
+}
+
 func TestShouldRespond_CollaborationAgentMentionInPlanDoesNotStealTurn(t *testing.T) {
 	const collabID = "550e8400-e29b-41d4-a716-446655440000"
 	hubStub := shouldRespondTestHub{}

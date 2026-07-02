@@ -6,6 +6,9 @@ All notable changes to Neural Junkie.
 
 ## [Unreleased]
 
+### Added
+- **ReAct tool wrapper** — MCP tool loops on non-native models (e.g. `gemma3:12b`) via tagged `<tool_call>` parsing, with Qwen swap fallback on iteration cap; config `ollama.react_tools_enabled` / `react_tool_models`; article [react-tools](articles/react-tools.html).
+
 ## [1.2.0-beta.4] - 2026-06-28
 
 Agent Runtime reliability, local image generation, music pack v1.0.2, and turn telemetry.

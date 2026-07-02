@@ -33,6 +33,7 @@ interface CommandFormProps {
   command: CommandDefinition;
   agents: AgentInfo[];
   channels?: Channel[];
+  activeChannel?: string;
   collaborations?: Collaboration[];
   assistantTasks?: AssistantTask[];
   pendingChanges?: FileChange[];
@@ -77,6 +78,7 @@ export function CommandForm({
   command,
   agents,
   channels = [],
+  activeChannel = '',
   collaborations = [],
   assistantTasks = [],
   pendingChanges = [],
@@ -104,7 +106,11 @@ export function CommandForm({
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const arg of command.arguments) {
-      initial[arg.name] = arg.default ?? '';
+      if (isChannelArg(arg) && activeChannel.trim()) {
+        initial[arg.name] = activeChannel.trim();
+      } else {
+        initial[arg.name] = arg.default ?? '';
+      }
     }
     return initial;
   });

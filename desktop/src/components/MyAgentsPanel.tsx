@@ -264,6 +264,20 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
           const workDir = agent.path || '';
           command = `/create-cli-agent ${cliType} ${agent.name}${workDir ? ' ' + workDir : ''}`;
           break;
+        case 'expert': {
+          const slug = String(agent.metadata?.expert_slug || '').trim();
+          if (!slug) {
+            console.error('Expert agent missing expert_slug metadata');
+            return;
+          }
+          const parts = ['/create-expert', slug, agent.name];
+          const provider = String(agent.metadata?.provider_name || '').trim();
+          const model = String(agent.metadata?.model || '').trim();
+          if (provider) parts.push(provider);
+          if (model) parts.push(model);
+          command = parts.join(' ');
+          break;
+        }
         default:
           console.error('Unknown agent type:', agent.type);
           return;
@@ -618,8 +632,8 @@ export function MyAgentsPanel({ onClose, onTrainLoRA }: MyAgentsPanelProps) {
           {/* Filter */}
           <div className="flex gap-1 flex-wrap">
             {(activeTab === 'active'
-              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'code-review', 'rust', 'database', 'cli', 'assistant']
-              : ['all', 'repo', 'confluence']
+              ? ['all', 'backend', 'frontend', 'devops', 'security', 'architecture', 'code-review', 'rust', 'database', 'cli', 'assistant', 'expert']
+              : ['all', 'repo', 'confluence', 'cli', 'expert']
             ).map((type) => (
               <button
                 key={type}

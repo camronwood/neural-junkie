@@ -47,6 +47,10 @@ export function isCachedAgentAlreadyLoaded(
         return true;
       }
     }
+
+    if (cached.type === 'expert' && a.type === 'expert' && liveName === cachedName) {
+      return true;
+    }
   }
 
   return false;

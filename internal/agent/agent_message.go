@@ -478,6 +478,19 @@ func (a *Agent) effectiveChannelType(channel string) protocol.ChannelType {
 
 // taskAssigneeFromMetadata reads task_assigned_to from collaboration_task metadata.
 // JSON decoding can surface non-string types; normalize so assignee routing matches.
+func isSlashCommandMessage(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	if msg.Metadata != nil {
+		if v, ok := msg.Metadata[protocol.MetadataSlashCommand].(bool); ok && v {
+			return true
+		}
+	}
+	content := strings.TrimSpace(msg.Content)
+	return len(content) > 0 && content[0] == '/'
+}
+
 func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if a.Hub != nil && a.Hub.IsChannelHeld(msg.Channel) {
 		return false
@@ -490,6 +503,12 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 	if msg.SlackInboxAwaitingManualReply() {
 		return false
 	}
+
+	// Never respond to slash commands — let the command handler process them (must run before IDE routing).
+	if isSlashCommandMessage(msg) {
+		return false
+	}
+
 	// IDE file-tab routing applies only when the user did not @mention a specific agent.
 	// Skip in DMs: the channel partner is always the intended recipient.
 	if routedType := msg.IdeRouteAgentType(); routedType != "" && !msg.HasMentions() && !a.isDMChannel(msg.Channel) {
@@ -501,11 +520,6 @@ func (a *Agent) shouldRespond(msg *protocol.Message) bool {
 
 	// Repo-path project reviews defer to repo expert agents (pending or indexed).
 	if a.Hub != nil && messageDefersToRepoExpert(a, msg) {
-		return false
-	}
-
-	// Never respond to commands - let the command handler process them
-	if len(msg.Content) > 0 && msg.Content[0] == '/' {
 		return false
 	}
 

@@ -138,7 +138,7 @@
   {
     "name": "gemma3:12b",
     "title": "Gemma 3 12B",
-    "description": "Google Gemma 3 mid-tier; multimodal-capable, strong on reasoning and code.",
+    "description": "Google Gemma 3 mid-tier; multimodal-capable, strong on reasoning and code. ReAct tool loops when native Ollama tools are unavailable.",
     "tags": ["code", "general"],
     "size_hint": "~8.1 GB",
     "icon_key": "gemma",

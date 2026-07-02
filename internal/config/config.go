@@ -54,6 +54,10 @@ type AIConfig struct {
 type OllamaConfig struct {
 	AutoStart      bool     `json:"auto_start"`
 	ModelsToEnsure []string `json:"models_to_ensure"`
+	// ReactToolsEnabled runs MCP tool loops via ReAct text parsing for allowlisted models.
+	ReactToolsEnabled bool `json:"react_tools_enabled"`
+	// ReactToolModels lists Ollama tags that use ReAct instead of Qwen tool-loop swap.
+	ReactToolModels []string `json:"react_tool_models,omitempty"`
 	// NumCtx sets Ollama options.num_ctx (0 = model/server default).
 	NumCtx int `json:"num_ctx,omitempty"`
 	// NumPredict caps output tokens (0 = provider heuristics / model default).
@@ -184,8 +188,10 @@ func DefaultConfig() *Config {
 		},
 		Agents: []AgentConfig{},
 		Ollama: OllamaConfig{
-			AutoStart:      true,
-			ModelsToEnsure: []string{UtilityOllamaModel},
+			AutoStart:         true,
+			ModelsToEnsure:    []string{UtilityOllamaModel},
+			ReactToolsEnabled: true,
+			ReactToolModels:   []string{"gemma3:12b"},
 		},
 		Updates: UpdateConfig{
 			AutoCheck: true,

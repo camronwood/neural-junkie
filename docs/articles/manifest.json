@@ -1,6 +1,6 @@
 {
-  "updated": "2026-07-01T10:51:22Z",
-  "count": 14,
+  "updated": "2026-07-02T14:49:48Z",
+  "count": 15,
   "items": [
     {
       "slug": "hardware",
@@ -100,6 +100,25 @@
       "sourceFile": "LOOP-STACK-LINKEDIN.md",
       "sourcePath": "docs/marketing/LOOP-STACK-LINKEDIN.md",
       "href": "loop-stack.html"
+    },
+    {
+      "slug": "react-tools",
+      "title": "Gemma Can't Call Tools. We Taught It Anyway.",
+      "teaser": "Strong local models like Gemma 3 12B reason well but lack native function calling. Neural Junkie's ReAct wrapper runs MCP tools on the same model \u2014 with Qwen swap as a safety net when parsing fails.",
+      "cover": "assets/neural-junkie-react-tools-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-react-tools-1200.png",
+      "topic": "architecture",
+      "tags": [
+        "ai",
+        "localai",
+        "ollama",
+        "developertools",
+        "opensource",
+        "multiagent"
+      ],
+      "sourceFile": "REACT-TOOLS-LINKEDIN.md",
+      "sourcePath": "docs/marketing/REACT-TOOLS-LINKEDIN.md",
+      "href": "react-tools.html"
     },
     {
       "slug": "fix-loop",

@@ -328,14 +328,14 @@ func (ch *CommandHandler) resolveExpertModelOverride(agentType protocol.AgentTyp
 
 // startExpertInDMOnly starts a prepared expert agent in a private DM with createdBy only
 // (no subscription to the channel where /create-expert was run).
-func (ch *CommandHandler) startExpertInDMOnly(agentInstance *agent.Agent, createdBy string) (*protocol.Channel, error) {
+func (ch *CommandHandler) startExpertInDMOnly(agentInstance *agent.Agent, createdBy, channelDisplayName string) (*protocol.Channel, error) {
 	createdBy = strings.TrimSpace(createdBy)
 	if createdBy == "" {
 		return nil, fmt.Errorf("created_by is required")
 	}
 	agentInstance.DisableChannelDiscovery = true
 
-	dmCh, err := ch.hub.CreateDMChannel(createdBy, agentInstance.Info.ID)
+	dmCh, err := ch.hub.CreateDMChannel(createdBy, agentInstance.Info.ID, channelDisplayName)
 	if err != nil {
 		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
 		delete(ch.runtimeAgents, agentInstance.Info.ID)
@@ -373,12 +373,13 @@ func (ch *CommandHandler) SpawnExpertAgentForDM(_ context.Context, createdBy, ex
 	if name == "" {
 		return nil, fmt.Errorf("display_name is required")
 	}
+	channelDisplayName := strings.TrimSpace(displayName)
 
 	agentInstance, err := ch.prepareExpertAgent(spec, name, providerID, providerName, modelOverride)
 	if err != nil {
 		return nil, err
 	}
-	dmCh, err := ch.startExpertInDMOnly(agentInstance, createdBy)
+	dmCh, err := ch.startExpertInDMOnly(agentInstance, createdBy, channelDisplayName)
 	if err != nil {
 		return nil, err
 	}
@@ -445,7 +446,7 @@ func (ch *CommandHandler) SpawnCLIAgentForDM(_ context.Context, createdBy, cliTy
 		return nil, fmt.Errorf("failed to register agent: %w", err)
 	}
 
-	dmCh, err := ch.hub.CreateDMChannel(createdBy, agentInstance.Info.ID)
+	dmCh, err := ch.hub.CreateDMChannel(createdBy, agentInstance.Info.ID, displayName)
 	if err != nil {
 		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
 		return nil, fmt.Errorf("failed to create DM channel: %w", err)

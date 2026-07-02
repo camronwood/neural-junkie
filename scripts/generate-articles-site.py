@@ -27,6 +27,7 @@ ARTICLE_ORDER = [
     "modular-ai-composition",
     "inference-layer",
     "loop-stack",
+    "react-tools",
     "fix-loop",
     "ide-v4",
     "conversation-memory",
@@ -44,6 +45,7 @@ SOURCE_BY_SLUG = {
     "modular-ai-composition": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
     "inference-layer": "INFERENCE-LAYER-LINKEDIN.md",
     "loop-stack": "LOOP-STACK-LINKEDIN.md",
+    "react-tools": "REACT-TOOLS-LINKEDIN.md",
     "fix-loop": "FIX-LOOP-LINKEDIN.md",
     "ide-v4": "IDE-V4-LINKEDIN.md",
     "conversation-memory": "CONVERSATION-MEMORY-LINKEDIN.md",
@@ -62,6 +64,14 @@ COVER_OVERRIDES = {
 }
 
 META_OVERRIDES: dict[str, dict[str, object]] = {
+    "react-tools": {
+        "title": "Gemma Can't Call Tools. We Taught It Anyway.",
+        "teaser": (
+            "Strong local models like Gemma 3 12B reason well but lack native function calling. "
+            "Neural Junkie's ReAct wrapper runs MCP tools on the same model — with Qwen swap as a safety net when parsing fails."
+        ),
+        "tags": ["ai", "localai", "ollama", "developertools", "opensource", "multiagent"],
+    },
     "ide-v4": {
         "title": "Build the IDE You Actually Own",
         "teaser": (
@@ -78,6 +88,7 @@ TOPIC_BY_SLUG = {
     "modular-ai-composition": "architecture",
     "inference-layer": "architecture",
     "loop-stack": "architecture",
+    "react-tools": "architecture",
     "fix-loop": "architecture",
     "ide-v4": "architecture",
     "conversation-memory": "chat",

@@ -40,7 +40,8 @@ var (
 	ErrCLIProviderTimeout = errors.New("cli provider timeout")
 
 	// DefaultGeminiCLITimeout caps how long a headless gemini-cli subprocess may run.
-	DefaultGeminiCLITimeout = 120 * time.Second
+	// Align with collab recap/task deadlines (240–300s) so Gemini agents do not time out mid-collab.
+	DefaultGeminiCLITimeout = 300 * time.Second
 
 	// GeminiCLIPromptMaxBytes limits prompt size passed to gemini-cli (avoids multi-minute hangs).
 	GeminiCLIPromptMaxBytes = 24000

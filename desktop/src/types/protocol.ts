@@ -108,6 +108,7 @@ export interface AgentToolCapabilities {
   chat_native_tools: boolean;
   tool_loop_model: string;
   tool_loop_uses_fallback: boolean;
+  tool_loop_mode?: 'native' | 'react' | 'fallback';
   notes?: string[];
 }
 
@@ -414,7 +415,7 @@ export interface ThreadMetadata {
 }
 
 export interface CachedAgentInfo {
-  type: 'repo' | 'confluence' | 'cli';
+  type: 'repo' | 'confluence' | 'cli' | 'expert';
   name: string;
   path: string;
   last_used: string; // ISO date string
@@ -422,7 +423,7 @@ export interface CachedAgentInfo {
   metadata: Record<string, any>;
 }
 
-export type AgentCategory = 'all' | 'repo' | 'confluence' | 'cli';
+export type AgentCategory = 'all' | 'repo' | 'confluence' | 'cli' | 'expert';
 
 // Integration Settings Types
 export interface AnthropicSettings {

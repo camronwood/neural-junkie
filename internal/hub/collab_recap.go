@@ -13,7 +13,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const recapTimeout = 120 * time.Second
+const recapTimeout = 240 * time.Second
 
 var recapTimeoutMu sync.Mutex
 var recapTimeoutCancel = map[string]func(){}

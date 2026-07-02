@@ -168,13 +168,17 @@ func (h *Hub) ListChannels() []*protocol.Channel {
 	return channels
 }
 
-func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, error) {
+func (h *Hub) CreateDMChannel(username, agentID, channelDisplayName string) (*protocol.Channel, error) {
 	agent, err := h.GetAgent(agentID)
 	if err != nil {
 		return nil, fmt.Errorf("agent %s not found", agentID)
 	}
 
 	dmName := fmt.Sprintf("dm-%s-%s", strings.ToLower(username), strings.ToLower(agent.Name))
+	displayName := strings.TrimSpace(channelDisplayName)
+	if displayName == "" {
+		displayName = agent.Name
+	}
 
 	// Check if it already exists
 	h.mu.RLock()
@@ -187,7 +191,7 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 		}
 		h.ensureAgentSubscribed(agentID, dmName)
 		if existing.DisplayName == "" {
-			_ = h.SetChannelDisplay(dmName, agent.Name, existing.Description)
+			_ = h.SetChannelDisplay(dmName, displayName, existing.Description)
 		}
 		return existing, nil
 	}
@@ -195,12 +199,12 @@ func (h *Hub) CreateDMChannel(username, agentID string) (*protocol.Channel, erro
 
 	ch := h.CreateChannelWithType(
 		dmName,
-		fmt.Sprintf("Direct message with %s", agent.Name),
+		fmt.Sprintf("Direct message with %s", displayName),
 		"",
 		protocol.ChannelTypeDM,
 		username,
 	)
-	ch.DisplayName = agent.Name
+	ch.DisplayName = displayName
 
 	// Auto-join the agent to the DM channel
 	if err := h.JoinChannel(agentID, dmName); err != nil {

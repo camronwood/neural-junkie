@@ -200,6 +200,7 @@ type AgentToolCapabilities struct {
 	ChatNativeTools      bool                  `json:"chat_native_tools"`
 	ToolLoopModel        string                `json:"tool_loop_model"`
 	ToolLoopUsesFallback bool                  `json:"tool_loop_uses_fallback"`
+	ToolLoopMode         string                `json:"tool_loop_mode,omitempty"` // native | react | fallback
 	Notes                []string              `json:"notes,omitempty"`
 }
 

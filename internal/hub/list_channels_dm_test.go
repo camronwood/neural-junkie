@@ -17,7 +17,7 @@ func TestListChannelsOmitsOrphanDM(t *testing.T) {
 	if err := h.RegisterAgent(ag); err != nil {
 		t.Fatal(err)
 	}
-	ch, err := h.CreateDMChannel("camron", "go-1")
+	ch, err := h.CreateDMChannel("camron", "go-1", "Go Expert")
 	if err != nil {
 		t.Fatal(err)
 	}

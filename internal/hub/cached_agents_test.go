@@ -76,3 +76,32 @@ func TestDeleteCachedCLIAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteCachedExpertAgent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	storage, err := agent.NewExpertAgentStorage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := storage.Save(agent.ExpertAgentRecord{
+		Name:       "SwiftExpert",
+		ExpertSlug: "ios",
+		CreatedBy:  "camron",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted, err := DeleteCachedAgent("expert", "SwiftExpert", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !deleted {
+		t.Fatal("expected expert record delete")
+	}
+	rows, _ := storage.ListWithMetadata()
+	if len(rows) != 0 {
+		t.Fatalf("expected 0 expert rows, got %d", len(rows))
+	}
+}

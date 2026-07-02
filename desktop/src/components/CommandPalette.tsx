@@ -14,6 +14,7 @@ interface CommandPaletteProps {
   commands: CommandDefinition[];
   agents: AgentInfo[];
   channels?: Channel[];
+  activeChannel?: string;
   collaborations?: Collaboration[];
   assistantTasks?: AssistantTask[];
   pendingChanges?: FileChange[];
@@ -28,6 +29,7 @@ export function CommandPalette({
   commands,
   agents,
   channels,
+  activeChannel,
   collaborations,
   assistantTasks,
   pendingChanges,
@@ -194,6 +196,7 @@ export function CommandPalette({
             command={activeCommand}
             agents={agents}
             channels={channels}
+            activeChannel={activeChannel}
             collaborations={collaborations}
             assistantTasks={assistantTasks}
             pendingChanges={pendingChanges}

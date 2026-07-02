@@ -24,6 +24,8 @@ func DeleteCachedAgent(agentType, name, path string) (bool, error) {
 		}
 	case "cli":
 		return deleteCachedCLIAgent(name)
+	case "expert":
+		return deleteCachedExpertAgent(name)
 	default:
 		return false, fmt.Errorf("unsupported cached agent type %q", agentType)
 	}
@@ -100,6 +102,17 @@ func deleteCachedCLIAgent(name string) (bool, error) {
 		return false, fmt.Errorf("agent name is required for CLI cache delete")
 	}
 	storage, err := agent.NewCLIAgentStorage()
+	if err != nil {
+		return false, err
+	}
+	return storage.DeleteByName(name)
+}
+
+func deleteCachedExpertAgent(name string) (bool, error) {
+	if name == "" {
+		return false, fmt.Errorf("agent name is required for expert cache delete")
+	}
+	storage, err := agent.NewExpertAgentStorage()
 	if err != nil {
 		return false, err
 	}

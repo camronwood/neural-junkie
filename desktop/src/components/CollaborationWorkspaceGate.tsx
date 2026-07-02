@@ -43,12 +43,11 @@ export function CollaborationWorkspaceGate({
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 px-4"
-      role="dialog"
-      aria-modal="true"
+      className="fixed top-14 left-0 right-0 z-[80] flex justify-center px-4 pointer-events-none"
+      role="region"
       aria-labelledby="collab-workspace-gate-title"
     >
-      <div className="max-w-lg w-full rounded-lg border border-gray-600 bg-gray-900 p-6 shadow-xl">
+      <div className="pointer-events-auto max-w-lg w-full rounded-lg border border-gray-600 bg-gray-900 p-6 shadow-xl">
         <h2 id="collab-workspace-gate-title" className="text-lg font-semibold text-white mb-2">
           {collaboration.title?.trim() || (isWorktree ? 'Collaboration git worktree' : 'Collaboration workspace')}
         </h2>

@@ -201,6 +201,15 @@ func getAllCachedAgents() ([]map[string]interface{}, error) {
 		}
 	}
 
+	// Get persisted custom expert agents
+	expertStorage, err := agent.NewExpertAgentStorage()
+	if err == nil {
+		expertAgents, err := expertStorage.ListWithMetadata()
+		if err == nil {
+			allAgents = append(allAgents, expertAgents...)
+		}
+	}
+
 	return allAgents, nil
 }
 

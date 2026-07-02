@@ -530,29 +530,57 @@ func (a *Agent) generateWithAgentTools(
 
 	toolEff := a.toolCapableProvider(ctx, eff)
 	a.broadcastRoutingTelemetry(msg)
-	toolProvider, ok := toolEff.(ai.ToolCapableProvider)
-	if !ok || !toolProvider.SupportsTools() {
-		log.Printf("[%s] Tools requested but provider does not support tool calling; using standard response", a.Info.Name)
-		text, err := eff.GenerateResponse(ctx, prompt, histMsgs)
-		if err != nil {
-			return "", err
-		}
-		return a.chainPlaintextToolResponse(ctx, msg, eff, prompt, histMsgs, text)
-	}
-
-	text, err := toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools,
-		func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
-			log.Printf("[%s] Tool call: %s", a.Info.Name, req.Name)
-			result, err := a.executeAgentTool(ctx, msg, req.Name, req.Input)
-			if err != nil {
-				return result, err
-			}
-			return guardWebSearchToolResult(ctx, req.Name, result), nil
-		})
+	text, err := a.runAgentToolLoop(ctx, msg, prompt, histMsgs, tools, toolEff, eff)
 	if err != nil {
 		return "", err
 	}
 	return a.chainPlaintextToolResponse(ctx, msg, eff, prompt, histMsgs, text)
+}
+
+func (a *Agent) runAgentToolLoop(
+	ctx context.Context,
+	msg *protocol.Message,
+	prompt string,
+	histMsgs []protocol.Message,
+	tools []ai.ClaudeToolDefinition,
+	toolEff ai.AIProvider,
+	chatEff ai.AIProvider,
+) (string, error) {
+	toolProvider, ok := toolEff.(ai.ToolCapableProvider)
+	if !ok || !toolProvider.SupportsTools() {
+		log.Printf("[%s] Tools requested but provider does not support tool calling; using standard response", a.Info.Name)
+		text, err := chatEff.GenerateResponse(ctx, prompt, histMsgs)
+		if err != nil {
+			return "", err
+		}
+		return text, nil
+	}
+
+	onToolUse := func(ctx context.Context, req ai.ToolUseRequest) (string, error) {
+		log.Printf("[%s] Tool call: %s", a.Info.Name, req.Name)
+		result, err := a.executeAgentTool(ctx, msg, req.Name, req.Input)
+		if err != nil {
+			return result, err
+		}
+		return guardWebSearchToolResult(ctx, req.Name, result), nil
+	}
+
+	text, err := toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+	if err != nil && ai.IsReActToolLoopError(err) {
+		if fb := a.ollamaToolSwapProvider(ctx, chatEff); fb != nil {
+			if tp, ok := fb.(ai.ToolCapableProvider); ok && tp.SupportsTools() {
+				log.Printf("[%s] ReAct tool loop failed (%v); using swap model", a.Info.Name, err)
+				a.RecordRoutingSnapshot(RoutingSnapshot{
+					Reason: "react_fallback_swap",
+					Source: "rules",
+				})
+				a.broadcastRoutingTelemetry(msg)
+				return tp.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+			}
+		}
+		return "", err
+	}
+	return text, err
 }
 
 func implementationSessionActive(ctx context.Context) bool {
@@ -595,7 +623,7 @@ func (a *Agent) chainPlaintextToolResponse(
 	}
 	lastText := strings.TrimSpace(text)
 	for i := 0; i < maxChain; i++ {
-		name, _, hasTool := parsePlaintextToolCall(lastText)
+		name, _, hasTool := ai.ParseToolCallFromText(lastText)
 		if !hasTool {
 			return lastText, nil
 		}
@@ -621,159 +649,6 @@ func (a *Agent) chainPlaintextToolResponse(
 	return lastText, nil
 }
 
-// parsePlaintextToolCall detects when a model returned a JSON tool invocation in chat text
-// instead of using native tool calling (common with OpenBio / nj-bio chat models).
-func parsePlaintextToolCall(text string) (name string, input json.RawMessage, ok bool) {
-	for _, candidate := range plaintextToolCallCandidates(text) {
-		if name, input, ok = tryParsePlaintextToolCallJSON(candidate); ok {
-			return name, input, true
-		}
-	}
-	return "", nil, false
-}
-
-func plaintextToolCallCandidates(text string) []string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil
-	}
-	var candidates []string
-	seen := make(map[string]bool)
-	add := func(s string) {
-		s = strings.TrimSpace(s)
-		if s == "" || seen[s] {
-			return
-		}
-		seen[s] = true
-		candidates = append(candidates, s)
-	}
-
-	add(stripOuterCodeFence(text))
-	for _, block := range extractInlineCodeFences(text) {
-		add(block)
-	}
-	for _, obj := range extractJSONObjectStrings(text) {
-		add(obj)
-	}
-	return candidates
-}
-
-func stripOuterCodeFence(text string) string {
-	text = strings.TrimSpace(text)
-	if !strings.HasPrefix(text, "```") {
-		return text
-	}
-	text = strings.TrimPrefix(text, "```json")
-	text = strings.TrimPrefix(text, "```")
-	text = strings.TrimSuffix(text, "```")
-	return strings.TrimSpace(text)
-}
-
-func extractInlineCodeFences(text string) []string {
-	var blocks []string
-	rest := text
-	for {
-		idx := strings.Index(rest, "```")
-		if idx < 0 {
-			break
-		}
-		rest = rest[idx+3:]
-		if strings.HasPrefix(rest, "json") {
-			rest = rest[4:]
-		}
-		end := strings.Index(rest, "```")
-		if end < 0 {
-			break
-		}
-		blocks = append(blocks, strings.TrimSpace(rest[:end]))
-		rest = rest[end+3:]
-	}
-	return blocks
-}
-
-func extractJSONObjectStrings(text string) []string {
-	var out []string
-	for i := 0; i < len(text); i++ {
-		if text[i] != '{' {
-			continue
-		}
-		if end, ok := balancedJSONObjectEnd(text, i); ok {
-			out = append(out, text[i:end+1])
-			i = end
-		}
-	}
-	return out
-}
-
-func balancedJSONObjectEnd(s string, start int) (end int, ok bool) {
-	if start >= len(s) || s[start] != '{' {
-		return 0, false
-	}
-	depth := 0
-	inString := false
-	escape := false
-	for j := start; j < len(s); j++ {
-		c := s[j]
-		if escape {
-			escape = false
-			continue
-		}
-		if inString {
-			if c == '\\' {
-				escape = true
-				continue
-			}
-			if c == '"' {
-				inString = false
-			}
-			continue
-		}
-		switch c {
-		case '"':
-			inString = true
-		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
-				return j, true
-			}
-		}
-	}
-	return 0, false
-}
-
-func tryParsePlaintextToolCallJSON(text string) (name string, input json.RawMessage, ok bool) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return "", nil, false
-	}
-	var payload struct {
-		Name      string                 `json:"name"`
-		Arguments map[string]interface{} `json:"arguments"`
-		Input     map[string]interface{} `json:"input"`
-	}
-	if err := json.Unmarshal([]byte(text), &payload); err != nil {
-		return "", nil, false
-	}
-	name = strings.TrimSpace(payload.Name)
-	if name == "" {
-		return "", nil, false
-	}
-	args := payload.Arguments
-	if args == nil {
-		args = payload.Input
-	}
-	if args == nil {
-		args = map[string]interface{}{}
-	}
-	raw, err := json.Marshal(args)
-	if err != nil {
-		return "", nil, false
-	}
-	return name, raw, true
-}
-
 func (a *Agent) agentToolNames(msg *protocol.Message) map[string]bool {
 	names := make(map[string]bool)
 	for _, td := range a.agentToolDefinitions(msg) {
@@ -784,7 +659,7 @@ func (a *Agent) agentToolNames(msg *protocol.Message) map[string]bool {
 
 // recoverPlaintextToolResponse executes a tool when the model returned JSON in plain text.
 func (a *Agent) recoverPlaintextToolResponse(ctx context.Context, msg *protocol.Message, text string) (string, bool) {
-	name, input, ok := parsePlaintextToolCall(text)
+	name, input, ok := ai.ParseToolCallFromText(text)
 	if !ok {
 		return "", false
 	}

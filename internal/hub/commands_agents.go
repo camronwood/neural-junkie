@@ -650,6 +650,11 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 
+	channelDisplayName := strings.TrimSpace(name)
+	if channelDisplayName == "" {
+		channelDisplayName = agentInstance.Info.Name
+	}
+
 	createdBy := strings.TrimSpace(msg.From.Name)
 	if createdBy == "" {
 		_ = ch.hub.UnregisterAgent(agentInstance.Info.ID)
@@ -658,11 +663,12 @@ func (ch *CommandHandler) handleCreateExpert(ctx context.Context, msg *protocol.
 			"❌ Cannot create expert: your display name is empty. Set your name in the app and try again."), nil
 	}
 
-	dmCh, err := ch.startExpertInDMOnly(agentInstance, createdBy)
+	dmCh, err := ch.startExpertInDMOnly(agentInstance, createdBy, channelDisplayName)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
 	ch.persistExpertAgentRecord(agentInstance, createdBy, expertSlug, "", "", providerName, modelOverride, dmCh)
+	ch.setDMRedirect(dmCh.Name)
 
 	expertiseStr := strings.Join(agentInstance.Info.Expertise, ", ")
 	if len(agentInstance.Info.Expertise) > 5 {

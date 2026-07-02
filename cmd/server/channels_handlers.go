@@ -67,7 +67,7 @@ func handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "DM channels require at least one agent member", http.StatusBadRequest)
 			return
 		}
-		ch, err := chatHub.CreateDMChannel(req.CreatedBy, req.Members[0])
+		ch, err := chatHub.CreateDMChannel(req.CreatedBy, req.Members[0], "")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

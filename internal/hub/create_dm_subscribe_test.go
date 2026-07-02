@@ -22,7 +22,7 @@ func TestCreateDMChannel_EagerSubscribeAnswersFirstMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dm, err := h.CreateDMChannel("camron", cursor.Info.ID)
+	dm, err := h.CreateDMChannel("camron", cursor.Info.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -92,6 +92,33 @@ func (s *ExpertAgentStorage) List() ([]ExpertAgentRecord, error) {
 	return s.load()
 }
 
+// ListWithMetadata returns expert records formatted for the cached agents API.
+func (s *ExpertAgentStorage) ListWithMetadata() ([]map[string]interface{}, error) {
+	records, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]map[string]interface{}, 0, len(records))
+	for _, r := range records {
+		result = append(result, map[string]interface{}{
+			"type":       "expert",
+			"name":       r.Name,
+			"path":       r.DMChannel,
+			"last_used":  r.Created,
+			"cache_size": 0,
+			"metadata": map[string]interface{}{
+				"expert_slug":   r.ExpertSlug,
+				"provider_id":   r.ProviderID,
+				"provider_name": r.ProviderName,
+				"model":         r.Model,
+				"dm_channel":    r.DMChannel,
+				"created_by":    r.CreatedBy,
+			},
+		})
+	}
+	return result, nil
+}
+
 // DeleteByName removes a persisted expert record by display name.
 func (s *ExpertAgentStorage) DeleteByName(name string) (bool, error) {
 	s.mu.Lock()

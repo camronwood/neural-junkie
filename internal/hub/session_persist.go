@@ -410,6 +410,7 @@ type SessionSaveHealth struct {
 // ChannelSnapshot holds all messages for a single channel.
 type ChannelSnapshot struct {
 	Name             string               `json:"name"`
+	DisplayName      string               `json:"display_name,omitempty"`
 	Description      string               `json:"description"`
 	Type             protocol.ChannelType `json:"type"`
 	CreatedBy        string               `json:"created_by,omitempty"`
@@ -443,6 +444,7 @@ func (h *Hub) TakeSessionSnapshot() *SessionSnapshot {
 	for name, ch := range h.channels {
 		cs := &ChannelSnapshot{
 			Name:        ch.Name,
+			DisplayName: ch.DisplayName,
 			Description: ch.Description,
 			Type:        ch.Type,
 			CreatedBy:   ch.CreatedBy,
@@ -535,6 +537,7 @@ func (h *Hub) LoadSessionFromFile(path string) error {
 		channel := &protocol.Channel{
 			ID:          uuid.New().String(),
 			Name:        ch.Name,
+			DisplayName: ch.DisplayName,
 			Description: ch.Description,
 			Type:        inferChannelTypeForName(ch.Name, ch.Type),
 			CreatedBy:   ch.CreatedBy,

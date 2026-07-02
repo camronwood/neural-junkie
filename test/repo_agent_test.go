@@ -655,7 +655,7 @@ func TestRepoAgentRespondsInDMChannel(t *testing.T) {
 		t.Fatalf("Expected repository agent to start with indexing, got error: %v", err)
 	}
 
-	dmChannel, err := chatHub.CreateDMChannel("alice", repoAgent.Info.ID)
+	dmChannel, err := chatHub.CreateDMChannel("alice", repoAgent.Info.ID, "")
 	if err != nil {
 		t.Fatalf("Expected DM channel creation to succeed, got error: %v", err)
 	}

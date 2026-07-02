@@ -3071,6 +3071,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         commands={commandDefs}
         agents={agents}
         channels={channels}
+        activeChannel={channel}
         collaborations={trackedCollaborations}
         assistantTasks={assistantTasks}
         pendingChanges={pendingChanges}

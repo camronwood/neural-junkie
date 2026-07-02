@@ -71,7 +71,12 @@ export function ChannelInfoModal({ channel: ch, agents: globalAgents, api, onClo
   }
 
   const canClearHistory =
-    !!onClearHistory && (ch.type === 'dm' || ch.type === 'custom' || ch.type === 'collaboration');
+    !!onClearHistory &&
+    (ch.type === 'dm' ||
+      ch.type === 'custom' ||
+      ch.type === 'collaboration' ||
+      ch.type === 'public' ||
+      !ch.type);
 
   const handleExportHistory = async () => {
     if (exporting) return;

@@ -33,9 +33,10 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 
 	eff := a.GetAIProvider()
 	out.ChatNativeTools = providerSupportsTools(eff)
-	loopModel, usesFallback := a.effectiveToolLoopModel(eff)
+	loopModel, usesFallback, loopMode := a.effectiveToolLoopRouting(eff)
 	out.ToolLoopModel = loopModel
 	out.ToolLoopUsesFallback = usesFallback
+	out.ToolLoopMode = loopMode
 
 	for _, td := range a.agentToolDefinitions(nil) {
 		source := "mcp"
@@ -56,6 +57,9 @@ func (a *Agent) DescribeToolCapabilities() protocol.AgentToolCapabilities {
 	}
 	if out.ToolCount == 0 && mcpCfg.Enabled && a.MCPServer == nil {
 		out.Notes = append(out.Notes, "MCP server is not running for this agent.")
+	}
+	if out.ToolCount > 0 && out.ToolLoopMode == "react" {
+		out.Notes = append(out.Notes, "Chat model uses ReAct text tool calls on the same model.")
 	}
 	if out.ToolCount > 0 && !out.ChatNativeTools && out.ToolLoopUsesFallback {
 		out.Notes = append(out.Notes, "Chat model does not support native tools; MCP tools run via the tool-loop model.")
@@ -101,29 +105,44 @@ func providerSupportsTools(eff ai.AIProvider) bool {
 	if eff == nil {
 		return false
 	}
+	if _, ok := eff.(*ai.ReActToolProvider); ok {
+		return false
+	}
 	tp, ok := eff.(ai.ToolCapableProvider)
 	return ok && tp.SupportsTools()
 }
 
 func (a *Agent) effectiveToolLoopModel(eff ai.AIProvider) (model string, usesFallback bool) {
+	model, usesFallback, _ = a.effectiveToolLoopRouting(eff)
+	return model, usesFallback
+}
+
+func (a *Agent) effectiveToolLoopRouting(eff ai.AIProvider) (model string, usesFallback bool, mode string) {
 	if eff == nil {
-		return "", false
+		return "", false, ""
 	}
 	chatModel := modelNameFromProvider(eff)
 	if providerSupportsTools(eff) {
-		return chatModel, false
+		return chatModel, false, "native"
+	}
+	if reactToolsEnabledForModel(chatModel) {
+		return chatModel, false, "react"
 	}
 	fallbackModel := domainToolFallbackModel(a.Info.Type)
 	toolEff := toolCapableProviderForDescribe(eff, fallbackModel)
 	if toolEff != nil && providerSupportsTools(toolEff) {
-		return modelNameFromProvider(toolEff), modelNameFromProvider(toolEff) != chatModel
+		return modelNameFromProvider(toolEff), modelNameFromProvider(toolEff) != chatModel, "fallback"
 	}
-	return chatModel, false
+	return chatModel, false, ""
 }
 
 func toolCapableProviderForDescribe(eff ai.AIProvider, fallbackModel string) ai.AIProvider {
 	if providerSupportsTools(eff) {
 		return eff
+	}
+	chatModel := modelNameFromProvider(eff)
+	if reactToolsEnabledForModel(chatModel) {
+		return ai.NewReActToolProvider(eff)
 	}
 	if fallbackModel == "" {
 		fallbackModel = ai.OllamaBiologyFallbackModel
