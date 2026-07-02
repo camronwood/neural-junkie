@@ -134,6 +134,7 @@
         cards.forEach((card) => {
           const show = cardMatches(card);
           card.hidden = !show;
+          card.style.display = show ? "" : "none";
           if (show) visible += 1;
         });
         countEl.textContent = visible + " article" + (visible === 1 ? "" : "s");
