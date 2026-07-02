@@ -83,6 +83,10 @@
   transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
+.articles-card[hidden] {
+  display: none !important;
+}
+
 .articles-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
@@ -156,6 +160,10 @@
 .articles-empty {
   color: var(--text-muted);
   grid-column: 1 / -1;
+}
+
+.articles-empty[hidden] {
+  display: none !important;
 }
 
 .articles-how {
