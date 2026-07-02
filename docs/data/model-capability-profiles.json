@@ -41,6 +41,8 @@
       "gemma3:12b"
     ],
     "implement_heavy": [
+      "qwen2.5-coder:14b",
+      "qwen3.5:9b",
       "devstral:24b",
       "codestral:22b"
     ]

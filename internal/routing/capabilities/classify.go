@@ -73,8 +73,10 @@ type ImplInput struct {
 
 // ClassifyImpl returns main and tool-loop task classes for implementation sessions.
 func ClassifyImpl(in ImplInput) (main TaskClass, tool TaskClass) {
-	text := strings.ToLower(strings.TrimSpace(in.TaskText))
-	if in.RepairAttempts >= 1 || in.VerifyFailed || in.BootFixIntent || implHeavyKeywords(text) {
+	// Reserve implement_heavy for repair/verify-failure tiers. Boot-fix and error keywords
+	// on the first attempt stay on the standard implement class so local qwen2.5-coder /
+	// qwen3.5 complete within live scenario timeouts (devstral:24b often exceeds 600–900s).
+	if in.RepairAttempts >= 1 || in.VerifyFailed {
 		return TaskImplementHeavy, TaskImplementHeavy
 	}
 	dec := unified.ClassifyRules(unified.Input{Text: in.TaskText, AgentType: in.AgentType})
@@ -82,20 +84,4 @@ func ClassifyImpl(in ImplInput) (main TaskClass, tool TaskClass) {
 		return TaskImplement, TaskUtility
 	}
 	return TaskImplement, TaskImplement
-}
-
-func implHeavyKeywords(text string) bool {
-	if text == "" {
-		return false
-	}
-	keywords := []string{
-		"boot", "won't boot", "start-all", "make start", "compile error", "build error",
-		"go test", "verify failed", "fix the bug", "repair", "multi-file", "typescript error",
-	}
-	for _, k := range keywords {
-		if strings.Contains(text, k) {
-			return true
-		}
-	}
-	return false
 }
