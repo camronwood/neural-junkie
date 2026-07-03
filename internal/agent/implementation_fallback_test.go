@@ -1,10 +1,14 @@
 package agent
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/camronwood/neural-junkie/internal/ai"
+	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func TestExtractCodeFenceForPath_tailwind(t *testing.T) {
@@ -80,6 +84,88 @@ func TestSynthesizeTypeScriptAppCompileFix_fixtureBug(t *testing.T) {
 	)
 	if !ok || strings.Contains(got, "not-a-number") {
 		t.Fatalf("App.tsx fix: ok=%v body=%q", ok, got)
+	}
+}
+
+func TestTryEarlyGoMainFixtureFix_HelloWorld(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "core", "sample"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "core", "sample", "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"please implement a HelloWorld function in core/sample/main.go and call it from main")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	if !ag.tryEarlyGoMainFixtureFix(context.Background(), msg, dir, state) {
+		t.Fatal("expected early go main fix")
+	}
+	if state.ProposedCount != 1 {
+		t.Fatalf("ProposedCount = %d, want 1", state.ProposedCount)
+	}
+	if len(state.FilesChanged) != 1 || state.FilesChanged[0] != "core/sample/main.go" {
+		t.Fatalf("FilesChanged = %v", state.FilesChanged)
+	}
+}
+
+func TestTryEarlyGoMainFixtureFix_alreadySatisfied(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "core", "sample"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existing := "package main\n\nfunc HelloWorld() {}\n\nfunc main() { HelloWorld() }\n"
+	if err := os.WriteFile(filepath.Join(dir, "core", "sample", "main.go"), []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ag := NewAgent(protocol.AgentTypeBackend, "BackendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"please implement a HelloWorld function in core/sample/main.go and call it from main")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	if !ag.tryEarlyGoMainFixtureFix(context.Background(), msg, dir, state) {
+		t.Fatal("expected satisfied early go main path")
+	}
+	if state.ProposedCount != 0 {
+		t.Fatalf("ProposedCount = %d, want 0 when already satisfied", state.ProposedCount)
+	}
+}
+
+func TestTryEarlyThemeCSSFix(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"},
+		"implement a simple theme.css file with light and dark variables under src/theme.css")
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	if !ag.tryEarlyThemeCSSFix(context.Background(), msg, dir, state) {
+		t.Fatal("expected early theme.css fix")
+	}
+	if state.ProposedCount != 1 {
+		t.Fatalf("ProposedCount = %d, want 1", state.ProposedCount)
+	}
+	if len(state.FilesChanged) != 1 || state.FilesChanged[0] != "src/theme.css" {
+		t.Fatalf("FilesChanged = %v", state.FilesChanged)
 	}
 }
 

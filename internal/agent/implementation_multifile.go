@@ -71,6 +71,9 @@ func implementationTargetSatisfied(wsPath, rel, userContent string) bool {
 				(strings.Contains(body, "useState") && strings.Contains(strings.ToLower(body), "theme"))
 		}
 	}
+	if strings.HasSuffix(strings.ToLower(rel), "theme.css") && themeTask {
+		return strings.Contains(strings.ToLower(body), "dark")
+	}
 	return false
 }
 

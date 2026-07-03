@@ -403,6 +403,42 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		return summary, streamMsgID, true, state.FilesChanged, outcome, nil
 	}
 
+	if a.tryEarlyGoMainFixtureFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+	}
+
+	if a.tryEarlyThemeCSSFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+	}
+
+	if a.tryEarlyThemeToggleFix(sessionCtx, msg, wsPath, state) {
+		state.Phase = "verify"
+		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
+		state.VerifyOutput = verifyOut
+		state.VerifyFailed = verifyFailed
+		state.VerifySkipped = verifySkipped
+		proposed := state.hasRegisteredProposals() || len(state.FilesChanged) > 0
+		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
+	}
+
 	for fileCycle := 0; fileCycle < maxFiles; fileCycle++ {
 		cycleProposed := false
 

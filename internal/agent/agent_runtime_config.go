@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/mcp"
@@ -42,6 +43,14 @@ func implSessionLimits(msg *protocol.Message) (maxToolIter, maxEditRounds, maxFi
 }
 
 func implSessionTimeoutForMessage(msg *protocol.Message, frontend bool) time.Duration {
+	// Live implement-scenarios must finish within scenario wait_reply windows (≤1200s),
+	// not the open-ended agent-runtime v2 default (up to 180m).
+	if msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios" {
+		if frontend {
+			return implSessionFrontendTimeout
+		}
+		return implSessionTimeout
+	}
 	if agentRuntimeV2ForMessage(msg) {
 		return performanceFromHub().AgentTimeout()
 	}

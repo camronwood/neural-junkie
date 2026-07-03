@@ -40,3 +40,16 @@ func TestImplSessionLimits_legacyCaps(t *testing.T) {
 		t.Fatalf("legacy limits: tool=%d rounds=%d files=%d", maxTool, maxRounds, maxFiles)
 	}
 }
+
+func TestImplSessionTimeoutForMessage_implementScenariosUsesLegacyCap(t *testing.T) {
+	msg := &protocol.Message{
+		Channel:  "implement-scenarios",
+		Metadata: map[string]interface{}{"agent_runtime_v2": true},
+	}
+	if got := implSessionTimeoutForMessage(msg, true); got != implSessionFrontendTimeout {
+		t.Fatalf("frontend timeout = %v, want %v", got, implSessionFrontendTimeout)
+	}
+	if got := implSessionTimeoutForMessage(msg, false); got != implSessionTimeout {
+		t.Fatalf("backend timeout = %v, want %v", got, implSessionTimeout)
+	}
+}
