@@ -2,6 +2,7 @@ package agent
 
 import (
 	"testing"
+	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -46,10 +47,13 @@ func TestImplSessionTimeoutForMessage_implementScenariosUsesLegacyCap(t *testing
 		Channel:  "implement-scenarios",
 		Metadata: map[string]interface{}{"agent_runtime_v2": true},
 	}
-	if got := implSessionTimeoutForMessage(msg, true); got != implSessionFrontendTimeout {
-		t.Fatalf("frontend timeout = %v, want %v", got, implSessionFrontendTimeout)
+	if got := implSessionTimeoutForMessage(msg, true); got != implScenarioSessionFrontendTimeout {
+		t.Fatalf("frontend timeout = %v, want %v", got, implScenarioSessionFrontendTimeout)
 	}
-	if got := implSessionTimeoutForMessage(msg, false); got != implSessionTimeout {
-		t.Fatalf("backend timeout = %v, want %v", got, implSessionTimeout)
+	if got := implSessionTimeoutForMessage(msg, false); got != implScenarioSessionTimeout {
+		t.Fatalf("backend timeout = %v, want %v", got, implScenarioSessionTimeout)
+	}
+	if implScenarioSessionTimeout >= 420*time.Second {
+		t.Fatalf("implement-scenarios backend cap %v must stay below 420s wait_reply", implScenarioSessionTimeout)
 	}
 }

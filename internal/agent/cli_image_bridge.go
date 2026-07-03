@@ -14,6 +14,28 @@ import (
 
 const cliChatAttachmentsDir = ".nj-chat-attachments"
 
+// cliWorkDirUsable reports whether workDir exists and is writable (placeholder env paths are ignored).
+func cliWorkDirUsable(workDir string) bool {
+	workDir = strings.TrimSpace(workDir)
+	if workDir == "" {
+		return false
+	}
+	abs, err := filepath.Abs(workDir)
+	if err != nil {
+		return false
+	}
+	fi, err := os.Stat(abs)
+	if err != nil || !fi.IsDir() {
+		return false
+	}
+	probe := filepath.Join(abs, ".nj-cli-workdir-probe")
+	if err := os.WriteFile(probe, []byte("ok"), 0o644); err != nil {
+		return false
+	}
+	_ = os.Remove(probe)
+	return true
+}
+
 func (a *Agent) isCLIAgent() bool {
 	return a.Info.Type == protocol.AgentTypeCLI || isCLIProvider(a.Info.AIProvider)
 }
@@ -25,7 +47,7 @@ func (a *Agent) resolveCLIWorkDir(msg *protocol.Message) string {
 	provider := strings.ToLower(strings.TrimSpace(a.Info.AIProvider))
 	for _, cfg := range cliAgentRegistry {
 		if cfg.ProviderName == provider && cfg.WorkDirEnv != "" {
-			if v := strings.TrimSpace(os.Getenv(cfg.WorkDirEnv)); v != "" {
+			if v := strings.TrimSpace(os.Getenv(cfg.WorkDirEnv)); v != "" && cliWorkDirUsable(v) {
 				return v
 			}
 		}

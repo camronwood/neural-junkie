@@ -34,7 +34,8 @@ func TestResolveCLIWorkDir_prefersCollabWorkspaceOverProviderDefault(t *testing.
 }
 
 func TestResolveCLIWorkDir_envOverrideWins(t *testing.T) {
-	t.Setenv("CURSOR_WORK_DIR", "/env/override")
+	envDir := t.TempDir()
+	t.Setenv("CURSOR_WORK_DIR", envDir)
 
 	provider := ai.NewCursorCLIProvider("/default/hub/project", "")
 	ag := &Agent{
@@ -53,8 +54,8 @@ func TestResolveCLIWorkDir_envOverrideWins(t *testing.T) {
 	}
 
 	got := ag.resolveCLIWorkDir(msg)
-	if got != "/env/override" {
-		t.Fatalf("workdir = %q, want env override", got)
+	if got != envDir {
+		t.Fatalf("workdir = %q, want env override %q", got, envDir)
 	}
 }
 

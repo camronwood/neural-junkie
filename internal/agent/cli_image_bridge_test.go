@@ -96,6 +96,7 @@ func TestShouldRespond_NonCLIAgentWithUserImages_Blocked(t *testing.T) {
 
 func TestAugmentPromptWithCLIImages_AppendsPaths(t *testing.T) {
 	workDir := t.TempDir()
+	t.Setenv("CURSOR_WORK_DIR", "/path/to/your/project") // ignore placeholder env paths
 	provider := ai.NewCursorCLIProvider(workDir, "")
 	ag := NewAgent(protocol.AgentTypeCLI, "Cursor", []string{"code"}, provider, hubStub{})
 	ag.Info.AIProvider = "cursor-cli"

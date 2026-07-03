@@ -12,6 +12,11 @@ const (
 	agentRuntimeMaxToolIterations = 100
 	agentRuntimeMaxRepairRounds     = 5
 	agentRuntimeMaxFilesPerCycle    = 50
+
+	// Live implement-scenarios use shorter caps than generic impl sessions so agents
+	// finish and post a reply before the shortest scenario wait_reply (420s).
+	implScenarioSessionTimeout         = 360 * time.Second
+	implScenarioSessionFrontendTimeout = 540 * time.Second
 )
 
 func agentRuntimeV2Enabled() bool {
@@ -47,9 +52,9 @@ func implSessionTimeoutForMessage(msg *protocol.Message, frontend bool) time.Dur
 	// not the open-ended agent-runtime v2 default (up to 180m).
 	if msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios" {
 		if frontend {
-			return implSessionFrontendTimeout
+			return implScenarioSessionFrontendTimeout
 		}
-		return implSessionTimeout
+		return implScenarioSessionTimeout
 	}
 	if agentRuntimeV2ForMessage(msg) {
 		return performanceFromHub().AgentTimeout()

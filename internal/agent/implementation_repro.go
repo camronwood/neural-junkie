@@ -184,6 +184,11 @@ func (a *Agent) runReproVerify(ctx context.Context, msg *protocol.Message, state
 	toolCtx := a.contextWithWorkspaceBackend(ctx, msg)
 	toolCtx = shared.ContextWithImplementationSession(toolCtx, true)
 	toolCtx = attachImplSessionCommandPolicy(toolCtx, state)
+	timeout := shared.BootFixRunCommandTimeout
+	if shared.IsDevServerCommand(cmd) {
+		timeout = 15 * time.Second
+	}
+	toolCtx = shared.ContextWithRunCommandTimeout(toolCtx, timeout)
 	input, _ := json.Marshal(map[string]string{"command": cmd})
 	result, err := executeMCPTool(toolCtx, mcpServer, "run_command", input)
 	var combined strings.Builder

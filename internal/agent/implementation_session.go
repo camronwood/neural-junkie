@@ -333,13 +333,23 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 
 	if a.tryEarlyCommandEvidencePlaybook(sessionCtx, msg, wsPath, state) {
 		state.Phase = "verify"
-		verifyOut, verifyFailed, verifySkipped := a.runVerifyForState(sessionCtx, msg, state)
-		state.VerifyOutput = verifyOut
-		state.VerifyFailed = verifyFailed
-		state.VerifySkipped = verifySkipped
-		summary := a.formatImplementationSessionSummary("", state, state.hasRegisteredProposals(), msg)
-		outcome := a.buildImplementationSessionOutcome(msg, state, state.hasRegisteredProposals())
-		return summary, streamMsgID, state.hasRegisteredProposals(), state.RegisteredFiles, outcome, nil
+		var verifyOut string
+		var verifyFailed, verifySkipped bool
+		// Re-running make start-all after adding the target launches dev servers and can
+		// block until session timeout; the playbook already matched pasted failure evidence.
+		if state.PlaybookUsedName == "missing_start_all_target" {
+			verifySkipped = true
+			state.VerifySkipped = true
+		} else {
+			verifyOut, verifyFailed, verifySkipped = a.runVerifyForState(sessionCtx, msg, state)
+			state.VerifyOutput = verifyOut
+			state.VerifyFailed = verifyFailed
+			state.VerifySkipped = verifySkipped
+		}
+		proposed := state.hasRegisteredProposals() || state.ProposedCount > 0 || len(state.FilesChanged) > 0
+		summary := a.formatImplementationSessionSummary("", state, proposed, msg)
+		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
+		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
 	}
 
 	var repairNote string
