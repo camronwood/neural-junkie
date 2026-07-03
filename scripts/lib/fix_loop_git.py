@@ -18,6 +18,7 @@ TESTING_ARTIFACT_PREFIXES = (
 )
 
 BRANCH_SAFE_RE = re.compile(r"[^a-zA-Z0-9._/-]+")
+WORKTREES_DIRNAME = ".worktrees"
 
 
 def default_fix_branch(stamp: str | None = None) -> str:
@@ -42,6 +43,111 @@ def git_available(cwd: Path) -> bool:
 def current_branch(cwd: Path) -> str:
     proc = _run_git(["branch", "--show-current"], cwd=cwd)
     return (proc.stdout or "").strip()
+
+
+def sanitize_branch_for_path(branch: str) -> str:
+    name = BRANCH_SAFE_RE.sub("-", branch or "").strip("-/")
+    return name.replace("/", "-")
+
+
+def normalize_branch_name(branch: str | None) -> str:
+    return BRANCH_SAFE_RE.sub("-", branch or "").strip("-/")
+
+
+def planned_fix_worktree_path(repo_root: Path, branch: str) -> Path:
+    return repo_root.resolve() / WORKTREES_DIRNAME / sanitize_branch_for_path(branch)
+
+
+def _registered_worktree_paths(repo_root: Path) -> set[str]:
+    proc = _run_git(["worktree", "list", "--porcelain"], cwd=repo_root)
+    if proc.returncode != 0:
+        return set()
+    paths: set[str] = set()
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("worktree "):
+            paths.add(line[len("worktree ") :].strip())
+    return paths
+
+
+def _branch_exists(repo_root: Path, branch: str) -> bool:
+    return _run_git(["rev-parse", "--verify", branch], cwd=repo_root).returncode == 0
+
+
+def _default_base_ref(repo_root: Path, base_branch: str | None) -> str:
+    if base_branch:
+        return base_branch
+    proc = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root)
+    ref = (proc.stdout or "").strip()
+    return ref or "main"
+
+
+def ensure_fix_worktree(
+    repo_root: Path,
+    *,
+    branch: str | None = None,
+    base_branch: str | None = None,
+) -> tuple[int, Path, str]:
+    """Create or reuse a git worktree for fix-loop work. Main checkout stays put."""
+    if not git_available(repo_root):
+        return 1, repo_root, branch or ""
+
+    name = normalize_branch_name(branch or default_fix_branch())
+    if not name:
+        return 1, repo_root, ""
+
+    worktree_path = planned_fix_worktree_path(repo_root, name)
+    registered = _registered_worktree_paths(repo_root)
+    abs_worktree = str(worktree_path.resolve())
+
+    if abs_worktree in registered:
+        print(f">>> [git] reusing worktree {worktree_path}")
+        return 0, worktree_path.resolve(), name
+
+    if worktree_path.exists():
+        print(f">>> [git] worktree path exists but is not registered: {worktree_path}", flush=True)
+        return 1, worktree_path, name
+
+    worktree_path.parent.mkdir(parents=True, exist_ok=True)
+    base_ref = _default_base_ref(repo_root, base_branch)
+
+    if _branch_exists(repo_root, name):
+        proc = _run_git(["worktree", "add", str(worktree_path), name], cwd=repo_root)
+    else:
+        proc = _run_git(["worktree", "add", "-b", name, str(worktree_path), base_ref], cwd=repo_root)
+
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "").strip()
+        print(f">>> [git] worktree add failed for {name}: {err}", flush=True)
+        return proc.returncode, worktree_path, name
+
+    print(f">>> [git] created worktree {worktree_path} on branch {name} (base {base_ref})")
+    print(f">>> [git] main checkout remains on {current_branch(repo_root) or '(detached)'}")
+    return 0, worktree_path.resolve(), name
+
+
+def prepare_fix_loop_cwd(
+    repo_root: Path,
+    *,
+    branch: str | None,
+    base_branch: str | None,
+    use_worktree: bool,
+    no_commit: bool,
+    dry_run: bool,
+) -> tuple[int, Path, str]:
+    """Return (exit_code, loop_cwd, fix_branch). Uses a worktree when requested."""
+    fix_branch = normalize_branch_name(branch or default_fix_branch())
+    if not fix_branch:
+        return 1, repo_root.resolve(), ""
+
+    if use_worktree and not no_commit and not dry_run:
+        return ensure_fix_worktree(repo_root.resolve(), branch=fix_branch, base_branch=base_branch)
+
+    rc, fix_branch = ensure_fix_branch(
+        repo_root.resolve(),
+        branch=fix_branch,
+        base_branch=base_branch,
+    )
+    return rc, repo_root.resolve(), fix_branch
 
 
 def is_artifact_path(path: str) -> bool:

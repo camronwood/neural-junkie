@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GEMINI_KEY_FILE = ROOT / ".gemini-api-key"
+CURSOR_KEY_FILE = ROOT / ".cursor-api-key"
 ENV_LOCAL = ROOT / "env.local"
 HEADLESS_GEMINI_HOME = ROOT / "scripts" / "gemini-headless-home"
 
@@ -55,6 +56,16 @@ def load_gemini_api_key(root: Path = ROOT) -> str:
     return ""
 
 
+def load_cursor_api_key(root: Path = ROOT) -> str:
+    key = (os.environ.get("CURSOR_API_KEY") or "").strip()
+    if key:
+        return key
+    path = root / ".cursor-api-key"
+    if path.is_file():
+        return path.read_text(encoding="utf-8").strip()
+    return ""
+
+
 def explicit_gemini_judge_model(root: Path = ROOT) -> str:
     """User-configured judge model (env.local or shell); empty means probe at release-prep start."""
     local = parse_env_file(root / "env.local")
@@ -75,6 +86,10 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     gemini_key = load_gemini_api_key(root)
     if gemini_key:
         env["GEMINI_API_KEY"] = gemini_key
+
+    cursor_key = load_cursor_api_key(root)
+    if cursor_key:
+        env["CURSOR_API_KEY"] = cursor_key
 
     env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
     env.setdefault("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765")

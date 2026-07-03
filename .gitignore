@@ -97,4 +97,8 @@ scenarios/fixtures/minimal-repo/server
 # Generated at repo root by release scripts (committed copies live in updater/beta/)
 /update-*.json
 
+# Fix-loop isolated worktrees (see scripts/lib/fix_loop_git.py)
+.worktrees/
+
 .gemini-api-key
+.cursor-api-key

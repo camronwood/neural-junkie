@@ -393,7 +393,8 @@ layer-fix-loop: ## Layer gate + Cursor agent fix loop (LAYER=implement MAX_ITER=
 		$(if $(AGENT_TIMEOUT),--agent-timeout $(AGENT_TIMEOUT),) \
 		$(if $(NO_COMMIT),--no-commit,) \
 		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
-		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",)'
+		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
+		$(if $(NO_WORKTREE),--no-worktree,--use-worktree)'
 
 layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	@if [ -z "$(LAYER)" ]; then echo "Usage: make layer-overnight LAYER=implement"; $(MAKE) layer-list; exit 1; fi
@@ -402,7 +403,7 @@ layer-overnight: ## Walk-away layer fix loop in tmux (LAYER=implement)
 	 REPORT='$(REPORT)' SKIP_GATE='$(SKIP_GATE)' SKIP_AGENT='$(SKIP_AGENT)' \
 	 SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' MODEL='$(MODEL)' \
 	 PREFER_SDK='$(PREFER_SDK)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
-	 VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
+	 NO_WORKTREE='$(NO_WORKTREE)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 
 release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_RUN=1 SKIP_BENCHMARK=1 MAX_ITER=3 NO_COMMIT=1)
 	@chmod +x scripts/release-prep-fix-loop.py scripts/release-prep.py
@@ -424,7 +425,8 @@ release-prep-fix-loop: ## Release gate + Cursor agent fix loop (REPORT=path DRY_
 		$(if $(AGENT_TIMEOUT),--agent-timeout $(AGENT_TIMEOUT),) \
 		$(if $(NO_COMMIT),--no-commit,) \
 		$(if $(FIX_BRANCH),--fix-branch "$(FIX_BRANCH)",) \
-		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",)'
+		$(if $(BASE_BRANCH),--base-branch "$(BASE_BRANCH)",) \
+		$(if $(NO_WORKTREE),--no-worktree,--use-worktree)'
 
 overnight-release-prep-fix-loop:
 	@$(MAKE) overnight NJ_OVERNIGHT_TARGET=release-prep-fix-loop \
@@ -432,6 +434,7 @@ overnight-release-prep-fix-loop:
 	 SKIP_AGENT='$(SKIP_AGENT)' SKIP_VERIFY='$(SKIP_VERIFY)' DRY_RUN='$(DRY_RUN)' \
 	 MODEL='$(MODEL)' PREFER_SDK='$(PREFER_SDK)' AGENT_TIMEOUT='$(AGENT_TIMEOUT)' \
 	 NO_COMMIT='$(NO_COMMIT)' FIX_BRANCH='$(FIX_BRANCH)' BASE_BRANCH='$(BASE_BRANCH)' \
+	 NO_WORKTREE='$(NO_WORKTREE)' \
 	 SKIP_LIVE='$(SKIP_LIVE)' SKIP_PARITY='$(SKIP_PARITY)' SKIP_BENCHMARK='$(SKIP_BENCHMARK)' \
 	 NO_FULL='$(NO_FULL)' VERBOSE='$(VERBOSE)' IN_TMUX='$(IN_TMUX)'
 

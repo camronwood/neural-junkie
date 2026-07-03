@@ -11,6 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib.release_prep_env import (  # noqa: E402
+    load_cursor_api_key,
     load_gemini_api_key,
     parse_env_file,
     release_prep_env,
@@ -47,6 +48,20 @@ class TestReleasePrepEnv(unittest.TestCase):
         finally:
             if old:
                 os.environ["GEMINI_API_KEY"] = old
+
+    def test_load_cursor_from_file_when_env_empty(self) -> None:
+        key_path = SCRIPTS_DIR.parent / ".cursor-api-key"
+        if not key_path.is_file():
+            self.skipTest(".cursor-api-key not present")
+        old = os.environ.pop("CURSOR_API_KEY", None)
+        try:
+            key = load_cursor_api_key(SCRIPTS_DIR.parent)
+            self.assertTrue(key)
+            env = release_prep_env(SCRIPTS_DIR.parent)
+            self.assertEqual(env.get("CURSOR_API_KEY"), key)
+        finally:
+            if old:
+                os.environ["CURSOR_API_KEY"] = old
 
 
 if __name__ == "__main__":

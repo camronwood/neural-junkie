@@ -54,6 +54,7 @@ FORWARD_VARS=(
   NO_COMMIT
   FIX_BRANCH
   BASE_BRANCH
+  NO_WORKTREE
 )
 
 ollama_healthy() {

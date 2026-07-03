@@ -25,7 +25,7 @@ from lib.cursor_fix_agent import (  # noqa: E402
     build_agent_invoke_message,
     run_fix_agent,
 )
-from lib.fix_loop_git import commit_iteration_changes, ensure_fix_branch, list_commit_candidates  # noqa: E402
+from lib.fix_loop_git import commit_iteration_changes, prepare_fix_loop_cwd, list_commit_candidates  # noqa: E402
 from lib.release_prep_env import apply_release_prep_env, provision_hub_automation_key  # noqa: E402
 from lib.regression_boot import restart_hub_for_live_run  # noqa: E402
 from lib.release_prep_failures import FailureKind  # noqa: E402
@@ -65,6 +65,7 @@ def run_layer_gate(
     stamp: str,
     no_restart_hub: bool,
     verbose: bool,
+    cwd: Path,
 ) -> tuple[int, Path]:
     cmd = [
         PY,
@@ -82,7 +83,7 @@ def run_layer_gate(
         cmd.append("--no-restart-hub")
     if verbose:
         cmd.append("--verbose")
-    rc, _ = run_cmd(cmd)
+    rc, _ = run_cmd(cmd, cwd=cwd)
     summary = testing_dir / f"layer-gate-{layer}-{stamp}.md"
     return rc, summary
 
@@ -93,12 +94,14 @@ def prepare_next_iteration_hub(hub_url: str, *, layer: str, next_iter: int, cwd:
     return restart_hub_for_live_run(cwd.resolve(), hub_url, label=f"layer-fix-loop-{layer}-iter{next_iter}")
 
 
-def run_targeted_verification(cmds: list[list[str]], *, hub_url: str) -> tuple[bool, list[tuple[list[str], int]]]:
+def run_targeted_verification(
+    cmds: list[list[str]], *, hub_url: str, cwd: Path
+) -> tuple[bool, list[tuple[list[str], int]]]:
     env = {"NEURAL_JUNKIE_HUB_URL": hub_url}
     results: list[tuple[list[str], int]] = []
     all_ok = True
     for cmd in cmds:
-        rc, _ = run_cmd(cmd, env=env)
+        rc, _ = run_cmd(cmd, env=env, cwd=cwd)
         results.append((cmd, rc))
         if rc != 0:
             all_ok = False
@@ -178,10 +181,12 @@ def main() -> int:
     p.add_argument("--model", help="Cursor agent model")
     p.add_argument("--prefer-sdk", action="store_true")
     p.add_argument("--agent-timeout", type=int, default=int(os.environ.get("NJ_AGENT_TIMEOUT", str(DEFAULT_AGENT_TIMEOUT_S))))
-    p.add_argument("--cwd", type=Path, default=ROOT)
+    p.add_argument("--cwd", type=Path, default=ROOT, help="Repo root (worktree created here when --use-worktree)")
     p.add_argument("--no-commit", action="store_true")
     p.add_argument("--fix-branch", help="Git branch for fixes")
     p.add_argument("--base-branch", help="Base ref when creating fix branch")
+    p.add_argument("--use-worktree", action="store_true", default=True, help="Run fixes in .worktrees/<branch> (default)")
+    p.add_argument("--no-worktree", action="store_false", dest="use_worktree", help="Checkout fix branch in --cwd instead")
     p.add_argument("--list", action="store_true")
     args = p.parse_args()
 
@@ -215,13 +220,24 @@ def main() -> int:
 
     summary_path = args.report
     loop_stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M")
+    repo_root = args.cwd.resolve()
     fix_branch = args.fix_branch or f"release-prep/layer-{layer}-{loop_stamp}"
+    loop_cwd = repo_root
 
     if not args.no_commit and not args.dry_run:
-        git_rc, fix_branch = ensure_fix_branch(args.cwd.resolve(), branch=fix_branch, base_branch=args.base_branch)
+        git_rc, loop_cwd, fix_branch = prepare_fix_loop_cwd(
+            repo_root,
+            branch=fix_branch,
+            base_branch=args.base_branch,
+            use_worktree=args.use_worktree,
+            no_commit=args.no_commit,
+            dry_run=args.dry_run,
+        )
         if git_rc != 0:
-            print("Git branch setup failed; use --no-commit to skip.", file=sys.stderr)
+            print("Git branch/worktree setup failed; use --no-commit to skip.", file=sys.stderr)
             return git_rc
+    elif args.use_worktree:
+        print(">>> [git] worktree skipped (--no-commit or --dry-run); using repo checkout", flush=True)
 
     for iteration in range(1, args.max_iterations + 1):
         iter_stamp = f"{loop_stamp}-iter{iteration}"
@@ -236,6 +252,7 @@ def main() -> int:
                 stamp=iter_stamp,
                 no_restart_hub=args.no_restart_hub,
                 verbose=args.verbose,
+                cwd=loop_cwd,
             )
             if gate_rc == 0:
                 print(f"\n=== Layer {layer} PASS — fix loop complete ===")
@@ -267,7 +284,7 @@ def main() -> int:
         if not code_fixes and report.retry_only and not args.skip_agent:
             print("\n>>> No code-fix candidates; flake/infra only.")
             if report.rerun_cmds and not args.skip_verify:
-                ok, verify_results = run_targeted_verification(report.rerun_cmds, hub_url=hub_url)
+                ok, verify_results = run_targeted_verification(report.rerun_cmds, hub_url=hub_url, cwd=loop_cwd)
                 log_path = testing_dir / f"{LOOP_LOG_PREFIX}-{layer}-{iter_stamp}.md"
                 write_iteration_log(
                     log_path,
@@ -284,7 +301,7 @@ def main() -> int:
                 if ok:
                     summary_path = None
                     if not prepare_next_iteration_hub(
-                        hub_url, layer=layer, next_iter=iteration + 1, cwd=args.cwd, no_restart_hub=args.no_restart_hub
+                        hub_url, layer=layer, next_iter=iteration + 1, cwd=loop_cwd, no_restart_hub=args.no_restart_hub
                     ):
                         return 1
                     continue
@@ -292,7 +309,7 @@ def main() -> int:
                 return 1
             summary_path = None
             if not prepare_next_iteration_hub(
-                hub_url, layer=layer, next_iter=iteration + 1, cwd=args.cwd, no_restart_hub=args.no_restart_hub
+                hub_url, layer=layer, next_iter=iteration + 1, cwd=loop_cwd, no_restart_hub=args.no_restart_hub
             ):
                 return 1
             time.sleep(5)
@@ -301,7 +318,7 @@ def main() -> int:
         prompt = build_layer_agent_prompt(report, layer=layer)
         prompt_path = testing_dir / f"{LOOP_LOG_PREFIX}-prompt-{layer}-{iter_stamp}.md"
         prompt_path.write_text(prompt + "\n", encoding="utf-8")
-        invoke_msg = build_agent_invoke_message(prompt_path, repo_root=args.cwd.resolve())
+        invoke_msg = build_agent_invoke_message(prompt_path, repo_root=loop_cwd)
         print(f"\nAgent prompt: {prompt_path} ({len(prompt)} chars)")
 
         agent_rc: int | None = None
@@ -316,7 +333,7 @@ def main() -> int:
             agent_log = testing_dir / f"{LOOP_LOG_PREFIX}-agent-{layer}-{iter_stamp}.log"
             agent_rc, agent_out = run_fix_agent(
                 invoke_msg,
-                cwd=args.cwd.resolve(),
+                cwd=loop_cwd,
                 model=args.model,
                 prefer_sdk=args.prefer_sdk,
                 timeout_s=args.agent_timeout,
@@ -326,7 +343,7 @@ def main() -> int:
                 action = _handle_agent_interrupted(
                     agent_rc=agent_rc,
                     agent_timeout=args.agent_timeout,
-                    cwd=args.cwd.resolve(),
+                    cwd=loop_cwd,
                     iteration=iteration,
                     max_iterations=args.max_iterations,
                 )
@@ -340,7 +357,7 @@ def main() -> int:
         git_commit = ""
         if not args.skip_agent and not args.no_commit and not args.dry_run:
             commit_rc, _ = commit_iteration_changes(
-                args.cwd.resolve(),
+                loop_cwd,
                 branch=fix_branch,
                 iteration=iteration,
                 summary_path=summary_path,
@@ -348,7 +365,7 @@ def main() -> int:
             if commit_rc == 0:
                 proc = subprocess.run(
                     ["git", "rev-parse", "--short", "HEAD"],
-                    cwd=args.cwd,
+                    cwd=loop_cwd,
                     capture_output=True,
                     text=True,
                 )
@@ -357,7 +374,7 @@ def main() -> int:
         verify_results: list[tuple[list[str], int]] = []
         verify_ok = True
         if not args.skip_verify and report.rerun_cmds:
-            verify_ok, verify_results = run_targeted_verification(report.rerun_cmds, hub_url=hub_url)
+            verify_ok, verify_results = run_targeted_verification(report.rerun_cmds, hub_url=hub_url, cwd=loop_cwd)
 
         log_path = testing_dir / f"{LOOP_LOG_PREFIX}-{layer}-{iter_stamp}.md"
         write_iteration_log(
@@ -379,7 +396,7 @@ def main() -> int:
             print("\n>>> Targeted verification PASS — re-running layer gate")
             summary_path = None
             if not prepare_next_iteration_hub(
-                hub_url, layer=layer, next_iter=iteration + 1, cwd=args.cwd, no_restart_hub=args.no_restart_hub
+                hub_url, layer=layer, next_iter=iteration + 1, cwd=loop_cwd, no_restart_hub=args.no_restart_hub
             ):
                 return 1
             continue
@@ -389,7 +406,7 @@ def main() -> int:
             return 1
         summary_path = None
         if not prepare_next_iteration_hub(
-            hub_url, layer=layer, next_iter=iteration + 1, cwd=args.cwd, no_restart_hub=args.no_restart_hub
+            hub_url, layer=layer, next_iter=iteration + 1, cwd=loop_cwd, no_restart_hub=args.no_restart_hub
         ):
             return 1
         time.sleep(5)

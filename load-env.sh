@@ -18,3 +18,8 @@ if [ -z "${GEMINI_API_KEY:-}" ] && [ -f ".gemini-api-key" ]; then
     export GEMINI_API_KEY="$(tr -d '[:space:]' < .gemini-api-key)"
     echo "✅ GEMINI_API_KEY loaded from .gemini-api-key"
 fi
+
+if [ -z "${CURSOR_API_KEY:-}" ] && [ -f ".cursor-api-key" ]; then
+    export CURSOR_API_KEY="$(tr -d '[:space:]' < .cursor-api-key)"
+    echo "✅ CURSOR_API_KEY loaded from .cursor-api-key"
+fi
