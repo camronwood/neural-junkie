@@ -86,7 +86,24 @@ func ShouldAutoApproveFileChange(path string, workspaceRoot ...string) bool {
 	if isProtectedConfigPath(path) && !isRootMakefile(path) {
 		return false
 	}
-	return isTrustedAutoApplyPath(path) || isRootMakefile(path)
+	return isTrustedAutoApplyPath(path) || isRootMakefile(path) || isTrustedStackConfigPath(path)
+}
+
+// isTrustedStackConfigPath allows Tailwind/PostCSS config edits during implementation sessions.
+func isTrustedStackConfigPath(path string) bool {
+	path = normalizeFileChangeRelPath(path)
+	if path == "" {
+		return false
+	}
+	base := strings.ToLower(filepath.Base(path))
+	if strings.HasPrefix(base, "tailwind.config.") {
+		return true
+	}
+	switch base {
+	case "postcss.config.js", "postcss.config.cjs", "postcss.config.mjs":
+		return true
+	}
+	return false
 }
 
 func isRootMakefile(path string) bool {

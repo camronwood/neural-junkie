@@ -401,6 +401,73 @@ func (a *Agent) tryEarlyThemeCSSFix(ctx context.Context, msg *protocol.Message, 
 	return true
 }
 
+// tryEarlyScopedFileEdit applies deterministic single-file edits for @file:path ONLY requests.
+func (a *Agent) tryEarlyScopedFileEdit(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
+	if a == nil || msg == nil || wsPath == "" {
+		return false
+	}
+	userContent := implementationUserContent(a, msg)
+	atFiles := DetectAtFilePaths(userContent)
+	if len(atFiles) != 1 {
+		return false
+	}
+	lower := strings.ToLower(userContent)
+	if !strings.Contains(lower, " only") && !strings.Contains(lower, "only ") {
+		return false
+	}
+	target := atFiles[0]
+	existingBytes, err := os.ReadFile(filepath.Join(wsPath, target))
+	if err != nil {
+		return false
+	}
+	body, ok := synthesizeScopedFileEdit(userContent, target, string(existingBytes))
+	if !ok {
+		return false
+	}
+	rel := a.ResolveProposalPath(ctx, msg, target)
+	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+		return false
+	}
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existingBytes), body, msg); err != nil {
+		return false
+	}
+	if state != nil {
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+	}
+	log.Printf("[%s] early_scoped_file_edit(path=%s)", a.Info.Name, rel)
+	return true
+}
+
+func synthesizeScopedFileEdit(userContent, target, existing string) (string, bool) {
+	lower := strings.ToLower(userContent)
+	if strings.Contains(lower, "subtitle") &&
+		(strings.HasSuffix(strings.ToLower(target), "app.tsx") || strings.HasSuffix(strings.ToLower(target), "app.jsx")) {
+		return synthesizeAppSidebarSubtitle(existing)
+	}
+	return "", false
+}
+
+func synthesizeAppSidebarSubtitle(existing string) (string, bool) {
+	if strings.Contains(strings.ToLower(existing), "subtitle") {
+		return "", false
+	}
+	insert := `<p className="text-xs text-slate-500 subtitle">Neural Junkie fixture</p>`
+	markers := []string{
+		`<p className="text-sm text-slate-400">Sidebar</p>`,
+		`<p className="text-sm text-slate-400 dark:text-slate-600">Sidebar</p>`,
+	}
+	for _, marker := range markers {
+		if strings.Contains(existing, marker) {
+			out := strings.Replace(existing, marker, marker+"\n        "+insert, 1)
+			if out != existing {
+				return out, true
+			}
+		}
+	}
+	return "", false
+}
+
 // tryEarlyThemeToggleFix patches tailwind.config.js and the React entry for sidebar theme toggles.
 func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {

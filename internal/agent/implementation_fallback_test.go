@@ -190,3 +190,20 @@ func TestCorruptAppJSEntryConflict(t *testing.T) {
 		t.Fatal("expected corrupt App.js entry conflict")
 	}
 }
+
+func TestSynthesizeAppSidebarSubtitle(t *testing.T) {
+	t.Parallel()
+	existing := `<p className="text-sm text-slate-400">Sidebar</p>`
+	got, ok := synthesizeAppSidebarSubtitle(existing)
+	if !ok || !strings.Contains(got, "subtitle") {
+		t.Fatalf("got ok=%v body=%q", ok, got)
+	}
+}
+
+func TestPreferImplementationTargetPath_atFileOverDoNotModify(t *testing.T) {
+	t.Parallel()
+	user := "In @file:src/App.tsx ONLY add a subtitle. Do NOT modify tailwind.config.js."
+	if got := preferImplementationTargetPath("", user, ""); got != "src/App.tsx" {
+		t.Fatalf("got %q, want src/App.tsx", got)
+	}
+}

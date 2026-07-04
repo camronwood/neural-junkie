@@ -39,6 +39,23 @@ func TestPreferImplementationTargetPath(t *testing.T) {
 	}
 }
 
+func TestPreferImplementationTargetPath_atFileWins(t *testing.T) {
+	t.Parallel()
+	user := "In @file:src/App.tsx ONLY add a subtitle. Do NOT modify tailwind.config.js or package.json."
+	got := preferImplementationTargetPath("", user, "File:")
+	if got != "src/App.tsx" {
+		t.Fatalf("got %q, want src/App.tsx", got)
+	}
+}
+
+func TestDetectAtFilePaths(t *testing.T) {
+	t.Parallel()
+	got := DetectAtFilePaths("Fix @file:core/sample/math.go and @folder:src/ only")
+	if len(got) != 1 || got[0] != "core/sample/math.go" {
+		t.Fatalf("got %v", got)
+	}
+}
+
 func TestResolveLooseFileChangePath_PathFieldWins(t *testing.T) {
 	t.Parallel()
 	tail := "[FILE_CHANGE] File:\npath: tailwind.config.js\n```new\n{}\n```"

@@ -10,6 +10,8 @@ import (
 
 var validFileChangeRelPathRE = regexp.MustCompile(`^(?:[a-zA-Z0-9._\-]+/)*[a-zA-Z0-9][a-zA-Z0-9._\-]*\.[a-zA-Z0-9]{1,16}$`)
 
+var atFilePathRE = regexp.MustCompile(`(?i)@file:([^\s]+)`)
+
 // isValidFileChangeRelPath rejects label-like garbage (e.g. "File:") from loose [FILE_CHANGE] parsing.
 func isValidFileChangeRelPath(path string) bool {
 	path = normalizeFileChangeRelPath(path)
@@ -106,10 +108,31 @@ func preferImplementationTargetPathForMessage(a *Agent, msg *protocol.Message) s
 	return preferImplementationTargetPath(a.resolveWorkspacePath(msg), content, "")
 }
 
+// DetectAtFilePaths extracts explicit @file:path scoped edit targets from user text.
+func DetectAtFilePaths(content string) []string {
+	seen := make(map[string]bool)
+	var paths []string
+	for _, m := range atFilePathRE.FindAllStringSubmatch(content, -1) {
+		if len(m) < 2 {
+			continue
+		}
+		p := normalizeFileChangeRelPath(m[1])
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		paths = append(paths, p)
+	}
+	return paths
+}
+
 // preferImplementationTargetPath picks a sensible path when the model emitted a bad one.
 func preferImplementationTargetPath(workspacePath, userContent, modelPath string) string {
 	if isValidFileChangeRelPath(modelPath) {
 		return normalizeFileChangeRelPath(modelPath)
+	}
+	if p := longestValidPathIn(DetectAtFilePaths(userContent)); p != "" {
+		return p
 	}
 	if p := longestValidPathIn(DetectFilePaths(userContent)); p != "" {
 		return p

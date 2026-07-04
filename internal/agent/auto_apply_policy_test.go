@@ -64,6 +64,16 @@ func TestShouldAutoApproveFileChange_rootMakefile(t *testing.T) {
 	}
 }
 
+func TestShouldAutoApproveFileChange_tailwindConfig(t *testing.T) {
+	ws := "/tmp/react-fixture"
+	if !ShouldAutoApproveFileChange("tailwind.config.js", ws) {
+		t.Fatal("root tailwind.config.js should auto-approve during implementation sessions")
+	}
+	if ShouldAutoApproveFileChange("package.json", ws) {
+		t.Fatal("package.json should remain protected")
+	}
+}
+
 func TestRelativizeFileChangePath(t *testing.T) {
 	ws := "/data/minimal-repo"
 	got := RelativizeFileChangePath(ws+"/core/sample/main.go", ws)
