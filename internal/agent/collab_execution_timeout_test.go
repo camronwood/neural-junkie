@@ -75,3 +75,17 @@ func TestCollabGenerationContext_skipsNonCollabChat(t *testing.T) {
 		t.Fatal("chat should not get collab deadline")
 	}
 }
+
+func TestCollabGenerationContext_implementScenariosDeadline(t *testing.T) {
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios", protocol.AgentInfo{Name: "A"}, "implement theme.css")
+	ctx, cancel := collabGenerationContext(context.Background(), msg)
+	defer cancel()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected implement-scenarios deadline")
+	}
+	want := implScenarioSessionFrontendTimeout
+	if d := time.Until(deadline); d < want-2*time.Second || d > want+2*time.Second {
+		t.Fatalf("deadline %v want ~%v", d, want)
+	}
+}

@@ -101,14 +101,14 @@ func (a *Agent) attemptMissingStartAllMakefileFix(
 	if err != nil {
 		oldContent = ""
 	}
-	if err := a.validateProposalForSession(ctx, msg, "Makefile", inferProposalOp(wsPath, "Makefile", oldContent)); err != nil {
-		if state.BootFixIntent && commandOutputMatchesPlaybook(state.LastCommandOutput()+msg.Content) == "missing_start_all_target" {
-			if err2 := ValidateProposal(wsPath, "Makefile", inferProposalOp(wsPath, "Makefile", oldContent), a.manifestForProposal(ctx, msg)); err2 != nil {
-				return false, nil
-			}
-		} else {
+	op := inferProposalOp(wsPath, "Makefile", oldContent)
+	manifest := a.manifestForProposal(ctx, msg)
+	if playbookSignatureFromCommandEvidence(msg.Content) == "missing_start_all_target" {
+		if err := ValidateProposal(wsPath, "Makefile", op, manifest); err != nil {
 			return false, nil
 		}
+	} else if err := a.validateProposalForSession(ctx, msg, "Makefile", op); err != nil {
+		return false, nil
 	}
 	if oldContent == "" {
 		if err := a.proposeFileCreateInChannel(ctx, msg.Channel, "Makefile", body, msg); err != nil {

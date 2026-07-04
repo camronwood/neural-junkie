@@ -8,6 +8,10 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
+func isImplementScenariosChannel(msg *protocol.Message) bool {
+	return msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios"
+}
+
 const (
 	agentRuntimeMaxToolIterations = 100
 	agentRuntimeMaxRepairRounds     = 5
@@ -36,6 +40,10 @@ func agentRuntimeV2ForMessage(msg *protocol.Message) bool {
 }
 
 func implSessionLimits(msg *protocol.Message) (maxToolIter, maxEditRounds, maxFiles int) {
+	// Live implement-scenarios must stay within legacy caps so sessions finish before wait_reply.
+	if isImplementScenariosChannel(msg) {
+		return implSessionMaxToolIterations, implSessionMaxEditRounds, implSessionMaxFiles
+	}
 	if agentRuntimeV2ForMessage(msg) {
 		perf := performanceFromHub()
 		maxToolIter = perf.AgentMaxStepsOrDefault()

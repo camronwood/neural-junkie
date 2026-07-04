@@ -348,6 +348,12 @@ func (h *Hub) IsAgentInAnyChannel(agentID string) bool {
 	return false
 }
 
+// EnsureAgentSubscribedToChannel starts the in-process agent listener on channelName
+// immediately after JoinChannel (do not rely on discoverChannels delay).
+func (h *Hub) EnsureAgentSubscribedToChannel(agentID, channelName string) {
+	h.ensureAgentSubscribed(agentID, channelName)
+}
+
 // CreateDMChannel creates (or returns an existing) DM channel between a user and an agent.
 // The agent is automatically joined to the channel.
 func (h *Hub) ensureAgentSubscribed(agentID, channelName string) {

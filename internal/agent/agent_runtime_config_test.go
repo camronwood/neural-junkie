@@ -42,6 +42,17 @@ func TestImplSessionLimits_legacyCaps(t *testing.T) {
 	}
 }
 
+func TestImplSessionLimits_implementScenariosUsesLegacyCapEvenWithV2(t *testing.T) {
+	msg := &protocol.Message{
+		Channel:  "implement-scenarios",
+		Metadata: map[string]interface{}{"agent_runtime_v2": true},
+	}
+	maxTool, maxRounds, maxFiles := implSessionLimits(msg)
+	if maxTool != implSessionMaxToolIterations || maxRounds != implSessionMaxEditRounds || maxFiles != implSessionMaxFiles {
+		t.Fatalf("implement-scenarios limits: tool=%d rounds=%d files=%d", maxTool, maxRounds, maxFiles)
+	}
+}
+
 func TestImplSessionTimeoutForMessage_implementScenariosUsesLegacyCap(t *testing.T) {
 	msg := &protocol.Message{
 		Channel:  "implement-scenarios",

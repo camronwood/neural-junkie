@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
@@ -27,6 +28,9 @@ func collabGenerationContext(ctx context.Context, msg *protocol.Message) (contex
 }
 
 func collabGenerationTimeoutSeconds(msg *protocol.Message) int {
+	if msg != nil && strings.TrimSpace(msg.Channel) == "implement-scenarios" {
+		return int(implScenarioSessionFrontendTimeout / time.Second)
+	}
 	switch msg.Type {
 	case protocol.MessageTypeCollabTask:
 		if sec := executionTimeoutFromMetadata(msg.Metadata); sec > 0 {

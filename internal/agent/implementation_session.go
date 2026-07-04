@@ -267,13 +267,6 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		eff = a.EffectiveImplementationProvider(sessionCtx, msg)
 	}
 
-	toolModel := a.resolveImplementationToolModel("")
-	if globalImplementationRouting != nil {
-		plan, _ := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
-		toolModel = a.resolveImplementationToolModel(plan.ToolModel)
-	}
-	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
-
 	history := a.channelHistory(msg.Channel)
 	state := &ImplementationSessionState{
 		Phase:     "discover",
@@ -448,6 +441,16 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		outcome := a.buildImplementationSessionOutcome(msg, state, proposed)
 		return summary, streamMsgID, proposed, state.FilesChanged, outcome, nil
 	}
+
+	toolModel := a.resolveImplementationToolModel("")
+	if globalImplementationRouting != nil {
+		plan, routedEff := globalImplementationRouting.Plan(sessionCtx, eff, a.Info, msg)
+		toolModel = a.resolveImplementationToolModel(plan.ToolModel)
+		if routedEff != nil {
+			eff = routedEff
+		}
+	}
+	sessionCtx = ai.WithImplementationToolModel(sessionCtx, toolModel)
 
 	for fileCycle := 0; fileCycle < maxFiles; fileCycle++ {
 		cycleProposed := false
