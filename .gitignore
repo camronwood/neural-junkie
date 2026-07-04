@@ -102,3 +102,5 @@ scenarios/fixtures/minimal-repo/server
 
 .gemini-api-key
 .cursor-api-key
+.cloudflare-api-token
+.cloud-flayer-analytics-snippet

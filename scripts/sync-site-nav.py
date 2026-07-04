@@ -2,27 +2,46 @@
 """Replace duplicated headers in docs/*.html with canonical site navigation."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from site_nav import apply_site_chrome, iter_site_html, read_site_version  # noqa: E402
+from site_nav import (  # noqa: E402
+    apply_cloudflare_analytics,
+    apply_site_chrome,
+    discover_cloudflare_analytics_token,
+    iter_site_html,
+    read_site_version,
+)
 
 
 def main() -> int:
     version = read_site_version()
+    cloudflare_token = os.environ.get("CF_WEB_ANALYTICS_TOKEN", "").strip() or discover_cloudflare_analytics_token()
     updated = 0
     failed: list[str] = []
 
     for path in iter_site_html():
         text = path.read_text(encoding="utf-8")
         try:
-            new_text = apply_site_chrome(path, text, version=version)
+            new_text = apply_site_chrome(
+                path,
+                text,
+                version=version,
+                cloudflare_token=cloudflare_token,
+            )
         except ValueError as exc:
-            failed.append(str(exc))
-            continue
+            if "no site chrome block found" not in str(exc):
+                failed.append(str(exc))
+                continue
+            try:
+                new_text = apply_cloudflare_analytics(text, token=cloudflare_token)
+            except ValueError as analytics_exc:
+                failed.append(str(analytics_exc))
+                continue
         if new_text != text:
             path.write_text(new_text, encoding="utf-8")
             updated += 1

@@ -1,6 +1,4 @@
-import "./index.css";
-
-function renderSidebarFooter() {
+export function SidebarFooter() {
   return (
     <footer className="text-xs text-slate-600 border-t border-slate-800 pt-3">
       <p>Neural Junkie fixture</p>
@@ -10,5 +8,3 @@ function renderSidebarFooter() {
     </footer>
   );
 }
-
-export default renderSidebarFooter;

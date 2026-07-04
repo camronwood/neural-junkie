@@ -2,7 +2,7 @@
 
 Planned improvements and feature ideas for Neural Junkie.
 
-Last Updated: June 2026
+Last Updated: July 2026
 
 ## Implemented (Moved from Previous Roadmap)
 
@@ -89,6 +89,16 @@ Possible follow-ups (not scheduled):
 - Tool calling for LM Studio / OpenAI-compat providers (Ollama supported for BiologyExpert + MCP in v1; Claude also supported)
 
 ## Low Priority
+
+### Mobile Companion App (reference)
+
+Exploratory future-build notes for a separate phone-native NJ companion:
+
+- small on-device model
+- offline-first chat and personal workflows
+- explicit local sync with desktop NJ as the source of truth
+
+See [MOBILE_COMPANION_NOTES.md](MOBILE_COMPANION_NOTES.md). This is a reference/design note, not a scheduled roadmap commitment.
 
 ### Distributed Deployment
 - Redis Pub/Sub for message routing across instances

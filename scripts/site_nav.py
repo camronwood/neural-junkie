@@ -13,6 +13,8 @@ CHROME_START = "<!-- NJ-SITE-CHROME:START -->"
 CHROME_END = "<!-- NJ-SITE-CHROME:END -->"
 FOOTER_NAV_START = "<!-- NJ-SITE-FOOTER-NAV:START -->"
 FOOTER_NAV_END = "<!-- NJ-SITE-FOOTER-NAV:END -->"
+ANALYTICS_START = "<!-- NJ-SITE-ANALYTICS:START -->"
+ANALYTICS_END = "<!-- NJ-SITE-ANALYTICS:END -->"
 
 NAV_ITEMS: tuple[dict, ...] = (
     {"id": "start-here", "label": "Start here", "path": "start-here.html"},
@@ -256,8 +258,67 @@ _MARKED_CHROME_RE = re.compile(
     re.DOTALL,
 )
 
+_MARKED_ANALYTICS_RE = re.compile(
+    re.escape(ANALYTICS_START) + r".*?" + re.escape(ANALYTICS_END),
+    re.DOTALL,
+)
 
-def apply_site_chrome(html_path: Path, text: str, *, version: str | None = None) -> str:
+_CF_BEACON_ATTR_RE = re.compile(r"""data-cf-beacon=(['"])(?P<json>.*?)\1""")
+
+
+def render_cloudflare_analytics(token: str) -> str:
+    beacon = json.dumps({"token": token}, separators=(",", ":"))
+    return f"""{ANALYTICS_START}
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{beacon}'></script>
+{ANALYTICS_END}"""
+
+
+def extract_cloudflare_analytics_token(text: str) -> str | None:
+    match = _MARKED_ANALYTICS_RE.search(text)
+    if not match:
+        return None
+    attr_match = _CF_BEACON_ATTR_RE.search(match.group(0))
+    if not attr_match:
+        return None
+    try:
+        data = json.loads(attr_match.group("json"))
+    except json.JSONDecodeError:
+        return None
+    token = str(data.get("token", "")).strip()
+    return token or None
+
+
+def discover_cloudflare_analytics_token() -> str | None:
+    for path in iter_site_html():
+        try:
+            token = extract_cloudflare_analytics_token(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if token:
+            return token
+    return None
+
+
+def apply_cloudflare_analytics(text: str, token: str | None = None) -> str:
+    token = (token or "").strip()
+    if not token:
+        return text
+    analytics = render_cloudflare_analytics(token)
+    if ANALYTICS_START in text and ANALYTICS_END in text:
+        return _MARKED_ANALYTICS_RE.sub(analytics, text, count=1)
+    body_close = text.rfind("</body>")
+    if body_close < 0:
+        raise ValueError("no </body> tag found for analytics injection")
+    return text[:body_close].rstrip() + "\n\n" + analytics + "\n</body>" + text[body_close + len("</body>") :]
+
+
+def apply_site_chrome(
+    html_path: Path,
+    text: str,
+    *,
+    version: str | None = None,
+    cloudflare_token: str | None = None,
+) -> str:
     active = detect_active_nav(html_path)
     chrome = render_site_chrome(html_path, version=version, active=active)
     if CHROME_START in text and CHROME_END in text:
@@ -279,6 +340,8 @@ def apply_site_chrome(html_path: Path, text: str, *, version: str | None = None)
         text = _FOOTER_WRAP_RE.sub(rf"\1\n{footer_nav}", text, count=1)
     else:
         raise ValueError(f"no site footer block found in {html_path}")
+
+    text = apply_cloudflare_analytics(text, token=cloudflare_token)
 
     return text
 
