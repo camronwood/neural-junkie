@@ -264,12 +264,12 @@ _MARKED_ANALYTICS_RE = re.compile(
 )
 
 _CF_BEACON_ATTR_RE = re.compile(r"""data-cf-beacon=(['"])(?P<json>.*?)\1""")
+_CF_BEACON_QUERY_RE = re.compile(r"""beacon\.min\.js\?token=(?P<token>[A-Za-z0-9_-]+)""")
 
 
 def render_cloudflare_analytics(token: str) -> str:
-    beacon = json.dumps({"token": token}, separators=(",", ":"))
     return f"""{ANALYTICS_START}
-  <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{beacon}'></script>
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js?token={token}"></script>
 {ANALYTICS_END}"""
 
 
@@ -277,7 +277,12 @@ def extract_cloudflare_analytics_token(text: str) -> str | None:
     match = _MARKED_ANALYTICS_RE.search(text)
     if not match:
         return None
-    attr_match = _CF_BEACON_ATTR_RE.search(match.group(0))
+    snippet = match.group(0)
+    query_match = _CF_BEACON_QUERY_RE.search(snippet)
+    if query_match:
+        token = str(query_match.group("token") or "").strip()
+        return token or None
+    attr_match = _CF_BEACON_ATTR_RE.search(snippet)
     if not attr_match:
         return None
     try:
