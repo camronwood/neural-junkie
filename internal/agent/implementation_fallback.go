@@ -468,6 +468,44 @@ func synthesizeAppSidebarSubtitle(existing string) (string, bool) {
 	return "", false
 }
 
+// proposeTailwindDarkModeEdit submits a tailwind.config.js patch and ensures it lands on disk.
+// When editor trust is auto_apply_edits, applies the synthesized body directly if hub auto-approve did not.
+func (a *Agent) proposeTailwindDarkModeEdit(ctx context.Context, msg *protocol.Message, wsPath, rel, existing, body string, state *ImplementationSessionState, userContent string) bool {
+	if a == nil || msg == nil || wsPath == "" || rel == "" || body == "" {
+		return false
+	}
+	rel = a.ResolveProposalPath(ctx, msg, rel)
+	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+		return false
+	}
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, existing, body, msg); err != nil {
+		return false
+	}
+	if implementationTargetSatisfied(wsPath, rel, userContent) {
+		if state != nil {
+			state.ProposedCount++
+			state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+		}
+		return true
+	}
+	if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
+		return false
+	}
+	full := filepath.Join(wsPath, rel)
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		return false
+	}
+	if !implementationTargetSatisfied(wsPath, rel, userContent) {
+		return false
+	}
+	if state != nil {
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+	}
+	log.Printf("[%s] tailwind_darkmode_direct_apply(path=%s)", a.Info.Name, rel)
+	return true
+}
+
 // tryEarlyThemeToggleFix patches tailwind.config.js and the React entry for sidebar theme toggles.
 func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
@@ -508,17 +546,8 @@ func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Messag
 		existing, err := os.ReadFile(tailPath)
 		if err == nil {
 			body, ok := synthesizeTailwindDarkMode(string(existing))
-			if ok {
-				rel := a.ResolveProposalPath(ctx, msg, tailRel)
-				if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err == nil {
-					if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err == nil {
-						applied = true
-						if state != nil {
-							state.ProposedCount++
-							state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
-						}
-					}
-				}
+			if ok && a.proposeTailwindDarkModeEdit(ctx, msg, wsPath, tailRel, string(existing), body, state, userContent) {
+				applied = true
 			}
 		}
 	}
@@ -541,12 +570,18 @@ func (a *Agent) tryEarlyThemeToggleFix(ctx context.Context, msg *protocol.Messag
 			}
 		}
 	}
-	if applied {
-		paths := []string{}
-		if state != nil {
-			paths = state.FilesChanged
+	tailSatisfied = implementationTargetSatisfied(wsPath, tailRel, userContent)
+	entrySatisfied = implementationTargetSatisfied(wsPath, entryRel, userContent)
+	if tailSatisfied && entrySatisfied {
+		if applied {
+			paths := []string{}
+			if state != nil {
+				paths = state.FilesChanged
+			}
+			log.Printf("[%s] early_theme_toggle_fix(paths=%v)", a.Info.Name, paths)
+		} else {
+			log.Printf("[%s] early_theme_toggle_satisfied", a.Info.Name)
 		}
-		log.Printf("[%s] early_theme_toggle_fix(paths=%v)", a.Info.Name, paths)
 		return true
 	}
 	return false
@@ -651,14 +686,11 @@ func (a *Agent) attemptDeterministicImplementationFallback(ctx context.Context, 
 		if !ok {
 			return false, nil
 		}
-		target = a.ResolveProposalPath(ctx, msg, target)
-		if err := a.validateProposalForSession(ctx, msg, target, ProposalOpEdit); err != nil {
+		st := implementationSessionStateFromContext(ctx)
+		if !a.proposeTailwindDarkModeEdit(ctx, msg, wsPath, target, string(existing), body, st, userContent) {
 			return false, nil
 		}
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, target, string(existing), body, msg); err != nil {
-			return false, nil
-		}
-		paths = []string{target}
+		paths = []string{a.ResolveProposalPath(ctx, msg, target)}
 	case strings.HasSuffix(strings.ToLower(target), "app.tsx"), strings.HasSuffix(strings.ToLower(target), "app.jsx"):
 		existing, err := os.ReadFile(filepath.Join(wsPath, target))
 		if err != nil {
@@ -745,14 +777,9 @@ func (a *Agent) repairTailwindDarkModeIfNeeded(ctx context.Context, msg *protoco
 		if !ok || validateProposalContent(rel, body) != nil {
 			continue
 		}
-		if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+		if !a.proposeTailwindDarkModeEdit(ctx, msg, wsPath, rel, string(existing), body, state, userContent) {
 			continue
 		}
-		if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existing), body, msg); err != nil {
-			continue
-		}
-		state.ProposedCount++
-		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
 		log.Printf("[%s] tailwind_darkmode_repair(path=%s)", a.Info.Name, rel)
 	}
 }

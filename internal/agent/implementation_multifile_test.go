@@ -48,6 +48,27 @@ func TestRemainingImplementationTargets_partial(t *testing.T) {
 	}
 }
 
+func TestRemainingImplementationTargets_appSatisfiedTailMissing(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeMultifileTestFile(t, dir, "tailwind.config.js", `export default { content: ["./src/**/*"] };`)
+	writeMultifileTestFile(t, dir, "src/App.tsx", `export default function App() {
+  const [theme, setTheme] = useState("dark");
+  const toggleTheme = () => setTheme(t => t === "dark" ? "light" : "dark");
+  return <button onClick={toggleTheme}>Toggle Theme</button>;
+}`)
+	m := &StackManifest{
+		HasReact:       true,
+		HasTailwind:    true,
+		TailwindConfig: "tailwind.config.js",
+		EntryPoint:     "src/App.tsx",
+	}
+	remaining := remainingImplementationTargets(dir, m, "implement light/dark theme toggle in the sidebar")
+	if len(remaining) != 1 || remaining[0] != "tailwind.config.js" {
+		t.Fatalf("got %v, want [tailwind.config.js]", remaining)
+	}
+}
+
 func TestShouldContinueImplementationSession_remainingApp(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

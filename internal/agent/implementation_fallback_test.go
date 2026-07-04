@@ -207,3 +207,65 @@ func TestPreferImplementationTargetPath_atFileOverDoNotModify(t *testing.T) {
 		t.Fatalf("got %q, want src/App.tsx", got)
 	}
 }
+
+func TestTryEarlyThemeToggleFix_tailwindOnlyNeeded(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	tailwind := `/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: { extend: {} },
+  plugins: [],
+};
+`
+	app := `import { useState } from "react";
+
+export default function App() {
+  const [theme, setTheme] = useState("dark");
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  return (
+    <aside>
+      <button onClick={toggleTheme}>Toggle Theme</button>
+    </aside>
+  );
+}
+`
+	writeMultifileTestFile(t, dir, "package.json", `{"dependencies":{"react":"^18"},"devDependencies":{"tailwindcss":"^3","vite":"^5"}}`)
+	writeMultifileTestFile(t, dir, "tailwind.config.js", tailwind)
+	writeMultifileTestFile(t, dir, "src/App.tsx", app)
+
+	userContent := "implement light/dark theme toggle in the sidebar for this project"
+	if implementationTargetSatisfied(dir, "tailwind.config.js", userContent) {
+		t.Fatal("tailwind should be unsatisfied without darkMode")
+	}
+	if !implementationTargetSatisfied(dir, "src/App.tsx", userContent) {
+		t.Fatal("App.tsx should already satisfy theme toggle")
+	}
+
+	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{StackManifest: DetectStackManifest(dir)}
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"}, userContent)
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context":      map[string]interface{}{"workspace_path": dir},
+	}
+	ctx := withImplementationSessionState(context.Background(), state)
+	if !ag.tryEarlyThemeToggleFix(ctx, msg, dir, state) {
+		t.Fatal("expected early theme toggle fix for missing tailwind darkMode")
+	}
+	if state.ProposedCount != 1 {
+		t.Fatalf("ProposedCount = %d, want 1", state.ProposedCount)
+	}
+	if len(state.FilesChanged) != 1 || state.FilesChanged[0] != "tailwind.config.js" {
+		t.Fatalf("FilesChanged = %v", state.FilesChanged)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "tailwind.config.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "darkMode") {
+		t.Fatalf("expected darkMode on disk after early fix, got:\n%s", got)
+	}
+}
