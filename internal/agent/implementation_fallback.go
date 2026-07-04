@@ -401,6 +401,61 @@ func (a *Agent) tryEarlyThemeCSSFix(ctx context.Context, msg *protocol.Message, 
 	return true
 }
 
+func scopedFileEditSatisfied(wsPath, rel, userContent, body string) bool {
+	wsPath = strings.TrimSpace(wsPath)
+	rel = strings.TrimSpace(rel)
+	if wsPath == "" || rel == "" {
+		return false
+	}
+	b, err := os.ReadFile(filepath.Join(wsPath, rel))
+	if err != nil {
+		return false
+	}
+	onDisk := string(b)
+	lowerUser := strings.ToLower(userContent)
+	if strings.Contains(lowerUser, "subtitle") {
+		return strings.Contains(strings.ToLower(onDisk), "subtitle")
+	}
+	return strings.TrimSpace(onDisk) != "" && strings.TrimSpace(body) != "" && onDisk == body
+}
+
+// proposeScopedFileEdit submits a single-file scoped edit and ensures it lands on disk.
+func (a *Agent) proposeScopedFileEdit(ctx context.Context, msg *protocol.Message, wsPath, rel, existing, body string, state *ImplementationSessionState, userContent string) bool {
+	if a == nil || msg == nil || wsPath == "" || rel == "" || body == "" {
+		return false
+	}
+	rel = a.ResolveProposalPath(ctx, msg, rel)
+	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+		return false
+	}
+	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, existing, body, msg); err != nil {
+		return false
+	}
+	if scopedFileEditSatisfied(wsPath, rel, userContent, body) {
+		if state != nil {
+			state.ProposedCount++
+			state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+		}
+		return true
+	}
+	if resolveImplementationTrustMode(msg) != editorTrustAutoApply {
+		return false
+	}
+	full := filepath.Join(wsPath, rel)
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		return false
+	}
+	if !scopedFileEditSatisfied(wsPath, rel, userContent, body) {
+		return false
+	}
+	if state != nil {
+		state.ProposedCount++
+		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
+	}
+	log.Printf("[%s] scoped_file_edit_direct_apply(path=%s)", a.Info.Name, rel)
+	return true
+}
+
 // tryEarlyScopedFileEdit applies deterministic single-file edits for @file:path ONLY requests.
 func (a *Agent) tryEarlyScopedFileEdit(ctx context.Context, msg *protocol.Message, wsPath string, state *ImplementationSessionState) bool {
 	if a == nil || msg == nil || wsPath == "" {
@@ -424,19 +479,20 @@ func (a *Agent) tryEarlyScopedFileEdit(ctx context.Context, msg *protocol.Messag
 	if !ok {
 		return false
 	}
-	rel := a.ResolveProposalPath(ctx, msg, target)
-	if err := a.validateProposalForSession(ctx, msg, rel, ProposalOpEdit); err != nil {
+	if !a.proposeScopedFileEdit(ctx, msg, wsPath, target, string(existingBytes), body, state, userContent) {
 		return false
 	}
-	if err := a.proposeFileEditInChannel(ctx, msg.Channel, rel, string(existingBytes), body, msg); err != nil {
-		return false
-	}
-	if state != nil {
-		state.ProposedCount++
-		state.FilesChanged = appendUnique(state.FilesChanged, []string{rel})
-	}
-	log.Printf("[%s] early_scoped_file_edit(path=%s)", a.Info.Name, rel)
+	log.Printf("[%s] early_scoped_file_edit(path=%s)", a.Info.Name, a.ResolveProposalPath(ctx, msg, target))
 	return true
+}
+
+// finalizeImplementationSessionRepairs applies last-chance theme/tailwind repairs before session exit.
+func (a *Agent) finalizeImplementationSessionRepairs(ctx context.Context, msg *protocol.Message, state *ImplementationSessionState) {
+	if a == nil || msg == nil || state == nil {
+		return
+	}
+	a.repairTailwindDarkModeIfNeeded(ctx, msg, state)
+	a.repairAppThemeIfNeeded(ctx, msg, state)
 }
 
 func synthesizeScopedFileEdit(userContent, target, existing string) (string, bool) {

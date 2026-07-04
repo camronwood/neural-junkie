@@ -299,6 +299,7 @@ func (a *Agent) runImplementationSessionStreaming(ctx context.Context, msg *prot
 		BootFixIntent:  state.BootFixIntent,
 	})
 	restoreImplSessionFromCheckpoint(msg, state)
+	defer a.finalizeImplementationSessionRepairs(sessionCtx, msg, state)
 
 	if question, ask := maybeAskFixClarification(msg, state, wsPath); ask {
 		outcome := a.buildImplementationSessionOutcome(msg, state, false)

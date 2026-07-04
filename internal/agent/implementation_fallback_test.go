@@ -208,6 +208,46 @@ func TestPreferImplementationTargetPath_atFileOverDoNotModify(t *testing.T) {
 	}
 }
 
+func TestTryEarlyScopedFileEdit_subtitle(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	app := `import { useState } from "react";
+
+export default function App() {
+  return (
+    <aside>
+      <p className="text-sm text-slate-400">Sidebar</p>
+    </aside>
+  );
+}
+`
+	writeMultifileTestFile(t, dir, "src/App.tsx", app)
+	ag := NewAgent(protocol.AgentTypeFrontend, "FrontendEngineer", nil, ai.NewMockProvider(), shouldRespondTestHub{})
+	state := &ImplementationSessionState{StackManifest: DetectStackManifest(dir)}
+	userContent := "@FrontendEngineer In @file:src/App.tsx ONLY add a short subtitle under the sidebar heading."
+	msg := protocol.NewMessage(protocol.MessageTypeQuestion, "implement-scenarios",
+		protocol.AgentInfo{ID: "human", Name: "User", Type: "human"}, userContent)
+	msg.Metadata = map[string]interface{}{
+		"implementation_session": true,
+		"editor_agent_trust":     "auto_apply_edits",
+		"workspace_context": map[string]interface{}{
+			"workspace_path":  dir,
+			"unchanged_files": []interface{}{"tailwind.config.js", "package.json"},
+		},
+	}
+	ctx := withImplementationSessionState(context.Background(), state)
+	if !ag.tryEarlyScopedFileEdit(ctx, msg, dir, state) {
+		t.Fatal("expected early scoped subtitle edit")
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "src/App.tsx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.ToLower(string(got)), "subtitle") {
+		t.Fatalf("expected subtitle on disk, got:\n%s", got)
+	}
+}
+
 func TestTryEarlyThemeToggleFix_tailwindOnlyNeeded(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
