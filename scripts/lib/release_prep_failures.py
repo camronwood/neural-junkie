@@ -33,8 +33,6 @@ FLAKE_MARKERS = (
     "quota",
     "429",
     "rate limit",
-    "no collaboration_discussion",
-    "silent or shouldrespond blocked",
 )
 
 INFRA_MARKERS = (
@@ -102,14 +100,15 @@ def _read(path: Path) -> str:
 def _classify(name: str, detail: str, *, phase: str = "") -> FailureKind:
     if phase == "model-benchmark" or name.startswith("model-benchmark"):
         return FailureKind.MODEL_BENCHMARK
+    # Live scenario harness failures are product regressions — not retry-only flakes.
+    if name.startswith("implement:") or name.startswith("collab:") or name.startswith("chat:"):
+        return FailureKind.CODE
     lower = detail.lower()
     if any(m.lower() in lower for m in INFRA_MARKERS):
         return FailureKind.INFRA
     if any(m.lower() in lower for m in FLAKE_MARKERS):
         return FailureKind.FLAKE
     if name in CI_STAGES or name.startswith("test-"):
-        return FailureKind.CODE
-    if name.startswith("implement:") or name.startswith("collab:") or name.startswith("chat:"):
         return FailureKind.CODE
     return FailureKind.UNKNOWN
 
@@ -232,6 +231,59 @@ def _extract_scenarios_from_text(
             i = j
             continue
         i += 1
+    out.extend(
+        _extract_orphan_scenario_failures(
+            text,
+            hub_url,
+            default_stage=default_stage,
+            seen=seen,
+        )
+    )
+    return out
+
+
+def _extract_orphan_scenario_failures(
+    text: str,
+    hub_url: str,
+    *,
+    default_stage: str | None = None,
+    seen: set[str] | None = None,
+) -> list[ParsedFailure]:
+    """Parse trailing ``=== FAIL:`` blocks (collab-scenarios batches these after the run loop)."""
+    if seen is None:
+        seen = set()
+    harness = STAGE_HARNESS.get(default_stage or "", "") or SCRIPT_HARNESS.get(default_stage or "", "")
+    if not harness:
+        if CHANNEL_COLLAB_RE.search(text) or "collab-scenarios" in text:
+            harness = "collab"
+        elif CHANNEL_IMPLEMENT_RE.search(text):
+            harness = "implement"
+        elif CHANNEL_CHAT_RE.search(text) or "chat-scenarios" in text:
+            harness = "chat"
+    if not harness or harness == "unknown":
+        return []
+
+    out: list[ParsedFailure] = []
+    matches = list(SCENARIO_FAIL_RE.finditer(text))
+    for idx, match in enumerate(matches):
+        scenario = match.group(1)
+        start = match.start()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        detail = text[start:end].strip()
+        key = f"{harness}:{scenario}"
+        if key in seen:
+            continue
+        seen.add(key)
+        kind = _classify(key, detail)
+        out.append(
+            ParsedFailure(
+                name=key,
+                source=harness,
+                kind=kind,
+                detail=detail[-2000:],
+                rerun_cmd=_scenario_rerun(harness, scenario, hub_url),
+            )
+        )
     return out
 
 

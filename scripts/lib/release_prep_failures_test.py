@@ -31,6 +31,31 @@ COLLAB_TAIL = """
 === FAIL: execution-no-stack-commands ===
 """
 
+COLLAB_PARTICIPATION_TAIL = """
+=== scenario: plan-dependency-prose-regression ===
+  hub=http://127.0.0.1:18765 channel=collab-scenarios agents=@BackendEngineer @SoftwareArchitect
+  started collab abc → collab-abc
+  ✗ [2] wait_discussion: agent discussion
+agent discussion: total=0 counts={}
+  FAIL: @SoftwareArchitect — no collaboration_discussion (silent or shouldRespond blocked)
+=== FAIL: plan-dependency-prose-regression ===
+"""
+
+COLLAB_BATCHED_FAIL_TAIL = """
+=== scenario: collab-conversation-quality-regression ===
+  hub=http://127.0.0.1:18765 channel=collab-scenarios
+  ✓ cleanup: cancelled
+
+=== scenario: collab-generation-error-resilience ===
+  hub=http://127.0.0.1:18765 channel=collab-scenarios
+  ✓ cleanup: cancelled
+
+=== FAIL: collab-conversation-quality-regression ===
+  FAIL: no collaboration redirect
+=== FAIL: collab-generation-error-resilience ===
+  FAIL: @SoftwareArchitect — no collaboration_discussion (silent or shouldRespond blocked)
+"""
+
 CHAT_TAIL = """
 === scenario: thanks-closure ===
   hub=http://127.0.0.1:18765
@@ -51,6 +76,27 @@ class ReleasePrepFailuresTest(unittest.TestCase):
         self.assertIn("collab:execution-no-stack-commands", names)
         collab = next(f for f in found if f.name == "collab:execution-no-stack-commands")
         self.assertEqual(collab.rerun_cmd[:3], ["python3", "scripts/collab-scenarios.py", "--scenario"])
+        self.assertEqual(collab.kind, FailureKind.CODE)
+
+    def test_collab_participation_failures_are_code_not_flake(self) -> None:
+        found = _extract_scenarios_from_text(
+            COLLAB_PARTICIPATION_TAIL,
+            "http://127.0.0.1:18765",
+            default_stage="collab-scenarios-all",
+        )
+        collab = next(f for f in found if f.name == "collab:plan-dependency-prose-regression")
+        self.assertEqual(collab.kind, FailureKind.CODE)
+
+    def test_collab_batched_fail_blocks_at_log_tail(self) -> None:
+        found = _extract_scenarios_from_text(
+            COLLAB_BATCHED_FAIL_TAIL,
+            "http://127.0.0.1:18765",
+            default_stage="collab-scenarios-all",
+        )
+        names = {f.name for f in found}
+        self.assertIn("collab:collab-conversation-quality-regression", names)
+        self.assertIn("collab:collab-generation-error-resilience", names)
+        self.assertTrue(all(f.kind == FailureKind.CODE for f in found))
 
     def test_extract_chat_scenario_from_tail(self) -> None:
         found = _extract_scenarios_from_text(
