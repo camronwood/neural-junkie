@@ -263,53 +263,50 @@ _MARKED_ANALYTICS_RE = re.compile(
     re.DOTALL,
 )
 
-_CF_BEACON_ATTR_RE = re.compile(r"""data-cf-beacon=(['"])(?P<json>.*?)\1""")
-_CF_BEACON_QUERY_RE = re.compile(r"""beacon\.min\.js\?token=(?P<token>[A-Za-z0-9_-]+)""")
+_GOATCOUNTER_ATTR_RE = re.compile(r"""data-goatcounter=(['"])(?P<url>https?://[^'"]+)\1""")
+_GOATCOUNTER_SNIPPET = ROOT / ".goatcounter-snippet"
 
 
-def render_cloudflare_analytics(token: str) -> str:
-    beacon = json.dumps({"token": token}, separators=(",", ":"))
+def render_goatcounter_analytics(count_url: str) -> str:
+    count_url = count_url.strip()
     return f"""{ANALYTICS_START}
-  <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{beacon}'></script>
+  <script data-goatcounter="{count_url}" async src="https://gc.zgo.at/count.js"></script>
 {ANALYTICS_END}"""
 
 
-def extract_cloudflare_analytics_token(text: str) -> str | None:
+def extract_goatcounter_count_url(text: str) -> str | None:
     match = _MARKED_ANALYTICS_RE.search(text)
-    if not match:
-        return None
-    snippet = match.group(0)
-    query_match = _CF_BEACON_QUERY_RE.search(snippet)
-    if query_match:
-        token = str(query_match.group("token") or "").strip()
-        return token or None
-    attr_match = _CF_BEACON_ATTR_RE.search(snippet)
+    snippet = match.group(0) if match else text
+    attr_match = _GOATCOUNTER_ATTR_RE.search(snippet)
     if not attr_match:
         return None
-    try:
-        data = json.loads(attr_match.group("json"))
-    except json.JSONDecodeError:
-        return None
-    token = str(data.get("token", "")).strip()
-    return token or None
+    url = str(attr_match.group("url") or "").strip()
+    return url or None
 
 
-def discover_cloudflare_analytics_token() -> str | None:
+def discover_goatcounter_count_url() -> str | None:
+    if _GOATCOUNTER_SNIPPET.is_file():
+        try:
+            url = extract_goatcounter_count_url(_GOATCOUNTER_SNIPPET.read_text(encoding="utf-8"))
+        except OSError:
+            url = None
+        if url:
+            return url
     for path in iter_site_html():
         try:
-            token = extract_cloudflare_analytics_token(path.read_text(encoding="utf-8"))
+            url = extract_goatcounter_count_url(path.read_text(encoding="utf-8"))
         except OSError:
             continue
-        if token:
-            return token
+        if url:
+            return url
     return None
 
 
-def apply_cloudflare_analytics(text: str, token: str | None = None) -> str:
-    token = (token or "").strip()
-    if not token:
+def apply_site_analytics(text: str, goatcounter_count_url: str | None = None) -> str:
+    count_url = (goatcounter_count_url or "").strip()
+    if not count_url:
         return text
-    analytics = render_cloudflare_analytics(token)
+    analytics = render_goatcounter_analytics(count_url)
     if ANALYTICS_START in text and ANALYTICS_END in text:
         return _MARKED_ANALYTICS_RE.sub(analytics, text, count=1)
     body_close = text.rfind("</body>")
@@ -323,7 +320,7 @@ def apply_site_chrome(
     text: str,
     *,
     version: str | None = None,
-    cloudflare_token: str | None = None,
+    goatcounter_count_url: str | None = None,
 ) -> str:
     active = detect_active_nav(html_path)
     chrome = render_site_chrome(html_path, version=version, active=active)
@@ -347,7 +344,7 @@ def apply_site_chrome(
     else:
         raise ValueError(f"no site footer block found in {html_path}")
 
-    text = apply_cloudflare_analytics(text, token=cloudflare_token)
+    text = apply_site_analytics(text, goatcounter_count_url=goatcounter_count_url)
 
     return text
 

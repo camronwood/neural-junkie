@@ -100,7 +100,11 @@ scenarios/fixtures/minimal-repo/server
 # Fix-loop isolated worktrees (see scripts/lib/fix_loop_git.py)
 .worktrees/
 
+# Cloud Keys
 .gemini-api-key
 .cursor-api-key
+
+# Analytics Tokens/keys/Snippets
 .cloudflare-api-token
 .cloud-flayer-analytics-snippet
+.goatcounter-snippet

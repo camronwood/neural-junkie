@@ -75,7 +75,7 @@ Start with the [README](README.md) (overview, download, quick start). Public onb
 - **Release notes:** [release-notes.html](docs/release-notes.html)
 - **Known issues:** [known-issues.html](docs/known-issues.html)
 - **Gallery:** [gallery/index.html](docs/gallery/index.html)
-- **Cloudflare Web Analytics:** export `CF_WEB_ANALYTICS_TOKEN=<site-token>` and run `python3 scripts/sync-site-nav.py` (or `make site-nav-sync`) to inject/update the beacon across `docs/*.html`. Once committed, later syncs can reuse the token already embedded in the site.
+- **GoatCounter analytics:** put the snippet in `.goatcounter-snippet` (gitignored) or export `GOATCOUNTER_COUNT_URL=https://<code>.goatcounter.com/count`, then run `python3 scripts/sync-site-nav.py` (or `make site-nav-sync`) to inject/update the script across `docs/*.html`.
 
 ## Historical (`docs/archive/`)
 
