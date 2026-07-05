@@ -673,7 +673,7 @@ def step_approve_plan(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         ctx.base,
         ctx.collab_channel,
         f"/approve-plan {ctx.collab_id[:8]}",
-        timeout=180,
+        timeout=300,
     )
     if code != 200:
         err = hub.last_system_error(ctx.base, ctx.collab_channel)

@@ -80,9 +80,10 @@ type Hub struct {
 	durableChannels map[string]bool
 
 	// Collaboration idle watchdog (in-memory, not persisted).
-	collabWatchdogMu           sync.Mutex
-	collabWatchdogRedispatch   map[string]int
-	collabWatchdogAutoAckTried map[string]bool
+	collabWatchdogMu               sync.Mutex
+	collabWatchdogRedispatch       map[string]int
+	collabWatchdogAutoAckTried     map[string]bool
+	collabWatchdogPlanningHandoff  map[string]time.Time
 
 	collabActionConfigMu sync.RWMutex
 	collabActionConfig   actions.Config
@@ -104,8 +105,9 @@ func NewHub() *Hub {
 		removedAgents:              make(map[string]*protocol.AgentInfo),
 		channelContext:             make(map[string]*ChannelContextState),
 		channelHolds:               make(map[string]ChannelHold),
-		collabWatchdogRedispatch:   make(map[string]int),
-		collabWatchdogAutoAckTried: make(map[string]bool),
+		collabWatchdogRedispatch:      make(map[string]int),
+		collabWatchdogAutoAckTried:    make(map[string]bool),
+		collabWatchdogPlanningHandoff: make(map[string]time.Time),
 		channelSummaryRefreshGen:   make(map[string]uint64),
 	}
 

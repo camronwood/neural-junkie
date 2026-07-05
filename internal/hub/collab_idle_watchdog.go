@@ -29,6 +29,7 @@ func (h *Hub) TickCollaborationIdleWatchdog(now time.Time) {
 		}
 		if c.Phase == collaboration.PhasePlanning {
 			h.collabManager.AdvancePlanningDiscussionIfTimedOut(c.ID)
+			h.tickPlanningDiscussionWatchdog(c, now)
 			continue
 		}
 		if c.Phase != collaboration.PhaseExecuting {

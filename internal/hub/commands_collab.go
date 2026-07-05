@@ -510,7 +510,6 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	if err != nil || collabSnap == nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not load collaboration %s after execution start", collabID[:8])), nil
 	}
-	ch.hub.persistCollaborationReviewAssets(collabID)
 
 	var autoAckErr error
 	if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && !collabSnap.WorkspaceAcknowledged {
@@ -543,10 +542,12 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 		taskSummary.WriteString(fmt.Sprintf("%s **Task %d:** %s\n   Assigned to: **@%s**\n\n", status, i+1, task.Description, assigneeLabel))
 	}
 
-	if ch.hub.CollaborationCanDispatchTasks(collabSnap) {
-		ch.hub.dispatchCollabTaskMessages(collabSnap, msg, false)
+	canDispatch := ch.hub.CollaborationCanDispatchTasks(collabSnap)
+	if canDispatch {
 		if collaboration.ShouldAutoAckWorkspaceOnApprove(collabSnap) && collabSnap.WorkspaceAcknowledged {
-			taskSummary.WriteString("\n**Tasks dispatched** — workspace was auto-confirmed (bound project repo).\n")
+			taskSummary.WriteString("\n**Tasks dispatching** — workspace was auto-confirmed (bound project repo).\n")
+		} else {
+			taskSummary.WriteString("\n**Tasks dispatching** to assigned agents.\n")
 		}
 	} else {
 		if autoAckErr != nil {
@@ -582,6 +583,21 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 
 	out := ch.systemResponse(msg.Channel, taskSummary.String())
 	out.SetCollaborationID(collabID)
+
+	inheritMsg := msg
+	go func() {
+		ch.hub.persistCollaborationReviewAssets(collabID)
+		if !canDispatch {
+			return
+		}
+		fresh, err := cm.GetCollaborationSnapshot(collabID)
+		if err != nil || fresh == nil {
+			log.Printf("[Collaboration] approve-plan async dispatch snapshot for %s: %v", collabID[:8], err)
+			return
+		}
+		ch.hub.dispatchCollabTaskMessages(fresh, inheritMsg, false)
+	}()
+
 	return out, nil
 }
 

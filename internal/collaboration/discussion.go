@@ -3,6 +3,7 @@ package collaboration
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/protocol"
@@ -303,6 +304,57 @@ func (cm *CollaborationManager) EndDiscussion(collabID string, status Discussion
 	c.Discussion.Status = status
 	c.UpdatedAt = time.Now()
 	return nil
+}
+
+// SilentPlanningParticipantIDs returns participant agent IDs who have not yet posted
+// a planning discussion message in the current session.
+func (cm *CollaborationManager) SilentPlanningParticipantIDs(collabID string) []string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil || c.Discussion == nil || c.Phase != PhasePlanning {
+		return nil
+	}
+	if c.Discussion.Status != DiscussionActive {
+		return nil
+	}
+	spoken := make(map[string]bool, len(c.Discussion.Participants))
+	for _, m := range c.Discussion.Messages {
+		if m == nil {
+			continue
+		}
+		id := strings.TrimSpace(m.From.ID)
+		if id == "" || id == "system" {
+			continue
+		}
+		spoken[id] = true
+	}
+	var silent []string
+	for _, pid := range c.Discussion.Participants {
+		if pid == "" || spoken[pid] {
+			continue
+		}
+		silent = append(silent, pid)
+	}
+	return silent
+}
+
+// ParticipantAgentName resolves the display name for a collaboration participant ID.
+func (cm *CollaborationManager) ParticipantAgentName(collabID, agentID string) string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil {
+		return ""
+	}
+	for _, a := range c.Agents {
+		if a.AgentID == agentID {
+			return a.AgentName
+		}
+	}
+	return ""
 }
 
 // participationQuorumMet is true when every discussion participant has spoken at least once.

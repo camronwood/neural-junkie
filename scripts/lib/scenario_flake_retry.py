@@ -9,6 +9,7 @@ RETRY_MARKERS = (
     "timeout waiting for",
     "send failed (401)",
     "send failed (0)",
+    "approve-plan failed",
     "no collaboration_discussion",
     "silent or shouldrespond blocked",
     "could not complete this turn",

@@ -27,11 +27,6 @@ func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID s
 		return
 	}
 
-	// Only prompt when the selected participant is currently eligible to respond.
-	if !a.Collab.IsAgentTurn(collabID, nextAgentID) {
-		return
-	}
-
 	collabInfo := a.Collab.GetCollaboration(collabID, a.Info.ID)
 	if collabInfo.Phase == "reviewing" || collabInfo.Phase == "approved" || collabInfo.Phase == "executing" {
 		return
@@ -108,9 +103,6 @@ func (a *Agent) scheduleCollaborationTurnHandoffRetry(source *protocol.Message, 
 				return
 			}
 			if a.Collab.ParticipantTurnCount(collabID, targetAgentID) > turnCountAtHandoff {
-				return
-			}
-			if !a.Collab.IsAgentTurn(collabID, targetAgentID) {
 				return
 			}
 			log.Printf("[%s] Collaboration turn handoff retry %d/%d for agent %s (collab %s)",
