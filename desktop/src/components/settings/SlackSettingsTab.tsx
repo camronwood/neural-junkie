@@ -17,7 +17,7 @@ import {
   slackCanListChannelsFrom,
   updateForwardRule,
 } from './slackInboxHelpers';
-import { openExternalLink, type SettingsTabProps } from './settingsShared';
+import { mergeSettingsPut, openExternalLink, type SettingsTabProps } from './settingsShared';
 
 export function SlackSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const { agents, setChannels } = useChatStore(
@@ -53,8 +53,63 @@ const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
     const [slackConnection, setSlackConnection] = useState<SlackConnectionResponse | null>(null);
     const [slackInbox, setSlackInbox] = useState<SlackInboxConfig>(() => defaultSlackInboxForm());
     const [slackAdvancedOpen, setSlackAdvancedOpen] = useState(false);
+    const [slackHubOverridesOpen, setSlackHubOverridesOpen] = useState(false);
+    const [slackHubOverrides, setSlackHubOverrides] = useState({
+      force_disabled: false,
+      debug: false,
+      oauth_relay_base: '',
+      use_oauth_relay: false,
+    });
+    const [slackHubOverridesSaving, setSlackHubOverridesSaving] = useState(false);
     const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
-const loadSlackChannels = async () => {
+    const loadSlackHubOverrides = async () => {
+      try {
+        const r = await fetch(`${hubHttp}/api/settings`);
+        if (!r.ok) return;
+        const cfg = await r.json();
+        const slack = cfg.slack ?? {};
+        setSlackHubOverrides({
+          force_disabled: !!slack.force_disabled,
+          debug: !!slack.debug,
+          oauth_relay_base: String(slack.oauth_relay_base ?? ''),
+          use_oauth_relay: slack.use_oauth_relay === true,
+        });
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const saveSlackHubOverrides = async () => {
+      setSlackHubOverridesSaving(true);
+      try {
+        await mergeSettingsPut(hubHttp, (cfg) => ({
+          ...cfg,
+          slack: {
+            ...(typeof cfg.slack === 'object' && cfg.slack ? cfg.slack : {}),
+            force_disabled: slackHubOverrides.force_disabled,
+            debug: slackHubOverrides.debug,
+            oauth_relay_base: slackHubOverrides.oauth_relay_base.trim(),
+            use_oauth_relay: slackHubOverrides.use_oauth_relay,
+          },
+        }));
+        setTestResults((prev) => ({
+          ...prev,
+          slackHub: { success: true, message: 'Slack hub overrides saved. Restart hub if bridge was running.' },
+        }));
+      } catch (e) {
+        setTestResults((prev) => ({
+          ...prev,
+          slackHub: {
+            success: false,
+            message: e instanceof Error ? e.message : 'Failed to save Slack hub overrides',
+          },
+        }));
+      } finally {
+        setSlackHubOverridesSaving(false);
+      }
+    };
+
+    const loadSlackChannels = async () => {
       setSlackChannelsLoading(true);
       setSlackChannelsError(null);
       try {
@@ -459,6 +514,7 @@ const loadSlackChannels = async () => {
     useEffect(() => {
       if (!isActive) return;
       void refreshSlackIntegration();
+      void loadSlackHubOverrides();
     }, [isActive, hubHttp]);
 
   if (!isActive) return null;
@@ -699,6 +755,79 @@ const loadSlackChannels = async () => {
             className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
           >
             Save advanced tokens &amp; restart bridge
+          </button>
+        </div>
+      </details>
+      <details
+        className="mb-6 border border-slack-border rounded-lg"
+        open={slackHubOverridesOpen}
+        onToggle={(e) => setSlackHubOverridesOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slack-text hover:bg-slack-bgHover rounded-lg">
+          Hub overrides (force-disable, debug, OAuth relay)
+        </summary>
+        <div className="px-4 pb-4 space-y-4 border-t border-slack-border pt-4">
+          <p className="text-xs text-slack-textMuted">
+            Stored in hub config. Environment variables still override at runtime.
+          </p>
+          {testResults.slackHub && (
+            <div
+              className={`p-2 rounded text-xs ${
+                testResults.slackHub.success
+                  ? 'bg-green-100 text-green-800 border border-green-200'
+                  : 'bg-red-100 text-red-800 border border-red-200'
+              }`}
+            >
+              {testResults.slackHub.message}
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-sm text-slack-text">
+            <input
+              type="checkbox"
+              checked={slackHubOverrides.force_disabled}
+              onChange={(e) =>
+                setSlackHubOverrides((p) => ({ ...p, force_disabled: e.target.checked }))
+              }
+            />
+            Force Slack bridge disabled (overrides enabled toggle)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slack-text">
+            <input
+              type="checkbox"
+              checked={slackHubOverrides.debug}
+              onChange={(e) => setSlackHubOverrides((p) => ({ ...p, debug: e.target.checked }))}
+            />
+            Debug logging for Slack bridge
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slack-text">
+            <input
+              type="checkbox"
+              checked={slackHubOverrides.use_oauth_relay}
+              onChange={(e) =>
+                setSlackHubOverrides((p) => ({ ...p, use_oauth_relay: e.target.checked }))
+              }
+            />
+            Use OAuth relay for Slack app install
+          </label>
+          <label className="block text-sm text-slack-text">
+            OAuth relay base URL
+            <input
+              type="text"
+              value={slackHubOverrides.oauth_relay_base}
+              onChange={(e) =>
+                setSlackHubOverrides((p) => ({ ...p, oauth_relay_base: e.target.value }))
+              }
+              placeholder="https://your-relay.example.com"
+              className="mt-1 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded font-mono text-xs"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => void saveSlackHubOverrides()}
+            disabled={slackHubOverridesSaving}
+            className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+          >
+            {slackHubOverridesSaving ? 'Saving…' : 'Save hub overrides'}
           </button>
         </div>
       </details>

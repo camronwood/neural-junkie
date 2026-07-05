@@ -14,6 +14,12 @@ type ServerConfig struct {
 	Port int    `json:"port"`
 	// DurableChannels skips 24h age-based prune for listed channel names.
 	DurableChannels []string `json:"durable_channels,omitempty"`
+	// ListenAll binds 0.0.0.0 when true (requires hub token unless debug/relaxed local).
+	ListenAll bool `json:"listen_all,omitempty"`
+	CorsAny   bool `json:"cors_any,omitempty"`
+	// CorsOrigins and WSOrigins are extra allowed origins (comma-separated in env).
+	CorsOrigins []string `json:"cors_origins,omitempty"`
+	WSOrigins   []string `json:"ws_origins,omitempty"`
 }
 
 type ProviderConfig struct {
@@ -64,6 +70,8 @@ type OllamaConfig struct {
 	NumPredict int `json:"num_predict,omitempty"`
 	// KeepAlive controls model unload (e.g. "5m", "0", "-1" for immediate unload). Empty = Ollama default.
 	KeepAlive string `json:"keep_alive,omitempty"`
+	// BundledBinary is the path to a bundled Ollama binary (NJ_BUNDLED_OLLAMA env override).
+	BundledBinary string `json:"bundled_binary,omitempty"`
 }
 
 // HFConfig holds Hugging Face Hub download and token defaults.
@@ -139,6 +147,8 @@ type FeaturesConfig struct {
 	CodebaseEmbedModel             string `json:"codebase_embed_model,omitempty"`
 	// AgentRuntimeV2 enables open-ended native agent loop (Cursor parity).
 	AgentRuntimeV2 *bool `json:"agent_runtime_v2,omitempty"`
+	// LegacyFileChangeParse enables the legacy [FILE_CHANGE] parser.
+	LegacyFileChangeParse bool `json:"legacy_file_change_parse,omitempty"`
 }
 
 type Config struct {
@@ -163,6 +173,15 @@ type Config struct {
 	Phoenix        PhoenixConfig        `json:"phoenix"`
 	AWS            AWSConfig            `json:"aws"`
 	Jira           JiraConfig           `json:"jira"`
+	Security       SecurityConfig       `json:"security"`
+	Session        SessionConfig        `json:"session"`
+	SessionSummary SessionSummaryConfig `json:"session_summary"`
+	ImageGen       ImageGenSettings     `json:"image_gen"`
+	CLIAgents      CLIAgentsConfig      `json:"cli_agents"`
+	MCPResources   MCPResourcesConfig   `json:"mcp_resources"`
+	Debug          DebugSettings        `json:"debug"`
+	Automation     AutomationConfig     `json:"automation"`
+	Storage        StorageConfig        `json:"storage"`
 
 	mu       sync.RWMutex `json:"-"`
 	filePath string       `json:"-"`
@@ -214,6 +233,14 @@ func DefaultConfig() *Config {
 			DefaultRegion: DefaultAWSRegion,
 			ReadOnly:      boolPtr(true),
 		},
+		Security:       DefaultSecurityConfig(),
+		Session:        DefaultSessionConfig(),
+		SessionSummary: DefaultSessionSummaryConfig(),
+		ImageGen:       DefaultImageGenSettings(),
+		CLIAgents:      DefaultCLIAgentsConfig(),
+		MCPResources:   DefaultMCPResourcesConfig(),
+		Debug:          DefaultDebugSettings(),
+		Automation:     DefaultAutomationConfig(),
 	}
 }
 
@@ -249,7 +276,9 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(fp)
 	if err != nil {
 		if os.IsNotExist(err) {
+			cfg.SeedFromEnv()
 			cfg.mergeEnvVars()
+			SetAppConfig(cfg)
 			return cfg, nil
 		}
 		return nil, fmt.Errorf("failed to read config: %w", err)
@@ -267,8 +296,10 @@ func Load() (*Config, error) {
 	if err := cfg.DecryptSecretsAfterLoad(); err != nil {
 		return nil, fmt.Errorf("decrypt config secrets: %w", err)
 	}
+	cfg.SeedFromEnv()
 	cfg.mergeEnvVars()
 	cfg.SyncAgentsFromPacks()
+	SetAppConfig(cfg)
 	return cfg, nil
 }
 
@@ -683,10 +714,13 @@ func (c *Config) Redacted() *Config {
 	ollama := c.Ollama
 	hf := c.HF
 	updates := c.Updates
-		collab := c.Collaboration
-		delegation := c.Delegation.Normalized()
-		workspaceIndex := c.WorkspaceIndex
-		features := c.Features
+	collab := c.Collaboration
+	impl := c.Implementation
+	delegation := c.Delegation.Normalized()
+	workspaceIndex := c.WorkspaceIndex
+	routing := c.Routing.Normalized()
+	specialistCompose := c.SpecialistCompose
+	features := c.Features
 	packs := c.Packs
 	if packs.Enabled == nil {
 		packs.Enabled = make(map[string]bool)
@@ -695,64 +729,107 @@ func (c *Config) Redacted() *Config {
 	awsCfg := c.AWS
 	jiraCfg := c.Jira
 	webSearch := c.WebSearch
+	slack := c.Slack
 	performance := c.Performance
+	phoenix := c.Phoenix
+	security := c.Security
+	session := c.Session
+	sessionSummary := c.SessionSummary
+	imageGen := c.ImageGen
+	cliAgents := c.CLIAgents
+	mcpResources := c.MCPResources
+	debug := c.Debug
+	automation := c.Automation
+	storage := c.Storage
 	filePath := c.filePath
 	c.mu.RUnlock()
 
-	redactedProviders := make([]ProviderConfig, len(srcProviders))
-	for i, p := range srcProviders {
-		redactedProviders[i] = p
-		if p.APIKey != "" {
-			if len(p.APIKey) > 8 {
-				redactedProviders[i].APIKey = p.APIKey[:4] + "..." + p.APIKey[len(p.APIKey)-4:]
-			} else {
-				redactedProviders[i].APIKey = "***"
-			}
-		}
-	}
+	redactedProviders := redactProviderKeys(srcProviders)
 	redactedHF := hf
 	if redactedHF.Token != "" {
-		if len(redactedHF.Token) > 8 {
-			redactedHF.Token = redactedHF.Token[:4] + "..." + redactedHF.Token[len(redactedHF.Token)-4:]
-		} else {
-			redactedHF.Token = "***"
-		}
+		redactedHF.Token = maskSecret(redactedHF.Token)
 	}
 	redactedWebSearch := webSearch
 	if redactedWebSearch.APIKey != "" {
-		if len(redactedWebSearch.APIKey) > 8 {
-			redactedWebSearch.APIKey = redactedWebSearch.APIKey[:4] + "..." + redactedWebSearch.APIKey[len(redactedWebSearch.APIKey)-4:]
-		} else {
-			redactedWebSearch.APIKey = "***"
-		}
+		redactedWebSearch.APIKey = maskSecret(redactedWebSearch.APIKey)
 	}
 	redactedJira := jiraCfg
 	if redactedJira.APIToken != "" {
-		if len(redactedJira.APIToken) > 8 {
-			redactedJira.APIToken = redactedJira.APIToken[:4] + "..." + redactedJira.APIToken[len(redactedJira.APIToken)-4:]
-		} else {
-			redactedJira.APIToken = "***"
+		redactedJira.APIToken = maskSecret(redactedJira.APIToken)
+	}
+	redactedSlack := slack
+	if redactedSlack.AppToken != "" {
+		redactedSlack.AppToken = maskSecret(redactedSlack.AppToken)
+	}
+	if redactedSlack.BotToken != "" {
+		redactedSlack.BotToken = maskSecret(redactedSlack.BotToken)
+	}
+	if redactedSlack.ClientSecret != "" {
+		redactedSlack.ClientSecret = maskSecret(redactedSlack.ClientSecret)
+	}
+	redactedSecurity := security
+	if redactedSecurity.HubToken != "" {
+		redactedSecurity.HubToken = maskSecret(redactedSecurity.HubToken)
+	}
+	if redactedSecurity.FullMetadataSecret != "" {
+		redactedSecurity.FullMetadataSecret = maskSecret(redactedSecurity.FullMetadataSecret)
+	}
+	redactedImageGen := imageGen
+	if redactedImageGen.OpenAIAPIKey != "" {
+		redactedImageGen.OpenAIAPIKey = maskSecret(redactedImageGen.OpenAIAPIKey)
+	}
+
+	return &Config{
+		Server:            server,
+		AI:                AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
+		Agents:            agents,
+		Packs:             packs,
+		MCP:               mcpCfg,
+		AWS:               awsCfg,
+		Jira:              redactedJira,
+		Ollama:            ollama,
+		HF:                redactedHF,
+		Updates:           updates,
+		Collaboration:     collab,
+		Implementation:    impl,
+		Delegation:        delegation,
+		WorkspaceIndex:    workspaceIndex,
+		Routing:           routing,
+		SpecialistCompose: specialistCompose,
+		Features:          features,
+		Slack:             redactedSlack,
+		WebSearch:         redactedWebSearch,
+		Performance:       performance,
+		Phoenix:           phoenix,
+		Security:          redactedSecurity,
+		Session:           session,
+		SessionSummary:    sessionSummary,
+		ImageGen:          redactedImageGen,
+		CLIAgents:         cliAgents,
+		MCPResources:      mcpResources,
+		Debug:             debug,
+		Automation:        automation,
+		Storage:           storage,
+		filePath:          filePath,
+	}
+}
+
+func redactProviderKeys(src []ProviderConfig) []ProviderConfig {
+	out := make([]ProviderConfig, len(src))
+	for i, p := range src {
+		out[i] = p
+		if p.APIKey != "" {
+			out[i].APIKey = maskSecret(p.APIKey)
 		}
 	}
-	return &Config{
-		Server:        server,
-		AI:            AIConfig{DefaultProviderID: defaultPID, Providers: redactedProviders},
-		Agents:        agents,
-		Packs:         packs,
-		MCP:           mcpCfg,
-		AWS:           awsCfg,
-		Jira:          redactedJira,
-		Ollama:        ollama,
-		HF:            redactedHF,
-		Updates:       updates,
-		Collaboration:  collab,
-		Delegation:     delegation,
-		WorkspaceIndex: workspaceIndex,
-		Features:       features,
-		WebSearch:     redactedWebSearch,
-		Performance: performance,
-		filePath:      filePath,
+	return out
+}
+
+func maskSecret(s string) string {
+	if len(s) > 8 {
+		return s[:4] + "..." + s[len(s)-4:]
 	}
+	return "***"
 }
 
 // mergeEnvVars overlays environment variables onto the config. Env vars take

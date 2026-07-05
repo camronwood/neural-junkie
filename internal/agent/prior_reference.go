@@ -104,7 +104,7 @@ const priorReferenceMissingHistoryReply = "I don't have that earlier reply in th
 
 // tryPriorReferenceResponse answers deterministically when prior content is referenced but missing.
 func (a *Agent) tryPriorReferenceResponse(msg *protocol.Message) (string, bool) {
-	if a == nil || msg == nil || !userReferencesPriorAssistantContent(msg.Content) {
+	if a == nil || msg == nil || !ShouldRunPriorReference(a.effectiveKnowledgePlan(msg)) {
 		return "", false
 	}
 	history := a.historyForPriorReference(msg.Channel)
@@ -129,11 +129,17 @@ func shouldInjectPriorAssistantContent(msg *protocol.Message) bool {
 }
 
 // appendPriorReferenceGuidance injects referenced assistant content into the prompt when found.
-func appendPriorReferenceGuidance(prompt string, msg *protocol.Message, history []*protocol.Message, agentID string) string {
-	if msg == nil || !shouldInjectPriorAssistantContent(msg) {
+func (a *Agent) appendPriorReferenceGuidance(prompt string, msg *protocol.Message, history []*protocol.Message) string {
+	if a == nil || msg == nil {
 		return prompt
 	}
-	content := findPriorAssistantContent(history, msg.ID, agentID, priorReferenceMinChars)
+	plan := a.effectiveKnowledgePlan(msg)
+	runPrior := ShouldRunPriorReference(plan)
+	runExport := userRequestsFileExport(msg.Content) || msg.IdeEditorModeIsExport()
+	if !runPrior && !runExport {
+		return prompt
+	}
+	content := findPriorAssistantContent(history, msg.ID, a.Info.ID, priorReferenceMinChars)
 	if content == "" {
 		return prompt
 	}
@@ -145,6 +151,9 @@ func appendPriorReferenceGuidance(prompt string, msg *protocol.Message, history 
 			"The user referenced content from an earlier reply. Use this verbatim when exporting to a file — do not invent a generic template.\n\n%s\n\n",
 		content,
 	)
+	if runPrior {
+		a.recordKnowledgeExecuted("prior_reference")
+	}
 	return prompt + block
 }
 

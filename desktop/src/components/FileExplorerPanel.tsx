@@ -47,6 +47,7 @@ import { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
 import { useShortcutOverlay } from '../shortcuts/useShortcutOverlay';
 import { WorkspaceTabBar } from './WorkspaceTabBar';
 import { WorkspaceIndexStatus } from './WorkspaceIndexStatus';
+import { WorkspaceScopeChip } from './WorkspaceScopeChip';
 import { devLog } from '../utils/devLog';
 import { qcReportRelativePath } from '../utils/panelQcUtils';
 import {
@@ -1301,6 +1302,7 @@ export function FileExplorerPanel({ onClose, onFileOpen, variant = 'overlay' }: 
           />
         </div>
         <WorkspaceIndexStatus repoPath={getActiveWorkspace()?.path} />
+        <WorkspaceScopeChip />
       </div>
 
       {/* File Tree */}

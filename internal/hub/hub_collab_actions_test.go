@@ -43,7 +43,7 @@ func TestMaxConcurrentTasksCapsDispatchWave(t *testing.T) {
 	if _, err := h.SubmitRunbookForReview(result.CollaborationID); err != nil {
 		t.Fatalf("SubmitRunbookForReview: %v", err)
 	}
-	if _, err := h.StartRunbook(result.CollaborationID); err != nil {
+	if _, err := h.StartRunbook(result.CollaborationID, nil); err != nil {
 		t.Fatalf("StartRunbook: %v", err)
 	}
 	if err := h.AcknowledgeCollaborationWorkspace(result.CollaborationID, ""); err != nil {
@@ -95,7 +95,7 @@ func TestExecuteCollabActionTaskDispatchesDependent(t *testing.T) {
 	if _, err := h.SubmitRunbookForReview(result.CollaborationID); err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	if _, err := h.StartRunbook(result.CollaborationID); err != nil {
+	if _, err := h.StartRunbook(result.CollaborationID, nil); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	if err := h.AcknowledgeCollaborationWorkspace(result.CollaborationID, ""); err != nil {

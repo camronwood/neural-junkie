@@ -62,8 +62,10 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(incoming.Jira.APIToken, "...") || incoming.Jira.APIToken == "***" {
 			incoming.Jira.APIToken = appConfig.Jira.APIToken
 		}
+		config.PreserveRedactedSecrets(&incoming, appConfig)
 
 		prevMusic := appConfig.MCP.Music
+		prevSnapshot := *appConfig
 		appConfig.Server = incoming.Server
 		appConfig.AI = incoming.AI
 		appConfig.Agents = incoming.Agents
@@ -76,6 +78,20 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.Delegation = incoming.Delegation.Normalized()
 		appConfig.Features = incoming.Features
 		appConfig.Performance = incoming.Performance
+		appConfig.Slack = incoming.Slack
+		appConfig.WebSearch = incoming.WebSearch
+		appConfig.Phoenix = incoming.Phoenix
+		appConfig.WorkspaceIndex = incoming.WorkspaceIndex
+		appConfig.SpecialistCompose = incoming.SpecialistCompose
+		appConfig.Security = incoming.Security
+		appConfig.Session = incoming.Session
+		appConfig.SessionSummary = incoming.SessionSummary
+		appConfig.ImageGen = incoming.ImageGen
+		appConfig.CLIAgents = incoming.CLIAgents
+		appConfig.MCPResources = incoming.MCPResources
+		appConfig.Debug = incoming.Debug
+		appConfig.Automation = incoming.Automation
+		appConfig.Storage = incoming.Storage
 		if incoming.Packs.Enabled != nil {
 			if appConfig.Packs.Enabled == nil {
 				appConfig.Packs.Enabled = make(map[string]bool)
@@ -89,6 +105,9 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			if incoming.Packs.LayoutOwner != "" {
 				appConfig.Packs.LayoutOwner = incoming.Packs.LayoutOwner
 			}
+			if incoming.Packs.CatalogURL != "" {
+				appConfig.Packs.CatalogURL = incoming.Packs.CatalogURL
+			}
 		}
 		appConfig.MCP = incoming.MCP
 		appConfig.AWS = incoming.AWS
@@ -96,6 +115,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		appConfig.EnsureMCPDefaults()
 		appConfig.SyncAgentsFromPacks()
 		syncMCPFromConfig()
+		applyRuntimeConfigSideEffects(&prevSnapshot)
 
 		globalProviderCache.Clear()
 		if ch, ok := chatHub.GetCommandHandler().(*hub.CommandHandler); ok {
@@ -106,6 +126,7 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		config.SetAppConfig(appConfig)
 
 		syncMCPFromConfig()
 		if musicSettingsChanged(prevMusic, appConfig.MCP.Music) {
@@ -113,8 +134,13 @@ func handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		reconcileConfiguredSpecialists()
 
+		restartReasons := config.SettingsRestartReasons(&prevSnapshot, appConfig)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":           "saved",
+			"requires_restart": len(restartReasons) > 0,
+			"restart_reasons":  restartReasons,
+		})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

@@ -34,12 +34,10 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	decision := routing.ClassifyKnowledgeRoute(query)
 	trace := map[string]interface{}{
 		"message_id": messageID,
 		"channel":    channel,
 		"query":      query,
-		"routing":    decision,
 	}
 
 	var target *protocol.Message
@@ -47,6 +45,15 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 		if m != nil && m.ID == messageID {
 			target = m
 			break
+		}
+	}
+	if target != nil && !turnTraceHasRoutingMeta(target) {
+		for _, m := range msgs {
+			if m != nil && m.ReplyTo == target.ID {
+				target = m
+				trace["reply_message_id"] = m.ID
+				break
+			}
 		}
 	}
 	if target == nil && messageID != "" {
@@ -61,20 +68,43 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 
 	if target != nil {
 		meta := protocol.ExtractRoutingMeta(target)
-		trace["provider"] = meta
-		if meta.KnowledgeRoute != "" {
-			trace["routing"] = map[string]interface{}{
-				"target": meta.KnowledgeRoute,
-				"reason": meta.KnowledgeReason,
+		trace["routing"] = map[string]interface{}{
+			"model":       meta.Model,
+			"tool_model":  meta.ToolModel,
+			"provider_id": meta.ProviderID,
+			"domain":      meta.Domain,
+			"cost_tier":   meta.CostTier,
+			"reason":      meta.Reason,
+			"source":      meta.Source,
+		}
+		trace["retrieval"] = map[string]interface{}{
+			"mode":     meta.KnowledgeRoute,
+			"reason":   meta.KnowledgeReason,
+			"targets":  meta.KnowledgeTargets,
+			"executed": meta.KnowledgeExecuted,
+		}
+		if target.Metadata != nil {
+			if n, ok := target.Metadata["injected_memory_count"].(int); ok && n > 0 {
+				trace["retrieval"].(map[string]interface{})["memory_count"] = n
+			} else if n, ok := target.Metadata["injected_memory_count"].(float64); ok && n > 0 {
+				trace["retrieval"].(map[string]interface{})["memory_count"] = int(n)
 			}
-		} else if meta.Model != "" || meta.ToolModel != "" {
-			trace["routing"] = map[string]interface{}{
-				"chat_model": meta.Model,
-				"tool_model": meta.ToolModel,
-				"reason":     meta.Reason,
-				"source":     meta.Source,
+			if n, ok := target.Metadata["injected_codebase_count"].(int); ok && n > 0 {
+				trace["retrieval"].(map[string]interface{})["codebase_count"] = n
+			} else if n, ok := target.Metadata["injected_codebase_count"].(float64); ok && n > 0 {
+				trace["retrieval"].(map[string]interface{})["codebase_count"] = int(n)
 			}
 		}
+		if meta.KnowledgeRoute == "" && query != "" {
+			plan := routing.PlanKnowledgeRoute(query)
+			trace["plan"] = plan
+			trace["retrieval"] = map[string]interface{}{
+				"mode":    string(plan.Primary()),
+				"reason":  plan.Reason,
+				"targets": plan.Targets,
+			}
+		}
+		trace["governance"] = turnTraceGovernance(meta, target, msgs)
 		if target.Metadata != nil {
 			if steps, ok := target.Metadata["tool_steps"]; ok {
 				trace["tool_steps"] = steps
@@ -83,8 +113,88 @@ func handleDebugTurnTrace(w http.ResponseWriter, r *http.Request) {
 				trace["reasoning_text"] = rt
 			}
 		}
+		compress := protocol.ExtractCompressMeta(target)
+		if compress.Strategy != "" || compress.BytesIn > 0 || compress.BytesOut > 0 {
+			trace["compress"] = map[string]interface{}{
+				"strategy":  compress.Strategy,
+				"bytes_in":  compress.BytesIn,
+				"bytes_out": compress.BytesOut,
+			}
+		}
+	} else if query != "" {
+		plan := routing.PlanKnowledgeRoute(query)
+		trace["plan"] = plan
+		trace["retrieval"] = map[string]interface{}{
+			"mode":    string(plan.Primary()),
+			"reason":  plan.Reason,
+			"targets": plan.Targets,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(trace)
+}
+
+func turnTraceHasRoutingMeta(msg *protocol.Message) bool {
+	if msg == nil {
+		return false
+	}
+	meta := protocol.ExtractRoutingMeta(msg)
+	return meta.Model != "" || meta.Reason != "" || meta.KnowledgeRoute != ""
+}
+
+func turnTraceGovernance(meta protocol.RoutingMeta, target *protocol.Message, msgs []*protocol.Message) map[string]interface{} {
+	composerMode := meta.ComposerMode
+	contextScope := meta.ContextScope
+	implSession := meta.ImplSession
+
+	if composerMode == "" || contextScope == "" {
+		if input := turnTraceInputMessage(target, msgs); input != nil {
+			caps := protocol.ResolveTurnCapabilities(input)
+			if composerMode == "" {
+				composerMode = caps.ComposerMode
+			}
+			if contextScope == "" {
+				contextScope = caps.ContextTier
+			}
+			if !implSession {
+				implSession = caps.CanRunImplSession
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"composer_mode": composerMode,
+		"context_scope": contextScope,
+		"impl_session":  implSession,
+	}
+}
+
+func turnTraceInputMessage(target *protocol.Message, msgs []*protocol.Message) *protocol.Message {
+	if target == nil {
+		return nil
+	}
+	if target.ReplyTo != "" {
+		for _, m := range msgs {
+			if m != nil && m.ID == target.ReplyTo {
+				return m
+			}
+		}
+	}
+	for i, m := range msgs {
+		if m != target {
+			continue
+		}
+		for j := i - 1; j >= 0; j-- {
+			prev := msgs[j]
+			if prev == nil {
+				continue
+			}
+			if protocol.IsUserLikeSender(prev.From) {
+				return prev
+			}
+		}
+		break
+	}
+	return nil
 }

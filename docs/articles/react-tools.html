@@ -92,7 +92,7 @@
 <h2>What this is not</h2>
 <ul>
 <li>Not a replacement for native tool calling when your model already supports it.</li>
-<li>Not LM Studio / OpenAI-compat yet — same <code>ReActToolProvider</code> pattern, follow-up PR.</li>
+<li>On LM Studio / OpenAI-compat, ReAct auto-engages when the loaded model rejects native <code>tool_calls</code>; tool-capable models (e.g. Qwen 2.5, Llama 3.1+) use native OpenAI tool loops.</li>
 <li>Not magic: smaller models will still drift format under pressure. The fallback exists because production agents need a floor.</li>
 </ul>
 <h2>Try it</h2>

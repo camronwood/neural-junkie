@@ -376,3 +376,21 @@ func ParsePlanTasks(markdown string, agents []CollaborationAgent) ([]Collaborati
 	}
 	return tasks, nil
 }
+
+// SetRunMetadata attaches v2 runbook execution metadata to a collaboration.
+func (cm *CollaborationManager) SetRunMetadata(collabID, definitionID string, definitionVersion, runNumber int, inputs map[string]string) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	c.DefinitionID = definitionID
+	c.DefinitionVersion = definitionVersion
+	c.RunNumber = runNumber
+	if inputs != nil {
+		c.RunInputs = inputs
+	}
+	c.UpdatedAt = time.Now()
+	return nil
+}

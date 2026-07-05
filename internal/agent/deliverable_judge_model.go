@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
@@ -30,5 +31,8 @@ func isDeliverableJudgeMessage(msg *protocol.Message) bool {
 }
 
 func resolveDeliverableJudgeGeminiModel() string {
+	if m := strings.TrimSpace(config.AppConfig().ResolvedAutomation().DeliverableJudgeGeminiModel); m != "" {
+		return m
+	}
 	return strings.TrimSpace(os.Getenv(judgeGeminiModelEnv))
 }

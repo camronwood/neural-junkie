@@ -267,7 +267,7 @@ func (a *Agent) buildPrompt(msg *protocol.Message, intent ...TurnIntent) string 
 	}
 
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), 0)
-	AppendMemoryForMessage(&system, msg, a.channelHistory(msg.Channel))
+	a.appendMemoryForMessage(&system, msg, a.channelHistory(msg.Channel))
 	AppendLearningsForMessage(&system, msg, &a.Info)
 	if ws := a.resolveWorkspacePath(msg); ws != "" {
 		if projectRules := LoadProjectRulesMarkdown(ws); projectRules != "" {

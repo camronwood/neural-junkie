@@ -2,6 +2,7 @@ package collaboration
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -146,10 +147,36 @@ func (cm *CollaborationManager) ApproveTaskDispatch(collabID, taskID string) (*C
 			c.Tasks[i].AwaitingApproval = false
 			c.Tasks[i].UpdatedAt = time.Now()
 			c.UpdatedAt = time.Now()
+			if c.Tasks[i].Action != nil && strings.ToLower(strings.TrimSpace(c.Tasks[i].Action.Type)) == "wait_human" {
+				c.Tasks[i].Status = TaskCompleted
+				c.Tasks[i].Output = "Approved by user"
+			}
 			return cloneCollaborationMust(c)
 		}
 	}
 	return nil, fmt.Errorf("task %s not found", taskID)
+}
+
+// SetTaskAwaitingApproval toggles the approval gate on a task.
+func (cm *CollaborationManager) SetTaskAwaitingApproval(collabID, taskID string, awaiting bool) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	c, ok := cm.collaborations[collabID]
+	if !ok {
+		return fmt.Errorf("collaboration %s not found", collabID)
+	}
+	for i := range c.Tasks {
+		if c.Tasks[i].ID == taskID {
+			c.Tasks[i].AwaitingApproval = awaiting
+			if awaiting {
+				c.Tasks[i].Status = TaskInProgress
+			}
+			c.Tasks[i].UpdatedAt = time.Now()
+			c.UpdatedAt = time.Now()
+			return nil
+		}
+	}
+	return fmt.Errorf("task %s not found", taskID)
 }
 
 func cloneCollaborationMust(c *Collaboration) (*Collaboration, error) {

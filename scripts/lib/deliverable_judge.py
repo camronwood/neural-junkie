@@ -19,12 +19,17 @@ try:
 except ImportError:
     from lib.gemini_rate_limit import throttle_gemini_api_call  # type: ignore[no-redef]
 
-DEFAULT_JUDGE_PROVIDER = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
-DEFAULT_JUDGE_AGENT = os.environ.get("NJ_DELIVERABLE_JUDGE_AGENT", "").strip()
+try:
+    from hub_config import env_or_automation, env_or_automation_bool, env_or_automation_int
+except ImportError:
+    from lib.hub_config import env_or_automation, env_or_automation_bool, env_or_automation_int  # type: ignore[no-redef]
+
+DEFAULT_JUDGE_PROVIDER = env_or_automation("NJ_DELIVERABLE_JUDGE_PROVIDER", "deliverable_judge_provider", "gemini").lower()
+DEFAULT_JUDGE_AGENT = env_or_automation("NJ_DELIVERABLE_JUDGE_AGENT", "deliverable_judge_agent", "")
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
-DEFAULT_OLLAMA_MODEL = os.environ.get("NJ_DELIVERABLE_JUDGE_MODEL", "qwen2.5-coder:14b")
+DEFAULT_OLLAMA_MODEL = env_or_automation("NJ_DELIVERABLE_JUDGE_MODEL", "deliverable_judge_model", "qwen2.5-coder:14b")
 JUDGE_MAX_CHARS = int(os.environ.get("NJ_DELIVERABLE_JUDGE_MAX_CHARS", "12000"))
-JUDGE_TIMEOUT_S = float(os.environ.get("NJ_DELIVERABLE_JUDGE_TIMEOUT", "180"))
+JUDGE_TIMEOUT_S = float(env_or_automation_int("NJ_DELIVERABLE_JUDGE_TIMEOUT", "deliverable_judge_timeout", 180))
 JUDGE_DM_USER = os.environ.get("NJ_DELIVERABLE_JUDGE_DM_USER", "DeliverableJudge").strip()
 
 _QUOTA_RE = re.compile(
@@ -79,15 +84,11 @@ def _is_cloud_judge_agent_error(text: str) -> bool:
 
 
 def judge_skip_enabled() -> bool:
-    return os.environ.get("NJ_DELIVERABLE_JUDGE_SKIP", "").strip().lower() in ("1", "true", "yes")
+    return env_or_automation_bool("NJ_DELIVERABLE_JUDGE_SKIP", "deliverable_judge_skip", False)
 
 
 def ollama_fallback_enabled() -> bool:
-    return os.environ.get("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA", "1").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    return env_or_automation_bool("NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA", "deliverable_judge_fallback_ollama", True)
 
 
 def is_gemini_quota_error(text: str) -> bool:
@@ -112,7 +113,7 @@ def throttle_gemini_judge() -> None:
 
 
 def _default_judge_provider() -> str:
-    p = os.environ.get("NJ_DELIVERABLE_JUDGE_PROVIDER", "gemini").strip().lower()
+    p = DEFAULT_JUDGE_PROVIDER
     return p if p in ("gemini", "cursor", "ollama") else "gemini"
 
 

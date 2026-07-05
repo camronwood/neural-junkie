@@ -3,6 +3,7 @@ export type SettingsTab =
   | 'layout'
   | 'keyboard'
   | 'chat'
+  | 'connection'
   | 'providers'
   | 'models-performance'
   | 'collab-routing'
@@ -12,6 +13,8 @@ export type SettingsTab =
   | 'assistant-tools'
   | 'slack'
   | 'security'
+  | 'server-network'
+  | 'automation'
   | 'about';
 
 /** Map deprecated tab ids from older deep links. */
@@ -38,6 +41,7 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
       { id: 'layout', label: 'Layout' },
       { id: 'keyboard', label: 'Keyboard' },
       { id: 'chat', label: 'Chat' },
+      { id: 'connection', label: 'Connection' },
     ],
   },
   {
@@ -62,6 +66,8 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     title: 'Advanced',
     items: [
       { id: 'security', label: 'Security' },
+      { id: 'server-network', label: 'Server & network' },
+      { id: 'automation', label: 'Automation & testing' },
       { id: 'about', label: 'About' },
     ],
   },

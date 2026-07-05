@@ -68,6 +68,8 @@ In Tauri builds, remembered login is stored as an encrypted blob (`encrypt_crede
 
 ## Environment variables
 
+Most hub settings are editable in the desktop **Settings** panel (Security, Server & network, Automation & testing, Connection, Image generation). Values are stored in `~/.neural-junkie/config.json`. Environment variables remain **optional overrides** when set (Makefile/CI workflows).
+
 | Variable | Purpose |
 |----------|---------|
 | `NEURAL_JUNKIE_HUB_TOKEN` | Shared secret for non-loopback access (`X-NJ-Hub-Token`) |

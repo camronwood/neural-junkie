@@ -1,0 +1,74 @@
+{
+  "name": "collab-minimal-completion-regression",
+  "description": "Fast minimal-repo happy path: two-agent roster, single-task execute findings.md, /complete-collab to completed phase.",
+  "tags": ["collab", "regression", "completion"],
+  "channel": "collab-scenarios",
+  "agents": "@Assistant @BackendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer"],
+  "workspace": {
+    "fixture": "minimal-repo",
+    "workspace_flag": true,
+    "outline": true,
+    "file_tree": "README.md\ncore/sample/main.go\n"
+  },
+  "collaborate": {
+    "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
+    "goal": "@Assistant @BackendEngineer Plan one task: @Assistant Write collabs/<id>/findings.md with three bullets citing README.md and core/sample/main.go only."
+  },
+  "expect_deliverables": [
+    {
+      "path": "collabs/<collab-id>/findings.md",
+      "min_bytes": 30,
+      "deny_task_status": true,
+      "for_question": {
+        "any_match": ["README|main\\.go|core/sample|minimal"],
+        "none_match": ["index\\.js", "utils\\.js", "\\[Insert", "lorem ipsum"]
+      },
+      "llm_judge": true
+    }
+  ],
+  "steps": [
+    {"action": "wait_phase", "phase": "planning", "timeout": 20},
+    {"action": "wait_phase", "phase": "reviewing", "timeout": "180s"},
+    {"action": "wait_planning_recap", "timeout": "120s"},
+    {
+      "action": "assert_plan",
+      "min_tasks": 1,
+      "max_tasks": 2,
+      "tasks_have_file_deliverable": true,
+      "content_any_match": ["findings\\.md"]
+    },
+    {"action": "approve_plan"},
+    {"action": "wait_phase", "phase": "executing", "timeout": 45},
+    {"action": "workspace_ack"},
+    {"action": "send", "content": "/resume-plan <collab-id>"},
+    {
+      "action": "wait_tasks",
+      "min_completed": 1,
+      "all_match": false,
+      "timeout": "300s"
+    },
+    {
+      "action": "approve_file_changes",
+      "path_match": "findings.md",
+      "target_rel": "collabs/<collab-id>/findings.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
+      "action": "assert_files",
+      "path": "collabs/<collab-id>/findings.md",
+      "must_exist": true,
+      "min_bytes": 30,
+      "deny_task_status": true,
+      "any_match": ["README|main\\.go|core/sample|minimal"],
+      "none_match": ["index\\.js", "utils\\.js", "\\[Insert", "lorem ipsum"]
+    },
+    {"action": "assert_collab", "phase": "executing"},
+    {"action": "send", "content": "/complete-collab <collab-id> --force"},
+    {"action": "wait_phase", "phase": "completed", "timeout": "120s"},
+    {"action": "assert_collab", "phase": "completed"}
+  ],
+  "cleanup": "cancel"
+}

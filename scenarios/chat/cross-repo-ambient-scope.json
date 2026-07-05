@@ -1,0 +1,38 @@
+{
+  "name": "cross-repo-ambient-scope",
+  "description": "BackendEngineer DM: linked_workspaces metadata enables cross-repo @codebase scope.",
+  "tags": ["dm", "backend", "codebase", "cross-repo", "regression"],
+  "channel_type": "dm",
+  "dm_user": "ChatScenario",
+  "target_agent": "BackendEngineer",
+  "required_agents": ["BackendEngineer"],
+  "workspace": {
+    "fixture": "cross-repo-primary",
+    "file_tree": "internal/shared/symbol.go\n",
+    "linked_workspaces": [
+      {
+        "fixture": "cross-repo-linked",
+        "name": "cross-repo-linked",
+        "source": "open_tab",
+        "file_tree": "internal/shared/symbol.go\n",
+        "open_files": ["internal/shared/symbol.go"]
+      }
+    ]
+  },
+  "steps": [
+    {
+      "action": "send",
+      "content": "@codebase What does ComputeSharedSymbol return in cross-repo-primary vs cross-repo-linked?",
+      "metadata": { "conversation_mode": "code", "context_scope": "outline" }
+    },
+    { "action": "wait_reply", "from": "BackendEngineer", "timeout": "120s" },
+    {
+      "action": "assert_messages",
+      "last_reply_only": true,
+      "from": "BackendEngineer",
+      "any_match": ["11", "22", "ComputeSharedSymbol"],
+      "none_match": ["I cannot see", "no workspace"]
+    }
+  ],
+  "cleanup": "clear"
+}

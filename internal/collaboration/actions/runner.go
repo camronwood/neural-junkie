@@ -9,10 +9,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/connectors"
+	"github.com/camronwood/neural-junkie/internal/runbooklibrary"
 )
 
 const maxResponseBytes = 256 * 1024
@@ -60,6 +63,11 @@ func (r *Runner) Execute(ctx context.Context, collab *collaboration.Collaboratio
 	}
 	typ := strings.ToLower(strings.TrimSpace(task.Action.Type))
 	cfg := interpolateConfig(task.Action.Config, collab, task)
+	if task.Action.ConnectorID != "" {
+		if prof, err := connectors.Get(task.Action.ConnectorID); err == nil {
+			cfg = connectors.ApplyToHTTPConfig(cfg, prof)
+		}
+	}
 
 	var res Result
 	var err error
@@ -77,7 +85,15 @@ func (r *Runner) Execute(ctx context.Context, collab *collaboration.Collaboratio
 	case "slack_message":
 		res, err = r.slackMessage(ctx, cfg)
 	case "mcp_tool":
-		res, err = Result{Summary: "mcp_tool execution is routed via agent MCP at dispatch", ActionType: typ}, nil
+		res, err = r.mcpTool(ctx, cfg)
+	case "shell":
+		res, err = r.shell(ctx, collab, cfg)
+	case "wait_human":
+		return "", fmt.Errorf("wait_human tasks require explicit approval via task API")
+	case "git_status":
+		res, err = r.gitStatus(ctx, collab)
+	case "git_diff":
+		res, err = r.gitDiff(ctx, collab, cfg)
 	default:
 		return "", fmt.Errorf("unknown action type %q", typ)
 	}
@@ -290,16 +306,101 @@ func interpolateConfig(cfg map[string]interface{}, collab *collaboration.Collabo
 	if cfg == nil {
 		return nil
 	}
+	inputs := map[string]string{}
+	if collab != nil && collab.RunInputs != nil {
+		inputs = collab.RunInputs
+	}
 	out := make(map[string]interface{}, len(cfg))
 	for k, v := range cfg {
 		if s, ok := v.(string); ok {
-			s = strings.ReplaceAll(s, "{{collab.description}}", collab.Description)
-			s = strings.ReplaceAll(s, "{{task.title}}", task.Title)
-			s = strings.ReplaceAll(s, "{{task.description}}", task.Description)
+			s = runbooklibrary.InterpolateString(s, collab, task, inputs)
 			out[k] = s
 		} else {
 			out[k] = v
 		}
 	}
 	return out
+}
+
+func (r *Runner) shell(ctx context.Context, collab *collaboration.Collaboration, cfg map[string]interface{}) (Result, error) {
+	cmdStr := stringVal(cfg, "command")
+	if cmdStr == "" {
+		return Result{}, fmt.Errorf("shell requires command")
+	}
+	cwd := strings.TrimSpace(collab.WorkingDirectory)
+	if cwd == "" {
+		cwd = "."
+	}
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
+	cmd.Dir = cwd
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return Result{}, fmt.Errorf("shell failed: %w: %s", err, string(out))
+	}
+	text := string(out)
+	if len(text) > maxResponseBytes {
+		text = text[:maxResponseBytes] + "...(truncated)"
+	}
+	return Result{
+		Summary: fmt.Sprintf("shell exit 0 (%d bytes)", len(out)),
+		Data:    map[string]interface{}{"output": text, "cwd": cwd},
+	}, nil
+}
+
+func (r *Runner) mcpTool(ctx context.Context, cfg map[string]interface{}) (Result, error) {
+	tool := stringVal(cfg, "tool")
+	if tool == "" {
+		tool = stringVal(cfg, "name")
+	}
+	if tool == "" {
+		return Result{}, fmt.Errorf("mcp_tool requires tool name")
+	}
+	args, _ := cfg["arguments"].(map[string]interface{})
+	return Result{
+		Summary: fmt.Sprintf("mcp_tool %s invoked (hub stub — wire MCP client for full execution)", tool),
+		Data:    map[string]interface{}{"tool": tool, "arguments": args},
+	}, nil
+}
+
+func (r *Runner) gitStatus(ctx context.Context, collab *collaboration.Collaboration) (Result, error) {
+	cwd := strings.TrimSpace(collab.WorkingDirectory)
+	if cwd == "" {
+		return Result{}, fmt.Errorf("git_status requires collaboration working directory")
+	}
+	cmd := exec.CommandContext(ctx, "git", "status", "--porcelain")
+	cmd.Dir = cwd
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return Result{}, fmt.Errorf("git status: %w", err)
+	}
+	text := string(out)
+	return Result{
+		Summary: fmt.Sprintf("git status (%d lines)", strings.Count(text, "\n")),
+		Data:    map[string]interface{}{"porcelain": text},
+	}, nil
+}
+
+func (r *Runner) gitDiff(ctx context.Context, collab *collaboration.Collaboration, cfg map[string]interface{}) (Result, error) {
+	cwd := strings.TrimSpace(collab.WorkingDirectory)
+	if cwd == "" {
+		return Result{}, fmt.Errorf("git_diff requires collaboration working directory")
+	}
+	args := []string{"diff"}
+	if path := stringVal(cfg, "path"); path != "" {
+		args = append(args, "--", path)
+	}
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = cwd
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return Result{}, fmt.Errorf("git diff: %w", err)
+	}
+	text := string(out)
+	if len(text) > maxResponseBytes {
+		text = text[:maxResponseBytes] + "...(truncated)"
+	}
+	return Result{
+		Summary: fmt.Sprintf("git diff (%d bytes)", len(text)),
+		Data:    map[string]interface{}{"diff": text},
+	}, nil
 }

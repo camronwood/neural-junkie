@@ -173,8 +173,9 @@ type TaskExecutionOptions struct {
 
 // TaskActionSpec defines a hub-executed action step.
 type TaskActionSpec struct {
-	Type   string                 `json:"type"`
-	Config map[string]interface{} `json:"config,omitempty"`
+	Type        string                 `json:"type"`
+	Config      map[string]interface{} `json:"config,omitempty"`
+	ConnectorID string                 `json:"connector_id,omitempty"`
 }
 
 // EdgeCondition gates an incoming dependency edge.
@@ -382,6 +383,11 @@ type Collaboration struct {
 	// another agent. Requests remain pending until the user approves them.
 	AllowAgentParticipantRequests bool                    `json:"allow_agent_participant_requests,omitempty"`
 	PendingParticipantRequests    []ParticipantAddRequest `json:"pending_participant_requests,omitempty"`
+	// Runbook v2 execution metadata (when source is runbook).
+	DefinitionID      string            `json:"definition_id,omitempty"`
+	DefinitionVersion int               `json:"definition_version,omitempty"`
+	RunInputs         map[string]string `json:"run_inputs,omitempty"`
+	RunNumber         int               `json:"run_number,omitempty"`
 }
 
 // Recap status values stored on Collaboration.

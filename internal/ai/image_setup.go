@@ -3,6 +3,8 @@ package ai
 import (
 	"os"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
 // ImageGenConfig describes the active image generation backend from environment.
@@ -26,44 +28,68 @@ type ImageGenStatus struct {
 	PullCommand   string `json:"pull_command,omitempty"`
 }
 
-// ImageGenConfigFromEnv resolves provider, model, and endpoint from environment.
+// ImageGenConfigFromEnv resolves provider, model, and endpoint from config with env overrides.
 func ImageGenConfigFromEnv() ImageGenConfig {
-	provider := imageProviderFromEnv()
-	cfg := ImageGenConfig{Provider: provider}
+	return ImageGenConfigFromSettings(config.AppConfig().ResolvedImageGen())
+}
+
+// ImageGenConfigFromSettings builds runtime image gen config from stored settings.
+func ImageGenConfigFromSettings(st config.ImageGenSettings) ImageGenConfig {
+	provider := strings.ToLower(strings.TrimSpace(st.Provider))
+	if provider == "" {
+		provider = "ollama"
+	}
 	switch provider {
 	case "openai":
-		cfg.Model = strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_IMAGE_MODEL"))
-		if cfg.Model == "" {
-			cfg.Model = "dall-e-3"
-		}
-		endpoint := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
-		if endpoint == "" {
-			endpoint = "https://api.openai.com/v1"
-		}
-		cfg.Endpoint = strings.TrimRight(endpoint, "/")
-		cfg.OpenAIKeySet = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
-	case "none":
-		// disabled
+		return openAIImageConfig(st)
+	case "none", "disabled", "off":
+		return ImageGenConfig{Provider: "none"}
 	default:
-		cfg.Provider = "ollama"
-		endpoint := strings.TrimSpace(os.Getenv("OLLAMA_ENDPOINT"))
-		if endpoint == "" {
-			endpoint = "http://localhost:11434"
-		}
-		cfg.Endpoint = strings.TrimRight(endpoint, "/")
-		cfg.Model = strings.TrimSpace(os.Getenv("OLLAMA_IMAGE_MODEL"))
-		if cfg.Model == "" {
-			cfg.Model = strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_IMAGE_MODEL"))
-		}
-		if cfg.Model == "" {
-			cfg.Model = DefaultOllamaImageModel
-		}
+		return ollamaImageConfig(st)
+	}
+}
+
+func openAIImageConfig(st config.ImageGenSettings) ImageGenConfig {
+	cfg := ImageGenConfig{Provider: "openai"}
+	cfg.Model = strings.TrimSpace(st.Model)
+	if cfg.Model == "" {
+		cfg.Model = "dall-e-3"
+	}
+	endpoint := strings.TrimSpace(st.OpenAIBaseURL)
+	if endpoint == "" {
+		endpoint = strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
+	}
+	if endpoint == "" {
+		endpoint = "https://api.openai.com/v1"
+	}
+	cfg.Endpoint = strings.TrimRight(endpoint, "/")
+	cfg.OpenAIKeySet = strings.TrimSpace(st.OpenAIAPIKey) != ""
+	return cfg
+}
+
+func ollamaImageConfig(st config.ImageGenSettings) ImageGenConfig {
+	cfg := ImageGenConfig{Provider: "ollama"}
+	endpoint := strings.TrimSpace(os.Getenv("OLLAMA_ENDPOINT"))
+	if endpoint == "" {
+		endpoint = "http://localhost:11434"
+	}
+	if ep := config.AppConfig().FirstOllamaEndpoint(); ep != "" {
+		endpoint = ep
+	}
+	cfg.Endpoint = strings.TrimRight(endpoint, "/")
+	cfg.Model = strings.TrimSpace(st.OllamaModel)
+	if cfg.Model == "" {
+		cfg.Model = strings.TrimSpace(st.Model)
+	}
+	if cfg.Model == "" {
+		cfg.Model = DefaultOllamaImageModel
 	}
 	return cfg
 }
 
 func imageProviderFromEnv() string {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_IMAGE_PROVIDER"))) {
+	st := config.AppConfig().ResolvedImageGen()
+	switch strings.ToLower(strings.TrimSpace(st.Provider)) {
 	case "openai":
 		return "openai"
 	case "none", "disabled", "off":

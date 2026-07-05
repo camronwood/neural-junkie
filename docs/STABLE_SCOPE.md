@@ -47,7 +47,6 @@ These remain honest limits at v1.0 — see [known-issues.html](known-issues.html
 - Collaboration quality varies by local model; planning provider optional mitigation
 - Slack bridge requires local hub running
 - Single hub instance
-- LM Studio / generic OpenAI-compat tool calling is limited vs Ollama/Claude
 - GitHub Release macOS builds: ad-hoc signed until v1.0.1 notarization
 - Local `make gui` / dev builds: ad-hoc macOS sign only
 

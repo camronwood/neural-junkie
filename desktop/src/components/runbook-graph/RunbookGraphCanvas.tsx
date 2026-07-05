@@ -38,6 +38,7 @@ interface RunbookGraphCanvasProps {
   editable: boolean;
   serverLayout?: GraphLayoutFromCollab;
   onTasksChange: (tasks: CollaborationTask[]) => void;
+  onLayoutChange?: (layout: GraphLayoutFromCollab) => void;
   selectedTaskId: string | null;
   onSelectTask: (id: string | null) => void;
   onValidationError: (msg: string | null) => void;
@@ -51,6 +52,7 @@ export function RunbookGraphCanvas({
   editable,
   serverLayout,
   onTasksChange,
+  onLayoutChange,
   selectedTaskId,
   onSelectTask,
   onValidationError,
@@ -172,8 +174,9 @@ export function RunbookGraphCanvas({
       );
       saveLayout(collaborationId, positions);
       setLayoutMap(positions);
+      onLayoutChange?.(positions);
     },
-    [nodes, collaborationId]
+    [nodes, collaborationId, onLayoutChange]
   );
 
   const onNodeClick = useCallback(

@@ -56,7 +56,6 @@ _Removed in v4.1 (beta.2+): `ide-v4-remote-lsp`, `ide-v4-remote-collab` — see 
 | ID | Status | Summary |
 |----|--------|---------|
 | `single-hub` | **Limitation** | **Single-server** deployment — no horizontal scale or multi-region hub. |
-| `lmstudio-tools` | **Limitation** | MCP tool calling is strongest on **Ollama** (selected flows) and **Claude**; LM Studio / generic OpenAI-compat tool use is limited. |
 
 ---
 

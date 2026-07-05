@@ -23,6 +23,8 @@ type OpenAICompatProvider struct {
 	Model      string
 	Headers    map[string]string
 	httpClient *http.Client
+
+	nativeToolsUnsupported bool
 }
 
 func NewOpenAICompatProvider(endpoint, apiKey, model string, headers map[string]string) *OpenAICompatProvider {

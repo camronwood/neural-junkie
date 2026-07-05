@@ -162,6 +162,18 @@ func (c *Config) EncryptSecretsBeforeSave() error {
 			return err
 		}
 	}
+	c.Security.HubToken, err = encryptString(c.Security.HubToken, key)
+	if err != nil {
+		return err
+	}
+	c.Security.FullMetadataSecret, err = encryptString(c.Security.FullMetadataSecret, key)
+	if err != nil {
+		return err
+	}
+	c.ImageGen.OpenAIAPIKey, err = encryptString(c.ImageGen.OpenAIAPIKey, key)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -193,5 +205,8 @@ func (c *Config) DecryptSecretsAfterLoad() error {
 	for i := range c.AI.Providers {
 		c.AI.Providers[i].APIKey = dec(c.AI.Providers[i].APIKey)
 	}
+	c.Security.HubToken = dec(c.Security.HubToken)
+	c.Security.FullMetadataSecret = dec(c.Security.FullMetadataSecret)
+	c.ImageGen.OpenAIAPIKey = dec(c.ImageGen.OpenAIAPIKey)
 	return decErr
 }

@@ -1,4 +1,5 @@
 import { useFileExplorerStore } from '../stores/fileExplorerStore';
+import { useEditorStore } from '../stores/editorStore';
 import type { Collaboration } from '../types/protocol';
 import { isCollabSandboxPath } from './outboundChatMetadata';
 
@@ -27,6 +28,17 @@ export function resolveTerminalCwd(options?: {
   }
 
   const { workspaces, activeWorkspaceId } = useFileExplorerStore.getState();
+  const editorState = useEditorStore.getState();
+  const activeTab = editorState.activeTabId
+    ? editorState.tabs.find((t) => t.id === editorState.activeTabId)
+    : undefined;
+  if (activeTab?.workspaceId) {
+    const tabWs = workspaces.find((w) => w.id === activeTab.workspaceId);
+    const tabPath = tabWs?.path?.trim();
+    if (tabPath && !isCollabSandboxPath(tabPath)) {
+      return tabPath;
+    }
+  }
   const active = workspaces.find((w) => w.id === activeWorkspaceId) ?? workspaces[0];
   const path = active?.path?.trim();
   if (path && !isCollabSandboxPath(path)) {

@@ -8,7 +8,11 @@ import { shouldAutoAckWorkspaceOnApprove, isAwaitingWorkspaceConfirmation } from
 import { RunbookImportModal } from './RunbookImportModal';
 import { RunbookGraphModal } from './runbook-graph';
 import { RunbookActionConfigEditor } from './runbook/RunbookActionConfigEditor';
+import { TaskDependenciesEditor } from './runbook/TaskDependenciesEditor';
+import { RunbookSaveDialog } from './runbook/RunbookSaveDialog';
+import { RunbookStartModal } from './runbook/RunbookStartModal';
 import { defaultActionSpec } from '../utils/runbookActionUtils';
+import type { GraphLayout, RunInputSpec } from '../types/protocol';
 import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../utils/runbookTaskUtils';
 
 interface RunbookBuilderPanelProps {
@@ -42,6 +46,10 @@ export function RunbookBuilderPanel({
   );
   const [importOpen, setImportOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
+  const [startInputs, setStartInputs] = useState<RunInputSpec[]>([]);
+  const [graphLayout, setGraphLayout] = useState<GraphLayout>(collaboration.graph_layout ?? {});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -72,7 +80,7 @@ export function RunbookBuilderPanel({
         agent_ids: agentPool,
         tasks: normalized,
         execution_policy: executionPolicy,
-        graph_layout: collaboration.graph_layout,
+        graph_layout: graphLayout,
       });
       onSaved(snap);
       setDirty(false);
@@ -83,7 +91,7 @@ export function RunbookBuilderPanel({
     } finally {
       setBusy(false);
     }
-  }, [api, collaboration.id, description, agentPool, tasks, onSaved]);
+  }, [api, collaboration.id, description, agentPool, tasks, executionPolicy, graphLayout, onSaved]);
 
   const handleAutoAssign = async (index: number) => {
     const t = tasks[index];
@@ -136,7 +144,22 @@ export function RunbookBuilderPanel({
     }
   };
 
-  const handleStart = async () => {
+  const openStartModal = async () => {
+    let inputs: RunInputSpec[] = [];
+    if (collaboration.definition_id) {
+      try {
+        const def = await api.getRunbookDefinition(collaboration.definition_id, collaboration.definition_version);
+        inputs = def.inputs ?? [];
+      } catch {
+        inputs = [];
+      }
+    }
+    setStartInputs(inputs);
+    setStartOpen(true);
+  };
+
+  const runStart = async (inputValues: Record<string, string>) => {
+    setStartOpen(false);
     let snap = collaboration;
     if (editable) {
       const saved = await persist();
@@ -155,7 +178,7 @@ export function RunbookBuilderPanel({
     setBusy(true);
     setError('');
     try {
-      let started = await api.startRunbook(collaboration.id);
+      let started = await api.startRunbook(collaboration.id, inputValues);
       onSaved(started);
       if (!started.workspace_acknowledged) {
         await ensureCollaborationExecutionWorkspace(started);
@@ -173,6 +196,10 @@ export function RunbookBuilderPanel({
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleStart = async () => {
+    await openStartModal();
   };
 
   const collabIdRef = useRef(collaboration.id);
@@ -198,12 +225,16 @@ export function RunbookBuilderPanel({
     if (collaboration.execution_policy) {
       setExecutionPolicy(collaboration.execution_policy);
     }
+    if (collaboration.graph_layout) {
+      setGraphLayout(collaboration.graph_layout);
+    }
   }, [
     collaboration.id,
     collaboration.description,
     collaboration.agents,
     collaboration.tasks,
     collaboration.execution_policy,
+    collaboration.graph_layout,
     dirty,
   ]);
 
@@ -392,10 +423,10 @@ export function RunbookBuilderPanel({
                 taskIndex={i}
                 tasks={tasks}
                 disabled={!editable || busy}
-                onChange={(deps) => {
+                onChange={(patch) => {
                   setTasks((prev) => {
                     const next = [...prev];
-                    next[i] = { ...next[i], dependencies: deps };
+                    next[i] = { ...next[i], ...patch };
                     return next;
                   });
                   markDirty();
@@ -451,6 +482,11 @@ export function RunbookBuilderPanel({
               Save draft
             </button>
           ) : null}
+          {editable ? (
+            <button type="button" onClick={() => setSaveOpen(true)} disabled={busy} style={secondaryBtn}>
+              Save to library
+            </button>
+          ) : null}
           {collaboration.phase === 'draft' ? (
             <button type="button" onClick={() => void handleSubmit()} disabled={busy} style={secondaryBtn}>
               Submit for review
@@ -464,6 +500,25 @@ export function RunbookBuilderPanel({
         </div>
       </div>
 
+      <RunbookSaveDialog
+        isOpen={saveOpen}
+        api={api}
+        collaboration={collaboration}
+        tasks={tasks}
+        executionPolicy={executionPolicy}
+        graphLayout={graphLayout}
+        onClose={() => setSaveOpen(false)}
+        onSaved={() => setSaveOpen(false)}
+      />
+
+      <RunbookStartModal
+        isOpen={startOpen}
+        inputs={startInputs}
+        busy={busy}
+        onClose={() => setStartOpen(false)}
+        onStart={(values) => void runStart(values)}
+      />
+
       <RunbookImportModal
         isOpen={importOpen}
         busy={busy}
@@ -473,7 +528,7 @@ export function RunbookBuilderPanel({
 
       <RunbookGraphModal
         isOpen={graphOpen}
-        collaboration={collaboration}
+        collaboration={{ ...collaboration, graph_layout: graphLayout }}
         agents={allAgents}
         tasks={tasks}
         api={api}
@@ -482,6 +537,10 @@ export function RunbookBuilderPanel({
         onClose={() => setGraphOpen(false)}
         onTasksChange={(next) => {
           setTasks(next);
+          markDirty();
+        }}
+        onLayoutChange={(layout) => {
+          setGraphLayout(layout);
           markDirty();
         }}
         onSave={async () => {
@@ -528,87 +587,6 @@ function AgentPoolPicker({
           @{a.agent_name}
         </label>
       ))}
-    </div>
-  );
-}
-
-function TaskDependenciesEditor({
-  taskIndex,
-  tasks,
-  disabled,
-  onChange,
-}: {
-  taskIndex: number;
-  tasks: CollaborationTask[];
-  disabled: boolean;
-  onChange: (deps: string[]) => void;
-}) {
-  const deps = tasks[taskIndex].dependencies ?? [];
-  const [pick, setPick] = useState('');
-
-  const candidates = tasks
-    .map((other, j) => ({ other, j }))
-    .filter(({ j }) => j !== taskIndex);
-  const available = candidates.filter(({ other }) => !deps.includes(other.id));
-
-  const addPicked = () => {
-    if (!pick || deps.includes(pick)) return;
-    onChange([...deps, pick]);
-    setPick('');
-  };
-
-  return (
-    <div style={{ marginTop: 8 }}>
-      <div style={{ ...labelStyle, marginBottom: 6 }}>Depends on</div>
-      {deps.length > 0 ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-          {deps.map((depId) => {
-            const j = tasks.findIndex((t) => t.id === depId);
-            const title = j >= 0 ? tasks[j].title?.trim() || '(untitled)' : depId.slice(0, 8);
-            return (
-              <span key={depId} style={depChipStyle}>
-                Task {j >= 0 ? j + 1 : '?'}: {title}
-                {!disabled ? (
-                  <button
-                    type="button"
-                    aria-label="Remove dependency"
-                    style={depChipRemoveBtn}
-                    onClick={() => onChange(deps.filter((d) => d !== depId))}
-                  >
-                    ×
-                  </button>
-                ) : null}
-              </span>
-            );
-          })}
-        </div>
-      ) : (
-        <p style={{ fontSize: 11, color: 'var(--text-secondary, #999)', marginBottom: 8 }}>
-          No dependencies — runs in the first wave.
-        </p>
-      )}
-      {!disabled && available.length > 0 ? (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select
-            value={pick}
-            onChange={(e) => setPick(e.target.value)}
-            style={{ ...inputStyle, flex: 1, marginTop: 0 }}
-          >
-            <option value="">Select upstream task…</option>
-            {available.map(({ other, j }) => (
-              <option key={other.id} value={other.id}>
-                Task {j + 1}: {other.title?.trim() || '(untitled)'}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={addPicked} disabled={!pick} style={secondaryBtn}>
-            Add
-          </button>
-        </div>
-      ) : null}
-      {!disabled && available.length === 0 && candidates.length > 0 ? (
-        <p style={{ fontSize: 11, color: 'var(--text-secondary, #999)' }}>All other tasks are already linked.</p>
-      ) : null}
     </div>
   );
 }
@@ -779,26 +757,4 @@ const closeBtn: CSSProperties = {
   color: 'var(--text-secondary, #999)',
   cursor: 'pointer',
   fontSize: 16,
-};
-
-const depChipStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '4px 8px',
-  borderRadius: 6,
-  fontSize: 11,
-  backgroundColor: 'var(--bg-tertiary, #2a2a2a)',
-  border: '1px solid var(--border-color, #444)',
-  color: 'var(--text-primary, #e8e8e8)',
-};
-
-const depChipRemoveBtn: CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  color: 'var(--text-secondary, #aaa)',
-  cursor: 'pointer',
-  fontSize: 14,
-  lineHeight: 1,
-  padding: 0,
 };

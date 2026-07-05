@@ -90,6 +90,7 @@ import {
   resolvePanelCollaboration,
 } from '../utils/collaborationPanelState';
 import { RunbookBuilderPanel } from './RunbookBuilderPanel';
+import { RunbookLibraryModal } from './runbook/RunbookLibraryModal';
 import { CollaborationWorkspaceGate } from './CollaborationWorkspaceGate';
 import { TaskManagementPanel } from './TaskManagementPanel';
 import { SecondaryAnalysisPanel } from './SecondaryAnalysisPanel';
@@ -154,6 +155,8 @@ import {
   type ComposerMode,
 } from '../constants/composerMode';
 import { prepareOutboundPayload } from '../utils/prepareOutboundPayload';
+import { resolveWorkspaceScope, scopedRepoPaths } from '../utils/workspaceScope';
+import { useProjectSetsStore } from '../stores/projectSetsStore';
 import { ideRoutingChipLabel } from '../utils/ideComposer';
 import { resolveEditorAgentTrust } from '../utils/editorAgentTrust';
 import {
@@ -287,6 +290,30 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
     const id = s.activeTabId;
     return id ? (s.tabs.find((t) => t.id === id) ?? null) : null;
   });
+  const editorTabs = useEditorStore((s) => s.tabs);
+  const activeTabId = useEditorStore((s) => s.activeTabId);
+  const activeProjectSetId = useProjectSetsStore((s) => s.activeProjectSetId);
+  const getProjectSetMemberIds = useProjectSetsStore((s) => s.getMemberIds);
+
+  const resolveScopedRepoPaths = useCallback((): string[] => {
+    const scope = resolveWorkspaceScope({
+      workspaces: explorerWorkspaces,
+      activeWorkspaceId,
+      editorTabs,
+      activeTabId,
+      projectSetMemberIds: activeProjectSetId
+        ? getProjectSetMemberIds(activeProjectSetId)
+        : undefined,
+    });
+    return scopedRepoPaths(scope);
+  }, [
+    explorerWorkspaces,
+    activeWorkspaceId,
+    editorTabs,
+    activeTabId,
+    activeProjectSetId,
+    getProjectSetMemberIds,
+  ]);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const channelSearchRef = useRef<HTMLInputElement | null>(null);
   const approveFirstPendingRef = useRef<(() => void | Promise<void>) | null>(null);
@@ -480,6 +507,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   // State for active collaboration panel
   const [activeCollab, setActiveCollab] = useState<Collaboration | null>(null);
   const [runbookBuilderDirty, setRunbookBuilderDirty] = useState(false);
+  const [runbookLibraryOpen, setRunbookLibraryOpen] = useState(false);
   const activeCollabRef = useRef<Collaboration | null>(null);
   const collaborationsByIDRef = useRef<Record<string, Collaboration>>({});
   const { handleSuggestedCommands } = useSuggestedCommands({
@@ -1120,6 +1148,10 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
   );
 
   const handleNewRunbook = useCallback(async () => {
+    setRunbookLibraryOpen(true);
+  }, []);
+
+  const handleCreateBlankRunbook = useCallback(async () => {
     const pool = agents.filter((a) => a.status === 'active' || a.status === 'idle');
     if (pool.length < 1) {
       addToast({ type: 'error', title: 'No agents', message: 'Add at least one active agent before creating a runbook.' });
@@ -1869,6 +1901,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         composerMetadata: metadata,
         api: devPackEnabled ? api : undefined,
         repoPath: devPackEnabled ? ws?.path : undefined,
+        repoPaths: devPackEnabled ? resolveScopedRepoPaths() : undefined,
         devPackEnabled,
         channel,
         channelMeta: activeChannelMeta,
@@ -1905,6 +1938,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       devPackEnabled,
       explorerWorkspaces,
       activeWorkspaceId,
+      resolveScopedRepoPaths,
       ideLayout,
       hasIdeComposer,
     ]
@@ -1969,6 +2003,7 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
         composerMetadata: composerMeta,
         api: devPackEnabled ? api : undefined,
         repoPath: devPackEnabled ? ws?.path : undefined,
+        repoPaths: devPackEnabled ? resolveScopedRepoPaths() : undefined,
         devPackEnabled,
         channel,
         channelMeta: activeChannelMeta,
@@ -2102,6 +2137,9 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
       activeEditorTab,
       composerMode,
       hasIdeComposer,
+      explorerWorkspaces,
+      activeWorkspaceId,
+      resolveScopedRepoPaths,
     ]
   );
 
@@ -2868,6 +2906,17 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
             onAfterCollaborationCommand={async () => {
               await loadCollaborations(panelCollaboration.channel || channel);
             }}
+            onOpenRunbookRun={async (collabId, collabChannel) => {
+              if (collabChannel && collabChannel !== channel) {
+                await handleSwitchChannel(collabChannel);
+              }
+              try {
+                setActiveCollab(await api.getRunbook(collabId));
+              } catch {
+                /* optional snapshot */
+              }
+              await loadCollaborations(collabChannel || channel);
+            }}
           />
         ) : null}
 
@@ -3180,6 +3229,29 @@ export function ChatWindow({ onOpenSettings, onLogout }: ChatWindowProps = {}) {
           onConfirm={handleHubAccessConfirm}
         />
       )}
+
+      <RunbookLibraryModal
+        isOpen={runbookLibraryOpen}
+        api={api}
+        hubAgents={agentsToCollaborationAgents(agents)}
+        channel={channel}
+        username={username || 'User'}
+        onClose={() => setRunbookLibraryOpen(false)}
+        onInstantiated={(collabId, collabChannel) => {
+          void (async () => {
+            if (collabChannel && collabChannel !== channel) {
+              await handleSwitchChannel(collabChannel);
+            }
+            try {
+              setActiveCollab(await api.getRunbook(collabId));
+            } catch {
+              /* snapshot optional */
+            }
+            void loadCollaborations(channel);
+          })();
+        }}
+        onNewBlank={() => void handleCreateBlankRunbook()}
+      />
 
       {/* Toast Notifications */}
       <ToastContainer />

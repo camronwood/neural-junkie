@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/codeindex"
+	"github.com/camronwood/neural-junkie/internal/codeintel"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/routing"
 )
 
 var (
-	codebaseMentionRE  = regexp.MustCompile(`(?i)@codebase\b`)
-	codebaseSymbolRE   = regexp.MustCompile(`[A-Z][a-zA-Z0-9]{3,}`)
+	codebaseMentionRE = regexp.MustCompile(`(?i)@codebase\b`)
+	codebaseSymbolRE  = regexp.MustCompile(`[A-Z][a-zA-Z0-9]{3,}`)
 )
 
 // MergeCodebaseAttachments resolves @codebase in message content into prompt_attachments
@@ -23,70 +25,177 @@ func MergeCodebaseAttachments(msg *protocol.Message) {
 	if msg == nil || !codebaseMentionRE.MatchString(msg.Content) {
 		return
 	}
+	plan := routing.PlanKnowledgeRoute(msg.Content)
+	_ = MergeCodebaseForRoute(msg, plan)
+}
+
+// MergeCodebaseForRoute runs codeindex search when the knowledge plan includes codebase
+// or the user explicitly mentions @codebase.
+func MergeCodebaseForRoute(msg *protocol.Message, plan routing.KnowledgePlan) bool {
+	if msg == nil {
+		return false
+	}
+	explicit := codebaseMentionRE.MatchString(msg.Content)
+	if !explicit && !ShouldRunCodebaseSearch(plan) {
+		return false
+	}
 	repoPath := workspacePathFromMetadata(msg)
 	if repoPath == "" {
-		return
+		return false
 	}
 	query := strings.TrimSpace(codebaseMentionRE.ReplaceAllString(msg.Content, ""))
 	if query == "" {
-		return
+		query = strings.TrimSpace(msg.Content)
 	}
+	if query == "" {
+		return false
+	}
+	paths := scopedRepoPathsFromMetadata(msg)
+	if len(paths) == 0 {
+		paths = []string{repoPath}
+	}
+	return mergeCodebaseSearchIntoMessage(msg, paths, query)
+}
+
+func mergeCodebaseSearchIntoMessage(msg *protocol.Message, repoPaths []string, query string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	meta, _ := codeindex.Status(repoPath)
-	if !meta.Ready && !meta.Building {
-		codeindex.BuildIndexAsync(repoPath)
-	}
-	var results []codeindex.SearchResult
-	seen := make(map[string]bool)
-	for _, q := range codebaseSearchQueries(query) {
-		part, err := codeindex.Search(ctx, repoPath, q, 8)
-		if err != nil {
-			continue
-		}
-		for _, r := range part {
-			prefix := r.Content
-			if len(prefix) > 80 {
-				prefix = prefix[:80]
-			}
-			key := r.Path + "\x00" + prefix
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			results = append(results, r)
-			if len(results) >= 8 {
-				break
-			}
-		}
-		if len(results) >= 8 {
-			break
+	for _, repoPath := range repoPaths {
+		meta, _ := codeindex.Status(repoPath)
+		if !meta.Ready && !meta.Building {
+			codeindex.BuildIndexAsync(repoPath)
 		}
 	}
-	if len(results) == 0 {
-		for _, sym := range codebaseSymbolRE.FindAllString(query, -1) {
-			results = append(results, grepWorkspaceSymbol(repoPath, sym, 4)...)
-			if len(results) >= 8 {
-				break
-			}
-		}
-	}
-	if len(results) == 0 {
-		return
+	hits, err := codeintel.SemanticSearchMulti(ctx, repoPaths, query, 4, 12)
+	if err != nil || len(hits) == 0 {
+		return mergeCodebaseSearchFallback(msg, repoPaths, query)
 	}
 	if msg.Metadata == nil {
 		msg.Metadata = make(map[string]interface{})
 	}
 	existing := promptAttachmentsSlice(msg.Metadata[MetadataPromptAttachments])
-	for _, r := range results {
+	for _, h := range hits {
 		existing = append(existing, map[string]interface{}{
-			"type":    "codebase_chunk",
-			"path":    r.Path,
-			"content": r.Content,
+			"type":      "codebase_chunk",
+			"path":      h.Path,
+			"content":   h.Content,
+			"repo_path": h.RepoPath,
+			"repo_name": h.RepoName,
 		})
 	}
 	msg.Metadata[MetadataPromptAttachments] = existing
+	if msg.Metadata["injected_codebase_count"] == nil {
+		msg.Metadata["injected_codebase_count"] = len(hits)
+	}
+	return true
+}
+
+func mergeCodebaseSearchFallback(msg *protocol.Message, repoPaths []string, query string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var results []codeindex.SearchResult
+	var resultRepos []string
+	seen := make(map[string]bool)
+	for _, repoPath := range repoPaths {
+		for _, q := range codebaseSearchQueries(query) {
+			part, err := codeindex.Search(ctx, repoPath, q, 4)
+			if err != nil {
+				continue
+			}
+			for _, r := range part {
+				prefix := r.Content
+				if len(prefix) > 80 {
+					prefix = prefix[:80]
+				}
+				key := repoPath + "\x00" + r.Path + "\x00" + prefix
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				results = append(results, r)
+				resultRepos = append(resultRepos, repoPath)
+				if len(results) >= 12 {
+					break
+				}
+			}
+			if len(results) >= 12 {
+				break
+			}
+		}
+		if len(results) >= 12 {
+			break
+		}
+	}
+	if len(results) == 0 {
+		for _, repoPath := range repoPaths {
+			for _, sym := range codebaseSymbolRE.FindAllString(query, -1) {
+				part := grepWorkspaceSymbol(repoPath, sym, 4)
+				for _, r := range part {
+					results = append(results, r)
+					resultRepos = append(resultRepos, repoPath)
+					if len(results) >= 12 {
+						break
+					}
+				}
+				if len(results) >= 12 {
+					break
+				}
+			}
+			if len(results) >= 12 {
+				break
+			}
+		}
+	}
+	if len(results) == 0 {
+		return false
+	}
+	if msg.Metadata == nil {
+		msg.Metadata = make(map[string]interface{})
+	}
+	existing := promptAttachmentsSlice(msg.Metadata[MetadataPromptAttachments])
+	for i, r := range results {
+		repoPath := resultRepos[i]
+		existing = append(existing, map[string]interface{}{
+			"type":      "codebase_chunk",
+			"path":      r.Path,
+			"content":   r.Content,
+			"repo_path": repoPath,
+			"repo_name": codeintelRepoName(repoPath),
+		})
+	}
+	msg.Metadata[MetadataPromptAttachments] = existing
+	if msg.Metadata["injected_codebase_count"] == nil {
+		msg.Metadata["injected_codebase_count"] = len(results)
+	}
+	return true
+}
+
+func codeintelRepoName(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "repo"
+	}
+	path = strings.TrimRight(path, "/")
+	if i := strings.LastIndex(path, "/"); i >= 0 {
+		return path[i+1:]
+	}
+	return path
+}
+
+func scopedRepoPathsFromMetadata(msg *protocol.Message) []string {
+	scoped := scopedWorkspacesFromMetadata(msg)
+	if len(scoped) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(scoped))
+	for _, ref := range scoped {
+		if ref.Path != "" {
+			out = append(out, ref.Path)
+		}
+	}
+	return out
 }
 
 func workspacePathFromMetadata(msg *protocol.Message) string {

@@ -4,10 +4,11 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
 // RateLimiter is a simple sliding-window limiter per client key.
@@ -21,25 +22,39 @@ type RateLimiter struct {
 }
 
 func NewRateLimiter() *RateLimiter {
-	enabled := os.Getenv("NEURAL_JUNKIE_RATE_LIMIT") != "0"
-	readMax := 300
-	mutMax := 120
-	if v := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_RATE_READ")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			readMax = n
-		}
-	}
-	if v := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_RATE_MUTATE")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			mutMax = n
-		}
-	}
-	return &RateLimiter{
+	sec := config.AppConfig().ResolvedSecurity()
+	rl := &RateLimiter{
 		events:  make(map[string][]time.Time),
-		enabled: enabled,
-		readMax: readMax,
-		mutMax:  mutMax,
+		enabled: sec.RateLimitEnabledOrDefault(),
+		readMax: sec.RateReadPerMinute,
+		mutMax:  sec.RateMutatePerMinute,
 		window:  time.Minute,
+	}
+	if rl.readMax <= 0 {
+		rl.readMax = 300
+	}
+	if rl.mutMax <= 0 {
+		rl.mutMax = 120
+	}
+	if os.Getenv("NEURAL_JUNKIE_RATE_LIMIT") == "0" {
+		rl.enabled = false
+	}
+	return rl
+}
+
+// Reconfigure updates rate limit settings at runtime.
+func (rl *RateLimiter) Reconfigure(enabled bool, readMax, mutMax int) {
+	if rl == nil {
+		return
+	}
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	rl.enabled = enabled
+	if readMax > 0 {
+		rl.readMax = readMax
+	}
+	if mutMax > 0 {
+		rl.mutMax = mutMax
 	}
 }
 

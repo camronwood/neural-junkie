@@ -682,7 +682,7 @@ func (a *Agent) proposeFileEditInChannel(ctx context.Context, channel, path, old
 	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📝 Proposing to edit file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
-	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, sourceMsg)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
 	err := a.Hub.SendMessage(msg)
@@ -753,7 +753,7 @@ func (a *Agent) proposeFileCreateInChannel(ctx context.Context, channel, path, c
 	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📄 Proposing to create file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
-	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, sourceMsg)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
 	err := a.Hub.SendMessage(msg)
@@ -787,7 +787,7 @@ func (a *Agent) proposeFileDeleteInChannel(ctx context.Context, channel, path st
 	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("🗑️ Proposing to delete file: %s", path))
 	msg.Metadata["file_change_proposal"] = proposal
-	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, sourceMsg)
 	attachIdeSessionMetadataToProposal(msg, sourceMsg)
 
 	err := a.Hub.SendMessage(msg)
@@ -823,13 +823,19 @@ func (a *Agent) proposeFileMoveInChannel(channel, oldPath, newPath string) error
 	msg := protocol.NewMessage(protocol.MessageTypeFileChange, channel, a.Info,
 		fmt.Sprintf("📁 Proposing to move file: %s → %s", oldPath, newPath))
 	msg.Metadata["file_change_proposal"] = proposal
-	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal)
+	a.attachWorkspaceContextToProposalMessage(channel, msg, proposal, nil)
 
 	return a.Hub.SendMessage(msg)
 }
 
-func (a *Agent) attachWorkspaceContextToProposalMessage(channel string, msg *protocol.Message, proposal *protocol.FileChangeProposal) {
+func (a *Agent) attachWorkspaceContextToProposalMessage(channel string, msg *protocol.Message, proposal *protocol.FileChangeProposal, sourceMsg *protocol.Message) {
 	workspaceContext, ok := a.latestWorkspaceContext(channel)
+	if !ok && sourceMsg != nil && sourceMsg.Metadata != nil {
+		if wsCtx, has := sourceMsg.Metadata["workspace_context"]; has {
+			workspaceContext = wsCtx
+			ok = true
+		}
+	}
 	if !ok {
 		return
 	}
@@ -838,6 +844,41 @@ func (a *Agent) attachWorkspaceContextToProposalMessage(channel string, msg *pro
 		proposal.Metadata = make(map[string]interface{})
 	}
 	proposal.Metadata["workspace_context"] = workspaceContext
+	a.applyCrossRepoProposalTarget(sourceMsg, msg, proposal)
+}
+
+func (a *Agent) applyCrossRepoProposalTarget(sourceMsg, msg *protocol.Message, proposal *protocol.FileChangeProposal) {
+	if sourceMsg == nil || proposal == nil || msg == nil {
+		return
+	}
+	relPath := proposal.FilePath
+	if relPath == "" {
+		relPath = proposal.NewPath
+	}
+	ref, ok := resolveWorkspaceForRelativePath(sourceMsg, relPath)
+	if !ok || ref.Path == "" {
+		return
+	}
+	primary := primaryWorkspaceFromMetadata(sourceMsg)
+	if primary.Path != "" && normalizeScopePath(primary.Path) == normalizeScopePath(ref.Path) {
+		return
+	}
+	targetCtx := map[string]interface{}{
+		"workspace_path": ref.Path,
+		"workspace_name": ref.Name,
+	}
+	if ref.ID != "" {
+		targetCtx["workspace_id"] = ref.ID
+	}
+	proposal.Metadata["target_workspace_context"] = targetCtx
+	proposal.Metadata["target_workspace_path"] = ref.Path
+	if ref.ID != "" {
+		proposal.Metadata["target_workspace_id"] = ref.ID
+	}
+	msg.Metadata["target_workspace_path"] = ref.Path
+	if ref.ID != "" {
+		msg.Metadata["target_workspace_id"] = ref.ID
+	}
 }
 
 func (a *Agent) latestWorkspaceContext(channel string) (interface{}, bool) {

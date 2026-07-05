@@ -120,6 +120,8 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	a.resetRoutingSnapshot()
 	a.resetCompressSnapshot()
 	a.recordKnowledgeRoute(msg)
+	a.applyKnowledgePlanEarly(msg)
+	a.recordTurnGovernance(msg)
 
 	log.Printf("[%s] ⬇️ RECEIVED msg ID %s from %s (mentions: %v)", a.Info.Name, msg.ID[:8], msg.From.Name, msg.Mentions)
 	log.Printf("[%s] ✅ MARKED msg %s as responded", a.Info.Name, msg.ID[:8])
@@ -151,9 +153,9 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 	if eff == nil {
 		eff = a.GetAIProvider()
 	}
+	reason := "default_agent_provider"
+	source := "rules"
 	if msg.Type != protocol.MessageTypeCollabTask && !shouldRunImplementationSession(a, msg) {
-		reason := "default_agent_provider"
-		source := "rules"
 		if base := a.GetAIProvider(); base != nil && eff != nil {
 			if bm, em := strings.TrimSpace(base.GetModel()), strings.TrimSpace(eff.GetModel()); em != "" && bm != em {
 				reason = "capability_routing"
@@ -161,8 +163,20 @@ func (a *Agent) handleMessage(ctx context.Context, msg *protocol.Message) {
 			}
 		}
 		a.RecordRoutingFromProvider(eff, reason, source)
-		a.broadcastRoutingTelemetry(msg)
+		a.recordClassifierRouting(msg)
+	} else if msg.Type == protocol.MessageTypeCollabTask {
+		snap := a.LastRoutingSnapshot()
+		if snap.Reason != "" {
+			reason = snap.Reason
+		}
+		if snap.Source != "" {
+			source = snap.Source
+		}
+		a.RecordRoutingFromProvider(eff, reason, source)
+	} else if shouldRunImplementationSession(a, msg) {
+		a.recordClassifierRouting(msg)
 	}
+	a.broadcastRoutingTelemetry(msg)
 
 	var implSessionProposed bool
 	var implSessionFiles []string

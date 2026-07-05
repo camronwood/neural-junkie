@@ -150,8 +150,15 @@ func workspaceContextForCollaboration(msg *protocol.Message, flags collaborateFl
 	}
 	ctx := workspaceContextFromMessageMetadata(msg)
 	if ctx != nil {
+		// Harness and desktop sends use outline scope during /collaborate — drop stale open-file bodies.
+		delete(ctx, "open_files")
 		if p, _ := ctx["workspace_path"].(string); strings.TrimSpace(p) != "" {
 			enrichSourceWorkspaceOutline(ctx, p, goal)
+		}
+		if msg != nil && msg.Metadata != nil {
+			if linked, ok := msg.Metadata["linked_workspaces"]; ok {
+				ctx["linked_workspaces"] = linked
+			}
 		}
 	}
 	return ctx

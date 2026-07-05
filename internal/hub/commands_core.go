@@ -102,7 +102,7 @@ func (ch *CommandHandler) ProcessCommand(ctx context.Context, msg *protocol.Mess
 	}
 
 	command := strings.ToLower(parts[0])
-	if command == "/collaborate" || command == "/runbook" {
+	if command == "/collaborate" || command == "/runbook" || command == "/runbook-run" {
 		parts = tokenizeSlashCommand(content)
 		if len(parts) == 0 {
 			return nil, nil
@@ -222,6 +222,7 @@ func (ch *CommandHandler) commandExecutors() map[string]commandExecutor {
 		},
 		"/collaborate":          ch.handleCollaborate,
 		"/runbook":              ch.handleRunbook,
+		"/runbook-run":          ch.handleRunbookRun,
 		"/approve-plan":         ch.handleApprovePlan,
 		"/submit-plan":          ch.handleSubmitPlan,
 		"/ack-collab-workspace": ch.handleAckCollabWorkspace,
@@ -1665,6 +1666,15 @@ func (ch *CommandHandler) buildCommandDefinitions() []protocol.CommandDefinition
 			Arguments: []protocol.CommandArgument{
 				{Name: "agents", Description: "At least one @mentioned agent for the pool", Type: "string", Required: true},
 				{Name: "description", Description: "Runbook goal", Type: "string", Required: true},
+			},
+		},
+		{
+			Name:        "/runbook-run",
+			Description: "Instantiate and start a library runbook definition. Optional `--input key=value` flags.",
+			Category:    "Collaboration",
+			Arguments: []protocol.CommandArgument{
+				{Name: "definition-id", Description: "Runbook definition id (e.g. health-check-alert)", Type: "string", Required: true},
+				{Name: "agents", Description: "At least one @mentioned agent", Type: "string", Required: true},
 			},
 		},
 		{

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
 // HubSession is a desktop/user session for ACL and auditing.
@@ -28,10 +30,8 @@ type SessionManager struct {
 
 func NewSessionManager() *SessionManager {
 	ttl := 7 * 24 * time.Hour
-	if v := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_SESSION_TTL_HOURS")); v != "" {
-		if h, err := time.ParseDuration(v + "h"); err == nil && h > 0 {
-			ttl = h
-		}
+	if h := config.AppConfig().ResolvedSecurity().SessionTTLHours; h > 0 {
+		ttl = time.Duration(h) * time.Hour
 	}
 	return &SessionManager{
 		sessions: make(map[string]*HubSession),
@@ -39,8 +39,21 @@ func NewSessionManager() *SessionManager {
 	}
 }
 
+// SetTTLHours updates session lifetime for newly created sessions.
+func (sm *SessionManager) SetTTLHours(hours int) {
+	if sm == nil || hours <= 0 {
+		return
+	}
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.ttl = time.Duration(hours) * time.Hour
+}
+
 // AuthRequired returns true when mutations must carry a valid session (strict mode).
 func AuthRequired() bool {
+	if config.AppConfig().ResolvedSecurity().AuthRequired {
+		return true
+	}
 	return strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_AUTH_REQUIRED")) == "1"
 }
 

@@ -75,7 +75,7 @@ func TestStartRunbookSandboxDefersDispatchUntilWorkspaceAck(t *testing.T) {
 
 	collabID, collabCh := createReviewingRunbook(t, h, chName)
 
-	started, err := h.StartRunbook(collabID)
+	started, err := h.StartRunbook(collabID, nil)
 	if err != nil {
 		t.Fatalf("StartRunbook: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestStartRunbookDispatchesAfterWorkspaceAck(t *testing.T) {
 	_ = h.CreateChannel(chName, "Runbook ack", "")
 
 	collabID, collabCh := createReviewingRunbook(t, h, chName)
-	if _, err := h.StartRunbook(collabID); err != nil {
+	if _, err := h.StartRunbook(collabID, nil); err != nil {
 		t.Fatalf("StartRunbook: %v", err)
 	}
 	if err := h.AcknowledgeCollaborationWorkspace(collabID, ""); err != nil {
@@ -181,7 +181,7 @@ func TestStartRunbookAutoAcksAndDispatchesWithBoundRepo(t *testing.T) {
 		t.Fatalf("SubmitRunbook: %v", err)
 	}
 
-	started, err := h.StartRunbook(collabID)
+	started, err := h.StartRunbook(collabID, nil)
 	if err != nil {
 		t.Fatalf("StartRunbook: %v", err)
 	}

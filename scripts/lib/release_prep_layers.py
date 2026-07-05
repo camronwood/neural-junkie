@@ -93,9 +93,9 @@ LAYERS: dict[str, LayerSpec] = {
     ),
     "collab": LayerSpec(
         name="collab",
-        description="Collab edge-case regression (plan parser, execution guards, ~11 scenarios)",
+        description="Collab edge-case regression (plan parser, execution guards, full-completion paths, ~13 scenarios)",
         requires_hub=True,
-        est_minutes=90,
+        est_minutes=105,
         stages=(
             LayerStage("collab-scenario-regression", ["make", "collab-scenario-regression"]),
         ),

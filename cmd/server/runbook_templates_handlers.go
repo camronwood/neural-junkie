@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/hub"
+	"github.com/camronwood/neural-junkie/internal/runbooklibrary"
 )
 
 func runbookTemplatesDir() string {
@@ -32,7 +32,7 @@ func handleRunbookTemplatesRoute(w http.ResponseWriter, r *http.Request) {
 	path = strings.Trim(path, "/")
 	if path == "" {
 		if r.Method == http.MethodGet {
-			list, err := collaboration.ListRunbookTemplates(runbookTemplatesDir())
+			list, err := runbooklibrary.ListAllDefinitions(chatHub.GetCollaborationAssetsRoot(), serverPackRunbookDefinitions())
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -57,41 +57,30 @@ func handleRunbookTemplatesRoute(w http.ResponseWriter, r *http.Request) {
 
 func handleRunbookTemplateInstantiate(w http.ResponseWriter, r *http.Request, name string) {
 	var body struct {
-		Channel   string   `json:"channel"`
-		CreatedBy string   `json:"created_by"`
-		AgentIDs  []string `json:"agent_ids"`
+		Channel   string            `json:"channel"`
+		CreatedBy string            `json:"created_by"`
+		AgentIDs  []string          `json:"agent_ids"`
+		Inputs    map[string]string `json:"inputs"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-	tpl, err := collaboration.LoadRunbookTemplate(runbookTemplatesDir(), name)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	if len(body.AgentIDs) < 1 {
 		http.Error(w, "agent_ids required", http.StatusBadRequest)
 		return
 	}
-	result, err := chatHub.CreateRunbookSession(hub.RunbookCreateRequest{
-		Description: tpl.Description,
-		AgentIDs:    body.AgentIDs,
-		Channel:     body.Channel,
-		CreatedBy:   body.CreatedBy,
-		Tasks: tpl.Tasks,
+	result, err := chatHub.InstantiateDefinition(name, 0, hub.RunbookCreateRequest{
+		AgentIDs:  body.AgentIDs,
+		Channel:   body.Channel,
+		CreatedBy: body.CreatedBy,
+		RunInputs: body.Inputs,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	snap, _ := chatHub.GetRunbookSnapshot(result.CollaborationID)
-	if snap != nil && tpl.ExecutionPolicy != (collaboration.ExecutionPolicy{}) {
-		_, _ = chatHub.UpdateRunbookSession(result.CollaborationID, collaboration.RunbookUpdatePayload{
-			ExecutionPolicy: &tpl.ExecutionPolicy,
-		})
-		snap, _ = chatHub.GetRunbookSnapshot(result.CollaborationID)
-	}
 	writeCollabJSON(w, map[string]interface{}{
 		"collaboration_id":      result.CollaborationID,
 		"collaboration_channel": result.CollaborationChannel,

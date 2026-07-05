@@ -95,7 +95,7 @@ func (a *Agent) generateResponse(ctx context.Context, msg *protocol.Message, eff
 	}
 
 	history := a.conversationHistoryForIntent(msg, intent)
-	prompt = appendPriorReferenceGuidance(prompt, msg, history, a.Info.ID)
+	prompt = a.appendPriorReferenceGuidance(prompt, msg, history)
 
 	prompt = a.augmentPromptWithCLIImages(msg, prompt)
 
@@ -245,7 +245,7 @@ func (a *Agent) generateResponseStreaming(ctx context.Context, msg *protocol.Mes
 	}
 
 	history := a.conversationHistoryForIntent(msg, intent)
-	prompt = appendPriorReferenceGuidance(prompt, msg, history, a.Info.ID)
+	prompt = a.appendPriorReferenceGuidance(prompt, msg, history)
 
 	// Pre-create a stable message ID for the stream so the frontend can
 	// correlate deltas with the final message.

@@ -13,6 +13,7 @@ import { loadCredentials } from './utils/secureStorage';
 import { setHubSessionToken } from './config/hubUrl';
 import { ChatAPI } from './api/chatAPI';
 import { getHubBaseURL } from './config/hubUrl';
+import { loadConnectionSettings } from './stores/connectionStore';
 import { applyMermaidTheme } from './utils/mermaidConfig';
 import { isTauriRuntime } from './utils/promptAttachments';
 import { DesktopOnlyGate } from './components/DesktopOnlyGate';
@@ -46,10 +47,13 @@ function App() {
 
   const serverAddr = getHubBaseURL();
 
-  // Load settings on app start
+  // Load settings and connection on app start
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    void loadConnectionSettings().then((conn) => {
+      setServerAddr(conn.hubUrl);
+    });
+  }, [loadSettings, setServerAddr]);
 
   // Return to login when hub rejects the session (401).
   useEffect(() => {

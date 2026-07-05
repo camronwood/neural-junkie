@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChatAPI } from '../../api/chatAPI';
 import { useChatStore } from '../../stores/chatStore';
-import type { SettingsTabProps } from './settingsShared';
+import { putSystemSecurity, type SaveSettingsResult, type SettingsTabProps } from './settingsShared';
 
 type HubSecurity = {
   hub_token_configured: boolean;
@@ -52,6 +52,20 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const [bootstrapInput, setBootstrapInput] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [secForm, setSecForm] = useState({
+    auth_required: false,
+    relaxed_local: false,
+    listen_all: false,
+    session_ttl_hours: 168,
+    rate_limit_enabled: true,
+    rate_read_per_minute: 300,
+    rate_mutate_per_minute: 120,
+    hub_token: '',
+    full_metadata_secret: '',
+  });
+  const [secBusy, setSecBusy] = useState(false);
+  const [secErr, setSecErr] = useState<string | null>(null);
+  const [secSave, setSecSave] = useState<SaveSettingsResult | null>(null);
 
   const loadApiKeys = useCallback(async () => {
     setLoadingKeys(true);
@@ -82,6 +96,20 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
         if (!r.ok) return;
         const data = await r.json();
         if (!cancelled) setHubSecurity(data);
+        const s = data.security ?? {};
+        if (!cancelled) {
+          setSecForm({
+            auth_required: !!s.auth_required,
+            relaxed_local: !!s.relaxed_local,
+            listen_all: !!s.listen_all,
+            session_ttl_hours: Number(s.session_ttl_hours ?? 168),
+            rate_limit_enabled: s.rate_limit_enabled !== false,
+            rate_read_per_minute: Number(s.rate_read_per_minute ?? 300),
+            rate_mutate_per_minute: Number(s.rate_mutate_per_minute ?? 120),
+            hub_token: '',
+            full_metadata_secret: '',
+          });
+        }
       } catch {
         if (!cancelled) setHubSecurity(null);
       }
@@ -153,8 +181,8 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
     <div>
       <h3 className="text-lg font-semibold text-slack-text mb-2">Hub security</h3>
       <p className="text-sm text-slack-textMuted mb-4">
-        Neural Junkie is local-first. The hub binds to loopback by default. For shared machines or LAN
-        access, configure environment variables before starting the hub — see{' '}
+        Configure hub authentication and rate limits below. Environment variables still override saved
+        values when set. See{' '}
         <a
           href="https://github.com/camronwood/neural-junkie/blob/main/docs/SECURITY.md"
           className="text-indigo-400 hover:underline"
@@ -204,6 +232,97 @@ export function SecuritySettingsTab({ hubHttp, isActive }: SettingsTabProps) {
           synthetic member session; remote clients still need a real session or API key.
         </p>
       )}
+
+      <div className="rounded-lg border border-slack-border p-4 space-y-3">
+        <h4 className="text-sm font-medium text-slack-text">Edit security settings</h4>
+        {secErr && <p className="text-sm text-red-400">{secErr}</p>}
+        {secSave?.requires_restart && (
+          <p className="text-sm text-amber-200">
+            Saved — restart hub for: {(secSave.restart_reasons ?? []).join(', ')}.
+          </p>
+        )}
+        <label className="flex gap-2 items-center text-sm">
+          <input
+            type="checkbox"
+            checked={secForm.auth_required}
+            onChange={(e) => setSecForm((f) => ({ ...f, auth_required: e.target.checked }))}
+          />
+          Require session on all mutations (strict auth)
+        </label>
+        <label className="flex gap-2 items-center text-sm">
+          <input
+            type="checkbox"
+            checked={secForm.relaxed_local}
+            onChange={(e) => setSecForm((f) => ({ ...f, relaxed_local: e.target.checked }))}
+          />
+          Relaxed local (loopback synthetic member session)
+        </label>
+        <label className="flex gap-2 items-center text-sm">
+          <input
+            type="checkbox"
+            checked={secForm.rate_limit_enabled}
+            onChange={(e) => setSecForm((f) => ({ ...f, rate_limit_enabled: e.target.checked }))}
+          />
+          Enable rate limiting
+        </label>
+        <label className="flex gap-2 items-center text-sm">
+          <span className="w-40 text-slack-textMuted">Session TTL (hours)</span>
+          <input
+            type="number"
+            className="w-24 px-2 py-1 rounded border border-slack-border bg-slack-bg text-slack-text"
+            value={secForm.session_ttl_hours}
+            onChange={(e) =>
+              setSecForm((f) => ({ ...f, session_ttl_hours: Number(e.target.value) }))
+            }
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="text-slack-textMuted">Hub token (leave blank to keep current)</span>
+          <input
+            type="password"
+            className="mt-1 w-full px-2 py-1 rounded border border-slack-border bg-slack-bg text-slack-text font-mono"
+            value={secForm.hub_token}
+            onChange={(e) => setSecForm((f) => ({ ...f, hub_token: e.target.value }))}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={secBusy}
+          onClick={() => {
+            void (async () => {
+              setSecBusy(true);
+              setSecErr(null);
+              setSecSave(null);
+              try {
+                const body: Record<string, unknown> = {
+                  security: {
+                    auth_required: secForm.auth_required,
+                    relaxed_local: secForm.relaxed_local,
+                    session_ttl_hours: secForm.session_ttl_hours,
+                    rate_limit_enabled: secForm.rate_limit_enabled,
+                    rate_read_per_minute: secForm.rate_read_per_minute,
+                    rate_mutate_per_minute: secForm.rate_mutate_per_minute,
+                  },
+                };
+                if (secForm.hub_token.trim()) {
+                  (body.security as Record<string, unknown>).hub_token = secForm.hub_token.trim();
+                }
+                const result = await putSystemSecurity(hubHttp, body);
+                setSecSave(result);
+                const r = await fetch(`${hubHttp}/api/system/security`);
+                if (r.ok) setHubSecurity(await r.json());
+              } catch (e) {
+                setSecErr(e instanceof Error ? e.message : String(e));
+              } finally {
+                setSecBusy(false);
+              }
+            })();
+          }}
+          className="px-4 py-2 rounded bg-slack-accent text-white text-sm hover:opacity-90 disabled:opacity-50"
+        >
+          {secBusy ? 'Saving…' : 'Save security settings'}
+        </button>
+      </div>
     </div>
 
     <div>

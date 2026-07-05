@@ -104,6 +104,31 @@ func resolveDepRef(ref string, byIndex map[int]string, byIDPrefix map[string]str
 	return ""
 }
 
+// taskDependencyIDs returns all upstream task IDs for cycle validation.
+func taskDependencyIDs(t CollaborationTask) []string {
+	seen := map[string]bool{}
+	var ids []string
+	add := func(id string) {
+		if id == "" || seen[id] {
+			return
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	for _, dep := range t.Dependencies {
+		add(dep)
+	}
+	for _, edge := range t.DependencyEdges {
+		add(edge.FromTaskID)
+	}
+	for _, g := range t.DependencyGroups {
+		for _, id := range g.TaskIDs {
+			add(id)
+		}
+	}
+	return ids
+}
+
 // ValidateDAG returns an error if dependencies reference missing tasks or form a cycle.
 func ValidateDAG(tasks []CollaborationTask) error {
 	if len(tasks) == 0 {
@@ -117,7 +142,7 @@ func ValidateDAG(tasks []CollaborationTask) error {
 		ids[t.ID] = i
 	}
 	for i, t := range tasks {
-		for _, dep := range t.Dependencies {
+		for _, dep := range taskDependencyIDs(t) {
 			if dep == t.ID {
 				return fmt.Errorf("task %d depends on itself", i+1)
 			}
@@ -138,7 +163,7 @@ func ValidateDAG(tasks []CollaborationTask) error {
 		}
 		state[id] = 1
 		idx := ids[id]
-		for _, dep := range tasks[idx].Dependencies {
+		for _, dep := range taskDependencyIDs(tasks[idx]) {
 			if err := visit(dep); err != nil {
 				return err
 			}

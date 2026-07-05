@@ -11,10 +11,11 @@ func (a *Agent) recordKnowledgeRoute(msg *protocol.Message) {
 	if a == nil || msg == nil {
 		return
 	}
-	decision := routing.ClassifyKnowledgeRoute(msg.Content)
+	plan := routing.PlanKnowledgeRoute(msg.Content)
 	a.RecordRoutingSnapshot(RoutingSnapshot{
-		KnowledgeRoute:  string(decision.Target),
-		KnowledgeReason: decision.Reason,
+		KnowledgeRoute:   string(plan.Primary()),
+		KnowledgeReason:  plan.Reason,
+		KnowledgeTargets: routeTargetsToStrings(plan.Targets),
 	})
-	log.Printf("[%s] knowledge_route=%s reason=%s", a.Info.Name, decision.Target, decision.Reason)
+	log.Printf("[%s] knowledge_route=%s reason=%s targets=%v", a.Info.Name, plan.Primary(), plan.Reason, plan.Targets)
 }

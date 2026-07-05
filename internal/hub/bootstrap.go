@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
 const bootstrapTokenFileName = "bootstrap.token"
@@ -118,6 +120,9 @@ func ValidBootstrapToken(r *http.Request) bool {
 
 // RelaxedLocal enables loopback-only synthetic member sessions (dev/Makefile escape hatch).
 func RelaxedLocal() bool {
+	if config.AppConfig().ResolvedSecurity().RelaxedLocal {
+		return true
+	}
 	return strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_RELAXED_LOCAL")) == "1"
 }
 

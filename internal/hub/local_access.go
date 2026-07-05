@@ -6,11 +6,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
 // HubAccessToken returns the optional shared secret for non-loopback hub API access.
-// Set NEURAL_JUNKIE_HUB_TOKEN in the environment (and VITE_NJ_HUB_TOKEN in the desktop dev build).
 func HubAccessToken() string {
+	sec := config.AppConfig().ResolvedSecurity()
+	if t := strings.TrimSpace(sec.HubToken); t != "" {
+		return t
+	}
 	return strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_HUB_TOKEN"))
 }
 

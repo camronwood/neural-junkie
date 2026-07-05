@@ -6,10 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 )
 
 func TestHandleSystemSecurity(t *testing.T) {
+	appConfig = config.DefaultConfig()
+	config.SetAppConfig(appConfig)
 	t.Setenv("NEURAL_JUNKIE_HUB_TOKEN", "")
 	t.Setenv("NEURAL_JUNKIE_AUTH_REQUIRED", "")
 	t.Setenv("NEURAL_JUNKIE_LISTEN_ALL", "")

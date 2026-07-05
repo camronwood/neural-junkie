@@ -21,19 +21,48 @@ type LMStudioProvider struct {
 	Endpoint   string
 	Model      string
 	httpClient *http.Client
+
+	nativeToolsUnsupported bool
 }
 
 // OpenAICompatibleRequest represents a request to OpenAI-compatible API (used by LM Studio)
 type OpenAICompatibleRequest struct {
-	Model    string                    `json:"model"`
-	Messages []OpenAICompatibleMessage `json:"messages"`
-	Stream   bool                      `json:"stream,omitempty"`
+	Model      string                    `json:"model"`
+	Messages   []OpenAICompatibleMessage `json:"messages"`
+	Stream     bool                      `json:"stream,omitempty"`
+	Tools      []OpenAITool              `json:"tools,omitempty"`
+	ToolChoice string                    `json:"tool_choice,omitempty"`
 }
 
 // OpenAICompatibleMessage represents a message in OpenAI API format
 type OpenAICompatibleMessage struct {
-	Role    string      `json:"role"`
-	Content interface{} `json:"content"` // string or multimodal []part
+	Role       string           `json:"role"`
+	Content    interface{}      `json:"content,omitempty"` // string or multimodal []part
+	ToolCalls  []OpenAIToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+}
+
+// OpenAITool is a function tool definition for OpenAI Chat Completions.
+type OpenAITool struct {
+	Type     string             `json:"type"`
+	Function OpenAIToolFunction `json:"function"`
+}
+
+// OpenAIToolFunction describes one callable tool.
+type OpenAIToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// OpenAIToolCall is a tool invocation from the assistant.
+type OpenAIToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
 }
 
 // OpenAICompatibleResponse represents a response from OpenAI-compatible API
@@ -211,8 +240,51 @@ func (l *LMStudioProvider) GenerateVisionResponse(ctx context.Context, prompt st
 }
 
 func (l *LMStudioProvider) openAICompatFor(model string) *OpenAICompatProvider {
-	return NewOpenAICompatProvider(l.Endpoint, "", model, nil)
+	p := NewOpenAICompatProvider(l.Endpoint, "", model, nil)
+	p.SetHTTPClient(l.httpClient)
+	if l.nativeToolsUnsupported {
+		p.MarkNativeToolsUnsupported()
+	}
+	return p
 }
+
+// SupportsTools reports whether LM Studio can run native tool-use loops.
+func (l *LMStudioProvider) SupportsTools() bool {
+	return !l.nativeToolsUnsupported
+}
+
+// NativeToolsMarkedUnsupported reports whether native tool calling was rejected at runtime.
+func (l *LMStudioProvider) NativeToolsMarkedUnsupported() bool {
+	return l.nativeToolsUnsupported
+}
+
+// MarkNativeToolsUnsupported records that the loaded model rejected tool calls.
+func (l *LMStudioProvider) MarkNativeToolsUnsupported() {
+	l.nativeToolsUnsupported = true
+}
+
+// GenerateResponseWithTools delegates to OpenAI-compat tool loop for the resolved model.
+func (l *LMStudioProvider) GenerateResponseWithTools(
+	ctx context.Context,
+	prompt string,
+	conversationHistory []protocol.Message,
+	tools []ClaudeToolDefinition,
+	onToolUse ToolUseCallback,
+) (string, error) {
+	model, err := l.resolveChatModel(ctx)
+	if err != nil {
+		return "", err
+	}
+	tmp := l.openAICompatFor(model)
+	text, err := tmp.GenerateResponseWithTools(ctx, prompt, conversationHistory, tools, onToolUse)
+	if tmp.NativeToolsMarkedUnsupported() {
+		l.MarkNativeToolsUnsupported()
+	}
+	return text, err
+}
+
+// Ensure LMStudioProvider implements ToolCapableProvider.
+var _ ToolCapableProvider = (*LMStudioProvider)(nil)
 
 func (l *LMStudioProvider) resolveChatModel(ctx context.Context) (string, error) {
 	if l.Model != "" {

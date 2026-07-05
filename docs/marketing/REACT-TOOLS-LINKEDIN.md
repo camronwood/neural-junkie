@@ -88,7 +88,7 @@ Agent info in the desktop app shows **react** on the tool loop badge when this p
 ## What this is not
 
 - Not a replacement for native tool calling when your model already supports it.
-- Not LM Studio / OpenAI-compat yet — same `ReActToolProvider` pattern, follow-up PR.
+- On LM Studio / OpenAI-compat, ReAct auto-engages when the loaded model rejects native `tool_calls`; tool-capable models use native OpenAI tool loops.
 - Not magic: smaller models will still drift format under pressure. The fallback exists because production agents need a floor.
 
 ## Try it

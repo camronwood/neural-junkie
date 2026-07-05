@@ -1,7 +1,9 @@
 {
   "name": "execute-deliverable",
-  "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo (main.go).",
+  "description": "Approve plan, ack workspace on fixture repo; auto-approve writes findings.md grounded in minimal-repo, then /complete-collab to completed phase.",
   "channel": "collab-scenarios",
+  "agents": "@Assistant @BackendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -10,7 +12,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@Assistant Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write findings.md with paths and facts from those files."
+    "goal": "@Assistant @BackendEngineer Plan one task: @Assistant writes collabs/<collab-id>/findings.md with three bullet findings about this repo (README.md and core/sample/main.go only). Use - Task 1: @Assistant - Write findings.md with paths and facts from those files."
   },
   "expect_deliverables": [
     {
@@ -31,6 +33,7 @@
     {"action": "approve_plan"},
     {"action": "wait_phase", "phase": "executing", "timeout": 45},
     {"action": "workspace_ack"},
+    {"action": "send", "content": "/resume-plan <collab-id>"},
     {
       "action": "wait_tasks",
       "min_completed": 1,
@@ -45,6 +48,14 @@
       "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module"]
     },
     {
+      "action": "approve_file_changes",
+      "path_match": "findings.md",
+      "target_rel": "collabs/<collab-id>/findings.md",
+      "from_discussion_fallback": true,
+      "min_approved": 0,
+      "timeout": "120s"
+    },
+    {
       "action": "assert_files",
       "path": "collabs/<collab-id>/findings.md",
       "must_exist": true,
@@ -52,7 +63,11 @@
       "deny_task_status": true,
       "any_match": ["main\\.go", "core/sample", "minimal"],
       "none_match": ["index\\.js", "utils\\.js", "\\bapp\\.js\\b", "data handling module", "security vulnerabilities identified"]
-    }
+    },
+    {"action": "assert_collab", "phase": "executing"},
+    {"action": "send", "content": "/complete-collab <collab-id> --force"},
+    {"action": "wait_phase", "phase": "completed", "timeout": "120s"},
+    {"action": "assert_collab", "phase": "completed"}
   ],
   "cleanup": "cancel"
 }

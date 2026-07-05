@@ -8,6 +8,7 @@ All notable changes to Neural Junkie.
 
 ### Added
 - **ReAct tool wrapper** — MCP tool loops on non-native models (e.g. `gemma3:12b`) via tagged `<tool_call>` parsing, with Qwen swap fallback on iteration cap; config `ollama.react_tools_enabled` / `react_tool_models`; article [react-tools](articles/react-tools.html).
+- **Per-turn routing trace (MVP)** — live telemetry drawer, message routing badges, and post-hoc trace panel now show model tier, retrieval mode, and governance (composer mode, context scope, impl session) for chat, collab, and implementation turns.
 
 ## [1.2.0-beta.4] - 2026-06-28
 

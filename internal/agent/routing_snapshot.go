@@ -17,8 +17,13 @@ type RoutingSnapshot struct {
 	Source          string
 	Domain          string
 	CostTier        string
-	KnowledgeRoute  string
-	KnowledgeReason string
+	KnowledgeRoute    string
+	KnowledgeReason   string
+	KnowledgeTargets  []string
+	KnowledgeExecuted []string
+	ComposerMode    string
+	ContextScope    string
+	ImplSession     bool
 }
 
 type routingSnapshotHolder struct {
@@ -60,6 +65,23 @@ func (a *Agent) RecordRoutingSnapshot(snap RoutingSnapshot) {
 	if snap.KnowledgeReason != "" {
 		a.routingSnap.snap.KnowledgeReason = snap.KnowledgeReason
 	}
+	if len(snap.KnowledgeTargets) > 0 {
+		a.routingSnap.snap.KnowledgeTargets = append([]string(nil), snap.KnowledgeTargets...)
+	}
+	if len(snap.KnowledgeExecuted) > 0 {
+		for _, path := range snap.KnowledgeExecuted {
+			found := false
+			for _, existing := range a.routingSnap.snap.KnowledgeExecuted {
+				if existing == path {
+					found = true
+					break
+				}
+			}
+			if !found {
+				a.routingSnap.snap.KnowledgeExecuted = append(a.routingSnap.snap.KnowledgeExecuted, path)
+			}
+		}
+	}
 	if snap.ProviderID != "" {
 		a.routingSnap.snap.ProviderID = snap.ProviderID
 	}
@@ -68,6 +90,15 @@ func (a *Agent) RecordRoutingSnapshot(snap RoutingSnapshot) {
 	}
 	if snap.ToolModel != "" {
 		a.routingSnap.snap.ToolModel = snap.ToolModel
+	}
+	if snap.ComposerMode != "" {
+		a.routingSnap.snap.ComposerMode = snap.ComposerMode
+	}
+	if snap.ContextScope != "" {
+		a.routingSnap.snap.ContextScope = snap.ContextScope
+	}
+	if snap.ImplSession {
+		a.routingSnap.snap.ImplSession = true
 	}
 }
 
@@ -130,14 +161,19 @@ func (a *Agent) ApplyRoutingMetadataToResponse(msg *protocol.Message) {
 	}
 
 	protocol.ApplyRoutingMeta(msg, protocol.RoutingMeta{
-		ProviderID:      snap.ProviderID,
-		Model:           snap.ChatModel,
-		ToolModel:       snap.ToolModel,
-		Reason:          snap.Reason,
-		Source:          snap.Source,
-		Domain:          snap.Domain,
-		CostTier:        snap.CostTier,
-		KnowledgeRoute:  snap.KnowledgeRoute,
-		KnowledgeReason: snap.KnowledgeReason,
+		ProviderID:         snap.ProviderID,
+		Model:              snap.ChatModel,
+		ToolModel:          snap.ToolModel,
+		Reason:             snap.Reason,
+		Source:             snap.Source,
+		Domain:             snap.Domain,
+		CostTier:           snap.CostTier,
+		KnowledgeRoute:     snap.KnowledgeRoute,
+		KnowledgeReason:    snap.KnowledgeReason,
+		KnowledgeTargets:   snap.KnowledgeTargets,
+		KnowledgeExecuted:  snap.KnowledgeExecuted,
+		ComposerMode:       snap.ComposerMode,
+		ContextScope:       snap.ContextScope,
+		ImplSession:        snap.ImplSession,
 	})
 }

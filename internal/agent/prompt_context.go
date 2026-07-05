@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"unicode/utf8"
 
@@ -18,6 +19,8 @@ const (
 	MetadataGrantedHubDataAccess = "granted_hub_data_access"
 	MetadataContextScope         = "context_scope"
 	MetadataContextScopeReason   = "context_scope_reason"
+	// MetadataLinkedWorkspaces is additional repo roots in scope (see workspace_scope.go).
+	MetadataLinkedWorkspaces = "linked_workspaces"
 )
 
 // Context scope tiers (must match desktop inferContextScope).
@@ -127,14 +130,22 @@ func AppendPromptAttachments(user *strings.Builder, msg *protocol.Message) {
 		path, _ := fm["path"].(string)
 		lang, _ := fm["language"].(string)
 		content, _ := fm["content"].(string)
+		repoName, _ := fm["repo_name"].(string)
+		repoPath, _ := fm["repo_path"].(string)
 		if path == "" {
 			path = "attachment"
 		}
 		if lang == "" {
 			lang = inferLanguage(path)
 		}
+		header := path
+		if repoName != "" {
+			header = fmt.Sprintf("[%s] %s", repoName, path)
+		} else if repoPath != "" {
+			header = fmt.Sprintf("[%s] %s", filepath.Base(strings.TrimRight(repoPath, "/")), path)
+		}
 		numbered := addLineNumbers(content)
-		user.WriteString(fmt.Sprintf("### %s (%s)\n```%s\n%s\n```\n\n", path, lang, lang, numbered))
+		user.WriteString(fmt.Sprintf("### %s (%s)\n```%s\n%s\n```\n\n", header, lang, lang, numbered))
 	}
 	user.WriteString("=== END ATTACHED FILES ===\n\n")
 }

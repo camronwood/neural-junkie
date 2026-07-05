@@ -102,6 +102,32 @@ func (ch *CommandHandler) RepoAgentByID(agentID string) (*agent.RepoAgent, bool)
 	return ra, ok && ra != nil
 }
 
+// ConsultReposForPaths runs internal repo consults for multiple workspace paths.
+func (ch *CommandHandler) ConsultReposForPaths(ctx context.Context, refs []agent.WorkspaceRef, subQuestion, channel string) ([]agent.RepoConsultBlock, error) {
+	if ch == nil || len(refs) == 0 {
+		return nil, fmt.Errorf("no repository paths")
+	}
+	var out []agent.RepoConsultBlock
+	for _, ref := range refs {
+		if strings.TrimSpace(ref.Path) == "" {
+			continue
+		}
+		text, agentName, err := ch.ConsultRepoForPath(ctx, ref.Path, subQuestion, channel)
+		if err != nil || strings.TrimSpace(text) == "" {
+			continue
+		}
+		out = append(out, agent.RepoConsultBlock{
+			Path:      ref.Path,
+			AgentName: agentName,
+			Text:      text,
+		})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no repo consult results")
+	}
+	return out, nil
+}
+
 // ConsultRepoForPath runs an internal repo consult for a workspace path.
 func (ch *CommandHandler) ConsultRepoForPath(ctx context.Context, repoPath, subQuestion, channel string) (text, agentName string, err error) {
 	ra, ok := ch.RepoAgentForPath(repoPath)

@@ -1,4 +1,4 @@
-import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
+import type { Message, AgentInfo, Channel, ThreadMetadata, CachedAgentInfo, ConnectionTestResult, FileChange, FileChangeDiff, CommandDefinition, AssistantStateResponse, GoogleMeetNotesStatus, GoogleMeetNotesAppConfig, WebSearchConfigResponse, SlackConfigResponse, SlackConnectionResponse, SlackStatus, SlackBinding, SlackChannelInfo, SlackPolicy, SlackInboxConfig, Collaboration, CollaborationTask, AssignSuggestion, ExecutionPolicy, GraphLayout, RunbookTemplate, RunbookDefinition, RunbookDefinitionSummary, RunbookRunRecord, ConnectorProfile, AgentToolCapabilities, ChannelToolsResponse } from '../types/protocol';
 import {
   getHubBaseURL,
   hubAuthHeaders,
@@ -676,9 +676,13 @@ export class ChatAPI {
     return response.json();
   }
 
-  async startRunbook(collabId: string): Promise<Collaboration> {
+  async startRunbook(collabId: string, inputs?: Record<string, string>): Promise<Collaboration> {
     const response = await this.hubFetch(`/api/runbooks/${encodeURIComponent(collabId)}/start`,
-      { method: 'POST' }
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inputs ? { inputs } : {}),
+      }
     );
     if (!response.ok) {
       throw new Error(await response.text() || response.statusText);
@@ -686,7 +690,127 @@ export class ChatAPI {
     return response.json();
   }
 
-  async listRunbookTemplates(): Promise<RunbookTemplate[]> {
+  async listRunbookDefinitions(): Promise<RunbookDefinitionSummary[]> {
+    const response = await this.hubFetch(`/api/runbook-definitions`);
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async getRunbookDefinition(id: string, version?: number): Promise<RunbookDefinition> {
+    const qs = version ? `?version=${version}` : '';
+    const response = await this.hubFetch(`/api/runbook-definitions/${encodeURIComponent(id)}${qs}`);
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async saveRunbookDefinition(def: RunbookDefinition): Promise<RunbookDefinition> {
+    const path = def.id
+      ? `/api/runbook-definitions/${encodeURIComponent(def.id)}`
+      : '/api/runbook-definitions';
+    const response = await this.hubFetch(path, {
+      method: def.id ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(def),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async instantiateRunbookDefinition(
+    definitionId: string,
+    body: { channel: string; created_by: string; agent_ids: string[]; inputs?: Record<string, string> }
+  ): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
+    const response = await this.hubFetch(
+      `/api/runbook-definitions/${encodeURIComponent(definitionId)}/instantiate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async listRunbookRuns(definitionId?: string): Promise<RunbookRunRecord[]> {
+    const qs = definitionId ? `?definition_id=${encodeURIComponent(definitionId)}` : '';
+    const response = await this.hubFetch(`/api/runbook-runs${qs}`);
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async replayRunbookRun(collabId: string): Promise<{ collaboration_id: string; collaboration_channel: string; collaboration: Collaboration }> {
+    const response = await this.hubFetch(`/api/runbook-runs/${encodeURIComponent(collabId)}/replay`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async listConnectors(): Promise<ConnectorProfile[]> {
+    const response = await this.hubFetch('/api/connectors');
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async saveConnector(profile: ConnectorProfile & { secret?: string }, isNew: boolean): Promise<ConnectorProfile> {
+    const response = await this.hubFetch(
+      isNew ? '/api/connectors' : `/api/connectors/${encodeURIComponent(profile.id)}`,
+      {
+        method: isNew ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async deleteConnector(id: string): Promise<void> {
+    const response = await this.hubFetch(`/api/connectors/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+  }
+
+  async listPackRunbooks(): Promise<{ pack_id: string; path: string; title: string }[]> {
+    const response = await this.hubFetch('/api/packs/runbooks');
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    const data = await response.json();
+    return data.runbooks ?? [];
+  }
+
+  async importPackRunbook(packId: string, path: string): Promise<RunbookDefinition> {
+    const response = await this.hubFetch('/api/packs/runbooks/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pack_id: packId, path }),
+    });
+    if (!response.ok) {
+      throw new Error(await response.text() || response.statusText);
+    }
+    return response.json();
+  }
+
+  async listRunbookTemplates(): Promise<RunbookDefinitionSummary[]> {
     const response = await this.hubFetch(`/api/runbook-templates`);
     if (!response.ok) {
       throw new Error(await response.text() || response.statusText);
@@ -2545,15 +2669,22 @@ export class ChatAPI {
   }
 
   async repoSemanticSearch(params: {
-    repoPath: string;
+    repoPath?: string;
+    repoPaths?: string[];
     query: string;
     limit?: number;
-  }): Promise<{ chunks: Array<{ path: string; content: string }> }> {
+  }): Promise<{
+    chunks: Array<{ path: string; content: string; repo_path?: string; repo_name?: string }>;
+  }> {
+    const paths =
+      params.repoPaths?.filter((p) => p?.trim()).map((p) => p.trim()) ??
+      (params.repoPath?.trim() ? [params.repoPath.trim()] : []);
     const response = await this.hubFetch('/api/repo/search/semantic', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        repo_path: params.repoPath,
+        repo_paths: paths.length > 1 ? paths : undefined,
+        repo_path: paths.length === 1 ? paths[0] : params.repoPath,
         query: params.query,
         limit: params.limit ?? 8,
       }),

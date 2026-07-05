@@ -157,18 +157,20 @@ Backend Agent receives message
   ↓
 buildPrompt lists tools from mcpServer.ListTools()
   ↓
-generateWithMCPTools → Claude Messages API (tools + tool_use loop)
+generateWithAgentTools → provider tool loop (Claude tool_use, Ollama/OpenAI-compat native tools, or ReAct text fallback)
   ↓
 executeMCPTool calls handler in-process on the agent's MCPServer
   ↓
-tool_result returned to Claude
+tool result returned to the model
   ↓
 Final answer sent to the user
 ```
 
+**Supported providers for hub MCP tool loops:** Claude (native `tool_use`), Ollama (native tools + ReAct + model swap), LM Studio and generic OpenAI-compatible endpoints (native OpenAI `tool_calls` + ReAct when native unsupported), and HuggingFace Router (via OpenAI-compat layer).
+
 External MCP clients (Claude Desktop, Cursor) can also connect to the agent HTTP servers — see [MCP_EXTERNAL_CLIENTS.md](MCP_EXTERNAL_CLIENTS.md).
 
-**Requirements:** Direct Anthropic API (`USE_AI_HUB=false`, `ANTHROPIC_API_KEY` set). MCP tool loops are not supported through AI Hub today.
+**Claude requirement:** Direct Anthropic API (`USE_AI_HUB=false`, `ANTHROPIC_API_KEY` set) for Claude agents. MCP tool loops through AI Hub are not supported for Claude today.
 
 ### Agent Integration
 

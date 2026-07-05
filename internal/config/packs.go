@@ -35,6 +35,7 @@ type PacksConfig struct {
 	LayoutOwner      string                         `json:"layout_owner,omitempty"`
 	AppliedOverlays  map[string]map[string]string     `json:"applied_overlays,omitempty"`
 	DevSources       map[string]string              `json:"dev_sources,omitempty"` // pack_id -> absolute dev folder
+	CatalogURL       string                         `json:"catalog_url,omitempty"`
 }
 
 // DomainPack describes an installed pack merged from its manifest.

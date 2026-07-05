@@ -66,3 +66,24 @@ func (p *HuggingFaceProvider) SupportsStreaming() bool {
 func (p *HuggingFaceProvider) GetModel() string {
 	return p.inner.GetModel()
 }
+
+func (p *HuggingFaceProvider) SupportsTools() bool {
+	return p.inner.SupportsTools()
+}
+
+func (p *HuggingFaceProvider) GenerateResponseWithTools(
+	ctx context.Context,
+	prompt string,
+	conversationHistory []protocol.Message,
+	tools []ClaudeToolDefinition,
+	onToolUse ToolUseCallback,
+) (string, error) {
+	return p.inner.GenerateResponseWithTools(ctx, prompt, conversationHistory, tools, onToolUse)
+}
+
+func (p *HuggingFaceProvider) NativeToolsMarkedUnsupported() bool {
+	return p.inner.NativeToolsMarkedUnsupported()
+}
+
+// Ensure HuggingFaceProvider implements ToolCapableProvider.
+var _ ToolCapableProvider = (*HuggingFaceProvider)(nil)

@@ -2,31 +2,61 @@
   {
     "name": "closure",
     "input": "thanks!",
-    "expect": "general"
+    "expect": "general",
+    "expect_targets": []
   },
   {
     "name": "memory_recall",
     "input": "remember when we talked about auth?",
-    "expect": "conversation_memory"
+    "expect": "conversation_memory",
+    "expect_targets": ["conversation_memory"]
   },
   {
     "name": "codebase_question",
     "input": "search @codebase for main entrypoint",
-    "expect": "codebase"
+    "expect": "codebase",
+    "expect_targets": ["codebase"]
   },
   {
     "name": "collab_artifact",
     "input": "what did we decide in the collab?",
-    "expect": "collab_artifact"
+    "expect": "conversation_memory",
+    "expect_targets": ["conversation_memory", "collab_artifact"]
   },
   {
     "name": "prior_reference",
     "input": "what did you say earlier about that message?",
-    "expect": "prior_reference"
+    "expect": "prior_reference",
+    "expect_targets": ["prior_reference"]
   },
   {
     "name": "small_talk",
     "input": "hello team",
-    "expect": "general"
+    "expect": "conversation_memory",
+    "expect_targets": ["conversation_memory"]
+  },
+  {
+    "name": "mixed_memory_codebase",
+    "input": "what did we decide about auth, and where is it in the repo?",
+    "expect": "conversation_memory",
+    "expect_targets": ["conversation_memory", "codebase"]
+  },
+  {
+    "name": "mixed_collab_memory",
+    "input": "what did we decide in the collab about auth?",
+    "expect": "conversation_memory",
+    "expect_targets": ["conversation_memory", "collab_artifact"]
+  },
+  {
+    "name": "mixed_prior_memory",
+    "input": "what you said earlier about that message — was it right?",
+    "expect": "prior_reference",
+    "expect_targets": ["prior_reference"]
+  },
+  {
+    "name": "codebase_where_is",
+    "input": "where is ComputePhoenixWidget in the repo?",
+    "expect": "codebase",
+    "expect_targets": ["codebase"]
   }
 ]

@@ -28,6 +28,20 @@ export const CAD_FILES_WRITTEN_KEY = 'cad_files_written';
 /** Human slash-command line persisted in channel history (matches hub MetadataSlashCommand). */
 export const SLASH_COMMAND_METADATA_KEY = 'slash_command';
 
+/** Additional repo roots in scope (primary stays in workspace_context). */
+export const LINKED_WORKSPACES_METADATA_KEY = 'linked_workspaces';
+
+export type LinkedWorkspaceSource = 'open_tab' | 'project_set' | 'explicit';
+
+export interface LinkedWorkspaceContext {
+  workspace_id: string;
+  workspace_path: string;
+  workspace_name: string;
+  source: LinkedWorkspaceSource;
+  file_tree?: string;
+  open_files?: import('../utils/workspaceContext').OpenFileContext[];
+}
+
 export interface PromptAttachmentPayload {
   path: string;
   language: string;

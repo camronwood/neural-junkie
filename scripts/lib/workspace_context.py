@@ -10,6 +10,43 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def default_scenario_repo(root: Path = ROOT) -> str:
+    """Default workspace root for scenario harnesses when env is unset."""
+    return str((root / "scenarios" / "fixtures" / "minimal-repo").resolve())
+
+
+def build_outline_file_tree(root: Path, *, max_depth: int = 3) -> str:
+    """Shallow directory outline for workspace_context (aligned with hub file_tree_outline)."""
+    root = root.resolve()
+    if not root.is_dir():
+        return ""
+    lines: list[str] = []
+
+    def walk(dir_path: Path, depth: int) -> None:
+        if depth >= max_depth:
+            return
+        try:
+            entries = sorted(dir_path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        except OSError:
+            return
+        indent = "  " * depth
+        for entry in entries:
+            name = entry.name
+            if name.startswith(".") and name != ".":
+                continue
+            if entry.is_dir():
+                lines.append(f"{indent}{name}/")
+                if depth + 1 < max_depth:
+                    walk(entry, depth + 1)
+            elif depth + 1 >= max_depth - 1:
+                lines.append(f"{indent}{name}")
+
+    walk(root, 0)
+    if not lines:
+        return ".\n"
+    return "\n".join(lines) + "\n"
+
+
 def language_for_path(path: str) -> str:
     ext = Path(path).suffix.lower()
     return {
@@ -39,11 +76,37 @@ def parse_file_folder_attachments(content: str) -> list[dict[str, str]]:
 
 def resolve_fixture_root(scenario: dict) -> Path:
     ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
-    root = os.environ.get("NEURAL_JUNKIE_SCENARIO_REPO", str(ROOT)).strip()
+    root = os.environ.get("NEURAL_JUNKIE_SCENARIO_REPO", "").strip() or default_scenario_repo()
     fixture = (ws_cfg.get("fixture") or scenario.get("workspace_fixture") or "").strip()
     if fixture:
         root = str((ROOT / "scenarios" / "fixtures" / fixture).resolve())
     return Path(root)
+
+
+def build_workspace_context_for_path(repo_path: str | Path, scenario: dict) -> dict[str, Any]:
+    """Build workspace_context for a resolved repo path (collab harness outbound metadata)."""
+    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
+    root = Path(repo_path).resolve()
+    open_rel = ws_cfg.get("open_files") or []
+    active = (ws_cfg.get("active_file") or "").strip() or None
+    if not active and open_rel:
+        active = str(open_rel[0]).strip()
+    selection = ws_cfg.get("selection")
+    open_files = (
+        load_open_files(root, open_rel, active=active, selection=selection)
+        if open_rel
+        else []
+    )
+    file_tree = (ws_cfg.get("file_tree") or "").strip()
+    if not file_tree:
+        file_tree = build_outline_file_tree(root)
+    return {
+        "workspace_name": root.name,
+        "workspace_path": str(root),
+        "file_tree": file_tree,
+        "open_files": open_files,
+        "unchanged_files": list(ws_cfg.get("unchanged_files") or []),
+    }
 
 
 def load_open_files(
@@ -127,11 +190,39 @@ def enrich_send_metadata(
     if not meta:
         return None
     out = dict(meta)
+    ws_cfg = scenario.get("workspace") if isinstance(scenario.get("workspace"), dict) else {}
     if not out.get("workspace_context"):
         ctx = build_workspace_context(scenario)
         if default_file_tree and not ctx.get("file_tree"):
             ctx["file_tree"] = default_file_tree
         out["workspace_context"] = ctx
+
+    linked_cfg = ws_cfg.get("linked_workspaces")
+    if isinstance(linked_cfg, list) and linked_cfg:
+        linked_out: list[dict[str, Any]] = []
+        for item in linked_cfg:
+            if not isinstance(item, dict):
+                continue
+            fixture = (item.get("fixture") or "").strip()
+            if not fixture:
+                continue
+            link_root = (ROOT / "scenarios" / "fixtures" / fixture).resolve()
+            linked_out.append(
+                {
+                    "workspace_name": item.get("name") or link_root.name,
+                    "workspace_path": str(link_root),
+                    "source": item.get("source") or "open_tab",
+                    "file_tree": item.get("file_tree")
+                    or build_outline_file_tree(link_root, max_depth=2),
+                    "open_files": load_open_files(
+                        link_root,
+                        item.get("open_files") or [],
+                        active=(item.get("active_file") or None),
+                    ),
+                }
+            )
+        if linked_out:
+            out["linked_workspaces"] = linked_out
 
     attachments = parse_file_folder_attachments(content)
     if attachments:

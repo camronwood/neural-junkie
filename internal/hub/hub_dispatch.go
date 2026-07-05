@@ -587,9 +587,10 @@ func (h *Hub) maybeUpdateTaskStatus(msg *protocol.Message, collabID string) {
 		return
 	}
 	if effects.ShouldFailRun {
-		if _, err := h.collabManager.CancelCollaboration(collabID); err != nil {
+		if snap, err := h.collabManager.CancelCollaboration(collabID); err != nil {
 			log.Printf("[Collaboration] fail_run cancel %s: %v", collabID[:8], err)
 		} else {
+			h.syncRunbookRunIndex(snap)
 			h.cancelCollaborationRecaps(collabID)
 		}
 		h.broadcastCollabSystem(msg.Channel, collabID, "🚫 **Run stopped:** "+effects.FailRunReason)
@@ -662,6 +663,7 @@ func (h *Hub) finalizeAndBroadcastCollaboration(collabID, channel, reason string
 		log.Printf("[Collaboration] Failed to finalize collaboration %s: %v", collabID[:8], err)
 		return
 	}
+	h.syncRunbookRunIndex(c)
 	h.persistCollaborationReviewAssets(collabID)
 	if channel == "" {
 		channel = c.Channel
@@ -1400,8 +1402,15 @@ func (h *Hub) registerFileChangeProposal(msg *protocol.Message, proposalRaw inte
 		return fmt.Errorf("unmarshal proposal: %w", err)
 	}
 
-	// Resolve workspace root from message context. No default workspace fallback is allowed.
+	// Resolve workspace root from message context only.
 	wsRoot := h.resolveWorkspaceRoot(msg)
+	if wsRoot == "" {
+		if proposal.Metadata != nil {
+			if p, ok := proposal.Metadata["target_workspace_path"].(string); ok && strings.TrimSpace(p) != "" {
+				wsRoot = strings.TrimSpace(p)
+			}
+		}
+	}
 	if wsRoot == "" {
 		log.Printf("[FileChange] Missing workspace context for proposal from %s on channel %s",
 			msg.From.Name, msg.Channel)
@@ -1521,6 +1530,11 @@ func (h *Hub) resolveWorkspacePath(filePath, workspaceRoot string) (string, erro
 
 // resolveWorkspaceRoot returns the workspace root path from message context only.
 func (h *Hub) resolveWorkspaceRoot(msg *protocol.Message) string {
+	if msg != nil && msg.Metadata != nil {
+		if p, ok := msg.Metadata["target_workspace_path"].(string); ok && strings.TrimSpace(p) != "" {
+			return strings.TrimSpace(p)
+		}
+	}
 	// Try to get workspace path from message metadata (workspace_context)
 	if msg.Metadata != nil {
 		if wsCtx, ok := msg.Metadata["workspace_context"]; ok {

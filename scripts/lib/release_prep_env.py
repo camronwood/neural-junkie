@@ -94,6 +94,11 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
     env.setdefault("NEURAL_JUNKIE_RATE_LIMIT", "0")
     env.setdefault("NEURAL_JUNKIE_HUB_URL", "http://127.0.0.1:18765")
     env.setdefault("NEURAL_JUNKIE_AUTH_REQUIRED", "1")
+    # Regression collab/implement scenarios default to the minimal fixture, not the NJ repo root.
+    env.setdefault(
+        "NEURAL_JUNKIE_SCENARIO_REPO",
+        str((root / "scenarios" / "fixtures" / "minimal-repo").resolve()),
+    )
 
     headless = root / "scripts" / "gemini-headless-home"
     if headless.is_dir() and not env.get("NEURAL_JUNKIE_GEMINI_CLI_HOME"):
@@ -114,6 +119,13 @@ def release_prep_env(root: Path = ROOT) -> dict[str, str]:
         env["NJ_DELIVERABLE_JUDGE_MODEL"] = DEFAULT_OLLAMA_JUDGE_MODEL
 
     env.setdefault("NJ_AGENT_TIMEOUT_MINUTES", DEFAULT_AGENT_TIMEOUT_MINUTES)
+
+    try:
+        from lib.hub_config import apply_automation_to_env
+
+        apply_automation_to_env(env)
+    except ImportError:
+        pass
 
     return env
 

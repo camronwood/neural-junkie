@@ -35,6 +35,7 @@ export function RunbookActionConfigEditor({
   const [slackChannelsLoading, setSlackChannelsLoading] = useState(false);
   const [slackChannelsError, setSlackChannelsError] = useState<string | null>(null);
   const [slackReady, setSlackReady] = useState(false);
+  const [connectors, setConnectors] = useState<{ id: string; label: string; type: string }[]>([]);
 
   const actionType = action.type || 'http_get';
   const config = action.config ?? {};
@@ -74,6 +75,17 @@ export function RunbookActionConfigEditor({
   }, [api]);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const list = await api.listConnectors();
+        setConnectors(list.map((p) => ({ id: p.id, label: p.label, type: p.type })));
+      } catch {
+        setConnectors([]);
+      }
+    })();
+  }, [api]);
+
+  useEffect(() => {
     if (actionType !== 'slack_message') return;
     void (async () => {
       try {
@@ -106,6 +118,32 @@ export function RunbookActionConfigEditor({
           ))}
         </select>
       </label>
+
+      {connectors.length > 0 &&
+      (actionType === 'http_get' ||
+        actionType === 'http_post' ||
+        actionType === 'webhook' ||
+        actionType === 'slack_message' ||
+        actionType === 'sms') ? (
+        <label style={labelStyle}>
+          Connector profile (optional)
+          <select
+            value={action.connector_id ?? ''}
+            onChange={(e) =>
+              onChange({ ...action, connector_id: e.target.value || undefined })
+            }
+            disabled={disabled}
+            style={inputStyle}
+          >
+            <option value="">None — inline config</option>
+            {connectors.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label} ({c.type})
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       {actionType === 'http_get' || actionType === 'http_post' || actionType === 'webhook' ? (
         <label style={labelStyle}>
@@ -274,6 +312,72 @@ export function RunbookActionConfigEditor({
             />
           </label>
         </>
+      ) : null}
+
+      {actionType === 'shell' ? (
+        <label style={labelStyle}>
+          Command
+          <input
+            type="text"
+            value={actionConfigString(config, 'command')}
+            onChange={(e) => updateConfig('command', e.target.value)}
+            disabled={disabled}
+            placeholder="npm test"
+            style={inputStyle}
+          />
+        </label>
+      ) : null}
+
+      {actionType === 'mcp_tool' ? (
+        <>
+          <label style={labelStyle}>
+            Tool name
+            <input
+              type="text"
+              value={actionConfigString(config, 'tool')}
+              onChange={(e) => updateConfig('tool', e.target.value)}
+              disabled={disabled}
+              style={inputStyle}
+            />
+          </label>
+          <label style={labelStyle}>
+            Arguments (JSON)
+            <textarea
+              value={jsonFieldValue(config.arguments)}
+              onChange={(e) => updateConfig('arguments', parseJsonField(e.target.value))}
+              disabled={disabled}
+              rows={3}
+              style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical' }}
+            />
+          </label>
+        </>
+      ) : null}
+
+      {actionType === 'wait_human' ? (
+        <label style={labelStyle}>
+          Approval prompt
+          <textarea
+            value={actionConfigString(config, 'prompt')}
+            onChange={(e) => updateConfig('prompt', e.target.value)}
+            disabled={disabled}
+            rows={2}
+            style={{ ...inputStyle, resize: 'vertical' }}
+          />
+        </label>
+      ) : null}
+
+      {(actionType === 'git_status' || actionType === 'git_diff') ? (
+        <label style={labelStyle}>
+          Path (optional)
+          <input
+            type="text"
+            value={actionConfigString(config, 'path')}
+            onChange={(e) => updateConfig('path', e.target.value)}
+            disabled={disabled}
+            placeholder="src/"
+            style={inputStyle}
+          />
+        </label>
       ) : null}
     </div>
   );

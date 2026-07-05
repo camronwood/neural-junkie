@@ -85,8 +85,9 @@ func TestAppendPriorReferenceGuidance_fileExport(t *testing.T) {
 	history := []*protocol.Message{
 		protocol.NewMessage(protocol.MessageTypeAnswer, "dm-test", agent, article),
 	}
+	a := &Agent{Info: agent}
 	msg := protocol.NewMessage(protocol.MessageTypeChat, "dm-test", protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"}, "store that artical in nj-artical-1.md")
-	prompt := appendPriorReferenceGuidance("base prompt", msg, history, "a1")
+	prompt := a.appendPriorReferenceGuidance("base prompt", msg, history)
 	if !strings.Contains(prompt, "PRIOR ASSISTANT CONTENT") {
 		t.Fatal("expected prior content block for file export without explicit back-reference")
 	}

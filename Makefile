@@ -200,6 +200,12 @@ collab-scenario-matrix: ## Sweep agent profiles and round budgets (planning-two-
 	@chmod +x scripts/collab-scenario-matrix.sh
 	@./scripts/collab-scenario-matrix.sh
 
+runbook-scenario: ## Run one runbook scenario JSON (SCENARIO=health-check-branch; hub must be running)
+	@if [ -z "$(SCENARIO)" ]; then echo "Usage: make runbook-scenario SCENARIO=health-check-branch"; exit 1; fi
+	@chmod +x scripts/runbook-scenarios.py
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/runbook-scenarios.py --scenario "$(SCENARIO)" $(if $(VERBOSE),--verbose,)
+	@go test ./test/ -run TestRunbookScenario_$(SCENARIO) -count=1
+
 collab-routing-matrix: ## A/B smart routing on execute-deliverable (needs live hub + agents)
 	@chmod +x scripts/collab-routing-matrix.sh
 	@NEURAL_JUNKIE_RATE_LIMIT=0 ./scripts/collab-routing-matrix.sh
@@ -209,10 +215,12 @@ collab-parity: ## Solo vs collab deliverable parity on minimal-repo fixture
 		$(if $(PROFILE),--profile $(PROFILE),--profile fast,) \
 		$(if $(VERBOSE),--verbose,)
 
-collab-scenario-regression: ## Collab edge-case regression (~11 scenarios; prefer: make layer-gate LAYER=collab)
+collab-scenario-regression: ## Collab edge-case regression (~13 scenarios; prefer: make layer-gate LAYER=collab)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-minimal-completion-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-dependency-prose-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-findings-task-regression $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario plan-distinct-deliverables-same-agent $(if $(VERBOSE),--verbose,)
+	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execute-deliverable $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario document-findings-execution $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario execution-no-stack-commands $(if $(VERBOSE),--verbose,)
 	@NEURAL_JUNKIE_RATE_LIMIT=0 python3 scripts/collab-scenarios.py --scenario collab-conversation-quality-regression $(if $(VERBOSE),--verbose,)

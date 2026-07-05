@@ -3,7 +3,7 @@ import { useShortcutOverlay } from '../../shortcuts/useShortcutOverlay';
 import type { ChatAPI } from '../../api/chatAPI';
 import type { Collaboration, CollaborationAgent, CollaborationTask } from '../../types/protocol';
 import { MAX_RUNBOOK_TASKS, createEmptyTask } from '../../utils/runbookTaskUtils';
-import { removeTask, validateDAG } from '../../utils/runbookDAG';
+import { removeTask, validateDAG, type GraphLayoutFromCollab } from '../../utils/runbookDAG';
 import { RunbookGraphCanvas, useRunbookGraphLayoutActions } from './RunbookGraphCanvas';
 import { RunbookGraphToolbar } from './RunbookGraphToolbar';
 import { RunbookTaskInspector } from './RunbookTaskInspector';
@@ -18,6 +18,7 @@ export interface RunbookGraphModalProps {
   busy?: boolean;
   onClose: () => void;
   onTasksChange: (tasks: CollaborationTask[]) => void;
+  onLayoutChange?: (layout: GraphLayoutFromCollab) => void;
   /** Return false to keep the modal open (e.g. save failed). */
   onSave?: () => Promise<boolean | void>;
 }
@@ -32,6 +33,7 @@ export function RunbookGraphModal({
   busy = false,
   onClose,
   onTasksChange,
+  onLayoutChange,
   onSave,
 }: RunbookGraphModalProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -131,6 +133,7 @@ export function RunbookGraphModal({
             editable={editable}
             serverLayout={collaboration.graph_layout}
             onTasksChange={onTasksChange}
+            onLayoutChange={onLayoutChange}
             selectedTaskId={selectedTaskId}
             onSelectTask={setSelectedTaskId}
             onValidationError={setValidationError}
@@ -145,7 +148,7 @@ export function RunbookGraphModal({
               api={api}
               editable={editable}
               onUpdate={updateSelectedTask}
-              onUpdateDependencies={(deps) => updateSelectedTask({ dependencies: deps })}
+              onUpdateDependencies={(patch) => updateSelectedTask(patch)}
               onDelete={deleteSelectedTask}
             />
           ) : null}

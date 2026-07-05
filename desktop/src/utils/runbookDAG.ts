@@ -139,6 +139,8 @@ export function tasksToFlow(
         source: depId,
         target: task.id,
         type: 'smoothstep',
+        label: edgeLabel(task, depId),
+        style: edgeStyle(task, depId),
       });
     }
   }
@@ -148,7 +150,8 @@ export function tasksToFlow(
 export function applyEdgeConnect(
   tasks: CollaborationTask[],
   sourceId: string,
-  targetId: string
+  targetId: string,
+  condition?: import('../types/protocol').EdgeCondition
 ): { tasks: CollaborationTask[]; error?: string } {
   if (sourceId === targetId) {
     return { tasks, error: 'A task cannot depend on itself' };
@@ -156,8 +159,16 @@ export function applyEdgeConnect(
   const next = tasks.map((t) => {
     if (t.id !== targetId) return t;
     const deps = [...(t.dependencies ?? [])];
-    if (deps.includes(sourceId)) return t;
-    return { ...t, dependencies: [...deps, sourceId] };
+    const edges = [...(t.dependency_edges ?? [])];
+    if (!deps.includes(sourceId)) {
+      deps.push(sourceId);
+    }
+    if (condition && condition.mode !== 'always') {
+      edges.push({ from_task_id: sourceId, condition });
+    } else if (!edges.some((e) => e.from_task_id === sourceId)) {
+      edges.push({ from_task_id: sourceId, condition: { mode: 'always' } });
+    }
+    return { ...t, dependencies: deps, dependency_edges: edges };
   });
   const validation = validateDAG(next);
   if (!validation.ok) {
@@ -176,6 +187,7 @@ export function applyEdgeRemove(
     return {
       ...t,
       dependencies: (t.dependencies ?? []).filter((d) => d !== sourceId),
+      dependency_edges: (t.dependency_edges ?? []).filter((e) => e.from_task_id !== sourceId),
     };
   });
 }
@@ -235,4 +247,24 @@ export function autoLayoutDagre(
 export function edgeIsActive(depTask: CollaborationTask | undefined, phase: string): boolean {
   if (phase !== 'executing') return true;
   return depTask?.status === 'completed';
+}
+
+function edgeLabel(task: CollaborationTask, depId: string): string | undefined {
+  const edge = (task.dependency_edges ?? []).find((e) => e.from_task_id === depId);
+  if (!edge?.condition || edge.condition.mode === 'always') return undefined;
+  if (edge.condition.mode === 'on_output' && edge.condition.contains) {
+    return `if contains "${edge.condition.contains}"`;
+  }
+  if (edge.condition.mode === 'on_status' && edge.condition.status) {
+    return `if ${edge.condition.status}`;
+  }
+  return edge.condition.mode;
+}
+
+function edgeStyle(task: CollaborationTask, depId: string): { strokeDasharray?: string } | undefined {
+  const edge = (task.dependency_edges ?? []).find((e) => e.from_task_id === depId);
+  if (edge?.condition && edge.condition.mode !== 'always') {
+    return { strokeDasharray: '5 5' };
+  }
+  return undefined;
 }

@@ -31,9 +31,13 @@ func Search(ctx context.Context, pctx PromptContext, limit int) ([]SearchResult,
 		return nil, err
 	}
 	exclude := excludeSet(pctx.ExcludeMessageIDs)
+	sourceAllow := sourceTypeAllowSet(pctx.SourceTypes)
 	filtered := make([]Chunk, 0, len(candidates))
 	for _, ch := range candidates {
 		if ch.SourceType == SourceMessage && exclude[ch.SourceID] {
+			continue
+		}
+		if sourceAllow != nil && !sourceAllow[ch.SourceType] {
 			continue
 		}
 		filtered = append(filtered, ch)
@@ -80,6 +84,17 @@ func excludeSet(ids []string) map[string]bool {
 		if id != "" {
 			out[id] = true
 		}
+	}
+	return out
+}
+
+func sourceTypeAllowSet(types []SourceType) map[SourceType]bool {
+	if len(types) == 0 {
+		return nil
+	}
+	out := make(map[SourceType]bool, len(types))
+	for _, st := range types {
+		out[st] = true
 	}
 	return out
 }

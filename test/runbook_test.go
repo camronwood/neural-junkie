@@ -75,7 +75,7 @@ func TestRunbookDAGExecutionViaHub(t *testing.T) {
 	if _, err := cm.SubmitRunbook(collabID); err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	started, err := h.StartRunbook(collabID)
+	started, err := h.StartRunbook(collabID, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestRunbookStrictTaskStatusIgnoresFuzzyDone(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = h.GetCollaborationManager().SubmitRunbook(res.CollaborationID)
-	_, _ = h.StartRunbook(res.CollaborationID)
+	_, _ = h.StartRunbook(res.CollaborationID, nil)
 	_ = h.AcknowledgeCollaborationWorkspace(res.CollaborationID, "")
 
 	ch := res.CollaborationChannel
@@ -223,7 +223,7 @@ func TestRunbookStartLifecycleDefersThenDispatches(t *testing.T) {
 	if _, err := cm.SubmitRunbook(collabID); err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	started, err := h.StartRunbook(collabID)
+	started, err := h.StartRunbook(collabID, nil)
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}

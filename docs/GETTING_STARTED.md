@@ -263,6 +263,8 @@ make clean            # Remove build artifacts
 
 ## Environment Variables
 
+Most hub settings are editable in the desktop **Settings** panel (Connection, Security, Server & network, Automation & testing, and provider tabs). Values persist in `~/.neural-junkie/config.json`. **`env.local` remains supported** — variables there override config when set (useful for CI and Makefile workflows).
+
 All make targets automatically load from `env.local`. Key variables:
 
 | Variable | Description | Default |

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/creack/pty"
 )
@@ -289,7 +290,8 @@ func (c *CLIAgentProvider) SupportsStreaming() bool { return true }
 // useInteractiveMode uses stdin + PTY without headless -p for CLIs that only
 // stream incrementally when attached to a real terminal.
 func (c *CLIAgentProvider) useInteractiveMode() bool {
-	if os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_INTERACTIVE") == "1" {
+	cli := config.AppConfig().ResolvedCLIAgents()
+	if cli.DisableInteractive || os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_INTERACTIVE") == "1" {
 		return false
 	}
 	return c.ProviderName == "cursor-cli"
@@ -313,7 +315,8 @@ func (c *CLIAgentProvider) cursorTrustArgs() []string {
 	if c.ProviderName != "cursor-cli" {
 		return nil
 	}
-	if os.Getenv("NEURAL_JUNKIE_CURSOR_TRUST") == "0" {
+	cli := config.AppConfig().ResolvedCLIAgents()
+	if !cli.CursorTrust || os.Getenv("NEURAL_JUNKIE_CURSOR_TRUST") == "0" {
 		return nil
 	}
 	if strings.EqualFold(strings.TrimSpace(c.ApprovalMode), "interactive") {
@@ -688,13 +691,11 @@ func smoothStreamChunk(text string, ch chan<- StreamToken) {
 }
 
 func (c *CLIAgentProvider) shouldUsePTYStreaming() bool {
-	if os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_PTY") == "1" {
+	cli := config.AppConfig().ResolvedCLIAgents()
+	if cli.DisablePTY || os.Getenv("NEURAL_JUNKIE_DISABLE_CLI_PTY") == "1" {
 		return false
 	}
-	// Gemini CLI multiplexes stderr, auth status, and full-screen UI onto a PTY,
-	// which leaks into chat as black noise + echoed system prompts. Prefer a
-	// plain pipe (stderr captured separately). Opt back in with NEURAL_JUNKIE_GEMINI_CLI_PTY=1.
-	if c.ProviderName == "gemini-cli" && os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_PTY") != "1" {
+	if c.ProviderName == "gemini-cli" && !cli.GeminiCLIPTY && os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_PTY") != "1" {
 		return false
 	}
 	// Default to PTY streaming for other CLI-backed agents so tools that buffer

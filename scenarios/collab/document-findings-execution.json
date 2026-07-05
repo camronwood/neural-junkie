@@ -1,7 +1,9 @@
 {
   "name": "document-findings-execution",
-  "description": "Task phrased as 'Document findings in collabs/<id>/findings.md' (no Write verb) must dispatch and produce a file deliverable.",
+  "description": "Task phrased as 'Document findings in collabs/<id>/findings.md' (no Write verb) must dispatch, produce a file deliverable, and complete via /complete-collab.",
   "channel": "collab-scenarios",
+  "agents": "@Assistant @BackendEngineer",
+  "required_agents": ["Assistant", "BackendEngineer"],
   "workspace": {
     "fixture": "minimal-repo",
     "workspace_flag": true,
@@ -10,7 +12,7 @@
   },
   "collaborate": {
     "flags": ["--workspace", "--rounds", "1", "--messages", "3"],
-    "goal": "@Assistant Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
+    "goal": "@Assistant @BackendEngineer Plan one task using this exact line: - Task 1: @Assistant - Document findings in collabs/<id>/findings.md summarizing README.md and core/sample/main.go."
   },
   "expect_deliverables": [
     {
@@ -59,7 +61,11 @@
       "must_exist": true,
       "min_bytes": 30,
       "deny_task_status": true
-    }
+    },
+    {"action": "assert_collab", "phase": "executing"},
+    {"action": "send", "content": "/complete-collab <collab-id> --force"},
+    {"action": "wait_phase", "phase": "completed", "timeout": "120s"},
+    {"action": "assert_collab", "phase": "completed"}
   ],
   "cleanup": "cancel"
 }

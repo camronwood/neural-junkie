@@ -62,3 +62,5 @@ Example:
 ## Templates
 
 Bundled templates live under `assets/runbook-templates/`. List via `GET /api/runbook-templates` and instantiate with `POST /api/runbook-templates/:name/instantiate`.
+
+User definitions, run inputs, connector profiles, and run history are documented in [RUNBOOKS_V2.md](RUNBOOKS_V2.md).

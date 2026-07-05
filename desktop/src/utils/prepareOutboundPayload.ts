@@ -35,6 +35,7 @@ export type PrepareOutboundPayloadOptions = {
   composerMetadata?: Record<string, unknown>;
   api?: ChatAPI;
   repoPath?: string;
+  repoPaths?: string[];
   devPackEnabled?: boolean;
   channel?: string;
   channelMeta?: Pick<Channel, 'type' | 'agents' | 'description' | 'name'>;
@@ -56,6 +57,7 @@ export async function prepareOutboundPayload(
     composerMetadata,
     api,
     repoPath,
+    repoPaths,
     devPackEnabled = false,
   } = options;
 
@@ -91,11 +93,15 @@ export async function prepareOutboundPayload(
             : 'auto_apply_edits',
       };
 
+  const scopedPaths =
+    repoPaths?.filter((p) => p?.trim()).map((p) => p.trim()) ??
+    (repoPath?.trim() ? [repoPath.trim()] : []);
+
   if (slashCommand) {
-    if (api && repoPath?.trim()) {
+    if (api && scopedPaths.length > 0) {
       return {
         content: sendContent,
-        metadata: await mergeCodebaseAttachments(api, sendContent, repoPath, metadata),
+        metadata: await mergeCodebaseAttachments(api, sendContent, repoPath, metadata, scopedPaths),
       };
     }
     return { content: sendContent, metadata };
@@ -124,10 +130,10 @@ export async function prepareOutboundPayload(
     }
   }
 
-  if (api && repoPath?.trim()) {
+  if (api && scopedPaths.length > 0) {
     return {
       content: sendContent,
-      metadata: await mergeCodebaseAttachments(api, sendContent, repoPath, metadata),
+      metadata: await mergeCodebaseAttachments(api, sendContent, repoPath, metadata, scopedPaths),
     };
   }
 

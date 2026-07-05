@@ -1,28 +1,64 @@
 {
   "name": "health-check-alert",
   "title": "Health check and alert",
-  "description": "Fetch API health, summarize with an agent, optionally notify on failure.",
+  "description": "Fetch API health, summarize with an agent, notify on failure.",
   "execution_policy": {
     "blocked_upstream_policy": "block",
     "strict_task_status": true,
     "max_concurrent_tasks": 2
   },
+  "inputs": [
+    {
+      "key": "health_url",
+      "type": "string",
+      "label": "Health URL",
+      "default": "https://httpbin.org/status/200",
+      "required": true
+    }
+  ],
   "tasks": [
     {
+      "id": "health-check",
       "title": "Health check",
-      "description": "GET the configured health endpoint",
+      "description": "GET {{inputs.health_url}}",
       "kind": "action",
       "action": {
         "type": "http_get",
         "config": {
-          "url": "https://httpbin.org/status/200"
+          "url": "{{inputs.health_url}}"
         }
       }
     },
     {
+      "id": "summarize-ok",
       "title": "Summarize status",
       "description": "Review upstream health output and summarize for the team",
-      "dependencies": []
+      "dependencies": ["health-check"]
+    },
+    {
+      "id": "notify-fail",
+      "title": "Notify on failure",
+      "description": "Alert team when health check indicates failure",
+      "kind": "action",
+      "action": {
+        "type": "webhook",
+        "config": {
+          "url": "https://httpbin.org/post",
+          "payload": {
+            "text": "Health check failed: {{tasks.health-check.output}}"
+          }
+        }
+      },
+      "dependencies": ["health-check"],
+      "dependency_edges": [
+        {
+          "from_task_id": "health-check",
+          "condition": {
+            "mode": "on_output",
+            "contains": "500"
+          }
+        }
+      ]
     }
   ]
 }

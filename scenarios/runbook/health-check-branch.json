@@ -1,0 +1,30 @@
+{
+  "name": "health-check-branch",
+  "description": "Deterministic runbook action branch (no LLM)",
+  "hub_url": "http://127.0.0.1:18765",
+  "agents": ["@Assistant"],
+  "steps": [
+    {
+      "action": "instantiate_definition",
+      "definition_id": "health-check-alert",
+      "inputs": { "health_url": "https://httpbin.org/status/500" }
+    },
+    {
+      "action": "submit_runbook"
+    },
+    {
+      "action": "start_runbook",
+      "inputs": { "health_url": "https://httpbin.org/status/500" }
+    },
+    {
+      "action": "wait_phase",
+      "phase": "executing",
+      "timeout_sec": 30
+    },
+    {
+      "action": "assert_task_status",
+      "task_title_contains": "Health check",
+      "status": "completed"
+    }
+  ]
+}

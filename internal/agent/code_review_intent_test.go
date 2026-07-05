@@ -126,3 +126,6 @@ func (c *deferRepoCommandHandler) HasPendingReview(path string) bool {
 func (c *deferRepoCommandHandler) ConsultRepoForPath(context.Context, string, string, string) (string, string, error) {
 	return "", "", nil
 }
+func (c *deferRepoCommandHandler) ConsultReposForPaths(context.Context, []WorkspaceRef, string, string) ([]RepoConsultBlock, error) {
+	return nil, nil
+}

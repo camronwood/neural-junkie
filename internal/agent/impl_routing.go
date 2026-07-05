@@ -5,6 +5,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	unified "github.com/camronwood/neural-junkie/internal/routing"
 )
 
 // ImplementationRoutingPlan describes provider selection for an implementation session.
@@ -53,6 +54,10 @@ func (a *Agent) EffectiveImplementationProvider(ctx context.Context, msg *protoc
 	if m := eff.GetModel(); m != "" {
 		snap.ChatModel = m
 	}
+	if plan.Reason == "reliable_repair_tier" {
+		snap.CostTier = unified.CostPremium
+	}
 	a.RecordRoutingSnapshot(snap)
+	a.broadcastRoutingTelemetry(msg)
 	return eff
 }

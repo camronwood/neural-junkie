@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/camronwood/neural-junkie/internal/config"
+	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/hfhub"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/packs"
+	"github.com/camronwood/neural-junkie/internal/runbooklibrary"
 )
 
 func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
@@ -58,6 +60,14 @@ func handlePacksRoute(w http.ResponseWriter, r *http.Request) {
 	}
 	if path == "layout-owner" {
 		handlePackLayoutOwner(w, r)
+		return
+	}
+	if path == "runbooks" {
+		handlePackRunbooksList(w, r)
+		return
+	}
+	if path == "runbooks/import" {
+		handlePackRunbookImport(w, r)
 		return
 	}
 	if path == "updates" {
@@ -562,6 +572,93 @@ func writePacksMutationResponse(w http.ResponseWriter, packID string, extra map[
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
+}
+
+func handlePackRunbooksList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	statuses := appConfig.ListPackStatus().Packs
+	dirs := map[string]string{}
+	manifests := map[string]*packs.Manifest{}
+	for _, st := range statuses {
+		if !st.Enabled {
+			continue
+		}
+		dir, err := packs.InstalledPackDir(st.ID)
+		if err != nil {
+			continue
+		}
+		m, err := appConfig.InstalledPackManifestByID(st.ID)
+		if err != nil || m == nil {
+			continue
+		}
+		dirs[st.ID] = dir
+		manifests[st.ID] = m
+	}
+	entries, err := packs.ListPackRunbooks(dirs, manifests)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"runbooks": entries})
+}
+
+func handlePackRunbookImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if _, ok := ensureMutationAccess(w, r, ""); !ok {
+		return
+	}
+	var body struct {
+		PackID string `json:"pack_id"`
+		Path   string `json:"path"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if body.PackID == "" || body.Path == "" {
+		http.Error(w, "pack_id and path required", http.StatusBadRequest)
+		return
+	}
+	dir, err := packs.InstalledPackDir(body.PackID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	md, err := packs.ReadPackRunbookMarkdown(dir, body.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	tasks, err := collaboration.ParsePlanTasks(md, nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	id := runbooklibrary.PackRunbookDefinitionID(body.PackID, body.Path)
+	title := strings.TrimSuffix(filepath.Base(body.Path), filepath.Ext(body.Path))
+	title = strings.ReplaceAll(title, "-", " ")
+	def := runbooklibrary.RunbookDefinition{
+		ID:          id,
+		Title:       title,
+		Description: "Imported from pack " + body.PackID,
+		Source:      runbooklibrary.SourceUser,
+		PackID:      body.PackID,
+		Tasks:       tasks,
+	}
+	saved, err := runbooklibrary.SaveUserDefinition(def)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(saved)
 }
 
 func handleExpertPresets(w http.ResponseWriter, r *http.Request) {

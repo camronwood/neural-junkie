@@ -47,6 +47,7 @@ type PromptContext struct {
 	Channel           string
 	CollaborationID   string
 	ExcludeMessageIDs []string
+	SourceTypes       []SourceType // nil = all sources
 }
 
 // PromptResult is injection output for debug metadata.

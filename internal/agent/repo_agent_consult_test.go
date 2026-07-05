@@ -35,7 +35,7 @@ func TestShouldRunRepoConsult_TaskWithWorkspace(t *testing.T) {
 		Info: protocol.AgentInfo{Type: protocol.AgentTypeFrontend, Name: "FrontendEngineer"},
 	}
 	msg := &protocol.Message{
-		Content: "fix the theme toggle",
+		Content: "fix the theme toggle in the repo",
 		From:    protocol.AgentInfo{ID: "u1", Name: "User", Type: "human"},
 		Metadata: map[string]interface{}{
 			"workspace_context": map[string]interface{}{
@@ -43,6 +43,7 @@ func TestShouldRunRepoConsult_TaskWithWorkspace(t *testing.T) {
 			},
 		},
 	}
+	a.recordKnowledgeRoute(msg)
 	if !a.shouldRunRepoConsult(t.Context(), msg, IntentTask) {
 		t.Fatal("expected repo consult on task with workspace")
 	}

@@ -188,7 +188,11 @@ func handleRunbookSubmit(w http.ResponseWriter, r *http.Request, id string) {
 }
 
 func handleRunbookStart(w http.ResponseWriter, r *http.Request, id string) {
-	snap, err := chatHub.StartRunbook(id)
+	var body struct {
+		Inputs map[string]string `json:"inputs"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	snap, err := chatHub.StartRunbook(id, body.Inputs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

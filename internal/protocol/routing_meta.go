@@ -8,9 +8,14 @@ const (
 	MetadataRoutingReason     = "routing_reason"
 	MetadataRoutingSource     = "routing_source"
 	MetadataRoutingDomain     = "routing_domain"
-	MetadataRoutingCostTier       = "routing_cost_tier"
-	MetadataRoutingKnowledgeRoute  = "routing_knowledge_route"
-	MetadataRoutingKnowledgeReason = "routing_knowledge_reason"
+	MetadataRoutingCostTier              = "routing_cost_tier"
+	MetadataRoutingKnowledgeRoute        = "routing_knowledge_route"
+	MetadataRoutingKnowledgeReason       = "routing_knowledge_reason"
+	MetadataRoutingKnowledgeTargets      = "routing_knowledge_targets"
+	MetadataRoutingKnowledgeExecuted     = "routing_knowledge_executed"
+	MetadataRoutingComposerMode          = "routing_composer_mode"
+	MetadataRoutingContextScope          = "routing_context_scope"
+	MetadataRoutingImplSession           = "routing_impl_session"
 )
 
 // RoutingMeta captures per-turn model routing decisions for UI display.
@@ -20,10 +25,15 @@ type RoutingMeta struct {
 	ToolModel  string `json:"tool_model,omitempty"`
 	Reason     string `json:"reason,omitempty"`
 	Source     string `json:"source,omitempty"`
-	Domain          string `json:"domain,omitempty"`
-	CostTier        string `json:"cost_tier,omitempty"`
-	KnowledgeRoute  string `json:"knowledge_route,omitempty"`
-	KnowledgeReason string `json:"knowledge_reason,omitempty"`
+	Domain              string   `json:"domain,omitempty"`
+	CostTier            string   `json:"cost_tier,omitempty"`
+	KnowledgeRoute      string   `json:"knowledge_route,omitempty"`
+	KnowledgeReason     string   `json:"knowledge_reason,omitempty"`
+	KnowledgeTargets    []string `json:"knowledge_targets,omitempty"`
+	KnowledgeExecuted   []string `json:"knowledge_executed,omitempty"`
+	ComposerMode        string   `json:"composer_mode,omitempty"`
+	ContextScope        string   `json:"context_scope,omitempty"`
+	ImplSession         bool     `json:"impl_session,omitempty"`
 }
 
 // ApplyRoutingMeta writes routing fields onto message metadata.
@@ -31,7 +41,7 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 	if msg == nil {
 		return
 	}
-	if meta.ProviderID == "" && meta.Model == "" && meta.Reason == "" && meta.KnowledgeRoute == "" {
+	if meta.ProviderID == "" && meta.Model == "" && meta.Reason == "" && meta.KnowledgeRoute == "" && len(meta.KnowledgeTargets) == 0 {
 		return
 	}
 	if msg.Metadata == nil {
@@ -63,6 +73,21 @@ func ApplyRoutingMeta(msg *Message, meta RoutingMeta) {
 	}
 	if meta.KnowledgeReason != "" {
 		msg.Metadata[MetadataRoutingKnowledgeReason] = meta.KnowledgeReason
+	}
+	if len(meta.KnowledgeTargets) > 0 {
+		msg.Metadata[MetadataRoutingKnowledgeTargets] = meta.KnowledgeTargets
+	}
+	if len(meta.KnowledgeExecuted) > 0 {
+		msg.Metadata[MetadataRoutingKnowledgeExecuted] = meta.KnowledgeExecuted
+	}
+	if meta.ComposerMode != "" {
+		msg.Metadata[MetadataRoutingComposerMode] = meta.ComposerMode
+	}
+	if meta.ContextScope != "" {
+		msg.Metadata[MetadataRoutingContextScope] = meta.ContextScope
+	}
+	if meta.ImplSession {
+		msg.Metadata[MetadataRoutingImplSession] = true
 	}
 }
 
@@ -99,5 +124,42 @@ func ExtractRoutingMeta(msg *Message) RoutingMeta {
 	if v, ok := msg.Metadata[MetadataRoutingKnowledgeReason].(string); ok {
 		out.KnowledgeReason = v
 	}
+	out.KnowledgeTargets = stringSliceFromMeta(msg.Metadata[MetadataRoutingKnowledgeTargets])
+	out.KnowledgeExecuted = stringSliceFromMeta(msg.Metadata[MetadataRoutingKnowledgeExecuted])
+	if v, ok := msg.Metadata[MetadataRoutingComposerMode].(string); ok {
+		out.ComposerMode = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingContextScope].(string); ok {
+		out.ContextScope = v
+	}
+	if v, ok := msg.Metadata[MetadataRoutingImplSession].(bool); ok {
+		out.ImplSession = v
+	}
 	return out
+}
+
+func stringSliceFromMeta(raw interface{}) []string {
+	switch v := raw.(type) {
+	case []string:
+		if len(v) == 0 {
+			return nil
+		}
+		return append([]string(nil), v...)
+	case []interface{}:
+		if len(v) == 0 {
+			return nil
+		}
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	default:
+		return nil
+	}
 }

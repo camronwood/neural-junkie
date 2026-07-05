@@ -374,6 +374,61 @@ func AppendWorkspaceContextForChannel(prompt *strings.Builder, msg *protocol.Mes
 		return
 	}
 	appendWorkspacePromptSection(prompt, scope, ctxMap)
+	appendLinkedWorkspacesPromptSection(prompt, msg, scope)
+}
+
+func appendLinkedWorkspacesPromptSection(prompt *strings.Builder, msg *protocol.Message, scope string) {
+	if scope == ContextScopeNone || scope == ContextScopeHint {
+		return
+	}
+	linked := linkedWorkspacesFromMetadata(msg)
+	if len(linked) == 0 {
+		return
+	}
+	prompt.WriteString("\n=== LINKED WORKSPACES ===\n")
+	prompt.WriteString("Additional repositories in scope for this turn. Tag answers with the correct repo name.\n\n")
+	for _, ref := range linked {
+		label := ref.Name
+		if label == "" {
+			label = filepath.Base(ref.Path)
+		}
+		prompt.WriteString(fmt.Sprintf("## %s\nPath: %s\n", label, ref.Path))
+		if raw, ok := msg.Metadata[MetadataLinkedWorkspaces].([]interface{}); ok {
+			for _, item := range raw {
+				m, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				p, _ := m["workspace_path"].(string)
+				if normalizeScopePath(p) != normalizeScopePath(ref.Path) {
+					continue
+				}
+				if tree, ok := m["file_tree"].(string); ok && tree != "" {
+					prompt.WriteString(fmt.Sprintf("File tree:\n%s\n", tree))
+				}
+				if scope == ContextScopeFocus || scope == ContextScopeFull {
+					if files, ok := m["open_files"].([]interface{}); ok && len(files) > 0 {
+						for _, f := range files {
+							fm, ok := f.(map[string]interface{})
+							if !ok {
+								continue
+							}
+							filePath, _ := fm["path"].(string)
+							lang, _ := fm["language"].(string)
+							content, _ := fm["content"].(string)
+							if filePath == "" {
+								continue
+							}
+							prompt.WriteString(fmt.Sprintf("\n### %s (%s)\n```%s\n%s\n```\n", filePath, lang, lang, addLineNumbers(content)))
+						}
+					}
+				}
+				break
+			}
+		}
+		prompt.WriteString("\n")
+	}
+	prompt.WriteString("=== END LINKED WORKSPACES ===\n\n")
 }
 
 func appendWorkspacePromptSection(prompt *strings.Builder, scope string, ctxMap map[string]interface{}) {

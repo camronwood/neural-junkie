@@ -351,7 +351,7 @@ func (a *AssistantAgent) buildAssistantPromptCore(msg *protocol.Message, skipPer
 	prompt.WriteString("• Never say a file was saved or applied unless you see Applied change or file_change_approved in this thread\n\n")
 
 	AppendUserAndAgentRules(&prompt, msg, &a.Agent.Info, ResolveUserRulesHubFallback(msg), 0)
-	AppendMemoryForMessage(&prompt, msg, a.channelHistory(msg.Channel))
+	a.appendMemoryForMessage(&prompt, msg, a.channelHistory(msg.Channel))
 	AppendLearningsForMessage(&prompt, msg, &a.Agent.Info)
 
 	// Insert system/user separator -- everything above is system context,

@@ -88,7 +88,7 @@ func TestRunbookSmokeSendRedirectAndStartLifecycle(t *testing.T) {
 	if _, err := cm.SubmitRunbook(collabID); err != nil {
 		t.Fatalf("SubmitRunbook: %v", err)
 	}
-	if _, err := h.StartRunbook(collabID); err != nil {
+	if _, err := h.StartRunbook(collabID, nil); err != nil {
 		t.Fatalf("StartRunbook: %v", err)
 	}
 	assertCollabPhase(t, base, collabCh, collabID, collaboration.PhaseExecuting)

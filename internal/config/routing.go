@@ -10,6 +10,8 @@ type RoutingConfig struct {
 	MinConfidence   float64 `json:"min_confidence"`
 	// ModelCapabilityRoutingEnabled selects Ollama models from benchmark-derived profiles.
 	ModelCapabilityRoutingEnabled bool `json:"model_capability_routing_enabled"`
+	// CapabilityProfilesPath overrides the default model-capability-profiles.json path.
+	CapabilityProfilesPath string `json:"capability_profiles_path,omitempty"`
 }
 
 // DefaultRoutingConfig returns LLM-first routing defaults.

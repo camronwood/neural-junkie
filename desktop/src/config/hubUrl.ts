@@ -40,7 +40,18 @@ export function normalizeHubBaseURL(addr: string): string {
 }
 
 /** Hub base URL (no trailing slash). Override with VITE_NJ_HUB_URL when 18765 is taken. */
+let connectionHubUrl: string | undefined;
+let connectionHubToken: string | undefined;
+
+export function setHubConnectionOverride(url: string, token: string): void {
+  connectionHubUrl = url?.trim() || undefined;
+  connectionHubToken = token?.trim() || undefined;
+}
+
 export function getHubBaseURL(): string {
+  if (connectionHubUrl) {
+    return normalizeHubBaseURL(connectionHubUrl);
+  }
   const raw = import.meta.env.VITE_NJ_HUB_URL as string | undefined;
   if (raw?.trim()) {
     return normalizeHubBaseURL(raw);
@@ -50,6 +61,9 @@ export function getHubBaseURL(): string {
 
 /** Optional hub API token (must match server NEURAL_JUNKIE_HUB_TOKEN). */
 export function getHubAccessToken(): string | undefined {
+  if (connectionHubToken) {
+    return connectionHubToken;
+  }
   const raw = import.meta.env.VITE_NJ_HUB_TOKEN as string | undefined;
   const t = raw?.trim();
   return t || undefined;

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePacksStore } from '../../stores/packsStore';
 import { PACK_CAP } from '../../stores/packCapabilities';
+import { ChatAPI } from '../../api/chatAPI';
 import { mergeSettingsPut, openExternalLink, type SettingsTabProps } from './settingsShared';
+import { ConnectorsSettingsTab } from './ConnectorsSettingsTab';
 
 type AWSForm = {
   default_region: string;
@@ -18,6 +20,7 @@ type JiraForm = {
 };
 
 export function IntegrationsSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
+  const connectorsApi = useMemo(() => new ChatAPI(hubHttp), [hubHttp]);
   const hasAWS = usePacksStore((s) => s.hasCapability(PACK_CAP.AWS_SSO));
   const hasJira = usePacksStore((s) => s.hasCapability(PACK_CAP.JIRA_INTEGRATION));
 
@@ -165,17 +168,25 @@ export function IntegrationsSettingsTab({ hubHttp, isActive }: SettingsTabProps)
 
   if (!isActive) return null;
 
-  if (!hasAWS && !hasJira) {
-    return (
-      <div className="max-w-2xl text-sm text-slack-textMuted">
-        Install and enable the <strong className="text-slack-text">AWS</strong> or{' '}
-        <strong className="text-slack-text">Incident management</strong> domain pack to configure integrations here.
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-3xl space-y-8">
+      <div className="rounded-lg border border-slack-border p-6">
+        <h4 className="text-base font-semibold text-slack-text">Runbook connectors</h4>
+        <p className="mt-1 mb-4 text-sm text-slack-textMuted">
+          Store webhook tokens and auth secrets outside runbook JSON. Reference connectors by ID in action tasks.
+        </p>
+        <ConnectorsSettingsTab api={connectorsApi} />
+      </div>
+
+      {!hasAWS && !hasJira ? (
+        <div className="text-sm text-slack-textMuted">
+          Install and enable the <strong className="text-slack-text">AWS</strong> or{' '}
+          <strong className="text-slack-text">Incident management</strong> domain pack to configure additional integrations below.
+        </div>
+      ) : null}
+
+      {hasAWS || hasJira ? (
+        <>
       <div>
         <h3 className="text-lg font-semibold text-slack-text">Integrations</h3>
         <p className="mt-1 text-sm text-slack-textMuted">
@@ -342,6 +353,8 @@ export function IntegrationsSettingsTab({ hubHttp, isActive }: SettingsTabProps)
           {jiraErr && <p className="mt-2 text-sm text-red-500">{jiraErr}</p>}
         </div>
       )}
+        </>
+      ) : null}
     </div>
   );
 }

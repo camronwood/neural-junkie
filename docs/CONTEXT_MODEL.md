@@ -150,6 +150,7 @@ Implementation: `internal/agent/context_budget.go`.
 | `conversation_mode` | Desktop | Agent intent + grounding |
 | `context_scope` | Desktop (`inferContextScope`) | Agent workspace append |
 | `context_scope_reason` | Desktop | Debug UI / composer chip |
+| `linked_workspaces` | Desktop | Agent multi-repo scope (outline + open tabs per linked repo) |
 | `ide_route_agent_type` | Desktop IDE | Agent routing (skipped when `@mentions` present) |
 | `session_summary` | Hub (persisted) | Agent prompt injection |
 

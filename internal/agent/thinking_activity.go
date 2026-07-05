@@ -94,6 +94,10 @@ func (a *Agent) broadcastRoutingTelemetry(originalMsg *protocol.Message) {
 		return
 	}
 	a.sendThinkingActivity(originalMsg, protocol.ThinkingActivityReasoning, detail)
+	a.sendTelemetryEvent(originalMsg, "routing", routingTelemetryPayload(snap, originalMsg))
+}
+
+func routingTelemetryPayload(snap RoutingSnapshot, originalMsg *protocol.Message) map[string]interface{} {
 	payload := map[string]interface{}{
 		"chat_model":  snap.ChatModel,
 		"tool_model":  snap.ToolModel,
@@ -101,16 +105,50 @@ func (a *Agent) broadcastRoutingTelemetry(originalMsg *protocol.Message) {
 		"reason":      snap.Reason,
 		"source":      snap.Source,
 	}
+	if snap.Domain != "" {
+		payload["domain"] = snap.Domain
+	}
+	if snap.CostTier != "" {
+		payload["cost_tier"] = snap.CostTier
+	}
 	if snap.KnowledgeRoute != "" {
 		payload["knowledge_route"] = snap.KnowledgeRoute
 	}
-	a.sendTelemetryEvent(originalMsg, "routing", payload)
+	if snap.KnowledgeReason != "" {
+		payload["knowledge_reason"] = snap.KnowledgeReason
+	}
+	if len(snap.KnowledgeTargets) > 0 {
+		payload["knowledge_targets"] = snap.KnowledgeTargets
+	}
+	if len(snap.KnowledgeExecuted) > 0 {
+		payload["knowledge_executed"] = snap.KnowledgeExecuted
+	}
+	if gov := governanceTelemetryFromMessage(originalMsg); len(gov) > 0 {
+		payload["governance"] = gov
+	}
+	return payload
+}
+
+func governanceTelemetryFromMessage(msg *protocol.Message) map[string]interface{} {
+	if msg == nil {
+		return nil
+	}
+	caps := protocol.ResolveTurnCapabilities(msg)
+	return map[string]interface{}{
+		"composer_mode":        caps.ComposerMode,
+		"context_scope":        caps.ContextTier,
+		"can_propose_files":    caps.CanProposeFiles,
+		"can_run_impl_session": caps.CanRunImplSession,
+	}
 }
 
 func formatRoutingThinkingDetail(snap RoutingSnapshot) string {
 	chat := strings.TrimSpace(snap.ChatModel)
 	tool := strings.TrimSpace(snap.ToolModel)
 	reason := strings.TrimSpace(snap.Reason)
+	tier := strings.TrimSpace(snap.CostTier)
+	route := strings.TrimSpace(snap.KnowledgeRoute)
+
 	var parts []string
 	if chat != "" {
 		parts = append(parts, "chat: "+chat)
@@ -118,10 +156,28 @@ func formatRoutingThinkingDetail(snap RoutingSnapshot) string {
 	if tool != "" && tool != chat {
 		parts = append(parts, "tools: "+tool)
 	}
+	var extras []string
+	if tier != "" {
+		extras = append(extras, "tier: "+tier)
+	}
+	if route != "" {
+		extras = append(extras, "retrieval: "+route)
+	}
+
 	if len(parts) == 0 {
-		return ""
+		if len(extras) == 0 {
+			return ""
+		}
+		line := strings.Join(extras, " · ")
+		if reason != "" {
+			line += " (" + reason + ")"
+		}
+		return line
 	}
 	line := strings.Join(parts, " · ")
+	if len(extras) > 0 {
+		line += " · " + strings.Join(extras, " · ")
+	}
 	if reason != "" {
 		line += " (" + reason + ")"
 	}
@@ -177,4 +233,9 @@ func (a *Agent) sendToolTelemetryEvent(originalMsg *protocol.Message, ev ai.Tool
 // formatRoutingThinkingDetailForTest exposes routing detail formatting for tests.
 func formatRoutingThinkingDetailForTest(snap RoutingSnapshot) string {
 	return formatRoutingThinkingDetail(snap)
+}
+
+// routingTelemetryPayloadForTest exposes routing telemetry payload for tests.
+func routingTelemetryPayloadForTest(snap RoutingSnapshot, msg *protocol.Message) map[string]interface{} {
+	return routingTelemetryPayload(snap, msg)
 }

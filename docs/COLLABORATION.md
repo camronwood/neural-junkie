@@ -83,7 +83,7 @@ Desktop collaboration panel and REST:
 | **Pause dispatch** | Collaboration panel (executing) | Stops new task waves only; agents already replying continue |
 | **`/pause-agent`** | Slash command | Marks an agent paused in the roster; does not abort an active LLM call |
 
-See [RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md) for **action** task types (HTTP, webhook, web search, SMS).
+See [RUNBOOK_ACTIONS.md](RUNBOOK_ACTIONS.md) for **action** task types (HTTP, webhook, web search, SMS). For the v2 definition library, run inputs, and run history, see [RUNBOOKS_V2.md](RUNBOOKS_V2.md).
 
 ### Runbook HTTP API
 
@@ -347,7 +347,7 @@ Use this when you want **files and finished tasks**, not a long planning thread:
 | Command | Purpose |
 |---------|---------|
 | `make collab-scenario SCENARIO=delivery-sandbox-auto-ack` | Auto-ack on approve |
-| `make collab-scenario SCENARIO=execute-deliverable` | End-to-end file deliverable (auto-approve) |
+| `make collab-scenario SCENARIO=execute-deliverable` | End-to-end file deliverable through `/complete-collab` |
 | `make collab-parity` | Solo @Assistant vs collab on same fixture |
 | `make collab-routing-matrix` | A/B smart routing on/off (`execute-deliverable`) |
 | `make collab-scenario SCENARIO=resource-api-schema-planning` | Plan quality |
@@ -479,26 +479,27 @@ make collab-scenario-matrix
 
 Execution scenarios use **`approve_file_changes`** with **`require_hub_approval`** to apply pending hub file proposals (`POST /api/file-changes/approve/{id}`) before `assert_files`. **`assert_files`** can require grounded content (`any_match` / `none_match` on file body) and reject `TASK_STATUS` lines in deliverables. Set **`NJ_SCENARIO_ALLOW_FILE_FALLBACK=1`** only for local debugging when agents omit canonical `[FILE_CHANGE]` proposals.
 
-**Regression bundles:** `make test-collab-plan` (deterministic Go, CI-safe) and `make collab-scenario-regression` (live hub edge-case scenarios).
+**Regression bundles:** `make test-collab-plan` (deterministic Go, CI-safe) and `make collab-scenario-regression` (live hub edge-case scenarios, includes three full-completion paths on `minimal-repo`).
 
 **Scenarios**
 
-| Name | Purpose |
-|------|---------|
-| `planning-two-agent` | Fast planning quality (2 tasks, reviewing) |
-| `multi-collab-isolation` | Planning while another collab executes |
-| `reject-collabs-subfolder` | Workspace guard for `collabs/<uuid>` paths |
-| `execute-deliverable` | Fixture repo execution + grounded `findings.md` |
-| `resource-api-schema-planning` | Resource API schema prompt with explicit lanes |
-| `resource-api-schema-regression` | Phoenix-style bound workspace + deliverable stubs |
-| `delivery-sandbox-auto-ack` | Approve on `--workspace` sandbox auto-acks and dispatches tasks |
-| `plan-dependency-prose-regression` | Dependency bullets must not become tasks (f7518f88) |
-| `plan-findings-task-regression` | "Document findings in …/findings.md" kept as task (4ea36409) |
-| `plan-distinct-deliverables-same-agent` | Same assignee + different paths must not merge |
-| `document-findings-execution` | "Document findings" phrasing dispatches file deliverable |
-| `execution-no-stack-commands` | No docker/npm/kubectl Run suggestions on markdown tasks |
-| `plan-phoenix-combined-regression` | Full Phoenix-style combined regression (needs `NEURAL_JUNKIE_SCENARIO_REPO`) |
-| `phoenix-resource-api-e2e` | End-to-end Phoenix resource API collab |
+| Name | Purpose | Depth |
+|------|---------|-------|
+| `planning-two-agent` | Fast planning quality (2 tasks, reviewing) | Planning only |
+| `multi-collab-isolation` | Planning while another collab executes | Partial execute |
+| `reject-collabs-subfolder` | Workspace guard for `collabs/<uuid>` paths | Planning only |
+| `collab-minimal-completion-regression` | Fast happy path: plan → execute → `/complete-collab` → `completed` | **Full completion** |
+| `execute-deliverable` | Fixture repo execution + grounded `findings.md` + completion | **Full completion** |
+| `resource-api-schema-planning` | Resource API schema prompt with explicit lanes | Planning only |
+| `resource-api-schema-regression` | Phoenix-style bound workspace + deliverable stubs | Partial execute |
+| `delivery-sandbox-auto-ack` | Approve on `--workspace` sandbox auto-acks and dispatches tasks | Partial execute |
+| `plan-dependency-prose-regression` | Dependency bullets must not become tasks (f7518f88) | Partial execute |
+| `plan-findings-task-regression` | "Document findings in …/findings.md" kept as task (4ea36409) | Partial execute |
+| `plan-distinct-deliverables-same-agent` | Same assignee + different paths must not merge | Partial execute |
+| `document-findings-execution` | "Document findings" phrasing dispatches file deliverable + completion | **Full completion** |
+| `execution-no-stack-commands` | No docker/npm/kubectl Run suggestions on markdown tasks | Partial execute |
+| `plan-phoenix-combined-regression` | Full Phoenix-style combined regression (needs `NEURAL_JUNKIE_SCENARIO_REPO`) | Partial execute |
+| `phoenix-resource-api-e2e` | End-to-end Phoenix resource API collab + completion | **Full completion** |
 
 **Environment**
 

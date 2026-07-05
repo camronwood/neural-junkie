@@ -12,6 +12,7 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/agent"
 	"github.com/camronwood/neural-junkie/internal/collaboration"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
@@ -56,6 +57,7 @@ func slimMessageMetadataForPersist(md map[string]interface{}) {
 		return
 	}
 	slimWorkspaceContextMetadata(md)
+	slimLinkedWorkspacesMetadata(md)
 	slimGrantedHubDataAccessMetadata(md)
 	delete(md, "prompt_attachments")
 	delete(md, "user_images")
@@ -93,6 +95,52 @@ func slimWorkspaceContextMetadata(md map[string]interface{}) {
 	}
 	md["workspace_context"] = safeCtx
 	md[agent.MetadataContextScope] = agent.ContextScopeOutline
+}
+
+func slimLinkedWorkspacesMetadata(md map[string]interface{}) {
+	raw, ok := md[agent.MetadataLinkedWorkspaces]
+	if !ok || raw == nil {
+		return
+	}
+	arr, ok := raw.([]interface{})
+	if !ok || len(arr) == 0 {
+		delete(md, agent.MetadataLinkedWorkspaces)
+		return
+	}
+	trimmed := make([]interface{}, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		safe := map[string]interface{}{}
+		if id, ok := m["workspace_id"].(string); ok && id != "" {
+			safe["workspace_id"] = id
+		}
+		if name, ok := m["workspace_name"].(string); ok && name != "" {
+			safe["workspace_name"] = name
+		}
+		if path, ok := m["workspace_path"].(string); ok && path != "" {
+			safe["workspace_path"] = path
+		}
+		if src, ok := m["source"].(string); ok && src != "" {
+			safe["source"] = src
+		}
+		if tree, ok := m["file_tree"].(string); ok && tree != "" {
+			if len(tree) > maxPersistFileTreeBytes {
+				tree = tree[:maxPersistFileTreeBytes] + "\n... (truncated)"
+			}
+			safe["file_tree"] = tree
+		}
+		if len(safe) > 0 {
+			trimmed = append(trimmed, safe)
+		}
+	}
+	if len(trimmed) == 0 {
+		delete(md, agent.MetadataLinkedWorkspaces)
+		return
+	}
+	md[agent.MetadataLinkedWorkspaces] = trimmed
 }
 
 func slimGrantedHubDataAccessMetadata(md map[string]interface{}) {
@@ -373,7 +421,7 @@ func sessionFileReadyToLoad(path string) (load bool, size int64, err error) {
 	if fi.Size() <= MaxSessionRestoreBytes {
 		return true, fi.Size(), nil
 	}
-	if os.Getenv("NEURAL_JUNKIE_FORCE_SESSION_RESTORE") == "1" {
+	if config.AppConfig().ResolvedSession().ForceRestoreLarge || os.Getenv("NEURAL_JUNKIE_FORCE_SESSION_RESTORE") == "1" {
 		return true, fi.Size(), nil
 	}
 	if err := archiveUnusableSessionFile(path, fmt.Sprintf("over %d MiB", MaxSessionRestoreBytes/(1024*1024))); err != nil {

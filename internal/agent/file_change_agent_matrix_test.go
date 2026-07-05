@@ -95,7 +95,7 @@ func TestAttachWorkspaceContextToProposalMessage_devAgents(t *testing.T) {
 		NewContent: "package main\n",
 		Metadata:   map[string]interface{}{},
 	}
-	a.attachWorkspaceContextToProposalMessage(ch, proposalMsg, proposal)
+	a.attachWorkspaceContextToProposalMessage(ch, proposalMsg, proposal, nil)
 
 	if proposalMsg.Metadata["workspace_context"] == nil {
 		t.Fatal("expected workspace_context on proposal message")

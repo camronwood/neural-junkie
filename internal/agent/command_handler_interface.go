@@ -13,4 +13,5 @@ type CommandHandlerInterface interface {
 	RemovePendingReview(repoPath string)
 	HasPendingReview(repoPath string) bool
 	ConsultRepoForPath(ctx context.Context, repoPath, subQuestion, channel string) (text, agentName string, err error)
+	ConsultReposForPaths(ctx context.Context, refs []WorkspaceRef, subQuestion, channel string) ([]RepoConsultBlock, error)
 }

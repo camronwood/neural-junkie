@@ -10,11 +10,16 @@ import (
 	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/agent"
+	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/hub"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
 func defaultHumanSender() (id string, name string, agentType protocol.AgentType) {
+	if n := strings.TrimSpace(config.AppConfig().ResolvedAutomation().HumanName); n != "" {
+		slug := strings.ToLower(strings.ReplaceAll(n, " ", "-"))
+		return "human-" + slug, n, protocol.AgentTypeGeneral
+	}
 	if n := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_HUMAN_NAME")); n != "" {
 		slug := strings.ToLower(strings.ReplaceAll(n, " ", "-"))
 		return "human-" + slug, n, protocol.AgentTypeGeneral
@@ -48,7 +53,10 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secret := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET"))
+	secret := strings.TrimSpace(config.AppConfig().ResolvedSecurity().FullMetadataSecret)
+	if secret == "" {
+		secret = strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_FULL_METADATA_SECRET"))
+	}
 	allowFull := secret != "" && strings.TrimSpace(r.Header.Get("X-NJ-Full-Metadata")) == secret
 
 	out := make([]*protocol.Message, 0, len(messages))

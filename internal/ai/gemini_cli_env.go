@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/camronwood/neural-junkie/internal/config"
 )
 
 const geminiAPIKeyEnv = "GEMINI_API_KEY"
@@ -53,6 +55,9 @@ func geminiCLIAPIKey(p *CLIAgentProvider) string {
 }
 
 func shouldUseGeminiHeadlessHome() bool {
+	if strings.TrimSpace(config.AppConfig().ResolvedCLIAgents().GeminiCLIHome) != "" {
+		return true
+	}
 	if strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_HOME")) != "" {
 		return true
 	}
@@ -81,6 +86,11 @@ func readGeminiUserAuthType() string {
 }
 
 func resolveGeminiCLIHeadlessHome() string {
+	if v := strings.TrimSpace(config.AppConfig().ResolvedCLIAgents().GeminiCLIHome); v != "" {
+		if hasGeminiHeadlessSettings(v) {
+			return v
+		}
+	}
 	if v := strings.TrimSpace(os.Getenv("NEURAL_JUNKIE_GEMINI_CLI_HOME")); v != "" {
 		if hasGeminiHeadlessSettings(v) {
 			return v

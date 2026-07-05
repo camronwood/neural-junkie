@@ -33,7 +33,7 @@ interface RunbookTaskInspectorProps {
   api: ChatAPI;
   editable: boolean;
   onUpdate: (patch: Partial<CollaborationTask>) => void;
-  onUpdateDependencies: (deps: string[]) => void;
+  onUpdateDependencies: (patch: Pick<CollaborationTask, 'dependencies' | 'dependency_edges' | 'dependency_groups'>) => void;
   onDelete: () => void;
 }
 

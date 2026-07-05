@@ -20,6 +20,9 @@ import { IntegrationsSettingsTab } from './settings/IntegrationsSettingsTab';
 import { AssistantToolsSettingsTab } from './settings/AssistantToolsSettingsTab';
 import { SlackSettingsTab } from './settings/SlackSettingsTab';
 import { SecuritySettingsTab } from './settings/SecuritySettingsTab';
+import { ServerNetworkSettingsTab } from './settings/ServerNetworkSettingsTab';
+import { ConnectionSettingsTab } from './settings/ConnectionSettingsTab';
+import { AutomationSettingsTab } from './settings/AutomationSettingsTab';
 import { AboutSettingsTab } from './settings/AboutSettingsTab';
 
 export type { SettingsTab } from './settings/settingsNav';
@@ -113,6 +116,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <LayoutSettingsTab hubHttp={hubHttp} isActive={activeTab === 'layout'} />
             <KeyboardSettingsTab hubHttp={hubHttp} isActive={activeTab === 'keyboard'} />
             <ChatSettingsTab hubHttp={hubHttp} isActive={activeTab === 'chat'} />
+            <ConnectionSettingsTab hubHttp={hubHttp} isActive={activeTab === 'connection'} />
             <ProvidersSettingsTab hubHttp={hubHttp} isActive={activeTab === 'providers'} />
             <ModelsPerformanceSettingsTab hubHttp={hubHttp} isActive={activeTab === 'models-performance'} />
             <CollabRoutingSettingsTab hubHttp={hubHttp} isActive={activeTab === 'collab-routing'} />
@@ -122,6 +126,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <AssistantToolsSettingsTab hubHttp={hubHttp} isActive={activeTab === 'assistant-tools'} />
             <SlackSettingsTab hubHttp={hubHttp} isActive={activeTab === 'slack'} />
             <SecuritySettingsTab hubHttp={hubHttp} isActive={activeTab === 'security'} />
+            <ServerNetworkSettingsTab hubHttp={hubHttp} isActive={activeTab === 'server-network'} />
+            <AutomationSettingsTab hubHttp={hubHttp} isActive={activeTab === 'automation'} />
             <AboutSettingsTab hubHttp={hubHttp} isActive={activeTab === 'about'} />
           </div>
         </div>

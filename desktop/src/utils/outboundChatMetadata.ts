@@ -18,6 +18,8 @@ import {
   type ConversationModeSetting,
   type WorkspaceContextMode,
   USER_RULES_METADATA_KEY,
+  LINKED_WORKSPACES_METADATA_KEY,
+  type LinkedWorkspaceContext,
 } from '../constants/promptMetadata';
 import { buildFileTreeString } from './workspaceContext';
 import type { ScanSummaryContext, ScanAnalysisContext, CadContext, WorkspaceContext } from './workspaceContext';
@@ -49,6 +51,8 @@ import {
   attachTurnCapabilitiesMetadata,
   resolveTurnCapabilities,
 } from '../constants/turnIntent';
+import { resolveWorkspaceScope, scopeSummaryLabel } from './workspaceScope';
+import { useProjectSetsStore } from '../stores/projectSetsStore';
 
 const FILE_PATH_RE =
   /(?:^|[\s"'`(])([./]?(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+)/g;
@@ -293,22 +297,42 @@ export function trimWorkspaceContext(
   return base;
 }
 
-function loadFullWorkspaceContext(): WorkspaceContext {
+function loadScopedWorkspaceContext(): {
+  primary: WorkspaceContext;
+  linked: LinkedWorkspaceContext[];
+  scopeLabel: string | null;
+} {
   const editorTabs = useEditorStore.getState().tabs;
   const activeTabId = useEditorStore.getState().activeTabId;
   const { workspaces, activeWorkspaceId, fileTree } = useFileExplorerStore.getState();
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) ?? workspaces[0];
-  const nodes = activeWorkspace ? (fileTree[activeWorkspace.id] ?? []) : [];
+  const activeProjectSetId = useProjectSetsStore.getState().activeProjectSetId;
+  const projectSetMemberIds = activeProjectSetId
+    ? useProjectSetsStore.getState().getMemberIds(activeProjectSetId)
+    : undefined;
+
+  const scope = resolveWorkspaceScope({
+    workspaces,
+    activeWorkspaceId,
+    editorTabs,
+    activeTabId,
+    projectSetMemberIds,
+  });
+
+  const primaryWs = scope.primary;
+  const primaryNodes = primaryWs ? (fileTree[primaryWs.id] ?? []) : [];
+  const primaryTabs = primaryWs
+    ? editorTabs.filter((tab) => tab.workspaceId === primaryWs.id)
+    : editorTabs;
   const activeTab = editorTabs.find((tab) => tab.id === activeTabId);
 
-  return {
-    workspace_id: activeWorkspace?.id ?? '',
-    workspace_kind: activeWorkspace?.kind ?? 'local',
-    sidecar_url: activeWorkspace?.sidecar_url ?? '',
-    workspace_name: activeWorkspace?.name ?? '',
-    workspace_path: activeWorkspace?.path ?? '',
-    file_tree: buildFileTreeString(nodes, 3),
-    open_files: editorTabs.map((tab) => ({
+  const primary: WorkspaceContext = {
+    workspace_id: primaryWs?.id ?? '',
+    workspace_kind: primaryWs?.kind ?? 'local',
+    sidecar_url: primaryWs?.sidecar_url ?? '',
+    workspace_name: primaryWs?.name ?? '',
+    workspace_path: primaryWs?.path ?? '',
+    file_tree: buildFileTreeString(primaryNodes, 3),
+    open_files: primaryTabs.map((tab) => ({
       path: tab.path,
       language: tab.language ?? 'text',
       content: tab.content.substring(0, 10000),
@@ -330,6 +354,21 @@ function loadFullWorkspaceContext(): WorkspaceContext {
         }
       : undefined,
   };
+
+  const linked: LinkedWorkspaceContext[] = scope.linked.map((lw) => {
+    const nodes = fileTree[lw.workspace_id] ?? [];
+    return {
+      ...lw,
+      file_tree: buildFileTreeString(nodes, 2),
+    };
+  });
+
+  return { primary, linked, scopeLabel: scopeSummaryLabel(scope) };
+}
+
+/** @deprecated use loadScopedWorkspaceContext */
+function loadFullWorkspaceContext(): WorkspaceContext {
+  return loadScopedWorkspaceContext().primary;
 }
 
 function messageRequestsCADWorkspace(message: string): boolean {
@@ -585,7 +624,7 @@ export function buildHumanOutboundMetadata(options: {
   }
 
   if (scope !== 'none' && collabMode !== 'none') {
-    const full = loadFullWorkspaceContext();
+    const { primary: full, linked, scopeLabel } = loadScopedWorkspaceContext();
     const activePath = useEditorStore.getState().tabs.find(
       (t) => t.id === useEditorStore.getState().activeTabId
     )?.path;
@@ -595,6 +634,12 @@ export function buildHumanOutboundMetadata(options: {
         isCollaborateCommand(message) && isCollabSandboxPath(trimmed.workspace_path);
       if (!skipCollabSandbox) {
         meta.workspace_context = trimmed;
+        if (linked.length > 0) {
+          meta[LINKED_WORKSPACES_METADATA_KEY] = linked;
+        }
+        if (scopeLabel) {
+          meta.scope_summary = scopeLabel;
+        }
       }
     }
   }

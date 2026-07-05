@@ -112,12 +112,18 @@ def warm_tag(tag: str, *, keep_alive: str, timeout_s: float) -> tuple[bool, str]
     return True, f"loaded in {elapsed:.0f}s (keep_alive={keep_alive})"
 
 
-def smoke_tag(tag: str, *, timeout_s: float = 120.0) -> tuple[bool, str]:
+def smoke_tag(
+    tag: str,
+    *,
+    keep_alive: str = "24h",
+    timeout_s: float = 120.0,
+) -> tuple[bool, str]:
     body = json.dumps(
         {
             "model": tag,
             "prompt": "Reply with exactly: ok",
             "stream": False,
+            "keep_alive": keep_alive,
         }
     ).encode()
     req = urllib.request.Request(
@@ -256,17 +262,36 @@ def main() -> int:
     if args.smoke:
         for tag in warm_tags:
             print(f"  smoke {tag} …")
-            ok, detail = smoke_tag(tag)
+            ok, detail = smoke_tag(tag, keep_alive=args.keep_alive)
             if not ok:
                 print(f"FAIL: smoke {tag}: {detail}", file=sys.stderr)
                 return 1
             print(f"  OK smoke {tag}: {detail}")
 
+    # End with the primary agent model resident; smaller/tool models may be evicted on tight RAM.
+    if args.warm:
+        primary = warm_tags[0]
+        if primary not in loaded_tags():
+            print(f"  re-warm {primary} (primary agent model) …")
+            ok, detail = warm_tag(primary, keep_alive=args.keep_alive, timeout_s=args.warm_timeout)
+            if not ok:
+                print(f"FAIL: re-warm {primary}: {detail}", file=sys.stderr)
+                return 1
+            print(f"  OK re-warm {primary}: {detail}")
+
     loaded = loaded_tags()
-    still_cold = [t for t in warm_tags if t not in loaded]
-    if args.warm and still_cold:
-        print(f"FAIL: warmed models not in /api/ps: {', '.join(still_cold)}", file=sys.stderr)
+    primary = warm_tags[0]
+    if args.warm and primary not in loaded:
+        print(f"FAIL: primary model not in /api/ps: {primary}", file=sys.stderr)
         return 1
+
+    optional_cold = [t for t in warm_tags[1:] if t not in loaded]
+    if optional_cold:
+        print(
+            f"  WARN: not all warm models resident simultaneously "
+            f"(smoke passed; cold: {', '.join(optional_cold)})",
+            file=sys.stderr,
+        )
 
     if loaded:
         print(f"  loaded now: {', '.join(sorted(loaded))}")

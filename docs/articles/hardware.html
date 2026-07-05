@@ -114,7 +114,7 @@
 <h2>Optional workloads cost extra</h2>
 <p>LoRA training from chat or collab history needs the Specialist tuning pack, a Python venv (make deps-lora), and CUDA strongly recommended — CPU training is experimental and slow.</p>
 <p>Collaboration quality varies on local 7B/14B models. The hub enforces phase caps and fallbacks, but cannot guarantee plan shape the way a cloud frontier model might.</p>
-<p>MCP tool calling is strongest on Ollama (selected flows) and Claude; LM Studio and generic OpenAI-compat endpoints are more limited.</p>
+<p>MCP tool calling works on Claude (native), Ollama (native + ReAct + swap), and LM Studio / OpenAI-compat endpoints (native OpenAI tool loops + ReAct when the model lacks native support).</p>
 <p>Slack bridge runs in-process on your local hub — no public URL, but the hub must stay running.</p>
 <p>macOS builds are ad-hoc signed, not notarized. Right-click → Open the first time if Gatekeeper warns.</p>
 <p>We keep a public list: known-issues.html. Items come off when we fix them.</p>

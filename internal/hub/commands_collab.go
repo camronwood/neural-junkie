@@ -349,6 +349,62 @@ func (ch *CommandHandler) handleRunbook(ctx context.Context, msg *protocol.Messa
 	return out, nil
 }
 
+// handleRunbookRun instantiates and starts a library definition.
+// Usage: /runbook-run <definition-id> @Agent1 [--input key=value]
+func (ch *CommandHandler) handleRunbookRun(ctx context.Context, msg *protocol.Message, parts []string) (*protocol.Message, error) {
+	if len(parts) < 2 {
+		return ch.systemResponse(msg.Channel, "❌ Usage: /runbook-run <definition-id> @Agent1 [@Agent2 ...] [--input key=value]"), nil
+	}
+	defID := strings.TrimSpace(parts[1])
+	inputs := map[string]string{}
+	var mentionParts []string
+	for _, p := range parts[2:] {
+		if strings.HasPrefix(p, "--input") {
+			kv := strings.TrimPrefix(p, "--input")
+			kv = strings.TrimSpace(strings.TrimPrefix(kv, "="))
+			if idx := strings.Index(kv, "="); idx > 0 {
+				inputs[kv[:idx]] = kv[idx+1:]
+			}
+			continue
+		}
+		if strings.HasPrefix(p, "--input=") {
+			kv := strings.TrimPrefix(p, "--input=")
+			if idx := strings.Index(kv, "="); idx > 0 {
+				inputs[kv[:idx]] = kv[idx+1:]
+			}
+			continue
+		}
+		mentionParts = append(mentionParts, p)
+	}
+	mentionStrings := protocol.ParseMentions(strings.Join(mentionParts, " "))
+	if len(mentionStrings) < 1 {
+		return ch.systemResponse(msg.Channel, "❌ At least one @agent is required.\nUsage: /runbook-run health-check-alert @Assistant"), nil
+	}
+	resolved := make(map[string]bool)
+	agentIDs := ch.hub.ResolveMentionsWithValidation(mentionStrings, resolved, msg.Channel)
+	if len(agentIDs) < 1 {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Could not resolve agents. Available: %s", ch.hub.getAgentListString())), nil
+	}
+	result, err := ch.hub.InstantiateDefinition(defID, 0, RunbookCreateRequest{
+		AgentIDs:  agentIDs,
+		Channel:   msg.Channel,
+		CreatedBy: msg.From.Name,
+		RunInputs: inputs,
+	})
+	if err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to instantiate runbook: %v", err)), nil
+	}
+	if _, err := ch.hub.SubmitRunbookForReview(result.CollaborationID); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to submit runbook: %v", err)), nil
+	}
+	if _, err := ch.hub.StartRunbook(result.CollaborationID, inputs); err != nil {
+		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ Failed to start runbook: %v", err)), nil
+	}
+	out := ch.systemResponse(msg.Channel, fmt.Sprintf("▶️ **Runbook run started** — `%s` from definition **%s** in #%s", result.CollaborationID[:8], defID, result.CollaborationChannel))
+	out.SetCollaborationID(result.CollaborationID)
+	return out, nil
+}
+
 // setCollabClientOnAgent sets the CollaborationClient on any agent type
 // that embeds the base Agent struct. It searches known agent registries.
 
@@ -733,10 +789,11 @@ func (ch *CommandHandler) handleCancelPlan(ctx context.Context, msg *protocol.Me
 		return ch.systemResponse(msg.Channel, "❌ Collaboration not found. Use /collab-status to see active collaborations."), nil
 	}
 
-	_, err := cm.CancelCollaboration(collabID)
+	snap, err := cm.CancelCollaboration(collabID)
 	if err != nil {
 		return ch.systemResponse(msg.Channel, fmt.Sprintf("❌ %v", err)), nil
 	}
+	ch.hub.syncRunbookRunIndex(snap)
 	ch.hub.cancelCollaborationRecaps(collabID)
 
 	out := ch.systemResponse(msg.Channel, fmt.Sprintf("🛑 **Collaboration Cancelled** (`%s`)", collabID[:8]))

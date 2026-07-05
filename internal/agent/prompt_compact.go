@@ -37,7 +37,7 @@ func (a *Agent) buildCompactOllamaPrompt(msg *protocol.Message) string {
 		system.WriteString("\n")
 	}
 	AppendUserAndAgentRules(&system, msg, &a.Info, ResolveUserRulesHubFallback(msg), compactUserRulesMarkdownBytes)
-	AppendMemoryForMessage(&system, msg, a.channelHistory(msg.Channel))
+	a.appendMemoryForMessage(&system, msg, a.channelHistory(msg.Channel))
 	AppendLearningsForMessage(&system, msg, &a.Info)
 
 	var user strings.Builder
@@ -82,6 +82,9 @@ func looksLikeOllamaPromptLeak(text string) bool {
 // ollamaFallbackProvider returns an alternate Ollama model when nj-bio fails.
 func ollamaFallbackProvider(eff ai.AIProvider, fallbackModel string) ai.AIProvider {
 	if fallbackModel == "" {
+		return nil
+	}
+	if _, ok := eff.(*ai.OllamaProvider); !ok {
 		return nil
 	}
 	type endpointGetter interface {

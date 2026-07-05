@@ -53,9 +53,9 @@ These items from the original roadmap have been completed:
 
 ### Multi-Repository Agents
 Single agent that understands multiple related repositories:
-- Cross-repo dependency tracking
-- Monorepo workspace support
-- Unified search across repos
+- Cross-repo dependency tracking — **partial** (lightweight `CROSS_REPO_HINTS` from go.mod/package.json/docker-compose)
+- Monorepo workspace support — **partial** (active + linked workspace scope; sub-root via repo agent path)
+- Unified search across repos — **shipped** (`repo_paths[]` semantic search + multi-repo `@codebase`)
 
 ### Semantic Code Search
 Go beyond text matching for repository agents:
@@ -74,7 +74,6 @@ See [ADAPTIVE-ORCHESTRATION-NOTES.md](ADAPTIVE-ORCHESTRATION-NOTES.md) — maps 
 
 Possible follow-ups (not scheduled):
 - **Scenario archetype demos** — “seven paths” narrative for marketing/onboarding (closure / memory / code / delegation / collab light / collab deep)
-- **Per-turn routing trace** — extend overlay with tier/governance fields beyond MVP
 
 ### Rate Limiting & Cost Management
 - Per-agent API cost tracking
@@ -86,7 +85,7 @@ Possible follow-ups (not scheduled):
 - ~~Re-enable Backend/DevOps/Database MCP tool servers~~ — **Done** (beta.8)
 - ~~Frontend, Security, Code Review, Architecture, Rust MCP servers~~ — **Done**
 - ~~Repo and Confluence in-process runtime search tools~~ — **Done**
-- Tool calling for LM Studio / OpenAI-compat providers (Ollama supported for BiologyExpert + MCP in v1; Claude also supported)
+- ~~Tool calling for LM Studio / OpenAI-compat providers~~ — **Done** (native OpenAI Chat Completions tool loop + ReAct fallback when native unsupported)
 
 ## Low Priority
 

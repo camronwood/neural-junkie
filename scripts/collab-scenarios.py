@@ -26,6 +26,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 from lib import collab_hub as hub  # noqa: E402
 from lib.fixture_cleanup import preflight_regression_run  # noqa: E402
+from lib.hub_config import env_or_automation_bool  # noqa: E402
 from lib.hub_regression import ensure_hub_with_recovery  # noqa: E402
 from lib.regression_boot import maybe_boot_regression  # noqa: E402
 from lib.release_prep_env import release_prep_env  # noqa: E402
@@ -37,6 +38,7 @@ from lib.scenario_assert import (  # noqa: E402
     merge_deliverable_step,
     scenario_question,
 )
+from lib.workspace_context import build_workspace_context_for_path  # noqa: E402
 
 SCENARIOS_DIR = ROOT / "scenarios" / "collab"
 DEFAULT_CHANNEL = "collab-scenarios"
@@ -68,14 +70,11 @@ class ScenarioContext:
             return None
         ws_cfg = scenario_workspace(self.scenario) or {}
         outline = ws_cfg.get("outline", True)
-        meta: dict[str, Any] = {
-            "workspace_context": {
-                "workspace_name": Path(path).name,
-                "workspace_path": path,
-                "file_tree": ws_cfg.get("file_tree") or "README.md\ncore/sample/main.go\n",
-                "open_files": [],
-            },
-        }
+        ctx = build_workspace_context_for_path(path, self.scenario)
+        # Outline sends never include open-file bodies — avoids session/desktop bleed.
+        if outline or ws_cfg.get("workspace_flag"):
+            ctx["open_files"] = []
+        meta: dict[str, Any] = {"workspace_context": ctx}
         if outline or ws_cfg.get("workspace_flag"):
             meta["context_scope"] = "outline"
         meta["collab_source_mode"] = "path"
@@ -753,7 +752,7 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
     expect_rel = (step.get("expect_path") or target_rel or "").replace("<collab-id>", ctx.collab_id)
     require_hub = bool(step.get("require_hub_approval", False))
     allow_fallback = bool(step.get("from_discussion_fallback", False))
-    if os.environ.get("NJ_SCENARIO_ALLOW_FILE_FALLBACK", "").strip() in ("1", "true", "yes"):
+    if env_or_automation_bool("NJ_SCENARIO_ALLOW_FILE_FALLBACK", "scenario_allow_file_fallback", False):
         allow_fallback = True
 
     n, ids = hub.wait_and_approve_file_changes(

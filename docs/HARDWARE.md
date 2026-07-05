@@ -145,7 +145,6 @@ Public tracker: [KNOWN_ISSUES.md](KNOWN_ISSUES.md) · [known-issues.html](known-
 | `collab-model-variance` | Optional **planning provider** in Settings; 14B+ local or cloud recommended |
 | `hub-history-bounded` | Export + durable channel toggle; 5000 msg cap remains |
 | `collab-model-variance` | Local models vary in collaboration quality and timeouts |
-| `lmstudio-tools` | MCP tool calling strongest on Ollama and Claude |
 | `single-hub` | Single-server — no horizontal scale |
 | `web-ui-thin` | Browser hub UI is chat-only — use desktop for full workspace |
 

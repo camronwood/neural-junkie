@@ -19,19 +19,23 @@ func resolveListenAddr(flagAddr string, cfg *config.Config) string {
 	if flagAddr != ":18765" {
 		return flagAddr
 	}
+	if cfg == nil {
+		cfg = config.DefaultConfig()
+	}
+	srv := cfg.ResolvedServer()
 	host := "127.0.0.1"
-	if cfg != nil && strings.TrimSpace(cfg.Server.Host) != "" {
-		host = strings.TrimSpace(cfg.Server.Host)
+	if h := strings.TrimSpace(srv.Host); h != "" {
+		host = h
 		if strings.EqualFold(host, "localhost") {
 			host = "127.0.0.1"
 		}
 	}
-	if os.Getenv("NEURAL_JUNKIE_LISTEN_ALL") == "1" {
+	if srv.ListenAll {
 		host = "0.0.0.0"
 	}
-	port := 18765
-	if cfg != nil && cfg.Server.Port != 0 {
-		port = cfg.Server.Port
+	port := srv.Port
+	if port <= 0 {
+		port = 18765
 	}
 	return net.JoinHostPort(host, strconv.Itoa(port))
 }
@@ -52,7 +56,8 @@ func hubPublicHost(listenAddr string) string {
 }
 
 func corsAllowsOrigin(origin string) bool {
-	if os.Getenv("NEURAL_JUNKIE_CORS_ANY") == "1" {
+	srv := config.AppConfig().ResolvedServer()
+	if srv.CorsAny || os.Getenv("NEURAL_JUNKIE_CORS_ANY") == "1" {
 		return true
 	}
 	if origin == "" {
@@ -73,6 +78,11 @@ func corsAllowsOrigin(origin string) bool {
 	// Tauri / Vite dev
 	if host == "localhost" && (u.Port() == "1420" || u.Port() == "5173") {
 		return true
+	}
+	for _, extra := range srv.CorsOrigins {
+		if strings.TrimSpace(extra) == origin {
+			return true
+		}
 	}
 	for _, extra := range strings.Split(os.Getenv("NEURAL_JUNKIE_CORS_ORIGINS"), ",") {
 		if strings.TrimSpace(extra) == origin {

@@ -7,17 +7,24 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/protocol"
+	"github.com/camronwood/neural-junkie/internal/runbooklibrary"
+	"github.com/camronwood/neural-junkie/internal/runbookruns"
 )
 
 // RunbookCreateRequest is the JSON body for POST /api/runbooks.
 type RunbookCreateRequest struct {
-	Description    string                         `json:"description"`
-	AgentIDs       []string                       `json:"agent_ids"`
-	Channel        string                         `json:"channel"`
-	CreatedBy      string                         `json:"created_by"`
-	Tasks          []collaboration.CollaborationTask `json:"tasks,omitempty"`
-	ExecutionMode  string                         `json:"execution_mode,omitempty"`
-	SourceRepoPath string                         `json:"source_repo_path,omitempty"`
+	Description        string                            `json:"description"`
+	AgentIDs           []string                          `json:"agent_ids"`
+	Channel            string                            `json:"channel"`
+	CreatedBy          string                            `json:"created_by"`
+	Tasks              []collaboration.CollaborationTask `json:"tasks,omitempty"`
+	ExecutionMode      string                            `json:"execution_mode,omitempty"`
+	SourceRepoPath     string                            `json:"source_repo_path,omitempty"`
+	DefinitionID       string                            `json:"definition_id,omitempty"`
+	DefinitionVersion  int                               `json:"definition_version,omitempty"`
+	RunInputs          map[string]string                 `json:"run_inputs,omitempty"`
+	GraphLayout        collaboration.GraphLayout         `json:"graph_layout,omitempty"`
+	ExecutionPolicy    *collaboration.ExecutionPolicy    `json:"execution_policy,omitempty"`
 }
 
 // RunbookCreateResult is returned when a runbook is created.
@@ -106,7 +113,7 @@ func (h *Hub) SubmitRunbookForReview(collabID string) (*collaboration.Collaborat
 }
 
 // StartRunbook approves and transitions to executing (same as /approve-plan).
-func (h *Hub) StartRunbook(collabID string) (*collaboration.Collaboration, error) {
+func (h *Hub) StartRunbook(collabID string, inputs map[string]string) (*collaboration.Collaboration, error) {
 	if h.collabManager == nil {
 		return nil, fmt.Errorf("collaboration manager unavailable")
 	}
@@ -120,14 +127,22 @@ func (h *Hub) StartRunbook(collabID string) (*collaboration.Collaboration, error
 	if c.Phase != collaboration.PhaseReviewing && c.Phase != collaboration.PhaseApproved {
 		return nil, fmt.Errorf("runbook must be in reviewing phase to start (current: %s)", c.Phase)
 	}
+	if inputs != nil {
+		merged := inputs
+		if c.DefinitionID != "" {
+			if def, err := runbooklibrary.LoadDefinition(c.DefinitionID, c.DefinitionVersion, h.GetCollaborationAssetsRoot(), h.packRunbookDefinitions()); err == nil {
+				merged = runbooklibrary.MergeInputDefaults(def, inputs)
+				if warns := runbooklibrary.ValidateDefinition(def, merged); len(warns) > 0 {
+					log.Printf("[Runbook] start validation warnings for %s: %v", shortCollabID(collabID), warns)
+				}
+				tasks := runbooklibrary.ApplyInputsToTasks(c.Tasks, c, merged)
+				_, _ = h.collabManager.UpdateRunbook(collabID, collaboration.RunbookUpdatePayload{Tasks: tasks})
+			}
+		}
+		_ = h.collabManager.SetRunMetadata(collabID, c.DefinitionID, c.DefinitionVersion, c.RunNumber, merged)
+	}
 	if _, err := h.collabManager.ApprovePlan(collabID); err != nil {
 		return nil, err
-	}
-	if len(c.Tasks) == 0 {
-		snap, _ := h.collabManager.GetCollaborationSnapshot(collabID)
-		if snap != nil && len(snap.Tasks) > 0 {
-			// tasks already set
-		}
 	}
 	if _, err := h.collabManager.TransitionToExecuting(collabID); err != nil {
 		return nil, err
@@ -135,7 +150,54 @@ func (h *Hub) StartRunbook(collabID string) (*collaboration.Collaboration, error
 	if _, err := h.collabManager.EnsureExecutionTasks(collabID); err != nil {
 		log.Printf("[Runbook] EnsureExecutionTasks for %s: %v", shortCollabID(collabID), err)
 	}
+	snap, _ := h.collabManager.GetCollaborationSnapshot(collabID)
+	if snap != nil {
+		_ = runbookruns.AppendRun(runbookruns.RunRecord{
+			ID: snap.ID, DefinitionID: snap.DefinitionID, DefinitionVersion: snap.DefinitionVersion,
+			RunNumber: snap.RunNumber, Phase: string(snap.Phase), Channel: snap.Channel, Title: snap.Title,
+		})
+	}
 	return h.finalizeCollaborationExecutionStart(collabID, "✅ **Runbook execution started**")
+}
+
+// InstantiateDefinition creates a draft runbook from a library definition.
+func (h *Hub) InstantiateDefinition(defID string, version int, req RunbookCreateRequest) (*RunbookCreateResult, error) {
+	def, err := runbooklibrary.LoadDefinition(defID, version, h.GetCollaborationAssetsRoot(), h.packRunbookDefinitions())
+	if err != nil {
+		return nil, err
+	}
+	inputs := runbooklibrary.MergeInputDefaults(def, req.RunInputs)
+	if len(req.AgentIDs) == 0 && len(def.AgentIDs) > 0 {
+		req.AgentIDs = def.AgentIDs
+	}
+	if req.Description == "" {
+		req.Description = def.Description
+	}
+	tasks := runbooklibrary.ApplyInputsToTasks(def.Tasks, nil, inputs)
+	req.Tasks = tasks
+	req.DefinitionID = def.ID
+	req.DefinitionVersion = def.Version
+	req.RunInputs = inputs
+	if def.GraphLayout != nil {
+		req.GraphLayout = def.GraphLayout
+	}
+	if def.ExecutionPolicy != (collaboration.ExecutionPolicy{}) {
+		pol := def.ExecutionPolicy
+		req.ExecutionPolicy = &pol
+	}
+	result, err := h.CreateRunbookSession(req)
+	if err != nil {
+		return nil, err
+	}
+	runNum, _ := runbookruns.NextRunNumber(def.ID)
+	_ = h.collabManager.SetRunMetadata(result.CollaborationID, def.ID, def.Version, runNum, inputs)
+	if req.GraphLayout != nil || req.ExecutionPolicy != nil {
+		_, _ = h.UpdateRunbookSession(result.CollaborationID, collaboration.RunbookUpdatePayload{
+			GraphLayout:     req.GraphLayout,
+			ExecutionPolicy: req.ExecutionPolicy,
+		})
+	}
+	return result, nil
 }
 
 // finalizeCollaborationExecutionStart auto-acks when allowed, dispatches ready tasks,

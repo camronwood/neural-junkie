@@ -185,7 +185,8 @@ export async function mergeCodebaseAttachments(
   api: ChatAPI,
   content: string,
   repoPath: string | undefined,
-  metadata: Record<string, unknown>
+  metadata: Record<string, unknown>,
+  repoPaths?: string[]
 ): Promise<Record<string, unknown>> {
   let next = { ...metadata };
   const fileRefs = parseFileFolderAttachments(content);
@@ -198,12 +199,14 @@ export async function mergeCodebaseAttachments(
     }
     next = { ...next, [PROMPT_ATTACHMENTS_METADATA_KEY]: existing };
   }
-  if (!messageRequestsCodebase(content) || !repoPath?.trim()) {
+  const paths = (repoPaths ?? []).filter((p) => p?.trim()).map((p) => p.trim());
+  const searchPaths = paths.length > 0 ? paths : repoPath?.trim() ? [repoPath.trim()] : [];
+  if (!messageRequestsCodebase(content) || searchPaths.length === 0) {
     return next;
   }
   try {
     const { chunks } = await api.repoSemanticSearch({
-      repoPath,
+      repoPaths: searchPaths,
       query: content.replace(/@codebase\b/gi, '').trim(),
       limit: 6,
     });
@@ -211,7 +214,13 @@ export async function mergeCodebaseAttachments(
       ? [...(next[PROMPT_ATTACHMENTS_METADATA_KEY] as unknown[])]
       : [];
     for (const ch of chunks) {
-      existing.push({ type: 'codebase_chunk', path: ch.path, content: ch.content });
+      existing.push({
+        type: 'codebase_chunk',
+        path: ch.path,
+        content: ch.content,
+        repo_path: ch.repo_path,
+        repo_name: ch.repo_name,
+      });
     }
     if (existing.length > 0) {
       return { ...next, [PROMPT_ATTACHMENTS_METADATA_KEY]: existing };

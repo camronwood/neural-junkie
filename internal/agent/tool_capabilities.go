@@ -125,13 +125,15 @@ func (a *Agent) effectiveToolLoopRouting(eff ai.AIProvider) (model string, usesF
 	if providerSupportsTools(eff) {
 		return chatModel, false, "native"
 	}
-	if reactToolsEnabledForModel(chatModel) {
+	if shouldUseReActForProvider(eff, chatModel) {
 		return chatModel, false, "react"
 	}
-	fallbackModel := domainToolFallbackModel(a.Info.Type)
-	toolEff := toolCapableProviderForDescribe(eff, fallbackModel)
-	if toolEff != nil && providerSupportsTools(toolEff) {
-		return modelNameFromProvider(toolEff), modelNameFromProvider(toolEff) != chatModel, "fallback"
+	if isOllamaProvider(eff) {
+		fallbackModel := domainToolFallbackModel(a.Info.Type)
+		toolEff := toolCapableProviderForDescribe(eff, fallbackModel)
+		if toolEff != nil && providerSupportsTools(toolEff) {
+			return modelNameFromProvider(toolEff), modelNameFromProvider(toolEff) != chatModel, "fallback"
+		}
 	}
 	return chatModel, false, ""
 }
@@ -141,8 +143,11 @@ func toolCapableProviderForDescribe(eff ai.AIProvider, fallbackModel string) ai.
 		return eff
 	}
 	chatModel := modelNameFromProvider(eff)
-	if reactToolsEnabledForModel(chatModel) {
+	if shouldUseReActForProvider(eff, chatModel) {
 		return ai.NewReActToolProvider(eff)
+	}
+	if !isOllamaProvider(eff) {
+		return eff
 	}
 	if fallbackModel == "" {
 		fallbackModel = ai.OllamaBiologyFallbackModel

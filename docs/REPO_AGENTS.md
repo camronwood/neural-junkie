@@ -381,7 +381,7 @@ For monorepos, create separate agents for different packages:
 
 Current limitations (see FUTURE_ENHANCEMENTS.md for planned improvements):
 
-1. **Single Repository**: Each agent knows about one repository only
+1. **Multi-repository scope**: Agents use the **active workspace** plus **linked workspaces** (open editor tabs and optional Project Sets). Use Project Sets in the workspace bar to persist a frontend + API + infra group. `@codebase` and repo consult fan out across scoped repos with repo-labeled results.
 2. **Static Analysis**: No code execution or runtime analysis
 3. **No File Modification**: Agents provide guidance but don't modify code
 4. **English Only**: Primarily designed for English-language code and documentation

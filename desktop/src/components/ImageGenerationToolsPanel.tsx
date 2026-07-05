@@ -61,6 +61,64 @@ export function ImageGenerationToolsPanel({ hubHttp, isActive }: ImageGeneration
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const [configForm, setConfigForm] = useState({
+    provider: 'ollama',
+    model: '',
+    ollama_model: '',
+    openai_base_url: '',
+    openai_api_key: '',
+    keep_alive: '',
+  });
+  const [configSaving, setConfigSaving] = useState(false);
+
+  const loadConfig = useCallback(async () => {
+    try {
+      const r = await fetch(`${hubHttp}/api/image-gen/config`);
+      if (!r.ok) return;
+      const data = await r.json();
+      setConfigForm({
+        provider: String(data.provider ?? 'ollama'),
+        model: String(data.model ?? ''),
+        ollama_model: String(data.ollama_model ?? ''),
+        openai_base_url: String(data.openai_base_url ?? ''),
+        openai_api_key: '',
+        keep_alive: String(data.keep_alive ?? ''),
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [hubHttp]);
+
+  const saveConfig = async () => {
+    setConfigSaving(true);
+    setError(null);
+    try {
+      const body: Record<string, string> = {
+        provider: configForm.provider,
+        model: configForm.model,
+        ollama_model: configForm.ollama_model,
+        openai_base_url: configForm.openai_base_url,
+        keep_alive: configForm.keep_alive,
+      };
+      if (configForm.openai_api_key.trim()) {
+        body.openai_api_key = configForm.openai_api_key.trim();
+      }
+      const r = await fetch(`${hubHttp}/api/image-gen/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setOk('Image generation settings saved.');
+      await refresh();
+      await loadConfig();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConfigSaving(false);
+    }
+  };
+
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -77,7 +135,8 @@ export function ImageGenerationToolsPanel({ hubHttp, isActive }: ImageGeneration
   useEffect(() => {
     if (!isActive) return;
     void refresh();
-  }, [isActive, refresh]);
+    void loadConfig();
+  }, [isActive, refresh, loadConfig]);
 
   const runPull = async () => {
     if (!status?.model) return;
@@ -232,10 +291,54 @@ export function ImageGenerationToolsPanel({ hubHttp, isActive }: ImageGeneration
       )}
       {status?.provider === 'openai' && !status.ready && (
         <p className="mt-3 text-xs text-slack-textMuted">
-          Set <code className="font-mono">OPENAI_API_KEY</code> and restart the hub, or switch to
-          local Ollama by unsetting <code className="font-mono">NEURAL_JUNKIE_IMAGE_PROVIDER</code>.
+          Configure OpenAI API key in Settings below, or switch provider to Ollama.
         </p>
       )}
+
+      <div className="mt-4 border-t border-slack-border pt-4 space-y-2">
+        <h4 className="text-sm font-medium text-slack-text">Configuration</h4>
+        <label className="block text-xs">
+          <span className="text-slack-textMuted">Provider (ollama, openai, none)</span>
+          <input
+            className="mt-1 w-full px-2 py-1 rounded border border-slack-border bg-slack-bg text-slack-text font-mono text-sm"
+            value={configForm.provider}
+            onChange={(e) => setConfigForm((f) => ({ ...f, provider: e.target.value }))}
+          />
+        </label>
+        <label className="block text-xs">
+          <span className="text-slack-textMuted">Model</span>
+          <input
+            className="mt-1 w-full px-2 py-1 rounded border border-slack-border bg-slack-bg text-slack-text font-mono text-sm"
+            value={configForm.model}
+            onChange={(e) => setConfigForm((f) => ({ ...f, model: e.target.value }))}
+          />
+        </label>
+        <label className="block text-xs">
+          <span className="text-slack-textMuted">Ollama image model</span>
+          <input
+            className="mt-1 w-full px-2 py-1 rounded border border-slack-border bg-slack-bg text-slack-text font-mono text-sm"
+            value={configForm.ollama_model}
+            onChange={(e) => setConfigForm((f) => ({ ...f, ollama_model: e.target.value }))}
+          />
+        </label>
+        <label className="block text-xs">
+          <span className="text-slack-textMuted">OpenAI API key (blank = keep current)</span>
+          <input
+            type="password"
+            className="mt-1 w-full px-2 py-1 rounded border border-slack-border bg-slack-bg text-slack-text font-mono text-sm"
+            value={configForm.openai_api_key}
+            onChange={(e) => setConfigForm((f) => ({ ...f, openai_api_key: e.target.value }))}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={configSaving || busy}
+          onClick={() => void saveConfig()}
+          className="rounded bg-slack-accent px-4 py-2 text-sm text-white hover:bg-slack-accentHover disabled:opacity-50"
+        >
+          {configSaving ? 'Saving…' : 'Save image settings'}
+        </button>
+      </div>
     </div>
   );
 }

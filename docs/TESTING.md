@@ -226,14 +226,26 @@ make collab-scenarios-all 2>&1 | tee /tmp/nj-collab-sweep-$(date +%F).log
 
 `PROFILE=fast` only substitutes agents when a scenario JSON **omits** the `agents` field; it does not shorten timeouts.
 
-### Per-scenario agent requirements (all 15)
+### Full completion vs partial execution
+
+Most collab scenarios stop after **partial execution** (`min_completed: 1`, `settle_only`, or file assertions) and the harness tears down with `cleanup: cancel`. A smaller **completion tier** runs through `/complete-collab --force` and asserts `phase: completed` before cleanup:
+
+| Scenario | In `collab-scenario-regression` | Completion |
+|----------|--------------------------------|------------|
+| `collab-minimal-completion-regression` | Yes (first) | Full — fast single-agent minimal-repo |
+| `execute-deliverable` | Yes | Full — canonical fixture execution |
+| `document-findings-execution` | Yes | Full — "Document findings" phrasing |
+| `phoenix-resource-api-e2e` | `collab-scenarios-all` only | Full — multi-agent Phoenix stress test |
+
+### Per-scenario agent requirements (all 25)
 
 | Scenario | Required agents | Notes |
 |----------|-----------------|-------|
 | `planning-two-agent` | (profile default: 2+ online) | No pinned roster |
-| `delivery-sandbox-auto-ack` | (profile default) | |
-| `execute-deliverable` | (profile default) | |
-| `document-findings-execution` | (profile default) | |
+| `delivery-sandbox-auto-ack` | (profile default) | Partial execution |
+| `collab-minimal-completion-regression` | Assistant, BackendEngineer | Full completion (`minimal-repo`; fast two-agent roster) |
+| `execute-deliverable` | Assistant, BackendEngineer | Full completion |
+| `document-findings-execution` | Assistant, BackendEngineer | Full completion |
 | `reject-collabs-subfolder` | (profile default) | |
 | `solo-vs-collab-parity` | Assistant | Solo leg auto-approves file proposals |
 | `multi-collab-isolation` | (profile default) | Blocker setup uses fast agents |
@@ -243,7 +255,7 @@ make collab-scenarios-all 2>&1 | tee /tmp/nj-collab-sweep-$(date +%F).log
 | `plan-dependency-prose-regression` | BackendEngineer, SoftwareArchitect, PlatformEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
 | `resource-api-schema-regression` | Assistant, BackendEngineer, FrontendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
 | `resource-api-schema-planning` | Assistant, **Gemini**, PlatformEngineer | Gemini CLI agent |
-| `phoenix-resource-api-e2e` | Assistant, SoftwareArchitect, BackendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `phoenix-resource-api-e2e` | Assistant, SoftwareArchitect, BackendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO`; full completion |
 | `execution-no-stack-commands` | Assistant, PlatformEngineer | |
 
 Sweep logs: [testing/collab-sweep-2026-06-02.md](testing/collab-sweep-2026-06-02.md).

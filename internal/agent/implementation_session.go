@@ -919,7 +919,7 @@ func (a *Agent) generateImplementationRound(ctx context.Context, msg *protocol.M
 	}
 
 	history := a.conversationHistoryForIntent(msg, intent)
-	prompt = appendPriorReferenceGuidance(prompt, msg, history, a.Info.ID)
+	prompt = a.appendPriorReferenceGuidance(prompt, msg, history)
 	prompt, _ = applyContextBudgetForMessage(msg, prompt)
 
 	approvalCtx := ai.WithToolApprovalChannel(ctx, msg.Channel)

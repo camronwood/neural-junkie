@@ -37,7 +37,7 @@ func TestFailRunPolicyCancelsOnBlockedTaskReply(t *testing.T) {
 	if _, err := h.SubmitRunbookForReview(result.CollaborationID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.StartRunbook(result.CollaborationID); err != nil {
+	if _, err := h.StartRunbook(result.CollaborationID, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.AcknowledgeCollaborationWorkspace(result.CollaborationID, ""); err != nil {

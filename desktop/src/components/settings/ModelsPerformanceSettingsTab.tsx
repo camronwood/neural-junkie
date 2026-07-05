@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { type SettingsTabProps } from './settingsShared';
+import { putSystemSecurity, type SettingsTabProps } from './settingsShared';
 import { useHubSettingsSnapshot } from './useHubSettingsSnapshot';
 
 export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
@@ -31,6 +31,16 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
   });
   const [perfSaving, setPerfSaving] = useState(false);
   const [perfFeedback, setPerfFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [sessionSummary, setSessionSummary] = useState({ model: '', timeout_seconds: 90 });
+  const [sessionSummarySaving, setSessionSummarySaving] = useState(false);
+  const [sessionSummaryFeedback, setSessionSummaryFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [miscForm, setMiscForm] = useState({
+    legacy_file_change_parse: false,
+    catalog_url: '',
+    capability_profiles_path: '',
+  });
+  const [miscSaving, setMiscSaving] = useState(false);
+  const [miscFeedback, setMiscFeedback] = useState<{ success: boolean; message: string } | null>(null);
 
   const { config, save, reload } = useHubSettingsSnapshot(hubHttp, isActive);
 
@@ -75,7 +85,40 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
       ollamaNumPredict: typeof ollamaCfg?.num_predict === 'number' ? ollamaCfg.num_predict : 0,
       ollamaKeepAlive: typeof ollamaCfg?.keep_alive === 'string' ? ollamaCfg.keep_alive : '',
     });
+    const features = config.features as Record<string, unknown> | undefined;
+    const packs = config.packs as Record<string, unknown> | undefined;
+    const routing = config.routing as Record<string, unknown> | undefined;
+    setMiscForm({
+      legacy_file_change_parse: features?.legacy_file_change_parse === true,
+      catalog_url: typeof packs?.catalog_url === 'string' ? packs.catalog_url : '',
+      capability_profiles_path:
+        typeof routing?.capability_profiles_path === 'string' ? routing.capability_profiles_path : '',
+    });
   }, [isActive, config]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${hubHttp}/api/system/security`);
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        const ss = data.session_summary ?? {};
+        if (!cancelled) {
+          setSessionSummary({
+            model: String(ss.model ?? ''),
+            timeout_seconds: Number(ss.timeout_seconds ?? 90),
+          });
+        }
+      } catch {
+        /* hub offline */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, hubHttp]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -141,6 +184,57 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
       });
     } finally {
       setPerfSaving(false);
+    }
+  };
+
+  const saveSessionSummarySettings = async () => {
+    setSessionSummarySaving(true);
+    setSessionSummaryFeedback(null);
+    try {
+      await putSystemSecurity(hubHttp, {
+        session_summary: {
+          model: sessionSummary.model.trim(),
+          timeout_seconds: sessionSummary.timeout_seconds || 90,
+        },
+      });
+      setSessionSummaryFeedback({ success: true, message: 'Session summary settings saved.' });
+    } catch (e) {
+      setSessionSummaryFeedback({
+        success: false,
+        message: e instanceof Error ? e.message : 'Failed to save session summary settings',
+      });
+    } finally {
+      setSessionSummarySaving(false);
+    }
+  };
+
+  const saveMiscSettings = async () => {
+    setMiscSaving(true);
+    setMiscFeedback(null);
+    try {
+      await save((cfg) => ({
+        ...cfg,
+        features: {
+          ...(typeof cfg.features === 'object' && cfg.features ? cfg.features : {}),
+          legacy_file_change_parse: miscForm.legacy_file_change_parse,
+        },
+        packs: {
+          ...(typeof cfg.packs === 'object' && cfg.packs ? cfg.packs : {}),
+          catalog_url: miscForm.catalog_url.trim(),
+        },
+        routing: {
+          ...(typeof cfg.routing === 'object' && cfg.routing ? cfg.routing : {}),
+          capability_profiles_path: miscForm.capability_profiles_path.trim(),
+        },
+      }));
+      setMiscFeedback({ success: true, message: 'Advanced hub settings saved.' });
+    } catch (e) {
+      setMiscFeedback({
+        success: false,
+        message: e instanceof Error ? e.message : 'Failed to save advanced settings',
+      });
+    } finally {
+      setMiscSaving(false);
     }
   };
 
@@ -532,6 +626,120 @@ export function ModelsPerformanceSettingsTab({ hubHttp, isActive }: SettingsTabP
         className="mt-4 w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
       >
         {perfSaving ? 'Saving…' : 'Save performance settings'}
+      </button>
+    </div>
+{/* Session summary */}
+    <div className="border border-slack-border rounded-lg p-6">
+      <h3 className="text-lg font-semibold text-slack-text mb-2">Session summary</h3>
+      <p className="text-sm text-slack-textMuted mb-4">
+        Async hub summaries after long sessions. Leave model empty to use the default Ollama tag.
+      </p>
+      {sessionSummaryFeedback && (
+        <div
+          className={`mb-4 p-3 rounded text-sm ${
+            sessionSummaryFeedback.success
+              ? 'bg-green-100 text-green-800 border border-green-200'
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}
+        >
+          {sessionSummaryFeedback.message}
+        </div>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm text-slack-text">
+          Summary model (Ollama tag)
+          <input
+            type="text"
+            value={sessionSummary.model}
+            onChange={(e) => setSessionSummary((p) => ({ ...p, model: e.target.value }))}
+            placeholder="qwen2.5:7b"
+            className="mt-1 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded font-mono text-sm"
+          />
+        </label>
+        <label className="block text-sm text-slack-text">
+          Timeout (seconds)
+          <input
+            type="number"
+            min={30}
+            max={600}
+            value={sessionSummary.timeout_seconds}
+            onChange={(e) =>
+              setSessionSummary((p) => ({
+                ...p,
+                timeout_seconds: Math.max(30, Math.min(600, Number(e.target.value) || 90)),
+              }))
+            }
+            className="mt-1 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded"
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        disabled={sessionSummarySaving}
+        onClick={() => void saveSessionSummarySettings()}
+        className="mt-4 w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+      >
+        {sessionSummarySaving ? 'Saving…' : 'Save session summary'}
+      </button>
+    </div>
+{/* Advanced hub misc */}
+    <div className="border border-slack-border rounded-lg p-6">
+      <h3 className="text-lg font-semibold text-slack-text mb-2">Advanced hub settings</h3>
+      <p className="text-sm text-slack-textMuted mb-4">
+        Packs catalog URL, capability profiles path, and legacy file-change parsing.
+      </p>
+      {miscFeedback && (
+        <div
+          className={`mb-4 p-3 rounded text-sm ${
+            miscFeedback.success
+              ? 'bg-green-100 text-green-800 border border-green-200'
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}
+        >
+          {miscFeedback.message}
+        </div>
+      )}
+      <div className="space-y-4">
+        <label className="flex items-center gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={miscForm.legacy_file_change_parse}
+            onChange={(e) =>
+              setMiscForm((p) => ({ ...p, legacy_file_change_parse: e.target.checked }))
+            }
+          />
+          Legacy file-change parse (compatibility mode)
+        </label>
+        <label className="block text-sm text-slack-text">
+          Packs catalog URL
+          <input
+            type="text"
+            value={miscForm.catalog_url}
+            onChange={(e) => setMiscForm((p) => ({ ...p, catalog_url: e.target.value }))}
+            placeholder="https://…"
+            className="mt-1 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded font-mono text-xs"
+          />
+        </label>
+        <label className="block text-sm text-slack-text">
+          Capability profiles path
+          <input
+            type="text"
+            value={miscForm.capability_profiles_path}
+            onChange={(e) =>
+              setMiscForm((p) => ({ ...p, capability_profiles_path: e.target.value }))
+            }
+            placeholder="/path/to/profiles.json"
+            className="mt-1 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded font-mono text-xs"
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        disabled={miscSaving}
+        onClick={() => void saveMiscSettings()}
+        className="mt-4 w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+      >
+        {miscSaving ? 'Saving…' : 'Save advanced hub settings'}
       </button>
     </div>
     </div>

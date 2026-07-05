@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -566,6 +567,15 @@ func (a *Agent) runAgentToolLoop(
 	}
 
 	text, err := toolProvider.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+	if errors.Is(err, ai.ErrNativeToolsUnsupported) {
+		if react := wrapReActProvider(a, chatEff, chatEff.GetModel()); react != nil {
+			a.broadcastRoutingTelemetry(msg)
+			if tp, ok := react.(ai.ToolCapableProvider); ok {
+				return tp.GenerateResponseWithTools(withWebSearchGuard(ctx), prompt, histMsgs, tools, onToolUse)
+			}
+		}
+		return "", err
+	}
 	if err != nil && ai.IsReActToolLoopError(err) {
 		if fb := a.ollamaToolSwapProvider(ctx, chatEff); fb != nil {
 			if tp, ok := fb.(ai.ToolCapableProvider); ok && tp.SupportsTools() {

@@ -33,6 +33,7 @@ var (
 	}
 	chatHub             *hub.Hub
 	workspaceManager    *hub.WorkspaceManager
+	projectSetManager   *hub.ProjectSetManager
 	workspaceBackendResolver *workspacebackend.Resolver
 	lspManager          *lspserver.Manager
 	appConfig           *config.Config
@@ -113,8 +114,10 @@ func main() {
 
 	// Resolve bind address (loopback by default; see docs/SECURITY.md)
 	*addr = resolveListenAddr(*addr, appConfig)
-	if os.Getenv("NEURAL_JUNKIE_LISTEN_ALL") == "1" && !hub.HubTokenConfigured() {
-		if os.Getenv("NEURAL_JUNKIE_DEBUG") == "1" || hub.RelaxedLocal() {
+	config.SetAppConfig(appConfig)
+	sec := appConfig.ResolvedSecurity()
+	if sec.ListenAll && !hub.HubTokenConfigured() {
+		if appConfig.ResolvedDebug().Enabled || hub.RelaxedLocal() {
 			log.Printf("⚠️  NEURAL_JUNKIE_LISTEN_ALL=1 without NEURAL_JUNKIE_HUB_TOKEN — hub is exposed on the LAN without network auth")
 		} else {
 			log.Fatal("NEURAL_JUNKIE_LISTEN_ALL=1 requires NEURAL_JUNKIE_HUB_TOKEN (set a shared secret before binding 0.0.0.0)")
@@ -162,7 +165,8 @@ func main() {
 
 	sessionPath := hub.DefaultSessionPath()
 	log.Printf("💾 Session will be saved to: %s", sessionPath)
-	restoreLastSession := os.Getenv("NEURAL_JUNKIE_RESTORE_LAST_SESSION") == "1"
+	sessCfg := appConfig.ResolvedSession()
+	restoreLastSession := sessCfg.RestoreOnStartup
 	if !restoreLastSession {
 		if fi, err := os.Stat(sessionPath); err == nil {
 			log.Printf("🧹 Resetting previous session on startup: removing %s (%.1f MiB)", sessionPath, float64(fi.Size())/(1024*1024))
@@ -172,7 +176,7 @@ func main() {
 		} else if !os.IsNotExist(err) {
 			log.Printf("⚠️  Failed to stat previous session file %s: %v", sessionPath, err)
 		}
-		log.Printf("💾 Previous session restore is disabled by default; starting with a fresh session (set NEURAL_JUNKIE_RESTORE_LAST_SESSION=1 to restore once)")
+		log.Printf("💾 Previous session restore is disabled by default; starting with a fresh session (enable in Settings → Server & network)")
 	} else if fi, err := os.Stat(sessionPath); err == nil {
 		log.Printf("💾 Session file on disk: %.1f MiB", float64(fi.Size())/(1024*1024))
 		if fi.Size() > 200*1024*1024 {
@@ -183,8 +187,8 @@ func main() {
 	}
 	sessionRestored := false
 	if restoreLastSession {
-		if os.Getenv("NEURAL_JUNKIE_SKIP_SESSION_RESTORE") == "1" {
-			log.Printf("⚠️  NEURAL_JUNKIE_SKIP_SESSION_RESTORE: not loading last-session.json (hub starts with default channels only)")
+		if sessCfg.SkipRestoreOnce {
+			log.Printf("⚠️  skip_restore_once: not loading last-session.json (hub starts with default channels only)")
 		} else if err := chatHub.LoadSessionFromFile(sessionPath); err != nil {
 			log.Printf("⚠️  Failed to restore previous session: %v", err)
 		} else {
@@ -199,6 +203,10 @@ func main() {
 	workspaceManager, err = hub.NewWorkspaceManager()
 	if err != nil {
 		log.Fatal("Failed to initialize workspace manager:", err)
+	}
+	projectSetManager, err = hub.NewProjectSetManager()
+	if err != nil {
+		log.Printf("Warning: project set manager unavailable: %v", err)
 	}
 	workspaceBackendResolver = workspacebackend.NewResolver(hubWorkspaceSource{m: workspaceManager})
 	lspManager = lspserver.NewManager()

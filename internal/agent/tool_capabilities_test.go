@@ -35,6 +35,37 @@ func TestEffectiveToolLoopModelQwenNoFallback(t *testing.T) {
 	}
 }
 
+func TestEffectiveToolLoopModelLMStudioNative(t *testing.T) {
+	eff := ai.NewLMStudioProviderWithConfig("http://localhost:1234/v1", "qwen2.5-7b-instruct")
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBiology}}
+	model, fallback, mode := a.effectiveToolLoopRouting(eff)
+	if fallback {
+		t.Fatal("expected no fallback for LM Studio native")
+	}
+	if mode != "native" {
+		t.Fatalf("expected native mode, got %q", mode)
+	}
+	if model != "qwen2.5-7b-instruct" {
+		t.Fatalf("got model %q", model)
+	}
+}
+
+func TestEffectiveToolLoopModelLMStudioReact(t *testing.T) {
+	eff := ai.NewLMStudioProviderWithConfig("http://localhost:1234/v1", "small-model")
+	eff.MarkNativeToolsUnsupported()
+	a := &Agent{Info: protocol.AgentInfo{Type: protocol.AgentTypeBiology}}
+	model, fallback, mode := a.effectiveToolLoopRouting(eff)
+	if fallback {
+		t.Fatal("expected no Ollama fallback for LM Studio ReAct")
+	}
+	if mode != "react" {
+		t.Fatalf("expected react mode, got %q", mode)
+	}
+	if model != "small-model" {
+		t.Fatalf("got model %q", model)
+	}
+}
+
 func TestEffectiveToolLoopModelBiologyUsesConfiguredToolModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.MCP.Biology.ToolModel = "custom-bio-tool:7b"

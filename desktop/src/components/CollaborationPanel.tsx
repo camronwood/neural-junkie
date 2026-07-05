@@ -27,6 +27,7 @@ import { loadWorkspaceContextMode } from '../utils/outboundChatMetadata';
 import { taskOrchestrationLabel } from '../utils/collaborationTaskOrchestration';
 import { shrinkablePanelStyle } from '../utils/panelLayout';
 import { RunbookGraphModal } from './runbook-graph';
+import { RunbookHistoryPanel } from './runbook/RunbookHistoryPanel';
 
 interface CollaborationPanelProps {
   collaboration: Collaboration;
@@ -39,6 +40,8 @@ interface CollaborationPanelProps {
   onAfterCollaborationCommand?: () => Promise<void>;
   /** Opens the desktop workspace confirmation dialog (executing phase, pre-ack). */
   onConfirmWorkspace?: () => void;
+  /** Switch to a runbook execution (history / replay). */
+  onOpenRunbookRun?: (collabId: string, collabChannel?: string) => void;
 }
 
 const phaseLabels: Record<CollaborationPhase, string> = {
@@ -77,6 +80,7 @@ export function CollaborationPanel({
   onClose,
   onAfterCollaborationCommand,
   onConfirmWorkspace,
+  onOpenRunbookRun,
 }: CollaborationPanelProps) {
   const { serverAddr, channel, username } = useChatStore(
     (s) => ({ serverAddr: s.serverAddr, channel: s.channel, username: s.username }),
@@ -1176,6 +1180,16 @@ export function CollaborationPanel({
           </button>
         </div>
       )}
+
+      {c.definition_id ? (
+        <RunbookHistoryPanel
+          api={api}
+          definitionId={c.definition_id}
+          onOpenRun={(collabId, collabChannel) => {
+            onOpenRunbookRun?.(collabId, collabChannel);
+          }}
+        />
+      ) : null}
 
       <RunbookGraphModal
         isOpen={graphOpen}

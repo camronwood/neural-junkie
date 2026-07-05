@@ -192,6 +192,13 @@ export const ROUTING_SOURCE_METADATA_KEY = 'routing_source';
 export const ROUTING_DOMAIN_METADATA_KEY = 'routing_domain';
 export const ROUTING_COST_TIER_METADATA_KEY = 'routing_cost_tier';
 export const ROUTING_PROVIDER_ID_METADATA_KEY = 'routing_provider_id';
+export const ROUTING_KNOWLEDGE_ROUTE_METADATA_KEY = 'routing_knowledge_route';
+export const ROUTING_KNOWLEDGE_REASON_METADATA_KEY = 'routing_knowledge_reason';
+export const ROUTING_KNOWLEDGE_TARGETS_METADATA_KEY = 'routing_knowledge_targets';
+export const ROUTING_KNOWLEDGE_EXECUTED_METADATA_KEY = 'routing_knowledge_executed';
+export const ROUTING_COMPOSER_MODE_METADATA_KEY = 'routing_composer_mode';
+export const ROUTING_CONTEXT_SCOPE_METADATA_KEY = 'routing_context_scope';
+export const ROUTING_IMPL_SESSION_METADATA_KEY = 'routing_impl_session';
 
 export type RoutingMeta = {
   provider_id?: string;
@@ -201,6 +208,72 @@ export type RoutingMeta = {
   source?: string;
   domain?: string;
   cost_tier?: string;
+  knowledge_route?: string;
+  knowledge_reason?: string;
+  knowledge_targets?: string[];
+  knowledge_executed?: string[];
+  composer_mode?: string;
+  context_scope?: string;
+  impl_session?: boolean;
+};
+
+export type RoutingGovernanceMeta = {
+  composer_mode?: string;
+  context_scope?: string;
+  impl_session?: boolean;
+  can_propose_files?: boolean;
+  can_run_impl_session?: boolean;
+};
+
+export type RoutingTelemetryPayload = {
+  chat_model?: string;
+  tool_model?: string;
+  provider_id?: string;
+  reason?: string;
+  source?: string;
+  domain?: string;
+  cost_tier?: string;
+  knowledge_route?: string;
+  knowledge_reason?: string;
+  knowledge_targets?: string[];
+  knowledge_executed?: string[];
+  governance?: RoutingGovernanceMeta;
+};
+
+export type TurnTraceRouting = {
+  model?: string;
+  tool_model?: string;
+  provider_id?: string;
+  domain?: string;
+  cost_tier?: string;
+  reason?: string;
+  source?: string;
+};
+
+export type TurnTraceRetrieval = {
+  mode?: string;
+  reason?: string;
+  targets?: string[];
+  executed?: string[];
+  memory_count?: number;
+  codebase_count?: number;
+};
+
+export type TurnTraceResponse = {
+  message_id?: string;
+  channel?: string;
+  query?: string;
+  reply_message_id?: string;
+  routing?: TurnTraceRouting;
+  retrieval?: TurnTraceRetrieval;
+  governance?: RoutingGovernanceMeta;
+  tool_steps?: unknown;
+  reasoning_text?: string;
+  compress?: {
+    strategy?: string;
+    bytes_in?: number;
+    bytes_out?: number;
+  };
 };
 
 export function getRoutingMeta(metadata?: Record<string, unknown>): RoutingMeta | null {
@@ -226,12 +299,77 @@ export function getRoutingMeta(metadata?: Record<string, unknown>): RoutingMeta 
   if (typeof metadata[ROUTING_COST_TIER_METADATA_KEY] === 'string') {
     out.cost_tier = metadata[ROUTING_COST_TIER_METADATA_KEY] as string;
   }
+  if (typeof metadata[ROUTING_KNOWLEDGE_ROUTE_METADATA_KEY] === 'string') {
+    out.knowledge_route = metadata[ROUTING_KNOWLEDGE_ROUTE_METADATA_KEY] as string;
+  }
+  if (typeof metadata[ROUTING_KNOWLEDGE_REASON_METADATA_KEY] === 'string') {
+    out.knowledge_reason = metadata[ROUTING_KNOWLEDGE_REASON_METADATA_KEY] as string;
+  }
+  if (Array.isArray(metadata[ROUTING_KNOWLEDGE_TARGETS_METADATA_KEY])) {
+    out.knowledge_targets = (metadata[ROUTING_KNOWLEDGE_TARGETS_METADATA_KEY] as unknown[]).filter(
+      (v): v is string => typeof v === 'string'
+    );
+  }
+  if (Array.isArray(metadata[ROUTING_KNOWLEDGE_EXECUTED_METADATA_KEY])) {
+    out.knowledge_executed = (metadata[ROUTING_KNOWLEDGE_EXECUTED_METADATA_KEY] as unknown[]).filter(
+      (v): v is string => typeof v === 'string'
+    );
+  }
+  if (typeof metadata[ROUTING_COMPOSER_MODE_METADATA_KEY] === 'string') {
+    out.composer_mode = metadata[ROUTING_COMPOSER_MODE_METADATA_KEY] as string;
+  }
+  if (typeof metadata[ROUTING_CONTEXT_SCOPE_METADATA_KEY] === 'string') {
+    out.context_scope = metadata[ROUTING_CONTEXT_SCOPE_METADATA_KEY] as string;
+  }
+  if (metadata[ROUTING_IMPL_SESSION_METADATA_KEY] === true) {
+    out.impl_session = true;
+  }
+  return out;
+}
+
+export function parseRoutingTelemetryPayload(raw: unknown): RoutingTelemetryPayload | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  const out: RoutingTelemetryPayload = {};
+  for (const key of [
+    'chat_model',
+    'tool_model',
+    'provider_id',
+    'reason',
+    'source',
+    'domain',
+    'cost_tier',
+    'knowledge_route',
+    'knowledge_reason',
+  ] as const) {
+    if (typeof p[key] === 'string') out[key] = p[key] as string;
+  }
+  if (Array.isArray(p.knowledge_targets)) {
+    out.knowledge_targets = p.knowledge_targets.filter((v): v is string => typeof v === 'string');
+  }
+  if (Array.isArray(p.knowledge_executed)) {
+    out.knowledge_executed = p.knowledge_executed.filter((v): v is string => typeof v === 'string');
+  }
+  if (p.governance && typeof p.governance === 'object' && !Array.isArray(p.governance)) {
+    const g = p.governance as Record<string, unknown>;
+    out.governance = {};
+    if (typeof g.composer_mode === 'string') out.governance.composer_mode = g.composer_mode;
+    if (typeof g.context_scope === 'string') out.governance.context_scope = g.context_scope;
+    if (g.can_propose_files === true) out.governance.can_propose_files = true;
+    if (g.can_run_impl_session === true) out.governance.can_run_impl_session = true;
+  }
   return out;
 }
 
 export function formatRoutingBadgeLabel(meta: RoutingMeta): string {
   const model = meta.model?.trim();
   if (!model) return '';
+  const retrieval = meta.knowledge_targets?.length
+    ? meta.knowledge_targets.join('+')
+    : meta.knowledge_route?.trim();
+  if (retrieval && retrieval !== 'general' && retrieval !== 'conversation_memory') {
+    return `${model} · ${retrieval}`;
+  }
   const source = meta.source?.trim();
   return source ? `${model} · ${source}` : model;
 }
@@ -243,6 +381,13 @@ export function formatRoutingTooltip(meta: RoutingMeta): string {
   if (meta.provider_id) lines.push(`Provider: ${meta.provider_id}`);
   if (meta.domain) lines.push(`Domain: ${meta.domain}`);
   if (meta.cost_tier) lines.push(`Cost tier: ${meta.cost_tier}`);
+  if (meta.knowledge_targets?.length) lines.push(`Retrieval targets: ${meta.knowledge_targets.join(', ')}`);
+  if (meta.knowledge_executed?.length) lines.push(`Retrieval executed: ${meta.knowledge_executed.join(', ')}`);
+  if (meta.knowledge_route) lines.push(`Retrieval: ${meta.knowledge_route}`);
+  if (meta.knowledge_reason) lines.push(`Retrieval reason: ${meta.knowledge_reason}`);
+  if (meta.composer_mode) lines.push(`Composer mode: ${meta.composer_mode}`);
+  if (meta.context_scope) lines.push(`Context scope: ${meta.context_scope}`);
+  if (meta.impl_session) lines.push('Implementation session: yes');
   if (meta.reason) lines.push(`Reason: ${meta.reason}`);
   if (meta.source) lines.push(`Classifier: ${meta.source}`);
   return lines.join('\n');
@@ -871,6 +1016,7 @@ export interface TaskExecutionOptions {
 export interface TaskActionSpec {
   type: string;
   config?: Record<string, unknown>;
+  connector_id?: string;
 }
 
 export interface EdgeCondition {
@@ -988,6 +1134,60 @@ export interface Collaboration {
   session_recap_agent_id?: string;
   /** Validation notices from the last plan approval (task hygiene). */
   approve_warnings?: string[];
+  definition_id?: string;
+  definition_version?: number;
+  run_inputs?: Record<string, string>;
+  run_number?: number;
+}
+
+export type RunbookDefinitionSource = 'bundled' | 'user' | 'pack';
+
+export interface RunInputSpec {
+  key: string;
+  type: string;
+  label?: string;
+  default?: string;
+  required?: boolean;
+}
+
+export interface RunbookDefinitionSummary {
+  id: string;
+  title: string;
+  description?: string;
+  version: number;
+  source: RunbookDefinitionSource;
+  pack_id?: string;
+  updated_at?: string;
+}
+
+export interface RunbookDefinition extends RunbookDefinitionSummary {
+  agent_ids?: string[];
+  execution_policy?: ExecutionPolicy;
+  graph_layout?: GraphLayout;
+  inputs?: RunInputSpec[];
+  tasks: CollaborationTask[];
+}
+
+export interface RunbookRunRecord {
+  id: string;
+  definition_id?: string;
+  definition_version?: number;
+  run_number: number;
+  started_at: string;
+  updated_at: string;
+  phase: string;
+  channel?: string;
+  title?: string;
+}
+
+export interface ConnectorProfile {
+  id: string;
+  type: string;
+  label: string;
+  config?: Record<string, string>;
+  secret_set?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RunbookTemplate {

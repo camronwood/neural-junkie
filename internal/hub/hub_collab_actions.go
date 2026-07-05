@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/camronwood/neural-junkie/internal/collaboration"
 	"github.com/camronwood/neural-junkie/internal/collaboration/actions"
@@ -39,6 +40,25 @@ func (h *Hub) executeCollabActionTask(snap *collaboration.Collaboration, task co
 		return false
 	}
 	collabID := snap.ID
+	typ := ""
+	if task.Action != nil {
+		typ = strings.ToLower(strings.TrimSpace(task.Action.Type))
+	}
+	if typ == "wait_human" {
+		_, _ = h.collabManager.UpdateTaskStatusWithEffects(collabID, task.ID, collaboration.TaskInProgress, "Awaiting human approval")
+		_ = h.collabManager.SetTaskAwaitingApproval(collabID, task.ID, true)
+		h.broadcastCollabSystem(snap.Channel, collabID, fmt.Sprintf("⏸ **%s** — waiting for your approval.", task.Title))
+		return true
+	}
+	if task.AwaitingApproval {
+		return false
+	}
+	if typ == "webhook" || typ == "sms" {
+		if err := h.collabManager.SetTaskAwaitingApproval(collabID, task.ID, true); err == nil {
+			h.broadcastCollabSystem(snap.Channel, collabID, fmt.Sprintf("⏸ Action **%s** requires approval before running.", task.Title))
+			return true
+		}
+	}
 	runner := h.collabActionRunner()
 	out, err := runner.Execute(context.Background(), snap, task)
 	if err != nil {

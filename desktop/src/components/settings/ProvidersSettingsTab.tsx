@@ -12,7 +12,15 @@ import {
   type ModelLookup,
 } from '../../utils/hardwareRecommendations';
 import type { OllamaSettings, LMStudioSettings } from '../../types/protocol';
-import type { SettingsTabProps } from './settingsShared';
+import { putSystemSecurity, type SettingsTabProps } from './settingsShared';
+
+type CLIAgentsForm = {
+  disable_interactive: boolean;
+  cursor_trust: boolean;
+  disable_pty: boolean;
+  gemini_cli_pty: boolean;
+  gemini_cli_home: string;
+};
 
 export function ProvidersSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const {
@@ -36,6 +44,62 @@ export function ProvidersSettingsTab({ hubHttp, isActive }: SettingsTabProps) {
   const [lmstudioForm, setLMStudioForm] = useState<LMStudioSettings>(integrations.lmstudio);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [isSwitching, setIsSwitching] = useState(false);
+  const [cliAgents, setCliAgents] = useState<CLIAgentsForm>({
+    disable_interactive: false,
+    cursor_trust: true,
+    disable_pty: false,
+    gemini_cli_pty: false,
+    gemini_cli_home: '',
+  });
+  const [cliAgentsSaving, setCliAgentsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${hubHttp}/api/system/security`);
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        const c = data.cli_agents ?? {};
+        if (!cancelled) {
+          setCliAgents({
+            disable_interactive: !!c.disable_interactive,
+            cursor_trust: c.cursor_trust !== false,
+            disable_pty: !!c.disable_pty,
+            gemini_cli_pty: !!c.gemini_cli_pty,
+            gemini_cli_home: String(c.gemini_cli_home ?? ''),
+          });
+        }
+      } catch {
+        /* hub may be offline */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive, hubHttp]);
+
+  const saveCLIAgentsSettings = async () => {
+    setCliAgentsSaving(true);
+    try {
+      await putSystemSecurity(hubHttp, { cli_agents: cliAgents });
+      setTestResults((prev) => ({
+        ...prev,
+        cliAgents: { success: true, message: 'CLI agent settings saved.' },
+      }));
+    } catch (error) {
+      setTestResults((prev) => ({
+        ...prev,
+        cliAgents: {
+          success: false,
+          message: error instanceof Error ? error.message : 'Failed to save CLI agent settings',
+        },
+      }));
+    } finally {
+      setCliAgentsSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!isActive) return;
@@ -238,6 +302,78 @@ const handleOllamaChange = (field: keyof OllamaSettings, value: string | string[
 {/* CLI agent install & auth */}
     <div className="border border-slack-border rounded-lg p-6">
       <CLIAgentsManager serverAddr={hubHttp} />
+    </div>
+{/* CLI agent runtime (hub config) */}
+    <div className="border border-slack-border rounded-lg p-6">
+      <h3 className="text-lg font-semibold text-slack-text mb-2">CLI agent runtime</h3>
+      <p className="text-sm text-slack-textMuted mb-4">
+        PTY, trust, and Gemini CLI home directory. Environment variables override when set.
+      </p>
+      {testResults.cliAgents && (
+        <div
+          className={`mb-4 p-3 rounded text-sm ${
+            testResults.cliAgents.success
+              ? 'bg-green-100 text-green-800 border border-green-200'
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}
+        >
+          {testResults.cliAgents.message}
+        </div>
+      )}
+      <div className="space-y-3">
+        <label className="flex items-center gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={cliAgents.disable_interactive}
+            onChange={(e) =>
+              setCliAgents((p) => ({ ...p, disable_interactive: e.target.checked }))
+            }
+          />
+          Disable interactive CLI prompts (non-TTY)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={cliAgents.cursor_trust}
+            onChange={(e) => setCliAgents((p) => ({ ...p, cursor_trust: e.target.checked }))}
+          />
+          Cursor CLI trust workspace (default on)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={cliAgents.disable_pty}
+            onChange={(e) => setCliAgents((p) => ({ ...p, disable_pty: e.target.checked }))}
+          />
+          Disable PTY for all CLI agents
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slack-text">
+          <input
+            type="checkbox"
+            checked={cliAgents.gemini_cli_pty}
+            onChange={(e) => setCliAgents((p) => ({ ...p, gemini_cli_pty: e.target.checked }))}
+          />
+          Gemini CLI PTY mode
+        </label>
+        <label className="block text-sm text-slack-text">
+          Gemini CLI home directory
+          <input
+            type="text"
+            value={cliAgents.gemini_cli_home}
+            onChange={(e) => setCliAgents((p) => ({ ...p, gemini_cli_home: e.target.value }))}
+            placeholder="~/.gemini (empty = default)"
+            className="mt-1 w-full px-3 py-2 bg-slack-bgHover border border-slack-border rounded font-mono text-xs"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void saveCLIAgentsSettings()}
+          disabled={cliAgentsSaving}
+          className="w-full px-4 py-2 bg-slack-accent text-white rounded hover:bg-slack-accentHover disabled:opacity-50"
+        >
+          {cliAgentsSaving ? 'Saving…' : 'Save CLI agent runtime'}
+        </button>
+      </div>
     </div>
 {/* Dynamic Provider Registry */}
     <div className="border border-slack-border rounded-lg p-6">
