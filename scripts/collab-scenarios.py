@@ -669,9 +669,16 @@ def step_send(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
 def step_approve_plan(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     if not ctx.collab_id:
         return False, "no collab_id"
-    code, _ = hub.send_message(ctx.base, ctx.collab_channel, f"/approve-plan {ctx.collab_id[:8]}")
+    code, _ = hub.send_message(
+        ctx.base,
+        ctx.collab_channel,
+        f"/approve-plan {ctx.collab_id[:8]}",
+        timeout=180,
+    )
     if code != 200:
-        return False, f"approve-plan failed ({code})"
+        err = hub.last_system_error(ctx.base, ctx.collab_channel)
+        detail = f" ({err})" if err else ""
+        return False, f"approve-plan failed ({code}){detail}"
     time.sleep(0.5)
     return True, "approve-plan sent"
 

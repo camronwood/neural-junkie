@@ -257,6 +257,37 @@ func (cm *CollaborationManager) CheckTimeout(collabID string) bool {
 	return false
 }
 
+// AdvancePlanningDiscussionIfTimedOut ends a silent planning discussion when its
+// wall-clock budget expires and moves the collaboration into reviewing.
+// Returns true when the collaboration newly entered reviewing.
+func (cm *CollaborationManager) AdvancePlanningDiscussionIfTimedOut(collabID string) bool {
+	var notifyReviewing string
+
+	cm.mu.Lock()
+	c, ok := cm.collaborations[collabID]
+	if !ok || c == nil || c.Discussion == nil || c.Phase != PhasePlanning {
+		cm.mu.Unlock()
+		return false
+	}
+	d := c.Discussion
+	if d.Status != DiscussionActive || time.Since(d.StartedAt) <= d.Timeout {
+		cm.mu.Unlock()
+		return false
+	}
+	d.Status = DiscussionTimedOut
+	if cm.enterReviewingFromPlanningLocked(c) {
+		notifyReviewing = collabID
+	}
+	c.UpdatedAt = time.Now()
+	log.Printf("[Discussion %s] Timed out after %v (watchdog)", d.ID[:8], d.Timeout)
+	cm.mu.Unlock()
+
+	if notifyReviewing != "" && cm.onEnterReviewing != nil {
+		go cm.onEnterReviewing(notifyReviewing)
+	}
+	return notifyReviewing != ""
+}
+
 // EndDiscussion forcefully ends the active discussion with the given status.
 func (cm *CollaborationManager) EndDiscussion(collabID string, status DiscussionStatus) error {
 	cm.mu.Lock()

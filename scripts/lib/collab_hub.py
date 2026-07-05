@@ -39,6 +39,7 @@ def hub_request(
     body: dict | None = None,
     *,
     max_retries: int = 3,
+    timeout: float = 60,
 ) -> tuple[int, Any]:
     from lib.hub_auth import ensure_hub_auth_headers
 
@@ -56,7 +57,7 @@ def hub_request(
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read().decode()
                 if resp.status == 204 or not raw.strip():
                     return resp.status, None
@@ -187,6 +188,7 @@ def send_message(
     metadata: dict | None = None,
     from_name: str = "CollabScenario",
     max_retries: int = 3,
+    timeout: float = 60,
 ) -> tuple[int, dict | None]:
     payload: dict[str, Any] = {
         "channel": channel,
@@ -197,7 +199,7 @@ def send_message(
     if metadata:
         payload["metadata"] = metadata
     for attempt in range(max_retries):
-        code, data = hub_request(base, "POST", "/api/send", payload, max_retries=1)
+        code, data = hub_request(base, "POST", "/api/send", payload, max_retries=1, timeout=timeout)
         if code == 429 and attempt + 1 < max_retries:
             time.sleep(2.0 * (attempt + 1))
             continue

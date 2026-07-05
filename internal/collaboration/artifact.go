@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/camronwood/neural-junkie/internal/protocol"
 	"github.com/google/uuid"
 )
 
@@ -151,8 +152,54 @@ func splitCompoundTaskLine(line string) []string {
 	return out
 }
 
-// mergeTaskLinesFromDiscussion unions structured task list lines from every agent turn.
-// Only lines with an @mention resolved to a collaboration participant are kept.
+// taskLinesFromDiscussionMessage extracts deduped task list lines from one agent turn.
+func taskLinesFromDiscussionMessage(m *protocol.Message, agentByName map[string]CollaborationAgent) []string {
+	if m == nil || m.From.Name == "System" {
+		return nil
+	}
+	body := strings.TrimSpace(m.Content)
+	if body == "" {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	var taskLines []string
+	for _, line := range strings.Split(body, "\n") {
+		for _, candidate := range splitCompoundTaskLine(line) {
+			trimmed := strings.TrimSpace(candidate)
+			if !isTaskListLine(trimmed) {
+				continue
+			}
+			resolved := false
+			for _, mention := range agentMentionRe.FindAllStringSubmatch(trimmed, -1) {
+				if len(mention) < 2 {
+					continue
+				}
+				if _, ok := agentByName[strings.ToLower(mention[1])]; ok {
+					resolved = true
+					break
+				}
+			}
+			if !resolved && isDeliverableTaskWithoutAssignee(trimmed) {
+				resolved = true
+			}
+			if !resolved {
+				continue
+			}
+			key := taskLineIdentityKey(trimmed)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			taskLines = append(taskLines, trimmed)
+		}
+	}
+	return taskLines
+}
+
+// mergeTaskLinesFromDiscussion builds plan markdown from discussion task rows.
+// When the newest agent turn contains two or more task lines, that block wins over
+// unioning every prior turn (avoids parser explosion when each agent reposts a full list).
+// Otherwise lines are unioned across messages so split single-task contributions still merge.
 func mergeTaskLinesFromDiscussion(disc *DiscussionSession, agents []CollaborationAgent) string {
 	if disc == nil {
 		return ""
@@ -161,45 +208,22 @@ func mergeTaskLinesFromDiscussion(disc *DiscussionSession, agents []Collaboratio
 	for _, a := range agents {
 		agentByName[strings.ToLower(a.AgentName)] = a
 	}
+	for i := len(disc.Messages) - 1; i >= 0; i-- {
+		lines := taskLinesFromDiscussionMessage(disc.Messages[i], agentByName)
+		if len(lines) >= 2 {
+			return strings.TrimSpace("## Plan\n\n" + strings.Join(lines, "\n"))
+		}
+	}
 	seen := make(map[string]struct{})
 	var taskLines []string
 	for _, m := range disc.Messages {
-		if m == nil || m.From.Name == "System" {
-			continue
-		}
-		body := strings.TrimSpace(m.Content)
-		if body == "" {
-			continue
-		}
-		for _, line := range strings.Split(body, "\n") {
-			for _, candidate := range splitCompoundTaskLine(line) {
-				trimmed := strings.TrimSpace(candidate)
-				if !isTaskListLine(trimmed) {
-					continue
-				}
-				resolved := false
-				for _, mention := range agentMentionRe.FindAllStringSubmatch(trimmed, -1) {
-					if len(mention) < 2 {
-						continue
-					}
-					if _, ok := agentByName[strings.ToLower(mention[1])]; ok {
-						resolved = true
-						break
-					}
-				}
-				if !resolved && isDeliverableTaskWithoutAssignee(trimmed) {
-					resolved = true
-				}
-				if !resolved {
-					continue
-				}
-				key := taskLineIdentityKey(trimmed)
-				if _, ok := seen[key]; ok {
-					continue
-				}
-				seen[key] = struct{}{}
-				taskLines = append(taskLines, trimmed)
+		for _, trimmed := range taskLinesFromDiscussionMessage(m, agentByName) {
+			key := taskLineIdentityKey(trimmed)
+			if _, ok := seen[key]; ok {
+				continue
 			}
+			seen[key] = struct{}{}
+			taskLines = append(taskLines, trimmed)
 		}
 	}
 	if len(taskLines) == 0 {

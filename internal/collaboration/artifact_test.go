@@ -294,6 +294,57 @@ func TestMergeTaskLinesFromDiscussion_ignoresOffRosterMentions(t *testing.T) {
 	}
 }
 
+func TestMergeTaskLinesFromDiscussion_prefersLatestMultiTaskBlock(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "fe-1", AgentName: "FrontendEngineer", AgentType: protocol.AgentTypeFrontend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+	}
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "SoftwareArchitect"},
+				"- Task 1: @SoftwareArchitect - site-structure.md\n- Task 2: @FrontendEngineer - design-system.md\n- Task 3: @FrontendEngineer - layout-specs.md"),
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "FrontendEngineer"},
+				"- Task 1: @SoftwareArchitect - site-structure.md\n- Task 2: @FrontendEngineer - design-system.md\n- Task 3: @FrontendEngineer - layout-specs.md\n- Task 4: @FrontendEngineer - extra.md"),
+		},
+	}
+	merged := mergeTaskLinesFromDiscussion(disc, agents)
+	tasks := ExtractTasksFromPlan(merged, agents)
+	if len(tasks) != 4 {
+		t.Fatalf("expected latest 4-task block, got %d tasks plan=%q", len(tasks), merged)
+	}
+	if strings.Count(merged, "Task 1:") > 1 {
+		t.Fatalf("should not union duplicate blocks from older turns: %q", merged)
+	}
+}
+
+func TestMergeTaskLinesFromDiscussion_prefersLatestBlockOverUnionExplosion(t *testing.T) {
+	agents := []CollaborationAgent{
+		{AgentID: "fe-1", AgentName: "FrontendEngineer", AgentType: protocol.AgentTypeFrontend},
+		{AgentID: "sa-1", AgentName: "SoftwareArchitect", AgentType: protocol.AgentTypeArchitecture},
+		{AgentID: "gem-1", AgentName: "Gemini", AgentType: protocol.AgentTypeGeneral},
+	}
+	disc := &DiscussionSession{
+		Messages: []*protocol.Message{
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "SoftwareArchitect"},
+				"- Task 1: @SoftwareArchitect - site-structure.md\n- Task 2: @FrontendEngineer - design-system.md\n- Task 3: @Gemini - layout-specs.md"),
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "FrontendEngineer"},
+				"- Task 1: @SoftwareArchitect - site-structure.md\n- Task 2: @FrontendEngineer - design-system.md\n- Task 3: @Gemini - layout-specs.md"),
+			protocol.NewMessage(protocol.MessageTypeCollabDiscussion, "collab-x",
+				protocol.AgentInfo{Name: "Gemini"},
+				"- Task 1: @SoftwareArchitect - site-structure.md\n- Task 2: @FrontendEngineer - design-system.md\n- Task 3: @FrontendEngineer - layout-specs.md"),
+		},
+	}
+	merged := mergeTaskLinesFromDiscussion(disc, agents)
+	tasks := ExtractTasksFromPlan(merged, agents)
+	if len(tasks) > 3 {
+		t.Fatalf("expected latest 3-task block, got %d tasks plan=%q", len(tasks), merged)
+	}
+}
+
 func TestMergeTaskLinesFromDiscussion_includesUnassignedFindingsTask(t *testing.T) {
 	agents := []CollaborationAgent{
 		{AgentID: "be-1", AgentName: "BackendEngineer", AgentType: protocol.AgentTypeBackend},

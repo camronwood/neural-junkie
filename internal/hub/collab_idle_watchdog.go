@@ -15,7 +15,7 @@ const (
 )
 
 // TickCollaborationIdleWatchdog heals post-approve stalls: workspace ack retry,
-// pending dispatch, and idle in-progress task redispatch.
+// pending dispatch, idle in-progress task redispatch, and silent planning discussions.
 func (h *Hub) TickCollaborationIdleWatchdog(now time.Time) {
 	if h == nil || h.collabManager == nil {
 		return
@@ -24,7 +24,14 @@ func (h *Hub) TickCollaborationIdleWatchdog(now time.Time) {
 		now = time.Now()
 	}
 	for _, c := range h.collabManager.ListActive() {
-		if c == nil || c.Phase != collaboration.PhaseExecuting {
+		if c == nil {
+			continue
+		}
+		if c.Phase == collaboration.PhasePlanning {
+			h.collabManager.AdvancePlanningDiscussionIfTimedOut(c.ID)
+			continue
+		}
+		if c.Phase != collaboration.PhaseExecuting {
 			continue
 		}
 		h.tickCollaborationIdleWatchdogOne(c, now)

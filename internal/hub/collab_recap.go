@@ -13,7 +13,8 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const recapTimeout = 240 * time.Second
+// recapTimeout must finish (or fall back) before scenario wait_planning_recap deadlines (~120s).
+const recapTimeout = 90 * time.Second
 
 var recapTimeoutMu sync.Mutex
 var recapTimeoutCancel = map[string]func(){}

@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	collabTurnHandoffRetryDelay = 45 * time.Second
-	collabTurnHandoffMaxRetries = 2
+	collabTurnHandoffRetryDelay = 25 * time.Second
+	collabTurnHandoffMaxRetries = 3
 )
 
 func (a *Agent) promptNextCollaborationTurn(source *protocol.Message, collabID string) {

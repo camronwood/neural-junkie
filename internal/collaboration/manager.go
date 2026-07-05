@@ -850,15 +850,15 @@ func (cm *CollaborationManager) synthesizePlanFromDiscussionLocked(c *Collaborat
 	c.Plan.UpdatedAt = now
 	c.Plan.Status = ArtifactProposed
 	if len(tasks) > 0 {
-		if len(tasks) > maxTasksLimit() {
-			tasks = tasks[:maxTasksLimit()]
+		if len(tasks) > MaxTasksPerCollaboration {
+			tasks = tasks[:MaxTasksPerCollaboration]
 		}
 		c.Tasks = tasks
 	} else if strings.TrimSpace(planContent) != "" {
 		// Re-parse after plan normalization (discussion may use plain "Task N @Agent …" rows).
 		if retry := DedupeTasks(ExtractTasksFromPlan(planContent, c.Agents)); len(retry) > 0 {
-			if len(retry) > maxTasksLimit() {
-				retry = retry[:maxTasksLimit()]
+			if len(retry) > MaxTasksPerCollaboration {
+				retry = retry[:MaxTasksPerCollaboration]
 			}
 			c.Tasks = retry
 		}
