@@ -16,6 +16,10 @@ import (
 // recapTimeout must finish (or fall back) before scenario wait_planning_recap deadlines (~120s).
 const recapTimeout = 90 * time.Second
 
+// recapAIGenerateTimeout bounds cloud/local recap synthesis so unit tests and CI
+// do not block on a live Ollama provider when NewHub() wires real AI.
+const recapAIGenerateTimeout = 8 * time.Second
+
 var recapTimeoutMu sync.Mutex
 var recapTimeoutCancel = map[string]func(){}
 
@@ -215,14 +219,16 @@ func (h *Hub) generateRecapFallback(snap *collaboration.Collaboration, kind coll
 	if snap == nil {
 		return ""
 	}
-	ctx := collaboration.BuildRecapContext(snap, kind)
-	prompt := fmt.Sprintf("Write a concise user-facing collaboration session recap in markdown bullets.\n\n%s", ctx)
+	recapCtx := collaboration.BuildRecapContext(snap, kind)
+	prompt := fmt.Sprintf("Write a concise user-facing collaboration session recap in markdown bullets.\n\n%s", recapCtx)
 
 	provider := h.recapAIProvider()
 	if provider == nil {
 		return deterministicRecapFallback(snap, kind)
 	}
-	out, err := provider.GenerateResponse(context.Background(), prompt, nil)
+	aiCtx, cancel := context.WithTimeout(context.Background(), recapAIGenerateTimeout)
+	defer cancel()
+	out, err := provider.GenerateResponse(aiCtx, prompt, nil)
 	if err != nil || strings.TrimSpace(out) == "" {
 		return deterministicRecapFallback(snap, kind)
 	}

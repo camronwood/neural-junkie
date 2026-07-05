@@ -75,7 +75,7 @@ func (cm *CollaborationManager) RecordMessage(collabID string, msg *protocol.Mes
 		return fmt.Errorf("discussion is %s, not accepting messages", d.Status)
 	}
 
-	if time.Since(d.StartedAt) > d.Timeout {
+	if planningDiscussionTimeoutElapsed(c, d) {
 		d.Status = DiscussionTimedOut
 		if c.Phase == PhasePlanning {
 			if cm.enterReviewingFromPlanningLocked(c) {
@@ -165,7 +165,7 @@ func (cm *CollaborationManager) IsAgentTurn(collabID, agentID string) bool {
 		return false
 	}
 
-	if time.Since(d.StartedAt) > d.Timeout {
+	if planningDiscussionTimeoutElapsed(c, d) {
 		return false
 	}
 
@@ -185,7 +185,7 @@ func (cm *CollaborationManager) IsAgentTurn(collabID, agentID string) bool {
 		return false
 	}
 
-	if d.TurnsThisRound[agentID] >= d.TurnBudget {
+	if d.TurnsThisRound[agentID] >= discussionTurnBudget(c, d) {
 		return false
 	}
 
@@ -271,7 +271,7 @@ func (cm *CollaborationManager) AdvancePlanningDiscussionIfTimedOut(collabID str
 		return false
 	}
 	d := c.Discussion
-	if d.Status != DiscussionActive || time.Since(d.StartedAt) <= d.Timeout {
+	if d.Status != DiscussionActive || !planningDiscussionTimeoutElapsed(c, d) {
 		cm.mu.Unlock()
 		return false
 	}
@@ -357,6 +357,75 @@ func (cm *CollaborationManager) ParticipantAgentName(collabID, agentID string) s
 	return ""
 }
 
+// discussionTurnBudget caps each participant to one in-round reply until every
+// participant has spoken at least once (prevents one agent dominating planning).
+func discussionTurnBudget(c *Collaboration, d *DiscussionSession) int {
+	if d == nil {
+		return DefaultTurnBudget
+	}
+	budget := d.TurnBudget
+	if budget <= 0 {
+		budget = DefaultTurnBudget
+	}
+	if c != nil && c.Phase == PhasePlanning && !participationQuorumMet(d) && budget > 1 {
+		return 1
+	}
+	return budget
+}
+
+// silentParticipantIDsLocked returns participant IDs with no discussion messages yet.
+// Caller must hold cm.mu when used from locked paths; d is the active discussion.
+func silentParticipantIDsLocked(d *DiscussionSession) []string {
+	if d == nil || len(d.Participants) == 0 {
+		return nil
+	}
+	spoken := make(map[string]bool, len(d.Participants))
+	for _, m := range d.Messages {
+		if m == nil {
+			continue
+		}
+		id := strings.TrimSpace(m.From.ID)
+		if id == "" || id == "system" {
+			continue
+		}
+		spoken[id] = true
+	}
+	var silent []string
+	for _, pid := range d.Participants {
+		if pid == "" || spoken[pid] {
+			continue
+		}
+		silent = append(silent, pid)
+	}
+	return silent
+}
+
+// planningDiscussionTimeoutElapsed is true when the wall-clock budget expired.
+// While silent participants remain and the message budget is not exhausted, a
+// short grace window allows the planning watchdog to re-dispatch turn handoffs.
+func planningDiscussionTimeoutElapsed(c *Collaboration, d *DiscussionSession) bool {
+	if d == nil {
+		return false
+	}
+	elapsed := time.Since(d.StartedAt)
+	if elapsed <= d.Timeout {
+		return false
+	}
+	if c == nil || c.Phase != PhasePlanning || !c.DiscussionBudgetEnforced() {
+		return true
+	}
+	silent := silentParticipantIDsLocked(d)
+	if len(silent) == 0 || d.TotalMessageCount >= d.MaxTotalMessages {
+		return true
+	}
+	grace := time.Duration(len(silent)) * 45 * time.Second
+	const maxGrace = 3 * time.Minute
+	if grace > maxGrace {
+		grace = maxGrace
+	}
+	return elapsed > d.Timeout+grace
+}
+
 // participationQuorumMet is true when every discussion participant has spoken at least once.
 func participationQuorumMet(d *DiscussionSession) bool {
 	if d == nil || len(d.Participants) < 2 {
@@ -399,7 +468,7 @@ func (cm *CollaborationManager) advanceTurn(c *Collaboration) {
 
 	allDone := true
 	for _, pid := range d.Participants {
-		if d.TurnsThisRound[pid] < d.TurnBudget {
+		if d.TurnsThisRound[pid] < discussionTurnBudget(c, d) {
 			allDone = false
 			break
 		}
@@ -421,7 +490,7 @@ func (cm *CollaborationManager) advanceTurn(c *Collaboration) {
 
 	for i := 0; i < len(d.Participants); i++ {
 		next := d.Participants[d.CurrentTurnIndex]
-		if d.TurnsThisRound[next] < d.TurnBudget {
+		if d.TurnsThisRound[next] < discussionTurnBudget(c, d) {
 			break
 		}
 		d.CurrentTurnIndex = (d.CurrentTurnIndex + 1) % len(d.Participants)

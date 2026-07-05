@@ -11,7 +11,7 @@ import (
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
 
-const collabPlanningHandoffRedispatchAfter = 40 * time.Second
+const collabPlanningHandoffRedispatchAfter = 25 * time.Second
 
 // tickPlanningDiscussionWatchdog re-sends turn handoffs when planning participants stay silent.
 func (h *Hub) tickPlanningDiscussionWatchdog(c *collaboration.Collaboration, now time.Time) {

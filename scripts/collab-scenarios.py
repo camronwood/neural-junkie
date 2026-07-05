@@ -173,7 +173,6 @@ def build_collaborate_command(scenario: dict, agents: str) -> str:
         flags = flags.split()
     flags = apply_flag_overrides(list(flags))
     goal = (collab.get("goal") or "").strip()
-    agent_part = (agents or "").strip()
     ws = scenario_workspace(scenario)
     if ws and ws.get("workspace_flag"):
         if "--workspace" not in flags:
@@ -181,12 +180,14 @@ def build_collaborate_command(scenario: dict, agents: str) -> str:
     repo = resolve_workspace_repo(scenario) if ws else ""
     if repo and "--repo" not in flags:
         flags = ["--repo", _shell_quote_arg(repo), *flags]
-    # Keep @mentions in the goal tail so hub mention parsing survives --repo paths/flags.
-    if agent_part:
-        if not hub.parse_agent_mentions(goal):
-            goal = f"{agent_part} {goal}".strip() if goal else agent_part
-        elif not goal.lower().startswith(agent_part.lower().split()[0]):
-            goal = f"{agent_part} {goal}".strip()
+    # Ensure every collaborate roster agent is @mentioned in the command tail
+    # (hub requires >=2 mentions; goals often repeat only the first agent).
+    roster = hub.collaborate_agent_names(scenario, (agents or "").strip())
+    goal_mentions = set(hub.parse_agent_mentions(goal))
+    missing = [name for name in roster if name not in goal_mentions]
+    if missing:
+        prefix = " ".join(f"@{name}" for name in missing)
+        goal = f"{prefix} {goal}".strip() if goal else prefix
     parts = ["/collaborate", *flags, goal]
     return " ".join(p for p in parts if p)
 
