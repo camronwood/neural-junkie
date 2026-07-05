@@ -268,8 +268,9 @@ _CF_BEACON_QUERY_RE = re.compile(r"""beacon\.min\.js\?token=(?P<token>[A-Za-z0-9
 
 
 def render_cloudflare_analytics(token: str) -> str:
+    beacon = json.dumps({"token": token}, separators=(",", ":"))
     return f"""{ANALYTICS_START}
-  <script defer src="https://static.cloudflareinsights.com/beacon.min.js?token={token}"></script>
+  <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{beacon}'></script>
 {ANALYTICS_END}"""
 
 

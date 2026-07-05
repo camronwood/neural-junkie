@@ -60,7 +60,8 @@ class SiteNavAnalyticsTest(unittest.TestCase):
         )
 
         self.assertIn(ANALYTICS_START, updated)
-        self.assertIn("static.cloudflareinsights.com/beacon.min.js?token=cf-test-token", updated)
+        self.assertIn("static.cloudflareinsights.com/beacon.min.js", updated)
+        self.assertIn('"token":"cf-test-token"', updated)
         self.assertLess(updated.index(ANALYTICS_START), updated.index("</body>"))
 
     def test_apply_site_chrome_updates_existing_cloudflare_analytics(self) -> None:
@@ -79,9 +80,9 @@ class SiteNavAnalyticsTest(unittest.TestCase):
             cloudflare_token="new-token",
         )
 
-        self.assertNotIn("token=old-token", updated)
+        self.assertNotIn('"token":"old-token"', updated)
         self.assertEqual(updated.count(ANALYTICS_START), 1)
-        self.assertIn("token=new-token", updated)
+        self.assertIn('"token":"new-token"', updated)
 
     def test_apply_site_chrome_preserves_existing_cloudflare_analytics_without_token(self) -> None:
         html_path = SCRIPTS_DIR.parent / "docs" / "index.html"
@@ -98,7 +99,7 @@ class SiteNavAnalyticsTest(unittest.TestCase):
             version="1.2.0-beta.4",
         )
 
-        self.assertIn("token=kept-token", updated)
+        self.assertIn('"token":"kept-token"', updated)
         self.assertEqual(extract_cloudflare_analytics_token(updated), "kept-token")
 
 
