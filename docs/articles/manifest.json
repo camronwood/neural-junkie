@@ -1,7 +1,26 @@
 {
-  "updated": "2026-07-02T14:49:48Z",
-  "count": 15,
+  "updated": "2026-07-06T00:12:23Z",
+  "count": 16,
   "items": [
+    {
+      "slug": "beta-5",
+      "title": "v1.2.0-beta.5: The Release Where the Loops Close",
+      "teaser": "Runbooks you can replay, routing you can audit, collab hardened by live scenario gates, ReAct tools on Gemma, multi-repo workspace scope, LoRA v2 specialists, and the release engineering that keeps betas honest \u2014 everything shipping in Neural Junkie beta.5 this week.",
+      "cover": "assets/neural-junkie-beta5-1200.png",
+      "coverWeb": "../media/articles/covers/neural-junkie-beta5-1200.png",
+      "topic": "release",
+      "tags": [
+        "ai",
+        "localai",
+        "multiagent",
+        "opensource",
+        "developertools",
+        "release"
+      ],
+      "sourceFile": "BETA25-LINKEDIN.md",
+      "sourcePath": "docs/marketing/BETA25-LINKEDIN.md",
+      "href": "beta-5.html"
+    },
     {
       "slug": "hardware",
       "title": "What Your Machine Actually Needs to Run a Local AI Engineering Team",

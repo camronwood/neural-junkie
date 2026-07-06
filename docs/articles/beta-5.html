@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>v1.2.0-beta.5: The Release Where the Loops Close — Neural Junkie</title>
+  <meta name="description" content="Runbooks you can replay, routing you can audit, collab hardened by live scenario gates, ReAct tools on Gemma, multi-repo workspace scope, LoRA v2 specialists, and the release engineering that keeps betas honest — everything shipping in Neural Junkie beta.5 this week." />
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/icon/favicon-32.png" />
+  <link rel="apple-touch-icon" href="../assets/icon/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/landing.css" />
+  <link rel="stylesheet" href="../css/articles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+<!-- NJ-SITE-CHROME:START -->
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="../index.html" aria-label="Neural Junkie home">
+        <span class="logo-mark" aria-hidden="true"><img src="../assets/icon/favicon-32.png" alt="" width="32" height="32" decoding="async" /></span>
+        Neural Junkie
+      </a>
+      <nav class="nav-actions" aria-label="Primary">
+        <a class="btn btn-ghost" href="../start-here.html">Start here</a>
+        <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
+        <a class="btn btn-ghost" href="../features/index.html">Guides</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
+        <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost" href="../security.html">Security</a>
+        <a class="btn btn-ghost" href="../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost" href="../download.html">Download</a>
+        <a class="btn btn-primary" href="https://github.com/camronwood/neural-junkie">Star on GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+<!-- NJ-SITE-CHROME:END -->
+
+  <main id="main" class="wrap article-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="../index.html">Home</a> · <a href="index.html">Articles</a> · v1.2.0-beta.5: The Release Where the Loops Close
+    </nav>
+    <header class="article-header">
+      <p class="article-kicker">Long-form · Neural Junkie</p>
+      <h1>v1.2.0-beta.5: The Release Where the Loops Close</h1>
+      <p class="article-lead">Runbooks you can replay, routing you can audit, collab hardened by live scenario gates, ReAct tools on Gemma, multi-repo workspace scope, LoRA v2 specialists, and the release engineering that keeps betas honest — everything shipping in Neural Junkie beta.5 this week.</p>
+      <div class="article-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span><span class="article-tag">developertools</span><span class="article-tag">release</span></div>
+    </header>
+    <figure class="article-cover">
+      <img src="../media/articles/covers/neural-junkie-beta5-1200.png" alt="" loading="eager" decoding="async" width="1200" height="627" />
+    </figure>
+    <article class="feature-prose article-body">
+<p><strong>Neural Junkie v1.2.0-beta.5</strong> is the open-beta release we have been building toward since beta.4: not one headline feature, but a stack of closed loops — repair, routing, collaboration, repeatable operations, and the test harness that proves they work on real local models.</p>
+<p>If beta.4 was <em>Agent Runtime reliability</em> (fix loops, image gen, music pack, turn telemetry), beta.5 is what happens when those foundations meet <strong>operational maturity</strong>: runbooks you can replay, routing you can audit, collab you can regression-test, and specialists you can train without losing control.</p>
+<p>Download: macOS, Windows, Linux — same local-first desktop app, same MIT-licensed hub.</p>
+<h2>The headline in one paragraph</h2>
+<p>You get <strong>ReAct MCP on models that lack native tool calling</strong>, <strong>per-turn routing trace</strong> on every chat and collab message, <strong>Runbooks v2</strong> (persisted definitions + run history), <strong>multi-repo workspace scope</strong> via project sets, <strong>collaboration hardening</strong> from weeks of live scenario gates, <strong>LoRA v2 compound specialists</strong>, <strong>personal learning</strong> with explicit consent, <strong>Slack setup diagnostics</strong>, and <strong>layer-gate / fix-loop / test-growth</strong> automation so the next beta does not ship on vibes.</p>
+<h2>1. ReAct tools — one brain, not two models in RAM</h2>
+<p>Beta.4 gave you turn telemetry. Beta.5 completes a routing tier that beta users asked for loudly: <strong>run MCP tools on the chat model you picked</strong>, even when Ollama says that model has no native <code>tools</code> capability.</p>
+<p><strong>Gemma 3 12B</strong> is the first allowlisted tag. The hub wraps the provider in a ReAct loop with a strict contract:</p>
+<pre><code class="language-text">&lt;tool_call&gt;{&quot;name&quot;:&quot;read_file&quot;,&quot;arguments&quot;:{&quot;path&quot;:&quot;src/App.tsx&quot;}}&lt;/tool_call&gt;
+</code></pre>
+<p>Native tool calling when available → ReAct on the same model → Qwen swap fallback when parsing fails or the iteration cap hits. The typing indicator tells you which path ran: <code>(react_tools)</code> or <code>(react_fallback_swap)</code>.</p>
+<p>That matters because "swap in Qwen for tools" worked — but it split persona, doubled RAM pressure, and hid the story in routing telemetry. Now you can keep one mid-tier model for chat <em>and</em> light MCP without pretending every Ollama tag is tool-native.</p>
+<p>See the deep dive: <a href="https://camronwood.github.io/neural-junkie/articles/react-tools.html">Gemma Can't Call Tools. We Taught It Anyway.</a></p>
+<h2>2. Per-turn routing trace — stop guessing which model ran</h2>
+<p>Every substantive turn now carries <strong>routing metadata</strong> you can inspect without reading hub logs:</p>
+<ul>
+<li>Model tier and provider</li>
+<li>Retrieval mode (memory, codebase, none)</li>
+<li>Composer mode and context scope</li>
+<li>Implementation session state when relevant</li>
+</ul>
+<p>In the desktop app: <strong>routing badges</strong> on messages, a live <strong>Turn telemetry drawer</strong> during generation, and a post-hoc <strong>Routing trace panel</strong> for debugging "why did that reply feel wrong?"</p>
+<p>This is the user-facing half of the inference layer story — decide before you generate, then <strong>show the decision on the message</strong>.</p>
+<h2>3. Runbooks v2 — from one-off collabs to repeatable SOPs</h2>
+<p>Collaboration v1 was powerful and ephemeral: draw a DAG, approve, execute, done. Runbooks v2 adds <strong>ownership</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RunbookDefinition</strong></td>
+<td>Named, versioned workflow with tasks, graph, policies, and inputs</td>
+</tr>
+<tr>
+<td><strong>RunExecution</strong></td>
+<td>One run — still a collaboration under the hood, with run metadata</td>
+</tr>
+<tr>
+<td><strong>Connector profile</strong></td>
+<td>Named Slack/webhook/HTTP credentials referenced by action tasks — never embedded in JSON</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Library UI:</strong> save drafts, browse bundled + pack + user definitions, start runs with input forms, view run history.</p>
+<p><strong>Resolution order:</strong> user library → enabled pack runbooks → collab assets → repo templates.</p>
+<p>Biology pack templates (12-plex QC, endogenous study, health-check alert, and others) now ship <strong>with the pack</strong>, not as loose repo assets — customer packs own their operational playbooks.</p>
+<p>Docs: <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/RUNBOOKS_V2.md">RUNBOOKS_V2.md</a></p>
+<h2>4. Multi-repo workspace scope — ambient context without chaos</h2>
+<p>Real work spans repos. Beta.5 adds <strong>project sets</strong>: group workspace roots, expose a <strong>workspace scope chip</strong> in the desktop UI, and route <strong>cross-repo hints</strong> into agent context when your question touches linked codebases.</p>
+<p>Scenario coverage includes ambient scope regression — the harness checks that agents respect boundaries instead of grep-bombing every checkout on disk.</p>
+<p>Connection settings got a proper home: hub URL, server/network, automation, and connectors tabs — runtime config you can change without hand-editing JSON.</p>
+<h2>5. Collaboration hardening — live gates, not demo magic</h2>
+<p>Multi-agent collab is easy to demo and brutal to ship. Beta.5 includes weeks of <strong>collab-full layer-gate</strong> work:</p>
+<ul>
+<li><strong>Plan parser fix</strong> — use the newest agent turn's task block instead of unioning every replan (stops 6–7 task lists from stacked discussions)</li>
+<li><strong>Planning recap timeout</strong> — recap fallback 240s → 90s so scenarios get <code>complete</code> or <code>failed</code> before client timeouts</li>
+<li><strong>Planning discussion watchdog</strong> — advance timed-out discussions instead of silent stalls; scaled timeouts for short collabs</li>
+<li><strong>Turn handoff retries</strong> — faster retry cadence when an agent misses its slot</li>
+<li><strong>Participation enforcement</strong> — <code>@mention</code> contracts and discussion readiness tracked per scenario</li>
+<li><strong>Approve-plan HTTP timeout</strong> — harness/client 60s → 180s (client timeouts were masquerading as hub failures)</li>
+</ul>
+<p>The full 15-scenario collab sweep is not fully green yet — local LLM flakes are real — but participation, recap, and harness reliability moved measurably (1 → 5 passing scenarios in the best gate iteration). We are not weakening assertions to greenwash flakes; we are fixing orchestration first.</p>
+<p>Read the problem framing: <a href="https://camronwood.github.io/neural-junkie/articles/collaboration.html">Multi-Agent Collaboration Is Easy to Demo. Hard to Ship.</a></p>
+<h2>6. LoRA v2 + personal learning — specialists with consent</h2>
+<p><strong>LoRA v2</strong> completes the compound specialist lifecycle: import rows, review training JSONL, bootstrap repo indexes, compose Ollama tags from one base + adapters — across chat, collab, IDE, and pack surfaces.</p>
+<p><strong>Personal learning</strong> stores only what you <strong>explicitly confirm</strong>, scoped per expert, globally, or per collaboration. Retrieved locally by embeddings; optionally exported into LoRA training rows. Nothing silently trains on your typos.</p>
+<p>Together: context you curate <em>and</em> weights that lean inference toward your domain — without a cloud fine-tuning bill.</p>
+<h2>7. Slack — setup you can diagnose</h2>
+<p>Slack integration got a <strong>setup checklist</strong> in settings, <strong>smoke and diagnose</strong> endpoints/tests, and clearer handler errors when OAuth or channel routing is misconfigured.</p>
+<p>If you run agents from your phone while the hive works locally, beta.5 is easier to trust — you can see <em>why</em> a relay failed instead of a silent inbox.</p>
+<h2>8. Release engineering — how we ship the next beta</h2>
+<p>User-facing features are half the story. Beta.5 also ships the <strong>machinery</strong>:</p>
+<pre><code class="language-bash">make layer-gate LAYER=collab-full    # live scenario sweep
+make layer-fix-loop LAYER=chat       # gate → Cursor agent → verify → commit
+make test-growth-loop                # discover gaps → strengthen tests
+</code></pre>
+<p>Layer gates boot Ollama, warm models, and restart the regression hub automatically. Fix loops isolate agent edits in git worktrees. Test-growth loops rank coverage candidates and add tests without greenwashing flakes.</p>
+<p>This is how we plan to cut stable scope: <strong>one layer at a time</strong>, with artifacts in <code>docs/testing/</code>, not a single 30-hour prayer run.</p>
+<h2>What carried forward from beta.4</h2>
+<p>Still in the box from the previous tag:</p>
+<ul>
+<li><strong>NJ Fix Loop</strong> — command circuit breaker, boot-fix grounding, guaranteed session outcomes</li>
+<li><strong>Ollama image generation</strong> — hub store, agent tools, settings panel</li>
+<li><strong>Music creation v1.0.2</strong> — ACE-Step variants and inference tuning</li>
+<li><strong>Turn telemetry drawer</strong> foundation — expanded in beta.5 with routing trace MVP</li>
+<li><strong>IDE v4</strong> — Monaco LSP, remote SSH, dev containers (unchanged baseline)</li>
+</ul>
+<h2>Try beta.5</h2>
+<ol>
+<li>Download the installer for your platform from <a href="https://github.com/camronwood/neural-junkie/releases/tag/v1.2.0-beta.5">GitHub Releases</a> or the <a href="https://camronwood.github.io/neural-junkie/download.html">downloads page</a>.</li>
+<li>Pull a local model (<code>gemma3:12b</code> if you want ReAct tools on one brain).</li>
+<li>Open <strong>Settings → Connection</strong> — confirm hub URL and providers.</li>
+<li>Send a chat message — open the <strong>routing trace</strong> on the reply.</li>
+<li>Build a runbook in the <strong>RB</strong> builder — save to library, start a run.</li>
+<li>Run <code>/collaborate @Agent1 @Agent2 goal</code> — watch planning discussion and task DAG execution.</li>
+</ol>
+<p><strong>Neural Junkie</strong> is local-first, open source, and built for specialists that share tools, approvals, and routing policy — not one monolithic planner guessing in a vacuum.</p>
+<p>Repo: https://github.com/camronwood/neural-junkie</p>
+<p>Release notes: https://camronwood.github.io/neural-junkie/release-notes.html</p>
+    </article>
+    <nav class="article-footer-nav">
+      <a href="index.html">← All articles</a>
+      <a href="https://github.com/camronwood/neural-junkie/blob/main/docs/marketing/BETA25-LINKEDIN.md">Source markdown</a>
+    </nav>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+<!-- NJ-SITE-FOOTER-NAV:START -->
+    <nav class="doc-strip footer-explore" aria-label="Explore site">
+      <span class="doc-strip-label">Explore:</span>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+    </nav>
+<!-- NJ-SITE-FOOTER-NAV:END -->
+      <p><a href="../index.html">Neural Junkie</a> — articles · <a href="beta-5.html">v1.2.0-beta.5: The Release Where the Loops Close</a></p>
+    </div>
+  </footer>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

@@ -55,6 +55,7 @@
     <div class="articles-toolbar">
       <div class="articles-filter" role="group" aria-label="Filter articles">
         <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="release" aria-pressed="false">Release</button>
         <button type="button" data-filter="architecture" aria-pressed="false">Architecture</button>
         <button type="button" data-filter="lora" aria-pressed="false">LoRA</button>
         <button type="button" data-filter="hardware" aria-pressed="false">Hardware</button>
@@ -63,11 +64,12 @@
         <button type="button" data-filter="collaboration" aria-pressed="false">Collaboration</button>
         <button type="button" data-filter="testing" aria-pressed="false">Testing</button>
       </div>
-      <span class="articles-count" id="articles-count">15 articles</span>
+      <span class="articles-count" id="articles-count">16 articles</span>
     </div>
 
     <div class="articles-grid" id="articles-grid" aria-live="polite">
       <!-- NJ-ARTICLES-GRID:START -->
+      <a class="articles-card" href="beta-5.html" data-topic="release" data-tags="ai,localai,multiagent,opensource,developertools,release"><div class="articles-card-media"><img src="../media/articles/covers/neural-junkie-beta5-1200.png" alt="" loading="lazy" decoding="async" /></div><div class="articles-card-body"><strong>v1.2.0-beta.5: The Release Where the Loops Close</strong><p class="articles-card-teaser">Runbooks you can replay, routing you can audit, collab hardened by live scenario gates, ReAct tools on Gemma, multi-repo workspace scope, LoRA v2 specialists, and the release engineering that keeps betas honest — everything shipping in Neural Junkie beta.5 this week.</p><div class="articles-card-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">opensource</span></div></div></a>
       <a class="articles-card" href="hardware.html" data-topic="hardware" data-tags="ai,localai,developertools,ollama,opensource,edgeai"><div class="articles-card-media"><img src="../media/articles/covers/neural-junkie-hardware-1200.png" alt="" loading="lazy" decoding="async" /></div><div class="articles-card-body"><strong>What Your Machine Actually Needs to Run a Local AI Engineering Team</strong><p class="articles-card-teaser">Neural Junkie ships as a ~15 MB desktop app — but your first local model pull can be 14 GB+. Here is how RAM tiers map to model tags, why multi-agent ≠ multi-model, and what we do not hide in open beta.</p><div class="articles-card-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">developertools</span><span class="article-tag">ollama</span></div></div></a>
       <a class="articles-card" href="model-layering.html" data-topic="architecture" data-tags="ai,localai,multiagent,lora,developertools,opensource,ollama"><div class="articles-card-media"><img src="../media/articles/covers/neural-junkie-model-layering-1200.png" alt="" loading="lazy" decoding="async" /></div><div class="articles-card-body"><strong>We Don&#x27;t Use One Model. We Layer Them.</strong><p class="articles-card-teaser">One 14B model can&#x27;t be your security reviewer, biology expert, session summarizer, and cheap typo-fixer. Neural Junkie layers models at four levels — context, weights, routing, and orchestration — so local multi-agent work stays fast, grounded, and under your control.</p><div class="articles-card-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">lora</span></div></div></a>
       <a class="articles-card" href="modular-ai-composition.html" data-topic="architecture" data-tags="ai,localai,multiagent,modularai,lora,developertools,opensource,ollama"><div class="articles-card-media"><img src="../media/articles/covers/neural-junkie-modular-ai-composition-1200.png" alt="" loading="lazy" decoding="async" /></div><div class="articles-card-body"><strong>Modular AI, Local Hardware: How Neural Junkie Routes Instead of Guessing</strong><p class="articles-card-teaser">Stop running one model for everything. Neural Junkie composes specialists at the orchestration layer — a small classifier picks domain and cost tier, packs declare chat/tool/LoRA stacks, and every reply shows which model actually ran.</p><div class="articles-card-tags"><span class="article-tag">ai</span><span class="article-tag">localai</span><span class="article-tag">multiagent</span><span class="article-tag">modularai</span></div></div></a>
@@ -110,7 +112,7 @@
         <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
     </nav>
 <!-- NJ-SITE-FOOTER-NAV:END -->
-      <p><a href="../index.html">Neural Junkie</a> — articles · <span id="articles-updated">updated 2026-07-02</span></p>
+      <p><a href="../index.html">Neural Junkie</a> — articles · <span id="articles-updated">updated 2026-07-06</span></p>
     </div>
   </footer>
 

@@ -22,6 +22,7 @@ from site_nav import render_footer_explore, render_site_chrome  # noqa: E402
 
 # Explicit order + optional overrides (cover when not in source metadata).
 ARTICLE_ORDER = [
+    "beta-5",
     "hardware",
     "model-layering",
     "modular-ai-composition",
@@ -40,6 +41,7 @@ ARTICLE_ORDER = [
 ]
 
 SOURCE_BY_SLUG = {
+    "beta-5": "BETA25-LINKEDIN.md",
     "hardware": "HARDWARE-LINKEDIN.md",
     "model-layering": "MODEL-LAYERING-LINKEDIN.md",
     "modular-ai-composition": "MODULAR-AI-COMPOSITION-LINKEDIN.md",
@@ -58,12 +60,22 @@ SOURCE_BY_SLUG = {
 }
 
 COVER_OVERRIDES = {
+    "beta-5": "assets/neural-junkie-beta5-1200.png",
     "collaboration": "assets/neural-junkie-collaboration-ad-1080.png",
     "fix-loop": "docs/media/articles/covers/neural-junkie-fix-loop-1200.png",
     "ide-v4": "assets/marketing/ide-v4-hero-banner.png",
 }
 
 META_OVERRIDES: dict[str, dict[str, object]] = {
+    "beta-5": {
+        "title": "v1.2.0-beta.5: The Release Where the Loops Close",
+        "teaser": (
+            "Runbooks you can replay, routing you can audit, collab hardened by live scenario gates, "
+            "ReAct tools on Gemma, multi-repo workspace scope, LoRA v2 specialists, and the release "
+            "engineering that keeps betas honest — everything shipping in Neural Junkie beta.5 this week."
+        ),
+        "tags": ["ai", "localai", "multiagent", "opensource", "developertools", "release"],
+    },
     "react-tools": {
         "title": "Gemma Can't Call Tools. We Taught It Anyway.",
         "teaser": (
@@ -83,6 +95,7 @@ META_OVERRIDES: dict[str, dict[str, object]] = {
 }
 
 TOPIC_BY_SLUG = {
+    "beta-5": "release",
     "hardware": "hardware",
     "model-layering": "architecture",
     "modular-ai-composition": "architecture",

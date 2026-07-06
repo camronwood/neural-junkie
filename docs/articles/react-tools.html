@@ -27,7 +27,7 @@
         <a class="btn btn-ghost" href="../start-here.html">Start here</a>
         <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
         <a class="btn btn-ghost" href="../features/index.html">Guides</a>
-        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
         <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
         <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="../security.html">Security</a>
@@ -92,7 +92,7 @@
 <h2>What this is not</h2>
 <ul>
 <li>Not a replacement for native tool calling when your model already supports it.</li>
-<li>On LM Studio / OpenAI-compat, ReAct auto-engages when the loaded model rejects native <code>tool_calls</code>; tool-capable models (e.g. Qwen 2.5, Llama 3.1+) use native OpenAI tool loops.</li>
+<li>On LM Studio / OpenAI-compat, ReAct auto-engages when the loaded model rejects native <code>tool_calls</code>; tool-capable models use native OpenAI tool loops.</li>
 <li>Not magic: smaller models will still drift format under pressure. The fallback exists because production agents need a floor.</li>
 </ul>
 <h2>Try it</h2>
@@ -116,14 +116,14 @@
 <!-- NJ-SITE-FOOTER-NAV:START -->
     <nav class="doc-strip footer-explore" aria-label="Explore site">
       <span class="doc-strip-label">Explore:</span>
-        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
-        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
-        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
-        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
-        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
-        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
-        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
-        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
         <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
     </nav>
 <!-- NJ-SITE-FOOTER-NAV:END -->
@@ -134,9 +134,5 @@
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
     mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
   </script>
-
-<!-- NJ-SITE-ANALYTICS:START -->
-  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<!-- NJ-SITE-ANALYTICS:END -->
 </body>
 </html>

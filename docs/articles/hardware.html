@@ -27,7 +27,7 @@
         <a class="btn btn-ghost" href="../start-here.html">Start here</a>
         <a class="btn btn-ghost" href="../index.html#pillars">Product</a>
         <a class="btn btn-ghost" href="../features/index.html">Guides</a>
-        <a class="btn btn-primary" href="../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost" href="../articles/index.html">Articles</a>
         <a class="btn btn-ghost" href="../benchmarks/index.html">Benchmarks</a>
         <a class="btn btn-ghost" href="../gallery/index.html">Gallery</a>
         <a class="btn btn-ghost" href="../security.html">Security</a>
@@ -114,7 +114,7 @@
 <h2>Optional workloads cost extra</h2>
 <p>LoRA training from chat or collab history needs the Specialist tuning pack, a Python venv (make deps-lora), and CUDA strongly recommended — CPU training is experimental and slow.</p>
 <p>Collaboration quality varies on local 7B/14B models. The hub enforces phase caps and fallbacks, but cannot guarantee plan shape the way a cloud frontier model might.</p>
-<p>MCP tool calling works on Claude (native), Ollama (native + ReAct + swap), and LM Studio / OpenAI-compat endpoints (native OpenAI tool loops + ReAct when the model lacks native support).</p>
+<p>MCP tool calling is strongest on Ollama (selected flows) and Claude; LM Studio and generic OpenAI-compat endpoints are more limited.</p>
 <p>Slack bridge runs in-process on your local hub — no public URL, but the hub must stay running.</p>
 <p>macOS builds are ad-hoc signed, not notarized. Right-click → Open the first time if Gatekeeper warns.</p>
 <p>We keep a public list: known-issues.html. Items come off when we fix them.</p>
@@ -147,14 +147,14 @@
 <!-- NJ-SITE-FOOTER-NAV:START -->
     <nav class="doc-strip footer-explore" aria-label="Explore site">
       <span class="doc-strip-label">Explore:</span>
-        <a class="btn btn-ghost btn-sm" href="../start-here.html">Start here</a>
-        <a class="btn btn-ghost btn-sm" href="../security.html">Security</a>
-        <a class="btn btn-ghost btn-sm" href="../features/index.html">Guides</a>
-        <a class="btn btn-ghost btn-sm" href="../articles/index.html" aria-current="page">Articles</a>
-        <a class="btn btn-ghost btn-sm" href="../benchmarks/index.html">Benchmarks</a>
-        <a class="btn btn-ghost btn-sm" href="../gallery/index.html">Gallery</a>
-        <a class="btn btn-ghost btn-sm" href="../release-notes.html">Release notes</a>
-        <a class="btn btn-ghost btn-sm" href="../known-issues.html">Known issues</a>
+        <a class="btn btn-ghost btn-sm" href="../../start-here.html">Start here</a>
+        <a class="btn btn-ghost btn-sm" href="../../security.html">Security</a>
+        <a class="btn btn-ghost btn-sm" href="../../features/index.html">Guides</a>
+        <a class="btn btn-ghost btn-sm" href="../../articles/index.html" aria-current="page">Articles</a>
+        <a class="btn btn-ghost btn-sm" href="../../benchmarks/index.html">Benchmarks</a>
+        <a class="btn btn-ghost btn-sm" href="../../gallery/index.html">Gallery</a>
+        <a class="btn btn-ghost btn-sm" href="../../release-notes.html">Release notes</a>
+        <a class="btn btn-ghost btn-sm" href="../../known-issues.html">Known issues</a>
         <a class="btn btn-ghost btn-sm" href="https://github.com/camronwood/neural-junkie/blob/main/docs/ARCHITECTURE.md">Architecture</a>
     </nav>
 <!-- NJ-SITE-FOOTER-NAV:END -->
@@ -165,9 +165,5 @@
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
     mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
   </script>
-
-<!-- NJ-SITE-ANALYTICS:START -->
-  <script data-goatcounter="https://neuraljunkie.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
-<!-- NJ-SITE-ANALYTICS:END -->
 </body>
 </html>
