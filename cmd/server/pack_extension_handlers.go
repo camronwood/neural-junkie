@@ -6,10 +6,10 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/config"
 	"github.com/camronwood/neural-junkie/internal/music"
-	"github.com/camronwood/neural-junkie/internal/packs/sidecar"
+	"github.com/camronwood/neural-junkie/internal/packsidecar"
 )
 
-var packSidecarMgr = sidecar.NewManager()
+var packSidecarMgr = packsidecar.NewManager()
 
 func initMusicSidecarGenerator() {
 	baseURL := func() string {

@@ -1,4 +1,4 @@
-package sidecar
+package packsidecar
 
 import (
 	"context"
@@ -221,4 +221,3 @@ func healthCheck(baseURL string) error {
 	}
 	return nil
 }
-

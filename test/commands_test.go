@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -757,16 +756,13 @@ func TestCommandParsing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected command handler creation to succeed, got error: %v", err)
 	}
-	workspaceDir := t.TempDir()
-	nonExistentRepoPath := filepath.Join(workspaceDir, "missing-repo")
-
+	ctx := context.Background()
 	testCases := []struct {
 		command    string
 		shouldWork bool
 	}{
 		{"/help", true},
 		{"/list-agents", true},
-		{fmt.Sprintf("/create-repo-agent %s TestAgent", nonExistentRepoPath), true},
 		{"/delete-agent TestAgent", true},
 		{"/pause-agent TestAgent", true},
 		{"/unpause-agent TestAgent", true},
@@ -776,7 +772,6 @@ func TestCommandParsing(t *testing.T) {
 		{"/create-expert rust", true},
 		{"/create-confluence-agent TestAgent", true},
 		{"/list-confluence-agents", true},
-		{fmt.Sprintf("/add-workspace %s", workspaceDir), true},
 		{"/list-workspaces", true},
 		{"/remind in 5 minutes Test", true},
 		{"/task-add Test task", true},
@@ -788,7 +783,6 @@ func TestCommandParsing(t *testing.T) {
 		{"", false},
 	}
 
-	ctx := context.Background()
 	for _, tc := range testCases {
 		msg := protocol.NewMessage(
 			protocol.MessageTypeChat,

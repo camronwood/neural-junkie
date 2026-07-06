@@ -102,6 +102,12 @@ beforeEach(() => {
   submitRunbookMock.mockResolvedValue(makeCollaboration({ phase: 'reviewing' }));
 });
 
+function clickThroughStartModal() {
+  fireEvent.click(screen.getByRole('button', { name: 'Start execution' }));
+  const modalStartButtons = screen.getAllByRole('button', { name: 'Start execution' });
+  fireEvent.click(modalStartButtons[modalStartButtons.length - 1]!);
+}
+
 describe('RunbookBuilderPanel start execution', () => {
   it('opens workspace gate for sandbox runbooks after start', async () => {
     const started = makeCollaboration({
@@ -124,9 +130,9 @@ describe('RunbookBuilderPanel start execution', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start execution' }));
+    clickThroughStartModal();
 
-    await waitFor(() => expect(startRunbookMock).toHaveBeenCalledWith(fullCollabId));
+    await waitFor(() => expect(startRunbookMock).toHaveBeenCalledWith(fullCollabId, {}));
     expect(acknowledgeWorkspaceMock).not.toHaveBeenCalled();
     expect(onWorkspaceGateRequest).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -168,7 +174,7 @@ describe('RunbookBuilderPanel start execution', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start execution' }));
+    clickThroughStartModal();
 
     await waitFor(() => expect(acknowledgeWorkspaceMock).toHaveBeenCalledWith(fullCollabId));
     expect(onWorkspaceGateRequest).not.toHaveBeenCalled();
@@ -198,9 +204,9 @@ describe('RunbookBuilderPanel start execution', () => {
       />
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Start execution' }));
+    clickThroughStartModal();
 
     await waitFor(() => expect(submitRunbookMock).toHaveBeenCalledWith(fullCollabId));
-    await waitFor(() => expect(startRunbookMock).toHaveBeenCalledWith(fullCollabId));
+    await waitFor(() => expect(startRunbookMock).toHaveBeenCalledWith(fullCollabId, {}));
   });
 });
