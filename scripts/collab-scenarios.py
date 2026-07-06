@@ -131,6 +131,114 @@ def list_scenarios() -> list[str]:
     return sorted(p.stem for p in SCENARIOS_DIR.glob("*.json"))
 
 
+def scenario_requires_gemini(scenario: dict) -> bool:
+    for agent in scenario.get("required_agents") or []:
+        if str(agent).strip().lower() == "gemini":
+            return True
+    agents_line = str(scenario.get("agents") or "")
+    return "@gemini" in agents_line.lower()
+
+
+def scenario_requires_claude(scenario: dict) -> bool:
+    for agent in scenario.get("required_agents") or []:
+        if str(agent).strip().lower() == "claude":
+            return True
+    agents_line = str(scenario.get("agents") or "")
+    return "@claude" in agents_line.lower()
+
+
+_gemini_probe_ok: bool | None = None
+_gemini_probe_detail: str = ""
+
+_claude_probe_ok: bool | None = None
+_claude_probe_detail: str = ""
+
+
+def prepare_gemini_for_collab(*, scenario_names: list[str], require: bool = False) -> bool:
+    """Probe API keys × models once before Gemini collab scenarios."""
+    global _gemini_probe_ok, _gemini_probe_detail
+    if _gemini_probe_ok is not None:
+        return _gemini_probe_ok
+    if os.environ.get("NJ_SKIP_GEMINI_PROBE", "").strip().lower() in ("1", "true", "yes"):
+        _gemini_probe_ok = True
+        return True
+
+    needs_gemini = False
+    for name in scenario_names:
+        try:
+            if scenario_requires_gemini(load_scenario(name)):
+                needs_gemini = True
+                break
+        except OSError:
+            continue
+    if not needs_gemini:
+        _gemini_probe_ok = True
+        return True
+
+    from lib.gemini_judge_auth import ensure_gemini_for_testing  # noqa: E402
+    from lib.release_prep_env import explicit_gemini_judge_model  # noqa: E402
+
+    print("\n>>> Gemini preflight (keys × models)...", flush=True)
+    sel = ensure_gemini_for_testing(
+        root=ROOT,
+        timeout_s=45.0,
+        explicit_model=explicit_gemini_judge_model(ROOT),
+        retry_quota=True,
+        collab=True,
+    )
+    _gemini_probe_ok = sel.ok
+    _gemini_probe_detail = sel.detail
+    if sel.ok:
+        print(f"OK: {sel.detail}", flush=True)
+        return True
+
+    msg = f"Gemini not available for collab testing: {sel.detail}"
+    if require:
+        print(f"FAIL: {msg}", file=sys.stderr)
+        return False
+    print(f"WARN: {msg}", file=sys.stderr)
+    return False
+
+
+def prepare_claude_for_collab(*, scenario_names: list[str], require: bool = False) -> bool:
+    """Probe Claude Code CLI once before @Claude collab scenarios."""
+    global _claude_probe_ok, _claude_probe_detail
+    if _claude_probe_ok is not None:
+        return _claude_probe_ok
+    if os.environ.get("NJ_SKIP_CLAUDE_PROBE", "").strip().lower() in ("1", "true", "yes"):
+        _claude_probe_ok = True
+        return True
+
+    needs_claude = False
+    for name in scenario_names:
+        try:
+            if scenario_requires_claude(load_scenario(name)):
+                needs_claude = True
+                break
+        except OSError:
+            continue
+    if not needs_claude:
+        _claude_probe_ok = True
+        return True
+
+    from lib.claude_judge_auth import ensure_claude_for_testing  # noqa: E402
+
+    print("\n>>> Claude preflight...", flush=True)
+    sel = ensure_claude_for_testing(timeout_s=45.0)
+    _claude_probe_ok = sel.ok
+    _claude_probe_detail = sel.detail
+    if sel.ok:
+        print(f"OK: {sel.detail}", flush=True)
+        return True
+
+    msg = f"Claude not available for collab testing: {sel.detail}"
+    if require:
+        print(f"FAIL: {msg}", file=sys.stderr)
+        return False
+    print(f"WARN: {msg}", file=sys.stderr)
+    return False
+
+
 def _strip_flag(flags: list[str], name: str) -> list[str]:
     out: list[str] = []
     skip_next = False
@@ -316,7 +424,7 @@ def step_wait_discussion(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
         while time.time() < deadline:
             raw_msgs = hub.list_messages(ctx.base, ctx.collab_channel, 200)
             scoped = hub.messages_for_collab(raw_msgs, ctx.collab_id)
-            msgs = hub.agent_messages(scoped)
+            msgs = hub.agent_messages(scoped, exclude_generation_errors=True)
             counts = hub.count_by_agent(msgs)
             total = len(msgs)
             if retry_on_gen_error:
@@ -582,14 +690,15 @@ def step_assert_plan(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     max_tasks = int(step.get("max_tasks", 0))
     if max_tasks > 0 and len(tasks) > max_tasks:
         return False, f"tasks={len(tasks)} want <={max_tasks} (parser explosion?)"
-    if min_tasks > 0:
-        if len(tasks) < min_tasks:
-            effective = 0
-            if content:
-                effective = max(
-                    len(re.findall(r"(?m)^\s*[-*]\s+Task\s+\d+:", content, re.I)),
-                    len(re.findall(r"(?m)^\s*\d+\.\s+\*\*", content)),
-                )
+    if min_tasks > 0 and len(tasks) < min_tasks:
+        effective = 0
+        if content:
+            effective = max(
+                len(re.findall(r"(?m)^\s*[-*]\s+Task\s+\d+:", content, re.I)),
+                len(re.findall(r"(?m)^\s*\d+\.\s+\*\*", content)),
+                len(re.findall(r"(?m)^\s*[-*]\s+\*\*Task\s+\d+", content, re.I)),
+            )
+        if effective < min_tasks:
             return False, f"tasks={len(tasks)} plan_task_lines≈{effective} want >={min_tasks}"
 
     if step.get("tasks_have_assignee"):
@@ -659,9 +768,12 @@ def step_send(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     channel = step.get("channel") or ctx.collab_channel or ctx.channel
     if not content:
         return False, "empty send content"
-    code, _ = hub.send_message(ctx.base, channel, content)
+    timeout = float(step.get("timeout", 300 if content.startswith("/") else 60))
+    code, _ = hub.send_message(ctx.base, channel, content, timeout=timeout)
     if code != 200:
-        return False, f"send failed ({code})"
+        err = hub.last_system_error(ctx.base, channel)
+        detail = f" ({err})" if err else ""
+        return False, f"send failed ({code}){detail}"
     time.sleep(0.5)
     return True, content[:60]
 
@@ -741,6 +853,50 @@ def _deliverable_file_ready(
     return not (allow_fallback and _is_deliverable_stub(full))
 
 
+_HOME_HTML_NAMES = ("index.html", "homepage.html", "home.html")
+
+
+def _html_file_priority(name: str) -> int:
+    lower = name.lower()
+    for idx, preferred in enumerate(_HOME_HTML_NAMES):
+        if lower == preferred:
+            return idx
+    return len(_HOME_HTML_NAMES)
+
+
+def _find_collab_deliverable_on_disk(
+    workspace_root: str,
+    collab_id: str,
+    path_match: str,
+    *,
+    min_bytes: int,
+    allow_fallback: bool,
+    prefer_home_html: bool = False,
+) -> Path | None:
+    """True when CLI agents auto-applied files (--yolo) with nothing left in pending queue."""
+    if not workspace_root or not collab_id or not path_match:
+        return None
+    collab_dir = Path(workspace_root) / "collabs" / collab_id
+    if not collab_dir.is_dir():
+        return None
+    needle = path_match.lower().lstrip(".")
+    candidates: list[Path] = []
+    for path in collab_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        if needle not in path.name.lower():
+            continue
+        if _deliverable_file_ready(path, min_bytes=min_bytes, allow_fallback=allow_fallback):
+            candidates.append(path)
+    if not candidates:
+        return None
+    if prefer_home_html or needle == "html":
+        candidates.sort(key=lambda p: (_html_file_priority(p.name), p.name))
+    else:
+        candidates.sort(key=lambda p: p.name)
+    return candidates[0]
+
+
 def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
     if not ctx.collab_channel:
         return False, "no collab_channel"
@@ -762,6 +918,18 @@ def step_approve_file_changes(ctx: ScenarioContext, step: dict) -> tuple[bool, s
         min_approved=min_approved,
         timeout=timeout,
     )
+
+    if ctx.workspace_root and ctx.collab_id and path_match:
+        on_disk = _find_collab_deliverable_on_disk(
+            ctx.workspace_root,
+            ctx.collab_id,
+            path_match,
+            min_bytes=min_bytes,
+            allow_fallback=allow_fallback,
+            prefer_home_html=path_match.strip().lower() in (".html", "html"),
+        )
+        if on_disk and (n >= min_approved or min_approved == 0):
+            return True, f"deliverable on disk ({on_disk.name})"
 
     if expect_rel and ctx.workspace_root:
         full = Path(ctx.workspace_root) / expect_rel
@@ -828,14 +996,64 @@ def step_assert_deliverable(ctx: ScenarioContext, step: dict) -> tuple[bool, str
     root = step.get("root") or ctx.workspace_root
     if not root:
         return False, "assert_deliverable: no workspace root"
-    return check_file_deliverable(
-        root=root,
-        rel=rel,
-        spec=spec,
-        question=scenario_question(ctx.scenario),
-        collab_id=ctx.collab_id,
-        hub_base=ctx.base,
-    )
+    alts = step.get("path_alternatives") or spec.get("path_alternatives") or []
+    candidates = [rel] + [str(a).strip() for a in alts if str(a).strip()]
+    last_detail = ""
+    for candidate in candidates:
+        ok, detail = check_file_deliverable(
+            root=root,
+            rel=candidate,
+            spec=spec,
+            question=scenario_question(ctx.scenario),
+            collab_id=ctx.collab_id,
+            hub_base=ctx.base,
+        )
+        if ok:
+            return True, detail
+        last_detail = detail
+
+    scan_suffix = (step.get("path_any_in_collab") or spec.get("path_any_in_collab") or "").strip()
+    if scan_suffix and ctx.collab_id:
+        collab_dir = Path(root) / "collabs" / ctx.collab_id
+        if collab_dir.is_dir():
+            suffix = scan_suffix if scan_suffix.startswith(".") else f".{scan_suffix}"
+            scanned: list[Path] = []
+            # Home-page scan is for index.html aliases only — not every .html deliverable.
+            home_only = suffix.lower() == ".html" and (
+                rel.endswith("index.html")
+                or step.get("path_alternatives")
+                or spec.get("path_alternatives")
+            )
+            if home_only:
+                for name in _HOME_HTML_NAMES:
+                    path = collab_dir / name
+                    if path.is_file():
+                        scanned.append(path)
+            else:
+                for path in collab_dir.rglob("*"):
+                    if path.is_file() and path.name.lower().endswith(suffix.lower()):
+                        scanned.append(path)
+            if suffix.lower() == ".html" and not home_only:
+                scanned.sort(key=lambda p: p.name)
+            elif suffix.lower() == ".html":
+                scanned.sort(key=lambda p: (_html_file_priority(p.name), p.name))
+            else:
+                scanned.sort(key=lambda p: p.name)
+            for path in scanned:
+                rel_scan = str(path.relative_to(Path(root)))
+                ok, detail = check_file_deliverable(
+                    root=root,
+                    rel=rel_scan,
+                    spec=spec,
+                    question=scenario_question(ctx.scenario),
+                    collab_id=ctx.collab_id,
+                    hub_base=ctx.base,
+                )
+                if ok:
+                    return True, f"{detail} (scanned {rel_scan})"
+                last_detail = detail
+
+    return False, last_detail
 
 
 def step_assert_files(ctx: ScenarioContext, step: dict) -> tuple[bool, str]:
@@ -1296,6 +1514,14 @@ def _run_scenario_once(
     keep: bool = False,
 ) -> tuple[bool, str]:
     scenario = load_scenario(name)
+    if scenario_requires_gemini(scenario) and _gemini_probe_ok is False:
+        print(f"=== FAIL: {name} ===", file=sys.stderr)
+        print(f"  Gemini preflight failed: {_gemini_probe_detail}", file=sys.stderr)
+        return False, "gemini preflight failed"
+    if scenario_requires_claude(scenario) and _claude_probe_ok is False:
+        print(f"=== FAIL: {name} ===", file=sys.stderr)
+        print(f"  Claude preflight failed: {_claude_probe_detail}", file=sys.stderr)
+        return False, "claude preflight failed"
     ctx = ScenarioContext(base, scenario, verbose)
     channel = ctx.channel
     agents = scenario.get("agents") or hub.resolve_agents(profile, agents_override)
@@ -1398,7 +1624,24 @@ def main() -> int:
     p.add_argument("--agents", default=None, help="Override agent mentions")
     p.add_argument("--verbose", "-v", action="store_true")
     p.add_argument("--keep", action="store_true", help="Do not cancel collab after run")
+    p.add_argument(
+        "--require-gemini",
+        action="store_true",
+        help="Fail when Gemini API probe fails (opt-in; collab scenarios use Ollama agents only)",
+    )
+    p.add_argument(
+        "--require-claude",
+        action="store_true",
+        help="Fail when Claude Code CLI probe fails (for @Claude scenarios)",
+    )
+    p.add_argument("--pack-dir", help="Pack repo root; scenarios read from <pack-dir>/scenarios/collab")
     args = p.parse_args()
+
+    global SCENARIOS_DIR
+    if args.pack_dir:
+        SCENARIOS_DIR = Path(args.pack_dir).resolve() / "scenarios" / "collab"
+    elif os.environ.get("NJ_PACK_SCENARIOS_DIR", "").strip():
+        SCENARIOS_DIR = Path(os.environ["NJ_PACK_SCENARIOS_DIR"]).resolve()
 
     if args.list:
         for name in list_scenarios():
@@ -1406,6 +1649,17 @@ def main() -> int:
         return 0
 
     base = args.hub.rstrip("/")
+    scenario_names = list_scenarios() if args.all else ([args.scenario] if args.scenario else [])
+    if scenario_names and not prepare_gemini_for_collab(
+        scenario_names=scenario_names,
+        require=args.require_gemini,
+    ):
+        return 1
+    if scenario_names and not prepare_claude_for_collab(
+        scenario_names=scenario_names,
+        require=args.require_claude,
+    ):
+        return 1
     if not maybe_boot_regression(base, root=ROOT, label="collab-scenarios"):
         return 1
     if args.all:

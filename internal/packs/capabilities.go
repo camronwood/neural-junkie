@@ -40,6 +40,7 @@ var OfficialDomainCapabilityTokens = []string{
 // KnownExtensionKinds are valid capability_defs.kind values.
 var KnownExtensionKinds = []string{
 	"hub-sidecar",
+	"mcp-sidecar",
 	"file-viewer",
 	"toolbar-chip",
 	"mcp-tools",
@@ -71,6 +72,7 @@ type CapabilityUI struct {
 // CapabilitySidecarSpec declares how the hub starts a pack sidecar route module.
 type CapabilitySidecarSpec struct {
 	Module  string   `yaml:"module,omitempty" json:"module,omitempty"`
+	Binary  string   `yaml:"binary,omitempty" json:"binary,omitempty"`
 	Command []string `yaml:"command,omitempty" json:"command,omitempty"`
 }
 
@@ -83,8 +85,9 @@ type CapabilityDef struct {
 	MatchGlob   string                 `yaml:"match_glob,omitempty" json:"match_glob,omitempty"`
 	Viewer      string                 `yaml:"viewer,omitempty" json:"viewer,omitempty"`
 	Settings    []string               `yaml:"settings,omitempty" json:"settings,omitempty"`
-	MCPTools    []string               `yaml:"mcp_tools,omitempty" json:"mcp_tools,omitempty"`
-	MCPToolsPath string                `yaml:"mcp_tools_path,omitempty" json:"mcp_tools_path,omitempty"`
+	MCPTools     []string               `yaml:"mcp_tools,omitempty" json:"mcp_tools,omitempty"`
+	MCPToolsPath string                 `yaml:"mcp_tools_path,omitempty" json:"mcp_tools_path,omitempty"`
+	MCPAgents    []string               `yaml:"mcp_agents,omitempty" json:"mcp_agents,omitempty"`
 }
 
 // ResolvedCapability is a runtime capability entry from platform or pack-local defs.
@@ -100,6 +103,7 @@ type ResolvedCapability struct {
 	Viewer      string        `json:"viewer,omitempty"`
 	Settings    []string      `json:"settings,omitempty"`
 	MCPTools    []string      `json:"mcp_tools,omitempty"`
+	MCPAgents   []string      `json:"mcp_agents,omitempty"`
 }
 
 // QualifiedCapabilityID returns packID/capID.
@@ -215,6 +219,11 @@ func validateCapabilityDefPaths(capID string, def CapabilityDef, packDir string,
 				*errors = append(*errors, fmt.Sprintf("capability_defs[%q].sidecar.module: %v", capID, err))
 			}
 		}
+		if bin := strings.TrimSpace(def.Sidecar.Binary); bin != "" {
+			if _, err := ResolvePackRelativePath(packDir, bin); err != nil {
+				*errors = append(*errors, fmt.Sprintf("capability_defs[%q].sidecar.binary: %v", capID, err))
+			}
+		}
 	}
 	if path := strings.TrimSpace(def.MCPToolsPath); path != "" {
 		if _, err := ResolvePackRelativePath(packDir, path); err != nil {
@@ -264,6 +273,7 @@ func BuildResolvedCapabilities(m *Manifest) []ResolvedCapability {
 			Viewer:      def.Viewer,
 			Settings:    append([]string(nil), def.Settings...),
 			MCPTools:    append([]string(nil), def.MCPTools...),
+			MCPAgents:   append([]string(nil), def.MCPAgents...),
 		}
 		out = append(out, rc)
 	}

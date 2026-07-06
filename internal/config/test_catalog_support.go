@@ -74,9 +74,13 @@ func setupTestOfficialPackCatalog(t *testing.T) {
 		if err := zipDirContents(src, zipPath); err != nil {
 			t.Fatal(err)
 		}
+		ver := "1.0.0"
+		if m, err := packs.LoadManifest(src); err == nil && m != nil && m.Version != "" {
+			ver = m.Version
+		}
 		entries = append(entries, packs.CatalogEntry{
 			ID:          id,
-			Version:     "1.0.0",
+			Version:     ver,
 			Title:       id,
 			Builtin:     true,
 			DownloadURL: "",

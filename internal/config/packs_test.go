@@ -165,6 +165,7 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	hasArchitecture := false
 	hasCodeReview := false
 	hasDatabase := false
+	hasRust := false
 	for _, p := range presets {
 		if p.Slug == "architecture" && p.FromPack == PackSoftwareDevelopment {
 			hasArchitecture = true
@@ -175,8 +176,8 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 		if p.Slug == "database" && p.FromPack == PackSoftwareDevelopment {
 			hasDatabase = true
 		}
-		if p.Slug == "rust" {
-			t.Fatalf("legacy preset %q should not appear in software-development pack defaults", p.Slug)
+		if p.Slug == "rust" && p.FromPack == PackSoftwareDevelopment {
+			hasRust = true
 		}
 	}
 	if !hasArchitecture {
@@ -187,6 +188,9 @@ func TestAvailableExpertPresetsDevPack(t *testing.T) {
 	}
 	if !hasDatabase {
 		t.Fatal("expected database preset from software-development pack")
+	}
+	if !hasRust {
+		t.Fatal("expected rust preset from software-development pack")
 	}
 }
 

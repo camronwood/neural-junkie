@@ -34,6 +34,14 @@ var defaultPorts = map[string]int{
 	"AWS":          8092,
 	"INCIDENT":     8093,
 	"BROWSER":      8094,
+	"SRE":          8095,
+	"MOBILE":       8096,
+	"DATA_ML":      8097,
+}
+
+// DefaultPort returns the default HTTP port for an agent type key (BACKEND, SRE, …).
+func DefaultPort(key string) int {
+	return defaultPorts[key]
 }
 
 // NormalizeAgentType maps agent type strings to MCP port config keys (e.g. code-review -> CODE_REVIEW).

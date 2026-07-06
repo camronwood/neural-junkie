@@ -14,7 +14,7 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **IDE v2/v2c** (dev pack only) | Git SCM, symbols, Problems, inline hunks, fast edit (⌘K), IDE layout, LSP-lite (Go/Rust/Python), inline completion. See [IDE_V2.md](IDE_V2.md) |
 | **IDE v3** (dev pack only) | Main chat IDE mode (Ask/Agent, @codebase, specialist routing). See [IDE_V3.md](IDE_V3.md) |
 | **IDE v4** (dev pack only) | Full LSP, remote SSH, dev containers. See [IDE_V4.md](IDE_V4.md) |
-| **Qwen 3.5 27B** | `qwen3.5:27b` — shared base for all specialists |
+| **Qwen 3.5 27B** | `qwen3.5:27b` — shared base for all specialists (pack v2) |
 | **Utility tier** | `qwen3.5:9b` — merged into `models_to_ensure` for background tasks |
 | **BackendEngineer** | APIs, services, integrations, business logic |
 | **FrontendEngineer** | Web/desktop UI, accessibility, design systems |
@@ -23,7 +23,11 @@ Install the pack from **Settings → Domain packs → Pack store**, then enable 
 | **SoftwareArchitect** | System design, service boundaries, migrations |
 | **CodeReviewer** | Correctness, maintainability, tests, regressions |
 | **DatabaseSpecialist** | SQL, schema design, query optimization |
-| **Dev MCP** | MCP tool servers for backend, frontend, platform, database, security, code review, and architecture specialists |
+| **RustExpert** | Cargo, async Rust, WASM (pack v2) |
+| **SREObservabilityEngineer** | Prometheus, alerts, traces (pack v2) |
+| **MobileEngineer** | React Native, iOS/Android (pack v2) |
+| **DataMLEngineer** | Notebooks, datasets, ML pipelines (pack v2) |
+| **Dev MCP** | Pack-owned `sd-mcp-server` sidecar (ports 8081–8090, 8095–8097) |
 
 ### MCP tool matrix (software development pack)
 
@@ -82,6 +86,7 @@ On first load after upgrading, if any legacy specialist (`backend`, `frontend`, 
 
 ## See also
 
+- Pack workspace guide (installed pack): `assets/WORKSPACE.md` in [neural-junkie-pack-software-development](https://github.com/camronwood/neural-junkie-pack-software-development)
 - [BIOLOGY_PACK.md](BIOLOGY_PACK.md) — Life sciences pack
 - [MCP_INTEGRATION.md](MCP_INTEGRATION.md) — MCP ports and tools
 - [MCP_EXTERNAL_CLIENTS.md](MCP_EXTERNAL_CLIENTS.md) — Claude Desktop / external MCP hosts

@@ -20,13 +20,16 @@ const (
 )
 
 // DevOllamaCodeModel is the default local model for software-development specialists and live regression.
-const DevOllamaCodeModel = "qwen2.5-coder:14b"
+const DevOllamaCodeModel = "qwen3.5:27b"
 
 // devSpecialistTypes are in-process engineering agent types owned by the software-development pack.
-var devSpecialistTypes = []string{"backend", "frontend", "devops", "security", "architecture", "code-review", "database"}
+var devSpecialistTypes = []string{
+	"backend", "frontend", "devops", "security", "architecture", "code-review", "database",
+	"rust", "sre", "mobile", "data-ml",
+}
 
-// legacyDevSpecialistTypes are optional expert slugs gated by the software-development pack.
-var legacyDevSpecialistTypes = []string{"rust"}
+// legacyDevSpecialistTypes are deprecated; rust and new specialists live in devSpecialistTypes and pack.yaml.
+var legacyDevSpecialistTypes []string
 
 // PacksConfig stores installed packs, enable toggles, and layout ownership.
 type PacksConfig struct {
@@ -839,9 +842,7 @@ var coreExpertPresets = []ExpertPreset{
 	{Slug: "assistant", Label: "Assistant"},
 }
 
-var legacyDevPackExpertSlugs = map[string]struct{}{
-	"rust": {},
-}
+var legacyDevPackExpertSlugs = map[string]struct{}{}
 
 func isDevPackExpertSlug(slug string) bool {
 	for _, ep := range packs.SoftwareDevelopmentExpertSlugs {

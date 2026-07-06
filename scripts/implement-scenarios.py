@@ -508,7 +508,13 @@ def main() -> int:
     p.add_argument("--best-of-k", type=int, default=0, help="Report best-of-K pass rate across run groups (requires --runs >= K)")
     p.add_argument("--hub", default=hub.DEFAULT_HUB)
     p.add_argument("--keep", action="store_true")
+    p.add_argument("--pack-dir", help="Pack repo root; scenarios read from <pack-dir>/scenarios/implement")
     args = p.parse_args()
+    global SCENARIOS_DIR
+    if args.pack_dir:
+        SCENARIOS_DIR = Path(args.pack_dir).resolve() / "scenarios" / "implement"
+    elif os.environ.get("NJ_PACK_SCENARIOS_DIR", "").strip():
+        SCENARIOS_DIR = Path(os.environ["NJ_PACK_SCENARIOS_DIR"]).resolve()
     if args.list:
         for f in sorted(SCENARIOS_DIR.glob("*.json")):
             print(f.stem)

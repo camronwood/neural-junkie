@@ -25,6 +25,9 @@ var presetExpertTypes = map[string]protocol.AgentType{
 	"security":     protocol.AgentTypeSecurity,
 	"architecture": protocol.AgentTypeArchitecture,
 	"code-review":  protocol.AgentTypeCodeReview,
+	"sre":          protocol.AgentTypeSRE,
+	"mobile":       protocol.AgentTypeMobile,
+	"data-ml":      protocol.AgentTypeDataML,
 	"assistant":    protocol.AgentTypeAssistant,
 	"music":        protocol.AgentTypeMusic,
 }

@@ -92,7 +92,7 @@ make layer-gate LAYER=parity   # 3× implement with hub restart
 
 Scenarios assert **files on disk** (not just reply text). See `scenarios/implement/*.json`.
 
-**Deliverable contract (`expect_deliverables`):** File-producing implement and collab scenarios declare expected paths plus question-aligned quality bars (`for_question.any_match` / `none_match` / `contains_all`). Live runs with `llm_judge: true` use an **independent judge** — **cloud-first** (hub `@Gemini` by default), with **Ollama fallback** (`qwen2.5-coder:14b`) when quota or API errors occur (`NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA=1`). Set `NJ_DELIVERABLE_JUDGE_PROVIDER=ollama` for local-only judging. CI smoke enforces the JSON contract via `make test-scenario-assert`; `NJ_DELIVERABLE_JUDGE_SKIP=1` skips LLM judge during live runs.
+**Deliverable contract (`expect_deliverables`):** File-producing implement and collab scenarios declare expected paths plus question-aligned quality bars (`for_question.any_match` / `none_match` / `contains_all`). Live runs with `llm_judge: true` use an **independent judge** — **cloud-first** (hub `@Claude` by default), with **Ollama fallback** (`qwen2.5-coder:14b`) when cloud errors occur (`NJ_DELIVERABLE_JUDGE_FALLBACK_OLLAMA=1`). Set `NJ_DELIVERABLE_JUDGE_PROVIDER=ollama` for local-only judging. CI smoke enforces the JSON contract via `make test-scenario-assert`; `NJ_DELIVERABLE_JUDGE_SKIP=1` skips LLM judge during live runs.
 
 **Stability gate (beta.24+):** archives logs to `docs/testing/parity-stable-*.log`:
 
@@ -211,6 +211,8 @@ Optional: GitHub Actions `workflow_dispatch` job `collab-preflight` (hub must be
 
 Individual gates (same hub): `make implement-scenarios`, `make layer-gate LAYER=chat`.
 
+**Pack-owned scenarios:** Official pack repos may ship `scenarios/` and `make pack-smoke`. Pass `--pack-dir /path/to/pack` to `scripts/implement-scenarios.py` or `scripts/collab-scenarios.py`, or set `NJ_PACK_SCENARIOS_DIR`.
+
 Quick reference: `make release-help` prints the live workflow.
 
 ### Hub vs client rate limit
@@ -252,26 +254,28 @@ Most collab scenarios stop after **partial execution** (`min_completed: 1`, `set
 | `document-findings-execution` | Yes | Full — "Document findings" phrasing |
 | `phoenix-resource-api-e2e` | `collab-scenarios-all` only | Full — multi-agent Phoenix stress test |
 
+**Live collab roster policy:** at most **two Ollama specialists** plus **@Claude** when a third participant is needed. Avoid `@Assistant` in scenarios — specialists implement; Claude covers cloud participation and judging.
+
 ### Per-scenario agent requirements (all 25)
 
 | Scenario | Required agents | Notes |
 |----------|-----------------|-------|
-| `planning-two-agent` | (profile default: 2+ online) | No pinned roster |
-| `delivery-sandbox-auto-ack` | (profile default) | Partial execution |
-| `collab-minimal-completion-regression` | Assistant, BackendEngineer | Full completion (`minimal-repo`; fast two-agent roster) |
-| `execute-deliverable` | Assistant, BackendEngineer | Full completion |
-| `document-findings-execution` | Assistant, BackendEngineer | Full completion |
+| `planning-two-agent` | SoftwareArchitect, BackendEngineer | No pinned cloud agent |
+| `delivery-sandbox-auto-ack` | BackendEngineer | Partial execution |
+| `collab-minimal-completion-regression` | BackendEngineer | Full completion (`minimal-repo`) |
+| `execute-deliverable` | BackendEngineer, SoftwareArchitect | Full completion |
+| `document-findings-execution` | BackendEngineer, SoftwareArchitect | Full completion |
 | `reject-collabs-subfolder` | (profile default) | |
-| `solo-vs-collab-parity` | Assistant | Solo leg auto-approves file proposals |
+| `solo-vs-collab-parity` | BackendEngineer, SoftwareArchitect | Solo leg uses BackendEngineer |
 | `multi-collab-isolation` | (profile default) | Blocker setup uses fast agents |
-| `plan-findings-task-regression` | Assistant, BackendEngineer, SoftwareArchitect | |
+| `plan-findings-task-regression` | BackendEngineer, SoftwareArchitect, Claude | |
 | `plan-distinct-deliverables-same-agent` | SoftwareArchitect, BackendEngineer | |
-| `plan-phoenix-combined-regression` | BackendEngineer, SoftwareArchitect, PlatformEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
-| `plan-dependency-prose-regression` | BackendEngineer, SoftwareArchitect, PlatformEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
-| `resource-api-schema-regression` | Assistant, BackendEngineer, FrontendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO` |
-| `resource-api-schema-planning` | Assistant, **Gemini**, PlatformEngineer | Gemini CLI agent |
-| `phoenix-resource-api-e2e` | Assistant, SoftwareArchitect, BackendEngineer | `NEURAL_JUNKIE_SCENARIO_REPO`; full completion |
-| `execution-no-stack-commands` | Assistant, PlatformEngineer | |
+| `plan-phoenix-combined-regression` | BackendEngineer, SoftwareArchitect, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `plan-dependency-prose-regression` | BackendEngineer, SoftwareArchitect, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `resource-api-schema-regression` | BackendEngineer, FrontendEngineer, Claude | `NEURAL_JUNKIE_SCENARIO_REPO` |
+| `resource-api-schema-planning` | SoftwareArchitect, PlatformEngineer, Claude | |
+| `phoenix-resource-api-e2e` | SoftwareArchitect, BackendEngineer, Claude | `NEURAL_JUNKIE_SCENARIO_REPO`; full completion |
+| `execution-no-stack-commands` | BackendEngineer, PlatformEngineer | |
 
 Sweep logs: [testing/collab-sweep-2026-06-02.md](testing/collab-sweep-2026-06-02.md).
 

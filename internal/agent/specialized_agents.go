@@ -5,19 +5,11 @@ import (
 
 	"github.com/camronwood/neural-junkie/internal/ai"
 	"github.com/camronwood/neural-junkie/internal/contextcompress"
-	"github.com/camronwood/neural-junkie/internal/mcp/architecture"
-	"github.com/camronwood/neural-junkie/internal/mcp/backend"
 	"github.com/camronwood/neural-junkie/internal/mcp/biology"
 	"github.com/camronwood/neural-junkie/internal/mcp/cad"
 	"github.com/camronwood/neural-junkie/internal/mcp/aws"
 	"github.com/camronwood/neural-junkie/internal/mcp/incident"
 	"github.com/camronwood/neural-junkie/internal/mcp/browser"
-	"github.com/camronwood/neural-junkie/internal/mcp/codereview"
-	"github.com/camronwood/neural-junkie/internal/mcp/database"
-	"github.com/camronwood/neural-junkie/internal/mcp/devops"
-	"github.com/camronwood/neural-junkie/internal/mcp/frontend"
-	"github.com/camronwood/neural-junkie/internal/mcp/rust"
-	"github.com/camronwood/neural-junkie/internal/mcp/security"
 	"github.com/camronwood/neural-junkie/internal/mcp/workspace"
 	"github.com/camronwood/neural-junkie/internal/protocol"
 )
@@ -82,11 +74,7 @@ func NewFrontendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 	agent.SupportsVision = true
 	agent.Info.SupportsVision = true
 
-	if frontendMCP, err := frontend.NewFrontendMCP(); err != nil {
-		log.Printf("Failed to create Frontend MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Frontend", frontendMCP)
-	}
+	attachSDDomainMCP(agent, "frontend", "Frontend", true, nil)
 
 	return agent
 }
@@ -104,12 +92,7 @@ func NewBackendAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeBackend, name, expertise, ai, hub)
 
-	backendMCP, err := backend.NewBackendMCP()
-	if err != nil {
-		log.Printf("Failed to create Backend MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Backend", backendMCP)
-	}
+	attachSDDomainMCP(agent, "backend", "Backend", true, nil)
 
 	return agent
 }
@@ -130,12 +113,7 @@ func NewDevOpsAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeDevOps, name, expertise, ai, hub)
 
-	devopsMCP, err := devops.NewDevOpsMCP()
-	if err != nil {
-		log.Printf("Failed to create DevOps MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "DevOps", devopsMCP)
-	}
+	attachSDDomainMCP(agent, "devops", "DevOps", true, nil)
 
 	return agent
 }
@@ -153,12 +131,7 @@ func NewDatabaseAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeDatabase, name, expertise, ai, hub)
 
-	databaseMCP, err := database.NewDatabaseMCP()
-	if err != nil {
-		log.Printf("Failed to create Database MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Database", databaseMCP)
-	}
+	attachSDDomainMCP(agent, "database", "Database", true, nil)
 
 	return agent
 }
@@ -177,11 +150,7 @@ func NewSecurityAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeSecurity, name, expertise, ai, hub)
 
-	if securityMCP, err := security.NewSecurityMCP(); err != nil {
-		log.Printf("Failed to create Security MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Security", securityMCP)
-	}
+	attachSDDomainMCP(agent, "security", "Security", true, nil)
 
 	return agent
 }
@@ -205,11 +174,7 @@ func NewRustAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeRust, name, expertise, ai, hub)
 
-	if rustMCP, err := rust.NewRustMCP(); err != nil {
-		log.Printf("Failed to create Rust MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Rust", rustMCP)
-	}
+	attachSDDomainMCP(agent, "rust", "Rust", true, nil)
 
 	return agent
 }
@@ -225,11 +190,7 @@ func NewArchitectureAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeArchitecture, name, expertise, ai, hub)
 
-	if archMCP, err := architecture.NewArchitectureMCP(); err != nil {
-		log.Printf("Failed to create Architecture MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "Architecture", archMCP)
-	}
+	attachSDDomainMCP(agent, "architecture", "Architecture", true, nil)
 
 	return agent
 }
@@ -245,12 +206,44 @@ func NewCodeReviewAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
 
 	agent := NewAgent(protocol.AgentTypeCodeReview, name, expertise, ai, hub)
 
-	if reviewMCP, err := codereview.NewCodeReviewMCP(); err != nil {
-		log.Printf("Failed to create Code Review MCP server: %v", err)
-	} else {
-		startAgentMCP(agent, "CodeReview", reviewMCP)
-	}
+	attachSDDomainMCP(agent, "code-review", "CodeReview", true, nil)
 
+	return agent
+}
+
+// NewSREAgent creates an SRE / observability specialist.
+func NewSREAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Observability", "Prometheus", "Grafana", "OpenTelemetry",
+		"Alerting", "SLOs", "Incident response", "On-call",
+		"Log analysis", "Distributed tracing", "Capacity planning",
+	}
+	agent := NewAgent(protocol.AgentTypeSRE, name, expertise, ai, hub)
+	attachSDDomainMCP(agent, "sre", "SRE", true, nil)
+	return agent
+}
+
+// NewMobileAgent creates a mobile development specialist.
+func NewMobileAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"React Native", "iOS", "Android", "Swift", "Kotlin",
+		"Mobile CI", "App store releases", "Push notifications",
+		"Mobile performance", "Device testing",
+	}
+	agent := NewAgent(protocol.AgentTypeMobile, name, expertise, ai, hub)
+	attachSDDomainMCP(agent, "mobile", "Mobile", true, nil)
+	return agent
+}
+
+// NewDataMLAgent creates a data / ML engineering specialist.
+func NewDataMLAgent(name string, ai ai.AIProvider, hub HubClient) *Agent {
+	expertise := []string{
+		"Data pipelines", "ML training", "Feature stores", "Model serving",
+		"Jupyter", "Pandas", "scikit-learn", "Experiment tracking",
+		"Dataset profiling", "MLOps",
+	}
+	agent := NewAgent(protocol.AgentTypeDataML, name, expertise, ai, hub)
+	attachSDDomainMCP(agent, "data-ml", "DataML", true, nil)
 	return agent
 }
 
@@ -396,6 +389,12 @@ func AgentFactory(agentType protocol.AgentType, name string, ai ai.AIProvider, h
 		return NewArchitectureAgent(name, ai, hub), nil
 	case protocol.AgentTypeCodeReview:
 		return NewCodeReviewAgent(name, ai, hub), nil
+	case protocol.AgentTypeSRE:
+		return NewSREAgent(name, ai, hub), nil
+	case protocol.AgentTypeMobile:
+		return NewMobileAgent(name, ai, hub), nil
+	case protocol.AgentTypeDataML:
+		return NewDataMLAgent(name, ai, hub), nil
 	case protocol.AgentTypeBiology:
 		return NewBiologyAgent(name, ai, hub), nil
 	case protocol.AgentTypeCAD:

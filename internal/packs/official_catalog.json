@@ -3,13 +3,13 @@
   "packs": [
     {
       "id": "software-development",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "title": "Software development",
-      "description": "Broad backend, frontend, platform, security, architecture, and code review specialists with MCP analysis tools and Qwen Coder models.",
+      "description": "Engineering specialists with pack-owned MCP sidecar, IDE capabilities, and Qwen 3.5 models.",
       "icon_key": "code",
       "publisher": "Neural Junkie",
       "builtin": true,
-      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v1.0.0/software-development-1.0.0.zip"
+      "download_url": "https://github.com/camronwood/neural-junkie-pack-software-development/releases/download/v2.0.0/software-development-2.0.0.zip"
     },
     {
       "id": "life-sciences",
@@ -59,6 +59,7 @@
       "icon_key": "incident",
       "publisher": "Neural Junkie",
       "builtin": true,
+      "requires_packs": ["software-development"],
       "download_url": "https://github.com/camronwood/neural-junkie-pack-incident-management/releases/download/v1.0.0/incident-management-1.0.0.zip"
     },
     {

@@ -12,6 +12,7 @@ import (
 var packSidecarMgr = packsidecar.NewManager()
 
 func initMusicSidecarGenerator() {
+	packsidecar.SetGlobalManager(packSidecarMgr)
 	baseURL := func() string {
 		if packSidecarMgr == nil {
 			return ""

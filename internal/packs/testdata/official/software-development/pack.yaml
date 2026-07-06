@@ -1,23 +1,47 @@
 id: software-development
-version: "1.0.0"
+version: "2.0.0"
 title: Software development
-description: Broad backend, frontend, platform, security, architecture, and code review specialists with MCP analysis tools and Qwen Coder models.
+description: Engineering specialists with pack-owned MCP sidecar, IDE capabilities, and Qwen 3.5 models.
 layout_profile: ide
 capabilities:
   - ide-v2
   - ide-v3-composer
   - git-rest
   - inline-completion
+  - sd-mcp-sidecar
+capability_defs:
+  sd-mcp-sidecar:
+    kind: mcp-sidecar
+    sidecar:
+      binary: assets/mcp/bin/sd-mcp-server
+    mcp_agents:
+      - backend
+      - devops
+      - database
+      - frontend
+      - security
+      - code-review
+      - architecture
+      - rust
+      - sre
+      - mobile
+      - data-ml
 agents:
   - type: backend
     name: BackendEngineer
     implementation: builtin/backend
+    compose:
+      tool_model: qwen3.5:9b
   - type: frontend
     name: FrontendEngineer
     implementation: builtin/frontend
+    compose:
+      tool_model: qwen3.5:9b
   - type: devops
     name: PlatformEngineer
     implementation: builtin/devops
+    compose:
+      tool_model: qwen3.5:9b
   - type: security
     name: SecurityReviewer
     implementation: builtin/security
@@ -33,16 +57,64 @@ agents:
   - type: architecture
     name: SoftwareArchitect
     implementation: builtin/architecture
+    compose:
+      tool_model: qwen3.5:9b
   - type: code-review
     name: CodeReviewer
     implementation: builtin/code-review
+    compose:
+      tool_model: qwen3.5:9b
   - type: database
     name: DatabaseSpecialist
     implementation: builtin/database
+    compose:
+      tool_model: qwen3.5:9b
+  - type: rust
+    name: RustExpert
+    implementation: builtin/rust
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - rust
+        - cargo
+        - wasm
+  - type: sre
+    name: SREObservabilityEngineer
+    implementation: builtin/sre
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - prometheus
+        - alert
+        - slo
+        - observability
+        - on-call
+        - trace
+  - type: mobile
+    name: MobileEngineer
+    implementation: builtin/mobile
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - react native
+        - ios
+        - android
+        - mobile
+  - type: data-ml
+    name: DataMLEngineer
+    implementation: builtin/data-ml
+    compose:
+      tool_model: qwen3.5:9b
+      consult_triggers:
+        - machine learning
+        - dataset
+        - notebook
+        - mlflow
+        - pipeline
 models_to_ensure:
-  - qwen2.5-coder:14b
+  - qwen3.5:27b
   - qwen3.5:9b
-ollama_model: qwen2.5-coder:14b
+ollama_model: qwen3.5:27b
 expert_presets:
   - slug: backend
     label: Backend
@@ -58,6 +130,14 @@ expert_presets:
     label: Code Review
   - slug: database
     label: Database
+  - slug: rust
+    label: Rust
+  - slug: sre
+    label: SRE / Observability
+  - slug: mobile
+    label: Mobile
+  - slug: data-ml
+    label: Data / ML
 mcp_agents:
   - backend
   - devops
@@ -66,3 +146,9 @@ mcp_agents:
   - security
   - code-review
   - architecture
+  - rust
+  - sre
+  - mobile
+  - data-ml
+assets:
+  workspace_guide: assets/WORKSPACE.md
