@@ -87,6 +87,7 @@ func TestApprovePlanWarnsOnMissingTaskPaths(t *testing.T) {
 	if !strings.Contains(out.Content, "auto-confirmed") {
 		t.Fatalf("expected auto-confirmed notice, got: %s", out.Content)
 	}
+	h.WaitCollabAsync()
 }
 
 func TestApprovePlan_dropsDependencyProseTasks(t *testing.T) {

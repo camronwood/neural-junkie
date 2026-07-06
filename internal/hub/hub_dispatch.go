@@ -944,6 +944,14 @@ func shortCollabID(collabID string) string {
 	return collabID[:8]
 }
 
+// WaitCollabAsync blocks until approve-plan background work finishes.
+func (h *Hub) WaitCollabAsync() {
+	if h == nil {
+		return
+	}
+	h.collabAsyncWG.Wait()
+}
+
 // ListCollaborationSnapshots returns collaboration snapshots suitable for UI
 // consumption. Data is deep-copied by the collaboration manager.
 func (h *Hub) RedispatchOpenCollaborationTasksAfterSessionRestore() {

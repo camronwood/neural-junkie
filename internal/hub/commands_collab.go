@@ -641,7 +641,9 @@ func (ch *CommandHandler) handleApprovePlan(ctx context.Context, msg *protocol.M
 	out.SetCollaborationID(collabID)
 
 	inheritMsg := msg
+	ch.hub.collabAsyncWG.Add(1)
 	go func() {
+		defer ch.hub.collabAsyncWG.Done()
 		ch.hub.persistCollaborationReviewAssets(collabID)
 		if !canDispatch {
 			return

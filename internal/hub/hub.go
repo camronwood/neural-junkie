@@ -84,6 +84,7 @@ type Hub struct {
 	collabWatchdogRedispatch       map[string]int
 	collabWatchdogAutoAckTried     map[string]bool
 	collabWatchdogPlanningHandoff  map[string]time.Time
+	collabAsyncWG                  sync.WaitGroup // approve-plan review assets + task dispatch
 
 	collabActionConfigMu sync.RWMutex
 	collabActionConfig   actions.Config
